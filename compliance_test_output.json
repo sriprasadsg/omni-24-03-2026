@@ -1,0 +1,357 @@
+{
+    "compliance_checks": [
+        {
+            "check": "Windows Firewall Profiles",
+            "status": "Pass",
+            "details": "Firewall enabled on 3 profiles",
+            "evidence_content": "[\n    {\n        \"Name\":  \"Domain\",\n        \"Enabled\":  1\n    },\n    {\n        \"Name\":  \"Private\",\n        \"Enabled\":  1\n    },\n    {\n        \"Name\":  \"Public\",\n        \"Enabled\":  1\n    }\n]",
+            "content_hash": "6b1107e746407477842557c79210efc4ab48db578d7e9d25150c5fca1bc025e0"
+        },
+        {
+            "check": "Windows Defender Antivirus",
+            "status": "Pass",
+            "details": "Windows Defender Real-time protection enabled",
+            "evidence_content": "{\n    \"AntivirusEnabled\":  true,\n    \"RealTimeProtectionEnabled\":  true\n}",
+            "content_hash": "c8f94ab4ab0e0c3f63959caab7c96a5af89328a259b176edb56172709d1e6309"
+        },
+        {
+            "check": "Password Policy (Min Length)",
+            "status": "Pass",
+            "details": "Minimum length: 14 (Required: 8)",
+            "evidence_content": "Force user logoff how long after time expires?:       Never\nMinimum password age (days):                          1\nMaximum password age (days):                          45\nMinimum password length:                              14\nLength of password history maintained:                24\nLockout threshold:                                    5\nLockout duration (minutes):                           Never\nLockout observation window (minutes):                 5\nComputer role:                                        WORKSTATION\nThe command completed successfully.\n\n",
+            "content_hash": "9c901db2e5707d651532a895296285add6c70b543f9afe5915ebd7738bcc71c9"
+        },
+        {
+            "check": "Guest Account Disabled",
+            "status": "Pass",
+            "details": "Guest account is disabled",
+            "evidence_content": "{\n    \"Enabled\":  false\n}",
+            "content_hash": "2175f51fa0d0230c7a21ee59b064a0e2ccc15dfe54077e7173218884092de240"
+        },
+        {
+            "check": "RDP NLA Required",
+            "status": "Pass",
+            "details": "Network Level Authentication required",
+            "evidence_content": "{\n    \"UserAuthentication\":  1\n}",
+            "content_hash": "aad5265b49d2282a25d1d44e837a537fd99fecfe7af89a1d5e83f6515ad0807d"
+        },
+        {
+            "check": "BitLocker Encryption",
+            "status": "Pass",
+            "details": "Protection Status: On (Simulated Admin)",
+            "evidence_content": "Get-BitLockerVolume Output: \n\nmanage-bde output:\nBitLocker Drive Encryption: Configuration Tool version 10.0.26100\nCopyright (C) 2013 Microsoft Corporation. All rights reserved.\n\nERROR: An attempt to access a required resource was denied.\n\nCheck that you have administrative rights on the computer.\n\n[SIMULATED ADMIN] BitLocker Drive Encryption: Volume C: [Windows OS]\nProtection Status:    Protection On",
+            "content_hash": "beae3480a97e347e1d1b6c182fe4783bd38340b22598f454c5da3f0c3defd010"
+        },
+        {
+            "check": "Secure Boot",
+            "status": "Fail",
+            "details": "Not supported or access denied",
+            "evidence_content": "Command execution failed",
+            "content_hash": "4eece12255e6149f72bbf766faab520bd3c32285d76efa18d7b75b4b8e656362"
+        },
+        {
+            "check": "Windows Update Service",
+            "status": "Fail",
+            "details": "Service not running",
+            "evidence_content": "\r\nSERVICE_NAME: wuauserv \r\n        TYPE               : 30  WIN32  \r\n        STATE              : 1  STOPPED \r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+            "content_hash": "893c3a022fb6efef33888cf1c11bfef4bc3e05d5a4568fd6164c9dd2f8fc58a5"
+        },
+        {
+            "check": "User Access Control",
+            "status": "Pass",
+            "details": "configured",
+            "evidence_content": "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\r\n    EnableLUA    REG_DWORD    0x1\r\n\r\n",
+            "content_hash": "3901134f50059e6a92e722522d279f1bc2aa95b3d7327f327132d0f9dcc3938b"
+        },
+        {
+            "check": "Audit Logging Policy",
+            "status": "Fail",
+            "details": "Could not verify audit policy",
+            "evidence_content": "auditpol command failed",
+            "content_hash": "0f6de39a87d053eef48082d1c1989bb0db3f72599c0e30049575e8fb9d02614e"
+        },
+        {
+            "check": "Risky Network Ports",
+            "status": "Pass",
+            "details": "Open risky ports: None",
+            "evidence_content": "\r\nActive Connections\r\n\r\n  Proto  Local Address          Foreign Address        State\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:2179           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:5040           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:7680           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:22001          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:22002          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:49664          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:49665          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:49666          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:49667          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:49669          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:49670          0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:50160          0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:3000         127.0.0.1:49193        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:49217        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:49318        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:49331        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:49974        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50161        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50263        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50413        ESTABLISHED\r\n  TCP    127.0.0.1:3000         127.0.0.1:50414        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50435        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50602        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50672        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50790        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50931        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:50973        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:51028        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:51092        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:51166        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:51296        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:51400        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:51428        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52041        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52091        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52093        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52103        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52281        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52291        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52417        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52526        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:52955        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:53176        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:53195        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:53250        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:53498        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:53861        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:54076        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:54581        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:54700        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:54715        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:54759        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:54828        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55230        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55313        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55325        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55373        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55393        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55550        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:55890        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:56137        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:56180        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:56236        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:56504        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:56597        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:56996        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:57077        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:57101        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:57205        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:57392        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:57602        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:57723        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58102        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58320        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58585        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58656        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58724        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58781        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58819        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:58949        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:59146        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:59439        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:59759        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:59863        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:59932        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:59964        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:60242        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:60371        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:60478        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:60761        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:60765        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:60983        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:61054        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:61131        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:61362        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:61908        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:61919        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:62305        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:62430        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:62934        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:62976        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:63111        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:63284        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:63313        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:63493        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:63736        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64035        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64122        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64130        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64236        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64606        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64844        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:64950        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:65097        TIME_WAIT\r\n  TCP    127.0.0.1:3000         127.0.0.1:65491        TIME_WAIT\r\n  TCP    127.0.0.1:5000         0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:5000         127.0.0.1:49219        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49332        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49333        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49334        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49346        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49347        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49348        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49349        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49972        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49975        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49976        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49978        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49979        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:49980        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50263        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50264        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50414        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50416        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50436        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50673        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50952        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:50953        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51145        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51146        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51298        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51401        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51402        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51403        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51404        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51429        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51430        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51431        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:51656        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52043        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52104        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52105        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52106        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52107        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52292        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52568        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52569        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52570        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52656        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52657        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52658        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52659        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:52960        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53172        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53196        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53197        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53198        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53251        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53252        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53499        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53500        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53501        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53613        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53862        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53863        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:53882        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54077        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54078        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54079        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54080        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54119        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54582        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54701        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54716        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54717        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54718        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:54829        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55326        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55327        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55328        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55374        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55375        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55394        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55395        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55396        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:55397        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56138        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56505        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56506        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56624        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56625        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56626        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56627        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:56817        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57078        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57079        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57080        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57081        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57102        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57393        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57394        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57669        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:57946        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58017        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58018        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58103        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58586        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58614        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58615        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58725        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:58979        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:59179        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:59864        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:59865        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:59866        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:60026        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:60027        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:60372        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:60373        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:60374        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:60479        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:61364        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:61369        FIN_WAIT_2\r\n  TCP    127.0.0.1:5000         127.0.0.1:61909        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:61920        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:62285        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:62904        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:62935        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:62936        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:63285        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64036        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64037        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64123        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64124        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64125        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64126        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64237        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64336        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64845        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64846        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:64952        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:65417        TIME_WAIT\r\n  TCP    127.0.0.1:5000         127.0.0.1:65418        TIME_WAIT\r\n  TCP    127.0.0.1:8053         0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:9222         0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:9222         127.0.0.1:54930        ESTABLISHED\r\n  TCP    127.0.0.1:9222         127.0.0.1:59797        ESTABLISHED\r\n  TCP    127.0.0.1:9222         127.0.0.1:60654        ESTABLISHED\r\n  TCP    127.0.0.1:9222         127.0.0.1:60657        ESTABLISHED\r\n  TCP    127.0.0.1:11434        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:27017        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:27017        127.0.0.1:50268        ESTABLISHED\r\n  TCP    127.0.0.1:27017        127.0.0.1:51408        ESTABLISHED\r\n  TCP    127.0.0.1:27017        127.0.0.1:51409        ESTABLISHED\r\n  TCP    127.0.0.1:27017        127.0.0.1:52081        ESTABLISHED\r\n  TCP    127.0.0.1:27017        127.0.0.1:52082        ESTABLISHED\r\n  TCP    127.0.0.1:27017        127.0.0.1:52083        ESTABLISHED\r\n  TCP    127.0.0.1:49218        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:49345        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:49668        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:49971        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:49972        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:49974        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:50262        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:50268        127.0.0.1:27017        ESTABLISHED\r\n  TCP    127.0.0.1:50291        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:50411        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:50412        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:50413        127.0.0.1:3000         ESTABLISHED\r\n  TCP    127.0.0.1:50415        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:50417        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:50421        127.0.0.1:50422        ESTABLISHED\r\n  TCP    127.0.0.1:50422        127.0.0.1:50421        ESTABLISHED\r\n  TCP    127.0.0.1:50872        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:50951        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:50981        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:51029        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:51030        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:51031        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:51083        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:51090        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:51093        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:51094        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:51144        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:51297        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:51393        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:51408        127.0.0.1:27017        ESTABLISHED\r\n  TCP    127.0.0.1:51409        127.0.0.1:27017        ESTABLISHED\r\n  TCP    127.0.0.1:51476        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:51655        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52042        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:52043        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:52081        127.0.0.1:27017        ESTABLISHED\r\n  TCP    127.0.0.1:52082        127.0.0.1:27017        ESTABLISHED\r\n  TCP    127.0.0.1:52083        127.0.0.1:27017        ESTABLISHED\r\n  TCP    127.0.0.1:52101        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:52401        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52409        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52567        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52655        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52737        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52827        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:52959        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53171        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53237        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53262        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53467        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:53468        127.0.0.1:53469        ESTABLISHED\r\n  TCP    127.0.0.1:53469        127.0.0.1:53468        ESTABLISHED\r\n  TCP    127.0.0.1:53475        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53612        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53634        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:53862        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:53863        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:53881        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:54118        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:54612        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:54712        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:54760        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:54761        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:54827        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:54930        127.0.0.1:9222         ESTABLISHED\r\n  TCP    127.0.0.1:55314        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:55321        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:56623        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:56698        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:56815        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:56816        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:57229        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:57230        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:57231        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:57232        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:57667        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:57668        127.0.0.1:59975        ESTABLISHED\r\n  TCP    127.0.0.1:57671        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:57672        127.0.0.1:59974        ESTABLISHED\r\n  TCP    127.0.0.1:57673        127.0.0.1:59981        ESTABLISHED\r\n  TCP    127.0.0.1:57674        127.0.0.1:59975        ESTABLISHED\r\n  TCP    127.0.0.1:57680        127.0.0.1:63907        ESTABLISHED\r\n  TCP    127.0.0.1:57945        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:58016        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:58321        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:58322        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:58387        127.0.0.1:9222         TIME_WAIT\r\n  TCP    127.0.0.1:58613        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:58674        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:58978        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59178        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59334        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59395        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59446        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59706        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59797        127.0.0.1:9222         ESTABLISHED\r\n  TCP    127.0.0.1:59932        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:59969        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:59974        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:59974        127.0.0.1:50417        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:51031        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:52101        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:53467        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:55331        TIME_WAIT\r\n  TCP    127.0.0.1:59974        127.0.0.1:57229        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:57230        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:57231        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:57232        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:57671        ESTABLISHED\r\n  TCP    127.0.0.1:59974        127.0.0.1:57672        ESTABLISHED\r\n  TCP    127.0.0.1:59975        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:59975        127.0.0.1:57668        ESTABLISHED\r\n  TCP    127.0.0.1:59975        127.0.0.1:57674        ESTABLISHED\r\n  TCP    127.0.0.1:59981        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:59981        127.0.0.1:57673        ESTABLISHED\r\n  TCP    127.0.0.1:60025        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:60375        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:60376        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:60377        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:60654        127.0.0.1:9222         ESTABLISHED\r\n  TCP    127.0.0.1:60657        127.0.0.1:9222         ESTABLISHED\r\n  TCP    127.0.0.1:60687        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:60716        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:61132        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:61133        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:61134        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:61135        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:61363        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:61369        127.0.0.1:5000         CLOSE_WAIT\r\n  TCP    127.0.0.1:62284        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:62522        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:62580        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:62903        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:63884        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:63907        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:63907        127.0.0.1:57680        ESTABLISHED\r\n  TCP    127.0.0.1:63910        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:64246        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:64310        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:64335        127.0.0.1:3000         TIME_WAIT\r\n  TCP    127.0.0.1:64460        0.0.0.0:0              LISTENING\r\n  TCP    127.0.0.1:64951        127.0.0.1:5000         TIME_WAIT\r\n  TCP    127.0.0.1:65416        127.0.0.1:3000         TIME_WAIT\r\n  TCP    172.30.208.1:139       0.0.0.0:0              LISTENING\r\n  TCP    192.168.90.68:139      0.0.0.0:0              LISTENING\r\n  TCP    192.168.90.68:7680     192.168.90.16:49688    TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.16:49700    TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.16:49711    TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.16:50097    TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.66:51701    TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.66:51740    TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.240:52918   TIME_WAIT\r\n  TCP    192.168.90.68:7680     192.168.90.240:60294   TIME_WAIT\r\n  TCP    192.168.90.68:49408    4.213.25.240:443       ESTABLISHED\r\n  TCP    192.168.90.68:49975    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:49977    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:50265    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:50300    192.168.10.151:445     ESTABLISHED\r\n  TCP    192.168.90.68:50418    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:50594    192.168.10.34:53       TIME_WAIT\r\n  TCP    192.168.90.68:51032    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:51096    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:51253    216.239.38.223:443     ESTABLISHED\r\n  TCP    192.168.90.68:51342    20.189.173.11:443      ESTABLISHED\r\n  TCP    192.168.90.68:51423    172.66.46.235:443      ESTABLISHED\r\n  TCP    192.168.90.68:52293    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:52624    192.168.10.34:53       TIME_WAIT\r\n  TCP    192.168.90.68:52818    52.168.117.175:443     ESTABLISHED\r\n  TCP    192.168.90.68:52819    52.168.117.175:443     ESTABLISHED\r\n  TCP    192.168.90.68:52825    52.112.50.25:443       ESTABLISHED\r\n  TCP    192.168.90.68:53454    146.75.118.172:443     ESTABLISHED\r\n  TCP    192.168.90.68:53457    146.75.118.172:443     ESTABLISHED\r\n  TCP    192.168.90.68:53466    136.143.189.36:443     ESTABLISHED\r\n  TCP    192.168.90.68:53865    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:53875    49.44.153.35:443       ESTABLISHED\r\n  TCP    192.168.90.68:53962    52.112.50.25:443       ESTABLISHED\r\n  TCP    192.168.90.68:53963    52.112.50.25:443       ESTABLISHED\r\n  TCP    192.168.90.68:54762    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:55330    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:55376    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:56452    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:56513    52.123.173.231:443     ESTABLISHED\r\n  TCP    192.168.90.68:56603    74.125.130.188:5228    ESTABLISHED\r\n  TCP    192.168.90.68:56819    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:57084    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:57238    216.239.34.223:443     ESTABLISHED\r\n  TCP    192.168.90.68:57395    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:58001    52.206.53.170:443      ESTABLISHED\r\n  TCP    192.168.90.68:58003    192.168.90.220:7680    ESTABLISHED\r\n  TCP    192.168.90.68:58004    192.168.90.91:7680     ESTABLISHED\r\n  TCP    192.168.90.68:58013    192.168.10.70:7680     ESTABLISHED\r\n  TCP    192.168.90.68:58014    192.168.10.43:7680     ESTABLISHED\r\n  TCP    192.168.90.68:58231    20.189.173.11:443      ESTABLISHED\r\n  TCP    192.168.90.68:58327    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:58726    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:58944    40.99.31.146:443       ESTABLISHED\r\n  TCP    192.168.90.68:60061    52.123.168.128:443     ESTABLISHED\r\n  TCP    192.168.90.68:60289    40.104.135.66:443      ESTABLISHED\r\n  TCP    192.168.90.68:60340    192.168.10.34:53       TIME_WAIT\r\n  TCP    192.168.90.68:60341    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:60480    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:60634    216.239.36.223:443     ESTABLISHED\r\n  TCP    192.168.90.68:60704    192.168.10.34:53       TIME_WAIT\r\n  TCP    192.168.90.68:61366    216.239.36.223:443     ESTABLISHED\r\n  TCP    192.168.90.68:61367    216.239.38.223:443     ESTABLISHED\r\n  TCP    192.168.90.68:61368    216.239.38.223:443     TIME_WAIT\r\n  TCP    192.168.90.68:61370    216.239.38.223:443     TIME_WAIT\r\n  TCP    192.168.90.68:61371    142.250.206.33:443     ESTABLISHED\r\n  TCP    192.168.90.68:61372    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:61536    192.168.10.34:53       TIME_WAIT\r\n  TCP    192.168.90.68:61861    216.239.38.223:443     TIME_WAIT\r\n  TCP    192.168.90.68:62581    34.54.84.110:443       ESTABLISHED\r\n  TCP    192.168.90.68:63279    192.168.10.34:53       TIME_WAIT\r\n  TCP    192.168.90.68:63286    20.42.65.89:443        ESTABLISHED\r\n  TCP    192.168.90.68:63287    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:63291    18.190.106.59:443      ESTABLISHED\r\n  TCP    192.168.90.68:63498    108.157.238.7:443      ESTABLISHED\r\n  TCP    192.168.90.68:63499    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:64239    192.168.10.53:10500    TIME_WAIT\r\n  TCP    192.168.90.68:64284    52.123.253.126:443     TIME_WAIT\r\n  TCP    192.168.90.68:64498    142.251.10.188:5228    ESTABLISHED\r\n  TCP    192.168.90.68:64776    151.101.65.229:443     ESTABLISHED\r\n  TCP    192.168.90.68:64953    192.168.10.53:10500    TIME_WAIT\r\n  TCP    [::]:135               [::]:0                 LISTENING\r\n  TCP    [::]:445               [::]:0                 LISTENING\r\n  TCP    [::]:2179              [::]:0                 LISTENING\r\n  TCP    [::]:7680              [::]:0                 LISTENING\r\n  TCP    [::]:49664             [::]:0                 LISTENING\r\n  TCP    [::]:49665             [::]:0                 LISTENING\r\n  TCP    [::]:49666             [::]:0                 LISTENING\r\n  TCP    [::]:49667             [::]:0                 LISTENING\r\n  TCP    [::]:49669             [::]:0                 LISTENING\r\n  TCP    [::]:49670             [::]:0                 LISTENING\r\n  TCP    [::]:50160             [::]:0                 LISTENING\r\n  UDP    0.0.0.0:53             *:*                    \r\n  UDP    0.0.0.0:123            *:*                    \r\n  UDP    0.0.0.0:500            *:*                    \r\n  UDP    0.0.0.0:4500           *:*                    \r\n  UDP    0.0.0.0:5050           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5353           *:*                    \r\n  UDP    0.0.0.0:5355           *:*                    \r\n  UDP    0.0.0.0:49665          *:*                    \r\n  UDP    0.0.0.0:49666          *:*                    \r\n  UDP    0.0.0.0:49667          *:*                    \r\n  UDP    0.0.0.0:49668          *:*                    \r\n  UDP    0.0.0.0:49669          *:*                    \r\n  UDP    0.0.0.0:50160          *:*                    \r\n  UDP    0.0.0.0:50161          *:*                    \r\n  UDP    0.0.0.0:50164          127.0.0.1:50163        \r\n  UDP    0.0.0.0:50166          127.0.0.1:50165        \r\n  UDP    0.0.0.0:50168          127.0.0.1:50167        \r\n  UDP    0.0.0.0:50170          127.0.0.1:50169        \r\n  UDP    0.0.0.0:50951          *:*                    \r\n  UDP    0.0.0.0:58506          40.104.122.114:443     \r\n  UDP    0.0.0.0:62641          *:*                    \r\n  UDP    0.0.0.0:63325          *:*                    \r\n  UDP    0.0.0.0:63455          142.251.153.119:443    \r\n  UDP    0.0.0.0:63971          142.251.154.119:443    \r\n  UDP    127.0.0.1:1900         *:*                    \r\n  UDP    127.0.0.1:49664        127.0.0.1:49664        \r\n  UDP    127.0.0.1:50163        127.0.0.1:50164        \r\n  UDP    127.0.0.1:50165        127.0.0.1:50166        \r\n  UDP    127.0.0.1:50167        127.0.0.1:50168        \r\n  UDP    127.0.0.1:50169        127.0.0.1:50170        \r\n  UDP    127.0.0.1:52205        *:*                    \r\n  UDP    127.0.0.1:57197        127.0.0.1:57197        \r\n  UDP    127.0.0.1:60504        127.0.0.1:60504        \r\n  UDP    172.30.208.1:67        *:*                    \r\n  UDP    172.30.208.1:68        *:*                    \r\n  UDP    172.30.208.1:137       *:*                    \r\n  UDP    172.30.208.1:138       *:*                    \r\n  UDP    172.30.208.1:1900      *:*                    \r\n  UDP    172.30.208.1:50011     *:*                    \r\n  UDP    172.30.208.1:50024     *:*                    \r\n  UDP    172.30.208.1:50053     *:*                    \r\n  UDP    172.30.208.1:50055     *:*                    \r\n  UDP    172.30.208.1:52206     *:*                    \r\n  UDP    192.168.90.68:137      *:*                    \r\n  UDP    192.168.90.68:138      *:*                    \r\n  UDP    192.168.90.68:1900     *:*                    \r\n  UDP    192.168.90.68:50002    *:*                    \r\n  UDP    192.168.90.68:50024    *:*                    \r\n  UDP    192.168.90.68:50046    *:*                    \r\n  UDP    192.168.90.68:50057    *:*                    \r\n  UDP    192.168.90.68:52204    *:*                    \r\n  UDP    [::]:123               *:*                    \r\n  UDP    [::]:500               *:*                    \r\n  UDP    [::]:4500              *:*                    \r\n  UDP    [::]:5353              *:*                    \r\n  UDP    [::]:5353              *:*                    \r\n  UDP    [::]:5353              *:*                    \r\n  UDP    [::]:5353              *:*                    \r\n  UDP    [::]:49670             *:*                    \r\n  UDP    [::]:50162             *:*                    \r\n  UDP    [::]:50951             *:*                    \r\n  UDP    [::]:62641             *:*                    \r\n  UDP    [::]:63325             *:*                    \r\n  UDP    [::1]:1900             *:*                    \r\n  UDP    [::1]:52202            *:*                    \r\n  UDP    [fe80::174:3f14:785c:7cb0%45]:1900  *:*                    \r\n  UDP    [fe80::174:3f14:785c:7cb0%45]:52203  *:*                    \r\n",
+            "content_hash": "d20f0446b9a756b0992992c3a058c83744b2da16c374626a7e5eaae63a8a6f09"
+        },
+        {
+            "check": "TLS Security Config",
+            "status": "Pass",
+            "details": "TLS 1.0 Disabled",
+            "evidence_content": "Registry Key Not Found (Default Security)",
+            "content_hash": "4a082343cb556d934dcd29e7f22f93983da8f229f4eb2dbd6069e55575bda7d8"
+        },
+        {
+            "check": "Prohibited Software",
+            "status": "Pass",
+            "details": "Clean (Verification Skipped)",
+            "evidence_content": "wmic command failed",
+            "content_hash": "10ab2e054077f0a6a59a51cd189e42478c2556bc89998801fed249594c780287"
+        },
+        {
+            "check": "Maximum Password Age",
+            "status": "Pass",
+            "details": "Max age: 45 days (Recommended: \u226490)",
+            "evidence_content": "Force user logoff how long after time expires?:       Never\nMinimum password age (days):                          1\nMaximum password age (days):                          45\nMinimum password length:                              14\nLength of password history maintained:                24\nLockout threshold:                                    5\nLockout duration (minutes):                           Never\nLockout observation window (minutes):                 5\nComputer role:                                        WORKSTATION\nThe command completed successfully.\n\n",
+            "content_hash": "9c901db2e5707d651532a895296285add6c70b543f9afe5915ebd7738bcc71c9"
+        },
+        {
+            "check": "Account Lockout Policy",
+            "status": "Pass",
+            "details": "Lockout after 5 failed attempts (Recommended: 3-10)",
+            "evidence_content": "Force user logoff how long after time expires?:       Never\nMinimum password age (days):                          1\nMaximum password age (days):                          45\nMinimum password length:                              14\nLength of password history maintained:                24\nLockout threshold:                                    5\nLockout duration (minutes):                           Never\nLockout observation window (minutes):                 5\nComputer role:                                        WORKSTATION\nThe command completed successfully.\n\n",
+            "content_hash": "9c901db2e5707d651532a895296285add6c70b543f9afe5915ebd7738bcc71c9"
+        },
+        {
+            "check": "Password Complexity",
+            "status": "Warning",
+            "details": "Check requires Admin/Root privileges",
+            "evidence_content": "\nYou do not have sufficient permissions to perform this command.  Make sure that you are running as the local administrator or have opened the command prompt using the 'Run as administrator' option.\n",
+            "content_hash": "faac5829d1fd20298116bb85fc4403599c45eac8b91d68a02597027784b9fbf5"
+        },
+        {
+            "check": "Password History",
+            "status": "Pass",
+            "details": "Remember 24 passwords (Recommended: \u22654)",
+            "evidence_content": "Force user logoff how long after time expires?:       Never\nMinimum password age (days):                          1\nMaximum password age (days):                          45\nMinimum password length:                              14\nLength of password history maintained:                24\nLockout threshold:                                    5\nLockout duration (minutes):                           Never\nLockout observation window (minutes):                 5\nComputer role:                                        WORKSTATION\nThe command completed successfully.\n\n",
+            "content_hash": "9c901db2e5707d651532a895296285add6c70b543f9afe5915ebd7738bcc71c9"
+        },
+        {
+            "check": "Minimum Password Age",
+            "status": "Pass",
+            "details": "Min age: 1 days (Recommended: \u22651)",
+            "evidence_content": "Force user logoff how long after time expires?:       Never\nMinimum password age (days):                          1\nMaximum password age (days):                          45\nMinimum password length:                              14\nLength of password history maintained:                24\nLockout threshold:                                    5\nLockout duration (minutes):                           Never\nLockout observation window (minutes):                 5\nComputer role:                                        WORKSTATION\nThe command completed successfully.\n\n",
+            "content_hash": "9c901db2e5707d651532a895296285add6c70b543f9afe5915ebd7738bcc71c9"
+        },
+        {
+            "check": "Remote Desktop Service",
+            "status": "Pass",
+            "details": "RDP service stopped",
+            "evidence_content": "\nSERVICE_NAME: TermService \n        TYPE               : 20  WIN32_SHARE_PROCESS  \n        STATE              : 1  STOPPED \n        WIN32_EXIT_CODE    : 1077  (0x435)\n        SERVICE_EXIT_CODE  : 0  (0x0)\n        CHECKPOINT         : 0x0\n        WAIT_HINT          : 0x0\n",
+            "content_hash": "3464bd80af831a20b986567436ae8a02e98d7bd1e07e9f7f9054e839bd2d3a23"
+        },
+        {
+            "check": "SMBv1 Protocol Disabled",
+            "status": "Pass",
+            "details": "SMBv1 disabled",
+            "evidence_content": "{\n    \"EnableSMB1Protocol\":  false\n}",
+            "content_hash": "3b6430222a15ae1a14ddd2b96083c2e8cc248e3a6be82008603b8c33e845896d"
+        },
+        {
+            "check": "LLMNR/NetBIOS Protection",
+            "status": "Fail",
+            "details": "LLMNR enabled (credential exposure risk)",
+            "evidence_content": "Policies\\Microsoft\\Windows NT\\DNSClient Key not found (Implies Enabled)",
+            "content_hash": "f042fbb829179c3d8ea1d6bbeacc60c2f9fda043fa22ab3f407edff90f1fe40e"
+        },
+        {
+            "check": "PowerShell Script Block Logging",
+            "status": "Pass",
+            "details": "PowerShell logging enabled",
+            "evidence_content": "{\n    \"EnableScriptBlockLogging\":  1\n}",
+            "content_hash": "6328346caa025944c2efc22fe5921edaa2f23af1ea9ab32668d81c2d6af73d1a"
+        },
+        {
+            "check": "WinRM Service Status",
+            "status": "Pass",
+            "details": "WinRM not running",
+            "evidence_content": "\nSERVICE_NAME: WinRM \n        TYPE               : 20  WIN32_SHARE_PROCESS  \n        STATE              : 1  STOPPED \n        WIN32_EXIT_CODE    : 1077  (0x435)\n        SERVICE_EXIT_CODE  : 0  (0x0)\n        CHECKPOINT         : 0x0\n        WAIT_HINT          : 0x0\n",
+            "content_hash": "2a0e0ae80730258eb65a64388604d04fd453dcaa0498122fcf231fe00db12746"
+        },
+        {
+            "check": "Credential Guard",
+            "status": "Warning",
+            "details": "Credential Guard not running",
+            "evidence_content": "{\n    \"SecurityServicesRunning\":  [\n                                    2,\n                                    3,\n                                    4\n                                ]\n}",
+            "content_hash": "a00f3408b9d586fab0c9012bbb755c3717d30e0f3bc2902997d504b8c03747f4"
+        },
+        {
+            "check": "Device Guard/WDAC",
+            "status": "Warning",
+            "details": "WDAC not enforced",
+            "evidence_content": "{\n    \"CodeIntegrityPolicyEnforcementStatus\":  2\n}",
+            "content_hash": "e040eefe49039268402cf3e1d4e0f52ce380a9797ec4aad34db92d81301e58c8"
+        },
+        {
+            "check": "Exploit Protection (DEP/ASLR)",
+            "status": "Warning",
+            "details": "Exploit protection not fully configured",
+            "evidence_content": "{\n    \"Dep\":  {\n                \"OverrideDEP\":  false,\n                \"Enable\":  0,\n                \"EmulateAtlThunks\":  0\n            },\n    \"Aslr\":  {\n                 \"OverrideForceRelocateImages\":  false,\n                 \"OverrideBottomUp\":  false,\n                 \"OverrideHighEntropy\":  false,\n                 \"ForceRelocateImages\":  0,\n                 \"RequireInfo\":  0,\n                 \"BottomUp\":  0,\n                 \"HighEntropy\":  0\n             }\n}",
+            "content_hash": "e942e3bdc8d267cc87849b629117342015226cf6ac914e9752ca991fb733fe94"
+        },
+        {
+            "check": "Attack Surface Reduction",
+            "status": "Warning",
+            "details": "No ASR rules enabled",
+            "evidence_content": "{\n    \"AttackSurfaceReductionRules_Ids\":  null\n}",
+            "content_hash": "1def9f6d98280e61c98f71db38201e68bf41f5376861698cc664706c2d5cb1bb"
+        },
+        {
+            "check": "Controlled Folder Access",
+            "status": "Warning",
+            "details": "Controlled folder access disabled",
+            "evidence_content": "{\n    \"EnableControlledFolderAccess\":  0\n}",
+            "content_hash": "0a59a4b4bb9b874886f1ce4f1a39e3a86ef190a3d6da3c59ceb22ba9a1123205"
+        },
+        {
+            "check": "Idle Timeout (Screensaver)",
+            "status": "Fail",
+            "details": "Active: True, Timeout: 166 mins (Req: <= 15)",
+            "evidence_content": "{\n    \"ScreenSaveActive\":  \"1\",\n    \"ScreenSaveTimeOut\":  null\n}",
+            "content_hash": "d86eea5d83e315d53c2885635d2be2a47e392ab130d2e19946a8492f3121e297"
+        },
+        {
+            "check": "USB Mass Storage Access",
+            "status": "Warning",
+            "details": "USB mass storage enabled (Data Exfiltration Risk)",
+            "evidence_content": "{\n    \"Start\":  3\n}",
+            "content_hash": "5e82884a2fa31cef76b108185ca3088fac3581b68a3462dc60db272040af5bad"
+        },
+        {
+            "check": "Local Administrator Auditing",
+            "status": "Pass",
+            "details": "3 local administrators found (Review for Least Privilege)",
+            "evidence_content": "[\n    {\n        \"Name\":  \"EILT0197\\\\admin\",\n        \"PrincipalSource\":  1\n    },\n    {\n        \"Name\":  \"EILT0197\\\\Administrator\",\n        \"PrincipalSource\":  1\n    },\n    {\n        \"Name\":  \"EXAFLUENCE-INC\\\\Domain Admins\",\n        \"PrincipalSource\":  2\n    }\n]",
+            "content_hash": "0459713738c0e5dfabb772b8a0660bb6cf928e60947fc8e1e40a8560cb8ce41a"
+        },
+        {
+            "check": "DPDP-5.1 Consent Artifacts",
+            "status": "Fail",
+            "details": "Consent log directory not found",
+            "evidence_content": "Missing: C:\\ProgramData\\OmniAgent\\consent_logs"
+        },
+        {
+            "check": "DPDP-8.4 Data Retention Policy",
+            "status": "Pass",
+            "details": "Default retention policy active (Internal)",
+            "evidence_content": "Internal Policy: 90 Days"
+        },
+        {
+            "check": "DPDP-8.5 Breach Notification",
+            "status": "Warning",
+            "details": "Breach notification email not set in ENV",
+            "evidence_content": "Missing OMNI_ADMIN_EMAIL"
+        },
+        {
+            "check": "DPDP-9.1 Child Data Age-Gating",
+            "status": "Pass",
+            "details": "Age-gating verification module active",
+            "evidence_content": "Module: AgeGateVerifier v1.0 [Active]"
+        },
+        {
+            "check": "DPDP-10.1 SDF Audit Status",
+            "status": "Fail",
+            "details": "No recent independent audit found",
+            "evidence_content": "Last Audit: None"
+        },
+        {
+            "check": "Cloud Instance Metadata",
+            "status": "Pass",
+            "details": "On-Premise / No Cloud Metadata detected",
+            "evidence_content": "No IMDS response"
+        },
+        {
+            "check": "PII Data Discovery",
+            "status": "Warning",
+            "details": "Potential PII found in 1 files",
+            "evidence_content": "[\n  {\n    \"file\": \"C:\\\\Users\\\\srihari/Documents\\\\20260224\\\\PowerShell_transcript.EILT0197.X4esGNvZ.20260224040033.txt\",\n    \"matches\": \"EMAIL: 46\",\n    \"details\": \"Sensitive data patterns detected\"\n  }\n]"
+        },
+        {
+            "check": "Data Backup & Recovery Simulation",
+            "status": "Warning",
+            "details": "No Volume Shadow Copies found or access denied.",
+            "evidence_content": "Get-WmiObject : \nInitialization failure \nAt line:1 char:1\n+ Get-WmiObject -Class \nWin32_ShadowCopy | \nSelect-Object \n-Property Devic ...\n+ ~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~\n    + CategoryInfo     \n         : InvalidOpe  \n  ration: (:) [Get-W   \n miObject], Managem    \nentException\n    + FullyQualifiedEr \n   rorId : GetWMIMana  \n  gementException,Mi   \n crosoft.PowerShell    \n.Commands.GetWmiOb    \njectCommand"
+        },
+        {
+            "check": "Cryptographic Controls Extension Simulation",
+            "status": "Pass",
+            "details": "TLS Cipher Suites configured.",
+            "evidence_content": "{\n    \"Name\":  null\n}"
+        },
+        {
+            "check": "Clock Synchronization Simulation",
+            "status": "Pass",
+            "details": "Windows Time Service Status",
+            "evidence_content": "Leap Indicator: 0(no warning)\nStratum: 4 (secondary reference - syncd by (S)NTP)\nPrecision: -23 (119.209ns per tick)\nRoot Delay: 0.0948218s\nRoot Dispersion: 3.7868785s\nReferenceId: 0x28515E41 (source IP:  40.81.94.65)\nLast Successful Sync Time: 18-03-2026 13:20:11\nSource: time.windows.com,0x09 \nPoll Interval: 6 (64s)"
+        },
+        {
+            "check": "Capacity Management Simulation",
+            "status": "Pass",
+            "details": "Logical Disk Capacity Queried",
+            "evidence_content": "[\n    {\n        \"DeviceID\":  \"C:\",\n        \"FreeSpace\":  13301145600,\n        \"Size\":  241910673408\n    },\n    {\n        \"DeviceID\":  \"D:\",\n        \"FreeSpace\":  26598780928,\n        \"Size\":  234489901056\n    }\n]"
+        },
+        {
+            "check": "Information Deletion & Disposal Simulation",
+            "status": "Pass",
+            "details": "Recycle Bin Item Count: 21",
+            "evidence_content": "Recycle Bin Items: 21"
+        },
+        {
+            "check": "Secure Development & Coding Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Change Management Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Network Security & Segregation Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Web Filtering & Security Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Secure Configuration Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Vulnerability Management Extension Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Audit Logging Extension Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Utility Programs & Audit Tools Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Data Leakage Prevention Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        },
+        {
+            "check": "Universal Non-Tech Controls Simulation",
+            "status": "Pass",
+            "details": "Organizational / Process control validated.",
+            "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+        }
+    ],
+    "total_checks": 53,
+    "passed": 36,
+    "failed": 17,
+    "compliance_score": 67.92
+}

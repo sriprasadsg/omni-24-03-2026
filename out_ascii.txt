@@ -1,0 +1,15 @@
+--- Logging in ---
+
+--- Starting Demo (Keyword: 'overview') ---
+Input: 'give me a project overview'
+Output: Certainly! This platform is a next-gen security operations hub. The Enterprise Omni-Agent AI Platform is a comprehensive security and management system. It's designed to act as your digital SecOps assistant. Should I continue with the Agent Management overview? [NAVIGATE:dashboard]
+
+--- Interrupting ---
+Input: 'What is an agent?'
+Output: I am currently operating in limited mode, but I am here to assist with your security operations. [NAVIGATE:home] Does that answer satisfy you? If so, should we continue the project demo?
+
+--- Resuming ---
+Input: 'Yes, I am satisfied with that. Continue.'
+Output: 1. **Agent Management**: We provide real-time telemetry, remote updates, and self-healing for edge devices. Ready to hear about the SecOps Hub? [NAVIGATE:agents]
+
+SUCCESS: Demo resumed to Phase 1 (Agent Management).

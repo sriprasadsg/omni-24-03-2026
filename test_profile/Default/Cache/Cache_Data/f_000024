@@ -1,0 +1,296 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/DistributedTracingDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import { GitMergeIcon, ClockIcon, AlertTriangleIcon } from "/components/icons.tsx";
+export const DistributedTracingDashboard = ({ traces, serviceMap }) => {
+  if (!serviceMap) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto text-center p-8", children: /* @__PURE__ */ jsxDEV("p", { className: "text-gray-500 dark:text-gray-400", children: "Loading tracing data..." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+      lineNumber: 15,
+      columnNumber: 17
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+      lineNumber: 14,
+      columnNumber: 7
+    }, this);
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto", children: [
+    /* @__PURE__ */ jsxDEV("h2", { className: "text-2xl font-semibold text-gray-800 dark:text-white mb-2", children: "Distributed Tracing" }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+      lineNumber: 22,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 mb-6", children: "Visualize request flows and identify performance bottlenecks in your microservices architecture." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+      lineNumber: 23,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold flex items-center", children: [
+          /* @__PURE__ */ jsxDEV(GitMergeIcon, { className: "mr-3 text-primary-500" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 30,
+            columnNumber: 28
+          }, this),
+          "Live Service Map"
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 29,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 28,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "p-6 h-96 relative", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "absolute top-1/2 left-12 w-32 h-20 bg-blue-100 dark:bg-blue-900/50 rounded-lg p-2 text-center text-xs border border-blue-300 dark:border-blue-700", children: [
+            /* @__PURE__ */ jsxDEV("strong", { children: serviceMap.nodes[0].id }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 37,
+              columnNumber: 29
+            }, this),
+            /* @__PURE__ */ jsxDEV("br", {}, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 37,
+              columnNumber: 70
+            }, this),
+            serviceMap.nodes[0].requestCount,
+            " reqs",
+            /* @__PURE__ */ jsxDEV("br", {}, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 37,
+              columnNumber: 115
+            }, this),
+            serviceMap.nodes[0].avgLatency,
+            "ms avg"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 36,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-20 bg-orange-100 dark:bg-orange-900/50 rounded-lg p-2 text-center text-xs border border-orange-300 dark:border-orange-700", children: [
+            /* @__PURE__ */ jsxDEV("strong", { children: serviceMap.nodes[1].id }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 40,
+              columnNumber: 30
+            }, this),
+            /* @__PURE__ */ jsxDEV("br", {}, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 40,
+              columnNumber: 71
+            }, this),
+            serviceMap.nodes[1].requestCount,
+            " reqs",
+            /* @__PURE__ */ jsxDEV("br", {}, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 40,
+              columnNumber: 116
+            }, this),
+            serviceMap.nodes[1].avgLatency,
+            "ms avg"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 39,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "absolute top-1/2 right-12 -translate-y-full w-32 h-20 bg-green-100 dark:bg-green-900/50 rounded-lg p-2 text-center text-xs border border-green-300 dark:border-green-700", children: [
+            /* @__PURE__ */ jsxDEV("strong", { children: serviceMap.nodes[2].id }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 43,
+              columnNumber: 30
+            }, this),
+            /* @__PURE__ */ jsxDEV("br", {}, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 43,
+              columnNumber: 71
+            }, this),
+            serviceMap.nodes[2].requestCount,
+            " reqs",
+            /* @__PURE__ */ jsxDEV("br", {}, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 43,
+              columnNumber: 116
+            }, this),
+            serviceMap.nodes[2].avgLatency,
+            "ms avg"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 42,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("svg", { className: "absolute inset-0 w-full h-full", children: [
+            /* @__PURE__ */ jsxDEV("line", { x1: "180", y1: "192", x2: "270", y2: "192", stroke: "currentColor", className: "text-gray-300 dark:text-gray-600", strokeWidth: "2" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 47,
+              columnNumber: 29
+            }, this),
+            /* @__PURE__ */ jsxDEV("line", { x1: "395", y1: "192", x2: "480", y2: "100", stroke: "currentColor", className: "text-gray-300 dark:text-gray-600", strokeWidth: "2" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 48,
+              columnNumber: 30
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 46,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 34,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+        lineNumber: 27,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold", children: "Trace Explorer" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 56,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 55,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "w-full text-sm text-left text-gray-500 dark:text-gray-400", children: [
+          /* @__PURE__ */ jsxDEV("thead", { className: "text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+            /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3", children: "Root Span" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 62,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3", children: "Duration" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 63,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3", children: "Services" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 64,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3", children: "Errors" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 65,
+              columnNumber: 37
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 61,
+            columnNumber: 33
+          }, this) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 60,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("tbody", { children: traces.map(
+            (trace) => /* @__PURE__ */ jsxDEV("tr", { className: "border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer", children: [
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 font-mono text-xs text-gray-800 dark:text-gray-200", children: trace.rootSpan.name }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                lineNumber: 71,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 flex items-center", children: [
+                /* @__PURE__ */ jsxDEV(ClockIcon, { size: 14, className: "mr-2" }, void 0, false, {
+                  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                  lineNumber: 72,
+                  columnNumber: 85
+                }, this),
+                " ",
+                trace.totalDuration,
+                "ms"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                lineNumber: 72,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: trace.serviceCount }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                lineNumber: 73,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: trace.errorCount > 0 ? /* @__PURE__ */ jsxDEV("span", { className: "flex items-center text-red-500", children: [
+                /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 14, className: "mr-1.5" }, void 0, false, {
+                  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                  lineNumber: 76,
+                  columnNumber: 70
+                }, this),
+                " ",
+                trace.errorCount
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                lineNumber: 76,
+                columnNumber: 21
+              }, this) : /* @__PURE__ */ jsxDEV("span", { children: "0" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                lineNumber: 77,
+                columnNumber: 21
+              }, this) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+                lineNumber: 74,
+                columnNumber: 41
+              }, this)
+            ] }, trace.id, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+              lineNumber: 70,
+              columnNumber: 17
+            }, this)
+          ) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+            lineNumber: 68,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 59,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+          lineNumber: 58,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+        lineNumber: 54,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+      lineNumber: 25,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx",
+    lineNumber: 21,
+    columnNumber: 5
+  }, this);
+};
+_c = DistributedTracingDashboard;
+var _c;
+$RefreshReg$(_c, "DistributedTracingDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/DistributedTracingDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6IkFBY2dCO0FBYmhCLFNBQVNBLGNBQWNDLFdBQVdDLHlCQUF5QjtBQVFwRCxhQUFNQyw4QkFBMEVBLENBQUMsRUFBRUMsUUFBUUMsV0FBVyxNQUFNO0FBRS9HLE1BQUksQ0FBQ0EsWUFBWTtBQUNiLFdBQ0ssdUJBQUMsU0FBSSxXQUFVLHFDQUNaLGlDQUFDLE9BQUUsV0FBVSxvQ0FBbUMsdUNBQWhEO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0FBdUUsS0FEMUU7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQUVEO0FBQUEsRUFFUjtBQUVBLFNBQ0ksdUJBQUMsU0FBSSxXQUFVLHFCQUNYO0FBQUEsMkJBQUMsUUFBRyxXQUFVLDZEQUE0RCxtQ0FBMUU7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQUE2RjtBQUFBLElBQzdGLHVCQUFDLE9BQUUsV0FBVSxpREFBZ0QsZ0hBQTdEO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0FBNko7QUFBQSxJQUU3Six1QkFBQyxTQUFJLFdBQVUseUNBRVg7QUFBQSw2QkFBQyxTQUFJLFdBQVUsa0RBQ1g7QUFBQSwrQkFBQyxTQUFJLFdBQVUscURBQ1gsaUNBQUMsUUFBRyxXQUFVLDJDQUNYO0FBQUEsaUNBQUMsZ0JBQWEsV0FBVSwyQkFBeEI7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBK0M7QUFBQTtBQUFBLGFBRGxEO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFHQSxLQUpKO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFLQTtBQUFBLFFBQ0EsdUJBQUMsU0FBSSxXQUFVLHFCQUVYO0FBQUEsaUNBQUMsU0FBSSxXQUFVLHFKQUNYO0FBQUEsbUNBQUMsWUFBUUEscUJBQVdDLE1BQU0sQ0FBQyxFQUFFQyxNQUE3QjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFnQztBQUFBLFlBQVMsdUJBQUMsVUFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFHO0FBQUEsWUFBR0YsV0FBV0MsTUFBTSxDQUFDLEVBQUVFO0FBQUFBLFlBQWE7QUFBQSxZQUFLLHVCQUFDLFVBQUQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBRztBQUFBLFlBQUdILFdBQVdDLE1BQU0sQ0FBQyxFQUFFRztBQUFBQSxZQUFXO0FBQUEsZUFEOUg7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFFQTtBQUFBLFVBQ0EsdUJBQUMsU0FBSSxXQUFVLGdNQUNWO0FBQUEsbUNBQUMsWUFBUUoscUJBQVdDLE1BQU0sQ0FBQyxFQUFFQyxNQUE3QjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFnQztBQUFBLFlBQVMsdUJBQUMsVUFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFHO0FBQUEsWUFBR0YsV0FBV0MsTUFBTSxDQUFDLEVBQUVFO0FBQUFBLFlBQWE7QUFBQSxZQUFLLHVCQUFDLFVBQUQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBRztBQUFBLFlBQUdILFdBQVdDLE1BQU0sQ0FBQyxFQUFFRztBQUFBQSxZQUFXO0FBQUEsZUFEL0g7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFFQTtBQUFBLFVBQ0EsdUJBQUMsU0FBSSxXQUFVLDRLQUNWO0FBQUEsbUNBQUMsWUFBUUoscUJBQVdDLE1BQU0sQ0FBQyxFQUFFQyxNQUE3QjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFnQztBQUFBLFlBQVMsdUJBQUMsVUFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFHO0FBQUEsWUFBR0YsV0FBV0MsTUFBTSxDQUFDLEVBQUVFO0FBQUFBLFlBQWE7QUFBQSxZQUFLLHVCQUFDLFVBQUQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBRztBQUFBLFlBQUdILFdBQVdDLE1BQU0sQ0FBQyxFQUFFRztBQUFBQSxZQUFXO0FBQUEsZUFEL0g7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFFQTtBQUFBLFVBRUEsdUJBQUMsU0FBSSxXQUFVLGtDQUNYO0FBQUEsbUNBQUMsVUFBSyxJQUFHLE9BQU0sSUFBRyxPQUFNLElBQUcsT0FBTSxJQUFHLE9BQU0sUUFBTyxnQkFBZSxXQUFVLG9DQUFtQyxhQUFZLE9BQXpIO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQTRIO0FBQUEsWUFDM0gsdUJBQUMsVUFBSyxJQUFHLE9BQU0sSUFBRyxPQUFNLElBQUcsT0FBTSxJQUFHLE9BQU0sUUFBTyxnQkFBZSxXQUFVLG9DQUFtQyxhQUFZLE9BQXpIO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQTRIO0FBQUEsZUFGakk7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFHQTtBQUFBLGFBZko7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQWdCQTtBQUFBLFdBdkJKO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUF3QkE7QUFBQSxNQUdBLHVCQUFDLFNBQUksV0FBVSxrREFDWDtBQUFBLCtCQUFDLFNBQUksV0FBVSxxREFDWCxpQ0FBQyxRQUFHLFdBQVUseUJBQXdCLDhCQUF0QztBQUFBO0FBQUE7QUFBQTtBQUFBLGVBQW9ELEtBRHhEO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFFQTtBQUFBLFFBQ0EsdUJBQUMsU0FBSSxXQUFVLG1CQUNYLGlDQUFDLFdBQU0sV0FBVSw2REFDYjtBQUFBLGlDQUFDLFdBQU0sV0FBVSxrRkFDYixpQ0FBQyxRQUNHO0FBQUEsbUNBQUMsUUFBRyxXQUFVLGFBQVkseUJBQTFCO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQW1DO0FBQUEsWUFDbkMsdUJBQUMsUUFBRyxXQUFVLGFBQVksd0JBQTFCO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQWtDO0FBQUEsWUFDbEMsdUJBQUMsUUFBRyxXQUFVLGFBQVksd0JBQTFCO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQWtDO0FBQUEsWUFDbEMsdUJBQUMsUUFBRyxXQUFVLGFBQVksc0JBQTFCO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBQWdDO0FBQUEsZUFKcEM7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFLQSxLQU5KO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBT0E7QUFBQSxVQUNBLHVCQUFDLFdBQ0lMLGlCQUFPTTtBQUFBQSxZQUFJLENBQUFDLFVBQ1IsdUJBQUMsUUFBa0IsV0FBVSwyRkFDekI7QUFBQSxxQ0FBQyxRQUFHLFdBQVUsZ0VBQWdFQSxnQkFBTUMsU0FBU0MsUUFBN0Y7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFBa0c7QUFBQSxjQUNsRyx1QkFBQyxRQUFHLFdBQVUsK0JBQThCO0FBQUEsdUNBQUMsYUFBVSxNQUFNLElBQUksV0FBVSxVQUEvQjtBQUFBO0FBQUE7QUFBQTtBQUFBLHVCQUFxQztBQUFBLGdCQUFHO0FBQUEsZ0JBQUVGLE1BQU1HO0FBQUFBLGdCQUFjO0FBQUEsbUJBQTFHO0FBQUE7QUFBQTtBQUFBO0FBQUEscUJBQTRHO0FBQUEsY0FDNUcsdUJBQUMsUUFBRyxXQUFVLGFBQWFILGdCQUFNSSxnQkFBakM7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFBOEM7QUFBQSxjQUM5Qyx1QkFBQyxRQUFHLFdBQVUsYUFDVEosZ0JBQU1LLGFBQWEsSUFDaEIsdUJBQUMsVUFBSyxXQUFVLGtDQUFpQztBQUFBLHVDQUFDLHFCQUFrQixNQUFNLElBQUksV0FBVSxZQUF2QztBQUFBO0FBQUE7QUFBQTtBQUFBLHVCQUErQztBQUFBLGdCQUFFO0FBQUEsZ0JBQUVMLE1BQU1LO0FBQUFBLG1CQUExRztBQUFBO0FBQUE7QUFBQTtBQUFBLHFCQUFxSCxJQUNuSCx1QkFBQyxVQUFLLGlCQUFOO0FBQUE7QUFBQTtBQUFBO0FBQUEscUJBQU8sS0FIakI7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFLQTtBQUFBLGlCQVRLTCxNQUFNSixJQUFmO0FBQUE7QUFBQTtBQUFBO0FBQUEsbUJBVUE7QUFBQSxVQUNILEtBYkw7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFjQTtBQUFBLGFBdkJKO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUF3QkEsS0F6Qko7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQTBCQTtBQUFBLFdBOUJKO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUErQkE7QUFBQSxTQTVESjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBNkRBO0FBQUEsT0FqRUo7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQWtFQTtBQUVSO0FBQUVVLEtBL0VXZDtBQUF1RSxJQUFBYztBQUFBQyxhQUFBRCxJQUFBIiwibmFtZXMiOlsiR2l0TWVyZ2VJY29uIiwiQ2xvY2tJY29uIiwiQWxlcnRUcmlhbmdsZUljb24iLCJEaXN0cmlidXRlZFRyYWNpbmdEYXNoYm9hcmQiLCJ0cmFjZXMiLCJzZXJ2aWNlTWFwIiwibm9kZXMiLCJpZCIsInJlcXVlc3RDb3VudCIsImF2Z0xhdGVuY3kiLCJtYXAiLCJ0cmFjZSIsInJvb3RTcGFuIiwibmFtZSIsInRvdGFsRHVyYXRpb24iLCJzZXJ2aWNlQ291bnQiLCJlcnJvckNvdW50IiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiRGlzdHJpYnV0ZWRUcmFjaW5nRGFzaGJvYXJkLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgR2l0TWVyZ2VJY29uLCBDbG9ja0ljb24sIEFsZXJ0VHJpYW5nbGVJY29uIH0gZnJvbSAnLi9pY29ucyc7XG5pbXBvcnQgeyBUcmFjZSwgU2VydmljZU1hcCB9IGZyb20gJy4uL3R5cGVzJztcblxuaW50ZXJmYWNlIERpc3RyaWJ1dGVkVHJhY2luZ0Rhc2hib2FyZFByb3BzIHtcbiAgICB0cmFjZXM6IFRyYWNlW107XG4gICAgc2VydmljZU1hcDogU2VydmljZU1hcCB8IG51bGw7XG59XG5cbmV4cG9ydCBjb25zdCBEaXN0cmlidXRlZFRyYWNpbmdEYXNoYm9hcmQ6IFJlYWN0LkZDPERpc3RyaWJ1dGVkVHJhY2luZ0Rhc2hib2FyZFByb3BzPiA9ICh7IHRyYWNlcywgc2VydmljZU1hcCB9KSA9PiB7XG4gICAgXG4gICAgaWYgKCFzZXJ2aWNlTWFwKSB7XG4gICAgICAgIHJldHVybiAoXG4gICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb250YWluZXIgbXgtYXV0byB0ZXh0LWNlbnRlciBwLThcIj5cbiAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPkxvYWRpbmcgdHJhY2luZyBkYXRhLi4uPC9wPlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgIClcbiAgICB9XG5cbiAgICByZXR1cm4gKFxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImNvbnRhaW5lciBteC1hdXRvXCI+XG4gICAgICAgICAgICA8aDIgY2xhc3NOYW1lPVwidGV4dC0yeGwgZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktODAwIGRhcms6dGV4dC13aGl0ZSBtYi0yXCI+RGlzdHJpYnV0ZWQgVHJhY2luZzwvaDI+XG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIG1iLTZcIj5WaXN1YWxpemUgcmVxdWVzdCBmbG93cyBhbmQgaWRlbnRpZnkgcGVyZm9ybWFuY2UgYm90dGxlbmVja3MgaW4geW91ciBtaWNyb3NlcnZpY2VzIGFyY2hpdGVjdHVyZS48L3A+XG5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ3JpZCBncmlkLWNvbHMtMSBsZzpncmlkLWNvbHMtMiBnYXAtNlwiPlxuICAgICAgICAgICAgICAgIHsvKiBTZXJ2aWNlIE1hcCAqL31cbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWRcIj5cbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTQgYm9yZGVyLWIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8aDMgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LXNlbWlib2xkIGZsZXggaXRlbXMtY2VudGVyXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICA8R2l0TWVyZ2VJY29uIGNsYXNzTmFtZT1cIm1yLTMgdGV4dC1wcmltYXJ5LTUwMFwiIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgTGl2ZSBTZXJ2aWNlIE1hcFxuICAgICAgICAgICAgICAgICAgICAgICAgPC9oMz5cbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicC02IGgtOTYgcmVsYXRpdmVcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIHsvKiBTaW1wbGlmaWVkIHZpc3VhbGl6YXRpb24gKi99XG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImFic29sdXRlIHRvcC0xLzIgbGVmdC0xMiB3LTMyIGgtMjAgYmctYmx1ZS0xMDAgZGFyazpiZy1ibHVlLTkwMC81MCByb3VuZGVkLWxnIHAtMiB0ZXh0LWNlbnRlciB0ZXh0LXhzIGJvcmRlciBib3JkZXItYmx1ZS0zMDAgZGFyazpib3JkZXItYmx1ZS03MDBcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3Ryb25nPntzZXJ2aWNlTWFwLm5vZGVzWzBdLmlkfTwvc3Ryb25nPjxici8+e3NlcnZpY2VNYXAubm9kZXNbMF0ucmVxdWVzdENvdW50fSByZXFzPGJyLz57c2VydmljZU1hcC5ub2Rlc1swXS5hdmdMYXRlbmN5fW1zIGF2Z1xuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImFic29sdXRlIHRvcC0xLzIgbGVmdC0xLzIgLXRyYW5zbGF0ZS14LTEvMiAtdHJhbnNsYXRlLXktMS8yIHctMzIgaC0yMCBiZy1vcmFuZ2UtMTAwIGRhcms6Ymctb3JhbmdlLTkwMC81MCByb3VuZGVkLWxnIHAtMiB0ZXh0LWNlbnRlciB0ZXh0LXhzIGJvcmRlciBib3JkZXItb3JhbmdlLTMwMCBkYXJrOmJvcmRlci1vcmFuZ2UtNzAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzdHJvbmc+e3NlcnZpY2VNYXAubm9kZXNbMV0uaWR9PC9zdHJvbmc+PGJyLz57c2VydmljZU1hcC5ub2Rlc1sxXS5yZXF1ZXN0Q291bnR9IHJlcXM8YnIvPntzZXJ2aWNlTWFwLm5vZGVzWzFdLmF2Z0xhdGVuY3l9bXMgYXZnXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYWJzb2x1dGUgdG9wLTEvMiByaWdodC0xMiAtdHJhbnNsYXRlLXktZnVsbCB3LTMyIGgtMjAgYmctZ3JlZW4tMTAwIGRhcms6YmctZ3JlZW4tOTAwLzUwIHJvdW5kZWQtbGcgcC0yIHRleHQtY2VudGVyIHRleHQteHMgYm9yZGVyIGJvcmRlci1ncmVlbi0zMDAgZGFyazpib3JkZXItZ3JlZW4tNzAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzdHJvbmc+e3NlcnZpY2VNYXAubm9kZXNbMl0uaWR9PC9zdHJvbmc+PGJyLz57c2VydmljZU1hcC5ub2Rlc1syXS5yZXF1ZXN0Q291bnR9IHJlcXM8YnIvPntzZXJ2aWNlTWFwLm5vZGVzWzJdLmF2Z0xhdGVuY3l9bXMgYXZnXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgICB7LyogQ29ubmVjdG9ycyAqL31cbiAgICAgICAgICAgICAgICAgICAgICAgIDxzdmcgY2xhc3NOYW1lPVwiYWJzb2x1dGUgaW5zZXQtMCB3LWZ1bGwgaC1mdWxsXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGxpbmUgeDE9XCIxODBcIiB5MT1cIjE5MlwiIHgyPVwiMjcwXCIgeTI9XCIxOTJcIiBzdHJva2U9XCJjdXJyZW50Q29sb3JcIiBjbGFzc05hbWU9XCJ0ZXh0LWdyYXktMzAwIGRhcms6dGV4dC1ncmF5LTYwMFwiIHN0cm9rZVdpZHRoPVwiMlwiIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxsaW5lIHgxPVwiMzk1XCIgeTE9XCIxOTJcIiB4Mj1cIjQ4MFwiIHkyPVwiMTAwXCIgc3Ryb2tlPVwiY3VycmVudENvbG9yXCIgY2xhc3NOYW1lPVwidGV4dC1ncmF5LTMwMCBkYXJrOnRleHQtZ3JheS02MDBcIiBzdHJva2VXaWR0aD1cIjJcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgPC9zdmc+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuXG4gICAgICAgICAgICAgICAgey8qIFRyYWNlIEV4cGxvcmVyICovfVxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZFwiPlxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInAtNCBib3JkZXItYiBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxoMyBjbGFzc05hbWU9XCJ0ZXh0LWxnIGZvbnQtc2VtaWJvbGRcIj5UcmFjZSBFeHBsb3JlcjwvaDM+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm92ZXJmbG93LXgtYXV0b1wiPlxuICAgICAgICAgICAgICAgICAgICAgICAgPHRhYmxlIGNsYXNzTmFtZT1cInctZnVsbCB0ZXh0LXNtIHRleHQtbGVmdCB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aGVhZCBjbGFzc05hbWU9XCJ0ZXh0LXhzIHRleHQtZ3JheS03MDAgdXBwZXJjYXNlIGJnLWdyYXktNTAgZGFyazpiZy1ncmF5LTcwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRyPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPlJvb3QgU3BhbjwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggY2xhc3NOYW1lPVwicHgtNiBweS0zXCI+RHVyYXRpb248L3RoPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPlNlcnZpY2VzPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5FcnJvcnM8L3RoPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RyPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGhlYWQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRib2R5PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7dHJhY2VzLm1hcCh0cmFjZSA9PiAoXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHIga2V5PXt0cmFjZS5pZH0gY2xhc3NOYW1lPVwiYm9yZGVyLWIgZGFyazpib3JkZXItZ3JheS03MDAgaG92ZXI6YmctZ3JheS01MCBkYXJrOmhvdmVyOmJnLWdyYXktNjAwLzUwIGN1cnNvci1wb2ludGVyXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNCBmb250LW1vbm8gdGV4dC14cyB0ZXh0LWdyYXktODAwIGRhcms6dGV4dC1ncmF5LTIwMFwiPnt0cmFjZS5yb290U3Bhbi5uYW1lfTwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNCBmbGV4IGl0ZW1zLWNlbnRlclwiPjxDbG9ja0ljb24gc2l6ZT17MTR9IGNsYXNzTmFtZT1cIm1yLTJcIiAvPiB7dHJhY2UudG90YWxEdXJhdGlvbn1tczwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNFwiPnt0cmFjZS5zZXJ2aWNlQ291bnR9PC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNiBweS00XCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHt0cmFjZS5lcnJvckNvdW50ID4gMCA/IFxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgdGV4dC1yZWQtNTAwXCI+PEFsZXJ0VHJpYW5nbGVJY29uIHNpemU9ezE0fSBjbGFzc05hbWU9XCJtci0xLjVcIi8+IHt0cmFjZS5lcnJvckNvdW50fTwvc3Bhbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDogPHNwYW4+MDwvc3Bhbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgfVxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RyPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3Rib2R5PlxuICAgICAgICAgICAgICAgICAgICAgICAgPC90YWJsZT5cbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07XG4iXSwiZmlsZSI6IkQ6L0Rvd25sb2Fkcy9lbnRlcnByaXNlLW9tbmktYWdlbnQtYWktcGxhdGZvcm0vY29tcG9uZW50cy9EaXN0cmlidXRlZFRyYWNpbmdEYXNoYm9hcmQudHN4In0=

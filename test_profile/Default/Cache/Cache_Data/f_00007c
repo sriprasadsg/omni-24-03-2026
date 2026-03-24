@@ -1,0 +1,168 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/NetworkDeviceList.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import { CheckIcon, XCircleIcon } from "/components/icons.tsx";
+const statusInfo = {
+  Up: { icon: /* @__PURE__ */ jsxDEV(CheckIcon, { size: 14 }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+    lineNumber: 11,
+    columnNumber: 15
+  }, this), classes: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" },
+  Down: { icon: /* @__PURE__ */ jsxDEV(XCircleIcon, { size: 14 }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+    lineNumber: 12,
+    columnNumber: 17
+  }, this), classes: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300" },
+  Warning: { icon: /* @__PURE__ */ jsxDEV(XCircleIcon, { size: 14 }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+    lineNumber: 13,
+    columnNumber: 20
+  }, this), classes: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300" }
+};
+export const NetworkDeviceList = ({ devices }) => {
+  return /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold", children: "Device Inventory" }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+      lineNumber: 21,
+      columnNumber: 17
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+      lineNumber: 20,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "w-full text-sm text-left text-gray-500 dark:text-gray-400", children: [
+      /* @__PURE__ */ jsxDEV("thead", { className: "text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+        /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Status" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 27,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Hostname" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 28,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Type" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 29,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Model" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 30,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "IP Address" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 31,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Last Scanned" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 32,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+        lineNumber: 26,
+        columnNumber: 25
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+        lineNumber: 25,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV("tbody", { children: devices.map(
+        (device) => /* @__PURE__ */ jsxDEV("tr", { className: "bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50", children: [
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: /* @__PURE__ */ jsxDEV("span", { className: `inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${statusInfo[device.status].classes}`, children: [
+            statusInfo[device.status].icon,
+            " ",
+            /* @__PURE__ */ jsxDEV("span", { className: "ml-1.5", children: device.status }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+              lineNumber: 40,
+              columnNumber: 74
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 39,
+            columnNumber: 37
+          }, this) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 38,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 font-semibold text-gray-800 dark:text-gray-200", children: device.hostname }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 43,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: device.deviceType }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 44,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: device.model }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 45,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 font-mono text-xs", children: device.ipAddress }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 46,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 text-xs", children: new Date(device.lastSeen).toLocaleString() }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+            lineNumber: 47,
+            columnNumber: 33
+          }, this)
+        ] }, device.id, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+          lineNumber: 37,
+          columnNumber: 13
+        }, this)
+      ) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+        lineNumber: 35,
+        columnNumber: 21
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+      lineNumber: 24,
+      columnNumber: 17
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+      lineNumber: 23,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx",
+    lineNumber: 19,
+    columnNumber: 5
+  }, this);
+};
+_c = NetworkDeviceList;
+var _c;
+$RefreshReg$(_c, "NetworkDeviceList");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/NetworkDeviceList.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFDLFFBQUcsV0FBVSxxQkFBcUIsY0FBSUMsS0FBS04sT0FBT08sUUFBUSxFQUFFQyxlQUFlLEtBQTVFO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBQThFO0FBQUEsYUFWekVSLE9BQU9TLElBQWhCO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFXQTtBQUFBLE1BQ0gsS0FkTDtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBZUE7QUFBQSxTQTFCSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBMkJBLEtBNUJKO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0E2QkE7QUFBQSxPQWpDSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBa0NBO0FBRVI7QUFBRUMsS0F0Q1diO0FBQW1ELElBQUFhO0FBQUFDLGFBQUFELElBQUEiLCJuYW1lcyI6WyJDaGVja0ljb24iLCJYQ2lyY2xlSWNvbiIsInN0YXR1c0luZm8iLCJVcCIsImljb24iLCJjbGFzc2VzIiwiRG93biIsIldhcm5pbmciLCJOZXR3b3JrRGV2aWNlTGlzdCIsImRldmljZXMiLCJtYXAiLCJkZXZpY2UiLCJzdGF0dXMiLCJob3N0bmFtZSIsImRldmljZVR5cGUiLCJtb2RlbCIsImlwQWRkcmVzcyIsIkRhdGUiLCJsYXN0U2VlbiIsInRvTG9jYWxlU3RyaW5nIiwiaWQiLCJfYyIsIiRSZWZyZXNoUmVnJCJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJOZXR3b3JrRGV2aWNlTGlzdC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiXG5pbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgTmV0d29ya0RldmljZSwgTmV0d29ya0RldmljZVN0YXR1cyB9IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IENoZWNrSWNvbiwgWENpcmNsZUljb24gfSBmcm9tICcuL2ljb25zJztcblxuaW50ZXJmYWNlIE5ldHdvcmtEZXZpY2VMaXN0UHJvcHMge1xuICAgIGRldmljZXM6IE5ldHdvcmtEZXZpY2VbXTtcbn1cblxuY29uc3Qgc3RhdHVzSW5mbzogUmVjb3JkPE5ldHdvcmtEZXZpY2VTdGF0dXMsIHsgaWNvbjogUmVhY3QuUmVhY3ROb2RlOyBjbGFzc2VzOiBzdHJpbmc7IH0+ID0ge1xuICAgIFVwOiB7IGljb246IDxDaGVja0ljb24gc2l6ZT17MTR9IC8+LCBjbGFzc2VzOiAnYmctZ3JlZW4tMTAwIHRleHQtZ3JlZW4tODAwIGRhcms6YmctZ3JlZW4tOTAwLzUwIGRhcms6dGV4dC1ncmVlbi0zMDAnIH0sXG4gICAgRG93bjogeyBpY29uOiA8WENpcmNsZUljb24gc2l6ZT17MTR9IC8+LCBjbGFzc2VzOiAnYmctcmVkLTEwMCB0ZXh0LXJlZC04MDAgZGFyazpiZy1yZWQtOTAwLzUwIGRhcms6dGV4dC1yZWQtMzAwJyB9LFxuICAgIFdhcm5pbmc6IHsgaWNvbjogPFhDaXJjbGVJY29uIHNpemU9ezE0fSAvPiwgY2xhc3NlczogJ2JnLWFtYmVyLTEwMCB0ZXh0LWFtYmVyLTgwMCBkYXJrOmJnLWFtYmVyLTkwMC81MCBkYXJrOnRleHQtYW1iZXItMzAwJyB9LFxufTtcblxuXG5leHBvcnQgY29uc3QgTmV0d29ya0RldmljZUxpc3Q6IFJlYWN0LkZDPE5ldHdvcmtEZXZpY2VMaXN0UHJvcHM+ID0gKHsgZGV2aWNlcyB9KSA9PiB7XG4gICAgcmV0dXJuIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHJvdW5kZWQtbGcgc2hhZG93LW1kXCI+XG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInAtNCBib3JkZXItYiBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cbiAgICAgICAgICAgICAgICA8aDMgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LXNlbWlib2xkXCI+RGV2aWNlIEludmVudG9yeTwvaDM+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwib3ZlcmZsb3cteC1hdXRvXCI+XG4gICAgICAgICAgICAgICAgPHRhYmxlIGNsYXNzTmFtZT1cInctZnVsbCB0ZXh0LXNtIHRleHQtbGVmdCB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxuICAgICAgICAgICAgICAgICAgICA8dGhlYWQgY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LWdyYXktNzAwIHVwcGVyY2FzZSBiZy1ncmF5LTUwIGRhcms6YmctZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8dHI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIHNjb3BlPVwiY29sXCIgY2xhc3NOYW1lPVwicHgtNiBweS0zXCI+U3RhdHVzPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggc2NvcGU9XCJjb2xcIiBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5Ib3N0bmFtZTwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIHNjb3BlPVwiY29sXCIgY2xhc3NOYW1lPVwicHgtNiBweS0zXCI+VHlwZTwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIHNjb3BlPVwiY29sXCIgY2xhc3NOYW1lPVwicHgtNiBweS0zXCI+TW9kZWw8L3RoPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBzY29wZT1cImNvbFwiIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPklQIEFkZHJlc3M8L3RoPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBzY29wZT1cImNvbFwiIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPkxhc3QgU2Nhbm5lZDwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICA8L3RyPlxuICAgICAgICAgICAgICAgICAgICA8L3RoZWFkPlxuICAgICAgICAgICAgICAgICAgICA8dGJvZHk+XG4gICAgICAgICAgICAgICAgICAgICAgICB7ZGV2aWNlcy5tYXAoZGV2aWNlID0+IChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHIga2V5PXtkZXZpY2UuaWR9IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgYm9yZGVyLWIgZGFyazpib3JkZXItZ3JheS03MDAgaG92ZXI6YmctZ3JheS01MCBkYXJrOmhvdmVyOmJnLWdyYXktNjAwLzUwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTRcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT17YGlubGluZS1mbGV4IGl0ZW1zLWNlbnRlciBweC0yIHB5LTEgdGV4dC14cyBmb250LW1lZGl1bSByb3VuZGVkLWZ1bGwgJHtzdGF0dXNJbmZvW2RldmljZS5zdGF0dXNdLmNsYXNzZXN9YH0+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3N0YXR1c0luZm9bZGV2aWNlLnN0YXR1c10uaWNvbn0gPHNwYW4gY2xhc3NOYW1lPVwibWwtMS41XCI+e2RldmljZS5zdGF0dXN9PC9zcGFuPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNiBweS00IGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtZ3JheS0yMDBcIj57ZGV2aWNlLmhvc3RuYW1lfTwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTRcIj57ZGV2aWNlLmRldmljZVR5cGV9PC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNFwiPntkZXZpY2UubW9kZWx9PC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNCBmb250LW1vbm8gdGV4dC14c1wiPntkZXZpY2UuaXBBZGRyZXNzfTwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTQgdGV4dC14c1wiPntuZXcgRGF0ZShkZXZpY2UubGFzdFNlZW4pLnRvTG9jYWxlU3RyaW5nKCl9PC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RyPlxuICAgICAgICAgICAgICAgICAgICAgICAgKSl9XG4gICAgICAgICAgICAgICAgICAgIDwvdGJvZHk+XG4gICAgICAgICAgICAgICAgPC90YWJsZT5cbiAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICA8L2Rpdj5cbiAgICApO1xufTtcbiJdLCJmaWxlIjoiRDovRG93bmxvYWRzL2VudGVycHJpc2Utb21uaS1hZ2VudC1haS1wbGF0Zm9ybS9jb21wb25lbnRzL05ldHdvcmtEZXZpY2VMaXN0LnRzeCJ9

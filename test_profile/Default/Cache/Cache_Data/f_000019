@@ -1,0 +1,257 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/RegisterAgentModal.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"]; const useEffect = __vite__cjsImport1_react["useEffect"];
+const platformOptions = ["Linux", "Windows", "macOS", "Docker", "Kubernetes", "AWS EC2"];
+export const RegisterAgentModal = ({ isOpen, onClose, onSave, assets }) => {
+  _s();
+  const [hostname, setHostname] = useState("");
+  const [ipAddress, setIpAddress] = useState("");
+  const [platform, setPlatform] = useState("Linux");
+  const [version, setVersion] = useState("2.2.0");
+  const [assetId, setAssetId] = useState("new");
+  useEffect(() => {
+    if (isOpen) {
+      setHostname("");
+      setIpAddress("");
+      setPlatform("Linux");
+      setVersion("2.2.0");
+      setAssetId("new");
+    }
+  }, [isOpen]);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!hostname.trim() || !ipAddress.trim() || !version.trim()) {
+      alert("Please fill all required fields.");
+      return;
+    }
+    onSave({
+      hostname: hostname.trim(),
+      ipAddress: ipAddress.trim(),
+      platform,
+      version: version.trim(),
+      assetId
+    });
+  };
+  if (!isOpen) return null;
+  return /* @__PURE__ */ jsxDEV("div", { className: "fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center", onClick: onClose, children: /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ jsxDEV("h2", { className: "text-xl font-bold text-gray-900 dark:text-white mb-4", children: "Register New Agent" }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+      lineNumber: 53,
+      columnNumber: 17
+    }, this),
+    /* @__PURE__ */ jsxDEV("form", { onSubmit: handleSubmit, className: "space-y-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { htmlFor: "hostname", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "Hostname" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 56,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "input",
+          {
+            type: "text",
+            id: "hostname",
+            value: hostname,
+            onChange: (e) => setHostname(e.target.value),
+            required: true,
+            className: "mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+            lineNumber: 57,
+            columnNumber: 25
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+        lineNumber: 55,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("label", { htmlFor: "ipAddress", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "IP Address" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+            lineNumber: 62,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(
+            "input",
+            {
+              type: "text",
+              id: "ipAddress",
+              value: ipAddress,
+              onChange: (e) => setIpAddress(e.target.value),
+              required: true,
+              className: "mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+              lineNumber: 63,
+              columnNumber: 29
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 61,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("label", { htmlFor: "version", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "Agent Version" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+            lineNumber: 67,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(
+            "input",
+            {
+              type: "text",
+              id: "version",
+              value: version,
+              onChange: (e) => setVersion(e.target.value),
+              required: true,
+              className: "mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+              lineNumber: 68,
+              columnNumber: 29
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 66,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+        lineNumber: 60,
+        columnNumber: 22
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { htmlFor: "platform", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "Platform" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 73,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("select", { id: "platform", value: platform, onChange: (e) => setPlatform(e.target.value), className: "mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm", children: platformOptions.map((p) => /* @__PURE__ */ jsxDEV("option", { value: p, children: p }, p, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 75,
+          columnNumber: 57
+        }, this)) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 74,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+        lineNumber: 72,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { htmlFor: "assetId", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "Associated Asset" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 79,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("select", { id: "assetId", value: assetId, onChange: (e) => setAssetId(e.target.value), className: "mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm", children: [
+          /* @__PURE__ */ jsxDEV("option", { value: "new", children: "-- Create New Asset --" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+            lineNumber: 81,
+            columnNumber: 29
+          }, this),
+          assets.map(
+            (asset) => /* @__PURE__ */ jsxDEV("option", { value: asset.id, children: [
+              asset.hostname,
+              " (",
+              asset.ipAddress,
+              ")"
+            ] }, asset.id, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+              lineNumber: 83,
+              columnNumber: 15
+            }, this)
+          )
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 80,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "mt-1 text-xs text-gray-500 dark:text-gray-400", children: "Select an existing asset to link this agent to, or create a new asset record automatically." }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 86,
+          columnNumber: 26
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+        lineNumber: 78,
+        columnNumber: 22
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("button", { type: "button", onClick: onClose, className: "px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md", children: "Cancel" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 92,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("button", { type: "submit", className: "px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700", children: "Register Agent" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+          lineNumber: 93,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+        lineNumber: 91,
+        columnNumber: 21
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+      lineNumber: 54,
+      columnNumber: 17
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+    lineNumber: 52,
+    columnNumber: 13
+  }, this) }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx",
+    lineNumber: 51,
+    columnNumber: 5
+  }, this);
+};
+_s(RegisterAgentModal, "389w92HW9v8GHCq8nnycpd0gqz8=");
+_c = RegisterAgentModal;
+var _c;
+$RefreshReg$(_c, "RegisterAgentModal");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/RegisterAgentModal.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFFSyxPQUFPQyxLQUFLLEdBQUcsV0FBVSxrSUFDdEY7QUFBQSxpQ0FBQyxZQUFPLE9BQU0sT0FBTSxzQ0FBcEI7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBMEM7QUFBQSxVQUN6Q25CLE9BQU9vQjtBQUFBQSxZQUFJLENBQUFFLFVBQ1IsdUJBQUMsWUFBc0IsT0FBT0EsTUFBTUMsSUFBS0Q7QUFBQUEsb0JBQU1wQjtBQUFBQSxjQUFTO0FBQUEsY0FBR29CLE1BQU1sQjtBQUFBQSxjQUFVO0FBQUEsaUJBQTlEa0IsTUFBTUMsSUFBbkI7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBNEU7QUFBQSxVQUMvRTtBQUFBLGFBSkw7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQUtBO0FBQUEsUUFDQyx1QkFBQyxPQUFFLFdBQVUsaURBQStDLDJHQUE1RDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBRUQ7QUFBQSxXQVZIO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFXRDtBQUFBLE1BRUEsdUJBQUMsU0FBSSxXQUFVLHNGQUNYO0FBQUEsK0JBQUMsWUFBTyxNQUFLLFVBQVMsU0FBU3pCLFNBQVMsV0FBVSxtSkFBa0osc0JBQXBNO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFBME07QUFBQSxRQUMxTSx1QkFBQyxZQUFPLE1BQUssVUFBUyxXQUFVLDJGQUEwRiw4QkFBMUg7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQUF3STtBQUFBLFdBRjVJO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFHQTtBQUFBLFNBeENKO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0F5Q0E7QUFBQSxPQTNDSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBNENBLEtBN0NKO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0E4Q0E7QUFFUjtBQUFFRyxHQXJGV0wsb0JBQXFEO0FBQUE0QixLQUFyRDVCO0FBQXFELElBQUE0QjtBQUFBQyxhQUFBRCxJQUFBIiwibmFtZXMiOlsidXNlU3RhdGUiLCJ1c2VFZmZlY3QiLCJwbGF0Zm9ybU9wdGlvbnMiLCJSZWdpc3RlckFnZW50TW9kYWwiLCJpc09wZW4iLCJvbkNsb3NlIiwib25TYXZlIiwiYXNzZXRzIiwiX3MiLCJob3N0bmFtZSIsInNldEhvc3RuYW1lIiwiaXBBZGRyZXNzIiwic2V0SXBBZGRyZXNzIiwicGxhdGZvcm0iLCJzZXRQbGF0Zm9ybSIsInZlcnNpb24iLCJzZXRWZXJzaW9uIiwiYXNzZXRJZCIsInNldEFzc2V0SWQiLCJoYW5kbGVTdWJtaXQiLCJlIiwicHJldmVudERlZmF1bHQiLCJ0cmltIiwiYWxlcnQiLCJzdG9wUHJvcGFnYXRpb24iLCJ0YXJnZXQiLCJ2YWx1ZSIsIm1hcCIsInAiLCJhc3NldCIsImlkIiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiUmVnaXN0ZXJBZ2VudE1vZGFsLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJcbmltcG9ydCBSZWFjdCwgeyB1c2VTdGF0ZSwgdXNlRWZmZWN0IH0gZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgQXNzZXQsIEFnZW50UGxhdGZvcm0gfSBmcm9tICcuLi90eXBlcyc7XG5cbmludGVyZmFjZSBSZWdpc3RlckFnZW50TW9kYWxQcm9wcyB7XG4gICAgaXNPcGVuOiBib29sZWFuO1xuICAgIG9uQ2xvc2U6ICgpID0+IHZvaWQ7XG4gICAgb25TYXZlOiAoZGF0YTogeyBob3N0bmFtZTogc3RyaW5nOyBpcEFkZHJlc3M6IHN0cmluZzsgcGxhdGZvcm06IEFnZW50UGxhdGZvcm07IHZlcnNpb246IHN0cmluZzsgYXNzZXRJZDogc3RyaW5nIHwgJ25ldyc7IH0pID0+IHZvaWQ7XG4gICAgYXNzZXRzOiBBc3NldFtdO1xufVxuXG5jb25zdCBwbGF0Zm9ybU9wdGlvbnM6IEFnZW50UGxhdGZvcm1bXSA9IFsnTGludXgnLCAnV2luZG93cycsICdtYWNPUycsICdEb2NrZXInLCAnS3ViZXJuZXRlcycsICdBV1MgRUMyJ107XG5cbmV4cG9ydCBjb25zdCBSZWdpc3RlckFnZW50TW9kYWw6IFJlYWN0LkZDPFJlZ2lzdGVyQWdlbnRNb2RhbFByb3BzPiA9ICh7IGlzT3Blbiwgb25DbG9zZSwgb25TYXZlLCBhc3NldHMgfSkgPT4ge1xuICAgIGNvbnN0IFtob3N0bmFtZSwgc2V0SG9zdG5hbWVdID0gdXNlU3RhdGUoJycpO1xuICAgIGNvbnN0IFtpcEFkZHJlc3MsIHNldElwQWRkcmVzc10gPSB1c2VTdGF0ZSgnJyk7XG4gICAgY29uc3QgW3BsYXRmb3JtLCBzZXRQbGF0Zm9ybV0gPSB1c2VTdGF0ZTxBZ2VudFBsYXRmb3JtPignTGludXgnKTtcbiAgICBjb25zdCBbdmVyc2lvbiwgc2V0VmVyc2lvbl0gPSB1c2VTdGF0ZSgnMi4yLjAnKTtcbiAgICBjb25zdCBbYXNzZXRJZCwgc2V0QXNzZXRJZF0gPSB1c2VTdGF0ZTwnbmV3JyB8IHN0cmluZz4oJ25ldycpO1xuXG4gICAgdXNlRWZmZWN0KCgpID0+IHtcbiAgICAgICAgaWYgKGlzT3Blbikge1xuICAgICAgICAgICAgLy8gUmVzZXQgZm9ybSB3aGVuIG1vZGFsIG9wZW5zXG4gICAgICAgICAgICBzZXRIb3N0bmFtZSgnJyk7XG4gICAgICAgICAgICBzZXRJcEFkZHJlc3MoJycpO1xuICAgICAgICAgICAgc2V0UGxhdGZvcm0oJ0xpbnV4Jyk7XG4gICAgICAgICAgICBzZXRWZXJzaW9uKCcyLjIuMCcpO1xuICAgICAgICAgICAgc2V0QXNzZXRJZCgnbmV3Jyk7XG4gICAgICAgIH1cbiAgICB9LCBbaXNPcGVuXSk7XG5cbiAgICBjb25zdCBoYW5kbGVTdWJtaXQgPSAoZTogUmVhY3QuRm9ybUV2ZW50KSA9PiB7XG4gICAgICAgIGUucHJldmVudERlZmF1bHQoKTtcbiAgICAgICAgaWYgKCFob3N0bmFtZS50cmltKCkgfHwgIWlwQWRkcmVzcy50cmltKCkgfHwgIXZlcnNpb24udHJpbSgpKSB7XG4gICAgICAgICAgICBhbGVydChcIlBsZWFzZSBmaWxsIGFsbCByZXF1aXJlZCBmaWVsZHMuXCIpO1xuICAgICAgICAgICAgcmV0dXJuO1xuICAgICAgICB9XG5cbiAgICAgICAgb25TYXZlKHtcbiAgICAgICAgICAgIGhvc3RuYW1lOiBob3N0bmFtZS50cmltKCksXG4gICAgICAgICAgICBpcEFkZHJlc3M6IGlwQWRkcmVzcy50cmltKCksXG4gICAgICAgICAgICBwbGF0Zm9ybSxcbiAgICAgICAgICAgIHZlcnNpb246IHZlcnNpb24udHJpbSgpLFxuICAgICAgICAgICAgYXNzZXRJZCxcbiAgICAgICAgfSk7XG4gICAgfTtcblxuICAgIGlmICghaXNPcGVuKSByZXR1cm4gbnVsbDtcblxuICAgIHJldHVybiAoXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZml4ZWQgaW5zZXQtMCBiZy1ibGFjayBiZy1vcGFjaXR5LTUwIHotNTAgZmxleCBqdXN0aWZ5LWNlbnRlciBpdGVtcy1jZW50ZXJcIiBvbkNsaWNrPXtvbkNsb3NlfT5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy14bCB3LWZ1bGwgbWF4LXctbGcgcC02IG0tNFwiIG9uQ2xpY2s9e2UgPT4gZS5zdG9wUHJvcGFnYXRpb24oKX0+XG4gICAgICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQteGwgZm9udC1ib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIG1iLTRcIj5SZWdpc3RlciBOZXcgQWdlbnQ8L2gyPlxuICAgICAgICAgICAgICAgIDxmb3JtIG9uU3VibWl0PXtoYW5kbGVTdWJtaXR9IGNsYXNzTmFtZT1cInNwYWNlLXktNFwiPlxuICAgICAgICAgICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgPGxhYmVsIGh0bWxGb3I9XCJob3N0bmFtZVwiIGNsYXNzTmFtZT1cImJsb2NrIHRleHQtc20gZm9udC1tZWRpdW0gdGV4dC1ncmF5LTcwMCBkYXJrOnRleHQtZ3JheS0zMDBcIj5Ib3N0bmFtZTwvbGFiZWw+XG4gICAgICAgICAgICAgICAgICAgICAgICA8aW5wdXQgdHlwZT1cInRleHRcIiBpZD1cImhvc3RuYW1lXCIgdmFsdWU9e2hvc3RuYW1lfSBvbkNoYW5nZT17ZSA9PiBzZXRIb3N0bmFtZShlLnRhcmdldC52YWx1ZSl9IHJlcXVpcmVkIFxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cIm10LTEgYmxvY2sgdy1mdWxsIHB4LTMgcHktMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktNzAwIGJvcmRlciBib3JkZXItZ3JheS0zMDAgZGFyazpib3JkZXItZ3JheS02MDAgcm91bmRlZC1tZCBzaGFkb3ctc20gdGV4dC1zbVwiIC8+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0xIHNtOmdyaWQtY29scy0yIGdhcC00XCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxsYWJlbCBodG1sRm9yPVwiaXBBZGRyZXNzXCIgY2xhc3NOYW1lPVwiYmxvY2sgdGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMFwiPklQIEFkZHJlc3M8L2xhYmVsPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxpbnB1dCB0eXBlPVwidGV4dFwiIGlkPVwiaXBBZGRyZXNzXCIgdmFsdWU9e2lwQWRkcmVzc30gb25DaGFuZ2U9e2UgPT4gc2V0SXBBZGRyZXNzKGUudGFyZ2V0LnZhbHVlKX0gcmVxdWlyZWQgXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cIm10LTEgYmxvY2sgdy1mdWxsIHB4LTMgcHktMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktNzAwIGJvcmRlciBib3JkZXItZ3JheS0zMDAgZGFyazpib3JkZXItZ3JheS02MDAgcm91bmRlZC1tZCBzaGFkb3ctc20gdGV4dC1zbVwiIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGxhYmVsIGh0bWxGb3I9XCJ2ZXJzaW9uXCIgY2xhc3NOYW1lPVwiYmxvY2sgdGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMFwiPkFnZW50IFZlcnNpb248L2xhYmVsPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxpbnB1dCB0eXBlPVwidGV4dFwiIGlkPVwidmVyc2lvblwiIHZhbHVlPXt2ZXJzaW9ufSBvbkNoYW5nZT17ZSA9PiBzZXRWZXJzaW9uKGUudGFyZ2V0LnZhbHVlKX0gcmVxdWlyZWQgXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cIm10LTEgYmxvY2sgdy1mdWxsIHB4LTMgcHktMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktNzAwIGJvcmRlciBib3JkZXItZ3JheS0zMDAgZGFyazpib3JkZXItZ3JheS02MDAgcm91bmRlZC1tZCBzaGFkb3ctc20gdGV4dC1zbVwiIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgPGxhYmVsIGh0bWxGb3I9XCJwbGF0Zm9ybVwiIGNsYXNzTmFtZT1cImJsb2NrIHRleHQtc20gZm9udC1tZWRpdW0gdGV4dC1ncmF5LTcwMCBkYXJrOnRleHQtZ3JheS0zMDBcIj5QbGF0Zm9ybTwvbGFiZWw+XG4gICAgICAgICAgICAgICAgICAgICAgICA8c2VsZWN0IGlkPVwicGxhdGZvcm1cIiB2YWx1ZT17cGxhdGZvcm19IG9uQ2hhbmdlPXtlID0+IHNldFBsYXRmb3JtKGUudGFyZ2V0LnZhbHVlIGFzIEFnZW50UGxhdGZvcm0pfSBjbGFzc05hbWU9XCJtdC0xIGJsb2NrIHctZnVsbCBweC0zIHB5LTIgYmctd2hpdGUgZGFyazpiZy1ncmF5LTcwMCBib3JkZXIgYm9yZGVyLWdyYXktMzAwIGRhcms6Ym9yZGVyLWdyYXktNjAwIHJvdW5kZWQtbWQgc2hhZG93LXNtIHRleHQtc21cIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICB7cGxhdGZvcm1PcHRpb25zLm1hcChwID0+IDxvcHRpb24ga2V5PXtwfSB2YWx1ZT17cH0+e3B9PC9vcHRpb24+KX1cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvc2VsZWN0PlxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgIDxkaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICA8bGFiZWwgaHRtbEZvcj1cImFzc2V0SWRcIiBjbGFzc05hbWU9XCJibG9jayB0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+QXNzb2NpYXRlZCBBc3NldDwvbGFiZWw+XG4gICAgICAgICAgICAgICAgICAgICAgICA8c2VsZWN0IGlkPVwiYXNzZXRJZFwiIHZhbHVlPXthc3NldElkfSBvbkNoYW5nZT17ZSA9PiBzZXRBc3NldElkKGUudGFyZ2V0LnZhbHVlKX0gY2xhc3NOYW1lPVwibXQtMSBibG9jayB3LWZ1bGwgcHgtMyBweS0yIGJnLXdoaXRlIGRhcms6YmctZ3JheS03MDAgYm9yZGVyIGJvcmRlci1ncmF5LTMwMCBkYXJrOmJvcmRlci1ncmF5LTYwMCByb3VuZGVkLW1kIHNoYWRvdy1zbSB0ZXh0LXNtXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cIm5ld1wiPi0tIENyZWF0ZSBOZXcgQXNzZXQgLS08L29wdGlvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICB7YXNzZXRzLm1hcChhc3NldCA9PiAoXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxvcHRpb24ga2V5PXthc3NldC5pZH0gdmFsdWU9e2Fzc2V0LmlkfT57YXNzZXQuaG9zdG5hbWV9ICh7YXNzZXQuaXBBZGRyZXNzfSk8L29wdGlvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvc2VsZWN0PlxuICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cIm10LTEgdGV4dC14cyB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgU2VsZWN0IGFuIGV4aXN0aW5nIGFzc2V0IHRvIGxpbmsgdGhpcyBhZ2VudCB0bywgb3IgY3JlYXRlIGEgbmV3IGFzc2V0IHJlY29yZCBhdXRvbWF0aWNhbGx5LlxuICAgICAgICAgICAgICAgICAgICAgICAgPC9wPlxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cblxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LTYgZmxleCBqdXN0aWZ5LWVuZCBzcGFjZS14LTMgcHQtNCBib3JkZXItdCBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIG9uQ2xpY2s9e29uQ2xvc2V9IGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS03MDAgYmctd2hpdGUgZGFyazpiZy1ncmF5LTcwMCBkYXJrOnRleHQtZ3JheS0yMDAgYm9yZGVyIGJvcmRlci1ncmF5LTMwMCBkYXJrOmJvcmRlci1ncmF5LTYwMCByb3VuZGVkLW1kXCI+Q2FuY2VsPC9idXR0b24+XG4gICAgICAgICAgICAgICAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJzdWJtaXRcIiBjbGFzc05hbWU9XCJweC00IHB5LTIgdGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LXdoaXRlIGJnLXByaW1hcnktNjAwIHJvdW5kZWQtbGcgaG92ZXI6YmctcHJpbWFyeS03MDBcIj5SZWdpc3RlciBBZ2VudDwvYnV0dG9uPlxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICA8L2Zvcm0+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07XG4iXSwiZmlsZSI6IkQ6L0Rvd25sb2Fkcy9lbnRlcnByaXNlLW9tbmktYWdlbnQtYWktcGxhdGZvcm0vY29tcG9uZW50cy9SZWdpc3RlckFnZW50TW9kYWwudHN4In0=

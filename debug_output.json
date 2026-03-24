@@ -1,0 +1,509 @@
+{
+  "target_doc": {
+    "_id": "6984b2d26150f94b56200548",
+    "controlId": "PCI-1.1.1",
+    "assetId": "asset-desktop-rust-agent",
+    "checkName": "Windows Firewall Profiles",
+    "evidence": [
+      {
+        "id": "auto-ev-desktop-rust-agent-PCI-1.1.1-2026-02-05T17:42:11.614421+00:00",
+        "name": "System Check: Windows Firewall Profiles",
+        "url": "#",
+        "type": "application/json",
+        "uploadedAt": "2026-02-05T17:42:11.614421+00:00",
+        "assetId": "asset-desktop-rust-agent",
+        "controlId": "PCI-1.1.1",
+        "systemGenerated": true,
+        "content": "# System Compliance Evidence\n**Date:** 2026-02-05T17:42:11.614421+00:00\n**Asset:** desktop-rust-agent\n**Control:** PCI-1.1.1\n**Check Name:** Windows Firewall Profiles\n\n## 1. Check Status\n**Result:** Pass\n**Details:** Firewall enabled\n\n## 2. Automated Command Output\n```json\n[\r\n    {\r\n        \"Name\":  \"Domain\",\r\n        \"Enabled\":  1\r\n    },\r\n    {\r\n        \"Name\":  \"Private\",\r\n        \"Enabled\":  1\r\n    },\r\n    {\r\n        \"Name\":  \"Public\",\r\n        \"Enabled\":  1\r\n    }\r\n]\r\n\n```\n\n## 3. Evidence Integrity\n*Integrity hash not provided by agent.*"
+      }
+    ],
+    "lastAutomatedCheck": "2026-02-05T17:42:11.614421+00:00",
+    "lastUpdated": "2026-02-05T17:42:11.614421+00:00",
+    "status": "Compliant"
+  },
+  "all_records": [
+    {
+      "controlId": "164.312(a)(2)(iv)",
+      "status": "Warning",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: BitLocker Encryption",
+        "System Check: TLS Security Configuration"
+      ]
+    },
+    {
+      "controlId": "PCI-3.4",
+      "status": "Warning",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: BitLocker Encryption"
+      ]
+    },
+    {
+      "controlId": "A.8.12",
+      "status": "Warning",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: BitLocker Encryption"
+      ]
+    },
+    {
+      "controlId": "PR.DS-1",
+      "status": "Warning",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: BitLocker Encryption",
+        "System Check: Controlled Folder Access"
+      ]
+    },
+    {
+      "controlId": "CC6.1",
+      "status": "Warning",
+      "evidence_count": 10,
+      "evidence_names": [
+        "System Check: BitLocker Encryption",
+        "System Check: User Access Control",
+        "System Check: Password Policy (Min Length)",
+        "System Check: Maximum Password Age",
+        "System Check: Password History",
+        "System Check: Account Lockout Policy",
+        "System Check: Minimum Password Age",
+        "System Check: Credential Guard",
+        "System Check: Guest Account Disabled",
+        "System Check: Controlled Folder Access"
+      ]
+    },
+    {
+      "controlId": "PCI-1.1.1",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Firewall Profiles"
+      ]
+    },
+    {
+      "controlId": "PR.AC-1",
+      "status": "Compliant",
+      "evidence_count": 5,
+      "evidence_names": [
+        "System Check: Windows Firewall Profiles",
+        "System Check: User Access Control",
+        "System Check: Password Policy (Min Length)",
+        "System Check: Credential Guard",
+        "System Check: RDP NLA Required"
+      ]
+    },
+    {
+      "controlId": "CC6.6",
+      "status": "Compliant",
+      "evidence_count": 5,
+      "evidence_names": [
+        "System Check: Windows Firewall Profiles",
+        "System Check: Risky Ports (Telnet)",
+        "System Check: Risky Ports (FTP)",
+        "System Check: RDP NLA Required",
+        "System Check: Remote Desktop Service"
+      ]
+    },
+    {
+      "controlId": "PCI-1.1",
+      "status": "Compliant",
+      "evidence_count": 3,
+      "evidence_names": [
+        "System Check: Windows Firewall Profiles",
+        "System Check: Risky Ports (Telnet)",
+        "System Check: Risky Ports (FTP)"
+      ]
+    },
+    {
+      "controlId": "A.13.1",
+      "status": "Non-Compliant",
+      "evidence_count": 4,
+      "evidence_names": [
+        "System Check: Windows Firewall Profiles",
+        "System Check: Risky Ports (Telnet)",
+        "System Check: Risky Ports (FTP)",
+        "System Check: LLMNR/NetBIOS Protection"
+      ]
+    },
+    {
+      "controlId": "A.12.2.1",
+      "status": "Warning",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Windows Defender Antivirus",
+        "System Check: Attack Surface Reduction"
+      ]
+    },
+    {
+      "controlId": "PCI-5.1",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Defender Antivirus"
+      ]
+    },
+    {
+      "controlId": "CC6.8",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Defender Antivirus"
+      ]
+    },
+    {
+      "controlId": "A.8.7",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Defender Antivirus"
+      ]
+    },
+    {
+      "controlId": "DE.CM-4",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Defender Antivirus"
+      ]
+    },
+    {
+      "controlId": "ID.AM-1",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Secure Boot",
+        "System Check: Windows Update Service"
+      ]
+    },
+    {
+      "controlId": "A.12.1.2",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Secure Boot"
+      ]
+    },
+    {
+      "controlId": "CC7.2",
+      "status": "Warning",
+      "evidence_count": 4,
+      "evidence_names": [
+        "System Check: Secure Boot",
+        "System Check: SMBv1 Protocol Status",
+        "System Check: Exploit Protection (DEP)",
+        "System Check: Attack Surface Reduction"
+      ]
+    },
+    {
+      "controlId": "A.9.4.1",
+      "status": "Non-Compliant",
+      "evidence_count": 3,
+      "evidence_names": [
+        "System Check: User Access Control",
+        "System Check: Password Policy (Min Length)",
+        "System Check: Credential Guard"
+      ]
+    },
+    {
+      "controlId": "A.9.4.3",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Password Policy (Min Length)"
+      ]
+    },
+    {
+      "controlId": "PCI-8.1.1",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Password Policy (Min Length)",
+        "System Check: Guest Account Disabled"
+      ]
+    },
+    {
+      "controlId": "IA-5",
+      "status": "Compliant",
+      "evidence_count": 4,
+      "evidence_names": [
+        "System Check: Password Policy (Min Length)",
+        "System Check: Maximum Password Age",
+        "System Check: Password History",
+        "System Check: Minimum Password Age"
+      ]
+    },
+    {
+      "controlId": "A.8.5",
+      "status": "Compliant",
+      "evidence_count": 3,
+      "evidence_names": [
+        "System Check: Maximum Password Age",
+        "System Check: Password History",
+        "System Check: Minimum Password Age"
+      ]
+    },
+    {
+      "controlId": "PCI-8.2.4",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Maximum Password Age"
+      ]
+    },
+    {
+      "controlId": "PCI-8.2.5",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Password History"
+      ]
+    },
+    {
+      "controlId": "PR.AC-7",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Account Lockout Policy"
+      ]
+    },
+    {
+      "controlId": "PCI-8.1.6",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Account Lockout Policy"
+      ]
+    },
+    {
+      "controlId": "A.9.4.2",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Account Lockout Policy",
+        "System Check: RDP NLA Required"
+      ]
+    },
+    {
+      "controlId": "AC-7",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Account Lockout Policy"
+      ]
+    },
+    {
+      "controlId": "PR.AC-5",
+      "status": "Non-Compliant",
+      "evidence_count": 3,
+      "evidence_names": [
+        "System Check: Risky Ports (Telnet)",
+        "System Check: Risky Ports (FTP)",
+        "System Check: LLMNR/NetBIOS Protection"
+      ]
+    },
+    {
+      "controlId": "CVE-2017-0143",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: SMBv1 Protocol Status"
+      ]
+    },
+    {
+      "controlId": "PR.IP-1",
+      "status": "Warning",
+      "evidence_count": 3,
+      "evidence_names": [
+        "System Check: SMBv1 Protocol Status",
+        "System Check: Exploit Protection (DEP)",
+        "System Check: Attack Surface Reduction"
+      ]
+    },
+    {
+      "controlId": "A.12.6.1",
+      "status": "Compliant",
+      "evidence_count": 3,
+      "evidence_names": [
+        "System Check: SMBv1 Protocol Status",
+        "System Check: Exploit Protection (DEP)",
+        "System Check: Windows Update Service"
+      ]
+    },
+    {
+      "controlId": "PCI-4.1",
+      "status": "Warning",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: TLS Security Configuration"
+      ]
+    },
+    {
+      "controlId": "CC6.7",
+      "status": "Non-Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: TLS Security Configuration",
+        "System Check: LLMNR/NetBIOS Protection"
+      ]
+    },
+    {
+      "controlId": "PR.DS-2",
+      "status": "Warning",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: TLS Security Configuration"
+      ]
+    },
+    {
+      "controlId": "A.10.1",
+      "status": "Warning",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: TLS Security Configuration"
+      ]
+    },
+    {
+      "controlId": "A.9.2.1",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Guest Account Disabled"
+      ]
+    },
+    {
+      "controlId": "PR.AC-4",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Guest Account Disabled"
+      ]
+    },
+    {
+      "controlId": "PCI-2.2.4",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: RDP NLA Required"
+      ]
+    },
+    {
+      "controlId": "PCI-6.2",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Update Service"
+      ]
+    },
+    {
+      "controlId": "CC7.3",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Update Service"
+      ]
+    },
+    {
+      "controlId": "DE.CM-8",
+      "status": "Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Windows Update Service"
+      ]
+    },
+    {
+      "controlId": "PCI-2.2.2",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Remote Desktop Service",
+        "System Check: WinRM Service Status"
+      ]
+    },
+    {
+      "controlId": "PR.AC-3",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Remote Desktop Service",
+        "System Check: WinRM Service Status"
+      ]
+    },
+    {
+      "controlId": "PCI-10.1",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Audit Logging Policy"
+      ]
+    },
+    {
+      "controlId": "DE.AE-1",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Audit Logging Policy"
+      ]
+    },
+    {
+      "controlId": "A.12.4.1",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Audit Logging Policy",
+        "System Check: PowerShell Script Block Logging"
+      ]
+    },
+    {
+      "controlId": "CC9.2",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Audit Logging Policy",
+        "System Check: PowerShell Script Block Logging"
+      ]
+    },
+    {
+      "controlId": "DE.CM-1",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Audit Logging Policy",
+        "System Check: PowerShell Script Block Logging"
+      ]
+    },
+    {
+      "controlId": "AU-2",
+      "status": "Compliant",
+      "evidence_count": 2,
+      "evidence_names": [
+        "System Check: Audit Logging Policy",
+        "System Check: PowerShell Script Block Logging"
+      ]
+    },
+    {
+      "controlId": "A.12.3.1",
+      "status": "Warning",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: Controlled Folder Access"
+      ]
+    },
+    {
+      "controlId": "DPDP-5.1",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: DPDP-5.1 Consent Artifacts"
+      ]
+    },
+    {
+      "controlId": "DPDP-8.4",
+      "status": "Non-Compliant",
+      "evidence_count": 1,
+      "evidence_names": [
+        "System Check: DPDP-8.4 Data Retention Policy"
+      ]
+    }
+  ]
+}

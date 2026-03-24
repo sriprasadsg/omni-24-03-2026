@@ -1,0 +1,29 @@
+[00:42:02] [INIT] Starting Comprehensive Feature Verification
+[00:42:17] [START] Testing Feature: Login...
+[00:42:21] [PASS] Feature Login: PASSED
+[00:42:22] [START] Testing Feature: Agents View...
+[00:42:51] [FAIL] Feature Agents View: FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("text=Infrastructure & Assets")
+
+[00:42:51] [START] Testing Feature: Compliance & Evidence...
+[00:43:21] [FAIL] Feature Compliance & Evidence: FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("text=Governance & Compliance")
+
+[00:43:21] [START] Testing Feature: AI Governance (Shadow AI)...
+[00:43:51] [FAIL] Feature AI Governance (Shadow AI): FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("text=Governance & Compliance")
+
+[00:43:51] [START] Testing Feature: Tenant Management...
+[00:44:21] [FAIL] Feature Tenant Management: FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("text=Management & Settings")
+
+[00:44:21] [START] Testing Feature: Settings View...
+[00:44:51] [FAIL] Feature Settings View: FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("text=Management & Settings")
+
+[00:44:51] [DONE] All tests completed. Closing browser.

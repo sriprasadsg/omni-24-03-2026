@@ -1,0 +1,63 @@
+
+# Add to end of app.py after the login endpoint
+
+from email_service import email_service
+from datetime import timedelta
+
+@app.post("/api/tenants/{tenant_id}/email/config")
+async def save_email_config(tenant_id: str, config: dict):
+    """Save SMTP configuration for a tenant"""
+    try:
+        db = get_database()
+        tenants = db.tenants
+        
+        # Encrypt the SMTP password
+        if 'smtpPassword' in config:
+            config['smtpPasswordEncrypted'] = email_service.encrypt_password(config['smtpPassword'])
+            del config['smtpPassword']
+        
+        result = tenants.update_one(
+            {"id": tenant_id},
+            {"$set": {"emailConfig": {**config, "enabled": True, "verified": False, "lastUpdated": datetime.now(timezone.utc).isoformat()}}}
+        )
+        
+        return {"success": result.modified_count > 0, "message": "SMTP configuration saved" if result.modified_count > 0 else "Tenant not found"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/tenants/{tenant_id}/email/config")
+async def get_email_config(tenant_id: str):
+    """Get SMTP configuration"""
+    try:
+        db = get_database()
+        tenant = db.tenants.find_one({"id": tenant_id})
+        if tenant and 'emailConfig' in tenant:
+            config = tenant['emailConfig'].copy()
+            config.pop('smtpPasswordEncrypted', None)
+            return {"success": True, "config": config}
+        return {"success": False, "message": "No configuration found"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/tenants/{tenant_id}/email/test")
+async def test_email_config(tenant_id: str, data: dict):
+    """Test SMTP configuration"""
+    try:
+        db = get_database()
+        tenant = db.tenants.find_one({"id": tenant_id})
+        if not tenant or 'emailConfig' not in tenant:
+            return {"success": False, "message": "No email configuration"}
+        
+        result = email_service.send_email(
+            smtp_config=tenant['emailConfig'],
+            to_email=data.get('testEmail'),
+            subject="Test - Omni-Agent",
+            body_text="Test email successful!",
+            body_html="<p>Test email <strong>successful</strong>!</p>"
+        )
+        
+        if result['success']:
+            db.tenants.update_one({"id": tenant_id}, {"$set": {"emailConfig.verified": True}})
+        return result
+    except Exception as e:
+        return {"success": False, "message": str(e)}

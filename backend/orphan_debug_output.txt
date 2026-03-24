@@ -1,0 +1,10 @@
+Connecting to mongodb://127.0.0.1:27017...
+
+--- Inspecting 'asset-TEST-WIN-EVIDENCE' in assets ---
+Asset 'asset-TEST-WIN-EVIDENCE' NOT FOUND in 'assets' collection.
+
+--- Inspecting compliance records for 'asset-TEST-WIN-EVIDENCE' ---
+Found 0 compliance records.
+
+--- Inspecting agents linked to 'asset-TEST-WIN-EVIDENCE' ---
+Found 0 agents.

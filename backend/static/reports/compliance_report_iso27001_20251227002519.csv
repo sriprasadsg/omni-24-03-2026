@@ -1,0 +1,94 @@
+Control ID,Name,Category,Status,Evidence Count,Last Reviewed
+A.5.1,Policies for Information Security,Organizational,Implemented,0,2024-01-01
+A.5.2,Information Security Roles and Responsibilities,Organizational,Implemented,0,2024-01-01
+A.5.3,Segregation of Duties,Organizational,Implemented,0,2024-01-01
+A.5.4,Management Responsibilities,Organizational,Implemented,0,2024-01-01
+A.5.5,Contact with Authorities,Organizational,Implemented,0,2024-01-02
+A.5.6,Contact with Special Interest Groups,Organizational,In Progress,0,2024-01-02
+A.5.7,Threat Intelligence,Organizational,At Risk,0,2024-01-02
+A.5.8,Information Security in Project Management,Organizational,Implemented,0,2024-01-03
+A.5.9,Inventory of Information and Other Associated Assets,Organizational,Implemented,0,2024-01-03
+A.5.10,Acceptable Use of Information and Other Associated Assets,Organizational,Implemented,0,2024-01-04
+A.5.11,Return of Assets,Organizational,Implemented,0,2024-01-04
+A.5.12,Classification of Information,Organizational,Implemented,0,2024-01-05
+A.5.13,Labelling of Information,Organizational,In Progress,0,2024-01-05
+A.5.14,Information Transfer,Organizational,Implemented,0,2024-01-06
+A.5.15,Access Control,Organizational,Implemented,0,2024-01-06
+A.5.16,Identity Management,Organizational,Implemented,0,2024-01-07
+A.5.17,Authentication Information,Organizational,Implemented,0,2024-01-07
+A.5.18,Access Rights,Organizational,Implemented,0,2024-01-08
+A.5.19,Information Security in Supplier Relationships,Organizational,In Progress,0,2024-01-08
+A.5.20,Addressing Information Security within Supplier Agreements,Organizational,In Progress,0,2024-01-09
+A.5.21,Managing Information Security in the ICT Supply Chain,Organizational,At Risk,0,2024-01-09
+A.5.22,"Monitoring, Review and Change Management of Supplier Services",Organizational,In Progress,0,2024-01-10
+A.5.23,Information Security for Use of Cloud Services,Organizational,At Risk,0,2024-01-10
+A.5.24,Information Security Incident Management Planning and Preparation,Organizational,Implemented,0,2024-01-11
+A.5.25,Assessment and Decision on Information Security Events,Organizational,Implemented,0,2024-01-11
+A.5.26,Response to Information Security Incidents,Organizational,Implemented,0,2024-01-12
+A.5.27,Learning from Information Security Incidents,Organizational,Implemented,0,2024-01-12
+A.5.28,Collection of Evidence,Organizational,In Progress,0,2024-01-13
+A.5.29,Information Security During Disruption,Organizational,In Progress,0,2024-01-13
+A.5.30,ICT Readiness for Business Continuity,Organizational,At Risk,0,2024-01-14
+A.5.31,"Legal, Statutory, Regulatory and Contractual Requirements",Organizational,Implemented,0,2024-01-14
+A.5.32,Intellectual Property Rights,Organizational,Implemented,0,2024-01-15
+A.5.33,Protection of Records,Organizational,Implemented,0,2024-01-15
+A.5.34,Privacy and Protection of PII,Organizational,Implemented,0,2024-01-16
+A.5.35,Independent Review of Information Security,Organizational,In Progress,0,2024-01-16
+A.5.36,"Compliance with Policies, Rules and Standards for Information Security",Organizational,Implemented,0,2024-01-17
+A.5.37,Documented Operating Procedures,Organizational,Implemented,0,2024-01-17
+A.6.1,Screening,People,Implemented,0,2024-01-18
+A.6.2,Terms and Conditions of Employment,People,Implemented,0,2024-01-18
+A.6.3,"Information Security Awareness, Education and Training",People,Implemented,0,2024-01-19
+A.6.4,Disciplinary Process,People,Implemented,0,2024-01-19
+A.6.5,Responsibilities after Termination or Change of Employment,People,Implemented,0,2024-01-20
+A.6.6,Confidentiality or Non-Disclosure Agreements,People,Implemented,0,2024-01-20
+A.6.7,Remote Working,People,Implemented,0,2024-01-21
+A.6.8,Information Security Event Reporting,People,Implemented,0,2024-01-21
+A.7.1,Physical Security Perimeters,Physical,Implemented,0,2024-01-22
+A.7.2,Physical Entry,Physical,Implemented,0,2024-01-22
+A.7.3,"Securing Offices, Rooms and Facilities",Physical,Implemented,0,2024-01-23
+A.7.4,Physical Security Monitoring,Physical,In Progress,0,2024-01-23
+A.7.5,Protecting Against Physical and Environmental Threats,Physical,Implemented,0,2024-01-24
+A.7.6,Working in Secure Areas,Physical,Implemented,0,2024-01-24
+A.7.7,Clear Desk and Clear Screen,Physical,In Progress,0,2024-01-25
+A.7.8,Equipment Siting and Protection,Physical,Implemented,0,2024-01-25
+A.7.9,Security of Assets Off-Premises,Physical,In Progress,0,2024-01-26
+A.7.10,Storage Media,Physical,Implemented,0,2024-01-26
+A.7.11,Supporting Utilities,Physical,Implemented,0,2024-01-27
+A.7.12,Cabling Security,Physical,Not Implemented,0,2024-01-27
+A.7.13,Equipment Maintenance,Physical,Implemented,0,2024-01-28
+A.7.14,Secure Disposal or Re-use of Equipment,Physical,Implemented,0,2024-01-28
+A.8.1,User Endpoint Devices,Technological,Implemented,0,2024-01-29
+A.8.2,Privileged Access Rights,Technological,In Progress,0,2024-01-29
+A.8.3,Information Access Restriction,Technological,Implemented,0,2024-01-30
+A.8.4,Access to Source Code,Technological,Implemented,0,2024-01-30
+A.8.5,Secure Authentication,Technological,Implemented,0,2024-01-31
+A.8.6,Capacity Management,Technological,In Progress,0,2024-01-31
+A.8.7,Protection Against Malware,Technological,Implemented,0,2024-02-01
+A.8.8,Management of Technical Vulnerabilities,Technological,At Risk,0,2024-02-01
+A.8.9,Configuration Management,Technological,In Progress,0,2024-02-02
+A.8.10,Information Deletion,Technological,Not Implemented,0,2024-02-02
+A.8.11,Data Masking,Technological,Not Implemented,0,2024-02-03
+A.8.12,Data Leakage Prevention,Technological,Not Implemented,0,2024-02-03
+A.8.13,Information Backup,Technological,Implemented,0,2024-02-04
+A.8.14,Redundancy of Information Processing Facilities,Technological,At Risk,0,2024-02-04
+A.8.15,Logging,Technological,Implemented,0,2024-02-05
+A.8.16,Monitoring Activities,Technological,Implemented,0,2024-02-05
+A.8.17,Clock Synchronization,Technological,Implemented,0,2024-02-06
+A.8.18,Use of Privileged Utility Programs,Technological,In Progress,0,2024-02-06
+A.8.19,Installation of Software on Operational Systems,Technological,Implemented,0,2024-02-07
+A.8.20,Networks Security,Technological,Implemented,0,2024-02-07
+A.8.21,Security of Network Services,Technological,Implemented,0,2024-02-08
+A.8.22,Segregation of Networks,Technological,In Progress,0,2024-02-08
+A.8.23,Web Filtering,Technological,Implemented,0,2024-02-09
+A.8.24,Use of Cryptography,Technological,Implemented,0,2024-02-09
+A.8.25,Secure Development Life Cycle,Technological,In Progress,0,2024-02-10
+A.8.26,Application Security Requirements,Technological,In Progress,0,2024-02-10
+A.8.27,Secure System Architecture and Engineering Principles,Technological,In Progress,0,2024-02-11
+A.8.28,Secure Coding,Technological,In Progress,0,2024-02-11
+A.8.29,Security Testing in Development and Acceptance,Technological,At Risk,0,2024-02-12
+A.8.30,Outsourced Development,Technological,In Progress,0,2024-02-12
+A.8.31,"Separation of Development, Test and Production Environments",Technological,Implemented,0,2024-02-13
+A.8.32,Change Management,Technological,Implemented,0,2024-02-13
+A.8.33,Test Information,Technological,In Progress,0,2024-02-14
+A.8.34,Protection of Information Systems During Audit Testing,Technological,Implemented,0,2024-02-14

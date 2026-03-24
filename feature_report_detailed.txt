@@ -1,0 +1,36 @@
+[00:50:57] [INIT] Starting Detailed Comprehensive Feature Verification
+[00:51:12] [START] Testing Feature: Login...
+[00:51:23] [FAIL] Feature Login: FAILED - Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("text=\"Welcome back, Super\"") to be visible
+
+[00:51:24] [START] Testing Feature: CXO Dashboard...
+[00:51:54] [FAIL] Feature CXO Dashboard: FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("text=\"CXOs Dashboard\"")
+
+[00:51:54] [START] Testing Feature: Main Dashboard...
+[00:52:24] [FAIL] Feature Main Dashboard: FAILED - Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("nav").locator("text=\"Dashboard\"")
+
+[00:52:24] [START] Testing Feature: Proactive Insights...
+[00:52:34] [FAIL] Feature Proactive Insights: FAILED - Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("text=\"AI Recommendations\"") to be visible
+
+[00:52:34] [START] Testing Feature: Agents View...
+[00:52:34] [PASS] Feature Agents View: PASSED
+[00:52:35] [START] Testing Feature: Compliance Management...
+[00:52:40] [FAIL] Feature Compliance Management: FAILED - Page.wait_for_selector: Timeout 5000ms exceeded.
+Call log:
+  - waiting for locator("text=\"CISSP\"") to be visible
+
+[00:52:40] [START] Testing Feature: AI Governance Shadow AI...
+[00:52:45] [FAIL] Feature AI Governance Shadow AI: FAILED - Page.wait_for_selector: Timeout 5000ms exceeded.
+Call log:
+  - waiting for locator("text=\"Shadow AI Management\"") to be visible
+
+[00:52:45] [START] Testing Feature: Settings View...
+[00:52:46] [PASS] Feature Settings View: PASSED
+[00:52:46] [DONE] All detailed tests completed. Closing browser.

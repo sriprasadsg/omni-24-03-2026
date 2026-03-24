@@ -1,0 +1,570 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/SustainabilityDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"]; const useEffect = __vite__cjsImport1_react["useEffect"];
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "/node_modules/.vite/deps/recharts.js?v=d6705e33";
+import { TrendingUpIcon, ArrowDownIcon, ActivityIcon, ZapIcon } from "/components/icons.tsx";
+export const SustainabilityDashboard = () => {
+  _s();
+  const [carbonData, setCarbonData] = useState([]);
+  const [metrics, setMetrics] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState("30d");
+  useEffect(() => {
+    fetchData();
+  }, []);
+  const fetchData = async () => {
+    try {
+      const [carbonResponse, metricsResponse] = await Promise.all(
+        [
+          fetch("http://localhost:5000/api/sustainability/carbon-footprint"),
+          fetch("http://localhost:5000/api/sustainability/metrics")
+        ]
+      );
+      const carbonData2 = await carbonResponse.json();
+      const metricsData = await metricsResponse.json();
+      setCarbonData(carbonData2.reverse());
+      setMetrics(metricsData);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching sustainability data:", error);
+      setLoading(false);
+    }
+  };
+  const totalEmissions = carbonData.reduce((sum, d) => sum + d.totalEmissions, 0);
+  const avgEmissions = totalEmissions / carbonData.length;
+  const latestBreakdown = carbonData[carbonData.length - 1]?.breakdown;
+  const breakdownData = latestBreakdown ? [
+    { name: "Compute", value: latestBreakdown.compute, color: "#10b981" },
+    { name: "Storage", value: latestBreakdown.storage, color: "#3b82f6" },
+    { name: "Network", value: latestBreakdown.network, color: "#f59e0b" }
+  ] : [];
+  const chartData = carbonData.map((d) => ({
+    date: new Date(d.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    total: d.totalEmissions,
+    compute: d.breakdown.compute,
+    storage: d.breakdown.storage,
+    network: d.breakdown.network
+  }));
+  if (loading) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "p-6", children: "Loading sustainability metrics..." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+      lineNumber: 54,
+      columnNumber: 12
+    }, this);
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "p-6 space-y-6", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-start", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h1", { className: "text-2xl font-bold text-gray-900 dark:text-white flex items-center", children: [
+          /* @__PURE__ */ jsxDEV(ActivityIcon, { size: 28, className: "mr-3 text-green-600" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 63,
+            columnNumber: 25
+          }, this),
+          "Sustainability & Green IT"
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 62,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 mt-1", children: "Track carbon emissions, energy efficiency, and ESG metrics" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 66,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 61,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setTimeRange("7d"),
+            className: `px-3 py-1 rounded ${timeRange === "7d" ? "bg-primary-600 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"}`,
+            children: "7 Days"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 71,
+            columnNumber: 21
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setTimeRange("30d"),
+            className: `px-3 py-1 rounded ${timeRange === "30d" ? "bg-primary-600 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"}`,
+            children: "30 Days"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 77,
+            columnNumber: 21
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setTimeRange("90d"),
+            className: `px-3 py-1 rounded ${timeRange === "90d" ? "bg-primary-600 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"}`,
+            children: "90 Days"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 83,
+            columnNumber: 21
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 70,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+      lineNumber: 60,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4", children: metrics.map(
+      (metric) => /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-4", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-start mb-2", children: [
+          /* @__PURE__ */ jsxDEV("h3", { className: "text-sm font-medium text-gray-600 dark:text-gray-400", children: metric.name }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 97,
+            columnNumber: 29
+          }, this),
+          metric.trend === "improving" ? /* @__PURE__ */ jsxDEV(ArrowDownIcon, { size: 16, className: "text-green-600" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 99,
+            columnNumber: 13
+          }, this) : metric.trend === "worsening" ? /* @__PURE__ */ jsxDEV(TrendingUpIcon, { size: 16, className: "text-red-600" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 101,
+            columnNumber: 13
+          }, this) : null
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 96,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "flex items-baseline gap-2", children: [
+          /* @__PURE__ */ jsxDEV("span", { className: "text-2xl font-bold text-gray-900 dark:text-white", children: metric.value }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 105,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "text-sm text-gray-500", children: metric.unit }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 106,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 104,
+          columnNumber: 25
+        }, this),
+        metric.target && /* @__PURE__ */ jsxDEV("div", { className: "mt-2", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between text-xs text-gray-500 mb-1", children: [
+            /* @__PURE__ */ jsxDEV("span", { children: [
+              "Target: ",
+              metric.target,
+              metric.unit
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 111,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { children: [
+              Math.round(metric.value / metric.target * 100),
+              "%"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 112,
+              columnNumber: 37
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 110,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2", children: /* @__PURE__ */ jsxDEV(
+            "div",
+            {
+              className: `h-2 rounded-full ${metric.value <= metric.target ? "bg-green-600" : "bg-red-600"}`,
+              style: { width: `${Math.min(metric.value / metric.target * 100, 100)}%` }
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 115,
+              columnNumber: 37
+            },
+            this
+          ) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 114,
+            columnNumber: 33
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 109,
+          columnNumber: 11
+        }, this)
+      ] }, metric.id, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 95,
+        columnNumber: 9
+      }, this)
+    ) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+      lineNumber: 93,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 lg:grid-cols-3 gap-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6", children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white mb-4", children: "Carbon Emissions Trend" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 130,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: 300, children: /* @__PURE__ */ jsxDEV(LineChart, { data: chartData, children: [
+          /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: "#374151" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 135,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "date", stroke: "#9ca3af" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 136,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(YAxis, { stroke: "#9ca3af", label: { value: "kg CO2e", angle: -90, position: "insideLeft" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 137,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Tooltip, { contentStyle: { backgroundColor: "#1f2937", border: "none", borderRadius: "0.5rem" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 138,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Legend, {}, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 139,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Line, { type: "monotone", dataKey: "total", stroke: "#10b981", strokeWidth: 2, name: "Total Emissions" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 140,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 134,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 133,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 129,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-6", children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white mb-4", children: "Emissions Breakdown" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 146,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: 300, children: /* @__PURE__ */ jsxDEV(PieChart, { children: [
+          /* @__PURE__ */ jsxDEV(
+            Pie,
+            {
+              data: breakdownData,
+              cx: "50%",
+              cy: "50%",
+              labelLine: false,
+              label: ({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`,
+              outerRadius: 80,
+              fill: "#8884d8",
+              dataKey: "value",
+              children: breakdownData.map(
+                (entry, index) => /* @__PURE__ */ jsxDEV(Cell, { fill: entry.color }, `cell-${index}`, false, {
+                  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+                  lineNumber: 162,
+                  columnNumber: 17
+                }, this)
+              )
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 151,
+              columnNumber: 29
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV(Tooltip, {}, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 165,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 150,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 149,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "mt-4 space-y-2", children: breakdownData.map(
+          (item) => /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center text-sm", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "w-3 h-3 rounded-full", style: { backgroundColor: item.color } }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+                lineNumber: 172,
+                columnNumber: 37
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: "text-gray-700 dark:text-gray-300", children: item.name }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+                lineNumber: 173,
+                columnNumber: 37
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 171,
+              columnNumber: 33
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { className: "font-semibold text-gray-900 dark:text-white", children: [
+              item.value.toFixed(2),
+              " kg CO2e"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 175,
+              columnNumber: 33
+            }, this)
+          ] }, item.name, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 170,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 168,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 145,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+      lineNumber: 128,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-6", children: [
+      /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white mb-4", children: "Emissions by Category" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 186,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: 300, children: /* @__PURE__ */ jsxDEV(BarChart, { data: chartData, children: [
+        /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: "#374151" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 191,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "date", stroke: "#9ca3af" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 192,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(YAxis, { stroke: "#9ca3af", label: { value: "kg CO2e", angle: -90, position: "insideLeft" } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 193,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Tooltip, { contentStyle: { backgroundColor: "#1f2937", border: "none", borderRadius: "0.5rem" } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 194,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Legend, {}, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 195,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Bar, { dataKey: "compute", stackId: "a", fill: "#10b981", name: "Compute" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 196,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Bar, { dataKey: "storage", stackId: "a", fill: "#3b82f6", name: "Storage" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 197,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Bar, { dataKey: "network", stackId: "a", fill: "#f59e0b", name: "Network" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 198,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 190,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 189,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+      lineNumber: 185,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg shadow-md p-6", children: [
+      /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center", children: [
+        /* @__PURE__ */ jsxDEV(ZapIcon, { size: 20, className: "mr-2 text-green-600" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 206,
+          columnNumber: 21
+        }, this),
+        "Carbon Reduction Recommendations"
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 205,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "space-y-3", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg p-4", children: [
+          /* @__PURE__ */ jsxDEV("h3", { className: "font-semibold text-gray-900 dark:text-white mb-1", children: "Right-size compute instances" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 211,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: [
+            "Potential savings: ",
+            /* @__PURE__ */ jsxDEV("span", { className: "font-semibold text-green-600", children: "145 kg CO2e/month" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 215,
+              columnNumber: 48
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 214,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 210,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg p-4", children: [
+          /* @__PURE__ */ jsxDEV("h3", { className: "font-semibold text-gray-900 dark:text-white mb-1", children: "Enable carbon-aware workload scheduling" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 219,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: [
+            "Run batch jobs during low-carbon hours. Potential savings: ",
+            /* @__PURE__ */ jsxDEV("span", { className: "font-semibold text-green-600", children: "89 kg CO2e/month" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 223,
+              columnNumber: 88
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 222,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 218,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg p-4", children: [
+          /* @__PURE__ */ jsxDEV("h3", { className: "font-semibold text-gray-900 dark:text-white mb-1", children: "Migrate to greener regions" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 227,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: [
+            "Consider us-west-2 (renewable energy: 85%). Potential savings: ",
+            /* @__PURE__ */ jsxDEV("span", { className: "font-semibold text-green-600", children: "230 kg CO2e/month" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+              lineNumber: 231,
+              columnNumber: 92
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+            lineNumber: 230,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+          lineNumber: 226,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+        lineNumber: 209,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+      lineNumber: 204,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx",
+    lineNumber: 58,
+    columnNumber: 5
+  }, this);
+};
+_s(SustainabilityDashboard, "kBUugi9XjXjBNcnh72ZBSRG+kSY=");
+_c = SustainabilityDashboard;
+var _c;
+$RefreshReg$(_c, "SustainabilityDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/SustainabilityDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QTtBQUFBO0FBQUE7QUFBQSxtQkFBZ0U7QUFBQSxlQUR2RjtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQUVBO0FBQUEsYUFOSjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBT0E7QUFBQSxRQUNBLHVCQUFDLFNBQUksV0FBVSw0Q0FDWDtBQUFBLGlDQUFDLFFBQUcsV0FBVSxvREFBbUQsdURBQWpFO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBRUE7QUFBQSxVQUNBLHVCQUFDLE9BQUUsV0FBVSw0Q0FBMkM7QUFBQTtBQUFBLFlBQ08sdUJBQUMsVUFBSyxXQUFVLGdDQUErQixnQ0FBL0M7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBK0Q7QUFBQSxlQUQ5SDtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQUVBO0FBQUEsYUFOSjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBT0E7QUFBQSxRQUNBLHVCQUFDLFNBQUksV0FBVSw0Q0FDWDtBQUFBLGlDQUFDLFFBQUcsV0FBVSxvREFBbUQsMENBQWpFO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBRUE7QUFBQSxVQUNBLHVCQUFDLE9BQUUsV0FBVSw0Q0FBMkM7QUFBQTtBQUFBLFlBQ1csdUJBQUMsVUFBSyxXQUFVLGdDQUErQixpQ0FBL0M7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBZ0U7QUFBQSxlQURuSTtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQUVBO0FBQUEsYUFOSjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBT0E7QUFBQSxXQXhCSjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBeUJBO0FBQUEsU0E5Qko7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQStCQTtBQUFBLE9BakxKO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0FrTEE7QUFFUjtBQUFFekQsR0F4T1dELHlCQUFpQztBQUFBZ0UsS0FBakNoRTtBQUFpQyxJQUFBZ0U7QUFBQUMsYUFBQUQsSUFBQSIsIm5hbWVzIjpbInVzZVN0YXRlIiwidXNlRWZmZWN0IiwiQmFyQ2hhcnQiLCJCYXIiLCJMaW5lQ2hhcnQiLCJMaW5lIiwiWEF4aXMiLCJZQXhpcyIsIkNhcnRlc2lhbkdyaWQiLCJUb29sdGlwIiwiTGVnZW5kIiwiUmVzcG9uc2l2ZUNvbnRhaW5lciIsIlBpZUNoYXJ0IiwiUGllIiwiQ2VsbCIsIlRyZW5kaW5nVXBJY29uIiwiQXJyb3dEb3duSWNvbiIsIkFjdGl2aXR5SWNvbiIsIlphcEljb24iLCJTdXN0YWluYWJpbGl0eURhc2hib2FyZCIsIl9zIiwiY2FyYm9uRGF0YSIsInNldENhcmJvbkRhdGEiLCJtZXRyaWNzIiwic2V0TWV0cmljcyIsImxvYWRpbmciLCJzZXRMb2FkaW5nIiwidGltZVJhbmdlIiwic2V0VGltZVJhbmdlIiwiZmV0Y2hEYXRhIiwiY2FyYm9uUmVzcG9uc2UiLCJtZXRyaWNzUmVzcG9uc2UiLCJQcm9taXNlIiwiYWxsIiwiZmV0Y2giLCJqc29uIiwibWV0cmljc0RhdGEiLCJyZXZlcnNlIiwiZXJyb3IiLCJjb25zb2xlIiwidG90YWxFbWlzc2lvbnMiLCJyZWR1Y2UiLCJzdW0iLCJkIiwiYXZnRW1pc3Npb25zIiwibGVuZ3RoIiwibGF0ZXN0QnJlYWtkb3duIiwiYnJlYWtkb3duIiwiYnJlYWtkb3duRGF0YSIsIm5hbWUiLCJ2YWx1ZSIsImNvbXB1dGUiLCJjb2xvciIsInN0b3JhZ2UiLCJuZXR3b3JrIiwiY2hhcnREYXRhIiwibWFwIiwiZGF0ZSIsIkRhdGUiLCJ0aW1lc3RhbXAiLCJ0b0xvY2FsZURhdGVTdHJpbmciLCJtb250aCIsImRheSIsInRvdGFsIiwibWV0cmljIiwidHJlbmQiLCJ1bml0IiwidGFyZ2V0IiwiTWF0aCIsInJvdW5kIiwid2lkdGgiLCJtaW4iLCJpZCIsImFuZ2xlIiwicG9zaXRpb24iLCJiYWNrZ3JvdW5kQ29sb3IiLCJib3JkZXIiLCJib3JkZXJSYWRpdXMiLCJwZXJjZW50IiwidG9GaXhlZCIsImVudHJ5IiwiaW5kZXgiLCJpdGVtIiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiU3VzdGFpbmFiaWxpdHlEYXNoYm9hcmQudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBSZWFjdCwgeyB1c2VTdGF0ZSwgdXNlRWZmZWN0IH0gZnJvbSAncmVhY3QnO1xyXG5pbXBvcnQgeyBDYXJib25Gb290cHJpbnQsIFN1c3RhaW5hYmlsaXR5TWV0cmljIH0gZnJvbSAnLi4vdHlwZXMnO1xyXG5pbXBvcnQgeyBCYXJDaGFydCwgQmFyLCBMaW5lQ2hhcnQsIExpbmUsIFhBeGlzLCBZQXhpcywgQ2FydGVzaWFuR3JpZCwgVG9vbHRpcCwgTGVnZW5kLCBSZXNwb25zaXZlQ29udGFpbmVyLCBQaWVDaGFydCwgUGllLCBDZWxsIH0gZnJvbSAncmVjaGFydHMnO1xyXG5pbXBvcnQgeyBUcmVuZGluZ1VwSWNvbiwgQXJyb3dEb3duSWNvbiwgQWN0aXZpdHlJY29uLCBaYXBJY29uIH0gZnJvbSAnLi9pY29ucyc7XHJcblxyXG5leHBvcnQgY29uc3QgU3VzdGFpbmFiaWxpdHlEYXNoYm9hcmQ6IFJlYWN0LkZDID0gKCkgPT4ge1xyXG4gICAgY29uc3QgW2NhcmJvbkRhdGEsIHNldENhcmJvbkRhdGFdID0gdXNlU3RhdGU8Q2FyYm9uRm9vdHByaW50W10+KFtdKTtcclxuICAgIGNvbnN0IFttZXRyaWNzLCBzZXRNZXRyaWNzXSA9IHVzZVN0YXRlPFN1c3RhaW5hYmlsaXR5TWV0cmljW10+KFtdKTtcclxuICAgIGNvbnN0IFtsb2FkaW5nLCBzZXRMb2FkaW5nXSA9IHVzZVN0YXRlKHRydWUpO1xyXG4gICAgY29uc3QgW3RpbWVSYW5nZSwgc2V0VGltZVJhbmdlXSA9IHVzZVN0YXRlPCc3ZCcgfCAnMzBkJyB8ICc5MGQnPignMzBkJyk7XHJcblxyXG4gICAgdXNlRWZmZWN0KCgpID0+IHtcclxuICAgICAgICBmZXRjaERhdGEoKTtcclxuICAgIH0sIFtdKTtcclxuXHJcbiAgICBjb25zdCBmZXRjaERhdGEgPSBhc3luYyAoKSA9PiB7XHJcbiAgICAgICAgdHJ5IHtcclxuICAgICAgICAgICAgY29uc3QgW2NhcmJvblJlc3BvbnNlLCBtZXRyaWNzUmVzcG9uc2VdID0gYXdhaXQgUHJvbWlzZS5hbGwoW1xyXG4gICAgICAgICAgICAgICAgZmV0Y2goJ2h0dHA6Ly9sb2NhbGhvc3Q6NTAwMC9hcGkvc3VzdGFpbmFiaWxpdHkvY2FyYm9uLWZvb3RwcmludCcpLFxyXG4gICAgICAgICAgICAgICAgZmV0Y2goJ2h0dHA6Ly9sb2NhbGhvc3Q6NTAwMC9hcGkvc3VzdGFpbmFiaWxpdHkvbWV0cmljcycpXHJcbiAgICAgICAgICAgIF0pO1xyXG5cclxuICAgICAgICAgICAgY29uc3QgY2FyYm9uRGF0YSA9IGF3YWl0IGNhcmJvblJlc3BvbnNlLmpzb24oKTtcclxuICAgICAgICAgICAgY29uc3QgbWV0cmljc0RhdGEgPSBhd2FpdCBtZXRyaWNzUmVzcG9uc2UuanNvbigpO1xyXG5cclxuICAgICAgICAgICAgc2V0Q2FyYm9uRGF0YShjYXJib25EYXRhLnJldmVyc2UoKSk7XHJcbiAgICAgICAgICAgIHNldE1ldHJpY3MobWV0cmljc0RhdGEpO1xyXG4gICAgICAgICAgICBzZXRMb2FkaW5nKGZhbHNlKTtcclxuICAgICAgICB9IGNhdGNoIChlcnJvcikge1xyXG4gICAgICAgICAgICBjb25zb2xlLmVycm9yKCdFcnJvciBmZXRjaGluZyBzdXN0YWluYWJpbGl0eSBkYXRhOicsIGVycm9yKTtcclxuICAgICAgICAgICAgc2V0TG9hZGluZyhmYWxzZSk7XHJcbiAgICAgICAgfVxyXG4gICAgfTtcclxuXHJcbiAgICBjb25zdCB0b3RhbEVtaXNzaW9ucyA9IGNhcmJvbkRhdGEucmVkdWNlKChzdW0sIGQpID0+IHN1bSArIGQudG90YWxFbWlzc2lvbnMsIDApO1xyXG4gICAgY29uc3QgYXZnRW1pc3Npb25zID0gdG90YWxFbWlzc2lvbnMgLyBjYXJib25EYXRhLmxlbmd0aDtcclxuXHJcbiAgICBjb25zdCBsYXRlc3RCcmVha2Rvd24gPSBjYXJib25EYXRhW2NhcmJvbkRhdGEubGVuZ3RoIC0gMV0/LmJyZWFrZG93bjtcclxuICAgIGNvbnN0IGJyZWFrZG93bkRhdGEgPSBsYXRlc3RCcmVha2Rvd24gPyBbXHJcbiAgICAgICAgeyBuYW1lOiAnQ29tcHV0ZScsIHZhbHVlOiBsYXRlc3RCcmVha2Rvd24uY29tcHV0ZSwgY29sb3I6ICcjMTBiOTgxJyB9LFxyXG4gICAgICAgIHsgbmFtZTogJ1N0b3JhZ2UnLCB2YWx1ZTogbGF0ZXN0QnJlYWtkb3duLnN0b3JhZ2UsIGNvbG9yOiAnIzNiODJmNicgfSxcclxuICAgICAgICB7IG5hbWU6ICdOZXR3b3JrJywgdmFsdWU6IGxhdGVzdEJyZWFrZG93bi5uZXR3b3JrLCBjb2xvcjogJyNmNTllMGInIH1cclxuICAgIF0gOiBbXTtcclxuXHJcbiAgICBjb25zdCBjaGFydERhdGEgPSBjYXJib25EYXRhLm1hcChkID0+ICh7XHJcbiAgICAgICAgZGF0ZTogbmV3IERhdGUoZC50aW1lc3RhbXApLnRvTG9jYWxlRGF0ZVN0cmluZygnZW4tVVMnLCB7IG1vbnRoOiAnc2hvcnQnLCBkYXk6ICdudW1lcmljJyB9KSxcclxuICAgICAgICB0b3RhbDogZC50b3RhbEVtaXNzaW9ucyxcclxuICAgICAgICBjb21wdXRlOiBkLmJyZWFrZG93bi5jb21wdXRlLFxyXG4gICAgICAgIHN0b3JhZ2U6IGQuYnJlYWtkb3duLnN0b3JhZ2UsXHJcbiAgICAgICAgbmV0d29yazogZC5icmVha2Rvd24ubmV0d29ya1xyXG4gICAgfSkpO1xyXG5cclxuICAgIGlmIChsb2FkaW5nKSB7XHJcbiAgICAgICAgcmV0dXJuIDxkaXYgY2xhc3NOYW1lPVwicC02XCI+TG9hZGluZyBzdXN0YWluYWJpbGl0eSBtZXRyaWNzLi4uPC9kaXY+O1xyXG4gICAgfVxyXG5cclxuICAgIHJldHVybiAoXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTYgc3BhY2UteS02XCI+XHJcbiAgICAgICAgICAgIHsvKiBIZWFkZXIgKi99XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBqdXN0aWZ5LWJldHdlZW4gaXRlbXMtc3RhcnRcIj5cclxuICAgICAgICAgICAgICAgIDxkaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgPGgxIGNsYXNzTmFtZT1cInRleHQtMnhsIGZvbnQtYm9sZCB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZSBmbGV4IGl0ZW1zLWNlbnRlclwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8QWN0aXZpdHlJY29uIHNpemU9ezI4fSBjbGFzc05hbWU9XCJtci0zIHRleHQtZ3JlZW4tNjAwXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgU3VzdGFpbmFiaWxpdHkgJiBHcmVlbiBJVFxyXG4gICAgICAgICAgICAgICAgICAgIDwvaDE+XHJcbiAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMCBtdC0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIFRyYWNrIGNhcmJvbiBlbWlzc2lvbnMsIGVuZXJneSBlZmZpY2llbmN5LCBhbmQgRVNHIG1ldHJpY3NcclxuICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBnYXAtMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gc2V0VGltZVJhbmdlKCc3ZCcpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICBjbGFzc05hbWU9e2BweC0zIHB5LTEgcm91bmRlZCAke3RpbWVSYW5nZSA9PT0gJzdkJyA/ICdiZy1wcmltYXJ5LTYwMCB0ZXh0LXdoaXRlJyA6ICdiZy1ncmF5LTIwMCBkYXJrOmJnLWdyYXktNzAwIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwJ31gfVxyXG4gICAgICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgICAgICAgNyBEYXlzXHJcbiAgICAgICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiBzZXRUaW1lUmFuZ2UoJzMwZCcpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICBjbGFzc05hbWU9e2BweC0zIHB5LTEgcm91bmRlZCAke3RpbWVSYW5nZSA9PT0gJzMwZCcgPyAnYmctcHJpbWFyeS02MDAgdGV4dC13aGl0ZScgOiAnYmctZ3JheS0yMDAgZGFyazpiZy1ncmF5LTcwMCB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMCd9YH1cclxuICAgICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDMwIERheXNcclxuICAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHNldFRpbWVSYW5nZSgnOTBkJyl9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT17YHB4LTMgcHktMSByb3VuZGVkICR7dGltZVJhbmdlID09PSAnOTBkJyA/ICdiZy1wcmltYXJ5LTYwMCB0ZXh0LXdoaXRlJyA6ICdiZy1ncmF5LTIwMCBkYXJrOmJnLWdyYXktNzAwIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwJ31gfVxyXG4gICAgICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgICAgICAgOTAgRGF5c1xyXG4gICAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgey8qIEtleSBNZXRyaWNzICovfVxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTEgbWQ6Z3JpZC1jb2xzLTIgbGc6Z3JpZC1jb2xzLTQgZ2FwLTRcIj5cclxuICAgICAgICAgICAgICAgIHttZXRyaWNzLm1hcChtZXRyaWMgPT4gKFxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYga2V5PXttZXRyaWMuaWR9IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWQgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBqdXN0aWZ5LWJldHdlZW4gaXRlbXMtc3RhcnQgbWItMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cInRleHQtc20gZm9udC1tZWRpdW0gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDBcIj57bWV0cmljLm5hbWV9PC9oMz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIHttZXRyaWMudHJlbmQgPT09ICdpbXByb3ZpbmcnID8gKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxBcnJvd0Rvd25JY29uIHNpemU9ezE2fSBjbGFzc05hbWU9XCJ0ZXh0LWdyZWVuLTYwMFwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICApIDogbWV0cmljLnRyZW5kID09PSAnd29yc2VuaW5nJyA/IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8VHJlbmRpbmdVcEljb24gc2l6ZT17MTZ9IGNsYXNzTmFtZT1cInRleHQtcmVkLTYwMFwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICApIDogbnVsbH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1iYXNlbGluZSBnYXAtMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC0yeGwgZm9udC1ib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlXCI+e21ldHJpYy52YWx1ZX08L3NwYW4+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDBcIj57bWV0cmljLnVuaXR9PC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAge21ldHJpYy50YXJnZXQgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC0yXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGp1c3RpZnktYmV0d2VlbiB0ZXh0LXhzIHRleHQtZ3JheS01MDAgbWItMVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3Bhbj5UYXJnZXQ6IHttZXRyaWMudGFyZ2V0fXttZXRyaWMudW5pdH08L3NwYW4+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuPntNYXRoLnJvdW5kKChtZXRyaWMudmFsdWUgLyBtZXRyaWMudGFyZ2V0KSAqIDEwMCl9JTwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInctZnVsbCBiZy1ncmF5LTIwMCBkYXJrOmJnLWdyYXktNzAwIHJvdW5kZWQtZnVsbCBoLTJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPXtgaC0yIHJvdW5kZWQtZnVsbCAke21ldHJpYy52YWx1ZSA8PSBtZXRyaWMudGFyZ2V0ID8gJ2JnLWdyZWVuLTYwMCcgOiAnYmctcmVkLTYwMCdcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB9YH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHN0eWxlPXt7IHdpZHRoOiBgJHtNYXRoLm1pbigobWV0cmljLnZhbHVlIC8gbWV0cmljLnRhcmdldCkgKiAxMDAsIDEwMCl9JWAgfX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgKSl9XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgey8qIENhcmJvbiBGb290cHJpbnQgVHJlbmRzICovfVxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTEgbGc6Z3JpZC1jb2xzLTMgZ2FwLTZcIj5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibGc6Y29sLXNwYW4tMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHJvdW5kZWQtbGcgc2hhZG93LW1kIHAtNlwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxoMiBjbGFzc05hbWU9XCJ0ZXh0LWxnIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGUgbWItNFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICBDYXJib24gRW1pc3Npb25zIFRyZW5kXHJcbiAgICAgICAgICAgICAgICAgICAgPC9oMj5cclxuICAgICAgICAgICAgICAgICAgICA8UmVzcG9uc2l2ZUNvbnRhaW5lciB3aWR0aD1cIjEwMCVcIiBoZWlnaHQ9ezMwMH0+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxMaW5lQ2hhcnQgZGF0YT17Y2hhcnREYXRhfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxDYXJ0ZXNpYW5HcmlkIHN0cm9rZURhc2hhcnJheT1cIjMgM1wiIHN0cm9rZT1cIiMzNzQxNTFcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPFhBeGlzIGRhdGFLZXk9XCJkYXRlXCIgc3Ryb2tlPVwiIzljYTNhZlwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8WUF4aXMgc3Ryb2tlPVwiIzljYTNhZlwiIGxhYmVsPXt7IHZhbHVlOiAna2cgQ08yZScsIGFuZ2xlOiAtOTAsIHBvc2l0aW9uOiAnaW5zaWRlTGVmdCcgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxUb29sdGlwIGNvbnRlbnRTdHlsZT17eyBiYWNrZ3JvdW5kQ29sb3I6ICcjMWYyOTM3JywgYm9yZGVyOiAnbm9uZScsIGJvcmRlclJhZGl1czogJzAuNXJlbScgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxMZWdlbmQgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxMaW5lIHR5cGU9XCJtb25vdG9uZVwiIGRhdGFLZXk9XCJ0b3RhbFwiIHN0cm9rZT1cIiMxMGI5ODFcIiBzdHJva2VXaWR0aD17Mn0gbmFtZT1cIlRvdGFsIEVtaXNzaW9uc1wiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvTGluZUNoYXJ0PlxyXG4gICAgICAgICAgICAgICAgICAgIDwvUmVzcG9uc2l2ZUNvbnRhaW5lcj5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZCBwLTZcIj5cclxuICAgICAgICAgICAgICAgICAgICA8aDIgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LXNlbWlib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIG1iLTRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgRW1pc3Npb25zIEJyZWFrZG93blxyXG4gICAgICAgICAgICAgICAgICAgIDwvaDI+XHJcbiAgICAgICAgICAgICAgICAgICAgPFJlc3BvbnNpdmVDb250YWluZXIgd2lkdGg9XCIxMDAlXCIgaGVpZ2h0PXszMDB9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8UGllQ2hhcnQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8UGllXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZGF0YT17YnJlYWtkb3duRGF0YX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjeD1cIjUwJVwiXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY3k9XCI1MCVcIlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGxhYmVsTGluZT17ZmFsc2V9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbGFiZWw9eyh7IG5hbWUsIHBlcmNlbnQgfSkgPT4gYCR7bmFtZX0gJHsocGVyY2VudCAqIDEwMCkudG9GaXhlZCgwKX0lYH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBvdXRlclJhZGl1cz17ODB9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZmlsbD1cIiM4ODg0ZDhcIlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGRhdGFLZXk9XCJ2YWx1ZVwiXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2JyZWFrZG93bkRhdGEubWFwKChlbnRyeSwgaW5kZXgpID0+IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPENlbGwga2V5PXtgY2VsbC0ke2luZGV4fWB9IGZpbGw9e2VudHJ5LmNvbG9yfSAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9QaWU+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8VG9vbHRpcCAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L1BpZUNoYXJ0PlxyXG4gICAgICAgICAgICAgICAgICAgIDwvUmVzcG9uc2l2ZUNvbnRhaW5lcj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LTQgc3BhY2UteS0yXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIHticmVha2Rvd25EYXRhLm1hcChpdGVtID0+IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYga2V5PXtpdGVtLm5hbWV9IGNsYXNzTmFtZT1cImZsZXgganVzdGlmeS1iZXR3ZWVuIGl0ZW1zLWNlbnRlciB0ZXh0LXNtXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInctMyBoLTMgcm91bmRlZC1mdWxsXCIgc3R5bGU9e3sgYmFja2dyb3VuZENvbG9yOiBpdGVtLmNvbG9yIH19IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+e2l0ZW0ubmFtZX08L3NwYW4+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwiZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7aXRlbS52YWx1ZS50b0ZpeGVkKDIpfSBrZyBDTzJlXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgey8qIFN0YWNrZWQgQXJlYSBDaGFydCAqL31cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHJvdW5kZWQtbGcgc2hhZG93LW1kIHAtNlwiPlxyXG4gICAgICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQtbGcgZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZSBtYi00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgRW1pc3Npb25zIGJ5IENhdGVnb3J5XHJcbiAgICAgICAgICAgICAgICA8L2gyPlxyXG4gICAgICAgICAgICAgICAgPFJlc3BvbnNpdmVDb250YWluZXIgd2lkdGg9XCIxMDAlXCIgaGVpZ2h0PXszMDB9PlxyXG4gICAgICAgICAgICAgICAgICAgIDxCYXJDaGFydCBkYXRhPXtjaGFydERhdGF9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8Q2FydGVzaWFuR3JpZCBzdHJva2VEYXNoYXJyYXk9XCIzIDNcIiBzdHJva2U9XCIjMzc0MTUxXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPFhBeGlzIGRhdGFLZXk9XCJkYXRlXCIgc3Ryb2tlPVwiIzljYTNhZlwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxZQXhpcyBzdHJva2U9XCIjOWNhM2FmXCIgbGFiZWw9e3sgdmFsdWU6ICdrZyBDTzJlJywgYW5nbGU6IC05MCwgcG9zaXRpb246ICdpbnNpZGVMZWZ0JyB9fSAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8VG9vbHRpcCBjb250ZW50U3R5bGU9e3sgYmFja2dyb3VuZENvbG9yOiAnIzFmMjkzNycsIGJvcmRlcjogJ25vbmUnLCBib3JkZXJSYWRpdXM6ICcwLjVyZW0nIH19IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxMZWdlbmQgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPEJhciBkYXRhS2V5PVwiY29tcHV0ZVwiIHN0YWNrSWQ9XCJhXCIgZmlsbD1cIiMxMGI5ODFcIiBuYW1lPVwiQ29tcHV0ZVwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxCYXIgZGF0YUtleT1cInN0b3JhZ2VcIiBzdGFja0lkPVwiYVwiIGZpbGw9XCIjM2I4MmY2XCIgbmFtZT1cIlN0b3JhZ2VcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8QmFyIGRhdGFLZXk9XCJuZXR3b3JrXCIgc3RhY2tJZD1cImFcIiBmaWxsPVwiI2Y1OWUwYlwiIG5hbWU9XCJOZXR3b3JrXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICA8L0JhckNoYXJ0PlxyXG4gICAgICAgICAgICAgICAgPC9SZXNwb25zaXZlQ29udGFpbmVyPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICAgIHsvKiBSZWNvbW1lbmRhdGlvbnMgKi99XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctZ3JhZGllbnQtdG8tciBmcm9tLWdyZWVuLTUwIHRvLWJsdWUtNTAgZGFyazpmcm9tLWdyZWVuLTkwMC8yMCBkYXJrOnRvLWJsdWUtOTAwLzIwIHJvdW5kZWQtbGcgc2hhZG93LW1kIHAtNlwiPlxyXG4gICAgICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQtbGcgZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZSBtYi00IGZsZXggaXRlbXMtY2VudGVyXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPFphcEljb24gc2l6ZT17MjB9IGNsYXNzTmFtZT1cIm1yLTIgdGV4dC1ncmVlbi02MDBcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgIENhcmJvbiBSZWR1Y3Rpb24gUmVjb21tZW5kYXRpb25zXHJcbiAgICAgICAgICAgICAgICA8L2gyPlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTNcIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBwLTRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGUgbWItMVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgUmlnaHQtc2l6ZSBjb21wdXRlIGluc3RhbmNlc1xyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2gzPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICBQb3RlbnRpYWwgc2F2aW5nczogPHNwYW4gY2xhc3NOYW1lPVwiZm9udC1zZW1pYm9sZCB0ZXh0LWdyZWVuLTYwMFwiPjE0NSBrZyBDTzJlL21vbnRoPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHJvdW5kZWQtbGcgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxoMyBjbGFzc05hbWU9XCJmb250LXNlbWlib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIG1iLTFcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIEVuYWJsZSBjYXJib24tYXdhcmUgd29ya2xvYWQgc2NoZWR1bGluZ1xyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2gzPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICBSdW4gYmF0Y2ggam9icyBkdXJpbmcgbG93LWNhcmJvbiBob3Vycy4gUG90ZW50aWFsIHNhdmluZ3M6IDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGQgdGV4dC1ncmVlbi02MDBcIj44OSBrZyBDTzJlL21vbnRoPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHJvdW5kZWQtbGcgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxoMyBjbGFzc05hbWU9XCJmb250LXNlbWlib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIG1iLTFcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIE1pZ3JhdGUgdG8gZ3JlZW5lciByZWdpb25zXHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvaDM+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIENvbnNpZGVyIHVzLXdlc3QtMiAocmVuZXdhYmxlIGVuZXJneTogODUlKS4gUG90ZW50aWFsIHNhdmluZ3M6IDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGQgdGV4dC1ncmVlbi02MDBcIj4yMzAga2cgQ08yZS9tb250aDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgKTtcclxufTtcclxuIl0sImZpbGUiOiJEOi9Eb3dubG9hZHMvZW50ZXJwcmlzZS1vbW5pLWFnZW50LWFpLXBsYXRmb3JtL2NvbXBvbmVudHMvU3VzdGFpbmFiaWxpdHlEYXNoYm9hcmQudHN4In0=

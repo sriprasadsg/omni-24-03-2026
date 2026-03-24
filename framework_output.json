@@ -1,0 +1,14 @@
+{
+  "framework_id": "pci-dss",
+  "controls": [
+    {
+      "id": "PCI-1.1",
+      "name": "Firewall Configuration",
+      "description": "Install and maintain a firewall configuration to protect cardholder data.",
+      "category": "Build and Maintain a Secure Network",
+      "status": "Implemented",
+      "lastReviewed": "2023-10-20",
+      "evidence": []
+    }
+  ]
+}

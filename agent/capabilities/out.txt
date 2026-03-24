@@ -1,0 +1,43 @@
+﻿
+--- Compliance Checks Evidence Verification ---
+
+Check: Firewall Status
+Status: Unknown
+Evidence: TestLinuxCompliance.test_linux_evidence_collection.<locals>.subprocess_side_effect() got an unexpected keyword argument 'timeout'
+Hash: 9626d571623306e80d64dce9f08ea5066c7a6804464674b9add392c5127899eb
+------------------------------
+Check: SSH Root Login Disabled
+Status: Pass
+Evidence: PermitRootLogin no
+Hash: 3b14b447a68cea5fd8904e13c393c5bdee7f770aeba8ae240ae26e08f1b5fe2c
+------------------------------
+Check: Automatic Updates
+Status: Unknown
+Evidence: TestLinuxCompliance.test_linux_evidence_collection.<locals>.subprocess_side_effect() got an unexpected keyword argument 'timeout'
+Hash: 9626d571623306e80d64dce9f08ea5066c7a6804464674b9add392c5127899eb
+------------------------------
+Check: MAC Status
+Status: Warning
+Evidence: TestLinuxCompliance.test_linux_evidence_collection.<locals>.subprocess_side_effect() got an unexpected keyword argument 'timeout'
+Hash: 9626d571623306e80d64dce9f08ea5066c7a6804464674b9add392c5127899eb
+------------------------------
+Check: Sudo Configuration
+Status: Pass
+Evidence: root ALL=(ALL:ALL) ALL
+Hash: 6df154bd477027b4106e2444967f3dc368a90ad42fc56ece396439f063291219
+------------------------------
+Check: Cron Security
+Status: Error
+Evidence: [WinError 3] The system cannot find the path specified: '/etc/cron.d'
+Hash: 12f2af9daf54f59fd1d263425deace0f25b959a1999fdd922f6c496ca26bf6be
+------------------------------
+Check: SSHD Hardening
+Status: Pass
+Evidence: PermitRootLogin no
+Hash: 3b14b447a68cea5fd8904e13c393c5bdee7f770aeba8ae240ae26e08f1b5fe2c
+------------------------------
+Check: Filesystem Permissions
+Status: Error
+Evidence: [WinError 3] The system cannot find the path specified: '/etc/passwd'
+Hash: 6e9e21a71f27c64f8554ba9f674a77ed6ccde458a00addc635f91df4e525afe5
+------------------------------

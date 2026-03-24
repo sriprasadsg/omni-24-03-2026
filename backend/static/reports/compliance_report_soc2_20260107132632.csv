@@ -1,0 +1,28 @@
+Control ID,Name,Category,Status,Evidence Count,Collected Evidence,Last Reviewed
+CC1.1,COSO Principle 1: Integrity and Ethical Values,Control Environment,Implemented,0,None,2023-10-01
+CC1.2,COSO Principle 2: Board of Directors Independence,Control Environment,Implemented,0,None,2023-10-01
+CC1.3,COSO Principle 3: Management Structures,Control Environment,Implemented,0,None,2023-10-01
+CC2.1,COSO Principle 6: Information Objectives,Communication and Information,Implemented,0,None,2023-10-05
+CC3.1,COSO Principle 10: Risk Assessment,Risk Assessment,At Risk,0,None,2023-10-07
+CC4.1,COSO Principle 16: Evaluation,Monitoring Activities,Implemented,0,None,2023-10-10
+CC5.1,COSO Principle 13: Internal Control Deficiencies,Control Activities,Implemented,0,None,2023-10-12
+CC6.1,Logical Access Security,Logical and Physical Access Controls,Implemented,1,"System Check: Password Policy (Min Length), System Check: Guest Account Disabled, System Check: BitLocker Encryption, System Check: User Access Control, System Check: Maximum Password Age, System Check: Account Lockout Policy, System Check: Password Complexity, System Check: Password History, System Check: Minimum Password Age, System Check: Credential Guard, System Check: Controlled Folder Access",2023-11-01
+CC6.2,User Registration,Logical and Physical Access Controls,Implemented,0,None,2023-11-05
+CC6.3,Access Removal,Logical and Physical Access Controls,In Progress,0,None,2023-11-10
+CC6.4,Physical Access,Logical and Physical Access Controls,Implemented,0,None,2023-11-11
+CC6.5,Discontinued Credentials,Logical and Physical Access Controls,Implemented,0,None,2023-11-12
+CC6.6,Boundary Protection,Logical and Physical Access Controls,Implemented,2,"System Check: Windows Firewall Profiles, System Check: Risky Network Ports, System Check: Windows Firewall Profiles, System Check: Risky Network Ports, System Check: Windows Firewall Profiles, System Check: Risky Network Ports, System Check: Windows Firewall Profiles, System Check: Risky Network Ports, System Check: Windows Firewall Profiles, System Check: RDP NLA Required, System Check: Risky Network Ports, System Check: Remote Desktop Service",2023-11-14
+CC6.7,Transmission Protection,Logical and Physical Access Controls,Implemented,2,"System Check: TLS Security Config, System Check: TLS Security Config, System Check: TLS Security Config, System Check: TLS Security Config, System Check: TLS Security Config, System Check: LLMNR/NetBIOS Protection",2023-11-15
+CC6.8,Malicious Software,Logical and Physical Access Controls,Implemented,2,"System Check: Windows Defender Antivirus, System Check: Prohibited Software, System Check: Windows Defender Antivirus, System Check: Prohibited Software, System Check: Windows Defender Antivirus, System Check: Prohibited Software, System Check: Windows Defender Antivirus, System Check: Prohibited Software, System Check: Windows Defender Antivirus, System Check: Prohibited Software",2023-11-16
+CC7.1,Configuration Management,System Operations,In Progress,0,None,2023-11-20
+CC7.2,Vulnerability Management,System Operations,At Risk,1,"System Check: Secure Boot, System Check: SMBv1 Protocol Disabled, System Check: Device Guard/WDAC, System Check: Exploit Protection (DEP/ASLR), System Check: Attack Surface Reduction",2023-11-22
+CC7.3,Patch Management,System Operations,Implemented,2,"System Check: Windows Update Service, System Check: Windows Update Service, System Check: Windows Update Service, System Check: Windows Update Service, System Check: Windows Update Service",2023-11-25
+CC7.4,Incident Response,System Operations,Implemented,0,None,2023-11-28
+CC7.5,Disaster Recovery Testing,System Operations,Not Implemented,0,None,2023-11-30
+CC8.1,Change Management,Change Management,Implemented,0,None,2023-12-01
+CC9.1,Business Mitigation,Risk Mitigation,Implemented,0,None,2023-12-05
+CC9.2,Vendor Management,Risk Mitigation,In Progress,2,"System Check: Audit Logging Policy, System Check: Audit Logging Policy, System Check: Audit Logging Policy, System Check: Audit Logging Policy, System Check: Audit Logging Policy, System Check: PowerShell Script Block Logging",2023-12-06
+A1.1,Availability Capacity Management,Availability,Implemented,0,None,2023-12-08
+A1.2,Availability Data Backup,Availability,Implemented,0,None,2023-12-09
+C1.1,Confidentiality Classification,Confidentiality,Implemented,0,None,2023-12-10
+C1.2,Confidentiality Disposition,Confidentiality,Implemented,0,None,2023-12-11

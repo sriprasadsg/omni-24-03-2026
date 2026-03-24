@@ -1,0 +1,187 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/RemediationLogsModal.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import { XIcon, HistoryIcon, CheckIcon, XCircleIcon } from "/components/icons.tsx";
+export const RemediationLogsModal = ({ isOpen, onClose, agent }) => {
+  if (!isOpen || !agent) return null;
+  const getSimulatedLogForAttempt = (timestamp, index) => {
+    const isSuccess = (index + agent.hostname.length) % 3 !== 0;
+    return {
+      timestamp,
+      isSuccess,
+      log: [
+        `[INFO] Autonomous remediation attempt #${index + 1} initiated.`,
+        `[ACTION] Checking agent service status...`,
+        `[OBSERVATION] Service 'omni-agent' is in 'error' state.`,
+        `[THOUGHT] Log indicates a permissions issue. Attempting to fix.`,
+        `[ACTION] Executing: 'sudo chown -R omni-agent:omni-agent /var/log/omni-agent/'`,
+        `[OBSERVATION] Command executed successfully.`,
+        `[ACTION] Restarting agent service...`,
+        `[OBSERVATION] ${isSuccess ? "Agent status changed to 'Online'." : "Agent failed to restart. Timeout reached."}`,
+        `[INFO] Remediation attempt ${isSuccess ? "succeeded" : "failed"}.`
+      ]
+    };
+  };
+  const attemptLogs = (agent.remediationAttempts || []).map((attempt, index) => getSimulatedLogForAttempt(attempt.timestamp, index)).reverse();
+  return /* @__PURE__ */ jsxDEV("div", { className: "fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center", onClick: onClose, children: /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex-shrink-0 flex justify-between items-start mb-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-xl font-bold text-gray-900 dark:text-white flex items-center", children: [
+          /* @__PURE__ */ jsxDEV(HistoryIcon, { className: "mr-3 text-primary-500" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+            lineNumber: 42,
+            columnNumber: 15
+          }, this),
+          "Remediation History"
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+          lineNumber: 41,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 font-mono", children: agent.hostname }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+          lineNumber: 45,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+        lineNumber: 40,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("button", { onClick: onClose, className: "p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none", children: /* @__PURE__ */ jsxDEV(XIcon, { size: 20 }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+        lineNumber: 48,
+        columnNumber: 13
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+        lineNumber: 47,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+      lineNumber: 39,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex-grow space-y-4 overflow-y-auto pr-2", children: attemptLogs.length > 0 ? attemptLogs.map(
+      (attemptLog, index) => /* @__PURE__ */ jsxDEV("div", { className: "p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center mb-2", children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "font-semibold text-gray-700 dark:text-gray-300", children: [
+            "Attempt #",
+            attemptLogs.length - index,
+            " - ",
+            new Date(attemptLog.timestamp).toLocaleString()
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+            lineNumber: 57,
+            columnNumber: 19
+          }, this),
+          attemptLog.isSuccess ? /* @__PURE__ */ jsxDEV("span", { className: "flex items-center text-xs font-medium text-green-700 bg-green-100 dark:text-green-200 dark:bg-green-900/50 px-2 py-1 rounded-full", children: [
+            /* @__PURE__ */ jsxDEV(CheckIcon, { size: 14, className: "mr-1.5" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+              lineNumber: 60,
+              columnNumber: 23
+            }, this),
+            " Success"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+            lineNumber: 59,
+            columnNumber: 15
+          }, this) : /* @__PURE__ */ jsxDEV("span", { className: "flex items-center text-xs font-medium text-red-700 bg-red-100 dark:text-red-200 dark:bg-red-900/50 px-2 py-1 rounded-full", children: [
+            /* @__PURE__ */ jsxDEV(XCircleIcon, { size: 14, className: "mr-1.5" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+              lineNumber: 64,
+              columnNumber: 23
+            }, this),
+            " Failed"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+            lineNumber: 63,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+          lineNumber: 56,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "p-3 bg-gray-900 dark:bg-black rounded-md font-mono text-xs text-gray-300 max-h-40 overflow-y-auto", children: attemptLog.log.map(
+          (line, lineIndex) => /* @__PURE__ */ jsxDEV("p", { className: "whitespace-pre-wrap", children: line }, lineIndex, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+            lineNumber: 70,
+            columnNumber: 15
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+          lineNumber: 68,
+          columnNumber: 17
+        }, this)
+      ] }, index, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+        lineNumber: 55,
+        columnNumber: 11
+      }, this)
+    ) : /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-center text-gray-500 dark:text-gray-400 py-8", children: "No remediation attempts have been recorded for this agent." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+      lineNumber: 76,
+      columnNumber: 11
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+      lineNumber: 52,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex-shrink-0 mt-6 flex justify-end items-center pt-4 border-t border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV(
+      "button",
+      {
+        type: "button",
+        onClick: onClose,
+        className: "px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700",
+        children: "Close"
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+        lineNumber: 81,
+        columnNumber: 11
+      },
+      this
+    ) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+      lineNumber: 80,
+      columnNumber: 9
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+    lineNumber: 38,
+    columnNumber: 7
+  }, this) }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx",
+    lineNumber: 37,
+    columnNumber: 5
+  }, this);
+};
+_c = RemediationLogsModal;
+var _c;
+$RefreshReg$(_c, "RemediationLogsModal");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/RemediationLogsModal.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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USxNQUFNQyxjQUN6Qix1QkFBQyxPQUFrQixXQUFVLHVCQUF1QkQsa0JBQTVDQyxXQUFSO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBQXlEO0FBQUEsUUFDMUQsS0FISDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBSUE7QUFBQSxXQWpCUWhCLE9BQVY7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQWtCQTtBQUFBLElBQ0QsSUFFRCx1QkFBQyxPQUFFLFdBQVUsNkRBQTRELDBFQUF6RTtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBQW1JLEtBeEJ2STtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBMEJBO0FBQUEsSUFFQSx1QkFBQyxTQUFJLFdBQVUsdUdBQ2I7QUFBQSxNQUFDO0FBQUE7QUFBQSxRQUFPLE1BQUs7QUFBQSxRQUFTLFNBQVNKO0FBQUFBLFFBQzdCLFdBQVU7QUFBQSxRQUF5RjtBQUFBO0FBQUEsTUFEckc7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLElBSUEsS0FMRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBTUE7QUFBQSxPQWhERjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBaURBLEtBbERGO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0FtREE7QUFFSjtBQUFFcUIsS0EvRVd2QjtBQUF5RCxJQUFBdUI7QUFBQUMsYUFBQUQsSUFBQSIsIm5hbWVzIjpbIlhJY29uIiwiSGlzdG9yeUljb24iLCJDaGVja0ljb24iLCJYQ2lyY2xlSWNvbiIsIlJlbWVkaWF0aW9uTG9nc01vZGFsIiwiaXNPcGVuIiwib25DbG9zZSIsImFnZW50IiwiZ2V0U2ltdWxhdGVkTG9nRm9yQXR0ZW1wdCIsInRpbWVzdGFtcCIsImluZGV4IiwiaXNTdWNjZXNzIiwiaG9zdG5hbWUiLCJsZW5ndGgiLCJsb2ciLCJhdHRlbXB0TG9ncyIsInJlbWVkaWF0aW9uQXR0ZW1wdHMiLCJtYXAiLCJhdHRlbXB0IiwicmV2ZXJzZSIsImUiLCJzdG9wUHJvcGFnYXRpb24iLCJhdHRlbXB0TG9nIiwiRGF0ZSIsInRvTG9jYWxlU3RyaW5nIiwibGluZSIsImxpbmVJbmRleCIsIl9jIiwiJFJlZnJlc2hSZWckIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIlJlbWVkaWF0aW9uTG9nc01vZGFsLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgQWdlbnQgfSBmcm9tICcuLi90eXBlcyc7XG5pbXBvcnQgeyBYSWNvbiwgSGlzdG9yeUljb24sIENoZWNrSWNvbiwgWENpcmNsZUljb24gfSBmcm9tICcuL2ljb25zJztcblxuaW50ZXJmYWNlIFJlbWVkaWF0aW9uTG9nc01vZGFsUHJvcHMge1xuICBpc09wZW46IGJvb2xlYW47XG4gIG9uQ2xvc2U6ICgpID0+IHZvaWQ7XG4gIGFnZW50OiBBZ2VudCB8IG51bGw7XG59XG5cbmV4cG9ydCBjb25zdCBSZW1lZGlhdGlvbkxvZ3NNb2RhbDogUmVhY3QuRkM8UmVtZWRpYXRpb25Mb2dzTW9kYWxQcm9wcz4gPSAoeyBpc09wZW4sIG9uQ2xvc2UsIGFnZW50IH0pID0+IHtcbiAgaWYgKCFpc09wZW4gfHwgIWFnZW50KSByZXR1cm4gbnVsbDtcblxuICAvLyBTaW11bGF0ZSBhIGxvZyBmb3IgZWFjaCBhdHRlbXB0XG4gIGNvbnN0IGdldFNpbXVsYXRlZExvZ0ZvckF0dGVtcHQgPSAodGltZXN0YW1wOiBzdHJpbmcsIGluZGV4OiBudW1iZXIpID0+IHtcbiAgICBjb25zdCBpc1N1Y2Nlc3MgPSAoaW5kZXggKyBhZ2VudC5ob3N0bmFtZS5sZW5ndGgpICUgMyAhPT0gMDsgLy8gUHNldWRvLXJhbmRvbSBzdWNjZXNzL2ZhaWx1cmVcbiAgICByZXR1cm4ge1xuICAgICAgICB0aW1lc3RhbXAsXG4gICAgICAgIGlzU3VjY2VzcyxcbiAgICAgICAgbG9nOiBbXG4gICAgICAgICAgICBgW0lORk9dIEF1dG9ub21vdXMgcmVtZWRpYXRpb24gYXR0ZW1wdCAjJHtpbmRleCArIDF9IGluaXRpYXRlZC5gLFxuICAgICAgICAgICAgYFtBQ1RJT05dIENoZWNraW5nIGFnZW50IHNlcnZpY2Ugc3RhdHVzLi4uYCxcbiAgICAgICAgICAgIGBbT0JTRVJWQVRJT05dIFNlcnZpY2UgJ29tbmktYWdlbnQnIGlzIGluICdlcnJvcicgc3RhdGUuYCxcbiAgICAgICAgICAgIGBbVEhPVUdIVF0gTG9nIGluZGljYXRlcyBhIHBlcm1pc3Npb25zIGlzc3VlLiBBdHRlbXB0aW5nIHRvIGZpeC5gLFxuICAgICAgICAgICAgYFtBQ1RJT05dIEV4ZWN1dGluZzogJ3N1ZG8gY2hvd24gLVIgb21uaS1hZ2VudDpvbW5pLWFnZW50IC92YXIvbG9nL29tbmktYWdlbnQvJ2AsXG4gICAgICAgICAgICBgW09CU0VSVkFUSU9OXSBDb21tYW5kIGV4ZWN1dGVkIHN1Y2Nlc3NmdWxseS5gLFxuICAgICAgICAgICAgYFtBQ1RJT05dIFJlc3RhcnRpbmcgYWdlbnQgc2VydmljZS4uLmAsXG4gICAgICAgICAgICBgW09CU0VSVkFUSU9OXSAke2lzU3VjY2VzcyA/IFwiQWdlbnQgc3RhdHVzIGNoYW5nZWQgdG8gJ09ubGluZScuXCIgOiBcIkFnZW50IGZhaWxlZCB0byByZXN0YXJ0LiBUaW1lb3V0IHJlYWNoZWQuXCJ9YCxcbiAgICAgICAgICAgIGBbSU5GT10gUmVtZWRpYXRpb24gYXR0ZW1wdCAke2lzU3VjY2VzcyA/ICdzdWNjZWVkZWQnIDogJ2ZhaWxlZCd9LmBcbiAgICAgICAgXVxuICAgIH07XG4gIH07XG5cbiAgY29uc3QgYXR0ZW1wdExvZ3MgPSAoYWdlbnQucmVtZWRpYXRpb25BdHRlbXB0cyB8fCBbXSkubWFwKChhdHRlbXB0LCBpbmRleCkgPT4gZ2V0U2ltdWxhdGVkTG9nRm9yQXR0ZW1wdChhdHRlbXB0LnRpbWVzdGFtcCwgaW5kZXgpKS5yZXZlcnNlKCk7XG5cbiAgcmV0dXJuIChcbiAgICA8ZGl2IGNsYXNzTmFtZT1cImZpeGVkIGluc2V0LTAgYmctYmxhY2sgYmctb3BhY2l0eS01MCB6LTUwIGZsZXgganVzdGlmeS1jZW50ZXIgaXRlbXMtY2VudGVyXCIgb25DbGljaz17b25DbG9zZX0+XG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3cteGwgdy1mdWxsIG1heC13LTJ4bCBwLTYgbS00IG1heC1oLVs5MHZoXSBmbGV4IGZsZXgtY29sXCIgb25DbGljaz17ZSA9PiBlLnN0b3BQcm9wYWdhdGlvbigpfT5cbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LXNocmluay0wIGZsZXgganVzdGlmeS1iZXR3ZWVuIGl0ZW1zLXN0YXJ0IG1iLTRcIj5cbiAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQteGwgZm9udC1ib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIGZsZXggaXRlbXMtY2VudGVyXCI+XG4gICAgICAgICAgICAgIDxIaXN0b3J5SWNvbiBjbGFzc05hbWU9XCJtci0zIHRleHQtcHJpbWFyeS01MDBcIiAvPlxuICAgICAgICAgICAgICBSZW1lZGlhdGlvbiBIaXN0b3J5XG4gICAgICAgICAgICA8L2gyPlxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMCBmb250LW1vbm9cIj57YWdlbnQuaG9zdG5hbWV9PC9wPlxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgIDxidXR0b24gb25DbGljaz17b25DbG9zZX0gY2xhc3NOYW1lPVwicC0xIHJvdW5kZWQtZnVsbCB0ZXh0LWdyYXktNDAwIGhvdmVyOmJnLWdyYXktMjAwIGRhcms6aG92ZXI6YmctZ3JheS03MDAgZm9jdXM6b3V0bGluZS1ub25lXCI+XG4gICAgICAgICAgICA8WEljb24gc2l6ZT17MjB9IC8+XG4gICAgICAgICAgPC9idXR0b24+XG4gICAgICAgIDwvZGl2PlxuICAgICAgICBcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LWdyb3cgc3BhY2UteS00IG92ZXJmbG93LXktYXV0byBwci0yXCI+XG4gICAgICAgICAge2F0dGVtcHRMb2dzLmxlbmd0aCA+IDAgPyAoXG4gICAgICAgICAgICBhdHRlbXB0TG9ncy5tYXAoKGF0dGVtcHRMb2csIGluZGV4KSA9PiAoXG4gICAgICAgICAgICAgIDxkaXYga2V5PXtpbmRleH0gY2xhc3NOYW1lPVwicC00IGJnLWdyYXktNTAgZGFyazpiZy1ncmF5LTkwMC81MCByb3VuZGVkLWxnIGJvcmRlciBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXgganVzdGlmeS1iZXR3ZWVuIGl0ZW1zLWNlbnRlciBtYi0yXCI+XG4gICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJmb250LXNlbWlib2xkIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+QXR0ZW1wdCAje2F0dGVtcHRMb2dzLmxlbmd0aCAtIGluZGV4fSAtIHtuZXcgRGF0ZShhdHRlbXB0TG9nLnRpbWVzdGFtcCkudG9Mb2NhbGVTdHJpbmcoKX08L3A+XG4gICAgICAgICAgICAgICAgICB7YXR0ZW1wdExvZy5pc1N1Y2Nlc3MgPyAoXG4gICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIHRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1ncmVlbi03MDAgYmctZ3JlZW4tMTAwIGRhcms6dGV4dC1ncmVlbi0yMDAgZGFyazpiZy1ncmVlbi05MDAvNTAgcHgtMiBweS0xIHJvdW5kZWQtZnVsbFwiPlxuICAgICAgICAgICAgICAgICAgICAgIDxDaGVja0ljb24gc2l6ZT17MTR9IGNsYXNzTmFtZT1cIm1yLTEuNVwiIC8+IFN1Y2Nlc3NcbiAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxuICAgICAgICAgICAgICAgICAgKSA6IChcbiAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgdGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LXJlZC03MDAgYmctcmVkLTEwMCBkYXJrOnRleHQtcmVkLTIwMCBkYXJrOmJnLXJlZC05MDAvNTAgcHgtMiBweS0xIHJvdW5kZWQtZnVsbFwiPlxuICAgICAgICAgICAgICAgICAgICAgIDxYQ2lyY2xlSWNvbiBzaXplPXsxNH0gY2xhc3NOYW1lPVwibXItMS41XCIgLz4gRmFpbGVkXG4gICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cbiAgICAgICAgICAgICAgICAgICl9XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTMgYmctZ3JheS05MDAgZGFyazpiZy1ibGFjayByb3VuZGVkLW1kIGZvbnQtbW9ubyB0ZXh0LXhzIHRleHQtZ3JheS0zMDAgbWF4LWgtNDAgb3ZlcmZsb3cteS1hdXRvXCI+XG4gICAgICAgICAgICAgICAgICB7YXR0ZW1wdExvZy5sb2cubWFwKChsaW5lLCBsaW5lSW5kZXgpID0+IChcbiAgICAgICAgICAgICAgICAgICAgPHAga2V5PXtsaW5lSW5kZXh9IGNsYXNzTmFtZT1cIndoaXRlc3BhY2UtcHJlLXdyYXBcIj57bGluZX08L3A+XG4gICAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICApKVxuICAgICAgICAgICkgOiAoXG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtY2VudGVyIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIHB5LThcIj5ObyByZW1lZGlhdGlvbiBhdHRlbXB0cyBoYXZlIGJlZW4gcmVjb3JkZWQgZm9yIHRoaXMgYWdlbnQuPC9wPlxuICAgICAgICAgICl9XG4gICAgICAgIDwvZGl2PlxuICAgICAgICBcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LXNocmluay0wIG10LTYgZmxleCBqdXN0aWZ5LWVuZCBpdGVtcy1jZW50ZXIgcHQtNCBib3JkZXItdCBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cbiAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJidXR0b25cIiBvbkNsaWNrPXtvbkNsb3NlfVxuICAgICAgICAgICAgY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtc20gZm9udC1tZWRpdW0gdGV4dC13aGl0ZSBiZy1wcmltYXJ5LTYwMCByb3VuZGVkLWxnIGhvdmVyOmJnLXByaW1hcnktNzAwXCJcbiAgICAgICAgICA+XG4gICAgICAgICAgICBDbG9zZVxuICAgICAgICAgIDwvYnV0dG9uPlxuICAgICAgICA8L2Rpdj5cbiAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuICApO1xufTtcbiJdLCJmaWxlIjoiRDovRG93bmxvYWRzL2VudGVycHJpc2Utb21uaS1hZ2VudC1haS1wbGF0Zm9ybS9jb21wb25lbnRzL1JlbWVkaWF0aW9uTG9nc01vZGFsLnRzeCJ9

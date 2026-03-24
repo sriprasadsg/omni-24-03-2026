@@ -1,0 +1,87 @@
+Total Frameworks: 17
+
+Framework: SOC 2 Type II (ID: soc2)
+  Total Controls: 27
+  Example Control ID: CC1.1
+  First 5 IDs: ['CC1.1', 'CC1.2', 'CC1.3', 'CC2.1', 'CC3.1']
+----------------------------------------
+Framework: ISO/IEC 27001:2022 (ID: iso27001)
+  Total Controls: 93
+  Example Control ID: A.5.1
+  First 5 IDs: ['A.5.1', 'A.5.2', 'A.5.3', 'A.5.4', 'A.5.5']
+----------------------------------------
+Framework: Payment Card Industry Data Security Standard (ID: pci-dss)
+  Total Controls: 22
+  Example Control ID: PCI-1.1
+  First 5 IDs: ['PCI-1.1', 'PCI-1.2', 'PCI-2.1', 'PCI-2.2', 'PCI-3.1']
+----------------------------------------
+Framework: NIST Cybersecurity Framework (ID: nistcsf)
+  Total Controls: 102
+  Example Control ID: GV.OC-1
+  First 5 IDs: ['GV.OC-1', 'GV.OC-2', 'GV.OC-3', 'GV.OC-4', 'GV.OC-5']
+----------------------------------------
+Framework: ISO/IEC 42001:2023 (ID: iso42001)
+  Total Controls: 12
+  Example Control ID: A.2.1
+  First 5 IDs: ['A.2.1', 'A.3.1', 'A.4.1', 'A.5.1', 'A.6.1']
+----------------------------------------
+Framework: HIPAA Security Rule (ID: hipaa)
+  Total Controls: 21
+  Example Control ID: 164.308(a)(1)(i)
+  First 5 IDs: ['164.308(a)(1)(i)', '164.308(a)(1)(ii)(A)', '164.308(a)(1)(ii)(B)', '164.308(a)(2)', '164.308(a)(3)']
+----------------------------------------
+Framework: General Data Protection Regulation (ID: gdpr)
+  Total Controls: 17
+  Example Control ID: Art.5(1)(a)
+  First 5 IDs: ['Art.5(1)(a)', 'Art.5(1)(c)', 'Art.5(1)(e)', 'Art.5(1)(f)', 'Art.15']
+----------------------------------------
+Framework: FedRAMP Moderate (ID: fedramp_moderate)
+  Total Controls: 6
+  Example Control ID: fedramp-AC-2
+  First 5 IDs: ['fedramp-AC-2', 'fedramp-AC-3', 'fedramp-AU-2', 'fedramp-CM-6', 'fedramp-IR-4']
+----------------------------------------
+Framework: California Consumer Privacy Act (CCPA/CPRA) (ID: ccpa)
+  Total Controls: 4
+  Example Control ID: ccpa-Privacy-1
+  First 5 IDs: ['ccpa-Privacy-1', 'ccpa-Privacy-2', 'ccpa-Privacy-3', 'ccpa-Security-1']
+----------------------------------------
+Framework: HITRUST CSF v11 (ID: hitrust_csf)
+  Total Controls: 3
+  Example Control ID: hitrust-01.0
+  First 5 IDs: ['hitrust-01.0', 'hitrust-06.0', 'hitrust-09.0']
+----------------------------------------
+Framework: CMMC 2.0 Level 2 (ID: cmmc_l2)
+  Total Controls: 3
+  Example Control ID: cmmc-AC.L2-3.1.1
+  First 5 IDs: ['cmmc-AC.L2-3.1.1', 'cmmc-SI.L2-3.14.1', 'cmmc-SC.L2-3.13.11']
+----------------------------------------
+Framework: CSA STAR (CCM v4) (ID: csa_star)
+  Total Controls: 3
+  Example Control ID: csa-AIS-04
+  First 5 IDs: ['csa-AIS-04', 'csa-IAM-01', 'csa-IVS-06']
+----------------------------------------
+Framework: COBIT 2019 (ID: cobit_2019)
+  Total Controls: 2
+  Example Control ID: cobit-DSS05
+  First 5 IDs: ['cobit-DSS05', 'cobit-APO12']
+----------------------------------------
+Framework: DORA (EU) (ID: dora)
+  Total Controls: 3
+  Example Control ID: dora-Art5
+  First 5 IDs: ['dora-Art5', 'dora-Art9', 'dora-Art11']
+----------------------------------------
+Framework: Digital Personal Data Protection Act (DPDP) (ID: dpdp)
+  Total Controls: 8
+  Example Control ID: DPDP-5.1
+  First 5 IDs: ['DPDP-5.1', 'DPDP-8.4', 'DPDP-8.5', 'DPDP-9.1', 'DPDP-10.1']
+----------------------------------------
+Framework: ISO 9001:2015 (ID: iso9001_2015)
+  Total Controls: 4
+  Example Control ID: iso9001-4.4
+  First 5 IDs: ['iso9001-4.4', 'iso9001-5.2', 'iso9001-6.1', 'iso9001-7.5']
+----------------------------------------
+Framework: ISO 31000:2018 (ID: iso31000_2018)
+  Total Controls: 3
+  Example Control ID: iso31000-5.4
+  First 5 IDs: ['iso31000-5.4', 'iso31000-6.3', 'iso31000-6.4']
+----------------------------------------

@@ -1,0 +1,24 @@
+2026-02-18 02:57:42,672 - cache_service - WARNING - \u26a0\ufe0f Redis not available at localhost:6379. Caching disabled.
+2026-02-18 02:57:43,707 - cloud_remediation_service - WARNING - \u26a0\ufe0f AWS SDK not available: You must specify a region.
+2026-02-18 02:57:43,711 - cloud_remediation_service - WARNING - \u26a0\ufe0f Azure SDK not available: No module named 'azure.identity'
+2026-02-18 02:57:47,282 - cloud_remediation_service - WARNING - \u26a0\ufe0f GCP SDK not available: Your default credentials were not found. To set up Application Default Credentials, see https://cloud.google.com/docs/authentication/external/set-up-adc for more information.
+INFO:     Started server process [16996]
+INFO:     Waiting for application startup.
+2026-02-18 02:57:47,415 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2026-02-18 02:57:47,445 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-18 02:57:47,447 - apscheduler.scheduler - INFO - Added job "Process Scheduled Deployments" to job store "default"
+2026-02-18 02:57:47,447 - apscheduler.scheduler - INFO - Scheduler started
+2026-02-18 02:57:47,448 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-18 02:57:47,448 - apscheduler.scheduler - INFO - Added job "FinOps Cost Recalculation" to job store "default"
+2026-02-18 02:57:47,449 - apscheduler.scheduler - INFO - Scheduler started
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 5000): only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+2026-02-18 02:57:47,450 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-18 02:57:47,450 - apscheduler.scheduler - INFO - Scheduler has been shut down
+INFO:     Application shutdown complete.

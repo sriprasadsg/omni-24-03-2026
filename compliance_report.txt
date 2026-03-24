@@ -1,0 +1,297 @@
+Asset ID: asset-EILT0197
+
+--- Installed Software (0) ---
+  (No compliance-related software found)
+
+--- Patch Status ---
+  Critical: 0
+
+--- Asset Compliance Evidence ---
+Found 64 compliance records.
+  - Control: PCI-1.1.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Firewall Profiles
+  - Control: PR.AC-1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: User Access Control
+  - Control: CC6.6 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Remote Desktop Service
+  - Control: PCI-1.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Risky Network Ports
+  - Control: A.13.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Risky Network Ports
+  - Control: A.12.2.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Defender Antivirus
+  - Control: PCI-5.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Defender Antivirus
+  - Control: CC6.8 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Prohibited Software
+  - Control: A.8.7 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Defender Antivirus
+  - Control: DE.CM-4 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Defender Antivirus
+  - Control: A.9.4.3 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Password Policy (Min Length)
+  - Control: PCI-8.1.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Guest Account Disabled
+  - Control: A.9.4.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: User Access Control
+  - Control: CC6.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Minimum Password Age
+  - Control: IA-5 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Minimum Password Age
+  - Control: A.9.2.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Guest Account Disabled
+  - Control: PR.AC-4 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Guest Account Disabled
+  - Control: PCI-2.2.4 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: RDP NLA Required
+  - Control: A.9.4.2 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Account Lockout Policy
+  - Control: 164.312(a)(2)(iv) | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: TLS Security Config
+  - Control: PCI-3.4 | Status: Warning | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: BitLocker Encryption
+  - Control: A.8.12 | Status: Warning | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: BitLocker Encryption
+  - Control: PR.DS-1 | Status: Warning | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: BitLocker Encryption
+  - Control: ID.AM-1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Prohibited Software
+  - Control: A.12.1.2 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Secure Boot
+  - Control: CC7.2 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Secure Boot
+  - Control: PCI-6.2 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Update Service
+  - Control: A.12.6.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Update Service
+  - Control: CC7.3 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Update Service
+  - Control: DE.CM-8 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Windows Update Service
+  - Control: PCI-10.1 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Audit Logging Policy
+  - Control: DE.AE-1 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Audit Logging Policy
+  - Control: A.12.4.1 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Audit Logging Policy
+  - Control: CC9.2 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Audit Logging Policy
+  - Control: DE.CM-1 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Audit Logging Policy
+  - Control: AU-2 | Status: Non-Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Audit Logging Policy
+  - Control: PR.AC-5 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Risky Network Ports
+  - Control: PCI-4.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: TLS Security Config
+  - Control: CC6.7 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: TLS Security Config
+  - Control: PR.DS-2 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: TLS Security Config
+  - Control: A.10.1 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: TLS Security Config
+  - Control: A.12.5 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Prohibited Software
+  - Control: A.12.6.2 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Prohibited Software
+  - Control: A.8.5 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Minimum Password Age
+  - Control: PCI-8.2.4 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Maximum Password Age
+  - Control: PR.AC-7 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Account Lockout Policy
+  - Control: PCI-8.1.6 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Account Lockout Policy
+  - Control: AC-7 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Account Lockout Policy
+  - Control: PCI-8.2.3 | Status: Warning | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Password Complexity
+  - Control: PCI-8.2.5 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Password History
+  - Control: PCI-2.2.2 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Remote Desktop Service
+  - Control: PR.AC-3 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: Remote Desktop Service
+  - Control: CVE-2017-0143 | Status: Compliant | Updated: 2026-02-16T22:34:42.974549+00:00 | Check: SMBv1 Protocol Disabled
+  - Control: PR.IP-1 | Status: Warning | Updated: 2026-02-16T22:33:21.349071+00:00 | Check: Attack Surface Reduction
+  - Control: A.12.3.1 | Status: Warning | Updated: 2026-02-16T22:33:21.349071+00:00 | Check: Controlled Folder Access
+  - Control: DPDP-5.1 | Status: Non-Compliant | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: DPDP-5.1 Consent Artifacts
+  - Control: DPDP-8.4 | Status: Compliant | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: DPDP-8.4 Data Retention Policy
+  - Control: DPDP-8.5 | Status: Warning | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: DPDP-8.5 Breach Notification
+  - Control: DPDP-9.1 | Status: Compliant | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: DPDP-9.1 Child Data Age-Gating
+  - Control: DPDP-10.1 | Status: Non-Compliant | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: DPDP-10.1 SDF Audit Status
+  - Control: IVS-06 | Status: Compliant | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: Cloud Instance Metadata
+  - Control: AC-3 | Status: Compliant | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: Cloud Instance Metadata
+  - Control: Privacy-1 | Status: Warning | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: PII Data Discovery
+  - Control: Art.5(1)(c) | Status: Warning | Updated: 2026-02-16T22:34:18.500371+00:00 | Check: PII Data Discovery
+
+--- Framework Statuses (17) ---
+Framework: SOC 2 Type II
+  Status: In Progress
+  - Control 'COSO Principle 1: Integrity and Ethical Values' Failed/Pending: No evidence
+  - Control 'COSO Principle 2: Board of Directors Independence' Failed/Pending: No evidence
+  - Control 'COSO Principle 3: Management Structures' Failed/Pending: No evidence
+  - Control 'COSO Principle 6: Information Objectives' Failed/Pending: No evidence
+  - Control 'COSO Principle 10: Risk Assessment' Failed/Pending: No evidence
+  - Control 'COSO Principle 16: Evaluation' Failed/Pending: No evidence
+  - Control 'COSO Principle 13: Internal Control Deficiencies' Failed/Pending: No evidence
+  - Control 'Logical Access Security' Failed/Pending: No evidence
+  - Control 'User Registration' Failed/Pending: No evidence
+  - Control 'Access Removal' Failed/Pending: No evidence
+  - Control 'Physical Access' Failed/Pending: No evidence
+  - Control 'Discontinued Credentials' Failed/Pending: No evidence
+  - Control 'Boundary Protection' Failed/Pending: No evidence
+  - Control 'Transmission Protection' Failed/Pending: No evidence
+  - Control 'Malicious Software' Failed/Pending: No evidence
+  - Control 'Configuration Management' Failed/Pending: No evidence
+  - Control 'Vulnerability Management' Failed/Pending: No evidence
+  - Control 'Patch Management' Failed/Pending: No evidence
+  - Control 'Incident Response' Failed/Pending: No evidence
+  - Control 'Disaster Recovery Testing' Failed/Pending: No evidence
+  - Control 'Change Management' Failed/Pending: No evidence
+  - Control 'Business Mitigation' Failed/Pending: No evidence
+  - Control 'Vendor Management' Failed/Pending: No evidence
+  - Control 'Availability Capacity Management' Failed/Pending: No evidence
+  - Control 'Availability Data Backup' Failed/Pending: No evidence
+  - Control 'Confidentiality Classification' Failed/Pending: No evidence
+  - Control 'Confidentiality Disposition' Failed/Pending: No evidence
+Framework: ISO/IEC 27001:2022
+  Status: In Progress
+  - Control 'Policies for Information Security' Failed/Pending: No evidence
+  - Control 'Information Security Roles' Failed/Pending: No evidence
+  - Control 'Segregation of Duties' Failed/Pending: No evidence
+  - Control 'Management Responsibilities' Failed/Pending: No evidence
+  - Control 'Threat Intelligence' Failed/Pending: No evidence
+  - Control 'Access Control' Failed/Pending: No evidence
+  - Control 'Addressing Information Security within Supplier Relationships' Failed/Pending: No evidence
+  - Control 'Information Security Incident Management Planning' Failed/Pending: No evidence
+  - Control 'Screening' Failed/Pending: No evidence
+  - Control 'Information Security Awareness' Failed/Pending: No evidence
+  - Control 'Confidentiality or Non-Disclosure Agreements' Failed/Pending: No evidence
+  - Control 'Information Security Event Reporting' Failed/Pending: No evidence
+  - Control 'Physical Security Perimeters' Failed/Pending: No evidence
+  - Control 'Physical Entry Controls' Failed/Pending: No evidence
+  - Control 'Storage Media' Failed/Pending: No evidence
+  - Control 'Cabling Security' Failed/Pending: No evidence
+  - Control 'User Endpoint Devices' Failed/Pending: No evidence
+  - Control 'Privileged Access Rights' Failed/Pending: No evidence
+  - Control 'Information Access Restriction' Failed/Pending: No evidence
+  - Control 'Protection against Malware' Failed/Pending: No evidence
+  - Control 'Management of Technical Vulnerabilities' Failed/Pending: No evidence
+  - Control 'Configuration Management' Failed/Pending: No evidence
+  - Control 'Information Deletion' Failed/Pending: No evidence
+  - Control 'Data Leakage Prevention' Failed/Pending: No evidence
+  - Control 'Information Backup' Failed/Pending: No evidence
+  - Control 'Monitoring Activities' Failed/Pending: No evidence
+  - Control 'Use of Cryptography' Failed/Pending: No evidence
+  - Control 'Secure Coding' Failed/Pending: No evidence
+  - Control 'Password Policy' Failed/Pending: No evidence
+  - Control 'Software Updates' Failed/Pending: No evidence
+Framework: Payment Card Industry Data Security Standard
+  Status: In Progress
+  - Control 'Firewall Configuration' Failed/Pending: No evidence
+  - Control 'Restrict Connections' Failed/Pending: No evidence
+  - Control 'System Defaults' Failed/Pending: No evidence
+  - Control 'Configuration Standards' Failed/Pending: No evidence
+  - Control 'Cardholder Data Storage' Failed/Pending: No evidence
+  - Control 'Protect Stored Data' Failed/Pending: No evidence
+  - Control 'Encryption Keys' Failed/Pending: No evidence
+  - Control 'Encrypt Transmission' Failed/Pending: No evidence
+  - Control 'Anti-Virus Software' Failed/Pending: No evidence
+  - Control 'Vulnerability Ranking' Failed/Pending: No evidence
+  - Control 'System Patches' Failed/Pending: No evidence
+  - Control 'Secure Software' Failed/Pending: No evidence
+  - Control 'Access Restriction' Failed/Pending: No evidence
+  - Control 'Unique IDs' Failed/Pending: No evidence
+  - Control 'Authentication Methods' Failed/Pending: No evidence
+  - Control 'Physical Security' Failed/Pending: No evidence
+  - Control 'Media Protection' Failed/Pending: No evidence
+  - Control 'Audit Logging' Failed/Pending: No evidence
+  - Control 'Audit Trails' Failed/Pending: No evidence
+  - Control 'Vulnerability Scanning' Failed/Pending: No evidence
+  - Control 'Penetration Testing' Failed/Pending: No evidence
+  - Control 'Information Security Policy' Failed/Pending: No evidence
+Framework: NIST Cybersecurity Framework
+  Status: In Progress
+  - Control 'Asset Management' Failed/Pending: No evidence
+  - Control 'Software Inventory' Failed/Pending: No evidence
+  - Control 'Risk Assessment' Failed/Pending: No evidence
+  - Control 'Threat Intelligence' Failed/Pending: No evidence
+  - Control 'Governance' Failed/Pending: No evidence
+  - Control 'Access Control' Failed/Pending: No evidence
+  - Control 'Remote Access' Failed/Pending: No evidence
+  - Control 'Network Segregation' Failed/Pending: No evidence
+  - Control 'Data at Rest' Failed/Pending: No evidence
+  - Control 'Data in Transit' Failed/Pending: No evidence
+  - Control 'Configuration Baselines' Failed/Pending: No evidence
+  - Control 'Anomalies and Events' Failed/Pending: No evidence
+  - Control 'Security Monitoring' Failed/Pending: No evidence
+  - Control 'Monitoring for Malicious Code' Failed/Pending: No evidence
+  - Control 'Response Planning' Failed/Pending: No evidence
+  - Control 'Mitigation' Failed/Pending: No evidence
+  - Control 'Analysis' Failed/Pending: No evidence
+  - Control 'Recovery Planning' Failed/Pending: No evidence
+  - Control 'Improvements' Failed/Pending: No evidence
+Framework: ISO/IEC 42001:2023
+  Status: In Progress
+  - Control 'AI Policy' Failed/Pending: No evidence
+  - Control 'AI Roles and Responsibilities' Failed/Pending: No evidence
+  - Control 'Resources for AI Systems' Failed/Pending: No evidence
+  - Control 'AI Impact Assessment' Failed/Pending: No evidence
+  - Control 'AI System Lifecycle' Failed/Pending: No evidence
+  - Control 'AI Design and Development' Failed/Pending: No evidence
+  - Control 'AI System Testing' Failed/Pending: No evidence
+  - Control 'Data Management' Failed/Pending: No evidence
+  - Control 'Data Quality' Failed/Pending: No evidence
+  - Control 'Third-Party AI Systems' Failed/Pending: No evidence
+  - Control 'Responsible Use of AI' Failed/Pending: No evidence
+  - Control 'Transparency and Explainability' Failed/Pending: No evidence
+Framework: HIPAA Security Rule
+  Status: Pending
+  - Control 'Security Management Process' Failed/Pending: No evidence
+  - Control 'Risk Analysis' Failed/Pending: No evidence
+  - Control 'Risk Management' Failed/Pending: No evidence
+  - Control 'Assigned Security Responsibility' Failed/Pending: No evidence
+  - Control 'Workforce Security' Failed/Pending: No evidence
+  - Control 'Information Access Management' Failed/Pending: No evidence
+  - Control 'Security Awareness and Training' Failed/Pending: No evidence
+  - Control 'Security Incident Procedures' Failed/Pending: No evidence
+  - Control 'Contingency Plan' Failed/Pending: No evidence
+  - Control 'Evaluation' Failed/Pending: No evidence
+  - Control 'Facility Access Controls' Failed/Pending: No evidence
+  - Control 'Workstation Use' Failed/Pending: No evidence
+  - Control 'Workstation Security' Failed/Pending: No evidence
+  - Control 'Device and Media Controls' Failed/Pending: No evidence
+  - Control 'Access Control' Failed/Pending: No evidence
+  - Control 'Unique User Identification' Failed/Pending: No evidence
+  - Control 'Encryption and Decryption' Failed/Pending: No evidence
+  - Control 'Audit Controls' Failed/Pending: No evidence
+  - Control 'Integrity' Failed/Pending: No evidence
+  - Control 'Person or Entity Authentication' Failed/Pending: No evidence
+  - Control 'Transmission Security' Failed/Pending: No evidence
+Framework: General Data Protection Regulation
+  Status: Not Implemented
+  - Control 'Lawfulness, Fairness and Transparency' Failed/Pending: No evidence
+  - Control 'Data Minimization' Failed/Pending: No evidence
+  - Control 'Storage Limitation' Failed/Pending: No evidence
+  - Control 'Integrity and Confidentiality' Failed/Pending: No evidence
+  - Control 'Right of Access' Failed/Pending: No evidence
+  - Control 'Right to Rectification' Failed/Pending: No evidence
+  - Control 'Right to Erasure ('Right to be Forgotten')' Failed/Pending: No evidence
+  - Control 'Right to Data Portability' Failed/Pending: No evidence
+  - Control 'Responsibility of the Controller' Failed/Pending: No evidence
+  - Control 'Data Protection by Design and by Default' Failed/Pending: No evidence
+  - Control 'Processor' Failed/Pending: No evidence
+  - Control 'Records of Processing Activities' Failed/Pending: No evidence
+  - Control 'Encryption' Failed/Pending: No evidence
+  - Control 'Confidentiality, Integrity, Availability' Failed/Pending: No evidence
+  - Control 'Testing and Evaluation' Failed/Pending: No evidence
+  - Control 'Notification of a Personal Data Breach' Failed/Pending: No evidence
+  - Control 'General Principle for Transfers' Failed/Pending: No evidence
+Framework: FedRAMP Moderate
+  Status: In Progress
+  - Control 'Account Management' Failed/Pending: No evidence
+  - Control 'Access Enforcement' Failed/Pending: No evidence
+  - Control 'Audit Events' Failed/Pending: No evidence
+  - Control 'Configuration Settings' Failed/Pending: No evidence
+  - Control 'Incident Handling' Failed/Pending: No evidence
+  - Control 'Flaw Remediation' Failed/Pending: No evidence
+Framework: California Consumer Privacy Act (CCPA/CPRA)
+  Status: Not Implemented
+  - Control 'Right to Know' Failed/Pending: No evidence
+  - Control 'Right to Delete' Failed/Pending: No evidence
+  - Control 'Do Not Sell/Share' Failed/Pending: No evidence
+  - Control 'reasonable security procedures' Failed/Pending: No evidence
+Framework: HITRUST CSF v11
+  Status: Pending
+  - Control 'Access Control' Failed/Pending: No evidence
+  - Control 'Endpoint Protection' Failed/Pending: No evidence
+  - Control 'Transmission Protection' Failed/Pending: No evidence
+Framework: CMMC 2.0 Level 2
+  Status: In Progress
+  - Control 'Authorized Access Control' Failed/Pending: No evidence
+  - Control 'Flaw Remediation' Failed/Pending: No evidence
+  - Control 'FIPS Validated Cryptography' Failed/Pending: No evidence
+Framework: CSA STAR (CCM v4)
+  Status: In Progress
+  - Control 'Application Security Metrics' Failed/Pending: No evidence
+  - Control 'Identity and Access Management Policy' Failed/Pending: No evidence
+  - Control 'Network Security' Failed/Pending: No evidence
+Framework: COBIT 2019
+  Status: Pending
+  - Control 'Manage Security Services' Failed/Pending: No evidence
+  - Control 'Manage Risk' Failed/Pending: No evidence
+Framework: DORA (EU)
+  Status: In Progress
+  - Control 'ICT Risk Management Framework' Failed/Pending: No evidence
+  - Control 'Protection and Prevention' Failed/Pending: No evidence
+  - Control 'Backup Policies' Failed/Pending: No evidence
+Framework: Digital Personal Data Protection Act (DPDP)
+  Status: In Progress
+  - Control 'Consent Artifacts Present' Failed/Pending: No evidence
+  - Control 'Data Retention Pruning Logic' Failed/Pending: No evidence
+  - Control 'Personal Data Breach Notification Ops' Failed/Pending: No evidence
+  - Control 'Child Data Age-Gating' Failed/Pending: No evidence
+  - Control 'Significant Data Fiduciary Audits' Failed/Pending: No evidence
+  - Control 'Notice for Consent' Failed/Pending: No evidence
+  - Control 'Grievance Redressal Mechanism' Failed/Pending: No evidence
+  - Control 'Data Processor Contracts' Failed/Pending: No evidence
+Framework: ISO 9001:2015
+  Status: In Progress
+  - Control 'QMS and its processes' Failed/Pending: No evidence
+  - Control 'Quality Policy' Failed/Pending: No evidence
+  - Control 'Actions to address risks and opportunities' Failed/Pending: No evidence
+  - Control 'Documented Information' Failed/Pending: No evidence
+Framework: ISO 31000:2018
+  Status: In Progress
+  - Control 'Implementation' Failed/Pending: No evidence
+  - Control 'Scope, Context and Criteria' Failed/Pending: No evidence
+  - Control 'Risk Assessment' Failed/Pending: No evidence

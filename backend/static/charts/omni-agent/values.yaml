@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: omni-agent
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+registrationKey: ""
+clusterName: "default-cluster"
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

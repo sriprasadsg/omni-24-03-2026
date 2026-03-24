@@ -1,0 +1,82 @@
+﻿--- DEEP DIVE DIAGNOSTICS: DATABASE CHECK ---
+
+1. Frameworks Status:
+ - [soc2] SOC 2 Type II: 85%
+ - [iso27001] ISO/IEC 27001:2022: 97%
+ - [pci-dss] Payment Card Industry Data Security Standard: 80%
+ - [nistcsf] NIST Cybersecurity Framework: 73%
+ - [iso42001] ISO/IEC 42001:2023: 75%
+ - [hipaa] HIPAA Security Rule: 83%
+ - [gdpr] General Data Protection Regulation: 62%
+ - [fedramp_moderate] FedRAMP Moderate: 67%
+ - [ccpa] California Consumer Privacy Act (CCPA/CPRA): 38%
+ - [hitrust_csf] HITRUST CSF v11: 83%
+ - [cmmc_l2] CMMC 2.0 Level 2: 50%
+ - [csa_star] CSA STAR (CCM v4): 67%
+ - [cobit_2019] COBIT 2019: 25%
+ - [dora] DORA (EU): 100%
+ - [dpdp] Digital Personal Data Protection Act (DPDP): 69%
+ - [iso9001_2015] ISO 9001:2015: 88%
+ - [iso31000_2018] ISO 31000:2018: 83%
+ - [cissp] CISSP: 12%
+
+2. AI Auditor Evaluation Results (Asset Compliance):
+ - Control: CISSP-3.2 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: Here's how you can implement this:
+
+```python
+import hashlib
+
+def check_bitlocker_status(account_id,...
+ - Control: CISSP-3.3 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: To check the integrity of a BitLocker drive, you can use the `sha256` function from the `cryptograph...
+ - Control: CISSP-4.2 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: Here's how you can implement this:
+
+```python
+import os
+import re
+
+def check_status(file_path):
+    ...
+ - Control: CISSP-7.5 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: To check the status of the automated command output, we can use the `hasattr` function to check if t...
+ - Control: CISSP-5.2 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: Here's how you can implement the `check_status` function:
+
+```python
+import hashlib
+
+def check_statu...
+ - Control: CISSP-6.4 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: To check the audit logs for anomalies, unauthorized access, and policy violations, we can use the `a...
+ - Control: CISSP-7.3 | Asset: asset-EILT0197 | Verdict: FAIL
+   Reasoning: To check the status of a hotfix, you can use the `hotfix` command in the command line. The `hotfix` ...
+
+3. Users & Roles:
+ - super@omni.ai (Super Admin)
+ - tester@omni.ai (Tenant Admin)
+ - admin@test.com (Tenant Admin)
+ - srihari@exafluence.com (Tenant Admin)
+ - tester@test.com (Tenant Admin)
+ - newadmin@omni.ai (Tenant Admin)
+ - jetski_bot_admin_777@omni.ai (Tenant Admin)
+ - admin@exafluence.com (Tenant Admin)
+ - sri@omni.ai (Tenant Admin)
+ - admin_test_123@omni.ai (Tenant Admin)
+ - test@example.com (Tenant Admin)
+ - tester@example.com (Tenant Admin)
+ - unique_1767116606725@test.ai (Tenant Admin)
+ - admin_wh422s@omni.ai (Tenant Admin)
+ - testadmin_1767170197@example.com (Tenant Admin)
+ - testadmin_1767170234@example.com (Tenant Admin)
+ - browser_test_1767172506@example.com (Tenant Admin)
+ - testadmin_1767173756@example.com (Tenant Admin)
+ - tester@tester.com (Tenant Admin)
+ - admin@exaffluence.com (Tenant Admin)
+ - test@test.com (Tenant Admin)
+ - tester2@test.com (Tenant Admin)
+ - a@b.com (Tenant Admin)
+
+4. Registered Agents:
+ - Found 2 agents registered.

@@ -1,0 +1,183 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/TenantManagementDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const React = __vite__cjsImport1_react.__esModule ? __vite__cjsImport1_react.default : __vite__cjsImport1_react;
+import { SettingsIcon, ZapIcon, TrashIcon } from "/components/icons.tsx";
+import { TenantBrandingSettings } from "/components/TenantBrandingSettings.tsx";
+import { useUser } from "/contexts/UserContext.tsx";
+export const TenantManagementDashboard = ({
+  tenants,
+  onManageTenant,
+  onViewTenant,
+  handleDelete,
+  handleUpdateTenant
+}) => {
+  _s();
+  const { hasPermission } = useUser();
+  const [brandingTenant, setBrandingTenant] = React.useState(null);
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto p-6", children: [
+    /* @__PURE__ */ jsxDEV("h1", { className: "text-2xl font-bold mb-6 text-gray-800 dark:text-white", children: "Tenant Management" }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+      lineNumber: 27,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden", children: /* @__PURE__ */ jsxDEV("table", { className: "min-w-full divide-y divide-gray-200 dark:divide-gray-700", children: [
+      /* @__PURE__ */ jsxDEV("thead", { className: "bg-gray-50 dark:bg-gray-700", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+        /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider", children: "Tenant Name" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+          lineNumber: 33,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider", children: "Plan" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+          lineNumber: 34,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider", children: "Actions" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+          lineNumber: 35,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+        lineNumber: 32,
+        columnNumber: 25
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+        lineNumber: 31,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV("tbody", { className: "bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700", children: tenants.map(
+        (tenant) => /* @__PURE__ */ jsxDEV("tr", { children: [
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white", children: tenant.name }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+            lineNumber: 41,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400", children: tenant.subscriptionTier }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+            lineNumber: 44,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center space-x-3", children: [
+            /* @__PURE__ */ jsxDEV("button", { onClick: () => onViewTenant(tenant.id), className: "px-2.5 py-1 text-xs font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700", children: "View" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+              lineNumber: 49,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("button", { onClick: () => onManageTenant(tenant), className: "flex items-center text-xs font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300", children: [
+              /* @__PURE__ */ jsxDEV(SettingsIcon, { size: 12, className: "mr-1" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+                lineNumber: 50,
+                columnNumber: 197
+              }, this),
+              "Config"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+              lineNumber: 50,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("button", { onClick: () => setBrandingTenant(tenant), className: "flex items-center text-xs font-medium text-purple-600 hover:text-purple-800", children: [
+              /* @__PURE__ */ jsxDEV(ZapIcon, { size: 12, className: "mr-1" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+                lineNumber: 51,
+                columnNumber: 179
+              }, this),
+              "Brand"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+              lineNumber: 51,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("button", { onClick: () => handleDelete(tenant.id, tenant.name), className: "flex items-center text-xs font-medium text-red-500 hover:text-red-700", children: [
+              /* @__PURE__ */ jsxDEV(TrashIcon, { size: 12, className: "mr-1" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+                lineNumber: 52,
+                columnNumber: 184
+              }, this),
+              "Delete"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+              lineNumber: 52,
+              columnNumber: 41
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+            lineNumber: 48,
+            columnNumber: 37
+          }, this) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+            lineNumber: 47,
+            columnNumber: 33
+          }, this)
+        ] }, tenant.id, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+          lineNumber: 40,
+          columnNumber: 13
+        }, this)
+      ) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+        lineNumber: 38,
+        columnNumber: 21
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+      lineNumber: 30,
+      columnNumber: 17
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+      lineNumber: 29,
+      columnNumber: 13
+    }, this),
+    brandingTenant && /* @__PURE__ */ jsxDEV(
+      TenantBrandingSettings,
+      {
+        tenantId: brandingTenant.id,
+        tenantName: brandingTenant.name,
+        onClose: () => setBrandingTenant(null)
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+        lineNumber: 62,
+        columnNumber: 7
+      },
+      this
+    )
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx",
+    lineNumber: 26,
+    columnNumber: 5
+  }, this);
+};
+_s(TenantManagementDashboard, "9cFoGuu9dbzIzDTYnFghO3JcIy0=", false, function() {
+  return [useUser];
+});
+_c = TenantManagementDashboard;
+var _c;
+$RefreshReg$(_c, "TenantManagementDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/TenantManagementDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUE7QUFBQTtBQUFBLGFBbUJBO0FBQUEsU0EzQko7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQTRCQSxLQTdCSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBOEJBO0FBQUEsSUFFQ1Asa0JBQ0c7QUFBQSxNQUFDO0FBQUE7QUFBQSxRQUNHLFVBQVVBLGVBQWVPO0FBQUFBLFFBQ3pCLFlBQVlQLGVBQWVLO0FBQUFBLFFBQzNCLFNBQVMsTUFBTUosa0JBQWtCLElBQUk7QUFBQTtBQUFBLE1BSHpDO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxJQUcyQztBQUFBLE9BdkNuRDtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBMENBO0FBRVI7QUFBRUgsR0F2RFdOLDJCQUFtRTtBQUFBLFVBT2xERCxPQUFPO0FBQUE7QUFBQWlCLEtBUHhCaEI7QUFBbUUsSUFBQWdCO0FBQUFDLGFBQUFELElBQUEiLCJuYW1lcyI6WyJSZWFjdCIsIlNldHRpbmdzSWNvbiIsIlphcEljb24iLCJUcmFzaEljb24iLCJUZW5hbnRCcmFuZGluZ1NldHRpbmdzIiwidXNlVXNlciIsIlRlbmFudE1hbmFnZW1lbnREYXNoYm9hcmQiLCJ0ZW5hbnRzIiwib25NYW5hZ2VUZW5hbnQiLCJvblZpZXdUZW5hbnQiLCJoYW5kbGVEZWxldGUiLCJoYW5kbGVVcGRhdGVUZW5hbnQiLCJfcyIsImhhc1Blcm1pc3Npb24iLCJicmFuZGluZ1RlbmFudCIsInNldEJyYW5kaW5nVGVuYW50IiwidXNlU3RhdGUiLCJtYXAiLCJ0ZW5hbnQiLCJuYW1lIiwic3Vic2NyaXB0aW9uVGllciIsImlkIiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiVGVuYW50TWFuYWdlbWVudERhc2hib2FyZC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JztcbmltcG9ydCB7IFRlbmFudCB9IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IFNldHRpbmdzSWNvbiwgWmFwSWNvbiwgVHJhc2hJY29uLCBVc2VySWNvbiB9IGZyb20gJy4vaWNvbnMnO1xuaW1wb3J0IHsgVGVuYW50QnJhbmRpbmdTZXR0aW5ncyB9IGZyb20gJy4vVGVuYW50QnJhbmRpbmdTZXR0aW5ncyc7XG5pbXBvcnQgeyB1c2VVc2VyIH0gZnJvbSAnLi4vY29udGV4dHMvVXNlckNvbnRleHQnO1xuXG5pbnRlcmZhY2UgVGVuYW50TWFuYWdlbWVudERhc2hib2FyZFByb3BzIHtcbiAgICB0ZW5hbnRzOiBUZW5hbnRbXTtcbiAgICBvbk1hbmFnZVRlbmFudDogKHRlbmFudDogVGVuYW50KSA9PiB2b2lkO1xuICAgIG9uVmlld1RlbmFudDogKHRlbmFudElkOiBzdHJpbmcpID0+IHZvaWQ7XG4gICAgaGFuZGxlRGVsZXRlOiAodGVuYW50SWQ6IHN0cmluZywgdGVuYW50TmFtZTogc3RyaW5nKSA9PiB2b2lkO1xuICAgIGhhbmRsZVVwZGF0ZVRlbmFudDogKHRlbmFudElkOiBzdHJpbmcsIGRhdGE6IFBhcnRpYWw8VGVuYW50PikgPT4gUHJvbWlzZTx2b2lkPjtcbn1cblxuZXhwb3J0IGNvbnN0IFRlbmFudE1hbmFnZW1lbnREYXNoYm9hcmQ6IFJlYWN0LkZDPFRlbmFudE1hbmFnZW1lbnREYXNoYm9hcmRQcm9wcz4gPSAoe1xuICAgIHRlbmFudHMsXG4gICAgb25NYW5hZ2VUZW5hbnQsXG4gICAgb25WaWV3VGVuYW50LFxuICAgIGhhbmRsZURlbGV0ZSxcbiAgICBoYW5kbGVVcGRhdGVUZW5hbnRcbn0pID0+IHtcbiAgICBjb25zdCB7IGhhc1Blcm1pc3Npb24gfSA9IHVzZVVzZXIoKTtcbiAgICBjb25zdCBbYnJhbmRpbmdUZW5hbnQsIHNldEJyYW5kaW5nVGVuYW50XSA9IFJlYWN0LnVzZVN0YXRlPHsgaWQ6IHN0cmluZywgbmFtZTogc3RyaW5nIH0gfCBudWxsPihudWxsKTtcblxuICAgIHJldHVybiAoXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY29udGFpbmVyIG14LWF1dG8gcC02XCI+XG4gICAgICAgICAgICA8aDEgY2xhc3NOYW1lPVwidGV4dC0yeGwgZm9udC1ib2xkIG1iLTYgdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtd2hpdGVcIj5UZW5hbnQgTWFuYWdlbWVudDwvaDE+XG5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZCBvdmVyZmxvdy1oaWRkZW5cIj5cbiAgICAgICAgICAgICAgICA8dGFibGUgY2xhc3NOYW1lPVwibWluLXctZnVsbCBkaXZpZGUteSBkaXZpZGUtZ3JheS0yMDAgZGFyazpkaXZpZGUtZ3JheS03MDBcIj5cbiAgICAgICAgICAgICAgICAgICAgPHRoZWFkIGNsYXNzTmFtZT1cImJnLWdyYXktNTAgZGFyazpiZy1ncmF5LTcwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgPHRyPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC02IHB5LTMgdGV4dC1sZWZ0IHRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS0zMDAgdXBwZXJjYXNlIHRyYWNraW5nLXdpZGVyXCI+VGVuYW50IE5hbWU8L3RoPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC02IHB5LTMgdGV4dC1sZWZ0IHRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS0zMDAgdXBwZXJjYXNlIHRyYWNraW5nLXdpZGVyXCI+UGxhbjwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTYgcHktMyB0ZXh0LWxlZnQgdGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTMwMCB1cHBlcmNhc2UgdHJhY2tpbmctd2lkZXJcIj5BY3Rpb25zPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvdHI+XG4gICAgICAgICAgICAgICAgICAgIDwvdGhlYWQ+XG4gICAgICAgICAgICAgICAgICAgIDx0Ym9keSBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIGRpdmlkZS15IGRpdmlkZS1ncmF5LTIwMCBkYXJrOmRpdmlkZS1ncmF5LTcwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAge3RlbmFudHMubWFwKHRlbmFudCA9PiAoXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRyIGtleT17dGVuYW50LmlkfT5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNCB3aGl0ZXNwYWNlLW5vd3JhcCB0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7dGVuYW50Lm5hbWV9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTQgd2hpdGVzcGFjZS1ub3dyYXAgdGV4dC1zbSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3RlbmFudC5zdWJzY3JpcHRpb25UaWVyfVxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNiBweS00IHdoaXRlc3BhY2Utbm93cmFwIHRleHQtc20gZm9udC1tZWRpdW1cIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgc3BhY2UteC0zXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGJ1dHRvbiBvbkNsaWNrPXsoKSA9PiBvblZpZXdUZW5hbnQodGVuYW50LmlkKX0gY2xhc3NOYW1lPVwicHgtMi41IHB5LTEgdGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LXdoaXRlIGJnLXByaW1hcnktNjAwIHJvdW5kZWQtbWQgaG92ZXI6YmctcHJpbWFyeS03MDBcIj5WaWV3PC9idXR0b24+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGJ1dHRvbiBvbkNsaWNrPXsoKSA9PiBvbk1hbmFnZVRlbmFudCh0ZW5hbnQpfSBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciB0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtZ3JheS01MDAgaG92ZXI6dGV4dC1ncmF5LTcwMCBkYXJrOmhvdmVyOnRleHQtZ3JheS0zMDBcIj48U2V0dGluZ3NJY29uIHNpemU9ezEyfSBjbGFzc05hbWU9XCJtci0xXCIgLz5Db25maWc8L2J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8YnV0dG9uIG9uQ2xpY2s9eygpID0+IHNldEJyYW5kaW5nVGVuYW50KHRlbmFudCl9IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIHRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1wdXJwbGUtNjAwIGhvdmVyOnRleHQtcHVycGxlLTgwMFwiPjxaYXBJY29uIHNpemU9ezEyfSBjbGFzc05hbWU9XCJtci0xXCIgLz5CcmFuZDwvYnV0dG9uPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxidXR0b24gb25DbGljaz17KCkgPT4gaGFuZGxlRGVsZXRlKHRlbmFudC5pZCwgdGVuYW50Lm5hbWUpfSBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciB0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtcmVkLTUwMCBob3Zlcjp0ZXh0LXJlZC03MDBcIj48VHJhc2hJY29uIHNpemU9ezEyfSBjbGFzc05hbWU9XCJtci0xXCIgLz5EZWxldGU8L2J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdHI+XG4gICAgICAgICAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgICAgICAgPC90Ym9keT5cbiAgICAgICAgICAgICAgICA8L3RhYmxlPlxuICAgICAgICAgICAgPC9kaXY+XG5cbiAgICAgICAgICAgIHticmFuZGluZ1RlbmFudCAmJiAoXG4gICAgICAgICAgICAgICAgPFRlbmFudEJyYW5kaW5nU2V0dGluZ3NcbiAgICAgICAgICAgICAgICAgICAgdGVuYW50SWQ9e2JyYW5kaW5nVGVuYW50LmlkfVxuICAgICAgICAgICAgICAgICAgICB0ZW5hbnROYW1lPXticmFuZGluZ1RlbmFudC5uYW1lfVxuICAgICAgICAgICAgICAgICAgICBvbkNsb3NlPXsoKSA9PiBzZXRCcmFuZGluZ1RlbmFudChudWxsKX1cbiAgICAgICAgICAgICAgICAvPlxuICAgICAgICAgICAgKX1cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07Il0sImZpbGUiOiJEOi9Eb3dubG9hZHMvZW50ZXJwcmlzZS1vbW5pLWFnZW50LWFpLXBsYXRmb3JtL2NvbXBvbmVudHMvVGVuYW50TWFuYWdlbWVudERhc2hib2FyZC50c3gifQ==

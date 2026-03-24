@@ -1,0 +1,28 @@
+2026-02-21 01:22:57,392 - cache_service - WARNING - \u26a0\ufe0f Redis not available at localhost:6379. Caching disabled.
+D:\Downloads\enterprise-omni-agent-ai-platform\backend\ai_service.py:2: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-02-21 01:22:58,893 - cloud_remediation_service - WARNING - \u26a0\ufe0f AWS SDK not available: You must specify a region.
+2026-02-21 01:22:59,132 - cloud_remediation_service - WARNING - \u26a0\ufe0f Azure SDK not available: No module named 'azure.mgmt.storage'
+2026-02-21 01:23:02,719 - cloud_remediation_service - WARNING - \u26a0\ufe0f GCP SDK not available: Your default credentials were not found. To set up Application Default Credentials, see https://cloud.google.com/docs/authentication/external/set-up-adc for more information.
+INFO:     Started server process [6868]
+INFO:     Waiting for application startup.
+2026-02-21 01:23:03,174 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-21 01:23:03,176 - apscheduler.scheduler - INFO - Added job "Process Scheduled Deployments" to job store "default"
+2026-02-21 01:23:03,176 - apscheduler.scheduler - INFO - Scheduler started
+2026-02-21 01:23:03,177 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-21 01:23:03,178 - apscheduler.scheduler - INFO - Added job "FinOps Cost Recalculation" to job store "default"
+2026-02-21 01:23:03,178 - apscheduler.scheduler - INFO - Scheduler started
+2026-02-21 01:23:03,179 - network_traffic_simulator - INFO - Starting Enterprise Network Traffic Simulator (Multi-Tenant)...
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 5000): only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+2026-02-21 01:23:03,181 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-21 01:23:03,181 - apscheduler.scheduler - INFO - Scheduler has been shut down
+INFO:     Application shutdown complete.

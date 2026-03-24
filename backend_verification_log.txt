@@ -1,0 +1,150 @@
+ENTERPRISE OMNI-AGENT AI PLATFORM - COMPREHENSIVE TEST LOG
+Date: Tue Feb  3 01:51:00 2026
+
+
+==============================
+RUNNING: verify_mlops.py
+==============================
+Logging in as super@omni.ai...
+Login Success.
+
+--- Testing MLOps Retraining ---
+Training Triggered: {'job_id': 'job-fce32101', 'status': 'Pending', 'message': 'Training job initiated'}
+History Entries: 2
+Latest Job: {'job_id': 'job-fce32101', 'model_name': 'Phishing Detector v2', 'status': 'Training Model', 'progress': 29, 'start_time': '2026-02-02T20:21:04.759653+00:00', 'end_time': None, 'reason': 'Integration Test', 'metrics': {}}
+Model Registry: 4 models found.
+
+--- Testing AutoML ---
+Created Study: study-8c2a3942
+Trials Result: {'message': 'Completed 3 trials', 'total_trials': 3}
+
+
+EXIT CODE: 0
+STATUS: PASSED
+
+
+==============================
+RUNNING: verify_xai.py
+==============================
+Logging in as super@omni.ai...
+
+--- Testing Global Importance ---
+Global Importance: [{'feature': 'failed_logins_count', 'importance': 0.35}, {'feature': 'ip_reputation_score', 'importance': 0.25}, {'feature': 'access_time_hour', 'importance': 0.15}, {'feature': 'device_trust_score', 'importance': 0.1}, {'feature': 'resource_sensitivity', 'importance': 0.08}, {'feature': 'location_distance_km', 'importance': 0.07}]
+
+--- Testing Local Explanation (SHAP) ---
+Explanation: {
+  "model_id": "phishing-detector-v1",
+  "prediction": 0.0,
+  "base_value": 0.2,
+  "features": [
+    {
+      "feature": "failed_logins_count",
+      "value": 0,
+      "shap": -0.05
+    },
+    {
+      "feature": "ip_reputation_score",
+      "value": 100,
+      "shap": -0.1
+    },
+    {
+      "feature": "access_time_hour",
+      "value": 12,
+      "shap": -0.05
+    },
+    {
+      "feature": "other_factors",
+      "value": "N/A",
+      "shap": -0.024712021236350513
+    }
+  ],
+  "risk_level": "LOW"
+}
+
+
+EXIT CODE: 0
+STATUS: PASSED
+
+
+==============================
+RUNNING: verify_ab_testing.py
+==============================
+Logging in as super@omni.ai...
+
+--- Creating Experiment ---
+Created Experiment: exp-178d8fc8
+
+--- Simulating Traffic ---
+User user_0 -> OnePage
+User user_1 -> Modal
+User user_2 -> OnePage
+User user_3 -> Modal
+User user_4 -> OnePage
+User user_5 -> OnePage
+User user_6 -> OnePage
+User user_7 -> Control
+User user_8 -> Control
+User user_9 -> Modal
+
+--- Tracking Conversions ---
+Converted User user_0
+Converted User user_1
+Converted User user_2
+
+--- Fetching Results ---
+Results: {'experiment': 'Checkout Flow V2', 'status': 'Running', 'data': [{'variant': 'Control', 'impressions': 2, 'conversions': 0, 'conversion_rate': 0.0, 'lift': 0.0, 'statistically_significant': False}, {'variant': 'OnePage', 'impressions': 5, 'conversions': 2, 'conversion_rate': 0.4, 'lift': 0.0, 'statistically_significant': False}, {'variant': 'Modal', 'impressions': 3, 'conversions': 1, 'conversion_rate': 0.3333, 'lift': 0.0, 'statistically_significant': False}]}
+
+
+EXIT CODE: 0
+STATUS: PASSED
+
+
+==============================
+RUNNING: verify_ueba_shadow.py
+==============================
+--- Verifying UEBA & Shadow AI ---
+
+[1] Simulating Shadow AI Event...
+Shadow AI Event Reported: OK
+
+[2] Simulating Anomalous Login (3 AM)...
+Analysis Result: score=50, anomalous=True
+UEBA Logic Verification: PASSED
+
+[3] Verifying Dashboard Stats...
+Stats: {'shadow_ai_detections': 2, 'login_anomalies': 2}
+Shadow AI Stats Verification: PASSED
+
+
+EXIT CODE: 0
+STATUS: PASSED
+
+
+==============================
+RUNNING: verify_integrations_phase5.py
+==============================
+--- Verifying Integrations ---
+
+[1] Listing Integrations...
+Configs: 200
+[{'id': 'int-1', 'name': 'JIRA', 'type': 'ticketing', 'status': 'active', 'config': {'url': 'https://jira.example.com'}}, {'id': 'int-2', 'name': 'Slack', 'type': 'messaging', 'status': 'inactive', 'config': {'webhook': 'https://hooks.slack.com/...'}}]
+
+[2] Saving Config...
+POST http://localhost:5000/api/integrations/config
+Result V1: 200
+
+[3] Testing Notification...
+Test POST Result: 200
+Response: {'success': True, 'platform': 'slack', 'status_code': 200}
+
+
+EXIT CODE: 0
+STATUS: PASSED
+
+
+==============================
+SUMMARY
+==============================
+PASSED: 5
+FAILED: 0
+Total: 5

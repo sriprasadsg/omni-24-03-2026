@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Exafluence",
+    "id": "tenant_exafluence"
+  },
+  {
+    "name": "Platform",
+    "id": "platform-admin"
+  },
+  {
+    "name": "Sri Prasad Enterprise",
+    "id": "tenant_748b15753bed"
+  },
+  {
+    "name": "Temp Target Tenant",
+    "id": "tenant_f8c333fd1f01"
+  },
+  {
+    "name": "Temp Target Debug",
+    "id": "tenant_29cf4d101cab"
+  },
+  {
+    "name": "Test Org",
+    "id": "tenant_54e50ef1bbed"
+  },
+  {
+    "name": "Test Corp",
+    "id": "tenant_2a1354e1e71d"
+  }
+]

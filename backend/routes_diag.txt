@@ -1,0 +1,6 @@
+Path: /api/ai-governance/policies, Methods: {'GET'}
+Path: /api/ai-governance/policies, Methods: {'POST'}
+Path: /api/ai-governance/evaluate/{model_id}, Methods: {'POST'}
+Path: /api/ai-governance/expert-evaluate/{model_id}, Methods: {'POST'}
+Path: /api/ai-governance/models, Methods: {'GET'}
+Path: /api/ai-governance/register-model, Methods: {'POST'}

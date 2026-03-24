@@ -1,0 +1,216 @@
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:08:50,933 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:08:50,933 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:08:50,933 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:08:50,933 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:08:50,933 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:08:53,006 - __main__ - INFO - Loaded configuration: 0 capabilities enabled
+2025-12-17 04:08:55,039 - __main__ - INFO - Loaded configuration: 0 capabilities enabled
+2025-12-17 04:08:57,117 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:09:31,252 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:10:05,378 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:10:39,503 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:11:13,612 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:11:47,723 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:12:21,899 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:12:56,052 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:13:30,157 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:14:04,275 - __main__ - INFO - Heartbeat -> 200
+2025-12-17 04:14:38,388 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:38,388 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:14:39,420 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:14:39,420 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:14:39,420 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:14:39,420 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:14:39,420 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:14:39,420 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:14:39,420 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:14:39,420 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:14:39,420 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:14:39,421 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:14:41,504 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:43,553 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:43,553 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:14:44,559 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:14:44,559 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:14:44,559 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:14:44,559 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:14:44,559 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:14:46,622 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:48,685 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:48,685 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:14:49,724 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:14:49,724 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:14:49,724 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:14:49,724 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:14:49,724 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:14:51,792 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:53,810 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:53,810 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:14:54,828 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:14:54,828 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:14:54,828 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:14:54,828 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:14:54,828 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:14:56,923 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:58,965 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:14:58,965 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:14:59,865 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:14:59,865 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:14:59,865 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:14:59,865 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:14:59,865 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:15:01,906 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:15:03,960 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:15:03,960 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:15:04,846 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:15:04,846 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:15:04,846 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:15:04,846 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:15:04,846 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:15:06,928 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:15:08,986 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:15:08,987 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:15:10,069 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:15:10,069 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:15:10,069 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:15:10,069 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:15:10,069 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:15:12,153 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:15:14,248 - __main__ - INFO - Loaded configuration: 15 capabilities enabled
+2025-12-17 04:15:14,248 - __main__ - INFO - Collecting data from: metrics_collection
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:15:15,348 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:15:15,348 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:15:15,348 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:15:15,348 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: metrics_collection
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: log_collection
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: fim
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: vulnerability_scanning
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: compliance_enforcement
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: runtime_security
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: predictive_health
+2025-12-17 04:15:15,348 - __main__ - INFO - Initialized capability: ueba
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: sbom_analysis
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: ebpf_tracing
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: system_patching
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: software_management
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: remote_access
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: network_discovery
+2025-12-17 04:15:15,349 - __main__ - INFO - Initialized capability: agent_update
+2025-12-17 04:15:17,408 - __main__ - INFO - Loaded configuration: 15 capabilities enabled

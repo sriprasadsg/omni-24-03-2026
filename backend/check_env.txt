@@ -1,0 +1,50 @@
+﻿Connecting to MongoDB at mongodb://127.0.0.1:27017
+Connected to REAL MongoDB at mongodb://127.0.0.1:27017
+Connected to database: omni_platform
+--- USERS ---
+Email: super@omni.ai, Role: Super Admin, TenantId: platform-admin
+Email: tester@omni.ai, Role: Tenant Admin, TenantId: tenant_3f2f57088c48
+Email: admin@test.com, Role: Tenant Admin, TenantId: tenant_ceef33c7d93b
+Email: srihari@exafluence.com, Role: Tenant Admin, TenantId: tenant_d7f4357bce09
+Email: tester@test.com, Role: Tenant Admin, TenantId: tenant_b2a74968f144
+Email: newadmin@omni.ai, Role: Tenant Admin, TenantId: tenant_f2b51fa3a083
+Email: jetski_bot_admin_777@omni.ai, Role: Tenant Admin, TenantId: tenant_12787f255bab
+Email: admin@exafluence.com, Role: Tenant Admin, TenantId: tenant_82dda0f33bc4
+Email: sri@omni.ai, Role: Tenant Admin, TenantId: tenant_f3fca9027734
+Email: admin_test_123@omni.ai, Role: Tenant Admin, TenantId: tenant_f9a562309bc1
+Email: test@example.com, Role: Tenant Admin, TenantId: tenant_b1d03c5d0bdd
+Email: tester@example.com, Role: Tenant Admin, TenantId: tenant_bc4950db109b
+Email: unique_1767116606725@test.ai, Role: Tenant Admin, TenantId: tenant_60191d5e34f3
+Email: admin_wh422s@omni.ai, Role: Tenant Admin, TenantId: tenant_4b6e2951390e
+Email: testadmin_1767170197@example.com, Role: Tenant Admin, TenantId: tenant_71e72f844a1f
+Email: testadmin_1767170234@example.com, Role: Tenant Admin, TenantId: tenant_50345e7f2c69
+Email: browser_test_1767172506@example.com, Role: Tenant Admin, TenantId: tenant_1f67f0437644
+Email: testadmin_1767173756@example.com, Role: Tenant Admin, TenantId: tenant_f34caf44c94e
+Email: tester@tester.com, Role: Tenant Admin, TenantId: tenant_b2f284d16b9b
+Email: admin@exaffluence.com, Role: Tenant Admin, TenantId: tenant_3b1874328f64
+Email: test@test.com, Role: Tenant Admin, TenantId: tenant_a8893888708e
+Email: tester2@test.com, Role: Tenant Admin, TenantId: tenant_dadba6504e3f
+Email: a@b.com, Role: Tenant Admin, TenantId: tenant_9b918b712614
+
+--- TENANTS ---
+Name: Exafluence, ID: tenant_82dda0f33bc4
+Name: Test Corp, ID: tenant_b2a74968f144
+Name: Acme, ID: tenant_f2b51fa3a083
+Name: Jetski Corp, ID: tenant_12787f255bab
+Name: Omni AI, ID: tenant_f3fca9027734
+Name: Omni Corporation, ID: tenant_f9a562309bc1
+Name: Acme Corporation, ID: tenant_b1d03c5d0bdd
+Name: Acme Corp, ID: tenant_bc4950db109b
+Name: Unique Corp 1767116606725, ID: tenant_60191d5e34f3
+Name: Acme wh422s, ID: tenant_4b6e2951390e
+Name: Test Corp 1767170197, ID: tenant_71e72f844a1f
+Name: Test Corp 1767170234, ID: tenant_50345e7f2c69
+Name: Browser Test Corp 1767172506, ID: tenant_1f67f0437644
+Name: Test Corp 1767173756, ID: tenant_f34caf44c94e
+Name: Platform, ID: platform-admin
+Name: Omni, ID: tenant_b2f284d16b9b
+Name: Exaffluence, ID: tenant_3b1874328f64
+Name: Test Company, ID: tenant_a8893888708e
+Name: Test, ID: tenant_dadba6504e3f
+Name: A, ID: tenant_9b918b712614
+Closed MongoDB connection

@@ -1,0 +1,12 @@
+﻿Connecting to MongoDB at mongodb://127.0.0.1:27017
+Connected to REAL MongoDB at mongodb://127.0.0.1:27017
+Connected to database: omni_platform
+Network Devices Count: 28
+Assets Count: 1
+Sample Network Devices:
+ - Core-Router-01 (192.168.1.1)
+ - Core-Firewall (192.168.1.254)
+ - Web-Server-01 (10.0.0.11)
+ - Web-Server-02 (10.0.0.12)
+ - Web-Server-03 (10.0.0.13)
+Closed MongoDB connection

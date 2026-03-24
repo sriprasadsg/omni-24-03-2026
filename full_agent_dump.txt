@@ -1,0 +1,26 @@
+Total Agents: 5
+ID: agent-1
+Tenant: tenant-acme-corp
+Host: db-prod-01
+IP: 10.0.1.10
+--------------------
+ID: agent-2
+Tenant: tenant-acme-corp
+Host: web-server-03
+IP: 10.0.2.15
+--------------------
+ID: agent-3
+Tenant: tenant-initech
+Host: dev-box-01
+IP: 192.168.1.50
+--------------------
+ID: agent-sri-1
+Tenant: tenant-sriprasad
+Host: sri-server-01
+IP: 192.168.10.5
+--------------------
+ID: agent-EILT0197
+Tenant: tenant_sriprasad001
+Host: EILT0197
+IP: 192.168.0.104
+--------------------

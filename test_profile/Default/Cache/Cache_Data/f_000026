@@ -1,0 +1,178 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/AttackPathDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const React = __vite__cjsImport1_react.__esModule ? __vite__cjsImport1_react.default : __vite__cjsImport1_react;
+import { NetworkIcon, ShieldAlertIcon, BoxIcon } from "/components/icons.tsx";
+const NodeCard = ({ node }) => {
+  const icons = {
+    "Public Asset": /* @__PURE__ */ jsxDEV(ShieldAlertIcon, { className: "text-red-500", size: 20 }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 11,
+      columnNumber: 21
+    }, this),
+    "Internal Service": /* @__PURE__ */ jsxDEV(BoxIcon, { className: "text-blue-500", size: 20 }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 12,
+      columnNumber: 25
+    }, this),
+    "Database": /* @__PURE__ */ jsxDEV(BoxIcon, { className: "text-purple-500", size: 20 }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 13,
+      columnNumber: 17
+    }, this),
+    "Crown Jewel": /* @__PURE__ */ jsxDEV(ShieldAlertIcon, { className: "text-yellow-400", size: 20 }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 14,
+      columnNumber: 20
+    }, this)
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 flex items-center", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "mr-3", children: icons[node.type] || /* @__PURE__ */ jsxDEV(BoxIcon, { size: 20 }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 19,
+      columnNumber: 56
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 19,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("p", { className: "font-semibold text-sm text-gray-800 dark:text-gray-200", children: node.label }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+        lineNumber: 21,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-xs text-gray-500 dark:text-gray-400", children: node.type }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+        lineNumber: 22,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 20,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+    lineNumber: 18,
+    columnNumber: 5
+  }, this);
+};
+_c = NodeCard;
+export const AttackPathDashboard = ({ attackPaths }) => {
+  const displayPath = attackPaths[0];
+  if (!displayPath) return /* @__PURE__ */ jsxDEV("div", { children: "No attack paths found." }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+    lineNumber: 33,
+    columnNumber: 28
+  }, this);
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto", children: [
+    /* @__PURE__ */ jsxDEV("h2", { className: "text-2xl font-semibold text-gray-800 dark:text-white mb-2 flex items-center", children: [
+      /* @__PURE__ */ jsxDEV(NetworkIcon, { size: 24, className: "mr-3 text-primary-500" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+        lineNumber: 38,
+        columnNumber: 17
+      }, this),
+      "Attack Path Analysis"
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 37,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 mb-6", children: "Visualize potential adversary paths to your crown jewel assets." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 41,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-6", children: [
+      /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold mb-4", children: [
+        "Scenario: ",
+        displayPath.name
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+        lineNumber: 46,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "relative h-auto border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50 overflow-auto", children: [
+        /* @__PURE__ */ jsxDEV("p", { className: "text-center text-sm text-gray-500 dark:text-gray-400", children: "(This is a simplified representation of the attack path)" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+          lineNumber: 48,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "mt-4 flex flex-col items-center space-y-2", children: displayPath.nodes.map(
+          (node, index) => /* @__PURE__ */ jsxDEV(React.Fragment, { children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "w-72", children: /* @__PURE__ */ jsxDEV(NodeCard, { node }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+              lineNumber: 55,
+              columnNumber: 37
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+              lineNumber: 54,
+              columnNumber: 33
+            }, this),
+            index < displayPath.nodes.length - 1 && /* @__PURE__ */ jsxDEV("div", { className: "h-10 w-px bg-gray-300 dark:bg-gray-600 relative", children: /* @__PURE__ */ jsxDEV("div", { className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-50 dark:bg-gray-900/50 px-2", children: /* @__PURE__ */ jsxDEV("p", { className: "text-xs text-center text-gray-500 dark:text-gray-400", children: displayPath.edges.find((e) => e.from === node.id)?.label }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+              lineNumber: 60,
+              columnNumber: 45
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+              lineNumber: 59,
+              columnNumber: 41
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+              lineNumber: 58,
+              columnNumber: 15
+            }, this)
+          ] }, node.id, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+            lineNumber: 53,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+          lineNumber: 51,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+        lineNumber: 47,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+      lineNumber: 45,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx",
+    lineNumber: 36,
+    columnNumber: 5
+  }, this);
+};
+_c2 = AttackPathDashboard;
+var _c, _c2;
+$RefreshReg$(_c, "NodeCard");
+$RefreshReg$(_c2, "AttackPathDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/AttackPathDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFLaUIsRUFBRSxHQUFHZCxTQUF0SDtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUE0SCxLQURoSTtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUVBLEtBSEo7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFJQTtBQUFBLGVBVGFILEtBQUtpQixJQUExQjtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQVdBO0FBQUEsUUFDSCxLQWRMO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFlQTtBQUFBLFdBbkJKO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFvQkE7QUFBQSxTQXRCSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBdUJBO0FBQUEsT0FoQ0o7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQWlDQTtBQUVSO0FBQUVDLE1BMUNXYjtBQUF1RCxJQUFBRCxJQUFBYztBQUFBQyxhQUFBZixJQUFBO0FBQUFlLGFBQUFELEtBQUEiLCJuYW1lcyI6WyJSZWFjdCIsIk5ldHdvcmtJY29uIiwiU2hpZWxkQWxlcnRJY29uIiwiQm94SWNvbiIsIk5vZGVDYXJkIiwibm9kZSIsImljb25zIiwidHlwZSIsImxhYmVsIiwiX2MiLCJBdHRhY2tQYXRoRGFzaGJvYXJkIiwiYXR0YWNrUGF0aHMiLCJkaXNwbGF5UGF0aCIsIm5hbWUiLCJub2RlcyIsIm1hcCIsImluZGV4IiwibGVuZ3RoIiwiZWRnZXMiLCJmaW5kIiwiZSIsImZyb20iLCJpZCIsIl9jMiIsIiRSZWZyZXNoUmVnJCJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJBdHRhY2tQYXRoRGFzaGJvYXJkLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgQXR0YWNrUGF0aCB9IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IE5ldHdvcmtJY29uLCBTaGllbGRBbGVydEljb24sIEJveEljb24gfSBmcm9tICcuL2ljb25zJztcblxuaW50ZXJmYWNlIEF0dGFja1BhdGhEYXNoYm9hcmRQcm9wcyB7XG4gICAgYXR0YWNrUGF0aHM6IEF0dGFja1BhdGhbXTtcbn1cblxuY29uc3QgTm9kZUNhcmQ6IFJlYWN0LkZDPHsgbm9kZTogQXR0YWNrUGF0aFsnbm9kZXMnXVswXSB9PiA9ICh7IG5vZGUgfSkgPT4ge1xuICAgIGNvbnN0IGljb25zID0ge1xuICAgICAgICAnUHVibGljIEFzc2V0JzogPFNoaWVsZEFsZXJ0SWNvbiBjbGFzc05hbWU9XCJ0ZXh0LXJlZC01MDBcIiBzaXplPXsyMH0gLz4sXG4gICAgICAgICdJbnRlcm5hbCBTZXJ2aWNlJzogPEJveEljb24gY2xhc3NOYW1lPVwidGV4dC1ibHVlLTUwMFwiIHNpemU9ezIwfSAvPixcbiAgICAgICAgJ0RhdGFiYXNlJzogPEJveEljb24gY2xhc3NOYW1lPVwidGV4dC1wdXJwbGUtNTAwXCIgc2l6ZT17MjB9IC8+LFxuICAgICAgICAnQ3Jvd24gSmV3ZWwnOiA8U2hpZWxkQWxlcnRJY29uIGNsYXNzTmFtZT1cInRleHQteWVsbG93LTQwMFwiIHNpemU9ezIwfSAvPixcbiAgICB9O1xuXG4gICAgcmV0dXJuIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHAtMyByb3VuZGVkLWxnIHNoYWRvdy1tZCBib3JkZXIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwIGZsZXggaXRlbXMtY2VudGVyXCI+XG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm1yLTNcIj57aWNvbnNbbm9kZS50eXBlXSB8fCA8Qm94SWNvbiBzaXplPXsyMH0gLz59PC9kaXY+XG4gICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGQgdGV4dC1zbSB0ZXh0LWdyYXktODAwIGRhcms6dGV4dC1ncmF5LTIwMFwiPntub2RlLmxhYmVsfTwvcD5cbiAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXhzIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+e25vZGUudHlwZX08L3A+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07XG5cblxuZXhwb3J0IGNvbnN0IEF0dGFja1BhdGhEYXNoYm9hcmQ6IFJlYWN0LkZDPEF0dGFja1BhdGhEYXNoYm9hcmRQcm9wcz4gPSAoeyBhdHRhY2tQYXRocyB9KSA9PiB7XG4gICAgXG4gICAgLy8gRm9yIHNpbXBsaWNpdHksIHdlJ2xsIGp1c3Qgc2hvdyB0aGUgZmlyc3QgYXR0YWNrIHBhdGhcbiAgICBjb25zdCBkaXNwbGF5UGF0aCA9IGF0dGFja1BhdGhzWzBdO1xuICAgIGlmKCFkaXNwbGF5UGF0aCkgcmV0dXJuIDxkaXY+Tm8gYXR0YWNrIHBhdGhzIGZvdW5kLjwvZGl2PlxuXG4gICAgcmV0dXJuIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb250YWluZXIgbXgtYXV0b1wiPlxuICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQtMnhsIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtd2hpdGUgbWItMiBmbGV4IGl0ZW1zLWNlbnRlclwiPlxuICAgICAgICAgICAgICAgIDxOZXR3b3JrSWNvbiBzaXplPXsyNH0gY2xhc3NOYW1lPVwibXItMyB0ZXh0LXByaW1hcnktNTAwXCIgLz5cbiAgICAgICAgICAgICAgICBBdHRhY2sgUGF0aCBBbmFseXNpc1xuICAgICAgICAgICAgPC9oMj5cbiAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDAgbWItNlwiPlxuICAgICAgICAgICAgICAgIFZpc3VhbGl6ZSBwb3RlbnRpYWwgYWR2ZXJzYXJ5IHBhdGhzIHRvIHlvdXIgY3Jvd24gamV3ZWwgYXNzZXRzLlxuICAgICAgICAgICAgPC9wPlxuXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWQgcC02XCI+XG4gICAgICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cInRleHQtbGcgZm9udC1zZW1pYm9sZCBtYi00XCI+U2NlbmFyaW86IHtkaXNwbGF5UGF0aC5uYW1lfTwvaDM+XG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJyZWxhdGl2ZSBoLWF1dG8gYm9yZGVyIGJvcmRlci1ncmF5LTIwMCBkYXJrOmJvcmRlci1ncmF5LTcwMCByb3VuZGVkLWxnIHAtNCBiZy1ncmF5LTUwIGRhcms6YmctZ3JheS05MDAvNTAgb3ZlcmZsb3ctYXV0b1wiPlxuICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LWNlbnRlciB0ZXh0LXNtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAoVGhpcyBpcyBhIHNpbXBsaWZpZWQgcmVwcmVzZW50YXRpb24gb2YgdGhlIGF0dGFjayBwYXRoKVxuICAgICAgICAgICAgICAgICAgICA8L3A+XG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNCBmbGV4IGZsZXgtY29sIGl0ZW1zLWNlbnRlciBzcGFjZS15LTJcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIHtkaXNwbGF5UGF0aC5ub2Rlcy5tYXAoKG5vZGUsIGluZGV4KSA9PiAoXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPFJlYWN0LkZyYWdtZW50IGtleT17bm9kZS5pZH0+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidy03MlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPE5vZGVDYXJkIG5vZGU9e25vZGV9IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7aW5kZXggPCBkaXNwbGF5UGF0aC5ub2Rlcy5sZW5ndGggLSAxICYmIChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiaC0xMCB3LXB4IGJnLWdyYXktMzAwIGRhcms6YmctZ3JheS02MDAgcmVsYXRpdmVcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImFic29sdXRlIHRvcC0xLzIgbGVmdC0xLzIgLXRyYW5zbGF0ZS14LTEvMiAtdHJhbnNsYXRlLXktMS8yIGJnLWdyYXktNTAgZGFyazpiZy1ncmF5LTkwMC81MCBweC0yXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQteHMgdGV4dC1jZW50ZXIgdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDBcIj57ZGlzcGxheVBhdGguZWRnZXMuZmluZChlID0+IGUuZnJvbSA9PT0gbm9kZS5pZCk/LmxhYmVsfTwvcD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApfVxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvUmVhY3QuRnJhZ21lbnQ+XG4gICAgICAgICAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07XG4iXSwiZmlsZSI6IkQ6L0Rvd25sb2Fkcy9lbnRlcnByaXNlLW9tbmktYWdlbnQtYWktcGxhdGZvcm0vY29tcG9uZW50cy9BdHRhY2tQYXRoRGFzaGJvYXJkLnRzeCJ9

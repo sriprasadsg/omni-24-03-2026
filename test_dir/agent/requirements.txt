@@ -1,0 +1,8 @@
+requests
+PyYAML
+psutil
+py-cpuinfo
+mss
+Pillow
+scapy
+cryptography>=41.0.0

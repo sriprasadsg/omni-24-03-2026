@@ -1,0 +1,18 @@
+WARNING:root:Scapy not available on server or disabled. Falling back to ping sweep.
+Running generate_network_graph()...
+Generating Network Graph from Database...
+Found 25 devices in database.
+Loading icons from: D:\Downloads\enterprise-omni-agent-ai-platform\backend\static\device_icons
+Loaded icon: server
+Loaded icon: router
+Loaded icon: firewall
+Loaded icon: switch
+Loaded icon: printer
+Loaded icon: laptop
+Loaded icon: desktop
+Loaded icon: iot
+Loaded icon: unknown
+Graph image saved to: D:\Downloads\enterprise-omni-agent-ai-platform\backend\network_topology.png
+Output path: D:\Downloads\enterprise-omni-agent-ai-platform\backend\network_topology.png
+File size: 629763 bytes
+VERIFICATION_SUCCESS

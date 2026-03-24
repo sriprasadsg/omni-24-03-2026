@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Docker Desktop",
+    "id": "Docker.DockerDesktop",
+    "current_version": "4.52.0",
+    "available_version": "4.54.0"
+  },
+  {
+    "name": "MongoDB 8.2.1 2008R2Plus S\u2026 MongoDB.Server",
+    "id": "8.2.1",
+    "current_version": "8.2.2",
+    "available_version": "winget"
+  },
+  {
+    "name": "MongoDB Shell",
+    "id": "MongoDB.Shell",
+    "current_version": "2.5.7",
+    "available_version": "2.5.10"
+  },
+  {
+    "name": "Wazuh Agent",
+    "id": "Wazuh.WazuhAgent",
+    "current_version": "4.12.0",
+    "available_version": "4.14.1"
+  },
+  {
+    "name": "Cisco Webex Meetings",
+    "id": "Cisco.CiscoWebexMeetings",
+    "current_version": "45.6.1",
+    "available_version": "45.6.3.12"
+  },
+  {
+    "name": "Ollama version 0.11.11",
+    "id": "Ollama.Ollama",
+    "current_version": "0.11.11",
+    "available_version": "0.13.2"
+  },
+  {
+    "name": "Python 3.11.0 (64-bit)",
+    "id": "Python.Python.3.11",
+    "current_version": "3.11.0",
+    "available_version": "3.11.9"
+  },
+  {
+    "name": "Arc",
+    "id": "TheBrowserCompany.Arc",
+    "current_version": "1.67.0.264",
+    "available_version": "1.83.1.5"
+  }
+]

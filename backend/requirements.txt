@@ -1,0 +1,92 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Enterprise Omni-Agent AI Platform — Backend Requirements
+# Fully audited: 2026-03-19
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core Web Framework ──────────────────────────────────────────────────────
+fastapi>=0.100.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.9        # File upload parsing (multipart/form-data)
+starlette>=0.27.0              # FastAPI dependency
+urllib3>=2.0.0,<2.4.0          # Pinned: kubernetes client requires <2.4.0
+
+# ── Authentication & Security ────────────────────────────────────────────────
+PyJWT>=2.8.0                   # JWT token creation and verification
+bcrypt>=4.0.1                  # Password hashing
+cryptography>=41.0.0           # Fernet encryption, TLS helpers
+pyotp>=2.9.0                   # TOTP/HOTP for MFA (RFC 6238)
+qrcode[pil]>=7.4.2             # QR code generation for MFA enrollment
+Pillow>=10.0.0                 # Required by qrcode[pil]
+authlib>=1.3.0                 # OIDC / OAuth2 / SAML SSO flows
+
+# ── Database ─────────────────────────────────────────────────────────────────
+motor>=3.3.0                   # Async MongoDB driver (used throughout)
+pymongo>=4.6.0                 # Sync fallback + types for motor
+redis>=5.0.1                   # Caching, rate-limiting, sessions
+
+# ── Data Validation & Settings ───────────────────────────────────────────────
+pydantic[email]>=2.0.0         # Data validation + email validation
+pydantic-settings>=2.0.0       # Settings management from env files
+python-dotenv>=1.0.0           # .env file loading
+email-validator>=2.1.0         # Used by pydantic email validation
+
+# ── HTTP & Async Clients ─────────────────────────────────────────────────────
+requests>=2.31.0               # Sync HTTP (LLM engine, webhook calls)
+httpx>=0.26.0                  # Async HTTP client
+aiohttp>=3.9.0                 # Async HTTP sessions
+
+# ── WebSocket & Real-time ─────────────────────────────────────────────────────
+python-socketio>=5.11.0        # Socket.IO server (real-time dashboard)
+websockets>=12.0               # WebSocket protocol support
+simple-websocket>=1.0.0        # Simple WS, required by python-socketio
+
+# ── Task Scheduling ──────────────────────────────────────────────────────────
+APScheduler==3.10.4            # Cron-style scheduler (FinOps, patch jobs)
+celery>=5.3.0                  # Distributed task queue
+kombu>=5.3.0                   # Messaging library (Celery backend)
+
+# ── AI & Machine Learning ────────────────────────────────────────────────────
+torch>=2.2.0                   # PyTorch — Omni-LLM Transformer architecture
+transformers>=4.38.0           # HuggingFace tokenizers + model utilities
+accelerate>=0.27.0             # Mixed-precision / device placement for torch
+scikit-learn>=1.4.0            # ML utilities (UEBA, anomaly detection)
+numpy>=1.26.0                  # Numerical operations
+pandas>=2.2.0                  # Data analysis and manipulation
+joblib>=1.3.0                  # Model persistence and parallel jobs
+chromadb>=0.5.0                # Vector DB for RAG / knowledge base
+google-generativeai>=0.5.0     # Gemini AI / Google GenAI SDK
+sentencepiece>=0.2.0           # Tokenizer for transformer models
+
+# ── Payment Gateways ─────────────────────────────────────────────────────────
+stripe>=7.0.0                  # Stripe payment processing
+paypalrestsdk>=1.13.1          # PayPal REST SDK
+razorpay>=1.4.1                # Razorpay (India) payments
+squareup>=30.0.0               # Square payment processing
+
+# ── Reports & Documents ──────────────────────────────────────────────────────
+reportlab>=4.0.0               # PDF invoice generation
+openpyxl>=3.1.0                # Excel report generation
+jinja2>=3.1.0                  # HTML templating
+
+# ── Cloud & Infrastructure ───────────────────────────────────────────────────
+boto3>=1.34.0                  # AWS SDK (S3, CloudWatch, CloudTrail)
+azure-mgmt-resource>=23.0.1    # Azure Resource Manager
+azure-mgmt-network>=25.0.0     # Azure Networking
+azure-mgmt-compute>=30.0.0     # Azure Compute
+google-cloud-compute>=1.15.0   # GCP Compute Engine
+google-cloud-storage>=2.14.0   # GCP Cloud Storage
+
+# ── Network & Security Analysis ──────────────────────────────────────────────
+python-nmap>=0.7.1             # Nmap network scanning wrapper
+psutil>=5.9.0                  # System metrics: CPU, RAM, Disk, Network
+pefile>=2023.2.7               # PE header parsing (binary analysis)
+pywin32>=306; sys_platform=="win32"  # Windows ETW/EventLog (EDR)
+# scapy>=2.5.0                 # Packet capture (uncomment if needed, requires Npcap on Windows)
+# yara-python>=4.3.1           # YARA scanning (uncomment when build tools available)
+
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+slowapi==0.1.9                 # FastAPI rate limiter
+
+# ── Ticketing & Integrations ─────────────────────────────────────────────────
+# atlassian-python-api>=3.41.0  # Optional: Jira client
+# pdpyras>=4.5.1                # Optional: PagerDuty client

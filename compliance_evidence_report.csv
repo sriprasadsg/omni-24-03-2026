@@ -1,0 +1,150 @@
+Framework,Control ID,Control Name,Asset ID,Status,Evidence Name,Evidence ID,Verification Status,Last Updated
+Unknown,PCI-1.1.1,Unknown Control,asset-EILT0197,Compliant,System Check: Windows Firewall Profiles,auto-ev-EILT0197-PCI-1.1.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-1,Access Control,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-1,Access Control,asset-EILT0197,Warning,System Check: Windows Firewall Profiles,auto-ev-EILT0197-PR.AC-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-1,Access Control,asset-EILT0197,Warning,System Check: Password Policy (Min Length),auto-ev-EILT0197-PR.AC-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-1,Access Control,asset-EILT0197,Warning,System Check: RDP NLA Required,auto-ev-EILT0197-PR.AC-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-1,Access Control,asset-EILT0197,Warning,System Check: User Access Control,auto-ev-EILT0197-PR.AC-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-1,Access Control,asset-EILT0197,Warning,System Check: Credential Guard,auto-ev-EILT0197-PR.AC-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.6,Boundary Protection,asset-EILT0197,Warning,System Check: Windows Firewall Profiles,auto-ev-EILT0197-CC6.6-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.6,Boundary Protection,asset-EILT0197,Warning,System Check: RDP NLA Required,auto-ev-EILT0197-CC6.6-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.6,Boundary Protection,asset-EILT0197,Warning,System Check: Risky Network Ports,auto-ev-EILT0197-CC6.6-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.6,Boundary Protection,asset-EILT0197,Warning,System Check: Remote Desktop Service,auto-ev-EILT0197-CC6.6-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.6,Boundary Protection,asset-EILT0197,Warning,System Check: USB Mass Storage Access,auto-ev-EILT0197-CC6.6-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-1.1,Firewall Configuration,asset-EILT0197,Compliant,System Check: Windows Firewall Profiles,auto-ev-EILT0197-PCI-1.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-1.1,Firewall Configuration,asset-EILT0197,Compliant,System Check: Risky Network Ports,auto-ev-EILT0197-PCI-1.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.13.1,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Windows Firewall Profiles,auto-ev-EILT0197-A.13.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.13.1,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Risky Network Ports,auto-ev-EILT0197-A.13.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.13.1,Unknown Control,asset-EILT0197,Non-Compliant,System Check: LLMNR/NetBIOS Protection,auto-ev-EILT0197-A.13.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-5.1,Anti-Virus Software,asset-EILT0197,Compliant,System Check: Windows Defender Antivirus,auto-ev-EILT0197-PCI-5.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.8,Malicious Software,asset-EILT0197,Compliant,System Check: Windows Defender Antivirus,auto-ev-EILT0197-CC6.8-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.8,Malicious Software,asset-EILT0197,Compliant,System Check: Prohibited Software,auto-ev-EILT0197-CC6.8-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.7,Protection Against Malware,asset-EILT0197,Compliant,System Check: Windows Defender Antivirus,auto-ev-EILT0197-A.8.7-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.7,Protection Against Malware,asset-EILT0197,Compliant,System Check: Attack Surface Reduction,auto-ev-EILT0197-A.12.2.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,DE.CM-4,Malicious Code,asset-EILT0197,Compliant,System Check: Windows Defender Antivirus,auto-ev-EILT0197-DE.CM-4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.5.15,Access Control,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T15:00:29.957204
+ISO/IEC 27001:2022,A.5.15,Access Control,asset-EILT0197,Compliant,System Check: Password Policy (Min Length),auto-ev-EILT0197-A.9.4.3-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-8.1.1,Unique IDs,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-8.1.1,Unique IDs,asset-EILT0197,Compliant,System Check: Password Policy (Min Length),auto-ev-EILT0197-PCI-8.1.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-8.1.1,Unique IDs,asset-EILT0197,Compliant,System Check: Guest Account Disabled,auto-ev-EILT0197-PCI-8.1.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.4.1,Unknown Control,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.4.1,Unknown Control,asset-EILT0197,Warning,System Check: Password Policy (Min Length),auto-ev-EILT0197-A.9.4.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.4.1,Unknown Control,asset-EILT0197,Warning,System Check: User Access Control,auto-ev-EILT0197-A.9.4.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.4.1,Unknown Control,asset-EILT0197,Warning,System Check: Credential Guard,auto-ev-EILT0197-A.9.4.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Password Policy (Min Length),auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Guest Account Disabled,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: BitLocker Encryption,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: User Access Control,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Maximum Password Age,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Account Lockout Policy,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Password Complexity,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Password History,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Minimum Password Age,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Credential Guard,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Controlled Folder Access,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Idle Timeout (Screensaver),auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.1,Logical Access Security,asset-EILT0197,Compliant,System Check: Local Administrator Auditing,auto-ev-EILT0197-CC6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,IA-5,Unknown Control,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+Unknown,IA-5,Unknown Control,asset-EILT0197,Compliant,System Check: Password Policy (Min Length),auto-ev-EILT0197-IA-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,IA-5,Unknown Control,asset-EILT0197,Compliant,System Check: Maximum Password Age,auto-ev-EILT0197-IA-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,IA-5,Unknown Control,asset-EILT0197,Compliant,System Check: Password Complexity,auto-ev-EILT0197-IA-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,IA-5,Unknown Control,asset-EILT0197,Compliant,System Check: Password History,auto-ev-EILT0197-IA-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,IA-5,Unknown Control,asset-EILT0197,Compliant,System Check: Minimum Password Age,auto-ev-EILT0197-IA-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.2.1,Unknown Control,asset-EILT0197,Compliant,System Check: Guest Account Disabled,auto-ev-EILT0197-A.9.2.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-4,Least Privilege,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-4,Least Privilege,asset-EILT0197,Compliant,System Check: Guest Account Disabled,auto-ev-EILT0197-PR.AC-4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-4,Least Privilege,asset-EILT0197,Compliant,System Check: Local Administrator Auditing,auto-ev-EILT0197-PR.AC-4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-2.2.4,Unknown Control,asset-EILT0197,Compliant,System Check: RDP NLA Required,auto-ev-EILT0197-PCI-2.2.4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.4.2,Unknown Control,asset-EILT0197,Compliant,System Check: RDP NLA Required,auto-ev-EILT0197-A.9.4.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.4.2,Unknown Control,asset-EILT0197,Compliant,System Check: Account Lockout Policy,auto-ev-EILT0197-A.9.4.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+HIPAA Security Rule,164.312(a)(2)(iv),Encryption and Decryption,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+HIPAA Security Rule,164.312(a)(2)(iv),Encryption and Decryption,asset-EILT0197,Warning,System Check: BitLocker Encryption,auto-ev-EILT0197-164.312(a)(2)(iv)-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+HIPAA Security Rule,164.312(a)(2)(iv),Encryption and Decryption,asset-EILT0197,Warning,System Check: TLS Security Config,auto-ev-EILT0197-164.312(a)(2)(iv)-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+HIPAA Security Rule,164.312(a)(2)(iv),Encryption and Decryption,asset-EILT0197,Warning,System Check: PII Data Discovery,auto-ev-EILT0197-164.312(a)(2)(iv)-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-3.4,Protect Stored Data,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-3.4,Protect Stored Data,asset-EILT0197,Warning,System Check: BitLocker Encryption,auto-ev-EILT0197-PCI-3.4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-3.4,Protect Stored Data,asset-EILT0197,Warning,System Check: USB Mass Storage Access,auto-ev-EILT0197-PCI-3.4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.12,Data Leakage Prevention,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.12,Data Leakage Prevention,asset-EILT0197,Warning,System Check: BitLocker Encryption,auto-ev-EILT0197-A.8.12-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.DS-1,Data at Rest,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.DS-1,Data at Rest,asset-EILT0197,Warning,System Check: BitLocker Encryption,auto-ev-EILT0197-PR.DS-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.DS-1,Data at Rest,asset-EILT0197,Warning,System Check: Controlled Folder Access,auto-ev-EILT0197-PR.DS-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,ID.AM-1,Asset Management,asset-EILT0197,Compliant,System Check: Secure Boot,auto-ev-EILT0197-ID.AM-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,ID.AM-1,Asset Management,asset-EILT0197,Compliant,System Check: Windows Update Service,auto-ev-EILT0197-ID.AM-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,ID.AM-1,Asset Management,asset-EILT0197,Compliant,System Check: Prohibited Software,auto-ev-EILT0197-ID.AM-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.1.2,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Secure Boot,auto-ev-EILT0197-A.12.1.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.2,Vulnerability Management,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.2,Vulnerability Management,asset-EILT0197,Warning,System Check: Secure Boot,auto-ev-EILT0197-CC7.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.2,Vulnerability Management,asset-EILT0197,Warning,System Check: SMBv1 Protocol Disabled,auto-ev-EILT0197-CC7.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.2,Vulnerability Management,asset-EILT0197,Warning,System Check: Device Guard/WDAC,auto-ev-EILT0197-CC7.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.2,Vulnerability Management,asset-EILT0197,Warning,System Check: Exploit Protection (DEP/ASLR),auto-ev-EILT0197-CC7.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.2,Vulnerability Management,asset-EILT0197,Warning,System Check: Attack Surface Reduction,auto-ev-EILT0197-CC7.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-6.2,System Patches,asset-EILT0197,Compliant,System Check: Windows Update Service,auto-ev-EILT0197-PCI-6.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.8,Management of Technical Vulnerabilities,asset-EILT0197,Warning,System Check: Windows Update Service,auto-ev-EILT0197-A.12.6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.8,Management of Technical Vulnerabilities,asset-EILT0197,Warning,System Check: SMBv1 Protocol Disabled,auto-ev-EILT0197-A.12.6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.8,Management of Technical Vulnerabilities,asset-EILT0197,Warning,System Check: Exploit Protection (DEP/ASLR),auto-ev-EILT0197-A.12.6.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC7.3,Patch Management,asset-EILT0197,Compliant,System Check: Windows Update Service,auto-ev-EILT0197-CC7.3-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,DE.CM-8,Unknown Control,asset-EILT0197,Compliant,System Check: Windows Update Service,auto-ev-EILT0197-DE.CM-8-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-10.1,Audit Logging,asset-EILT0197,Non-Compliant,System Check: Audit Logging Policy,auto-ev-EILT0197-PCI-10.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,DE.AE-1,Anomalies and Events,asset-EILT0197,Non-Compliant,System Check: Audit Logging Policy,auto-ev-EILT0197-DE.AE-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.4.1,Unknown Control,asset-EILT0197,Compliant,System Check: Audit Logging Policy,auto-ev-EILT0197-A.12.4.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.4.1,Unknown Control,asset-EILT0197,Compliant,System Check: PowerShell Script Block Logging,auto-ev-EILT0197-A.12.4.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC9.2,Vendor Management,asset-EILT0197,Compliant,System Check: Audit Logging Policy,auto-ev-EILT0197-CC9.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC9.2,Vendor Management,asset-EILT0197,Compliant,System Check: PowerShell Script Block Logging,auto-ev-EILT0197-CC9.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,DE.CM-1,Security Monitoring,asset-EILT0197,Compliant,System Check: Audit Logging Policy,auto-ev-EILT0197-DE.CM-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,DE.CM-1,Security Monitoring,asset-EILT0197,Compliant,System Check: PowerShell Script Block Logging,auto-ev-EILT0197-DE.CM-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,AU-2,Unknown Control,asset-EILT0197,Compliant,System Check: Audit Logging Policy,auto-ev-EILT0197-AU-2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,AU-2,Unknown Control,asset-EILT0197,Compliant,System Check: PowerShell Script Block Logging,auto-ev-EILT0197-AU-2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-5,Network Segregation,asset-EILT0197,Non-Compliant,System Check: Risky Network Ports,auto-ev-EILT0197-PR.AC-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-5,Network Segregation,asset-EILT0197,Non-Compliant,System Check: LLMNR/NetBIOS Protection,auto-ev-EILT0197-PR.AC-5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-4.1,Encrypt Transmission,asset-EILT0197,Compliant,System Check: TLS Security Config,auto-ev-EILT0197-PCI-4.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.7,Transmission Protection,asset-EILT0197,Non-Compliant,System Check: TLS Security Config,auto-ev-EILT0197-CC6.7-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+SOC 2 Type II,CC6.7,Transmission Protection,asset-EILT0197,Non-Compliant,System Check: LLMNR/NetBIOS Protection,auto-ev-EILT0197-CC6.7-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.DS-2,Data in Transit,asset-EILT0197,Compliant,System Check: TLS Security Config,auto-ev-EILT0197-PR.DS-2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.10.1,Unknown Control,asset-EILT0197,Compliant,System Check: TLS Security Config,auto-ev-EILT0197-A.10.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.5,Unknown Control,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.5,Unknown Control,asset-EILT0197,Warning,System Check: Prohibited Software,auto-ev-EILT0197-A.12.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.5,Unknown Control,asset-EILT0197,Warning,System Check: Device Guard/WDAC,auto-ev-EILT0197-A.12.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.6.2,Unknown Control,asset-EILT0197,Compliant,System Check: Prohibited Software,auto-ev-EILT0197-A.12.6.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.5,Secure Authentication,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.5,Secure Authentication,asset-EILT0197,Compliant,System Check: Maximum Password Age,auto-ev-EILT0197-A.8.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.5,Secure Authentication,asset-EILT0197,Compliant,System Check: Password Complexity,auto-ev-EILT0197-A.8.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.5,Secure Authentication,asset-EILT0197,Compliant,System Check: Password History,auto-ev-EILT0197-A.8.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.5,Secure Authentication,asset-EILT0197,Compliant,System Check: Minimum Password Age,auto-ev-EILT0197-A.8.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-8.2.4,Unknown Control,asset-EILT0197,Compliant,System Check: Maximum Password Age,auto-ev-EILT0197-PCI-8.2.4-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PR.AC-7,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Account Lockout Policy,auto-ev-EILT0197-PR.AC-7-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PR.AC-7,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Idle Timeout (Screensaver),auto-ev-EILT0197-PR.AC-7-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-8.1.6,Unknown Control,asset-EILT0197,Compliant,System Check: Account Lockout Policy,auto-ev-EILT0197-PCI-8.1.6-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,AC-7,Unknown Control,asset-EILT0197,Compliant,System Check: Account Lockout Policy,auto-ev-EILT0197-AC-7-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-8.2.3,Unknown Control,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-8.2.3,Unknown Control,asset-EILT0197,Warning,System Check: Password Complexity,auto-ev-EILT0197-PCI-8.2.3-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-8.2.5,Unknown Control,asset-EILT0197,Compliant,System Check: Password History,auto-ev-EILT0197-PCI-8.2.5-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-2.2.2,Unknown Control,asset-EILT0197,Compliant,System Check: Remote Desktop Service,auto-ev-EILT0197-PCI-2.2.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-2.2.2,Unknown Control,asset-EILT0197,Compliant,System Check: WinRM Service Status,auto-ev-EILT0197-PCI-2.2.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-3,Remote Access,asset-EILT0197,Compliant,System Check: Remote Desktop Service,auto-ev-EILT0197-PR.AC-3-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.AC-3,Remote Access,asset-EILT0197,Compliant,System Check: WinRM Service Status,auto-ev-EILT0197-PR.AC-3-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,CVE-2017-0143,Unknown Control,asset-EILT0197,Compliant,System Check: SMBv1 Protocol Disabled,auto-ev-EILT0197-CVE-2017-0143-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.IP-1,Configuration Baselines,asset-EILT0197,Warning,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.IP-1,Configuration Baselines,asset-EILT0197,Warning,System Check: SMBv1 Protocol Disabled,auto-ev-EILT0197-PR.IP-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.IP-1,Configuration Baselines,asset-EILT0197,Warning,System Check: Device Guard/WDAC,auto-ev-EILT0197-PR.IP-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.IP-1,Configuration Baselines,asset-EILT0197,Warning,System Check: Exploit Protection (DEP/ASLR),auto-ev-EILT0197-PR.IP-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+NIST Cybersecurity Framework,PR.IP-1,Configuration Baselines,asset-EILT0197,Warning,System Check: Attack Surface Reduction,auto-ev-EILT0197-PR.IP-1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.12.3.1,Unknown Control,asset-EILT0197,Warning,System Check: Controlled Folder Access,auto-ev-EILT0197-A.12.3.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Digital Personal Data Protection Act (DPDP),DPDP-5.1,Consent Artifacts Present,asset-EILT0197,Non-Compliant,System Check: DPDP-5.1 Consent Artifacts,auto-ev-EILT0197-DPDP-5.1-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Digital Personal Data Protection Act (DPDP),DPDP-8.4,Data Retention Pruning Logic,asset-EILT0197,Compliant,System Check: DPDP-8.4 Data Retention Policy,auto-ev-EILT0197-DPDP-8.4-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Digital Personal Data Protection Act (DPDP),DPDP-8.5,Personal Data Breach Notification Ops,asset-EILT0197,Warning,System Check: DPDP-8.5 Breach Notification,auto-ev-EILT0197-DPDP-8.5-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Digital Personal Data Protection Act (DPDP),DPDP-9.1,Child Data Age-Gating,asset-EILT0197,Compliant,System Check: DPDP-9.1 Child Data Age-Gating,auto-ev-EILT0197-DPDP-9.1-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Digital Personal Data Protection Act (DPDP),DPDP-10.1,Significant Data Fiduciary Audits,asset-EILT0197,Non-Compliant,System Check: DPDP-10.1 SDF Audit Status,auto-ev-EILT0197-DPDP-10.1-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Unknown,IVS-06,Unknown Control,asset-EILT0197,Compliant,System Check: Cloud Instance Metadata,auto-ev-EILT0197-IVS-06-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Unknown,AC-3,Unknown Control,asset-EILT0197,Compliant,System Check: Cloud Instance Metadata,auto-ev-EILT0197-AC-3-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Unknown,Privacy-1,Unknown Control,asset-EILT0197,Warning,System Check: PII Data Discovery,auto-ev-EILT0197-Privacy-1-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+General Data Protection Regulation,Art.5(1)(c),Data Minimization,asset-EILT0197,Warning,System Check: PII Data Discovery,auto-ev-EILT0197-Art.5(1)(c)-2026-02-25T14:29:50.549067+00:00,N/A,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-7.1,Access Restriction,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+Payment Card Industry Data Security Standard,PCI-7.1,Access Restriction,asset-EILT0197,Compliant,System Check: Local Administrator Auditing,auto-ev-EILT0197-PCI-7.1-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.2.2,Unknown Control,asset-EILT0197,Compliant,Unnamed Evidence,N/A,N/A,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.9.2.2,Unknown Control,asset-EILT0197,Compliant,System Check: Local Administrator Auditing,auto-ev-EILT0197-A.9.2.2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PCI-8.1.8,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Idle Timeout (Screensaver),auto-ev-EILT0197-PCI-8.1.8-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO 27001 (Assumed),A.11.2.8,Unknown Control,asset-EILT0197,Non-Compliant,System Check: Idle Timeout (Screensaver),auto-ev-EILT0197-A.11.2.8-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+ISO/IEC 27001:2022,A.8.3,Information Access Restriction,asset-EILT0197,Warning,System Check: USB Mass Storage Access,auto-ev-EILT0197-A.8.3-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00
+Unknown,PR.PT-2,Unknown Control,asset-EILT0197,Warning,System Check: USB Mass Storage Access,auto-ev-EILT0197-PR.PT-2-2026-02-25T14:29:50.549067+00:00,Verified,2026-02-25T14:29:50.549067+00:00

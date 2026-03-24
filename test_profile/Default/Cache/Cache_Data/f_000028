@@ -1,0 +1,267 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/DoraMetricsDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useContext = __vite__cjsImport1_react["useContext"];
+import { GitPullRequestDraftIcon, ClockIcon, AlertTriangleIcon, RefreshCwIcon } from "/components/icons.tsx";
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "/node_modules/.vite/deps/recharts.js?v=d6705e33";
+import { ThemeContext } from "/contexts/ThemeContext.ts";
+const StatCard = ({ title, value, icon }) => /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex items-center", children: [
+  /* @__PURE__ */ jsxDEV("div", { className: "p-3 bg-primary-100 dark:bg-primary-900/50 rounded-full mr-4 text-primary-500 dark:text-primary-400", children: icon }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+    lineNumber: 13,
+    columnNumber: 9
+  }, this),
+  /* @__PURE__ */ jsxDEV("div", { children: [
+    /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400", children: title }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+      lineNumber: 17,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-2xl font-bold", children: value }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+      lineNumber: 18,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+    lineNumber: 16,
+    columnNumber: 9
+  }, this)
+] }, void 0, true, {
+  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+  lineNumber: 12,
+  columnNumber: 1
+}, this);
+_c = StatCard;
+export const DoraMetricsDashboard = ({ metrics }) => {
+  _s();
+  const { theme } = useContext(ThemeContext);
+  const gridColor = theme === "dark" ? "#374151" : "#e5e7eb";
+  const textColor = theme === "dark" ? "#d1d5db" : "#374151";
+  const latestMetrics = metrics[metrics.length - 1] || {
+    tenantId: "",
+    date: "",
+    deploymentFrequency: 0,
+    leadTimeForChanges: 0,
+    changeFailureRate: 0,
+    meanTimeToRecovery: 0
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto", children: [
+    /* @__PURE__ */ jsxDEV("h2", { className: "text-2xl font-semibold text-gray-800 dark:text-white mb-2", children: "DORA Metrics" }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+      lineNumber: 41,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 mb-6", children: "Measure and improve your DevOps performance with industry-standard metrics." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+      lineNumber: 42,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6", children: [
+      /* @__PURE__ */ jsxDEV(StatCard, { title: "Deployment Frequency", value: `${latestMetrics.deploymentFrequency}/day`, icon: /* @__PURE__ */ jsxDEV(GitPullRequestDraftIcon, { size: 24 }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 45,
+        columnNumber: 113
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 45,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV(StatCard, { title: "Lead Time for Changes", value: `${latestMetrics.leadTimeForChanges} hrs`, icon: /* @__PURE__ */ jsxDEV(ClockIcon, { size: 24 }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 46,
+        columnNumber: 113
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 46,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV(StatCard, { title: "Change Failure Rate", value: `${latestMetrics.changeFailureRate}%`, icon: /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 24 }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 47,
+        columnNumber: 107
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 47,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV(StatCard, { title: "Mean Time to Recovery", value: `${latestMetrics.meanTimeToRecovery} hrs`, icon: /* @__PURE__ */ jsxDEV(RefreshCwIcon, { size: 24 }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 48,
+        columnNumber: 113
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 48,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+      lineNumber: 44,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md", children: [
+        /* @__PURE__ */ jsxDEV("h3", { className: "text-md font-semibold mb-4 text-gray-800 dark:text-white", children: "Deployment Frequency & Lead Time" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 53,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "h-64", children: /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: "100%", children: /* @__PURE__ */ jsxDEV(BarChart, { data: metrics, children: [
+          /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: gridColor }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 57,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "date", stroke: textColor, fontSize: 12 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 58,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(YAxis, { yAxisId: "left", stroke: textColor, fontSize: 12, label: { value: "Deployments/Day", angle: -90, position: "insideLeft", fill: textColor, fontSize: 10, dx: -5 } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 59,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(YAxis, { yAxisId: "right", orientation: "right", stroke: textColor, fontSize: 12, label: { value: "Hours", angle: 90, position: "insideRight", fill: textColor, fontSize: 10, dx: 5 } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 60,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Tooltip, { contentStyle: { backgroundColor: theme === "dark" ? "#1f2937" : "#ffffff" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 61,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Legend, { wrapperStyle: { fontSize: "12px" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 62,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Bar, { yAxisId: "left", dataKey: "deploymentFrequency", name: "Deploy/Day", fill: "#8884d8" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 63,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Bar, { yAxisId: "right", dataKey: "leadTimeForChanges", name: "Lead Time (hrs)", fill: "#82ca9d" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 64,
+            columnNumber: 33
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 56,
+          columnNumber: 29
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 55,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 54,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 52,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md", children: [
+        /* @__PURE__ */ jsxDEV("h3", { className: "text-md font-semibold mb-4 text-gray-800 dark:text-white", children: "Stability Metrics" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 70,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "h-64", children: /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: "100%", children: /* @__PURE__ */ jsxDEV(AreaChart, { data: metrics, children: [
+          /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: gridColor }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 74,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "date", stroke: textColor, fontSize: 12 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 75,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(YAxis, { stroke: textColor, fontSize: 12 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 76,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Tooltip, { contentStyle: { backgroundColor: theme === "dark" ? "#1f2937" : "#ffffff" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 77,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Legend, { wrapperStyle: { fontSize: "12px" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 78,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Area, { type: "monotone", dataKey: "changeFailureRate", name: "Failure Rate (%)", stroke: "#ffc658", fill: "#ffc658", fillOpacity: 0.3 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 79,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV(Area, { type: "monotone", dataKey: "meanTimeToRecovery", name: "MTTR (hrs)", stroke: "#ff7300", fill: "#ff7300", fillOpacity: 0.3 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+            lineNumber: 80,
+            columnNumber: 33
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 73,
+          columnNumber: 29
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 72,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+          lineNumber: 71,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+        lineNumber: 69,
+        columnNumber: 18
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+      lineNumber: 51,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx",
+    lineNumber: 40,
+    columnNumber: 5
+  }, this);
+};
+_s(DoraMetricsDashboard, "LidUGjXGvl6nqLnPI8yC77ot4bM=");
+_c2 = DoraMetricsDashboard;
+var _c, _c2;
+$RefreshReg$(_c, "StatCard");
+$RefreshReg$(_c2, "DoraMetricsDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/DoraMetricsDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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U0FBUSxzQkFBcUIsTUFBSyxjQUFhLFFBQU8sV0FBVSxNQUFLLFdBQVUsYUFBYSxPQUFsSDtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQUFzSDtBQUFBLGFBUDFIO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFRQSxLQVRKO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFVQSxLQVhKO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFZQTtBQUFBLFdBZEg7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQWVEO0FBQUEsU0FqQ0o7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQWtDQTtBQUFBLE9BN0NKO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0E4Q0E7QUFFUjtBQUFFZixHQWhFV0Ysc0JBQXlEO0FBQUFvQixNQUF6RHBCO0FBQXlELElBQUFELElBQUFxQjtBQUFBQyxhQUFBdEIsSUFBQTtBQUFBc0IsYUFBQUQsS0FBQSIsIm5hbWVzIjpbInVzZUNvbnRleHQiLCJHaXRQdWxsUmVxdWVzdERyYWZ0SWNvbiIsIkNsb2NrSWNvbiIsIkFsZXJ0VHJpYW5nbGVJY29uIiwiUmVmcmVzaEN3SWNvbiIsIkJhckNoYXJ0IiwiQmFyIiwiQXJlYUNoYXJ0IiwiQXJlYSIsIlhBeGlzIiwiWUF4aXMiLCJDYXJ0ZXNpYW5HcmlkIiwiVG9vbHRpcCIsIkxlZ2VuZCIsIlJlc3BvbnNpdmVDb250YWluZXIiLCJUaGVtZUNvbnRleHQiLCJTdGF0Q2FyZCIsInRpdGxlIiwidmFsdWUiLCJpY29uIiwiX2MiLCJEb3JhTWV0cmljc0Rhc2hib2FyZCIsIm1ldHJpY3MiLCJfcyIsInRoZW1lIiwiZ3JpZENvbG9yIiwidGV4dENvbG9yIiwibGF0ZXN0TWV0cmljcyIsImxlbmd0aCIsInRlbmFudElkIiwiZGF0ZSIsImRlcGxveW1lbnRGcmVxdWVuY3kiLCJsZWFkVGltZUZvckNoYW5nZXMiLCJjaGFuZ2VGYWlsdXJlUmF0ZSIsIm1lYW5UaW1lVG9SZWNvdmVyeSIsImFuZ2xlIiwicG9zaXRpb24iLCJmaWxsIiwiZm9udFNpemUiLCJkeCIsImJhY2tncm91bmRDb2xvciIsIl9jMiIsIiRSZWZyZXNoUmVnJCJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJEb3JhTWV0cmljc0Rhc2hib2FyZC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0LCB7IHVzZUNvbnRleHQgfSBmcm9tICdyZWFjdCc7XG5pbXBvcnQgeyBEb3JhTWV0cmljcyB9IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IEdhdWdlSWNvbiwgR2l0UHVsbFJlcXVlc3REcmFmdEljb24sIENsb2NrSWNvbiwgQWxlcnRUcmlhbmdsZUljb24sIFJlZnJlc2hDd0ljb24gfSBmcm9tICcuL2ljb25zJztcbmltcG9ydCB7IEJhckNoYXJ0LCBCYXIsIEFyZWFDaGFydCwgQXJlYSwgWEF4aXMsIFlBeGlzLCBDYXJ0ZXNpYW5HcmlkLCBUb29sdGlwLCBMZWdlbmQsIFJlc3BvbnNpdmVDb250YWluZXIgfSBmcm9tICdyZWNoYXJ0cyc7XG5pbXBvcnQgeyBUaGVtZUNvbnRleHQgfSBmcm9tICcuLi9jb250ZXh0cy9UaGVtZUNvbnRleHQnO1xuXG5pbnRlcmZhY2UgRG9yYU1ldHJpY3NEYXNoYm9hcmRQcm9wcyB7XG4gICAgbWV0cmljczogRG9yYU1ldHJpY3NbXTtcbn1cblxuY29uc3QgU3RhdENhcmQ6IFJlYWN0LkZDPHsgdGl0bGU6IHN0cmluZzsgdmFsdWU6IHN0cmluZzsgaWNvbjogUmVhY3QuUmVhY3ROb2RlOyB9PiA9ICh7IHRpdGxlLCB2YWx1ZSwgaWNvbiB9KSA9PiAoXG4gICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHAtNCByb3VuZGVkLWxnIHNoYWRvdy1tZCBmbGV4IGl0ZW1zLWNlbnRlclwiPlxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInAtMyBiZy1wcmltYXJ5LTEwMCBkYXJrOmJnLXByaW1hcnktOTAwLzUwIHJvdW5kZWQtZnVsbCBtci00IHRleHQtcHJpbWFyeS01MDAgZGFyazp0ZXh0LXByaW1hcnktNDAwXCI+XG4gICAgICAgICAgICB7aWNvbn1cbiAgICAgICAgPC9kaXY+XG4gICAgICAgIDxkaXY+XG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+e3RpdGxlfTwvcD5cbiAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtMnhsIGZvbnQtYm9sZFwiPnt2YWx1ZX08L3A+XG4gICAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuKTtcblxuXG5leHBvcnQgY29uc3QgRG9yYU1ldHJpY3NEYXNoYm9hcmQ6IFJlYWN0LkZDPERvcmFNZXRyaWNzRGFzaGJvYXJkUHJvcHM+ID0gKHsgbWV0cmljcyB9KSA9PiB7XG4gICAgY29uc3QgeyB0aGVtZSB9ID0gdXNlQ29udGV4dChUaGVtZUNvbnRleHQpO1xuICAgIGNvbnN0IGdyaWRDb2xvciA9IHRoZW1lID09PSAnZGFyaycgPyAnIzM3NDE1MScgOiAnI2U1ZTdlYic7XG4gICAgY29uc3QgdGV4dENvbG9yID0gdGhlbWUgPT09ICdkYXJrJyA/ICcjZDFkNWRiJyA6ICcjMzc0MTUxJztcblxuICAgIC8vIEZJWDogUHJvdmlkZSBhIGRlZmF1bHQgb2JqZWN0IHRvIGF2b2lkIGFjY2Vzc2luZyBwcm9wZXJ0aWVzIG9uIGB7fWAgaWYgbWV0cmljcyBhcnJheSBpcyBlbXB0eS5cbiAgICBjb25zdCBsYXRlc3RNZXRyaWNzOiBEb3JhTWV0cmljcyA9IG1ldHJpY3NbbWV0cmljcy5sZW5ndGggLSAxXSB8fCB7XG4gICAgICAgIHRlbmFudElkOiAnJyxcbiAgICAgICAgZGF0ZTogJycsXG4gICAgICAgIGRlcGxveW1lbnRGcmVxdWVuY3k6IDAsXG4gICAgICAgIGxlYWRUaW1lRm9yQ2hhbmdlczogMCxcbiAgICAgICAgY2hhbmdlRmFpbHVyZVJhdGU6IDAsXG4gICAgICAgIG1lYW5UaW1lVG9SZWNvdmVyeTogMCxcbiAgICB9O1xuXG4gICAgcmV0dXJuIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb250YWluZXIgbXgtYXV0b1wiPlxuICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQtMnhsIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtd2hpdGUgbWItMlwiPkRPUkEgTWV0cmljczwvaDI+XG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIG1iLTZcIj5NZWFzdXJlIGFuZCBpbXByb3ZlIHlvdXIgRGV2T3BzIHBlcmZvcm1hbmNlIHdpdGggaW5kdXN0cnktc3RhbmRhcmQgbWV0cmljcy48L3A+XG4gICAgICAgICAgICBcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ3JpZCBncmlkLWNvbHMtMSBzbTpncmlkLWNvbHMtMiBsZzpncmlkLWNvbHMtNCBnYXAtNCBtZDpnYXAtNiBtYi02XCI+XG4gICAgICAgICAgICAgICAgPFN0YXRDYXJkIHRpdGxlPVwiRGVwbG95bWVudCBGcmVxdWVuY3lcIiB2YWx1ZT17YCR7bGF0ZXN0TWV0cmljcy5kZXBsb3ltZW50RnJlcXVlbmN5fS9kYXlgfSBpY29uPXs8R2l0UHVsbFJlcXVlc3REcmFmdEljb24gc2l6ZT17MjR9IC8+fSAvPlxuICAgICAgICAgICAgICAgIDxTdGF0Q2FyZCB0aXRsZT1cIkxlYWQgVGltZSBmb3IgQ2hhbmdlc1wiIHZhbHVlPXtgJHtsYXRlc3RNZXRyaWNzLmxlYWRUaW1lRm9yQ2hhbmdlc30gaHJzYH0gaWNvbj17PENsb2NrSWNvbiBzaXplPXsyNH0gLz59IC8+XG4gICAgICAgICAgICAgICAgPFN0YXRDYXJkIHRpdGxlPVwiQ2hhbmdlIEZhaWx1cmUgUmF0ZVwiIHZhbHVlPXtgJHtsYXRlc3RNZXRyaWNzLmNoYW5nZUZhaWx1cmVSYXRlfSVgfSBpY29uPXs8QWxlcnRUcmlhbmdsZUljb24gc2l6ZT17MjR9IC8+fSAvPlxuICAgICAgICAgICAgICAgIDxTdGF0Q2FyZCB0aXRsZT1cIk1lYW4gVGltZSB0byBSZWNvdmVyeVwiIHZhbHVlPXtgJHtsYXRlc3RNZXRyaWNzLm1lYW5UaW1lVG9SZWNvdmVyeX0gaHJzYH0gaWNvbj17PFJlZnJlc2hDd0ljb24gc2l6ZT17MjR9IC8+fSAvPlxuICAgICAgICAgICAgPC9kaXY+XG5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ3JpZCBncmlkLWNvbHMtMSBsZzpncmlkLWNvbHMtMiBnYXAtNlwiPlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCBwLTQgcm91bmRlZC1sZyBzaGFkb3ctbWRcIj5cbiAgICAgICAgICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cInRleHQtbWQgZm9udC1zZW1pYm9sZCBtYi00IHRleHQtZ3JheS04MDAgZGFyazp0ZXh0LXdoaXRlXCI+RGVwbG95bWVudCBGcmVxdWVuY3kgJiBMZWFkIFRpbWU8L2gzPlxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImgtNjRcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxSZXNwb25zaXZlQ29udGFpbmVyIHdpZHRoPVwiMTAwJVwiIGhlaWdodD1cIjEwMCVcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8QmFyQ2hhcnQgZGF0YT17bWV0cmljc30+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxDYXJ0ZXNpYW5HcmlkIHN0cm9rZURhc2hhcnJheT1cIjMgM1wiIHN0cm9rZT17Z3JpZENvbG9yfSAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8WEF4aXMgZGF0YUtleT1cImRhdGVcIiBzdHJva2U9e3RleHRDb2xvcn0gZm9udFNpemU9ezEyfSAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8WUF4aXMgeUF4aXNJZD1cImxlZnRcIiBzdHJva2U9e3RleHRDb2xvcn0gZm9udFNpemU9ezEyfSBsYWJlbD17eyB2YWx1ZTogJ0RlcGxveW1lbnRzL0RheScsIGFuZ2xlOiAtOTAsIHBvc2l0aW9uOiAnaW5zaWRlTGVmdCcsIGZpbGw6IHRleHRDb2xvciwgZm9udFNpemU6IDEwLCBkeDogLTUgfX0gLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPFlBeGlzIHlBeGlzSWQ9XCJyaWdodFwiIG9yaWVudGF0aW9uPVwicmlnaHRcIiBzdHJva2U9e3RleHRDb2xvcn0gZm9udFNpemU9ezEyfSBsYWJlbD17eyB2YWx1ZTogJ0hvdXJzJywgYW5nbGU6IDkwLCBwb3NpdGlvbjogJ2luc2lkZVJpZ2h0JywgZmlsbDogdGV4dENvbG9yLCBmb250U2l6ZTogMTAsIGR4OiA1IH19IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxUb29sdGlwIGNvbnRlbnRTdHlsZT17eyBiYWNrZ3JvdW5kQ29sb3I6IHRoZW1lID09PSAnZGFyaycgPyAnIzFmMjkzNycgOiAnI2ZmZmZmZicgfX0gLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPExlZ2VuZCB3cmFwcGVyU3R5bGU9e3tmb250U2l6ZTogXCIxMnB4XCJ9fS8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxCYXIgeUF4aXNJZD1cImxlZnRcIiBkYXRhS2V5PVwiZGVwbG95bWVudEZyZXF1ZW5jeVwiIG5hbWU9XCJEZXBsb3kvRGF5XCIgZmlsbD1cIiM4ODg0ZDhcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8QmFyIHlBeGlzSWQ9XCJyaWdodFwiIGRhdGFLZXk9XCJsZWFkVGltZUZvckNoYW5nZXNcIiBuYW1lPVwiTGVhZCBUaW1lIChocnMpXCIgZmlsbD1cIiM4MmNhOWRcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvQmFyQ2hhcnQ+XG4gICAgICAgICAgICAgICAgICAgICAgICA8L1Jlc3BvbnNpdmVDb250YWluZXI+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcC00IHJvdW5kZWQtbGcgc2hhZG93LW1kXCI+XG4gICAgICAgICAgICAgICAgICAgIDxoMyBjbGFzc05hbWU9XCJ0ZXh0LW1kIGZvbnQtc2VtaWJvbGQgbWItNCB0ZXh0LWdyYXktODAwIGRhcms6dGV4dC13aGl0ZVwiPlN0YWJpbGl0eSBNZXRyaWNzPC9oMz5cbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJoLTY0XCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8UmVzcG9uc2l2ZUNvbnRhaW5lciB3aWR0aD1cIjEwMCVcIiBoZWlnaHQ9XCIxMDAlXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPEFyZWFDaGFydCBkYXRhPXttZXRyaWNzfT5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPENhcnRlc2lhbkdyaWQgc3Ryb2tlRGFzaGFycmF5PVwiMyAzXCIgc3Ryb2tlPXtncmlkQ29sb3J9IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxYQXhpcyBkYXRhS2V5PVwiZGF0ZVwiIHN0cm9rZT17dGV4dENvbG9yfSBmb250U2l6ZT17MTJ9IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxZQXhpcyBzdHJva2U9e3RleHRDb2xvcn0gZm9udFNpemU9ezEyfSAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8VG9vbHRpcCBjb250ZW50U3R5bGU9e3sgYmFja2dyb3VuZENvbG9yOiB0aGVtZSA9PT0gJ2RhcmsnID8gJyMxZjI5MzcnIDogJyNmZmZmZmYnIH19IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxMZWdlbmQgd3JhcHBlclN0eWxlPXt7Zm9udFNpemU6IFwiMTJweFwifX0vPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8QXJlYSB0eXBlPVwibW9ub3RvbmVcIiBkYXRhS2V5PVwiY2hhbmdlRmFpbHVyZVJhdGVcIiBuYW1lPVwiRmFpbHVyZSBSYXRlICglKVwiIHN0cm9rZT1cIiNmZmM2NThcIiBmaWxsPVwiI2ZmYzY1OFwiIGZpbGxPcGFjaXR5PXswLjN9IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxBcmVhIHR5cGU9XCJtb25vdG9uZVwiIGRhdGFLZXk9XCJtZWFuVGltZVRvUmVjb3ZlcnlcIiBuYW1lPVwiTVRUUiAoaHJzKVwiIHN0cm9rZT1cIiNmZjczMDBcIiBmaWxsPVwiI2ZmNzMwMFwiIGZpbGxPcGFjaXR5PXswLjN9IC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9BcmVhQ2hhcnQ+XG4gICAgICAgICAgICAgICAgICAgICAgICA8L1Jlc3BvbnNpdmVDb250YWluZXI+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgIDwvZGl2PlxuICAgICk7XG59OyJdLCJmaWxlIjoiRDovRG93bmxvYWRzL2VudGVycHJpc2Utb21uaS1hZ2VudC1haS1wbGF0Zm9ybS9jb21wb25lbnRzL0RvcmFNZXRyaWNzRGFzaGJvYXJkLnRzeCJ9
