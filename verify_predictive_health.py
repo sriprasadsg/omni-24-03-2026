@@ -2,7 +2,7 @@ import sys
 import os
 import requests
 import json
-sys.path.append(os.path.abspath("backend"))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "backend")))
 
 # Assuming backend is running on 5000
 API_URL = "http://localhost:5000/api/agents"

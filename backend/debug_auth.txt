@@ -1,1 +1,1 @@
-Auth Error: 401: Could not validate credentials - invalid token
+Auth Success: TokenData(username='super@omni.ai', role='Super Admin', tenant_id='platform-admin', mfa_verified=False)

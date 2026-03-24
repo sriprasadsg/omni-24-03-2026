@@ -1,7 +1,7 @@
 import sys
 import os
 import asyncio
-sys.path.append(os.path.abspath("backend"))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "backend")))
 
 from backend.database import connect_to_mongo, get_database
 
