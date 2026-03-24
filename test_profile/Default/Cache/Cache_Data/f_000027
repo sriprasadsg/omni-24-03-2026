@@ -1,0 +1,165 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/ServiceCatalogDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const Fragment = __vite__cjsImport0_react_jsxDevRuntime["Fragment"]; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"];
+import { PuzzleIcon, CheckIcon, CogIcon } from "/components/icons.tsx";
+export const ServiceCatalogDashboard = ({ templates, provisionedServices }) => {
+  _s();
+  const [isProvisioning, setIsProvisioning] = useState(null);
+  const [provisioned, setProvisioned] = useState([]);
+  const handleProvision = (templateId) => {
+    setIsProvisioning(templateId);
+    setTimeout(() => {
+      setIsProvisioning(null);
+      setProvisioned((prev) => [...prev, templateId]);
+    }, 3e3);
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto", children: [
+    /* @__PURE__ */ jsxDEV("h2", { className: "text-2xl font-semibold text-gray-800 dark:text-white mb-2", children: "Service Catalog (IDP)" }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+      lineNumber: 24,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 mb-6", children: "Provision new services using approved, secure-by-default templates." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+      lineNumber: 25,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", children: !templates || templates.length === 0 ? /* @__PURE__ */ jsxDEV("div", { className: "col-span-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6", children: [
+      /* @__PURE__ */ jsxDEV("p", { className: "text-blue-800 dark:text-blue-200 font-medium", children: "No service templates available" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+        lineNumber: 30,
+        columnNumber: 25
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-blue-600 dark:text-blue-300 mt-2", children: "Service templates will appear here once configured by your platform administrator." }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+        lineNumber: 31,
+        columnNumber: 25
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+      lineNumber: 29,
+      columnNumber: 9
+    }, this) : templates.map(
+      (template) => /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "flex-grow", children: [
+          /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center", children: [
+            /* @__PURE__ */ jsxDEV(PuzzleIcon, { className: "mr-3 text-primary-500" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+              lineNumber: 38,
+              columnNumber: 37
+            }, this),
+            template.name
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+            lineNumber: 37,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400 mt-2", children: template.description }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+            lineNumber: 41,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-4 flex flex-wrap gap-2", children: template.tags.map(
+            (tag) => /* @__PURE__ */ jsxDEV("span", { className: "px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300", children: tag }, tag, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+              lineNumber: 44,
+              columnNumber: 15
+            }, this)
+          ) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+            lineNumber: 42,
+            columnNumber: 33
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+          lineNumber: 36,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => handleProvision(template.id),
+            disabled: isProvisioning === template.id || provisioned.includes(template.id),
+            className: "w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed",
+            children: isProvisioning === template.id ? /* @__PURE__ */ jsxDEV(Fragment, { children: [
+              /* @__PURE__ */ jsxDEV(CogIcon, { size: 16, className: "animate-spin mr-2" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+                lineNumber: 55,
+                columnNumber: 17
+              }, this),
+              " Provisioning..."
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+              lineNumber: 55,
+              columnNumber: 15
+            }, this) : provisioned.includes(template.id) ? /* @__PURE__ */ jsxDEV(Fragment, { children: [
+              /* @__PURE__ */ jsxDEV(CheckIcon, { size: 16, className: "mr-2" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+                lineNumber: 57,
+                columnNumber: 17
+              }, this),
+              " Provisioned"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+              lineNumber: 57,
+              columnNumber: 15
+            }, this) : "Provision Service"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+            lineNumber: 49,
+            columnNumber: 33
+          },
+          this
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+          lineNumber: 48,
+          columnNumber: 29
+        }, this)
+      ] }, template.id, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+        lineNumber: 35,
+        columnNumber: 9
+      }, this)
+    ) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+      lineNumber: 27,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx",
+    lineNumber: 23,
+    columnNumber: 5
+  }, this);
+};
+_s(ServiceCatalogDashboard, "fhwvsAUX/SbVxx2R2fCIdYzhf+o=");
+_c = ServiceCatalogDashboard;
+var _c;
+$RefreshReg$(_c, "ServiceCatalogDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/ServiceCatalogDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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SUFFdEQ7QUFBQTtBQUFBLFVBVlI7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLFFBWUEsS0FiSjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBY0E7QUFBQSxXQTNCTUwsU0FBU0ssSUFBbkI7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQTRCQTtBQUFBLElBQ0gsS0FyQ1Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQXVDQTtBQUFBLE9BM0NKO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0E0Q0E7QUFFUjtBQUFFaEIsR0EzRFdILHlCQUErRDtBQUFBcUIsS0FBL0RyQjtBQUErRCxJQUFBcUI7QUFBQUMsYUFBQUQsSUFBQSIsIm5hbWVzIjpbInVzZVN0YXRlIiwiUHV6emxlSWNvbiIsIkNoZWNrSWNvbiIsIkNvZ0ljb24iLCJTZXJ2aWNlQ2F0YWxvZ0Rhc2hib2FyZCIsInRlbXBsYXRlcyIsInByb3Zpc2lvbmVkU2VydmljZXMiLCJfcyIsImlzUHJvdmlzaW9uaW5nIiwic2V0SXNQcm92aXNpb25pbmciLCJwcm92aXNpb25lZCIsInNldFByb3Zpc2lvbmVkIiwiaGFuZGxlUHJvdmlzaW9uIiwidGVtcGxhdGVJZCIsInNldFRpbWVvdXQiLCJwcmV2IiwibGVuZ3RoIiwibWFwIiwidGVtcGxhdGUiLCJuYW1lIiwiZGVzY3JpcHRpb24iLCJ0YWdzIiwidGFnIiwiaWQiLCJpbmNsdWRlcyIsIl9jIiwiJFJlZnJlc2hSZWckIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIlNlcnZpY2VDYXRhbG9nRGFzaGJvYXJkLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QsIHsgdXNlU3RhdGUgfSBmcm9tICdyZWFjdCc7XG5pbXBvcnQgeyBTZXJ2aWNlVGVtcGxhdGUsIFByb3Zpc2lvbmVkU2VydmljZSB9IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IFB1enpsZUljb24sIENoZWNrSWNvbiwgQ29nSWNvbiB9IGZyb20gJy4vaWNvbnMnO1xuXG5pbnRlcmZhY2UgU2VydmljZUNhdGFsb2dEYXNoYm9hcmRQcm9wcyB7XG4gICAgdGVtcGxhdGVzOiBTZXJ2aWNlVGVtcGxhdGVbXTtcbiAgICBwcm92aXNpb25lZFNlcnZpY2VzOiBQcm92aXNpb25lZFNlcnZpY2VbXTtcbn1cblxuZXhwb3J0IGNvbnN0IFNlcnZpY2VDYXRhbG9nRGFzaGJvYXJkOiBSZWFjdC5GQzxTZXJ2aWNlQ2F0YWxvZ0Rhc2hib2FyZFByb3BzPiA9ICh7IHRlbXBsYXRlcywgcHJvdmlzaW9uZWRTZXJ2aWNlcyB9KSA9PiB7XG4gICAgY29uc3QgW2lzUHJvdmlzaW9uaW5nLCBzZXRJc1Byb3Zpc2lvbmluZ10gPSB1c2VTdGF0ZTxzdHJpbmcgfCBudWxsPihudWxsKTtcbiAgICBjb25zdCBbcHJvdmlzaW9uZWQsIHNldFByb3Zpc2lvbmVkXSA9IHVzZVN0YXRlPHN0cmluZ1tdPihbXSk7XG5cbiAgICBjb25zdCBoYW5kbGVQcm92aXNpb24gPSAodGVtcGxhdGVJZDogc3RyaW5nKSA9PiB7XG4gICAgICAgIHNldElzUHJvdmlzaW9uaW5nKHRlbXBsYXRlSWQpO1xuICAgICAgICBzZXRUaW1lb3V0KCgpID0+IHtcbiAgICAgICAgICAgIHNldElzUHJvdmlzaW9uaW5nKG51bGwpO1xuICAgICAgICAgICAgc2V0UHJvdmlzaW9uZWQocHJldiA9PiBbLi4ucHJldiwgdGVtcGxhdGVJZF0pO1xuICAgICAgICB9LCAzMDAwKTtcbiAgICB9O1xuXG4gICAgcmV0dXJuIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb250YWluZXIgbXgtYXV0b1wiPlxuICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQtMnhsIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtd2hpdGUgbWItMlwiPlNlcnZpY2UgQ2F0YWxvZyAoSURQKTwvaDI+XG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIG1iLTZcIj5Qcm92aXNpb24gbmV3IHNlcnZpY2VzIHVzaW5nIGFwcHJvdmVkLCBzZWN1cmUtYnktZGVmYXVsdCB0ZW1wbGF0ZXMuPC9wPlxuXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTEgbWQ6Z3JpZC1jb2xzLTIgbGc6Z3JpZC1jb2xzLTMgZ2FwLTZcIj5cbiAgICAgICAgICAgICAgICB7KCF0ZW1wbGF0ZXMgfHwgdGVtcGxhdGVzLmxlbmd0aCA9PT0gMCkgPyAoXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY29sLXNwYW4tZnVsbCBiZy1ibHVlLTUwIGRhcms6YmctYmx1ZS05MDAvMjAgYm9yZGVyIGJvcmRlci1ibHVlLTIwMCBkYXJrOmJvcmRlci1ibHVlLTgwMCByb3VuZGVkLWxnIHAtNlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1ibHVlLTgwMCBkYXJrOnRleHQtYmx1ZS0yMDAgZm9udC1tZWRpdW1cIj5ObyBzZXJ2aWNlIHRlbXBsYXRlcyBhdmFpbGFibGU8L3A+XG4gICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtYmx1ZS02MDAgZGFyazp0ZXh0LWJsdWUtMzAwIG10LTJcIj5TZXJ2aWNlIHRlbXBsYXRlcyB3aWxsIGFwcGVhciBoZXJlIG9uY2UgY29uZmlndXJlZCBieSB5b3VyIHBsYXRmb3JtIGFkbWluaXN0cmF0b3IuPC9wPlxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICApIDogKFxuICAgICAgICAgICAgICAgICAgICB0ZW1wbGF0ZXMubWFwKHRlbXBsYXRlID0+IChcbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYga2V5PXt0ZW1wbGF0ZS5pZH0gY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZCBib3JkZXIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwIHAtNiBmbGV4IGZsZXgtY29sXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LWdyb3dcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cInRleHQtbGcgZm9udC1ib2xkIHRleHQtZ3JheS04MDAgZGFyazp0ZXh0LWdyYXktMTAwIGZsZXggaXRlbXMtY2VudGVyXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8UHV6emxlSWNvbiBjbGFzc05hbWU9XCJtci0zIHRleHQtcHJpbWFyeS01MDBcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3RlbXBsYXRlLm5hbWV9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvaDM+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDAgbXQtMlwiPnt0ZW1wbGF0ZS5kZXNjcmlwdGlvbn08L3A+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNCBmbGV4IGZsZXgtd3JhcCBnYXAtMlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3RlbXBsYXRlLnRhZ3MubWFwKHRhZyA9PiAoXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4ga2V5PXt0YWd9IGNsYXNzTmFtZT1cInB4LTIgcHktMSB0ZXh0LXhzIGZvbnQtbWVkaXVtIHJvdW5kZWQtZnVsbCBiZy1ncmF5LTEwMCB0ZXh0LWdyYXktODAwIGRhcms6YmctZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+e3RhZ308L3NwYW4+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC02IHB0LTQgYm9yZGVyLXQgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxidXR0b25cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IGhhbmRsZVByb3Zpc2lvbih0ZW1wbGF0ZS5pZCl9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBkaXNhYmxlZD17aXNQcm92aXNpb25pbmcgPT09IHRlbXBsYXRlLmlkIHx8IHByb3Zpc2lvbmVkLmluY2x1ZGVzKHRlbXBsYXRlLmlkKX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cInctZnVsbCBmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBweC00IHB5LTIgdGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LXdoaXRlIGJnLXByaW1hcnktNjAwIHJvdW5kZWQtbGcgaG92ZXI6YmctcHJpbWFyeS03MDAgZGlzYWJsZWQ6YmctZ3JheS00MDAgZGlzYWJsZWQ6Y3Vyc29yLW5vdC1hbGxvd2VkXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2lzUHJvdmlzaW9uaW5nID09PSB0ZW1wbGF0ZS5pZCA/IChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8PjxDb2dJY29uIHNpemU9ezE2fSBjbGFzc05hbWU9XCJhbmltYXRlLXNwaW4gbXItMlwiIC8+IFByb3Zpc2lvbmluZy4uLjwvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKSA6IHByb3Zpc2lvbmVkLmluY2x1ZGVzKHRlbXBsYXRlLmlkKSA/IChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8PjxDaGVja0ljb24gc2l6ZT17MTZ9IGNsYXNzTmFtZT1cIm1yLTJcIiAvPiBQcm92aXNpb25lZDwvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKSA6IChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAnUHJvdmlzaW9uIFNlcnZpY2UnXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApfVxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICApKVxuICAgICAgICAgICAgICAgICl9XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07XG4iXSwiZmlsZSI6IkQ6L0Rvd25sb2Fkcy9lbnRlcnByaXNlLW9tbmktYWdlbnQtYWktcGxhdGZvcm0vY29tcG9uZW50cy9TZXJ2aWNlQ2F0YWxvZ0Rhc2hib2FyZC50c3gifQ==

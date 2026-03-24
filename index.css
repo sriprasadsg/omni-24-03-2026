@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+:root {
+    /* Flash UI Variables - Light Mode (Default Root) */
+    --primary-50: #e0faff;
+    --primary-100: #b3f4ff;
+    --primary-200: #80ecff;
+    --primary-300: #4de3ff;
+    --primary-400: #26d9ff;
+    --primary-500: #00d2ff;
+    /* Neon Cyan */
+    --primary-600: #00a8cc;
+    --primary-700: #007e99;
+    --primary-800: #005466;
+    --primary-900: #002a33;
+    --primary-950: #00151a;
+
+    --accent-glow: 0 0 10px rgba(0, 210, 255, 0.5);
+
+    /* Flash Light Mode Backgrounds */
+    --bg-main: #f0f4f8;
+    /* Light Gray Blue */
+    --text-main: #1e293b;
+    /* Slate 800 */
+    --glass-border: rgba(0, 210, 255, 0.2);
+    --glass-bg: rgba(255, 255, 255, 0.7);
+}
+
+.dark {
+    /* Flash Dark Mode Variables */
+    --bg-main: #0a0a1f;
+    /* Deep Dark Blue */
+    --text-main: #ffffff;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-bg: rgba(20, 20, 40, 0.6);
+}
+
+/* Flash Glassmorphism */
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.glass-panel {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+.noc-glow {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+}
+
+.noc-glow-success {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+}
+
+.noc-node-label {
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
+/* Recharts Customization */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+    stroke: #e2e8f0;
+}
+
+/* Voice Bot Tour Highlight Effects */
+.tour-highlight {
+    position: relative;
+    z-index: 50;
+    box-shadow: 0 0 0 4px rgba(0, 210, 255, 0.4), 0 0 20px rgba(0, 210, 255, 0.6) !important;
+    border-radius: 8px;
+    transition: all 0.3s ease-in-out;
+    background-color: rgba(0, 210, 255, 0.05) !important;
+    animation: tourPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes tourPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 2px rgba(0, 210, 255, 0.4), 0 0 15px rgba(0, 210, 255, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(0, 210, 255, 0.6), 0 0 25px rgba(0, 210, 255, 0.8);
+    }
+}
+
+.animation-delay-200 {
+    animation-delay: 200ms;
+}

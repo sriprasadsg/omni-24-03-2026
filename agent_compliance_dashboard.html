@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Compliance Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .agent-selector {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .agent-selector input {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            width: 300px;
+        }
+
+        .agent-selector button {
+            padding: 10px 25px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .agent-selector button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 5px;
+        }
+
+        .stat-card p {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .controls {
+            padding: 30px;
+        }
+
+        .control-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 15px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .control-item:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateX(5px);
+        }
+
+        .control-item.compliant {
+            border-left-color: #10b981;
+            background: #ecfdf5;
+        }
+
+        .control-item.non-compliant {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .control-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .control-header:hover {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .control-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .control-id {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.05em;
+        }
+
+        .control-status {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-compliant {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-non-compliant {
+            background: #ef4444;
+            color: white;
+        }
+
+        .evidence-badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        .expand-icon {
+            transition: transform 0.3s;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .control-item.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .evidence-container {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .control-item.expanded .evidence-container {
+            max-height: 2000px;
+        }
+
+        .evidence-list {
+            padding: 20px;
+        }
+
+        .evidence-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+
+        .evidence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .evidence-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .evidence-date {
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        .evidence-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        .evidence-content h1 {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+
+        .evidence-content h2 {
+            font-size: 1.1em;
+            margin: 8px 0;
+        }
+
+        .evidence-content strong {
+            color: #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .no-evidence {
+            color: #666;
+            font-style: italic;
+            padding: 10px;
+        }
+
+        .search-filter {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ Agent Compliance Dashboard</h1>
+            <p>Comprehensive Compliance Status & Evidence Viewer</p>
+            <div class="agent-selector">
+                <input type="text" id="agentInput" placeholder="Enter Agent ID (e.g., EILT0197)" value="EILT0197">
+                <button onclick="loadAgent()">Load Agent</button>
+            </div>
+        </header>
+
+        <div class="stats" id="stats">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading compliance data...</p>
+            </div>
+        </div>
+
+        <div class="search-filter" id="searchFilter" style="display: none;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search controls by ID or evidence...">
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="filterControls('all')">All (0)</button>
+                <button class="filter-btn" onclick="filterControls('compliant')">Compliant (0)</button>
+                <button class="filter-btn" onclick="filterControls('non-compliant')">Non-Compliant (0)</button>
+            </div>
+        </div>
+
+        <div class="controls" id="controls" style="display: none;">
+            <h2 class="section-title">Compliance Controls & Evidence</h2>
+            <div id="control-list"></div>
+        </div>
+    </div>
+
+    <script>
+        let allControls = [];
+        let currentFilter = 'all';
+
+        async function loadAgent() {
+            const agentId = document.getElementById('agentInput').value.trim();
+            if (!agentId) {
+                alert('Please enter an agent ID');
+                return;
+            }
+
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.set('agent', agentId);
+            window.history.pushState({}, '', url);
+
+            await loadComplianceData(agentId);
+        }
+
+        async function loadComplianceData(agentId = 'EILT0197') {
+            try {
+                document.getElementById('stats').innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading compliance data for ${agentId}...</p>
+                    </div>
+                `;
+
+                const response = await fetch(`http://localhost:5000/api/assets/asset-${agentId}/compliance`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                allControls = await response.json();
+
+                // Calculate stats
+                const total = allControls.length;
+                const compliant = allControls.filter(item => item.status === 'Compliant').length;
+                const nonCompliant = allControls.filter(item => item.status === 'Non-Compliant').length;
+                const complianceRate = total > 0 ? Math.round((compliant / total) * 100) : 0;
+
+                // Update stats
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat-card">
+                        <h3>${total}</h3>
+                        <p>Total Controls</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: #10b981;">${compliant}</h3>
+                        <p>Compliant</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: #ef4444;">${nonCompliant}</h3>
+                        <p>Non-Compliant</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: ${complianceRate >= 80 ? '#10b981' : complianceRate >= 50 ? '#f59e0b' : '#ef4444'};">${complianceRate}%</h3>
+                        <p>Compliance Rate</p>
+                    </div>
+                `;
+
+                // Update filter buttons
+                document.querySelector('.filter-buttons').innerHTML = `
+                    <button class="filter-btn active" onclick="filterControls('all')">All (${total})</button>
+                    <button class="filter-btn" onclick="filterControls('compliant')">Compliant (${compliant})</button>
+                    <button class="filter-btn" onclick="filterControls('non-compliant')">Non-Compliant (${nonCompliant})</button>
+                `;
+
+                document.getElementById('searchFilter').style.display = 'block';
+                document.getElementById('controls').style.display = 'block';
+
+                renderControls(allControls);
+
+                // Setup search
+                document.getElementById('searchInput').addEventListener('input', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const filtered = allControls.filter(control => {
+                        const matchesSearch = control.controlId.toLowerCase().includes(searchTerm) ||
+                            (control.evidence || []).some(ev =>
+                                (ev.name || '').toLowerCase().includes(searchTerm) ||
+                                (ev.content || '').toLowerCase().includes(searchTerm)
+                            );
+                        const matchesFilter = currentFilter === 'all' ||
+                            (currentFilter === 'compliant' && control.status === 'Compliant') ||
+                            (currentFilter === 'non-compliant' && control.status === 'Non-Compliant');
+                        return matchesSearch && matchesFilter;
+                    });
+                    renderControls(filtered);
+                });
+
+            } catch (error) {
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat-card" style="grid-column: 1 / -1;">
+                        <h3 style="color: #ef4444;">Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function filterControls(filter) {
+            currentFilter = filter;
+
+            // Update button states
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            const filtered = allControls.filter(control => {
+                if (filter === 'all') return true;
+                if (filter === 'compliant') return control.status === 'Compliant';
+                if (filter === 'non-compliant') return control.status === 'Non-Compliant';
+                return true;
+            });
+
+            renderControls(filtered);
+        }
+
+        function renderControls(controls) {
+            const controlList = document.getElementById('control-list');
+            controlList.innerHTML = '';
+
+            if (controls.length === 0) {
+                controlList.innerHTML = '<p class="no-evidence">No controls found matching your criteria.</p>';
+                return;
+            }
+
+            controls.forEach((item, index) => {
+                const isCompliant = item.status === 'Compliant';
+                const evidenceCount = item.evidence ? item.evidence.length : 0;
+
+                const controlItem = document.createElement('div');
+                controlItem.className = `control-item ${isCompliant ? 'compliant' : 'non-compliant'}`;
+                controlItem.id = `control-${index}`;
+
+                let evidenceHtml = '';
+                if (item.evidence && item.evidence.length > 0) {
+                    evidenceHtml = item.evidence.map(ev => `
+                        <div class="evidence-item">
+                            <div class="evidence-header">
+                                <span class="evidence-name">${ev.name || 'Evidence'}</span>
+                                <span class="evidence-date">${new Date(ev.uploadedAt).toLocaleString()}</span>
+                            </div>
+                            ${ev.content ? `<div class="evidence-content">${escapeHtml(ev.content)}</div>` :
+                            ev.details ? `<div class="evidence-content">${escapeHtml(ev.details)}</div>` :
+                                '<p class="no-evidence">No content available</p>'}
+                        </div>
+                    `).join('');
+                } else {
+                    evidenceHtml = '<p class="no-evidence">No evidence collected yet</p>';
+                }
+
+                controlItem.innerHTML = `
+                    <div class="control-header" onclick="toggleControl(${index})">
+                        <div class="control-info">
+                            <span class="control-id">${item.controlId}</span>
+                            <span class="evidence-badge">${evidenceCount} evidence</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span class="control-status ${isCompliant ? 'status-compliant' : 'status-non-compliant'}">
+                                ${item.status}
+                            </span>
+                            <span class="expand-icon">▼</span>
+                        </div>
+                    </div>
+                    <div class="evidence-container">
+                        <div class="evidence-list">
+                            ${evidenceHtml}
+                        </div>
+                    </div>
+                `;
+
+                controlList.appendChild(controlItem);
+            });
+        }
+
+        function toggleControl(index) {
+            const control = document.getElementById(`control-${index}`);
+            control.classList.toggle('expanded');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load agent from URL parameter or default
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const agentId = urlParams.get('agent') || 'EILT0197';
+            document.getElementById('agentInput').value = agentId;
+            loadComplianceData(agentId);
+        });
+    </script>
+</body>
+
+</html>

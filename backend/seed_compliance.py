@@ -1,0 +1,500 @@
+import asyncio
+from database import connect_to_mongo, close_mongo_connection, get_database
+from datetime import datetime, timezone
+
+async def seed_compliance():
+    await connect_to_mongo()
+    db = get_database()
+    
+    print("🌱 Seeding Massive Compliance Frameworks...")
+    
+    # Massive Expanded Dataset
+    frameworks = [
+        {
+            "id": "soc2",
+            "name": "SOC 2 Type II",
+            "shortName": "SOC 2",
+            "description": "Service Organization Control 2 - Trust Services Criteria",
+            "status": "In Progress",
+            "progress": 75,
+            "controls": [
+                # Common Criteria (Security)
+                { "id": "CC1.1", "name": "COSO Principle 1: Integrity and Ethical Values", "description": "The entity demonstrates a commitment to integrity and ethical values.", "category": "Control Environment", "status": "Implemented", "lastReviewed": "2023-10-01", "evidence": [] },
+                { "id": "CC1.2", "name": "COSO Principle 2: Board of Directors Independence", "description": "The board of directors demonstrates independence from management and exercises oversight.", "category": "Control Environment", "status": "Implemented", "lastReviewed": "2023-10-01", "evidence": [] },
+                { "id": "CC1.3", "name": "COSO Principle 3: Management Structures", "description": "Management establishes, with board oversight, structures, reporting lines, and appropriate authorities.", "category": "Control Environment", "status": "Implemented", "lastReviewed": "2023-10-01", "evidence": [] },
+                { "id": "CC2.1", "name": "COSO Principle 6: Information Objectives", "description": "The entity specifies objectives with sufficient clarity to enable the identification and assessment of risks.", "category": "Communication and Information", "status": "Implemented", "lastReviewed": "2023-10-05", "evidence": [] },
+                { "id": "CC3.1", "name": "COSO Principle 10: Risk Assessment", "description": "The entity identifies and assesses changes that could significantly impact the system of internal control.", "category": "Risk Assessment", "status": "At Risk", "lastReviewed": "2023-10-07", "evidence": [] },
+                { "id": "CC4.1", "name": "COSO Principle 16: Evaluation", "description": "The entity selects, develops, and performs ongoing and/or separate evaluations.", "category": "Monitoring Activities", "status": "Implemented", "lastReviewed": "2023-10-10", "evidence": [] },
+                { "id": "CC5.1", "name": "COSO Principle 13: Internal Control Deficiencies", "description": "The entity evaluates and communicates internal control deficiencies in a timely manner.", "category": "Control Activities", "status": "Implemented", "lastReviewed": "2023-10-12", "evidence": [] },
+                # Logical and Physical Access
+                { "id": "CC6.1", "name": "Logical Access Security", "description": "The entity implements logical access security software, infrastructure, and architectures over protected information assets.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-01", "evidence": [] },
+                { "id": "CC6.2", "name": "User Registration", "description": "Prior to issuing system credentials and granting system access, the entity registers and authorizes new internal and external users.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-05", "evidence": [] },
+                { "id": "CC6.3", "name": "Access Removal", "description": "The entity authorizes, modifies, or removes access to data, software, functions, and other protected information assets.", "category": "Logical and Physical Access Controls", "status": "In Progress", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "CC6.4", "name": "Physical Access", "description": "The entity restricts physical access to facilities and protected information assets to authorized personnel.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-11", "evidence": [] },
+                { "id": "CC6.5", "name": "Discontinued Credentials", "description": "The entity discontinues logical and physical access assets after termination of employment.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-12", "evidence": [] },
+                { "id": "CC6.6", "name": "Boundary Protection", "description": "The entity implements boundary protection devices/software to monitor/control communications.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-14", "evidence": [] },
+                { "id": "CC6.7", "name": "Transmission Protection", "description": "The entity restricts the transmission of protected information assets to authorized internal and external users.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-15", "evidence": [] },
+                { "id": "CC6.8", "name": "Malicious Software", "description": "The entity implements controls to prevent or detect and act upon the introduction of malicious software.", "category": "Logical and Physical Access Controls", "status": "Implemented", "lastReviewed": "2023-11-16", "evidence": [] },
+                # System Operations
+                { "id": "CC7.1", "name": "Configuration Management", "description": "The entity restricts the ability to perform configuration management on infrastructure and software.", "category": "System Operations", "status": "In Progress", "lastReviewed": "2023-11-20", "evidence": [] },
+                { "id": "CC7.2", "name": "Vulnerability Management", "description": "The entity utilizes vulnerability scanning or penetration testing to identify vulnerabilities.", "category": "System Operations", "status": "At Risk", "lastReviewed": "2023-11-22", "evidence": [] },
+                { "id": "CC7.3", "name": "Patch Management", "description": "The entity implements a patch management process for infrastructure and software.", "category": "System Operations", "status": "Implemented", "lastReviewed": "2023-11-25", "evidence": [] },
+                { "id": "CC7.4", "name": "Incident Response", "description": "The entity responds to identified security incidents.", "category": "System Operations", "status": "Implemented", "lastReviewed": "2023-11-28", "evidence": [] },
+                { "id": "CC7.5", "name": "Disaster Recovery Testing", "description": "The entity identifies and tests disaster recovery plans.", "category": "System Operations", "status": "Not Implemented", "lastReviewed": "2023-11-30", "evidence": [] },
+                # Change Management
+                { "id": "CC8.1", "name": "Change Management", "description": "The entity authorizes, designs, develops or acquires, configures, documents, tests, approves, and implements changes.", "category": "Change Management", "status": "Implemented", "lastReviewed": "2023-12-01", "evidence": [] },
+                # Risk Mitigation
+                { "id": "CC9.1", "name": "Business Mitigation", "description": "The entity identifies, selects, and develops risk mitigation activities for risks arising from business disruptions.", "category": "Risk Mitigation", "status": "Implemented", "lastReviewed": "2023-12-05", "evidence": [] },
+                { "id": "CC9.2", "name": "Vendor Management", "description": "The entity assesses and manages risks associated with vendors and business partners.", "category": "Risk Mitigation", "status": "In Progress", "lastReviewed": "2023-12-06", "evidence": [] },
+                # Availability Criteria
+                { "id": "A1.1", "name": "Availability Capacity Management", "description": "The entity maintains, monitors, and evaluates current processing capacity.", "category": "Availability", "status": "Implemented", "lastReviewed": "2023-12-08", "evidence": [] },
+                { "id": "A1.2", "name": "Availability Data Backup", "description": "The entity authorizes, designs, develops or acquires, configures, documents, tests, approves, and implements data backup.", "category": "Availability", "status": "Implemented", "lastReviewed": "2023-12-09", "evidence": [] },
+                # Confidentiality Criteria
+                { "id": "C1.1", "name": "Confidentiality Classification", "description": "The entity identifies and maintains confidential information.", "category": "Confidentiality", "status": "Implemented", "lastReviewed": "2023-12-10", "evidence": [] },
+                { "id": "C1.2", "name": "Confidentiality Disposition", "description": "The entity disposes of confidential information securely.", "category": "Confidentiality", "status": "Implemented", "lastReviewed": "2023-12-11", "evidence": [] }
+            ]
+        },
+        {
+            "id": "iso27001",
+            "name": "ISO/IEC 27001:2022",
+            "shortName": "ISO 27001",
+            "description": "Information Security Management System - Annex A Controls",
+            "status": "In Progress",
+            "progress": 60,
+            "controls": [
+                # Organizational Controls (A.5)
+                { "id": "A.5.1", "name": "Policies for Information Security", "description": "Information security policy shall be defined, approved, and communicated.", "category": "Organizational", "status": "Implemented", "lastReviewed": "2023-08-15", "evidence": [] },
+                { "id": "A.5.2", "name": "Information Security Roles", "description": "Information security roles and responsibilities shall be defined.", "category": "Organizational", "status": "Implemented", "lastReviewed": "2023-08-16", "evidence": [] },
+                { "id": "A.5.3", "name": "Segregation of Duties", "description": "Conflicting duties and areas of responsibility shall be segregated.", "category": "Organizational", "status": "Implemented", "lastReviewed": "2023-08-17", "evidence": [] },
+                { "id": "A.5.4", "name": "Management Responsibilities", "description": "Management shall require all personnel to apply security.", "category": "Organizational", "status": "Implemented", "lastReviewed": "2023-08-18", "evidence": [] },
+                { "id": "A.5.7", "name": "Threat Intelligence", "description": "Information relating to information security threats shall be collected and analyzed.", "category": "Organizational", "status": "At Risk", "lastReviewed": "2023-08-20", "evidence": [] },
+                { "id": "A.5.15", "name": "Access Control", "description": "Rules to control physical and logical access shall be established.", "category": "Organizational", "status": "Implemented", "lastReviewed": "2023-08-25", "evidence": [] },
+                { "id": "A.5.20", "name": "Addressing Information Security within Supplier Relationships", "description": "Processes shall be defined for managing security risks related to suppliers.", "category": "Organizational", "status": "In Progress", "lastReviewed": "2023-08-28", "evidence": [] },
+                { "id": "A.5.24", "name": "Information Security Incident Management Planning", "description": "Processes for managing information security incidents shall be defined.", "category": "Organizational", "status": "Implemented", "lastReviewed": "2023-08-30", "evidence": [] },
+                # People Controls (A.6)
+                { "id": "A.6.1", "name": "Screening", "description": "Background verification checks for candidates.", "category": "People", "status": "Implemented", "lastReviewed": "2023-09-01", "evidence": [] },
+                { "id": "A.6.3", "name": "Information Security Awareness", "description": "Personnel and contractors shall receive appropriate awareness education.", "category": "People", "status": "Implemented", "lastReviewed": "2023-09-02", "evidence": [] },
+                { "id": "A.6.6", "name": "Confidentiality or Non-Disclosure Agreements", "description": "Requirements for confidentiality or non-disclosure agreements reflecting needs.", "category": "People", "status": "Implemented", "lastReviewed": "2023-09-05", "evidence": [] },
+                { "id": "A.6.8", "name": "Information Security Event Reporting", "description": "Mechanism for personnel to report observed information security events.", "category": "People", "status": "Implemented", "lastReviewed": "2023-09-06", "evidence": [] },
+                # Physical Controls (A.7)
+                { "id": "A.7.1", "name": "Physical Security Perimeters", "description": "Security perimeters shall be defined and used to protect sensitive areas.", "category": "Physical", "status": "Implemented", "lastReviewed": "2023-09-10", "evidence": [] },
+                { "id": "A.7.2", "name": "Physical Entry Controls", "description": "Secure areas shall be protected by appropriate entry controls.", "category": "Physical", "status": "Implemented", "lastReviewed": "2023-09-11", "evidence": [] },
+                { "id": "A.7.10", "name": "Storage Media", "description": "Storage media shall be managed through their life cycle.", "category": "Physical", "status": "Implemented", "lastReviewed": "2023-09-15", "evidence": [] },
+                { "id": "A.7.12", "name": "Cabling Security", "description": "Cabling carrying power, data, or telecommunications services shall be protected.", "category": "Physical", "status": "Not Implemented", "lastReviewed": "2023-09-18", "evidence": [] },
+                # Technological Controls (A.8)
+                { "id": "A.8.1", "name": "User Endpoint Devices", "description": "Information stored on user endpoint devices shall be protected.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-08", "evidence": [] },
+                { "id": "A.8.2", "name": "Privileged Access Rights", "description": "Allocation of privileged access shall be restricted.", "category": "Technological", "status": "In Progress", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "A.8.3", "name": "Information Access Restriction", "description": "Access to information and other associated assets shall be restricted.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "A.8.7", "name": "Protection against Malware", "description": "Protection against malware shall be implemented.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-11", "evidence": [] },
+                { "id": "A.8.8", "name": "Management of Technical Vulnerabilities", "description": "Information about technical vulnerabilities shall be obtained.", "category": "Technological", "status": "At Risk", "lastReviewed": "2023-11-11", "evidence": [] },
+                { "id": "A.8.9", "name": "Configuration Management", "description": "Configurations shall be defined, documented, implemented, monitored, and reviewed.", "category": "Technological", "status": "In Progress", "lastReviewed": "2023-11-12", "evidence": [] },
+                { "id": "A.8.10", "name": "Information Deletion", "description": "Information shall be deleted when no longer required.", "category": "Technological", "status": "Not Implemented", "lastReviewed": "2023-11-13", "evidence": [] },
+                { "id": "A.8.12", "name": "Data Leakage Prevention", "description": "Data leakage prevention measures shall be applied.", "category": "Technological", "status": "Not Implemented", "lastReviewed": "2023-11-14", "evidence": [] },
+                { "id": "A.8.13", "name": "Information Backup", "description": "Backup copies of information, software, and systems shall be taken.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-15", "evidence": [] },
+                { "id": "A.8.16", "name": "Monitoring Activities", "description": "Networks, systems, and applications shall be monitored for anomalous behavior.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-16", "evidence": [] },
+                { "id": "A.8.24", "name": "Use of Cryptography", "description": "Rules for the effective use of cryptography shall be defined.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-18", "evidence": [] },
+                { "id": "A.8.28", "name": "Secure Coding", "description": "Secure coding principles shall be applied to software development.", "category": "Technological", "status": "In Progress", "lastReviewed": "2023-11-20", "evidence": [] },
+                { "id": "A.9.4.1", "name": "Password Policy", "description": "Passwords shall be controlled through a formal management process.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-22", "evidence": [] },
+                { "id": "A.12.6.1", "name": "Software Updates", "description": "Technical vulnerabilities shall be evaluated and padded.", "category": "Technological", "status": "Implemented", "lastReviewed": "2023-11-25", "evidence": [] },
+            ]
+        },
+        {
+            "id": "pci-dss",
+            "name": "Payment Card Industry Data Security Standard",
+            "shortName": "PCI DSS",
+            "description": "Cardholder Data Protection - v4.0",
+            "status": "In Progress",
+            "progress": 80,
+            "controls": [
+                # Build and Maintain a Secure Network
+                { "id": "PCI-1.1", "name": "Firewall Configuration", "description": "Install and maintain a firewall configuration to protect cardholder data.", "category": "Build and Maintain a Secure Network", "status": "Implemented", "lastReviewed": "2023-10-20", "evidence": [] },
+                { "id": "PCI-1.2", "name": "Restrict Connections", "description": "Restrict connections to Cardholder Data Environment (CDE).", "category": "Build and Maintain a Secure Network", "status": "Implemented", "lastReviewed": "2023-10-21", "evidence": [] },
+                { "id": "PCI-2.1", "name": "System Defaults", "description": "Do not use vendor-supplied defaults for system passwords and other security parameters.", "category": "Build and Maintain a Secure Network", "status": "Implemented", "lastReviewed": "2023-10-22", "evidence": [] },
+                { "id": "PCI-2.2", "name": "Configuration Standards", "description": "Develop configuration standards for all system components.", "category": "Build and Maintain a Secure Network", "status": "In Progress", "lastReviewed": "2023-10-23", "evidence": [] },
+                # Protect Cardholder Data
+                { "id": "PCI-3.1", "name": "Cardholder Data Storage", "description": "Keep cardholder data storage to a minimum.", "category": "Protect Cardholder Data", "status": "Implemented", "lastReviewed": "2023-10-24", "evidence": [] },
+                { "id": "PCI-3.4", "name": "Protect Stored Data", "description": "Render PAN unreadable anywhere it is stored.", "category": "Protect Cardholder Data", "status": "Implemented", "lastReviewed": "2023-10-25", "evidence": [] },
+                { "id": "PCI-3.5", "name": "Encryption Keys", "description": "Document and implement procedures to protect keys used to encrypt cardholder data.", "category": "Protect Cardholder Data", "status": "Implemented", "lastReviewed": "2023-10-26", "evidence": [] },
+                { "id": "PCI-4.1", "name": "Encrypt Transmission", "description": "Encrypt transmission of cardholder data across open, public networks.", "category": "Protect Cardholder Data", "status": "Implemented", "lastReviewed": "2023-10-28", "evidence": [] },
+                # Vulnerability Management Program
+                { "id": "PCI-5.1", "name": "Anti-Virus Software", "description": "Protect all systems against malware and regularly update anti-virus software.", "category": "Maintain a Vulnerability Management Program", "status": "Implemented", "lastReviewed": "2023-10-30", "evidence": [] },
+                { "id": "PCI-6.1", "name": "Vulnerability Ranking", "description": "Establish a process to identify security vulnerabilities, using reputable outside sources.", "category": "Maintain a Vulnerability Management Program", "status": "Implemented", "lastReviewed": "2023-11-01", "evidence": [] },
+                { "id": "PCI-6.2", "name": "System Patches", "description": "Ensure that all system components and software are protected from known vulnerabilities.", "category": "Maintain a Vulnerability Management Program", "status": "In Progress", "lastReviewed": "2023-11-02", "evidence": [] },
+                { "id": "PCI-6.3", "name": "Secure Software", "description": "Develop internal and external software applications securely.", "category": "Maintain a Vulnerability Management Program", "status": "Implemented", "lastReviewed": "2023-11-03", "evidence": [] },
+                # Access Control Measures
+                { "id": "PCI-7.1", "name": "Access Restriction", "description": "Restrict access to cardholder data by business need to know.", "category": "Implement Strong Access Control Measures", "status": "Implemented", "lastReviewed": "2023-11-05", "evidence": [] },
+                { "id": "PCI-8.1.1", "name": "Unique IDs", "description": "Assign a unique ID to each person with computer access.", "category": "Implement Strong Access Control Measures", "status": "Implemented", "lastReviewed": "2023-11-08", "evidence": [] },
+                { "id": "PCI-8.2", "name": "Authentication Methods", "description": "Use strong authentication methods for all users.", "category": "Implement Strong Access Control Measures", "status": "Implemented", "lastReviewed": "2023-11-09", "evidence": [] },
+                { "id": "PCI-9.1", "name": "Physical Security", "description": "Use appropriate facility entry controls to limit and monitor physical access.", "category": "Implement Strong Access Control Measures", "status": "In Progress", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "PCI-9.5", "name": "Media Protection", "description": "Physically secure all media.", "category": "Implement Strong Access Control Measures", "status": "Implemented", "lastReviewed": "2023-11-11", "evidence": [] },
+                # Monitor and Test Networks
+                { "id": "PCI-10.1", "name": "Audit Logging", "description": "Track and monitor all access to network resources and cardholder data.", "category": "Regularly Monitor and Test Networks", "status": "Implemented", "lastReviewed": "2023-11-12", "evidence": [] },
+                { "id": "PCI-10.2", "name": "Audit Trails", "description": "Implement automated audit trails for all system components.", "category": "Regularly Monitor and Test Networks", "status": "Implemented", "lastReviewed": "2023-11-13", "evidence": [] },
+                { "id": "PCI-11.2", "name": "Vulnerability Scanning", "description": "Run internal and external network vulnerability scans.", "category": "Regularly Monitor and Test Networks", "status": "At Risk", "lastReviewed": "2023-11-15", "evidence": [] },
+                { "id": "PCI-11.3", "name": "Penetration Testing", "description": "Implement a methodology for penetration testing.", "category": "Regularly Monitor and Test Networks", "status": "Not Implemented", "lastReviewed": "2023-11-16", "evidence": [] },
+                # Policy
+                { "id": "PCI-12.1", "name": "Information Security Policy", "description": "Establish, publish, maintain, and disseminate a security policy.", "category": "Maintain an Information Security Policy", "status": "Implemented", "lastReviewed": "2023-11-18", "evidence": [] },
+            ]
+        },
+        {
+            "id": "nistcsf",
+            "name": "NIST Cybersecurity Framework",
+            "shortName": "NIST CSF",
+            "description": "US National Institute of Standards and Technology Framework - v2.0",
+            "status": "In Progress",
+            "progress": 85,
+            "nistFunctions": [
+                { "id": "identify", "name": "Identify", "progress": 95 },
+                { "id": "protect", "name": "Protect", "progress": 88 },
+                { "id": "detect", "name": "Detect", "progress": 90 },
+                { "id": "respond", "name": "Respond", "progress": 80 },
+                { "id": "recover", "name": "Recover", "progress": 70 },
+            ],
+            "controls": [
+                # Identify
+                { "id": "ID.AM-1", "name": "Asset Management", "description": "Physical devices and systems within the organization are inventoried.", "category": "Identify", "status": "Implemented", "lastReviewed": "2023-10-05", "evidence": [] },
+                { "id": "ID.AM-2", "name": "Software Inventory", "description": "Software platforms and applications within the organization are inventoried.", "category": "Identify", "status": "Implemented", "lastReviewed": "2023-10-06", "evidence": [] },
+                { "id": "ID.RA-1", "name": "Risk Assessment", "description": "Asset vulnerabilities are identified and documented.", "category": "Identify", "status": "At Risk", "lastReviewed": "2023-10-07", "evidence": [] },
+                { "id": "ID.RA-2", "name": "Threat Intelligence", "description": "Cyber threat intelligence is received from information sharing forums.", "category": "Identify", "status": "Implemented", "lastReviewed": "2023-10-07", "evidence": [] },
+                { "id": "ID.GV-1", "name": "Governance", "description": "Organizational information security policy is established.", "category": "Identify", "status": "Implemented", "lastReviewed": "2023-10-08", "evidence": [] },
+                # Protect
+                { "id": "PR.AC-1", "name": "Access Control", "description": "Access to assets and associated facilities is limited to authorized users.", "category": "Protect", "status": "Implemented", "lastReviewed": "2023-10-08", "evidence": [] },
+                { "id": "PR.AC-3", "name": "Remote Access", "description": "Remote access is managed.", "category": "Protect", "status": "Implemented", "lastReviewed": "2023-10-09", "evidence": [] },
+                { "id": "PR.AC-5", "name": "Network Segregation", "description": "Network integrity is protected (e.g., network segregation, network segmentation).", "category": "Protect", "status": "In Progress", "lastReviewed": "2023-10-09", "evidence": [] },
+                { "id": "PR.DS-1", "name": "Data at Rest", "description": "Data-at-rest is protected.", "category": "Protect", "status": "Implemented", "lastReviewed": "2023-10-10", "evidence": [] },
+                { "id": "PR.DS-2", "name": "Data in Transit", "description": "Data-in-transit is protected.", "category": "Protect", "status": "Implemented", "lastReviewed": "2023-10-11", "evidence": [] },
+                { "id": "PR.IP-1", "name": "Configuration Baselines", "description": "A baseline configuration of information technology/industrial control systems is created and maintained.", "category": "Protect", "status": "In Progress", "lastReviewed": "2023-10-11", "evidence": [] },
+                # Detect
+                { "id": "DE.AE-1", "name": "Anomalies and Events", "description": "A baseline of network operations and expected data flows for users and systems is established.", "category": "Detect", "status": "Implemented", "lastReviewed": "2023-10-12", "evidence": [] },
+                { "id": "DE.CM-1", "name": "Security Monitoring", "description": "The network is monitored to detect potential cybersecurity events.", "category": "Detect", "status": "Implemented", "lastReviewed": "2023-10-13", "evidence": [] },
+                { "id": "DE.CM-7", "name": "Monitoring for Malicious Code", "description": "Monitoring for unauthorized personnel, connections, devices, and software is performed.", "category": "Detect", "status": "Implemented", "lastReviewed": "2023-10-13", "evidence": [] },
+                # Respond
+                { "id": "RS.RP-1", "name": "Response Planning", "description": "Response planning process is executed and maintained.", "category": "Respond", "status": "Implemented", "lastReviewed": "2023-10-14", "evidence": [] },
+                { "id": "RS.MI-1", "name": "Mitigation", "description": "Incidents are contained.", "category": "Respond", "status": "Implemented", "lastReviewed": "2023-10-15", "evidence": [] },
+                { "id": "RS.AN-1", "name": "Analysis", "description": "Notifications from detection systems are investigated.", "category": "Respond", "status": "In Progress", "lastReviewed": "2023-10-15", "evidence": [] },
+                # Recover
+                { "id": "RC.RP-1", "name": "Recovery Planning", "description": "Recovery processes and procedures are executed and maintained.", "category": "Recover", "status": "Implemented", "lastReviewed": "2023-10-15", "evidence": [] },
+                { "id": "RC.IM-1", "name": "Improvements", "description": "Recovery plans are incorporated into improvement strategies.", "category": "Recover", "status": "Not Implemented", "lastReviewed": "2023-10-16", "evidence": [] },
+            ]
+        },
+        {
+            "id": "iso42001",
+            "name": "ISO/IEC 42001:2023",
+            "shortName": "ISO 42001",
+            "description": "Artificial Intelligence Management System (AIMS)",
+            "status": "In Progress",
+            "progress": 30,
+            "controls": [
+                { "id": "A.2.1", "name": "AI Policy", "description": "The organization shall define and establish an AI policy, aligned with organizational objectives.", "category": "AI Policy", "status": "Implemented", "lastReviewed": "2023-12-01", "evidence": [] },
+                { "id": "A.3.1", "name": "AI Roles and Responsibilities", "description": "Roles and responsibilities for AI systems shall be defined and allocated.", "category": "Internal Organization", "status": "In Progress", "lastReviewed": "2023-12-05", "evidence": [] },
+                { "id": "A.4.1", "name": "Resources for AI Systems", "description": "The organization shall determine and provide the resources needed for the AIMS.", "category": "Resources", "status": "Not Implemented", "lastReviewed": "2023-12-05", "evidence": [] },
+                { "id": "A.5.1", "name": "AI Impact Assessment", "description": "The organization shall assess the impact of AI systems on individuals and societies.", "category": "Impact Assessment", "status": "At Risk", "lastReviewed": "2023-12-06", "evidence": [] },
+                { "id": "A.6.1", "name": "AI System Lifecycle", "description": "The organization shall define processes for the AI system lifecycle.", "category": "AI System Lifecycle", "status": "Implemented", "lastReviewed": "2023-12-07", "evidence": [] },
+                { "id": "A.6.2", "name": "AI Design and Development", "description": "Requirements for design and development of AI systems shall be established.", "category": "AI System Lifecycle", "status": "Implemented", "lastReviewed": "2023-12-07", "evidence": [] },
+                { "id": "A.6.3", "name": "AI System Testing", "description": "AI systems should be tested against requirements.", "category": "AI System Lifecycle", "status": "In Progress", "lastReviewed": "2023-12-07", "evidence": [] },
+                { "id": "A.7.1", "name": "Data Management", "description": "Data used for AI systems shall be managed to avoid bias and ensure quality.", "category": "Data for AI", "status": "In Progress", "lastReviewed": "2023-12-08", "evidence": [] },
+                { "id": "A.7.2", "name": "Data Quality", "description": "The organization shall ensure data quality for AI systems.", "category": "Data for AI", "status": "Not Implemented", "lastReviewed": "2023-12-08", "evidence": [] },
+                { "id": "A.8.1", "name": "Third-Party AI Systems", "description": "Requirements for third-party AI systems including data handling.", "category": "Third Party", "status": "Not Implemented", "lastReviewed": "2023-12-09", "evidence": [] },
+                { "id": "A.9.1", "name": "Responsible Use of AI", "description": "The organization shall ensure responsible use of AI preventing misuse.", "category": "Use of AI Systems", "status": "Implemented", "lastReviewed": "2023-12-10", "evidence": [] },
+                { "id": "A.9.2", "name": "Transparency and Explainability", "description": "AI systems shall be transparent and explainable to stakeholders.", "category": "Use of AI Systems", "status": "At Risk", "lastReviewed": "2023-12-10", "evidence": [] }
+            ]
+        },
+        {
+            "id": "hipaa",
+            "name": "HIPAA Security Rule",
+            "shortName": "HIPAA",
+            "description": "Health Insurance Portability and Accountability Act - Security Rule",
+            "status": "Pending",
+            "progress": 50,
+            "controls": [
+                # Administrative Safeguards
+                { "id": "164.308(a)(1)(i)", "name": "Security Management Process", "description": "Implement policies and procedures to prevent, detect, contain, and correct security violations.", "category": "Administrative Safeguard", "status": "Implemented", "lastReviewed": "2023-12-01", "evidence": [] },
+                { "id": "164.308(a)(1)(ii)(A)", "name": "Risk Analysis", "description": "Conduct an accurate and thorough assessment of the potential risks and vulnerabilities.", "category": "Administrative Safeguard", "status": "At Risk", "lastReviewed": "2023-12-02", "evidence": [] },
+                { "id": "164.308(a)(1)(ii)(B)", "name": "Risk Management", "description": "Implement security measures sufficient to reduce risks and vulnerabilities.", "category": "Administrative Safeguard", "status": "Implemented", "lastReviewed": "2023-12-03", "evidence": [] },
+                { "id": "164.308(a)(2)", "name": "Assigned Security Responsibility", "description": "Identify the security official who is responsible for the development and implementation of the policies.", "category": "Administrative Safeguard", "status": "Implemented", "lastReviewed": "2023-12-04", "evidence": [] },
+                { "id": "164.308(a)(3)", "name": "Workforce Security", "description": "Implement policies and procedures to ensure that all members of its workforce have appropriate access.", "category": "Administrative Safeguard", "status": "Implemented", "lastReviewed": "2023-12-05", "evidence": [] },
+                { "id": "164.308(a)(4)", "name": "Information Access Management", "description": "Implement policies and procedures for authorizing access to electronic protected health information.", "category": "Administrative Safeguard", "status": "Implemented", "lastReviewed": "2023-12-06", "evidence": [] },
+                { "id": "164.308(a)(5)", "name": "Security Awareness and Training", "description": "Implement a security awareness and training program for all members of its workforce.", "category": "Administrative Safeguard", "status": "In Progress", "lastReviewed": "2023-12-07", "evidence": [] },
+                { "id": "164.308(a)(6)", "name": "Security Incident Procedures", "description": "Implement policies and procedures to address security incidents.", "category": "Administrative Safeguard", "status": "Implemented", "lastReviewed": "2023-12-08", "evidence": [] },
+                { "id": "164.308(a)(7)", "name": "Contingency Plan", "description": "Establish policies and procedures for responding to an emergency or other occurrence.", "category": "Administrative Safeguard", "status": "Not Implemented", "lastReviewed": "2023-12-09", "evidence": [] },
+                { "id": "164.308(a)(8)", "name": "Evaluation", "description": "Perform a periodic technical and nontechnical evaluation.", "category": "Administrative Safeguard", "status": "Not Implemented", "lastReviewed": "2023-12-10", "evidence": [] },
+                # Physical Safeguards
+                { "id": "164.310(a)(1)", "name": "Facility Access Controls", "description": "Limit physical access to its electronic information systems and the facility.", "category": "Physical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-11", "evidence": [] },
+                { "id": "164.310(b)", "name": "Workstation Use", "description": "Implement policies and procedures that specify the proper functions to be performed.", "category": "Physical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-12", "evidence": [] },
+                { "id": "164.310(c)", "name": "Workstation Security", "description": "Implement physical safeguards for all workstations that access electronic protected health information.", "category": "Physical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-13", "evidence": [] },
+                { "id": "164.310(d)(1)", "name": "Device and Media Controls", "description": "Implement policies and procedures that govern the receipt and removal of hardware and electronic media.", "category": "Physical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-14", "evidence": [] },
+                # Technical Safeguards
+                { "id": "164.312(a)(1)", "name": "Access Control", "description": "Implement technical policies and procedures for electronic information systems.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-15", "evidence": [] },
+                { "id": "164.312(a)(2)(i)", "name": "Unique User Identification", "description": "Assign a unique name and/or number for identifying and tracking user identity.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-16", "evidence": [] },
+                { "id": "164.312(a)(2)(iv)", "name": "Encryption and Decryption", "description": "Implement a mechanism to encrypt and decrypt electronic protected health information.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-17", "evidence": [] },
+                { "id": "164.312(b)", "name": "Audit Controls", "description": "Implement hardware, software, and/or procedural mechanisms that record and examine activity.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-18", "evidence": [] },
+                { "id": "164.312(c)(1)", "name": "Integrity", "description": "Implement policies and procedures to protect electronic protected health information from improper alteration.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-19", "evidence": [] },
+                { "id": "164.312(d)", "name": "Person or Entity Authentication", "description": "Implement procedures to verify that a person or entity seeking access is the one claimed.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-20", "evidence": [] },
+                { "id": "164.312(e)(1)", "name": "Transmission Security", "description": "Implement technical security measures to guard against unauthorized access to electronic protected health information that is being transmitted.", "category": "Technical Safeguard", "status": "Implemented", "lastReviewed": "2023-12-21", "evidence": [] },
+            ]
+        },
+        {
+            "id": "gdpr",
+            "name": "General Data Protection Regulation",
+            "shortName": "GDPR",
+            "description": "EU Regulation 2016/679 - Data Protection and Privacy",
+            "status": "Not Implemented",
+            "progress": 15,
+            "controls": [
+                # Principles
+                { "id": "Art.5(1)(a)", "name": "Lawfulness, Fairness and Transparency", "description": "Personal data shall be processed lawfully, fairly and in a transparent manner.", "category": "Principles", "status": "In Progress", "lastReviewed": "2023-11-01", "evidence": [] },
+                { "id": "Art.5(1)(c)", "name": "Data Minimization", "description": "Personal data shall be adequate, relevant and limited to what is necessary.", "category": "Principles", "status": "Not Implemented", "lastReviewed": "2023-11-01", "evidence": [] },
+                { "id": "Art.5(1)(e)", "name": "Storage Limitation", "description": "Personal data shall be kept in a form which permits identification for no longer than is necessary.", "category": "Principles", "status": "Not Implemented", "lastReviewed": "2023-11-01", "evidence": [] },
+                { "id": "Art.5(1)(f)", "name": "Integrity and Confidentiality", "description": "Personal data shall be processed in a manner that ensures appropriate security.", "category": "Principles", "status": "Implemented", "lastReviewed": "2023-11-01", "evidence": [] },
+                # Rights of the Data Subject
+                { "id": "Art.15", "name": "Right of Access", "description": "The data subject shall have the right to obtain confirmation as to whether or not personal data concerning him or her are being processed.", "category": "Rights of the Data Subject", "status": "Implemented", "lastReviewed": "2023-11-05", "evidence": [] },
+                { "id": "Art.16", "name": "Right to Rectification", "description": " The data subject shall have the right to obtain without undue delay the rectification of inaccurate personal data.", "category": "Rights of the Data Subject", "status": "Implemented", "lastReviewed": "2023-11-05", "evidence": [] },
+                { "id": "Art.17", "name": "Right to Erasure ('Right to be Forgotten')", "description": "The data subject shall have the right to obtain the erasure of personal data without undue delay.", "category": "Rights of the Data Subject", "status": "In Progress", "lastReviewed": "2023-11-05", "evidence": [] },
+                { "id": "Art.20", "name": "Right to Data Portability", "description": "The data subject shall have the right to receive the personal data concerning him or her.", "category": "Rights of the Data Subject", "status": "Not Implemented", "lastReviewed": "2023-11-05", "evidence": [] },
+                # Controller and Processor
+                { "id": "Art.24", "name": "Responsibility of the Controller", "description": "The controller shall implement appropriate technical and organizational measures.", "category": "Controller and Processor", "status": "Implemented", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "Art.25", "name": "Data Protection by Design and by Default", "description": "The controller shall implement appropriate technical and organizational measures... in an effective manner.", "category": "Controller and Processor", "status": "In Progress", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "Art.28", "name": "Processor", "description": "Where processing is to be carried out on behalf of a controller, the controller shall use only processors providing sufficient guarantees.", "category": "Controller and Processor", "status": "In Progress", "lastReviewed": "2023-11-10", "evidence": [] },
+                { "id": "Art.30", "name": "Records of Processing Activities", "description": "Each controller... shall maintain a record of processing activities.", "category": "Controller and Processor", "status": "In Progress", "lastReviewed": "2023-11-10", "evidence": [] },
+                # Security
+                { "id": "Art.32(1)(a)", "name": "Encryption", "description": "Pseudonymization and encryption of personal data.", "category": "Security of Personal Data", "status": "Implemented", "lastReviewed": "2023-11-15", "evidence": [] },
+                { "id": "Art.32(1)(b)", "name": "Confidentiality, Integrity, Availability", "description": "Ability to ensure the ongoing confidentiality, integrity, availability and resilience of processing systems.", "category": "Security of Personal Data", "status": "Implemented", "lastReviewed": "2023-11-15", "evidence": [] },
+                { "id": "Art.32(1)(d)", "name": "Testing and Evaluation", "description": "Process for regularly testing, assessing and evaluating the effectiveness of technical measures.", "category": "Security of Personal Data", "status": "At Risk", "lastReviewed": "2023-11-15", "evidence": [] },
+                { "id": "Art.33", "name": "Notification of a Personal Data Breach", "description": "In the case of a personal data breach, the controller shall without undue delay notification...", "category": "Security of Personal Data", "status": "Implemented", "lastReviewed": "2023-11-15", "evidence": [] },
+                # Transfers
+                { "id": "Art.44", "name": "General Principle for Transfers", "description": "Any transfer of personal data... shall take place only if the conditions... are complied with.", "category": "Transfers", "status": "Implemented", "lastReviewed": "2023-11-20", "evidence": [] },
+            ]
+        }
+    ]
+    
+    # Expanded Frameworks (Phase 2)
+    frameworks.extend([
+        {
+            "id": "fedramp_moderate",
+            "name": "FedRAMP Moderate",
+            "shortName": "FedRAMP",
+            "description": "Federal Risk and Authorization Management Program (Moderate Baseline)",
+            "status": "In Progress",
+            "progress": 45,
+            "controls": [
+                { 
+                    "id": "fedramp-AC-2", 
+                    "name": "Account Management", 
+                    "description": "The organization manages information system accounts.", 
+                    "category": "Access Control", 
+                    "status": "Implemented", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Export list of all active users from Active Directory or IAM. 2. Export list of terminated employees from HR system. 3. Compare lists to ensure no terminated users have active accounts. 4. Upload the comparison report as evidence."
+                },
+                { "id": "fedramp-AC-3", "name": "Access Enforcement", "description": "The information system enforces approved authorizations for logical access.", "category": "Access Control", "status": "At Risk", "evidence": [] },
+                { "id": "fedramp-AU-2", "name": "Audit Events", "description": "The organization determines that the information system is capable of auditing the following events.", "category": "Audit and Accountability", "status": "Implemented", "evidence": [] },
+                { "id": "fedramp-CM-6", "name": "Configuration Settings", "description": "The organization establishes and documents configuration settings.", "category": "Configuration Management", "status": "In Progress", "evidence": [] },
+                { "id": "fedramp-IR-4", "name": "Incident Handling", "description": "The organization implements an incident handling capability.", "category": "Incident Response", "status": "Implemented", "evidence": [] },
+                { "id": "fedramp-SI-2", "name": "Flaw Remediation", "description": "The organization identifies, reports, and corrects information system flaws.", "category": "System and Information Integrity", "status": "In Progress", "evidence": [] },
+            ]
+        },
+        {
+            "id": "ccpa",
+            "name": "California Consumer Privacy Act (CCPA/CPRA)",
+            "shortName": "CCPA",
+            "description": "California Consumer Privacy Act as amended by CPRA",
+            "status": "Not Implemented",
+            "progress": 20,
+            "controls": [
+                { 
+                    "id": "ccpa-Privacy-1", 
+                    "name": "Right to Know", 
+                    "description": "Businesses must disclose data collection and sharing practices.", 
+                    "category": "Consumer Rights", 
+                    "status": "Implemented", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Run the PII Discovery Tool (automated check). 2. If automated check fails, manually review data flow diagrams. 3. Interview data owners to confirm data storage locations. 4. Upload the updated Data Flow Diagram (DFD) as evidence." 
+                },
+                { "id": "ccpa-Privacy-2", "name": "Right to Delete", "description": "Consumers have the right to request deletion of their personal information.", "category": "Consumer Rights", "status": "In Progress", "evidence": [] },
+                { "id": "ccpa-Privacy-3", "name": "Do Not Sell/Share", "description": "Businesses must provide a clear 'Do Not Sell or Share My Personal Information' link.", "category": "Opt-Out", "status": "Not Implemented", "evidence": [] },
+                { "id": "ccpa-Security-1", "name": "reasonable security procedures", "description": "Implement reasonable security procedures and practices appropriate to the nature of the personal information.", "category": "Security", "status": "At Risk", "evidence": [] },
+            ]
+        },
+        {
+            "id": "hitrust_csf",
+            "name": "HITRUST CSF v11",
+            "shortName": "HITRUST",
+            "description": "Health Information Trust Alliance Common Security Framework",
+            "status": "Pending",
+            "progress": 10,
+            "controls": [
+                { "id": "hitrust-01.0", "name": "Access Control", "description": "Access to information assets and systems is controlled.", "category": "Access Control", "status": "Implemented", "evidence": [] },
+                { "id": "hitrust-06.0", "name": "Endpoint Protection", "description": "Endpoints are protected against malware and unauthorized access.", "category": "Endpoint Security", "status": "In Progress", "evidence": [] },
+                { "id": "hitrust-09.0", "name": "Transmission Protection", "description": "Information is protected during transmission.", "category": "Network Security", "status": "Implemented", "evidence": [] },
+            ]
+        },
+        {
+            "id": "cmmc_l2",
+            "name": "CMMC 2.0 Level 2",
+            "shortName": "CMMC",
+            "description": "Cybersecurity Maturity Model Certification - Advanced",
+            "status": "In Progress",
+            "progress": 30,
+            "controls": [
+                { "id": "cmmc-AC.L2-3.1.1", "name": "Authorized Access Control", "description": "Limit information system access to authorized users.", "category": "Access Control", "status": "Implemented", "evidence": [] },
+                { "id": "cmmc-SI.L2-3.14.1", "name": "Flaw Remediation", "description": "Identify, report, and correct information and information system flaws in a timely manner.", "category": "System Integrity", "status": "In Progress", "evidence": [] },
+                { "id": "cmmc-SC.L2-3.13.11", "name": "FIPS Validated Cryptography", "description": "Employ FIPS-validated cryptography when used to protect the confidentiality of CUI.", "category": "System and Communications Protection", "status": "Not Implemented", "evidence": [] },
+            ]
+        },
+        {
+            "id": "csa_star",
+            "name": "CSA STAR (CCM v4)",
+            "shortName": "CSA STAR",
+            "description": "Cloud Security Alliance Cloud Controls Matrix",
+            "status": "In Progress",
+            "progress": 55,
+            "controls": [
+                { "id": "csa-AIS-04", "name": "Application Security Metrics", "description": "Metrics are established to track application security.", "category": "App & Interface Security", "status": "Not Implemented", "evidence": [] },
+                { "id": "csa-IAM-01", "name": "Identity and Access Management Policy", "description": "Policies and procedures for IAM are firmly established.", "category": "Identity & Access Management", "status": "Implemented", "evidence": [] },
+                { "id": "csa-IVS-06", "name": "Network Security", "description": "Network security controls are implemented at the virtualization layer.", "category": "Infrastructure & Virtualization", "status": "Implemented", "evidence": [] },
+            ]
+        },
+        {
+            "id": "cobit_2019",
+            "name": "COBIT 2019",
+            "shortName": "COBIT",
+            "description": "Control Objectives for Information and Related Technologies",
+            "status": "Pending",
+            "progress": 0,
+            "controls": [
+                { "id": "cobit-DSS05", "name": "Manage Security Services", "description": "Protect enterprise information to maintain the level of information security risk acceptable to the enterprise.", "category": "Deliver, Service and Support", "status": "In Progress", "evidence": [] },
+                { "id": "cobit-APO12", "name": "Manage Risk", "description": "Integrate the management of IT-related enterprise risk with overall enterprise risk management.", "category": "Align, Plan and Organize", "status": "At Risk", "evidence": [] },
+            ]
+        },
+        {
+            "id": "dora",
+            "name": "DORA (EU)",
+            "shortName": "DORA",
+            "description": "Digital Operational Resilience Act",
+            "status": "In Progress",
+            "progress": 60,
+            "controls": [
+                { "id": "dora-Art5", "name": "ICT Risk Management Framework", "description": "Financial entities shall have a sound, comprehensive and well-documented ICT risk management framework.", "category": "Risk Management", "status": "Implemented", "evidence": [] },
+                { "id": "dora-Art9", "name": "Protection and Prevention", "description": "Financial entities shall monitor and control the security and functioning of ICT systems.", "category": "Protection", "status": "Implemented", "evidence": [] },
+                { "id": "dora-Art11", "name": "Backup Policies", "description": "Financial entities shall develop and document backup policies.", "category": "Recovery", "status": "Implemented", "evidence": [] },
+            ]
+        },
+        {
+            "id": "iso9001_2015",
+            "name": "ISO 9001:2015",
+            "shortName": "ISO 9001",
+            "description": "Quality Management Systems - Requirements",
+            "status": "In Progress",
+            "progress": 35,
+            "controls": [
+                { 
+                    "id": "iso9001-4.4", 
+                    "name": "QMS and its processes", 
+                    "description": "The organization shall establish, implement, maintain and continually improve a quality management system.", 
+                    "category": "Context of the Organization", 
+                    "status": "Implemented", 
+                    "evidence": [], 
+                    "manual_evidence_instructions": "1. Upload the highest-level Quality Manual. 2. Upload the Process Interaction Map (or equivalent). 3. Ensure these documents are approved by top management."
+                },
+                { 
+                    "id": "iso9001-5.2", 
+                    "name": "Quality Policy", 
+                    "description": "Top management shall establish, implement and maintain a quality policy.", 
+                    "category": "Leadership", 
+                    "status": "Implemented", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Upload the signed Quality Policy. 2. Provide evidence of communication (e.g., email to staff, poster photos, intranet screenshot)."
+                },
+                { 
+                    "id": "iso9001-6.1", 
+                    "name": "Actions to address risks and opportunities", 
+                    "description": "The organization shall consider the issues referred to in 4.1 and determined in 4.2 and determine the risks and opportunities.", 
+                    "category": "Planning", 
+                    "status": "In Progress", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Upload the Risk & Opportunity Register. 2. Upload meeting minutes where these risks were discussed and actions planned."
+                },
+                { 
+                    "id": "iso9001-7.5", 
+                    "name": "Documented Information", 
+                    "description": "The organization’s quality management system shall include documented information required by this International Standard.", 
+                    "category": "Support", 
+                    "status": "Implemented", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Upload the 'Control of Documented Information' procedure. 2. Upload the Master List of Documents and Records."
+                }
+            ]
+        },
+        {
+            "id": "iso31000_2018",
+            "name": "ISO 31000:2018",
+            "shortName": "ISO 31000",
+            "description": "Risk Management - Guidelines",
+            "status": "In Progress",
+            "progress": 25,
+            "controls": [
+                { 
+                    "id": "iso31000-5.4", 
+                    "name": "Implementation", 
+                    "description": "The organization should implement the risk management framework.", 
+                    "category": "Framework", 
+                    "status": "Implemented", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Upload the approved Risk Management Framework document. 2. Provide evidence of resource allocation for risk management activities."
+                },
+                { 
+                    "id": "iso31000-6.3", 
+                    "name": "Scope, Context and Criteria", 
+                    "description": "The organization should define the scope of its risk management activities.", 
+                    "category": "Process", 
+                    "status": "Implemented", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Upload the Context of the Organization analysis (e.g., SWOT, PESTLE). 2. Upload the defined Risk Criteria (impact/likelihood matricies)."
+                },
+                { 
+                    "id": "iso31000-6.4", 
+                    "name": "Risk Assessment", 
+                    "description": "Risk assessment includes risk identification, risk analysis and risk evaluation.", 
+                    "category": "Process", 
+                    "status": "In Progress", 
+                    "evidence": [],
+                    "manual_evidence_instructions": "1. Upload the comprehensive Enterprise Risk Register. 2. Upload three examples of detailed risk analysis workshops or reports."
+                }
+            ]
+        }
+    ])
+
+    # Add DPDP (Digital Personal Data Protection Act)
+    frameworks.append({
+        "id": "dpdp",
+        "name": "Digital Personal Data Protection Act (DPDP)",
+        "shortName": "DPDP",
+        "description": "India's Digital Personal Data Protection Act, 2023",
+        "status": "In Progress",
+        "progress": 40,
+        "controls": [
+            # Chapter II: Obligations of Data Fiduciary
+            { "id": "DPDP-5.1", "name": "Consent Artifacts Present", "description": "Personal data is processed only for a lawful purpose for which the Data Principal has given her consent.", "category": "Obligations of Data Fiduciary", "status": "Implemented", "lastReviewed": "2024-01-15", "evidence": [] },
+            { "id": "DPDP-8.4", "name": "Data Retention Pruning Logic", "description": "Data Fiduciary shall erase personal data after the purpose is processed or upon withdrawal of consent.", "category": "Obligations of Data Fiduciary", "status": "Implemented", "lastReviewed": "2024-01-20", "evidence": [] },
+            { "id": "DPDP-8.5", "name": "Personal Data Breach Notification Ops", "description": "In the event of a personal data breach, the Data Fiduciary shall give intimation to the Board and each affected Data Principal.", "category": "Obligations of Data Fiduciary", "status": "At Risk", "lastReviewed": "2024-01-22", "evidence": [] },
+            { "id": "DPDP-9.1", "name": "Child Data Age-Gating", "description": "Verifiable parental consent is obtained before processing personal data of a child.", "category": "Special Provisions", "status": "Implemented", "lastReviewed": "2024-01-25", "evidence": [] },
+            { "id": "DPDP-10.1", "name": "Significant Data Fiduciary Audits", "description": "Significant Data Fiduciaries shall appoint an independent data auditor to carry out data audits.", "category": "Significant Data Fiduciary", "status": "Not Implemented", "lastReviewed": "2024-01-28", "evidence": [] },
+            # Additional Controls for completeness
+            { "id": "DPDP-6.1", "name": "Notice for Consent", "description": "A notice shall be given to the Data Principal at the time of seeking consent.", "category": "Obligations of Data Fiduciary", "status": "Implemented", "lastReviewed": "2024-02-01", "evidence": [] },
+            { "id": "DPDP-8.6", "name": "Grievance Redressal Mechanism", "description": "Data Fiduciary shall establish an effective mechanism to redress the grievances of Data Principals.", "category": "Obligations of Data Fiduciary", "status": "In Progress", "lastReviewed": "2024-02-05", "evidence": [] },
+            { "id": "DPDP-8.9", "name": "Data Processor Contracts", "description": "Data Fiduciary shall engage a Data Processor only under a valid contract.", "category": "Obligations of Data Fiduciary", "status": "Implemented", "lastReviewed": "2024-02-10", "evidence": [] },
+        ]
+    })
+
+    for fw in frameworks:
+        await db.compliance_frameworks.update_one(
+            {"id": fw["id"]},
+            {"$set": fw},
+            upsert=True
+        )
+        print(f"✅ Sealed {fw['name']}")
+
+    await close_mongo_connection()
+
+if __name__ == "__main__":
+    asyncio.run(seed_compliance())

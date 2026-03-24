@@ -1,0 +1,33 @@
+﻿Connecting to MongoDB at mongodb://127.0.0.1:27017
+Connected to REAL MongoDB at mongodb://127.0.0.1:27017
+Connected to database: omni_platform
+--- NETWORK DEVICES ---
+Host: Core-Router-01, IP: 192.168.1.1, Tenant: default
+Host: Core-Firewall, IP: 192.168.1.254, Tenant: default
+Host: Web-Server-01, IP: 10.0.0.11, Tenant: default
+Host: Web-Server-02, IP: 10.0.0.12, Tenant: default
+Host: Web-Server-03, IP: 10.0.0.13, Tenant: default
+Host: Web-Server-04, IP: 10.0.0.14, Tenant: default
+Host: Web-Server-05, IP: 10.0.0.15, Tenant: default
+Host: DB-Primary, IP: 10.0.0.50, Tenant: default
+Host: Office-Printer-01, IP: 172.16.0.101, Tenant: default
+Host: Office-Printer-02, IP: 172.16.0.102, Tenant: default
+Host: Office-Printer-03, IP: 172.16.0.103, Tenant: default
+Host: EILT0208.exafluence-inc.local, IP: 192.168.90.40, Tenant: platform-admin
+Host: EILT0154.exafluence-inc.local, IP: 192.168.90.55, Tenant: platform-admin
+Host: EILT0124.exafluence-inc.local, IP: 192.168.90.35, Tenant: platform-admin
+Host: EILT0097.exafluence-inc.local, IP: 192.168.90.5, Tenant: platform-admin
+Host: EILT0118.exafluence-inc.local, IP: 192.168.90.25, Tenant: platform-admin
+Host: EILT0094.exafluence-inc.local, IP: 192.168.90.39, Tenant: platform-admin
+Host: EILT0197.exafluence-inc.local, IP: 192.168.90.68, Tenant: platform-admin
+Host: 192.168.90.1, IP: 192.168.90.1, Tenant: platform-admin
+Host: EILT0049.exafluence-inc.local, IP: 192.168.90.218, Tenant: platform-admin
+Host: 192.168.90.230, IP: 192.168.90.230, Tenant: platform-admin
+Host: 192.168.90.229, IP: 192.168.90.229, Tenant: platform-admin
+Host: 192.168.90.231, IP: 192.168.90.231, Tenant: platform-admin
+Host: 192.168.0.1, IP: 192.168.0.1, Tenant: platform-admin
+Host: 192.168.0.100, IP: 192.168.0.100, Tenant: platform-admin
+Host: 192.168.0.1, IP: 192.168.0.1, Tenant: tenant_test_123
+Host: EILT0197.exafluence-inc.local, IP: 192.168.0.104, Tenant: tenant_test_123
+Host: EILT0197.mshome.net, IP: 172.27.128.1, Tenant: tenant_test_123
+Closed MongoDB connection

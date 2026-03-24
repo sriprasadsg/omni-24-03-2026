@@ -1,0 +1,53 @@
+[
+  {
+    "ip": "192.168.0.1",
+    "hostname": "192.168.0.1",
+    "mac": "60:32:B1:08:BA:D6",
+    "status": "Up",
+    "device_type": "Web Server",
+    "vendor": "Unknown",
+    "os_version": "Linux/Unix",
+    "open_ports": [
+      22,
+      53,
+      80
+    ],
+    "params": "fallback_ping",
+    "lastSeen": "2026-02-19T01:23:50.160553",
+    "subnet": "192.168.0.0/24"
+  },
+  {
+    "ip": "192.168.0.104",
+    "hostname": "EILT0197.exafluence-inc.local",
+    "mac": "Unknown",
+    "status": "Up",
+    "device_type": "Windows Workstation",
+    "vendor": "Microsoft",
+    "os_version": "Windows 10/11/Server",
+    "open_ports": [
+      135,
+      139,
+      445
+    ],
+    "params": "fallback_ping",
+    "lastSeen": "2026-02-19T01:23:54.555304",
+    "subnet": "192.168.0.0/24"
+  },
+  {
+    "ip": "172.27.128.1",
+    "hostname": "EILT0197.mshome.net",
+    "mac": "Unknown",
+    "status": "Up",
+    "device_type": "Windows Workstation",
+    "vendor": "Microsoft",
+    "os_version": "Windows 10/11/Server",
+    "open_ports": [
+      135,
+      139,
+      445
+    ],
+    "params": "fallback_ping",
+    "lastSeen": "2026-02-19T01:24:01.239646",
+    "subnet": "172.27.128.0/20"
+  }
+]

@@ -1,0 +1,219 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/AddCloudAccountModal.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"];
+import { XIcon, InfoIcon } from "/components/icons.tsx";
+const providerOptions = ["AWS", "GCP", "Azure"];
+export const AddCloudAccountModal = ({ isOpen, onClose, onSave }) => {
+  _s();
+  const [provider, setProvider] = useState("AWS");
+  const [name, setName] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [accessKey, setAccessKey] = useState("");
+  const [secretKey, setSecretKey] = useState("");
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim() || !accountId.trim()) {
+      alert("Please fill all required fields.");
+      return;
+    }
+    onSave({ provider, name, accountId });
+  };
+  const getAccountIdLabel = () => {
+    switch (provider) {
+      case "AWS":
+        return "Account ID";
+      case "GCP":
+        return "Project ID";
+      case "Azure":
+        return "Subscription ID";
+    }
+  };
+  if (!isOpen) return null;
+  return /* @__PURE__ */ jsxDEV("div", { className: "fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center", onClick: onClose, children: /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center mb-4", children: [
+      /* @__PURE__ */ jsxDEV("h2", { className: "text-xl font-bold text-gray-900 dark:text-white", children: "Add Cloud Account" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 44,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("button", { onClick: onClose, className: "p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700", children: /* @__PURE__ */ jsxDEV(XIcon, { size: 20 }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 46,
+        columnNumber: 13
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 45,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+      lineNumber: 43,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("form", { onSubmit: handleSubmit, className: "space-y-4", children: [
+      /* @__PURE__ */ jsxDEV("style", { children: `.input-style { padding: 0.5rem 0.75rem; background-color: white; border: 1px solid #d1d5db; border-radius: 0.375rem; } .dark .input-style { background-color: #374151; border-color: #4b5563; }` }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 50,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("label", { htmlFor: "provider", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "Cloud Provider" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 54,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV("select", { id: "provider", value: provider, onChange: (e) => setProvider(e.target.value), className: "mt-1 block w-full input-style", children: providerOptions.map((opt) => /* @__PURE__ */ jsxDEV("option", { value: opt, children: opt }, opt, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 56,
+            columnNumber: 47
+          }, this)) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 55,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 53,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("label", { htmlFor: "name", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: "Account Name" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 60,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV("input", { id: "name", value: name, onChange: (e) => setName(e.target.value), required: true, placeholder: "e.g., Production AWS", className: "mt-1 block w-full input-style" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 61,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 59,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 52,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { htmlFor: "accountId", className: "block text-sm font-medium text-gray-700 dark:text-gray-300", children: getAccountIdLabel() }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 66,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("input", { id: "accountId", value: accountId, onChange: (e) => setAccountId(e.target.value), required: true, placeholder: "e.g., 123456789012", className: "w-full input-style mt-1" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 67,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 65,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "pt-4 border-t border-gray-200 dark:border-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("h3", { className: "text-sm font-medium text-gray-500 dark:text-gray-400 mb-2", children: "Simulated Credentials" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 71,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4", children: [
+          /* @__PURE__ */ jsxDEV("input", { value: accessKey, onChange: (e) => setAccessKey(e.target.value), placeholder: "Access Key ID", className: "w-full input-style" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 73,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV("input", { type: "password", value: secretKey, onChange: (e) => setSecretKey(e.target.value), placeholder: "Secret Access Key", className: "w-full input-style" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 74,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 72,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "mt-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg flex items-start text-xs text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800", children: [
+          /* @__PURE__ */ jsxDEV(InfoIcon, { size: 16, className: "mr-2 mt-0.5 flex-shrink-0 text-blue-500" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 77,
+            columnNumber: 17
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { children: "For this simulation, API keys are not required. In a real-world scenario, you would connect via a secure, role-based integration." }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+            lineNumber: 78,
+            columnNumber: 17
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 76,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 70,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "mt-6 flex justify-end space-x-3", children: [
+        /* @__PURE__ */ jsxDEV("button", { type: "button", onClick: onClose, className: "px-4 py-2 text-sm font-medium border rounded-md", children: "Cancel" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 83,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("button", { type: "submit", className: "px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700", children: "Add and Connect" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+          lineNumber: 84,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+        lineNumber: 82,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+      lineNumber: 49,
+      columnNumber: 9
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+    lineNumber: 42,
+    columnNumber: 7
+  }, this) }, void 0, false, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx",
+    lineNumber: 41,
+    columnNumber: 5
+  }, this);
+};
+_s(AddCloudAccountModal, "2I+AUG89LPTg7A/ZMI8Fxw2HxB8=");
+_c = AddCloudAccountModal;
+var _c;
+$RefreshReg$(_c, "AddCloudAccountModal");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/AddCloudAccountModal.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUF1RTtBQUFBLFVBQ3ZFLHVCQUFDLE9BQUUsaUpBQUg7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBb0k7QUFBQSxhQUZ4STtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBR0E7QUFBQSxXQVRGO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFVQTtBQUFBLE1BRUEsdUJBQUMsU0FBSSxXQUFVLG1DQUNiO0FBQUEsK0JBQUMsWUFBTyxNQUFLLFVBQVMsU0FBU3JCLFNBQVMsV0FBVSxtREFBa0Qsc0JBQXBHO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFBMEc7QUFBQSxRQUMxRyx1QkFBQyxZQUFPLE1BQUssVUFBUyxXQUFVLDJGQUEwRiwrQkFBMUg7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQUF5STtBQUFBLFdBRjNJO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFHQTtBQUFBLFNBcENGO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0FxQ0E7QUFBQSxPQTVDRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBNkNBLEtBOUNGO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0ErQ0E7QUFFSjtBQUFFRSxHQTVFV0osc0JBQXlEO0FBQUEwQixLQUF6RDFCO0FBQXlELElBQUEwQjtBQUFBQyxhQUFBRCxJQUFBIiwibmFtZXMiOlsidXNlU3RhdGUiLCJYSWNvbiIsIkluZm9JY29uIiwicHJvdmlkZXJPcHRpb25zIiwiQWRkQ2xvdWRBY2NvdW50TW9kYWwiLCJpc09wZW4iLCJvbkNsb3NlIiwib25TYXZlIiwiX3MiLCJwcm92aWRlciIsInNldFByb3ZpZGVyIiwibmFtZSIsInNldE5hbWUiLCJhY2NvdW50SWQiLCJzZXRBY2NvdW50SWQiLCJhY2Nlc3NLZXkiLCJzZXRBY2Nlc3NLZXkiLCJzZWNyZXRLZXkiLCJzZXRTZWNyZXRLZXkiLCJoYW5kbGVTdWJtaXQiLCJlIiwicHJldmVudERlZmF1bHQiLCJ0cmltIiwiYWxlcnQiLCJnZXRBY2NvdW50SWRMYWJlbCIsInN0b3BQcm9wYWdhdGlvbiIsInRhcmdldCIsInZhbHVlIiwibWFwIiwib3B0IiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiQWRkQ2xvdWRBY2NvdW50TW9kYWwudHN4Il0sInNvdXJjZXNDb250ZW50IjpbIlxuaW1wb3J0IFJlYWN0LCB7IHVzZVN0YXRlIH0gZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgQ2xvdWRBY2NvdW50LCBDbG91ZFByb3ZpZGVyIH0gZnJvbSAnLi4vdHlwZXMnO1xuaW1wb3J0IHsgWEljb24sIEluZm9JY29uIH0gZnJvbSAnLi9pY29ucyc7XG5cbmludGVyZmFjZSBBZGRDbG91ZEFjY291bnRNb2RhbFByb3BzIHtcbiAgaXNPcGVuOiBib29sZWFuO1xuICBvbkNsb3NlOiAoKSA9PiB2b2lkO1xuICBvblNhdmU6IChkYXRhOiBPbWl0PENsb3VkQWNjb3VudCwgJ2lkJyB8ICd0ZW5hbnRJZCcgfCAnc3RhdHVzJz4pID0+IHZvaWQ7XG59XG5cbmNvbnN0IHByb3ZpZGVyT3B0aW9uczogQ2xvdWRQcm92aWRlcltdID0gWydBV1MnLCAnR0NQJywgJ0F6dXJlJ107XG5cbmV4cG9ydCBjb25zdCBBZGRDbG91ZEFjY291bnRNb2RhbDogUmVhY3QuRkM8QWRkQ2xvdWRBY2NvdW50TW9kYWxQcm9wcz4gPSAoeyBpc09wZW4sIG9uQ2xvc2UsIG9uU2F2ZSB9KSA9PiB7XG4gIGNvbnN0IFtwcm92aWRlciwgc2V0UHJvdmlkZXJdID0gdXNlU3RhdGU8Q2xvdWRQcm92aWRlcj4oJ0FXUycpO1xuICBjb25zdCBbbmFtZSwgc2V0TmFtZV0gPSB1c2VTdGF0ZSgnJyk7XG4gIGNvbnN0IFthY2NvdW50SWQsIHNldEFjY291bnRJZF0gPSB1c2VTdGF0ZSgnJyk7XG4gIGNvbnN0IFthY2Nlc3NLZXksIHNldEFjY2Vzc0tleV0gPSB1c2VTdGF0ZSgnJyk7XG4gIGNvbnN0IFtzZWNyZXRLZXksIHNldFNlY3JldEtleV0gPSB1c2VTdGF0ZSgnJyk7XG5cbiAgY29uc3QgaGFuZGxlU3VibWl0ID0gKGU6IFJlYWN0LkZvcm1FdmVudCkgPT4ge1xuICAgIGUucHJldmVudERlZmF1bHQoKTtcbiAgICBpZiAoIW5hbWUudHJpbSgpIHx8ICFhY2NvdW50SWQudHJpbSgpKSB7XG4gICAgICAgIGFsZXJ0KFwiUGxlYXNlIGZpbGwgYWxsIHJlcXVpcmVkIGZpZWxkcy5cIik7XG4gICAgICAgIHJldHVybjtcbiAgICB9XG4gICAgb25TYXZlKHsgcHJvdmlkZXIsIG5hbWUsIGFjY291bnRJZCB9KTtcbiAgfTtcbiAgXG4gIGNvbnN0IGdldEFjY291bnRJZExhYmVsID0gKCkgPT4ge1xuICAgICAgc3dpdGNoIChwcm92aWRlcikge1xuICAgICAgICAgIGNhc2UgJ0FXUyc6IHJldHVybiAnQWNjb3VudCBJRCc7XG4gICAgICAgICAgY2FzZSAnR0NQJzogcmV0dXJuICdQcm9qZWN0IElEJztcbiAgICAgICAgICBjYXNlICdBenVyZSc6IHJldHVybiAnU3Vic2NyaXB0aW9uIElEJztcbiAgICAgIH1cbiAgfVxuXG4gIGlmICghaXNPcGVuKSByZXR1cm4gbnVsbDtcblxuICByZXR1cm4gKFxuICAgIDxkaXYgY2xhc3NOYW1lPVwiZml4ZWQgaW5zZXQtMCBiZy1ibGFjayBiZy1vcGFjaXR5LTUwIHotNTAgZmxleCBqdXN0aWZ5LWNlbnRlciBpdGVtcy1jZW50ZXJcIiBvbkNsaWNrPXtvbkNsb3NlfT5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy14bCB3LWZ1bGwgbWF4LXctbGcgcC02IG0tNFwiIG9uQ2xpY2s9e2UgPT4gZS5zdG9wUHJvcGFnYXRpb24oKX0+XG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBqdXN0aWZ5LWJldHdlZW4gaXRlbXMtY2VudGVyIG1iLTRcIj5cbiAgICAgICAgICA8aDIgY2xhc3NOYW1lPVwidGV4dC14bCBmb250LWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGVcIj5BZGQgQ2xvdWQgQWNjb3VudDwvaDI+XG4gICAgICAgICAgPGJ1dHRvbiBvbkNsaWNrPXtvbkNsb3NlfSBjbGFzc05hbWU9XCJwLTEgcm91bmRlZC1mdWxsIHRleHQtZ3JheS00MDAgaG92ZXI6YmctZ3JheS0yMDAgZGFyazpob3ZlcjpiZy1ncmF5LTcwMFwiPlxuICAgICAgICAgICAgPFhJY29uIHNpemU9ezIwfSAvPlxuICAgICAgICAgIDwvYnV0dG9uPlxuICAgICAgICA8L2Rpdj5cbiAgICAgICAgPGZvcm0gb25TdWJtaXQ9e2hhbmRsZVN1Ym1pdH0gY2xhc3NOYW1lPVwic3BhY2UteS00XCI+XG4gICAgICAgICAgPHN0eWxlPntgLmlucHV0LXN0eWxlIHsgcGFkZGluZzogMC41cmVtIDAuNzVyZW07IGJhY2tncm91bmQtY29sb3I6IHdoaXRlOyBib3JkZXI6IDFweCBzb2xpZCAjZDFkNWRiOyBib3JkZXItcmFkaXVzOiAwLjM3NXJlbTsgfSAuZGFyayAuaW5wdXQtc3R5bGUgeyBiYWNrZ3JvdW5kLWNvbG9yOiAjMzc0MTUxOyBib3JkZXItY29sb3I6ICM0YjU1NjM7IH1gfTwvc3R5bGU+XG4gICAgICAgICAgXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0xIHNtOmdyaWQtY29scy0yIGdhcC00XCI+XG4gICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICA8bGFiZWwgaHRtbEZvcj1cInByb3ZpZGVyXCIgY2xhc3NOYW1lPVwiYmxvY2sgdGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMFwiPkNsb3VkIFByb3ZpZGVyPC9sYWJlbD5cbiAgICAgICAgICAgICAgPHNlbGVjdCBpZD1cInByb3ZpZGVyXCIgdmFsdWU9e3Byb3ZpZGVyfSBvbkNoYW5nZT17ZSA9PiBzZXRQcm92aWRlcihlLnRhcmdldC52YWx1ZSBhcyBDbG91ZFByb3ZpZGVyKX0gY2xhc3NOYW1lPVwibXQtMSBibG9jayB3LWZ1bGwgaW5wdXQtc3R5bGVcIj5cbiAgICAgICAgICAgICAgICB7cHJvdmlkZXJPcHRpb25zLm1hcChvcHQgPT4gPG9wdGlvbiBrZXk9e29wdH0gdmFsdWU9e29wdH0+e29wdH08L29wdGlvbj4pfVxuICAgICAgICAgICAgICA8L3NlbGVjdD5cbiAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgPGRpdj5cbiAgICAgICAgICAgICAgPGxhYmVsIGh0bWxGb3I9XCJuYW1lXCIgY2xhc3NOYW1lPVwiYmxvY2sgdGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMFwiPkFjY291bnQgTmFtZTwvbGFiZWw+XG4gICAgICAgICAgICAgIDxpbnB1dCBpZD1cIm5hbWVcIiB2YWx1ZT17bmFtZX0gb25DaGFuZ2U9e2UgPT4gc2V0TmFtZShlLnRhcmdldC52YWx1ZSl9IHJlcXVpcmVkIHBsYWNlaG9sZGVyPVwiZS5nLiwgUHJvZHVjdGlvbiBBV1NcIiBjbGFzc05hbWU9XCJtdC0xIGJsb2NrIHctZnVsbCBpbnB1dC1zdHlsZVwiIC8+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICBcbiAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgPGxhYmVsIGh0bWxGb3I9XCJhY2NvdW50SWRcIiBjbGFzc05hbWU9XCJibG9jayB0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+e2dldEFjY291bnRJZExhYmVsKCl9PC9sYWJlbD5cbiAgICAgICAgICAgIDxpbnB1dCBpZD1cImFjY291bnRJZFwiIHZhbHVlPXthY2NvdW50SWR9IG9uQ2hhbmdlPXtlID0+IHNldEFjY291bnRJZChlLnRhcmdldC52YWx1ZSl9IHJlcXVpcmVkIHBsYWNlaG9sZGVyPVwiZS5nLiwgMTIzNDU2Nzg5MDEyXCIgY2xhc3NOYW1lPVwidy1mdWxsIGlucHV0LXN0eWxlIG10LTFcIiAvPlxuICAgICAgICAgIDwvZGl2PlxuXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwdC00IGJvcmRlci10IGJvcmRlci1ncmF5LTIwMCBkYXJrOmJvcmRlci1ncmF5LTcwMFwiPlxuICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cInRleHQtc20gZm9udC1tZWRpdW0gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDAgbWItMlwiPlNpbXVsYXRlZCBDcmVkZW50aWFsczwvaDM+XG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTEgc206Z3JpZC1jb2xzLTIgZ2FwLTRcIj5cbiAgICAgICAgICAgICAgPGlucHV0IHZhbHVlPXthY2Nlc3NLZXl9IG9uQ2hhbmdlPXtlID0+IHNldEFjY2Vzc0tleShlLnRhcmdldC52YWx1ZSl9IHBsYWNlaG9sZGVyPVwiQWNjZXNzIEtleSBJRFwiIGNsYXNzTmFtZT1cInctZnVsbCBpbnB1dC1zdHlsZVwiIC8+XG4gICAgICAgICAgICAgIDxpbnB1dCB0eXBlPVwicGFzc3dvcmRcIiB2YWx1ZT17c2VjcmV0S2V5fSBvbkNoYW5nZT17ZSA9PiBzZXRTZWNyZXRLZXkoZS50YXJnZXQudmFsdWUpfSBwbGFjZWhvbGRlcj1cIlNlY3JldCBBY2Nlc3MgS2V5XCIgY2xhc3NOYW1lPVwidy1mdWxsIGlucHV0LXN0eWxlXCIgLz5cbiAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC0zIHAtMiBiZy1ibHVlLTUwIGRhcms6YmctYmx1ZS05MDAvNTAgcm91bmRlZC1sZyBmbGV4IGl0ZW1zLXN0YXJ0IHRleHQteHMgdGV4dC1ibHVlLTgwMCBkYXJrOnRleHQtYmx1ZS0zMDAgYm9yZGVyIGJvcmRlci1ibHVlLTIwMCBkYXJrOmJvcmRlci1ibHVlLTgwMFwiPlxuICAgICAgICAgICAgICAgIDxJbmZvSWNvbiBzaXplPXsxNn0gY2xhc3NOYW1lPVwibXItMiBtdC0wLjUgZmxleC1zaHJpbmstMCB0ZXh0LWJsdWUtNTAwXCIgLz5cbiAgICAgICAgICAgICAgICA8cD5Gb3IgdGhpcyBzaW11bGF0aW9uLCBBUEkga2V5cyBhcmUgbm90IHJlcXVpcmVkLiBJbiBhIHJlYWwtd29ybGQgc2NlbmFyaW8sIHlvdSB3b3VsZCBjb25uZWN0IHZpYSBhIHNlY3VyZSwgcm9sZS1iYXNlZCBpbnRlZ3JhdGlvbi48L3A+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICA8L2Rpdj5cblxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNiBmbGV4IGp1c3RpZnktZW5kIHNwYWNlLXgtM1wiPlxuICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPVwiYnV0dG9uXCIgb25DbGljaz17b25DbG9zZX0gY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtc20gZm9udC1tZWRpdW0gYm9yZGVyIHJvdW5kZWQtbWRcIj5DYW5jZWw8L2J1dHRvbj5cbiAgICAgICAgICAgIDxidXR0b24gdHlwZT1cInN1Ym1pdFwiIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtd2hpdGUgYmctcHJpbWFyeS02MDAgcm91bmRlZC1sZyBob3ZlcjpiZy1wcmltYXJ5LTcwMFwiPkFkZCBhbmQgQ29ubmVjdDwvYnV0dG9uPlxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICA8L2Zvcm0+XG4gICAgICA8L2Rpdj5cbiAgICA8L2Rpdj5cbiAgKTtcbn07XG4iXSwiZmlsZSI6IkQ6L0Rvd25sb2Fkcy9lbnRlcnByaXNlLW9tbmktYWdlbnQtYWktcGxhdGZvcm0vY29tcG9uZW50cy9BZGRDbG91ZEFjY291bnRNb2RhbC50c3gifQ==

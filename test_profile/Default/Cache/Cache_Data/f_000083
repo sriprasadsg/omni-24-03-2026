@@ -1,0 +1,391 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/PredictiveHealthTab.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "/node_modules/.vite/deps/recharts.js?v=d6705e33";
+import { LightbulbIcon, TrendingUpIcon, AlertTriangleIcon } from "/components/icons.tsx";
+export const PredictiveHealthTab = ({ data }) => {
+  if (!data || !data.predictions || data.predictions.length === 0) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "text-center py-12", children: [
+      /* @__PURE__ */ jsxDEV(LightbulbIcon, { size: 64, className: "mx-auto mb-4 text-gray-400 dark:text-gray-600" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 22,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2", children: "Predictive Health Analytics" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 23,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto", children: "AI-powered predictions will analyze historical metrics to forecast resource usage and identify potential issues before they occur." }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 24,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 max-w-lg mx-auto text-left", children: [
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-blue-900 dark:text-blue-200 font-medium mb-2", children: "📊 Requirements for predictions:" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 28,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("ul", { className: "text-sm text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside", children: [
+          /* @__PURE__ */ jsxDEV("li", { children: "Agent must collect metrics for at least 24 hours" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 30,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("li", { children: "Metrics collection service must be running" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 31,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("li", { children: "Sufficient historical data points required (minimum 50 samples)" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 32,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 29,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 27,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "mt-6 max-w-lg mx-auto", children: /* @__PURE__ */ jsxDEV("div", { className: "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4", children: [
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-green-900 dark:text-green-200 font-medium mb-2", children: "✨ Available Predictions:" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 37,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("ul", { className: "text-sm text-green-800 dark:text-green-300 space-y-1", children: [
+          /* @__PURE__ */ jsxDEV("li", { children: "• 24-hour CPU usage forecast" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 39,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("li", { children: "• Memory consumption trends" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 40,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("li", { children: "• Health score degradation warnings" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 41,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("li", { children: "• Resource bottleneck detection" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 42,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 38,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 36,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 35,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 21,
+      columnNumber: 7
+    }, this);
+  }
+  const getScoreColor = (score) => {
+    if (score >= 80) return "text-green-600 dark:text-green-400";
+    if (score >= 60) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-6", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-700", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h3", { className: "text-sm font-medium text-gray-600 dark:text-gray-400 mb-2", children: "Current Health Score" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 61,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: `text-6xl font-bold ${getScoreColor(data.current_score)}`, children: data.current_score }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 62,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400 mt-2", children: data.current_score >= 80 ? "Excellent" : data.current_score >= 60 ? "Good" : "Needs Attention" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 65,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 60,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV(LightbulbIcon, { size: 64, className: "text-yellow-500 opacity-20" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 69,
+        columnNumber: 21
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 59,
+      columnNumber: 17
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 58,
+      columnNumber: 13
+    }, this),
+    data.warnings && data.warnings.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start", children: [
+      /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 20, className: "text-yellow-600 dark:text-yellow-400 mt-0.5 mr-3" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 76,
+        columnNumber: 25
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h4", { className: "font-semibold text-yellow-900 dark:text-yellow-200 mb-2", children: "Predictive Warnings" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 78,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("ul", { className: "space-y-1", children: data.warnings.map(
+          (warning, idx) => /* @__PURE__ */ jsxDEV("li", { className: "text-sm text-yellow-800 dark:text-yellow-300", children: [
+            "• ",
+            warning
+          ] }, idx, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 81,
+            columnNumber: 15
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 79,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 77,
+        columnNumber: 25
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 75,
+      columnNumber: 21
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 74,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "flex items-center mb-3", children: [
+        /* @__PURE__ */ jsxDEV(TrendingUpIcon, { size: 20, className: "text-blue-500 mr-2" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 91,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("h4", { className: "text-sm font-semibold text-gray-700 dark:text-gray-300", children: "24-Hour Health Prediction" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 92,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 90,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: 300, children: /* @__PURE__ */ jsxDEV(LineChart, { data: data.predictions, children: [
+        /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: "#374151", opacity: 0.2 }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 96,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "timestamp", tick: { fontSize: 11, fill: "#9ca3af" } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 97,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(YAxis, { domain: [0, 100], tick: { fontSize: 11, fill: "#9ca3af" } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 98,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Tooltip,
+          {
+            contentStyle: { backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "0.375rem" },
+            labelStyle: { color: "#e5e7eb" }
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 99,
+            columnNumber: 25
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(ReferenceLine, { y: 80, stroke: "#10b981", strokeDasharray: "3 3", label: { value: "Good", fill: "#10b981" } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 103,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(ReferenceLine, { y: 60, stroke: "#f59e0b", strokeDasharray: "3 3", label: { value: "Warning", fill: "#f59e0b" } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 104,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Line, { type: "monotone", dataKey: "health_score", stroke: "#3b82f6", strokeWidth: 3, dot: { r: 4 } }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 105,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 95,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 94,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 89,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("h4", { className: "text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3", children: "CPU Forecast" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 112,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: 150, children: /* @__PURE__ */ jsxDEV(LineChart, { data: data.predictions, children: [
+          /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: "#374151", opacity: 0.2 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 115,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "timestamp", tick: { fontSize: 10, fill: "#9ca3af" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 116,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(YAxis, { domain: [0, 100], tick: { fontSize: 10, fill: "#9ca3af" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 117,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Tooltip, { contentStyle: { backgroundColor: "#1f2937" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 118,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Line, { type: "monotone", dataKey: "cpu_prediction", stroke: "#f59e0b", strokeWidth: 2, dot: false }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 119,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 114,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 113,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 111,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("h4", { className: "text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3", children: "Memory Forecast" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 125,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: 150, children: /* @__PURE__ */ jsxDEV(LineChart, { data: data.predictions, children: [
+          /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: "#374151", opacity: 0.2 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 128,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "timestamp", tick: { fontSize: 10, fill: "#9ca3af" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 129,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(YAxis, { domain: [0, 100], tick: { fontSize: 10, fill: "#9ca3af" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 130,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Tooltip, { contentStyle: { backgroundColor: "#1f2937" } }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 131,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV(Line, { type: "monotone", dataKey: "memory_prediction", stroke: "#a855f7", strokeWidth: 2, dot: false }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+            lineNumber: 132,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 127,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+          lineNumber: 126,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+        lineNumber: 124,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+      lineNumber: 110,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx",
+    lineNumber: 57,
+    columnNumber: 5
+  }, this);
+};
+_c = PredictiveHealthTab;
+var _c;
+$RefreshReg$(_c, "PredictiveHealthTab");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/PredictiveHealthTab.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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ZXNpYW5HcmlkIiwiVG9vbHRpcCIsIlJlc3BvbnNpdmVDb250YWluZXIiLCJSZWZlcmVuY2VMaW5lIiwiTGlnaHRidWxiSWNvbiIsIlRyZW5kaW5nVXBJY29uIiwiQWxlcnRUcmlhbmdsZUljb24iLCJQcmVkaWN0aXZlSGVhbHRoVGFiIiwiZGF0YSIsInByZWRpY3Rpb25zIiwibGVuZ3RoIiwiZ2V0U2NvcmVDb2xvciIsInNjb3JlIiwiY3VycmVudF9zY29yZSIsIndhcm5pbmdzIiwibWFwIiwid2FybmluZyIsImlkeCIsImZvbnRTaXplIiwiZmlsbCIsImJhY2tncm91bmRDb2xvciIsImJvcmRlciIsImJvcmRlclJhZGl1cyIsImNvbG9yIiwidmFsdWUiLCJyIiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiUHJlZGljdGl2ZUhlYWx0aFRhYi50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHsgTGluZUNoYXJ0LCBMaW5lLCBYQXhpcywgWUF4aXMsIENhcnRlc2lhbkdyaWQsIFRvb2x0aXAsIFJlc3BvbnNpdmVDb250YWluZXIsIFJlZmVyZW5jZUxpbmUgfSBmcm9tICdyZWNoYXJ0cyc7XHJcbmltcG9ydCB7IExpZ2h0YnVsYkljb24sIFRyZW5kaW5nVXBJY29uLCBBbGVydFRyaWFuZ2xlSWNvbiB9IGZyb20gJy4vaWNvbnMnO1xyXG5cclxuaW50ZXJmYWNlIFByZWRpY3RpdmVIZWFsdGhUYWJQcm9wcyB7XHJcbiAgICBkYXRhPzoge1xyXG4gICAgICAgIGN1cnJlbnRfc2NvcmU6IG51bWJlcjtcclxuICAgICAgICBwcmVkaWN0aW9uczogQXJyYXk8e1xyXG4gICAgICAgICAgICB0aW1lc3RhbXA6IHN0cmluZztcclxuICAgICAgICAgICAgY3B1X3ByZWRpY3Rpb246IG51bWJlcjtcclxuICAgICAgICAgICAgbWVtb3J5X3ByZWRpY3Rpb246IG51bWJlcjtcclxuICAgICAgICAgICAgaGVhbHRoX3Njb3JlOiBudW1iZXI7XHJcbiAgICAgICAgfT47XHJcbiAgICAgICAgd2FybmluZ3M6IHN0cmluZ1tdO1xyXG4gICAgfTtcclxufVxyXG5cclxuZXhwb3J0IGNvbnN0IFByZWRpY3RpdmVIZWFsdGhUYWI6IFJlYWN0LkZDPFByZWRpY3RpdmVIZWFsdGhUYWJQcm9wcz4gPSAoeyBkYXRhIH0pID0+IHtcclxuICAgIGlmICghZGF0YSB8fCAhZGF0YS5wcmVkaWN0aW9ucyB8fCBkYXRhLnByZWRpY3Rpb25zLmxlbmd0aCA9PT0gMCkge1xyXG4gICAgICAgIHJldHVybiAoXHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC1jZW50ZXIgcHktMTJcIj5cclxuICAgICAgICAgICAgICAgIDxMaWdodGJ1bGJJY29uIHNpemU9ezY0fSBjbGFzc05hbWU9XCJteC1hdXRvIG1iLTQgdGV4dC1ncmF5LTQwMCBkYXJrOnRleHQtZ3JheS02MDBcIiAvPlxyXG4gICAgICAgICAgICAgICAgPGgzIGNsYXNzTmFtZT1cInRleHQtbGcgZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMCBtYi0yXCI+UHJlZGljdGl2ZSBIZWFsdGggQW5hbHl0aWNzPC9oMz5cclxuICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIG1iLTQgbWF4LXctbWQgbXgtYXV0b1wiPlxyXG4gICAgICAgICAgICAgICAgICAgIEFJLXBvd2VyZWQgcHJlZGljdGlvbnMgd2lsbCBhbmFseXplIGhpc3RvcmljYWwgbWV0cmljcyB0byBmb3JlY2FzdCByZXNvdXJjZSB1c2FnZSBhbmQgaWRlbnRpZnkgcG90ZW50aWFsIGlzc3VlcyBiZWZvcmUgdGhleSBvY2N1ci5cclxuICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctYmx1ZS01MCBkYXJrOmJnLWJsdWUtOTAwLzIwIGJvcmRlciBib3JkZXItYmx1ZS0yMDAgZGFyazpib3JkZXItYmx1ZS04MDAgcm91bmRlZC1sZyBwLTQgbWF4LXctbGcgbXgtYXV0byB0ZXh0LWxlZnRcIj5cclxuICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtYmx1ZS05MDAgZGFyazp0ZXh0LWJsdWUtMjAwIGZvbnQtbWVkaXVtIG1iLTJcIj7wn5OKIFJlcXVpcmVtZW50cyBmb3IgcHJlZGljdGlvbnM6PC9wPlxyXG4gICAgICAgICAgICAgICAgICAgIDx1bCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtYmx1ZS04MDAgZGFyazp0ZXh0LWJsdWUtMzAwIHNwYWNlLXktMSBsaXN0LWRpc2MgbGlzdC1pbnNpZGVcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPGxpPkFnZW50IG11c3QgY29sbGVjdCBtZXRyaWNzIGZvciBhdCBsZWFzdCAyNCBob3VyczwvbGk+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxsaT5NZXRyaWNzIGNvbGxlY3Rpb24gc2VydmljZSBtdXN0IGJlIHJ1bm5pbmc8L2xpPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8bGk+U3VmZmljaWVudCBoaXN0b3JpY2FsIGRhdGEgcG9pbnRzIHJlcXVpcmVkIChtaW5pbXVtIDUwIHNhbXBsZXMpPC9saT5cclxuICAgICAgICAgICAgICAgICAgICA8L3VsPlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LTYgbWF4LXctbGcgbXgtYXV0b1wiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctZ3JlZW4tNTAgZGFyazpiZy1ncmVlbi05MDAvMjAgYm9yZGVyIGJvcmRlci1ncmVlbi0yMDAgZGFyazpib3JkZXItZ3JlZW4tODAwIHJvdW5kZWQtbGcgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmVlbi05MDAgZGFyazp0ZXh0LWdyZWVuLTIwMCBmb250LW1lZGl1bSBtYi0yXCI+4pyoIEF2YWlsYWJsZSBQcmVkaWN0aW9uczo8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDx1bCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JlZW4tODAwIGRhcms6dGV4dC1ncmVlbi0zMDAgc3BhY2UteS0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8bGk+4oCiIDI0LWhvdXIgQ1BVIHVzYWdlIGZvcmVjYXN0PC9saT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxsaT7igKIgTWVtb3J5IGNvbnN1bXB0aW9uIHRyZW5kczwvbGk+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8bGk+4oCiIEhlYWx0aCBzY29yZSBkZWdyYWRhdGlvbiB3YXJuaW5nczwvbGk+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8bGk+4oCiIFJlc291cmNlIGJvdHRsZW5lY2sgZGV0ZWN0aW9uPC9saT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC91bD5cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICApO1xyXG4gICAgfVxyXG5cclxuICAgIGNvbnN0IGdldFNjb3JlQ29sb3IgPSAoc2NvcmU6IG51bWJlcikgPT4ge1xyXG4gICAgICAgIGlmIChzY29yZSA+PSA4MCkgcmV0dXJuICd0ZXh0LWdyZWVuLTYwMCBkYXJrOnRleHQtZ3JlZW4tNDAwJztcclxuICAgICAgICBpZiAoc2NvcmUgPj0gNjApIHJldHVybiAndGV4dC15ZWxsb3ctNjAwIGRhcms6dGV4dC15ZWxsb3ctNDAwJztcclxuICAgICAgICByZXR1cm4gJ3RleHQtcmVkLTYwMCBkYXJrOnRleHQtcmVkLTQwMCc7XHJcbiAgICB9O1xyXG5cclxuICAgIHJldHVybiAoXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTZcIj5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy1ncmFkaWVudC10by1iciBmcm9tLWJsdWUtNTAgdG8tcHVycGxlLTUwIGRhcms6ZnJvbS1ibHVlLTkwMC8yMCBkYXJrOnRvLXB1cnBsZS05MDAvMjAgcm91bmRlZC1sZyBwLTYgYm9yZGVyIGJvcmRlci1ibHVlLTIwMCBkYXJrOmJvcmRlci1ibHVlLTcwMFwiPlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW5cIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8aDMgY2xhc3NOYW1lPVwidGV4dC1zbSBmb250LW1lZGl1bSB0ZXh0LWdyYXktNjAwIGRhcms6dGV4dC1ncmF5LTQwMCBtYi0yXCI+Q3VycmVudCBIZWFsdGggU2NvcmU8L2gzPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT17YHRleHQtNnhsIGZvbnQtYm9sZCAke2dldFNjb3JlQ29sb3IoZGF0YS5jdXJyZW50X3Njb3JlKX1gfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtkYXRhLmN1cnJlbnRfc2NvcmV9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwIG10LTJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtkYXRhLmN1cnJlbnRfc2NvcmUgPj0gODAgPyAnRXhjZWxsZW50JyA6IGRhdGEuY3VycmVudF9zY29yZSA+PSA2MCA/ICdHb29kJyA6ICdOZWVkcyBBdHRlbnRpb24nfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgPExpZ2h0YnVsYkljb24gc2l6ZT17NjR9IGNsYXNzTmFtZT1cInRleHQteWVsbG93LTUwMCBvcGFjaXR5LTIwXCIgLz5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICAgIHtkYXRhLndhcm5pbmdzICYmIGRhdGEud2FybmluZ3MubGVuZ3RoID4gMCAmJiAoXHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXllbGxvdy01MCBkYXJrOmJnLXllbGxvdy05MDAvMjAgYm9yZGVyIGJvcmRlci15ZWxsb3ctMjAwIGRhcms6Ym9yZGVyLXllbGxvdy04MDAgcm91bmRlZC1sZyBwLTRcIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RhcnRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPEFsZXJ0VHJpYW5nbGVJY29uIHNpemU9ezIwfSBjbGFzc05hbWU9XCJ0ZXh0LXllbGxvdy02MDAgZGFyazp0ZXh0LXllbGxvdy00MDAgbXQtMC41IG1yLTNcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGg0IGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGQgdGV4dC15ZWxsb3ctOTAwIGRhcms6dGV4dC15ZWxsb3ctMjAwIG1iLTJcIj5QcmVkaWN0aXZlIFdhcm5pbmdzPC9oND5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx1bCBjbGFzc05hbWU9XCJzcGFjZS15LTFcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZGF0YS53YXJuaW5ncy5tYXAoKHdhcm5pbmcsIGlkeCkgPT4gKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8bGkga2V5PXtpZHh9IGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC15ZWxsb3ctODAwIGRhcms6dGV4dC15ZWxsb3ctMzAwXCI+4oCiIHt3YXJuaW5nfTwvbGk+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKSl9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3VsPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICApfVxyXG5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHAtNCByb3VuZGVkLWxnIGJvcmRlciBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgbWItM1wiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxUcmVuZGluZ1VwSWNvbiBzaXplPXsyMH0gY2xhc3NOYW1lPVwidGV4dC1ibHVlLTUwMCBtci0yXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICA8aDQgY2xhc3NOYW1lPVwidGV4dC1zbSBmb250LXNlbWlib2xkIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+MjQtSG91ciBIZWFsdGggUHJlZGljdGlvbjwvaDQ+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDxSZXNwb25zaXZlQ29udGFpbmVyIHdpZHRoPVwiMTAwJVwiIGhlaWdodD17MzAwfT5cclxuICAgICAgICAgICAgICAgICAgICA8TGluZUNoYXJ0IGRhdGE9e2RhdGEucHJlZGljdGlvbnN9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8Q2FydGVzaWFuR3JpZCBzdHJva2VEYXNoYXJyYXk9XCIzIDNcIiBzdHJva2U9XCIjMzc0MTUxXCIgb3BhY2l0eT17MC4yfSAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8WEF4aXMgZGF0YUtleT1cInRpbWVzdGFtcFwiIHRpY2s9e3sgZm9udFNpemU6IDExLCBmaWxsOiAnIzljYTNhZicgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPFlBeGlzIGRvbWFpbj17WzAsIDEwMF19IHRpY2s9e3sgZm9udFNpemU6IDExLCBmaWxsOiAnIzljYTNhZicgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPFRvb2x0aXBcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNvbnRlbnRTdHlsZT17eyBiYWNrZ3JvdW5kQ29sb3I6ICcjMWYyOTM3JywgYm9yZGVyOiAnMXB4IHNvbGlkICMzNzQxNTEnLCBib3JkZXJSYWRpdXM6ICcwLjM3NXJlbScgfX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIGxhYmVsU3R5bGU9e3sgY29sb3I6ICcjZTVlN2ViJyB9fVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8UmVmZXJlbmNlTGluZSB5PXs4MH0gc3Ryb2tlPVwiIzEwYjk4MVwiIHN0cm9rZURhc2hhcnJheT1cIjMgM1wiIGxhYmVsPXt7IHZhbHVlOiAnR29vZCcsIGZpbGw6ICcjMTBiOTgxJyB9fSAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8UmVmZXJlbmNlTGluZSB5PXs2MH0gc3Ryb2tlPVwiI2Y1OWUwYlwiIHN0cm9rZURhc2hhcnJheT1cIjMgM1wiIGxhYmVsPXt7IHZhbHVlOiAnV2FybmluZycsIGZpbGw6ICcjZjU5ZTBiJyB9fSAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8TGluZSB0eXBlPVwibW9ub3RvbmVcIiBkYXRhS2V5PVwiaGVhbHRoX3Njb3JlXCIgc3Ryb2tlPVwiIzNiODJmNlwiIHN0cm9rZVdpZHRoPXszfSBkb3Q9e3sgcjogNCB9fSAvPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvTGluZUNoYXJ0PlxyXG4gICAgICAgICAgICAgICAgPC9SZXNwb25zaXZlQ29udGFpbmVyPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ3JpZCBncmlkLWNvbHMtMiBnYXAtNFwiPlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHAtNCByb3VuZGVkLWxnIGJvcmRlciBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICA8aDQgY2xhc3NOYW1lPVwidGV4dC1zbSBmb250LXNlbWlib2xkIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwIG1iLTNcIj5DUFUgRm9yZWNhc3Q8L2g0PlxyXG4gICAgICAgICAgICAgICAgICAgIDxSZXNwb25zaXZlQ29udGFpbmVyIHdpZHRoPVwiMTAwJVwiIGhlaWdodD17MTUwfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPExpbmVDaGFydCBkYXRhPXtkYXRhLnByZWRpY3Rpb25zfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxDYXJ0ZXNpYW5HcmlkIHN0cm9rZURhc2hhcnJheT1cIjMgM1wiIHN0cm9rZT1cIiMzNzQxNTFcIiBvcGFjaXR5PXswLjJ9IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8WEF4aXMgZGF0YUtleT1cInRpbWVzdGFtcFwiIHRpY2s9e3sgZm9udFNpemU6IDEwLCBmaWxsOiAnIzljYTNhZicgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxZQXhpcyBkb21haW49e1swLCAxMDBdfSB0aWNrPXt7IGZvbnRTaXplOiAxMCwgZmlsbDogJyM5Y2EzYWYnIH19IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8VG9vbHRpcCBjb250ZW50U3R5bGU9e3sgYmFja2dyb3VuZENvbG9yOiAnIzFmMjkzNycgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxMaW5lIHR5cGU9XCJtb25vdG9uZVwiIGRhdGFLZXk9XCJjcHVfcHJlZGljdGlvblwiIHN0cm9rZT1cIiNmNTllMGJcIiBzdHJva2VXaWR0aD17Mn0gZG90PXtmYWxzZX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9MaW5lQ2hhcnQ+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9SZXNwb25zaXZlQ29udGFpbmVyPlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHAtNCByb3VuZGVkLWxnIGJvcmRlciBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICA8aDQgY2xhc3NOYW1lPVwidGV4dC1zbSBmb250LXNlbWlib2xkIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwIG1iLTNcIj5NZW1vcnkgRm9yZWNhc3Q8L2g0PlxyXG4gICAgICAgICAgICAgICAgICAgIDxSZXNwb25zaXZlQ29udGFpbmVyIHdpZHRoPVwiMTAwJVwiIGhlaWdodD17MTUwfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPExpbmVDaGFydCBkYXRhPXtkYXRhLnByZWRpY3Rpb25zfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxDYXJ0ZXNpYW5HcmlkIHN0cm9rZURhc2hhcnJheT1cIjMgM1wiIHN0cm9rZT1cIiMzNzQxNTFcIiBvcGFjaXR5PXswLjJ9IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8WEF4aXMgZGF0YUtleT1cInRpbWVzdGFtcFwiIHRpY2s9e3sgZm9udFNpemU6IDEwLCBmaWxsOiAnIzljYTNhZicgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxZQXhpcyBkb21haW49e1swLCAxMDBdfSB0aWNrPXt7IGZvbnRTaXplOiAxMCwgZmlsbDogJyM5Y2EzYWYnIH19IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8VG9vbHRpcCBjb250ZW50U3R5bGU9e3sgYmFja2dyb3VuZENvbG9yOiAnIzFmMjkzNycgfX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxMaW5lIHR5cGU9XCJtb25vdG9uZVwiIGRhdGFLZXk9XCJtZW1vcnlfcHJlZGljdGlvblwiIHN0cm9rZT1cIiNhODU1ZjdcIiBzdHJva2VXaWR0aD17Mn0gZG90PXtmYWxzZX0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9MaW5lQ2hhcnQ+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9SZXNwb25zaXZlQ29udGFpbmVyPlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgKTtcclxufTtcclxuIl0sImZpbGUiOiJEOi9Eb3dubG9hZHMvZW50ZXJwcmlzZS1vbW5pLWFnZW50LWFpLXBsYXRmb3JtL2NvbXBvbmVudHMvUHJlZGljdGl2ZUhlYWx0aFRhYi50c3gifQ==

@@ -1,0 +1,61 @@
+﻿python : D:\Downloads
+\enterprise-omni-agen
+t-ai-platform\backend
+\agent_logic_service.
+py:2: FutureWarning: 
+At line:1 char:1
++ python backend/test
+_webhook_logic.py 
+2>&1 | Out-File 
+-FilePath test_r ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (D:\Down   
+ loads\en...Futur    
+eWarning: :Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+
+All support for the `
+google.generativeai` 
+package has ended. 
+It will no longer be 
+receiving 
+updates or bug 
+fixes. Please switch 
+to the 
+`google.genai` 
+package as soon as 
+possible.
+See README for more 
+details:
+
+https://github.com/go
+ogle-gemini/deprecate
+d-generative-ai-pytho
+n/blob/main/README.md
+
+  import 
+google.generativeai 
+as genai
+..
+---------------------
+---------------------
+---------------------
+-------
+Ran 2 tests in 0.013s
+
+OK
+[Test] Testing Jira Intent Parsing...
+[IntentParser] Dispatching task: install_software:Notepad++ to HR-WS-01
+[PASS] Jira Intent Parsing Test Passed!
+[Test] Testing Zoho Intent Parsing...
+[IntentParser] Dispatching task: set_env:JAVA_HOME=C:\Java to SRV-01
+[PASS] Zoho Intent Parsing Test Passed!

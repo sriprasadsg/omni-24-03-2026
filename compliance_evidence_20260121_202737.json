@@ -1,0 +1,2029 @@
+{
+  "meta": {
+    "generated_at": "2026-01-21T20:27:37.775414+00:00",
+    "system": "Enterprise Omni Agent Platform",
+    "version": "1.0.0"
+  },
+  "access_control": {
+    "users": [
+      {
+        "id": "user-51c1a054",
+        "email": "admin@exafluence.com",
+        "name": "Exafluence Admin",
+        "role": "Super Admin",
+        "tenantId": "tenant_exafluence",
+        "status": "Active",
+        "hashed_password": "$2b$12$Vpz3iYsiFqxQP14HuVEXT.2fhvqWcHLa3/4bML3949mQLVVC0DjoO"
+      },
+      {
+        "id": "user-93c5ed93-cfe4-4f98-a28d-8e42b62b512d",
+        "tenantId": "platform-admin",
+        "tenantName": "Platform",
+        "name": "Super Admin",
+        "email": "super@omni.ai",
+        "role": "superadmin",
+        "avatar": "https://i.pravatar.cc/150?u=super-admin",
+        "status": "Active",
+        "created_at": "2025-12-16T23:14:35.442250+00:00",
+        "hashed_password": "$2b$12$SFOB0eep6DsFXDI2bzK/cOn/MRWEEdAWuIZBeAL42Uyi2Z9aph7De",
+        "is_active": true,
+        "is_superuser": true
+      },
+      {
+        "id": "user_a374fb897f4f",
+        "email": "admin@acmecorp.com",
+        "name": "Admin",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_dd8832bfdb69",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2026-01-02T18:15:44.159552+00:00",
+        "updatedAt": "2026-01-02T18:15:44.159552+00:00"
+      },
+      {
+        "id": "user_5c775408d26e",
+        "email": "super_test@omni.ai",
+        "name": "Super Admin Test",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_5608c0a4890d",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2026-01-02T18:42:23.997284+00:00",
+        "updatedAt": "2026-01-02T18:42:23.997284+00:00"
+      },
+      {
+        "id": "user_bcfd4ca4fefc",
+        "email": "super_verifier@omni.ai",
+        "name": "Super Verifier",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_6da7a52e2aec",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2026-01-02T20:07:22.964153+00:00",
+        "updatedAt": "2026-01-02T20:07:22.964153+00:00"
+      },
+      {
+        "email": "admin@example.com",
+        "name": "Super Admin",
+        "role": "Super Admin",
+        "status": "Active",
+        "tenantId": "tenant_exafluence",
+        "tenantName": "Exafluence"
+      },
+      {
+        "id": "user_b56dbb1f9a36",
+        "email": "admin@sriprasad.com",
+        "name": "Admin",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_748b15753bed",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2026-01-06T07:41:05.661664+00:00",
+        "updatedAt": "2026-01-06T07:41:05.661664+00:00",
+        "permissions": {
+          "view:compliance": true
+        }
+      },
+      {
+        "id": "user_cda8b755f2ae",
+        "email": "test@test.com",
+        "name": "Test Admin",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_2a1354e1e71d",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2026-01-13T18:47:54.243049+00:00",
+        "updatedAt": "2026-01-13T18:47:54.243049+00:00"
+      },
+      {
+        "id": "user_c5a4b547ab71",
+        "email": "agent_fresh_123@omni.ai",
+        "name": "Agent Tester",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_ee2fc73454cd",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2026-01-16T11:42:26.806722+00:00",
+        "updatedAt": "2026-01-16T11:42:26.806722+00:00"
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-super-admin",
+        "name": "Super Admin",
+        "description": "Has all permissions across all tenants.",
+        "permissions": [
+          "view:dashboard",
+          "view:cxo_dashboard",
+          "view:reporting",
+          "export:reports",
+          "view:agents",
+          "view:software_deployment",
+          "view:agent_logs",
+          "remediate:agents",
+          "view:assets",
+          "view:patching",
+          "manage:patches",
+          "view:security",
+          "manage:security_cases",
+          "manage:security_playbooks",
+          "investigate:security",
+          "view:compliance",
+          "manage:compliance_evidence",
+          "view:ai_governance",
+          "manage:ai_risks",
+          "manage:settings",
+          "manage:tenants",
+          "view:cloud_security",
+          "view:finops",
+          "view:audit_log",
+          "manage:rbac",
+          "manage:api_keys",
+          "view:logs",
+          "view:threat_hunting",
+          "view:profile",
+          "view:automation",
+          "manage:automation",
+          "view:devsecops",
+          "view:developer_hub",
+          "view:insights",
+          "view:tracing",
+          "view:dspm",
+          "view:attack_path",
+          "view:service_catalog",
+          "view:dora_metrics",
+          "view:chaos",
+          "view:network",
+          "manage:pricing",
+          "view:software_updates"
+        ],
+        "isCustom": false,
+        "isEditable": false,
+        "tenantId": "platform"
+      },
+      {
+        "name": "Tenant Admin",
+        "description": "Administrator for a specific tenant with full permissions except cross-tenant management.",
+        "id": "role-tenant-admin",
+        "isEditable": false,
+        "permissions": [
+          "view:dashboard",
+          "view:cxo_dashboard",
+          "view:reporting",
+          "export:reports",
+          "view:agents",
+          "view:software_deployment",
+          "view:agent_logs",
+          "remediate:agents",
+          "view:assets",
+          "view:patching",
+          "manage:patches",
+          "view:security",
+          "manage:security_cases",
+          "investigate:security",
+          "view:compliance",
+          "manage:compliance_evidence",
+          "view:ai_governance",
+          "manage:ai_risks",
+          "manage:settings",
+          "view:cloud_security",
+          "view:finops",
+          "view:audit_log",
+          "manage:rbac",
+          "manage:api_keys",
+          "view:logs",
+          "view:profile",
+          "view:automation",
+          "manage:automation",
+          "view:devsecops",
+          "view:insights",
+          "view:software_updates"
+        ],
+        "tenantId": "all"
+      }
+    ],
+    "summary": "Found 9 users and 2 defined roles."
+  },
+  "assets": {
+    "total_assets": 1,
+    "fully_patched_count": 1,
+    "patch_compliance_rate": "100.0%",
+    "assets": [
+      {
+        "tenantId": "tenant_82dda0f33bc4",
+        "id": "agent-EILT0197",
+        "agentCapabilities": [
+          "metrics_collection",
+          "log_collection",
+          "fim",
+          "vulnerability_scanning",
+          "compliance_enforcement",
+          "runtime_security",
+          "predictive_health",
+          "ueba",
+          "sbom_analysis",
+          "ebpf_tracing",
+          "system_patching",
+          "software_management",
+          "remote_access",
+          "network_discovery",
+          "agent_update",
+          "patch_installer",
+          "process_injection_simulation",
+          "persistence_detection"
+        ],
+        "agentId": "agent-EILT0197",
+        "cpuModel": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel (16 cores, 16 threads)",
+        "criticalFiles": [],
+        "disks": [
+          {
+            "device": "C:\\",
+            "mountpoint": "C:\\",
+            "fstype": "NTFS",
+            "total": "225.3 GB",
+            "used": "196.8 GB",
+            "usedPercent": 87.4
+          },
+          {
+            "device": "D:\\",
+            "mountpoint": "D:\\",
+            "fstype": "NTFS",
+            "total": "218.4 GB",
+            "used": "208.1 GB",
+            "usedPercent": 95.3
+          }
+        ],
+        "hostname": "EILT0197",
+        "installedSoftware": [
+          {
+            "name": "Windows Driver Package - HP Inc. BrFilter_4_4_26_1391 ActivityMonitor  (07/23/2025 4.4.26.1391)",
+            "version": "07/23/2025 4.4.26.1391",
+            "installDate": null
+          },
+          {
+            "name": "Windows Driver Package - HP Inc. BrCow_4_4_26_1391 ActivityMonitor  (07/23/2025 4.4.26.1391)",
+            "version": "07/23/2025 4.4.26.1391",
+            "installDate": null
+          },
+          {
+            "name": "DBeaver 25.3.3",
+            "version": "25.3.3",
+            "installDate": null
+          },
+          {
+            "name": "Git",
+            "version": "2.52.0",
+            "installDate": "2025-11-20"
+          },
+          {
+            "name": "HP Documentation",
+            "version": "1.0.0.1",
+            "installDate": null
+          },
+          {
+            "name": "Notepad++ (64-bit x64)",
+            "version": "8.9",
+            "installDate": null
+          },
+          {
+            "name": "Microsoft 365 Apps for business - en-us",
+            "version": "16.0.19530.20144",
+            "installDate": null
+          },
+          {
+            "name": "Microsoft OneDrive",
+            "version": "25.238.1204.0001",
+            "installDate": null
+          },
+          {
+            "name": "Microsoft OneNote - en-us",
+            "version": "16.0.19530.20144",
+            "installDate": null
+          },
+          {
+            "name": "Universal CRT Tools x64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "HP Wolf Security Application Support for Sure Sense",
+            "version": "4.4.26.1391",
+            "installDate": "2025-08-06"
+          },
+          {
+            "name": "Python 3.11.0 pip Bootstrap (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Canon G600 series Driver",
+            "version": "1.02",
+            "installDate": null
+          },
+          {
+            "name": "FortiClient VPN",
+            "version": "7.4.3.8758",
+            "installDate": "2025-12-22"
+          },
+          {
+            "name": "Python 3.11.0 Core Interpreter (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Windows Subsystem for Linux",
+            "version": "2.5.10.0",
+            "installDate": "2025-08-14"
+          },
+          {
+            "name": "HP Sure Run Module",
+            "version": "5.0.5.81",
+            "installDate": "2025-06-05"
+          },
+          {
+            "name": "MongoDB 8.0.17 2008R2Plus SSL (64 bit)",
+            "version": "8.0.17",
+            "installDate": "2025-12-24"
+          },
+          {
+            "name": "Windows App Certification Kit Native Components",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Poly Camera Pro Compatibility Add-on",
+            "version": "1.0.1.13203",
+            "installDate": "2025-06-05"
+          },
+          {
+            "name": "Poly Studio",
+            "version": "5.0.0.160",
+            "installDate": "2026-01-12"
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.50.35719",
+            "version": "14.50.35719",
+            "installDate": "2025-11-26"
+          },
+          {
+            "name": "Poly Lens Control Service",
+            "version": "5.0.70",
+            "installDate": "2026-01-12"
+          },
+          {
+            "name": "Windows SDK DirectX x64 Remote",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "MongoDB Shell",
+            "version": "2.5.7",
+            "installDate": "2025-09-04"
+          },
+          {
+            "name": "GitHub CLI",
+            "version": "2.83.2",
+            "installDate": "2025-12-19"
+          },
+          {
+            "name": "Go Programming Language amd64 go1.25.6",
+            "version": "1.25.6",
+            "installDate": "2026-01-20"
+          },
+          {
+            "name": "Microsoft Visual Studio Installer",
+            "version": "3.14.2084.208",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Python 3.11.0 Tcl/Tk Support (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Python 3.11.0 Development Libraries (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "HP Sure Recover",
+            "version": "10.1.26.255",
+            "installDate": "2025-07-01"
+          },
+          {
+            "name": "MongoDB 8.2.2 2008R2Plus SSL (64 bit)",
+            "version": "8.2.2",
+            "installDate": "2026-01-02"
+          },
+          {
+            "name": "HP Wolf Security Application Support for Chrome 136.0.7103.178",
+            "version": "4.4.25.2040",
+            "installDate": "2025-07-30"
+          },
+          {
+            "name": "Office 16 Click-to-Run Extensibility Component",
+            "version": "16.0.19426.20170",
+            "installDate": "2026-01-12"
+          },
+          {
+            "name": "Microsoft Teams Meeting Add-in for Microsoft Office",
+            "version": "1.25.28902",
+            "installDate": "2025-11-29"
+          },
+          {
+            "name": "Python 3.11.0 Add to Path (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.50.35719",
+            "version": "14.50.35719",
+            "installDate": "2025-11-26"
+          },
+          {
+            "name": "Webex",
+            "version": "43.10.0.28042",
+            "installDate": "2025-10-15"
+          },
+          {
+            "name": "Epson Customer Research Participation",
+            "version": "1.83.0000",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Python 3.11.0 Executables (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Microsoft Visual C++ 2019 X64 Debug Runtime - 14.29.30157",
+            "version": "14.29.30157",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Python 3.11.0 Utility Scripts (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Python 3.11.0 Standard Library (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Node.js",
+            "version": "22.21.1",
+            "installDate": "2025-11-03"
+          },
+          {
+            "name": "Python 3.11.0 Documentation (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Python 3.11.0 Test Suite (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06"
+          },
+          {
+            "name": "Application Verifier x64 External Package",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Google Chrome",
+            "version": "144.0.7559.60",
+            "installDate": "2026-01-19"
+          },
+          {
+            "name": "Visual Studio Build Tools 2019",
+            "version": "16.11.49",
+            "installDate": "2025-08-06"
+          },
+          {
+            "name": "Canon IJ Printer Assistant Tool",
+            "version": "1.90.3.36",
+            "installDate": null
+          },
+          {
+            "name": "Canon IJ Scan Utility",
+            "version": "1.6.1.2",
+            "installDate": null
+          },
+          {
+            "name": "Cisco Secure Client - AnyConnect VPN ",
+            "version": "5.1.10.233",
+            "installDate": null
+          },
+          {
+            "name": "FileZilla 3.69.5",
+            "version": "3.69.5",
+            "installDate": null
+          },
+          {
+            "name": "Microsoft Edge WebView2 Runtime",
+            "version": "144.0.3719.82",
+            "installDate": "2026-01-19"
+          },
+          {
+            "name": "Epson L3110 User\u2019s Guide",
+            "version": "1.0",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Universal CRT Redistributable",
+            "version": "10.0.26624",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Tools x86",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense Mobile - en-us",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual C++ v14 Redistributable (x86) - 14.50.35719",
+            "version": "14.50.35719.0",
+            "installDate": null
+          },
+          {
+            "name": "Easy Photo Scan",
+            "version": "1.00.0019",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Windows IoT Extension SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows Desktop Extension SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense UAP - en-us",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "HP Notifications",
+            "version": "1.1.31.56",
+            "installDate": "2025-06-05"
+          },
+          {
+            "name": "Windows SDK Desktop Headers arm64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Tools arm64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Tools x64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Signing Tools",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense Desktop - Other Languages",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Universal CRT Extension SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows App Certification Kit SupportedApiList x86",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "SDK ARM Additions",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Redistributables",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows Team Extension SDK Contracts",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "MSI Development Tools",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinAppDeploy",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 X86 Minimum Runtime - 14.50.35719",
+            "version": "14.50.35719",
+            "installDate": "2025-11-26"
+          },
+          {
+            "name": "Windows Software Development Kit - Windows 10.0.19041.5609",
+            "version": "10.1.19041.5609",
+            "installDate": null
+          },
+          {
+            "name": "Windows SDK Modern Versioned Developer Tools",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "HP Connection Optimizer",
+            "version": "2.0.20.0",
+            "installDate": "2025-06-05"
+          },
+          {
+            "name": "Python Launcher",
+            "version": "3.13.5150.0",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual Studio Setup Configuration",
+            "version": "3.7.2182.35401",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "ManageEngine UEMS - Agent",
+            "version": "11.4.2528.18.W",
+            "installDate": "2025-11-14"
+          },
+          {
+            "name": "Universal CRT Headers Libraries and Sources",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Epson Easy Photo Print 2",
+            "version": "2.8.3.0",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Microsoft Visual C++ 2005 Redistributable",
+            "version": "8.0.61001",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 X86 Additional Runtime - 14.50.35719",
+            "version": "14.50.35719",
+            "installDate": "2025-11-26"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Modern Non-Versioned Developer Tools",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense Desktop - en-us",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps Metadata",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Wazuh Agent",
+            "version": "4.12.0",
+            "installDate": "2025-08-05"
+          },
+          {
+            "name": "LocalServiceComponents",
+            "version": "1.0.0.114",
+            "installDate": "2025-09-15"
+          },
+          {
+            "name": "Windows SDK Desktop Libs x86",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Edge",
+            "version": "144.0.3719.82",
+            "installDate": "2025-11-12"
+          },
+          {
+            "name": "Kits Configuration Installer",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps Libs",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Headers arm",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK DirectX x86 Remote",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps Contracts",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual C++ v14 Redistributable (x64) - 14.50.35719",
+            "version": "14.50.35719.0",
+            "installDate": null
+          },
+          {
+            "name": "HP PC Hardware Diagnostics UEFI",
+            "version": "10.8.0.0",
+            "installDate": "2025-08-04"
+          },
+          {
+            "name": "Microsoft Visual C++ 2008 Redistributable - x86 9.0.30729.17",
+            "version": "9.0.30729",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps Headers",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual C++ 2008 Redistributable - x86 9.0.30729.6161",
+            "version": "9.0.30729.6161",
+            "installDate": "2025-09-03"
+          },
+          {
+            "name": "Windows SDK Desktop Headers x86",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Cisco Secure Client - AnyConnect VPN",
+            "version": "5.1.10.233",
+            "installDate": "2025-10-10"
+          },
+          {
+            "name": "Windows SDK Desktop Headers x64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows Team Extension SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps Tools",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "vs_FileTracker_Singleton",
+            "version": "16.11.34827",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK for Windows Store Apps DirectX x86 Remote",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Web Plugins",
+            "version": "4.0.2411.1",
+            "installDate": "2025-12-30"
+          },
+          {
+            "name": "Cisco Secure Client - Diagnostics and Reporting Tool",
+            "version": "5.1.10.233",
+            "installDate": "2025-08-21"
+          },
+          {
+            "name": "WinRT Intellisense UAP - Other Languages",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "EPSON Scan OCR Component",
+            "version": "3.00.06",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Windows IoT Extension SDK Contracts",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual C++ 2019 X86 Debug Runtime - 14.29.30157",
+            "version": "14.29.30157",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Libs arm64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Libs arm",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense IoT - en-us",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Universal General MIDI DLS Extension SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Epson Event Manager",
+            "version": "3.11.82",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "Windows Desktop Extension SDK Contracts",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows Mobile Extension SDK",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "HP System Default Settings",
+            "version": "1.5.5.1",
+            "installDate": "2025-06-05"
+          },
+          {
+            "name": "Windows SDK Facade Windows WinMD Versioned",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows Mobile Extension SDK Contracts",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK EULA",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "vcpp_crt.redist.clickonce",
+            "version": "14.29.30157",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK Desktop Libs x64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Microsoft Visual Studio Setup WMI Provider",
+            "version": "3.7.2182.35401",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK AddOn",
+            "version": "10.1.0.0",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense IoT - Other Languages",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense PPI - en-us",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK for Windows Store Managed Apps Libs",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "WinRT Intellisense PPI - Other Languages",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Epson Software Updater",
+            "version": "4.6.9",
+            "installDate": "2025-09-01"
+          },
+          {
+            "name": "SDK ARM Redistributables",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows App Certification Kit x64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Windows SDK ARM Desktop Tools",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          },
+          {
+            "name": "Universal CRT Tools x86",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07"
+          }
+        ],
+        "ipAddress": "192.168.30.162",
+        "kernel": "10.0.26200",
+        "lastScanned": "2026-01-20T17:39:25.261044+00:00",
+        "lastSeen": "2026-01-20T17:39:25.261044+00:00",
+        "macAddress": "16:58:60:81:04:12",
+        "managed": true,
+        "osName": "Windows",
+        "osVersion": "10.0.26200",
+        "ram": "31.4 GB",
+        "serialNumber": "SN-EILT0197",
+        "status": "active",
+        "type": "server",
+        "vulnerabilities": []
+      }
+    ]
+  },
+  "audit_logs": {
+    "count": 89,
+    "logs": [
+      {
+        "id": "audit-1768910561.67366",
+        "timestamp": "2026-01-20T17:32:41.673660",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768903361.643387",
+        "timestamp": "2026-01-20T15:32:41.643387",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768899761.659374",
+        "timestamp": "2026-01-20T14:32:41.659374",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768896161.656417",
+        "timestamp": "2026-01-20T13:32:41.656417",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768892561.665443",
+        "timestamp": "2026-01-20T12:32:41.665443",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768888961.66635",
+        "timestamp": "2026-01-20T11:32:41.666350",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768885361.663397",
+        "timestamp": "2026-01-20T10:32:41.663397",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768881761.678836",
+        "timestamp": "2026-01-20T09:32:41.678836",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768878161.708892",
+        "timestamp": "2026-01-20T08:32:41.708892",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768834310.381045",
+        "timestamp": "2026-01-19T20:21:50.381045",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768805081.911652",
+        "timestamp": "2026-01-19T12:14:41.911652",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768796124.271461",
+        "timestamp": "2026-01-19T09:45:24.271461",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768792523.527163",
+        "timestamp": "2026-01-19T08:45:23.527163",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768558705.149379",
+        "timestamp": "2026-01-16T15:48:25.149379",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768555105.151681",
+        "timestamp": "2026-01-16T14:48:25.151681",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768551505.141242",
+        "timestamp": "2026-01-16T13:48:25.141242",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768547905.126069",
+        "timestamp": "2026-01-16T12:48:25.126069",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768544305.144007",
+        "timestamp": "2026-01-16T11:48:25.144007",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768540705.132584",
+        "timestamp": "2026-01-16T10:48:25.132584",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768537105.131882",
+        "timestamp": "2026-01-16T09:48:25.131882",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768533505.160286",
+        "timestamp": "2026-01-16T08:48:25.160286",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768320490.618681",
+        "timestamp": "2026-01-13T21:38:10.618681",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768316890.633925",
+        "timestamp": "2026-01-13T20:38:10.633925",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768313290.65434",
+        "timestamp": "2026-01-13T19:38:10.654340",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768300066.400456",
+        "timestamp": "2026-01-13T15:57:46.400456",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 5/5 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768296466.404599",
+        "timestamp": "2026-01-13T14:57:46.404599",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 5/5 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768292866.388247",
+        "timestamp": "2026-01-13T13:57:46.388247",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 5/5 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768289266.393109",
+        "timestamp": "2026-01-13T12:57:46.393109",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768285666.395204",
+        "timestamp": "2026-01-13T11:57:46.395204",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768279582.13573",
+        "timestamp": "2026-01-13T10:16:22.135730",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768275982.135453",
+        "timestamp": "2026-01-13T09:16:22.135453",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768272382.162409",
+        "timestamp": "2026-01-13T08:16:22.162409",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768228497.389594",
+        "timestamp": "2026-01-12T20:04:57.389594",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768215604.138787",
+        "timestamp": "2026-01-12T16:30:04.138787",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768212004.1833",
+        "timestamp": "2026-01-12T15:30:04.183300",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1768196648.788068",
+        "timestamp": "2026-01-12T11:14:08.788068",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767780194.515566",
+        "timestamp": "2026-01-07T15:33:14.515566",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767776594.485713",
+        "timestamp": "2026-01-07T14:33:14.485713",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767772994.499816",
+        "timestamp": "2026-01-07T13:33:14.499816",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767769394.483353",
+        "timestamp": "2026-01-07T12:33:14.483353",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767765794.502275",
+        "timestamp": "2026-01-07T11:33:14.502275",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767762194.522404",
+        "timestamp": "2026-01-07T10:33:14.522404",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767758594.501615",
+        "timestamp": "2026-01-07T09:33:14.501615",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767754994.520543",
+        "timestamp": "2026-01-07T08:33:14.520543",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767711492.875335",
+        "timestamp": "2026-01-06T20:28:12.875335",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767701911.84649",
+        "timestamp": "2026-01-06T17:48:31.846490",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767693411.81014",
+        "timestamp": "2026-01-06T15:26:51.810140",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767685139.498555",
+        "timestamp": "2026-01-06T13:08:59.498555",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767681539.600638",
+        "timestamp": "2026-01-06T12:08:59.600638",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767677939.547722",
+        "timestamp": "2026-01-06T11:08:59.548723",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767674339.524872",
+        "timestamp": "2026-01-06T10:08:59.524872",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767667498.963071",
+        "timestamp": "2026-01-06T08:14:58.963071",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 9/9 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767636722.379472",
+        "timestamp": "2026-01-05T23:42:02.379472",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767633122.28778",
+        "timestamp": "2026-01-05T22:42:02.287780",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767624430.573822",
+        "timestamp": "2026-01-05T20:17:10.573822",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767620830.566301",
+        "timestamp": "2026-01-05T19:17:10.566301",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767605599.184906",
+        "timestamp": "2026-01-05T15:03:19.184906",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767605056.417464",
+        "timestamp": "2026-01-05T14:54:16.417464",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767601999.18447",
+        "timestamp": "2026-01-05T14:03:19.184470",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767601456.459916",
+        "timestamp": "2026-01-05T13:54:16.459916",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767598399.192104",
+        "timestamp": "2026-01-05T13:03:19.192104",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767597856.440997",
+        "timestamp": "2026-01-05T12:54:16.440997",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767594799.215177",
+        "timestamp": "2026-01-05T12:03:19.215177",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767594256.45417",
+        "timestamp": "2026-01-05T11:54:16.454170",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767591199.222622",
+        "timestamp": "2026-01-05T11:03:19.223623",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767590656.441764",
+        "timestamp": "2026-01-05T10:54:16.441764",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767587599.206858",
+        "timestamp": "2026-01-05T10:03:19.206858",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767587056.454009",
+        "timestamp": "2026-01-05T09:54:16.454009",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767583999.22739",
+        "timestamp": "2026-01-05T09:03:19.227390",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767583456.447989",
+        "timestamp": "2026-01-05T08:54:16.447989",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 8/8 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767579036.206451",
+        "timestamp": "2026-01-05T07:40:36.206451",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767575436.193629",
+        "timestamp": "2026-01-05T06:40:36.193629",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767571836.584885",
+        "timestamp": "2026-01-05T05:40:36.584885",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 7/7 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767360260.479712",
+        "timestamp": "2026-01-02T18:54:20.479712",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 6/6 tenants",
+        "success": true
+      },
+      {
+        "id": "audit-1767350923.134786",
+        "timestamp": "2026-01-02T16:18:43.134786",
+        "action": "finops_recalculation",
+        "userName": "System Scheduler",
+        "userId": "system",
+        "tenantId": "platform-admin",
+        "details": "Recalculated finOps for 4/4 tenants",
+        "success": true
+      },
+      {
+        "timestamp": "2025-12-15T21:12:04.446594",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:12:04.446594",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:11:19.082417",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:11:19.081412",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:07:31.535684",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:07:31.535684",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:06:33.046503",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:06:33.040286",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-11T14:54:56.224982",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "b3f61dc0-e53a-4cb0-91b1-3a6c374ca277",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-42d64706_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T14:53:21.183769",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "c0382e19-c973-428b-9bf2-a5b5f625a9b8",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-bcbac0a5_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T13:47:16.812823",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "1db0d201-af6c-4b46-825e-88c3e724a8a7",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-843a0775_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T13:31:04.121348",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "149b191d-11c2-4bb7-bd71-1ef92965b1e2",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-bcbac0a5_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T13:29:55.186061",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "9eaa954c-055f-450c-90de-49179d801eb2",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-843a0775_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-10T20:38:51.204981",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "86b8bbac-ddad-4c33-9d5d-f96534599d43",
+        "details": {
+          "source": "verify_script",
+          "content_snippet": "Audit Log Test Entry"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      }
+    ]
+  },
+  "vulnerabilities": {
+    "total_open": 10,
+    "critical_open": 3,
+    "details": [
+      {
+        "id": "vuln-0",
+        "assetId": "asset-test-0",
+        "cveId": "CVE-2023-9012",
+        "detectedAt": "2026-01-13T18:39:53.380355",
+        "severity": "Medium",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Information Disclosure"
+      },
+      {
+        "id": "vuln-1",
+        "assetId": "asset-test-3",
+        "cveId": "CVE-2023-1234",
+        "detectedAt": "2026-01-13T18:39:53.381500",
+        "severity": "Critical",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Remote Code Execution"
+      },
+      {
+        "id": "vuln-2",
+        "assetId": "asset-test-3",
+        "cveId": "CVE-2023-9012",
+        "detectedAt": "2026-01-13T18:39:53.382594",
+        "severity": "Medium",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Information Disclosure"
+      },
+      {
+        "id": "vuln-3",
+        "assetId": "asset-test-2",
+        "cveId": "CVE-2023-1234",
+        "detectedAt": "2026-01-13T18:39:53.383602",
+        "severity": "Critical",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Remote Code Execution"
+      },
+      {
+        "id": "vuln-4",
+        "assetId": "asset-test-0",
+        "cveId": "CVE-2023-9012",
+        "detectedAt": "2026-01-13T18:39:53.384596",
+        "severity": "Medium",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Information Disclosure"
+      },
+      {
+        "id": "vuln-5",
+        "assetId": "asset-test-4",
+        "cveId": "CVE-2023-5678",
+        "detectedAt": "2026-01-13T18:39:53.385599",
+        "severity": "High",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Privilege Escalation"
+      },
+      {
+        "id": "vuln-6",
+        "assetId": "asset-test-2",
+        "cveId": "CVE-2023-9012",
+        "detectedAt": "2026-01-13T18:39:53.386602",
+        "severity": "Medium",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Information Disclosure"
+      },
+      {
+        "id": "vuln-7",
+        "assetId": "asset-test-1",
+        "cveId": "CVE-2023-9012",
+        "detectedAt": "2026-01-13T18:39:53.387591",
+        "severity": "Medium",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Information Disclosure"
+      },
+      {
+        "id": "vuln-8",
+        "assetId": "asset-test-4",
+        "cveId": "CVE-2023-9012",
+        "detectedAt": "2026-01-13T18:39:53.388614",
+        "severity": "Medium",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Information Disclosure"
+      },
+      {
+        "id": "vuln-9",
+        "assetId": "asset-test-2",
+        "cveId": "CVE-2023-1234",
+        "detectedAt": "2026-01-13T18:39:53.389504",
+        "severity": "Critical",
+        "status": "Open",
+        "tenantId": "tenant_exafluence",
+        "title": "Remote Code Execution"
+      }
+    ]
+  },
+  "dpdp": {
+    "consent_records_count": 0,
+    "retention_policy_active": false,
+    "breach_notification_enabled": false,
+    "data_fiduciary_status": "Significant"
+  }
+}

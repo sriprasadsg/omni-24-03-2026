@@ -1,0 +1,103 @@
+Control ID,Name,Category,Status,Evidence Count,Last Reviewed
+GV.OC-1,Organizational Context,Govern,Implemented,0,2024-01-01
+GV.OC-2,Internal Context,Govern,Implemented,0,2024-01-01
+GV.OC-3,Critical Objectives,Govern,Implemented,0,2024-01-01
+GV.OC-4,Risk Determination,Govern,In Progress,0,2024-01-01
+GV.OC-5,Outcomes Reporting,Govern,Implemented,0,2024-01-01
+GV.RM-1,Risk Management Strategy,Govern,Implemented,0,2024-01-02
+GV.RM-2,Risk Appetite,Govern,Implemented,0,2024-01-02
+GV.RM-3,Risk Determination Factors,Govern,At Risk,0,2024-01-02
+GV.RR-1,Roles and Responsibilities,Govern,Implemented,0,2024-01-03
+GV.RR-2,Responsibility Assignment,Govern,Implemented,0,2024-01-03
+GV.RR-3,Authority,Govern,In Progress,0,2024-01-03
+GV.RR-4,Policy,Govern,Implemented,0,2024-01-04
+GV.PO-1,Policy Establishment,Govern,Implemented,0,2024-01-05
+GV.PO-2,Policy Maintenance,Govern,Implemented,0,2024-01-05
+GV.SC-1,Supply Chain Risk Management,Govern,In Progress,0,2024-01-06
+GV.SC-2,Supplier Relationships,Govern,At Risk,0,2024-01-06
+ID.AM-1,Asset Management,Identify,Implemented,1,2023-10-05
+ID.AM-2,Software Inventory,Identify,Implemented,0,2023-10-06
+ID.AM-3,Organizational Communication,Identify,At Risk,0,2024-01-07
+ID.AM-4,External Dependencies,Identify,In Progress,0,2024-01-07
+ID.AM-5,Resource Priority,Identify,Implemented,0,2024-01-08
+ID.AM-7,Software Supply Chain,Identify,Implemented,0,2024-01-08
+ID.AM-8,Systems Integration,Identify,In Progress,0,2024-01-09
+ID.RA-1,Risk Assessment,Identify,At Risk,0,2023-10-07
+ID.RA-2,Threat Intelligence,Identify,Implemented,0,2023-10-07
+ID.RA-3,Threat and Vulnerability Info,Identify,Implemented,0,2024-01-10
+ID.RA-4,Impact Analysis,Identify,In Progress,0,2024-01-10
+ID.RA-5,Risk Response,Identify,At Risk,0,2024-01-11
+ID.RA-6,Risk Responses,Identify,In Progress,0,2024-01-11
+ID.RA-7,Risk Communication,Identify,Implemented,0,2024-01-12
+ID.RA-8,Risk Improvement,Identify,In Progress,0,2024-01-12
+ID.IM-1,Improvement Activities,Identify,Implemented,0,2024-01-13
+ID.IM-2,Response and Recovery,Identify,In Progress,0,2024-01-13
+ID.GV-1,Governance,Identify,Implemented,0,2023-10-08
+PR.AA-1,Identity Management,Protect,Implemented,0,2024-01-14
+PR.AA-2,Identity Provisioning,Protect,Implemented,0,2024-01-14
+PR.AA-3,Multi-Factor Authentication,Protect,Implemented,0,2024-01-15
+PR.AA-4,Identity Assertions,Protect,In Progress,0,2024-01-15
+PR.AA-5,Access Review,Protect,Implemented,0,2024-01-16
+PR.AA-6,Physical Access,Protect,Implemented,0,2024-01-16
+PR.AC-1,Access Control,Protect,Implemented,1,2023-10-08
+PR.AC-3,Remote Access,Protect,Implemented,1,2023-10-09
+PR.AC-4,Least Privilege,Protect,Implemented,1,2024-01-17
+PR.AC-5,Network Segregation,Protect,In Progress,1,2023-10-09
+PR.AT-1,Security Awareness,Protect,Implemented,0,2024-01-18
+PR.AT-2,Privileged User Training,Protect,Implemented,0,2024-01-18
+PR.DS-1,Data at Rest,Protect,Implemented,1,2023-10-10
+PR.DS-2,Data in Transit,Protect,Implemented,1,2023-10-11
+PR.DS-10,Data Integrity,Protect,Implemented,0,2024-01-19
+PR.DS-11,Data Disposal,Protect,In Progress,0,2024-01-19
+PR.IP-1,Configuration Baselines,Protect,In Progress,1,2023-10-11
+PR.IP-3,Configuration Change Control,Protect,In Progress,0,2024-01-20
+PR.IP-4,Backups,Protect,At Risk,0,2024-01-20
+PR.IP-8,Response Plans,Protect,Implemented,0,2024-01-21
+PR.IP-9,Response Plan Testing,Protect,Not Implemented,0,2024-01-21
+PR.IP-10,Recovery Plans,Protect,In Progress,0,2024-01-22
+PR.IP-11,Cybersecurity Integration,Protect,Implemented,0,2024-01-22
+PR.IP-12,Vulnerability Management,Protect,At Risk,0,2024-01-23
+PR.MA-1,Maintenance,Protect,In Progress,0,2024-01-24
+PR.MA-2,Remote Maintenance,Protect,Implemented,0,2024-01-24
+PR.PS-1,Media Protection,Protect,In Progress,0,2024-01-25
+PR.PT-1,Audit Logging,Protect,Implemented,0,2024-01-26
+PR.PT-3,Least Functionality,Protect,In Progress,0,2024-01-26
+PR.PT-4,Communication Protection,Protect,Implemented,0,2024-01-27
+PR.PT-5,Resilience Mechanisms,Protect,At Risk,0,2024-01-27
+DE.AE-1,Anomalies and Events,Detect,Implemented,1,2023-10-12
+DE.AE-2,Anomaly Detection,Detect,Implemented,0,2024-01-28
+DE.AE-3,Event Correlation,Detect,In Progress,0,2024-01-28
+DE.AE-4,Impact Determination,Detect,At Risk,0,2024-01-29
+DE.AE-6,Incident Response,Detect,Implemented,0,2024-01-29
+DE.AE-7,Threat Hunting,Detect,Not Implemented,0,2024-01-30
+DE.AE-8,Incident Declaration,Detect,Implemented,0,2024-01-30
+DE.CM-1,Security Monitoring,Detect,Implemented,1,2023-10-13
+DE.CM-2,Physical Environment,Detect,In Progress,0,2024-01-31
+DE.CM-3,Personnel Activity,Detect,Implemented,0,2024-01-31
+DE.CM-4,Malicious Code,Detect,Implemented,1,2024-02-01
+DE.CM-6,External Service Activity,Detect,At Risk,0,2024-02-01
+DE.CM-7,Monitoring for Malicious Code,Detect,Implemented,0,2023-10-13
+DE.CM-9,Computing Hardware,Detect,Implemented,0,2024-02-02
+RS.MA-1,Incident Investigation,Respond,Implemented,0,2024-02-03
+RS.MA-2,Incident Reporting,Respond,Implemented,0,2024-02-03
+RS.MA-3,Information Sharing,Respond,In Progress,0,2024-02-04
+RS.MA-4,Incident Resolution,Respond,Implemented,0,2024-02-04
+RS.MA-5,Evidence Collection,Respond,In Progress,0,2024-02-05
+RS.RP-1,Response Planning,Respond,Implemented,0,2023-10-14
+RS.CO-1,Investigation Communication,Respond,Implemented,0,2024-02-06
+RS.CO-2,Incident Information,Respond,Implemented,0,2024-02-06
+RS.CO-3,Information Sharing,Respond,In Progress,0,2024-02-07
+RS.AN-1,Analysis,Respond,In Progress,0,2023-10-15
+RS.AN-3,Impact Analysis,Respond,At Risk,0,2024-02-08
+RS.AN-4,Forensics,Respond,In Progress,0,2024-02-08
+RS.AN-6,Root Cause Analysis,Respond,In Progress,0,2024-02-09
+RS.AN-7,Vulnerability Analysis,Respond,At Risk,0,2024-02-09
+RS.MI-1,Mitigation,Respond,Implemented,0,2023-10-15
+RS.MI-2,Incident Mitigation,Respond,Implemented,0,2024-02-10
+RS.MI-3,Vulnerabilities,Respond,In Progress,0,2024-02-10
+RC.RP-1,Recovery Planning,Recover,Implemented,0,2023-10-15
+RC.CO-1,Recovery Communication,Recover,In Progress,0,2024-02-11
+RC.CO-2,Reputation Management,Recover,In Progress,0,2024-02-11
+RC.CO-3,Recovery Activities Communication,Recover,Implemented,0,2024-02-12
+RC.IM-1,Improvements,Recover,Not Implemented,0,2023-10-16
+RC.IM-2,Response and Recovery Update,Recover,In Progress,0,2024-02-12

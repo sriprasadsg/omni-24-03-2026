@@ -1,0 +1,4 @@
+Connecting to MongoDB at mongodb://127.0.0.1:27017
+Connected to REAL MongoDB at mongodb://127.0.0.1:27017
+Connected to database: omni_platform
+--- Finding Asset EILT0197 ---

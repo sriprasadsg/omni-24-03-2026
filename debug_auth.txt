@@ -1,0 +1,1 @@
+Auth Success: TokenData(username='super@omni.ai', role='Super Admin', tenant_id='platform-admin')

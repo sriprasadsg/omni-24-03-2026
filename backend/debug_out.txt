@@ -1,0 +1,7 @@
+Agent ID: agent-EILT0197
+Agent Found: Yes
+Asset ID: None
+Meta Keys: ['compliance_enforcement', 'os_version', 'installed_software']
+Asset Found: N/A
+Total Compliance Docs in DB: 55
+Docs for Asset ID 'EILT0197': 0

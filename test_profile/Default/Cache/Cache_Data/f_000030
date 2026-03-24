@@ -1,0 +1,539 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/ZeroTrustQuantumDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"]; const useEffect = __vite__cjsImport1_react["useEffect"];
+import { ShieldCheckIcon, ShieldAlertIcon, KeyIcon, AlertTriangleIcon } from "/components/icons.tsx";
+export const ZeroTrustQuantumDashboard = () => {
+  _s();
+  const [deviceScores, setDeviceScores] = useState([]);
+  const [sessionRisks, setSessionRisks] = useState([]);
+  const [cryptoInventory, setCryptoInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetchData();
+  }, []);
+  const fetchData = async () => {
+    try {
+      const [devicesRes, sessionsRes, cryptoRes] = await Promise.all(
+        [
+          fetch("http://localhost:5000/api/zero-trust/device-trust-scores"),
+          fetch("http://localhost:5000/api/zero-trust/session-risks"),
+          fetch("http://localhost:5000/api/quantum-security/cryptographic-inventory")
+        ]
+      );
+      setDeviceScores(await devicesRes.json());
+      setSessionRisks(await sessionsRes.json());
+      setCryptoInventory(await cryptoRes.json());
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching security data:", error);
+      setLoading(false);
+    }
+  };
+  const avgDeviceScore = deviceScores.reduce((sum, d) => sum + d.score, 0) / (deviceScores.length || 1);
+  const quantumVulnerableCount = cryptoInventory.filter((c) => c.quantumVulnerable).length;
+  if (loading) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "p-6", children: "Loading security metrics..." }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+      lineNumber: 37,
+      columnNumber: 12
+    }, this);
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "p-6 space-y-6", children: [
+    /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("h1", { className: "text-2xl font-bold text-gray-900 dark:text-white flex items-center", children: [
+        /* @__PURE__ */ jsxDEV(ShieldCheckIcon, { size: 28, className: "mr-3 text-blue-600" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 45,
+          columnNumber: 21
+        }, this),
+        "Zero Trust & Quantum-Ready Security"
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 44,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400 mt-1", children: "Continuous authentication, device trust, and post-quantum cryptography readiness" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 48,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+      lineNumber: 43,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: "Avg Device Trust" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 58,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-3xl font-bold text-gray-900 dark:text-white mt-1", children: [
+            avgDeviceScore.toFixed(0),
+            "%"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 59,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 57,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(ShieldCheckIcon, { size: 40, className: "text-green-600" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 63,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 56,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 55,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: "High-Risk Sessions" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 69,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-3xl font-bold text-gray-900 dark:text-white mt-1", children: sessionRisks.filter((s) => s.riskScore > 70).length }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 70,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 68,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(ShieldAlertIcon, { size: 40, className: "text-red-600" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 74,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 67,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 66,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: "Quantum Vulnerable" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 80,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-3xl font-bold text-gray-900 dark:text-white mt-1", children: [
+            quantumVulnerableCount,
+            "/",
+            cryptoInventory.length
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 81,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 79,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(KeyIcon, { size: 40, className: "text-orange-600" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 85,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 78,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 77,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+      lineNumber: 54,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white", children: "Device Trust Scores" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 95,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 94,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "divide-y divide-gray-200 dark:divide-gray-700", children: deviceScores.map(
+          (device) => /* @__PURE__ */ jsxDEV("div", { className: "p-4", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center mb-2", children: [
+              /* @__PURE__ */ jsxDEV("span", { className: "font-mono text-sm text-gray-900 dark:text-white", children: device.deviceId }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 101,
+                columnNumber: 37
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: /* @__PURE__ */ jsxDEV("div", { className: `text-lg font-bold ${device.score >= 90 ? "text-green-600" : device.score >= 70 ? "text-yellow-600" : "text-red-600"}`, children: [
+                device.score,
+                "%"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 103,
+                columnNumber: 41
+              }, this) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 102,
+                columnNumber: 37
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 100,
+              columnNumber: 33
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3", children: /* @__PURE__ */ jsxDEV(
+              "div",
+              {
+                className: `h-2 rounded-full ${device.score >= 90 ? "bg-green-600" : device.score >= 70 ? "bg-yellow-600" : "bg-red-600"}`,
+                style: { width: `${device.score}%` }
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 112,
+                columnNumber: 37
+              },
+              this
+            ) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 111,
+              columnNumber: 33
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-2 text-xs", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: `flex items-center ${device.factors.osPatched ? "text-green-600" : "text-red-600"}`, children: [
+                device.factors.osPatched ? "✓" : "✗",
+                " OS Patched"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 121,
+                columnNumber: 37
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: `flex items-center ${device.factors.antivirusActive ? "text-green-600" : "text-red-600"}`, children: [
+                device.factors.antivirusActive ? "✓" : "✗",
+                " Antivirus"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 124,
+                columnNumber: 37
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: `flex items-center ${device.factors.diskEncrypted ? "text-green-600" : "text-red-600"}`, children: [
+                device.factors.diskEncrypted ? "✓" : "✗",
+                " Encrypted"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 127,
+                columnNumber: 37
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: `flex items-center ${device.factors.compliantLocation ? "text-green-600" : "text-red-600"}`, children: [
+                device.factors.compliantLocation ? "✓" : "✗",
+                " Location"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 130,
+                columnNumber: 37
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 120,
+              columnNumber: 33
+            }, this)
+          ] }, device.deviceId, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 99,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 97,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 93,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white", children: "Active Session Risks" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 142,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 141,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "divide-y divide-gray-200 dark:divide-gray-700", children: sessionRisks.map(
+          (session) => /* @__PURE__ */ jsxDEV("div", { className: "p-4", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center mb-2", children: [
+              /* @__PURE__ */ jsxDEV("div", { children: [
+                /* @__PURE__ */ jsxDEV("span", { className: "font-mono text-sm text-gray-900 dark:text-white", children: session.userId }, void 0, false, {
+                  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                  lineNumber: 149,
+                  columnNumber: 41
+                }, this),
+                /* @__PURE__ */ jsxDEV("span", { className: "ml-2 text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700", children: session.authLevel }, void 0, false, {
+                  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                  lineNumber: 150,
+                  columnNumber: 41
+                }, this)
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 148,
+                columnNumber: 37
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: `text-lg font-bold ${session.riskScore < 30 ? "text-green-600" : session.riskScore < 60 ? "text-yellow-600" : "text-red-600"}`, children: session.riskScore }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 154,
+                columnNumber: 37
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 147,
+              columnNumber: 33
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "mt-2 flex flex-wrap gap-2", children: [
+              session.factors.unusualLocation && /* @__PURE__ */ jsxDEV("span", { className: "text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded", children: "Unusual Location" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 163,
+                columnNumber: 17
+              }, this),
+              session.factors.unusualTime && /* @__PURE__ */ jsxDEV("span", { className: "text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded", children: "Unusual Time" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 168,
+                columnNumber: 17
+              }, this),
+              session.factors.newDevice && /* @__PURE__ */ jsxDEV("span", { className: "text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded", children: "New Device" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 173,
+                columnNumber: 17
+              }, this),
+              session.factors.suspiciousActivity && /* @__PURE__ */ jsxDEV("span", { className: "text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded", children: "Suspicious Activity" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+                lineNumber: 178,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 161,
+              columnNumber: 33
+            }, this)
+          ] }, session.sessionId, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 146,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 144,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 140,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+      lineNumber: 91,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-semibold text-gray-900 dark:text-white", children: "Cryptographic Inventory" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 193,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400", children: "Post-quantum migration readiness" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 194,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 192,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 20, className: "text-orange-600" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 197,
+            columnNumber: 25
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "text-sm text-orange-600 font-semibold", children: [
+            quantumVulnerableCount,
+            " algorithms vulnerable to quantum attacks"
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 198,
+            columnNumber: 25
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 196,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 191,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "w-full text-sm", children: [
+        /* @__PURE__ */ jsxDEV("thead", { className: "bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-700 dark:text-gray-400", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left", children: "Algorithm" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 207,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left", children: "Usage" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 208,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-center", children: "Quantum Vulnerable" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 209,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-center", children: "Priority" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 210,
+            columnNumber: 33
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left", children: "Replacement" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 211,
+            columnNumber: 33
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 206,
+          columnNumber: 29
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 205,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("tbody", { className: "divide-y divide-gray-200 dark:divide-gray-700", children: cryptoInventory.map(
+          (item) => /* @__PURE__ */ jsxDEV("tr", { className: "hover:bg-gray-50 dark:hover:bg-gray-700/50", children: [
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 font-mono text-gray-900 dark:text-white", children: item.algorithm }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 217,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 text-gray-600 dark:text-gray-400", children: item.usage }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 218,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 text-center", children: item.quantumVulnerable ? /* @__PURE__ */ jsxDEV("span", { className: "px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded text-xs", children: "Yes" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 221,
+              columnNumber: 19
+            }, this) : /* @__PURE__ */ jsxDEV("span", { className: "px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-xs", children: "No" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 225,
+              columnNumber: 19
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 219,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 text-center", children: /* @__PURE__ */ jsxDEV("span", { className: `px-2 py-1 rounded text-xs ${item.migrationPriority === "High" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : item.migrationPriority === "Medium" ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400"}`, children: item.migrationPriority }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 231,
+              columnNumber: 41
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 230,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 font-mono text-sm text-gray-600 dark:text-gray-400", children: item.replacementAlgorithm || "N/A" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+              lineNumber: 238,
+              columnNumber: 37
+            }, this)
+          ] }, item.id, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+            lineNumber: 216,
+            columnNumber: 15
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+          lineNumber: 214,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 204,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+        lineNumber: 203,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+      lineNumber: 190,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx",
+    lineNumber: 41,
+    columnNumber: 5
+  }, this);
+};
+_s(ZeroTrustQuantumDashboard, "WokDwDs5EMvtMRMRfA9l4C1y7l4=");
+_c = ZeroTrustQuantumDashboard;
+var _c;
+$RefreshReg$(_c, "ZeroTrustQuantumDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/ZeroTrustQuantumDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBLGlCQXlCQTtBQUFBLFFBQ0gsS0E1Qkw7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQTZCQTtBQUFBLFdBdkNKO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUF3Q0EsS0F6Q0o7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQTBDQTtBQUFBLFNBdkRKO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0F3REE7QUFBQSxPQTdNSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBOE1BO0FBRVI7QUFBRXRELEdBcFBXRCwyQkFBbUM7QUFBQXdELEtBQW5DeEQ7QUFBbUMsSUFBQXdEO0FBQUFDLGFBQUFELElBQUEiLCJuYW1lcyI6WyJ1c2VTdGF0ZSIsInVzZUVmZmVjdCIsIlNoaWVsZENoZWNrSWNvbiIsIlNoaWVsZEFsZXJ0SWNvbiIsIktleUljb24iLCJBbGVydFRyaWFuZ2xlSWNvbiIsIlplcm9UcnVzdFF1YW50dW1EYXNoYm9hcmQiLCJfcyIsImRldmljZVNjb3JlcyIsInNldERldmljZVNjb3JlcyIsInNlc3Npb25SaXNrcyIsInNldFNlc3Npb25SaXNrcyIsImNyeXB0b0ludmVudG9yeSIsInNldENyeXB0b0ludmVudG9yeSIsImxvYWRpbmciLCJzZXRMb2FkaW5nIiwiZmV0Y2hEYXRhIiwiZGV2aWNlc1JlcyIsInNlc3Npb25zUmVzIiwiY3J5cHRvUmVzIiwiUHJvbWlzZSIsImFsbCIsImZldGNoIiwianNvbiIsImVycm9yIiwiY29uc29sZSIsImF2Z0RldmljZVNjb3JlIiwicmVkdWNlIiwic3VtIiwiZCIsInNjb3JlIiwibGVuZ3RoIiwicXVhbnR1bVZ1bG5lcmFibGVDb3VudCIsImZpbHRlciIsImMiLCJxdWFudHVtVnVsbmVyYWJsZSIsInRvRml4ZWQiLCJzIiwicmlza1Njb3JlIiwibWFwIiwiZGV2aWNlIiwiZGV2aWNlSWQiLCJ3aWR0aCIsImZhY3RvcnMiLCJvc1BhdGNoZWQiLCJhbnRpdmlydXNBY3RpdmUiLCJkaXNrRW5jcnlwdGVkIiwiY29tcGxpYW50TG9jYXRpb24iLCJzZXNzaW9uIiwidXNlcklkIiwiYXV0aExldmVsIiwidW51c3VhbExvY2F0aW9uIiwidW51c3VhbFRpbWUiLCJuZXdEZXZpY2UiLCJzdXNwaWNpb3VzQWN0aXZpdHkiLCJzZXNzaW9uSWQiLCJpdGVtIiwiYWxnb3JpdGhtIiwidXNhZ2UiLCJtaWdyYXRpb25Qcmlvcml0eSIsInJlcGxhY2VtZW50QWxnb3JpdGhtIiwiaWQiLCJfYyIsIiRSZWZyZXNoUmVnJCJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJaZXJvVHJ1c3RRdWFudHVtRGFzaGJvYXJkLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QsIHsgdXNlU3RhdGUsIHVzZUVmZmVjdCB9IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHsgRGV2aWNlVHJ1c3RTY29yZSwgVXNlclNlc3Npb25SaXNrLCBDcnlwdG9ncmFwaGljSW52ZW50b3J5IH0gZnJvbSAnLi4vdHlwZXMnO1xyXG5pbXBvcnQgeyBTaGllbGRDaGVja0ljb24sIFNoaWVsZEFsZXJ0SWNvbiwgS2V5SWNvbiwgQWxlcnRUcmlhbmdsZUljb24gfSBmcm9tICcuL2ljb25zJztcclxuXHJcbmV4cG9ydCBjb25zdCBaZXJvVHJ1c3RRdWFudHVtRGFzaGJvYXJkOiBSZWFjdC5GQyA9ICgpID0+IHtcclxuICAgIGNvbnN0IFtkZXZpY2VTY29yZXMsIHNldERldmljZVNjb3Jlc10gPSB1c2VTdGF0ZTxEZXZpY2VUcnVzdFNjb3JlW10+KFtdKTtcclxuICAgIGNvbnN0IFtzZXNzaW9uUmlza3MsIHNldFNlc3Npb25SaXNrc10gPSB1c2VTdGF0ZTxVc2VyU2Vzc2lvblJpc2tbXT4oW10pO1xyXG4gICAgY29uc3QgW2NyeXB0b0ludmVudG9yeSwgc2V0Q3J5cHRvSW52ZW50b3J5XSA9IHVzZVN0YXRlPENyeXB0b2dyYXBoaWNJbnZlbnRvcnlbXT4oW10pO1xyXG4gICAgY29uc3QgW2xvYWRpbmcsIHNldExvYWRpbmddID0gdXNlU3RhdGUodHJ1ZSk7XHJcblxyXG4gICAgdXNlRWZmZWN0KCgpID0+IHtcclxuICAgICAgICBmZXRjaERhdGEoKTtcclxuICAgIH0sIFtdKTtcclxuXHJcbiAgICBjb25zdCBmZXRjaERhdGEgPSBhc3luYyAoKSA9PiB7XHJcbiAgICAgICAgdHJ5IHtcclxuICAgICAgICAgICAgY29uc3QgW2RldmljZXNSZXMsIHNlc3Npb25zUmVzLCBjcnlwdG9SZXNdID0gYXdhaXQgUHJvbWlzZS5hbGwoW1xyXG4gICAgICAgICAgICAgICAgZmV0Y2goJ2h0dHA6Ly9sb2NhbGhvc3Q6NTAwMC9hcGkvemVyby10cnVzdC9kZXZpY2UtdHJ1c3Qtc2NvcmVzJyksXHJcbiAgICAgICAgICAgICAgICBmZXRjaCgnaHR0cDovL2xvY2FsaG9zdDo1MDAwL2FwaS96ZXJvLXRydXN0L3Nlc3Npb24tcmlza3MnKSxcclxuICAgICAgICAgICAgICAgIGZldGNoKCdodHRwOi8vbG9jYWxob3N0OjUwMDAvYXBpL3F1YW50dW0tc2VjdXJpdHkvY3J5cHRvZ3JhcGhpYy1pbnZlbnRvcnknKVxyXG4gICAgICAgICAgICBdKTtcclxuXHJcbiAgICAgICAgICAgIHNldERldmljZVNjb3Jlcyhhd2FpdCBkZXZpY2VzUmVzLmpzb24oKSk7XHJcbiAgICAgICAgICAgIHNldFNlc3Npb25SaXNrcyhhd2FpdCBzZXNzaW9uc1Jlcy5qc29uKCkpO1xyXG4gICAgICAgICAgICBzZXRDcnlwdG9JbnZlbnRvcnkoYXdhaXQgY3J5cHRvUmVzLmpzb24oKSk7XHJcbiAgICAgICAgICAgIHNldExvYWRpbmcoZmFsc2UpO1xyXG4gICAgICAgIH0gY2F0Y2ggKGVycm9yKSB7XHJcbiAgICAgICAgICAgIGNvbnNvbGUuZXJyb3IoJ0Vycm9yIGZldGNoaW5nIHNlY3VyaXR5IGRhdGE6JywgZXJyb3IpO1xyXG4gICAgICAgICAgICBzZXRMb2FkaW5nKGZhbHNlKTtcclxuICAgICAgICB9XHJcbiAgICB9O1xyXG5cclxuICAgIGNvbnN0IGF2Z0RldmljZVNjb3JlID0gZGV2aWNlU2NvcmVzLnJlZHVjZSgoc3VtLCBkKSA9PiBzdW0gKyBkLnNjb3JlLCAwKSAvIChkZXZpY2VTY29yZXMubGVuZ3RoIHx8IDEpO1xyXG4gICAgY29uc3QgcXVhbnR1bVZ1bG5lcmFibGVDb3VudCA9IGNyeXB0b0ludmVudG9yeS5maWx0ZXIoYyA9PiBjLnF1YW50dW1WdWxuZXJhYmxlKS5sZW5ndGg7XHJcblxyXG4gICAgaWYgKGxvYWRpbmcpIHtcclxuICAgICAgICByZXR1cm4gPGRpdiBjbGFzc05hbWU9XCJwLTZcIj5Mb2FkaW5nIHNlY3VyaXR5IG1ldHJpY3MuLi48L2Rpdj47XHJcbiAgICB9XHJcblxyXG4gICAgcmV0dXJuIChcclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInAtNiBzcGFjZS15LTZcIj5cclxuICAgICAgICAgICAgey8qIEhlYWRlciAqL31cclxuICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgIDxoMSBjbGFzc05hbWU9XCJ0ZXh0LTJ4bCBmb250LWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGUgZmxleCBpdGVtcy1jZW50ZXJcIj5cclxuICAgICAgICAgICAgICAgICAgICA8U2hpZWxkQ2hlY2tJY29uIHNpemU9ezI4fSBjbGFzc05hbWU9XCJtci0zIHRleHQtYmx1ZS02MDBcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgIFplcm8gVHJ1c3QgJiBRdWFudHVtLVJlYWR5IFNlY3VyaXR5XHJcbiAgICAgICAgICAgICAgICA8L2gxPlxyXG4gICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMCBtdC0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgQ29udGludW91cyBhdXRoZW50aWNhdGlvbiwgZGV2aWNlIHRydXN0LCBhbmQgcG9zdC1xdWFudHVtIGNyeXB0b2dyYXBoeSByZWFkaW5lc3NcclxuICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICB7LyogU3VtbWFyeSBDYXJkcyAqL31cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0xIG1kOmdyaWQtY29scy0zIGdhcC00XCI+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWQgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW5cIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5BdmcgRGV2aWNlIFRydXN0PC9wPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC0zeGwgZm9udC1ib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIG10LTFcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7YXZnRGV2aWNlU2NvcmUudG9GaXhlZCgwKX0lXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8U2hpZWxkQ2hlY2tJY29uIHNpemU9ezQwfSBjbGFzc05hbWU9XCJ0ZXh0LWdyZWVuLTYwMFwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZCBwLTRcIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktYmV0d2VlblwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LWdyYXktNjAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPkhpZ2gtUmlzayBTZXNzaW9uczwvcD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtM3hsIGZvbnQtYm9sZCB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZSBtdC0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3Nlc3Npb25SaXNrcy5maWx0ZXIocyA9PiBzLnJpc2tTY29yZSA+IDcwKS5sZW5ndGh9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8U2hpZWxkQWxlcnRJY29uIHNpemU9ezQwfSBjbGFzc05hbWU9XCJ0ZXh0LXJlZC02MDBcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWQgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW5cIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5RdWFudHVtIFZ1bG5lcmFibGU8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LTN4bCBmb250LWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGUgbXQtMVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtxdWFudHVtVnVsbmVyYWJsZUNvdW50fS97Y3J5cHRvSW52ZW50b3J5Lmxlbmd0aH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxLZXlJY29uIHNpemU9ezQwfSBjbGFzc05hbWU9XCJ0ZXh0LW9yYW5nZS02MDBcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgey8qIFplcm8gVHJ1c3QgU2VjdGlvbiAqL31cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0xIGxnOmdyaWQtY29scy0yIGdhcC02XCI+XHJcbiAgICAgICAgICAgICAgICB7LyogRGV2aWNlIFRydXN0IFNjb3JlcyAqL31cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZFwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicC00IGJvcmRlci1iIGJvcmRlci1ncmF5LTIwMCBkYXJrOmJvcmRlci1ncmF5LTcwMFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8aDIgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LXNlbWlib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlXCI+RGV2aWNlIFRydXN0IFNjb3JlczwvaDI+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJkaXZpZGUteSBkaXZpZGUtZ3JheS0yMDAgZGFyazpkaXZpZGUtZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAge2RldmljZVNjb3Jlcy5tYXAoZGV2aWNlID0+IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYga2V5PXtkZXZpY2UuZGV2aWNlSWR9IGNsYXNzTmFtZT1cInAtNFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBqdXN0aWZ5LWJldHdlZW4gaXRlbXMtY2VudGVyIG1iLTJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwiZm9udC1tb25vIHRleHQtc20gdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGVcIj57ZGV2aWNlLmRldmljZUlkfTwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9e2B0ZXh0LWxnIGZvbnQtYm9sZCAke2RldmljZS5zY29yZSA+PSA5MCA/ICd0ZXh0LWdyZWVuLTYwMCcgOlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGRldmljZS5zY29yZSA+PSA3MCA/ICd0ZXh0LXllbGxvdy02MDAnIDpcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJ3RleHQtcmVkLTYwMCdcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB9YH0+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2RldmljZS5zY29yZX0lXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJ3LWZ1bGwgYmctZ3JheS0yMDAgZGFyazpiZy1ncmF5LTcwMCByb3VuZGVkLWZ1bGwgaC0yIG1iLTNcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPXtgaC0yIHJvdW5kZWQtZnVsbCAke2RldmljZS5zY29yZSA+PSA5MCA/ICdiZy1ncmVlbi02MDAnIDpcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBkZXZpY2Uuc2NvcmUgPj0gNzAgPyAnYmcteWVsbG93LTYwMCcgOlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAnYmctcmVkLTYwMCdcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB9YH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHN0eWxlPXt7IHdpZHRoOiBgJHtkZXZpY2Uuc2NvcmV9JWAgfX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTIgZ2FwLTIgdGV4dC14c1wiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT17YGZsZXggaXRlbXMtY2VudGVyICR7ZGV2aWNlLmZhY3RvcnMub3NQYXRjaGVkID8gJ3RleHQtZ3JlZW4tNjAwJyA6ICd0ZXh0LXJlZC02MDAnfWB9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2RldmljZS5mYWN0b3JzLm9zUGF0Y2hlZCA/ICfinJMnIDogJ+Kclyd9IE9TIFBhdGNoZWRcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPXtgZmxleCBpdGVtcy1jZW50ZXIgJHtkZXZpY2UuZmFjdG9ycy5hbnRpdmlydXNBY3RpdmUgPyAndGV4dC1ncmVlbi02MDAnIDogJ3RleHQtcmVkLTYwMCd9YH0+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZGV2aWNlLmZhY3RvcnMuYW50aXZpcnVzQWN0aXZlID8gJ+KckycgOiAn4pyXJ30gQW50aXZpcnVzXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT17YGZsZXggaXRlbXMtY2VudGVyICR7ZGV2aWNlLmZhY3RvcnMuZGlza0VuY3J5cHRlZCA/ICd0ZXh0LWdyZWVuLTYwMCcgOiAndGV4dC1yZWQtNjAwJ31gfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtkZXZpY2UuZmFjdG9ycy5kaXNrRW5jcnlwdGVkID8gJ+KckycgOiAn4pyXJ30gRW5jcnlwdGVkXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT17YGZsZXggaXRlbXMtY2VudGVyICR7ZGV2aWNlLmZhY3RvcnMuY29tcGxpYW50TG9jYXRpb24gPyAndGV4dC1ncmVlbi02MDAnIDogJ3RleHQtcmVkLTYwMCd9YH0+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZGV2aWNlLmZhY3RvcnMuY29tcGxpYW50TG9jYXRpb24gPyAn4pyTJyA6ICfinJcnfSBMb2NhdGlvblxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICApKX1cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgICAgIHsvKiBTZXNzaW9uIFJpc2tzICovfVxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHJvdW5kZWQtbGcgc2hhZG93LW1kXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTQgYm9yZGVyLWIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxoMiBjbGFzc05hbWU9XCJ0ZXh0LWxnIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGVcIj5BY3RpdmUgU2Vzc2lvbiBSaXNrczwvaDI+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJkaXZpZGUteSBkaXZpZGUtZ3JheS0yMDAgZGFyazpkaXZpZGUtZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAge3Nlc3Npb25SaXNrcy5tYXAoc2Vzc2lvbiA9PiAoXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGtleT17c2Vzc2lvbi5zZXNzaW9uSWR9IGNsYXNzTmFtZT1cInAtNFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBqdXN0aWZ5LWJldHdlZW4gaXRlbXMtY2VudGVyIG1iLTJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtbW9ubyB0ZXh0LXNtIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlXCI+e3Nlc3Npb24udXNlcklkfTwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cIm1sLTIgdGV4dC14cyBweC0yIHB5LTEgcm91bmRlZC1mdWxsIGJnLWdyYXktMTAwIGRhcms6YmctZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7c2Vzc2lvbi5hdXRoTGV2ZWx9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3NwYW4+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9e2B0ZXh0LWxnIGZvbnQtYm9sZCAke3Nlc3Npb24ucmlza1Njb3JlIDwgMzAgPyAndGV4dC1ncmVlbi02MDAnIDpcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHNlc3Npb24ucmlza1Njb3JlIDwgNjAgPyAndGV4dC15ZWxsb3ctNjAwJyA6XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJ3RleHQtcmVkLTYwMCdcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIH1gfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtzZXNzaW9uLnJpc2tTY29yZX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtMiBmbGV4IGZsZXgtd3JhcCBnYXAtMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7c2Vzc2lvbi5mYWN0b3JzLnVudXN1YWxMb2NhdGlvbiAmJiAoXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIHB4LTIgcHktMSBiZy1yZWQtMTAwIGRhcms6YmctcmVkLTkwMC8zMCB0ZXh0LXJlZC03MDAgZGFyazp0ZXh0LXJlZC00MDAgcm91bmRlZFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFVudXN1YWwgTG9jYXRpb25cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3Nlc3Npb24uZmFjdG9ycy51bnVzdWFsVGltZSAmJiAoXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIHB4LTIgcHktMSBiZy1yZWQtMTAwIGRhcms6YmctcmVkLTkwMC8zMCB0ZXh0LXJlZC03MDAgZGFyazp0ZXh0LXJlZC00MDAgcm91bmRlZFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFVudXN1YWwgVGltZVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7c2Vzc2lvbi5mYWN0b3JzLm5ld0RldmljZSAmJiAoXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIHB4LTIgcHktMSBiZy15ZWxsb3ctMTAwIGRhcms6YmcteWVsbG93LTkwMC8zMCB0ZXh0LXllbGxvdy03MDAgZGFyazp0ZXh0LXllbGxvdy00MDAgcm91bmRlZFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIE5ldyBEZXZpY2VcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3Nlc3Npb24uZmFjdG9ycy5zdXNwaWNpb3VzQWN0aXZpdHkgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14cyBweC0yIHB5LTEgYmctcmVkLTEwMCBkYXJrOmJnLXJlZC05MDAvMzAgdGV4dC1yZWQtNzAwIGRhcms6dGV4dC1yZWQtNDAwIHJvdW5kZWRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBTdXNwaWNpb3VzIEFjdGl2aXR5XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3NwYW4+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgKSl9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICB7LyogUXVhbnR1bS1SZWFkeSBDcnlwdG9ncmFwaHkgKi99XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCByb3VuZGVkLWxnIHNoYWRvdy1tZFwiPlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTQgYm9yZGVyLWIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwIGZsZXgganVzdGlmeS1iZXR3ZWVuIGl0ZW1zLWNlbnRlclwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxoMiBjbGFzc05hbWU9XCJ0ZXh0LWxnIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGVcIj5DcnlwdG9ncmFwaGljIEludmVudG9yeTwvaDI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5Qb3N0LXF1YW50dW0gbWlncmF0aW9uIHJlYWRpbmVzczwvcD5cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxBbGVydFRyaWFuZ2xlSWNvbiBzaXplPXsyMH0gY2xhc3NOYW1lPVwidGV4dC1vcmFuZ2UtNjAwXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LW9yYW5nZS02MDAgZm9udC1zZW1pYm9sZFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAge3F1YW50dW1WdWxuZXJhYmxlQ291bnR9IGFsZ29yaXRobXMgdnVsbmVyYWJsZSB0byBxdWFudHVtIGF0dGFja3NcclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm92ZXJmbG93LXgtYXV0b1wiPlxyXG4gICAgICAgICAgICAgICAgICAgIDx0YWJsZSBjbGFzc05hbWU9XCJ3LWZ1bGwgdGV4dC1zbVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8dGhlYWQgY2xhc3NOYW1lPVwiYmctZ3JheS01MCBkYXJrOmJnLWdyYXktNzAwIHRleHQteHMgdXBwZXJjYXNlIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnRcIj5BbGdvcml0aG08L3RoPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC00IHB5LTMgdGV4dC1sZWZ0XCI+VXNhZ2U8L3RoPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC00IHB5LTMgdGV4dC1jZW50ZXJcIj5RdWFudHVtIFZ1bG5lcmFibGU8L3RoPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC00IHB5LTMgdGV4dC1jZW50ZXJcIj5Qcmlvcml0eTwvdGg+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnRcIj5SZXBsYWNlbWVudDwvdGg+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RyPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3RoZWFkPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8dGJvZHkgY2xhc3NOYW1lPVwiZGl2aWRlLXkgZGl2aWRlLWdyYXktMjAwIGRhcms6ZGl2aWRlLWdyYXktNzAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICB7Y3J5cHRvSW52ZW50b3J5Lm1hcChpdGVtID0+IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHIga2V5PXtpdGVtLmlkfSBjbGFzc05hbWU9XCJob3ZlcjpiZy1ncmF5LTUwIGRhcms6aG92ZXI6YmctZ3JheS03MDAvNTBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMyBmb250LW1vbm8gdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGVcIj57aXRlbS5hbGdvcml0aG19PC90ZD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWdyYXktNjAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPntpdGVtLnVzYWdlfTwvdGQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC00IHB5LTMgdGV4dC1jZW50ZXJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtpdGVtLnF1YW50dW1WdWxuZXJhYmxlID8gKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInB4LTIgcHktMSBiZy1yZWQtMTAwIGRhcms6YmctcmVkLTkwMC8zMCB0ZXh0LXJlZC03MDAgZGFyazp0ZXh0LXJlZC00MDAgcm91bmRlZCB0ZXh0LXhzXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFllc1xyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICkgOiAoXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwicHgtMiBweS0xIGJnLWdyZWVuLTEwMCBkYXJrOmJnLWdyZWVuLTkwMC8zMCB0ZXh0LWdyZWVuLTcwMCBkYXJrOnRleHQtZ3JlZW4tNDAwIHJvdW5kZWQgdGV4dC14c1wiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBOb1xyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC00IHB5LTMgdGV4dC1jZW50ZXJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT17YHB4LTIgcHktMSByb3VuZGVkIHRleHQteHMgJHtpdGVtLm1pZ3JhdGlvblByaW9yaXR5ID09PSAnSGlnaCcgPyAnYmctcmVkLTEwMCBkYXJrOmJnLXJlZC05MDAvMzAgdGV4dC1yZWQtNzAwIGRhcms6dGV4dC1yZWQtNDAwJyA6XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgaXRlbS5taWdyYXRpb25Qcmlvcml0eSA9PT0gJ01lZGl1bScgPyAnYmcteWVsbG93LTEwMCBkYXJrOmJnLXllbGxvdy05MDAvMzAgdGV4dC15ZWxsb3ctNzAwIGRhcms6dGV4dC15ZWxsb3ctNDAwJyA6XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICdiZy1ncmF5LTEwMCBkYXJrOmJnLWdyYXktNzAwIHRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktNDAwJ1xyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIH1gfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7aXRlbS5taWdyYXRpb25Qcmlvcml0eX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90ZD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMyBmb250LW1vbm8gdGV4dC1zbSB0ZXh0LWdyYXktNjAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2l0ZW0ucmVwbGFjZW1lbnRBbGdvcml0aG0gfHwgJ04vQSd9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90cj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3Rib2R5PlxyXG4gICAgICAgICAgICAgICAgICAgIDwvdGFibGU+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICApO1xyXG59O1xyXG4iXSwiZmlsZSI6IkQ6L0Rvd25sb2Fkcy9lbnRlcnByaXNlLW9tbmktYWdlbnQtYWktcGxhdGZvcm0vY29tcG9uZW50cy9aZXJvVHJ1c3RRdWFudHVtRGFzaGJvYXJkLnRzeCJ9

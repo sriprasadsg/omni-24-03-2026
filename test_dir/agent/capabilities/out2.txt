@@ -1,0 +1,50 @@
+﻿
+--- Compliance Checks Evidence Verification ---
+
+Check: UFW Firewall Enabled
+Status: Pass
+Evidence: Status: active
+Hash: 12a0d671358fcae2bfc2780889d6b038d4dba9a0c39df7d9fd9245601c6d7a17
+------------------------------
+Check: SSH Root Login Disabled
+Status: Pass
+Evidence: PermitRootLogin no
+Hash: 3b14b447a68cea5fd8904e13c393c5bdee7f770aeba8ae240ae26e08f1b5fe2c
+------------------------------
+Check: Automatic Security Updates
+Status: Pass
+Evidence: Generic Output
+Hash: 27db56e1479fa0c8f04220f256996acd15f2da6ea7ee09d5768ffdb33e58e20a
+------------------------------
+Check: SELinux Status
+Status: Pass
+Evidence: Enforcing
+Hash: 1ca5672ae970bdc4f5b584898245b3d884e11deb6867e9563bdfbc8b82e8f62e
+------------------------------
+Check: Sudo Configuration
+Status: Pass
+Evidence: root ALL=(ALL:ALL) ALL
+Hash: 6df154bd477027b4106e2444967f3dc368a90ad42fc56ece396439f063291219
+------------------------------
+Check: Cron Security
+Status: Pass
+Evidence: /etc/cron.d: 0o600
+/etc/cron.daily: 0o600
+/etc/cron.hourly: 0o600
+/etc/cron.monthly: 0o600
+/etc/cron.weekly: 0o600
+Hash: 3153751cb8fa7683444b6f1a05e0b08a8e7f5eb729c627fc1cbdb19f44f60ea2
+------------------------------
+Check: SSHD Hardening
+Status: Pass
+Evidence: PermitRootLogin no
+Hash: 3b14b447a68cea5fd8904e13c393c5bdee7f770aeba8ae240ae26e08f1b5fe2c
+------------------------------
+Check: Filesystem Permissions
+Status: Pass
+Evidence: /etc/passwd: Expected 0o644, Found 0o600
+/etc/shadow: Expected 0o640, Found 0o600
+/etc/group: Expected 0o644, Found 0o600
+/etc/gshadow: Expected 0o640, Found 0o600
+Hash: a4055e0ce7929823ab9c37cdadfaae00dd1c6e5971de9d27ce9877d31a079518
+------------------------------

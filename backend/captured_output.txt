@@ -1,0 +1,53 @@
+2026-02-12 19:21:24,858 - cache_service - INFO - \u2705 Redis client initialized: localhost:6379
+2026-02-12 19:21:27,202 - cloud_remediation_service - WARNING - \u26a0\ufe0f AWS SDK not available: You must specify a region.
+2026-02-12 19:21:27,203 - cloud_remediation_service - WARNING - \u26a0\ufe0f Azure SDK not available: No module named 'azure.identity'
+2026-02-12 19:21:31,271 - cloud_remediation_service - WARNING - \u26a0\ufe0f GCP SDK not available: Your default credentials were not found. To set up Application Default Credentials, see https://cloud.google.com/docs/authentication/external/set-up-adc for more information.
+INFO:     Started server process [29308]
+INFO:     Waiting for application startup.
+2026-02-12 19:21:31,446 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2026-02-12 19:21:31,543 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-12 19:21:31,547 - apscheduler.scheduler - INFO - Added job "Process Scheduled Deployments" to job store "default"
+2026-02-12 19:21:31,547 - apscheduler.scheduler - INFO - Scheduler started
+2026-02-12 19:21:31,552 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-12 19:21:31,553 - apscheduler.scheduler - INFO - Added job "FinOps Cost Recalculation" to job store "default"
+2026-02-12 19:21:31,553 - apscheduler.scheduler - INFO - Scheduler started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5002 (Press CTRL+C to quit)
+Traceback (most recent call last):
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\fastapi\encoders.py", line 333, in jsonable_encoder
+    data = dict(obj)
+           ^^^^^^^^^
+TypeError: 'ObjectId' object is not iterable
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\fastapi\encoders.py", line 338, in jsonable_encoder
+    data = vars(obj)
+           ^^^^^^^^^
+TypeError: vars() argument must have __dict__ attribute
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Program Files\Python311\Lib\contextlib.py", line 155, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\starlette\_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Downloads\enterprise-omni-agent-ai-platform\backend\apm_middleware.py", line 30, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Downloads\enterprise-omni-agent-ai-platform\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__

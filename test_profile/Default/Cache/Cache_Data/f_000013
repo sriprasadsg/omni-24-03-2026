@@ -1,0 +1,346 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/AuditLogDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"]; const useMemo = __vite__cjsImport1_react["useMemo"];
+import { FilterIcon } from "/components/icons.tsx";
+import { AuditLog as AuditLogTimeline } from "/components/AuditLog.tsx";
+export const AuditLogDashboard = ({ logs }) => {
+  _s();
+  const [activeTab, setActiveTab] = useState("timeline");
+  const [userFilter, setUserFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const uniqueUsers = useMemo(() => [...new Set(logs.map((log) => log.userName))].sort(), [logs]);
+  const uniqueActionTypes = useMemo(() => [...new Set(logs.map((log) => log.action.split(".")[0]))].sort(), [logs]);
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      const logDate = new Date(log.timestamp);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end) end.setHours(23, 59, 59, 999);
+      const userMatch = !userFilter || log.userName === userFilter;
+      const actionMatch = !actionFilter || log.action.startsWith(actionFilter);
+      const dateMatch = (!start || logDate >= start) && (!end || logDate <= end);
+      const searchMatch = !searchTerm || log.details.toLowerCase().includes(searchTerm.toLowerCase()) || log.resourceId.toLowerCase().includes(searchTerm.toLowerCase()) || log.action.toLowerCase().includes(searchTerm.toLowerCase());
+      return userMatch && actionMatch && dateMatch && searchMatch;
+    });
+  }, [logs, userFilter, actionFilter, startDate, endDate, searchTerm]);
+  const clearFilters = () => {
+    setUserFilter("");
+    setActionFilter("");
+    setStartDate("");
+    setEndDate("");
+    setSearchTerm("");
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto space-y-6", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center mb-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-2xl font-semibold text-gray-800 dark:text-white mb-2", children: "Audit Log" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 54,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400", children: "Review user actions and system events." }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 55,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+        lineNumber: 53,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 flex", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setActiveTab("timeline"),
+            className: `px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "timeline" ? "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"}`,
+            children: "🕒 Time Machine"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 58,
+            columnNumber: 21
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setActiveTab("table"),
+            className: `px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "table" ? "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"}`,
+            children: "📋 Data Table"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 64,
+            columnNumber: 21
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+        lineNumber: 57,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+      lineNumber: 52,
+      columnNumber: 13
+    }, this),
+    activeTab === "timeline" ? /* @__PURE__ */ jsxDEV(AuditLogTimeline, {}, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+      lineNumber: 74,
+      columnNumber: 7
+    }, this) : /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md animate-in fade-in slide-in-from-bottom-2", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold flex items-center mb-4", children: [
+          /* @__PURE__ */ jsxDEV(FilterIcon, { className: "mr-2 text-primary-500" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 79,
+            columnNumber: 29
+          }, this),
+          "Filter Logs"
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 78,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4", children: [
+          /* @__PURE__ */ jsxDEV(
+            "input",
+            {
+              type: "text",
+              placeholder: "Search details, resource...",
+              value: searchTerm,
+              onChange: (e) => setSearchTerm(e.target.value),
+              className: "w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 83,
+              columnNumber: 29
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV("select", { value: userFilter, onChange: (e) => setUserFilter(e.target.value), className: "w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md sm:text-sm", children: [
+            /* @__PURE__ */ jsxDEV("option", { value: "", children: "All Users" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 91,
+              columnNumber: 33
+            }, this),
+            uniqueUsers.map((user) => /* @__PURE__ */ jsxDEV("option", { value: user, children: user }, user, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 92,
+              columnNumber: 60
+            }, this))
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 90,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("select", { value: actionFilter, onChange: (e) => setActionFilter(e.target.value), className: "w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md sm:text-sm", children: [
+            /* @__PURE__ */ jsxDEV("option", { value: "", children: "All Action Types" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 95,
+              columnNumber: 33
+            }, this),
+            uniqueActionTypes.map((type) => /* @__PURE__ */ jsxDEV("option", { value: type, children: type }, type, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 96,
+              columnNumber: 66
+            }, this))
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 94,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: [
+            /* @__PURE__ */ jsxDEV("input", { type: "date", value: startDate, onChange: (e) => setStartDate(e.target.value), className: "w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md sm:text-sm" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 99,
+              columnNumber: 33
+            }, this),
+            /* @__PURE__ */ jsxDEV("input", { type: "date", value: endDate, onChange: (e) => setEndDate(e.target.value), className: "w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md sm:text-sm" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 100,
+              columnNumber: 33
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 98,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 82,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "mt-4", children: /* @__PURE__ */ jsxDEV("button", { onClick: clearFilters, className: "text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline", children: "Clear Filters" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 104,
+          columnNumber: 29
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 103,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+        lineNumber: 77,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "w-full text-sm text-left text-gray-500 dark:text-gray-400", children: [
+        /* @__PURE__ */ jsxDEV("thead", { className: "text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Timestamp" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 111,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "User" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 112,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Action" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 113,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Resource" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 114,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Details" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 115,
+            columnNumber: 37
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 110,
+          columnNumber: 33
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 109,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("tbody", { children: [
+          filteredLogs.map(
+            (log) => /* @__PURE__ */ jsxDEV("tr", { className: "bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50", children: [
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 whitespace-nowrap", children: new Date(log.timestamp).toLocaleString() }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 121,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 font-medium text-gray-900 dark:text-white", children: log.userName }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 122,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: /* @__PURE__ */ jsxDEV("span", { className: "px-2 py-1 font-mono text-xs bg-gray-100 dark:bg-gray-900 rounded-md", children: log.action }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 123,
+                columnNumber: 67
+              }, this) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 123,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: /* @__PURE__ */ jsxDEV("span", { className: "font-mono text-xs", children: [
+                log.resourceType,
+                ": ",
+                log.resourceId
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 124,
+                columnNumber: 67
+              }, this) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 124,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: log.details }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+                lineNumber: 125,
+                columnNumber: 41
+              }, this)
+            ] }, log.id, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+              lineNumber: 120,
+              columnNumber: 15
+            }, this)
+          ),
+          filteredLogs.length === 0 && /* @__PURE__ */ jsxDEV("tr", { children: /* @__PURE__ */ jsxDEV("td", { colSpan: 5, className: "text-center py-8 text-gray-500 dark:text-gray-400", children: "No audit logs match the current filters." }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 130,
+            columnNumber: 41
+          }, this) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+            lineNumber: 129,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+          lineNumber: 118,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+        lineNumber: 108,
+        columnNumber: 25
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+        lineNumber: 107,
+        columnNumber: 21
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+      lineNumber: 76,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx",
+    lineNumber: 51,
+    columnNumber: 5
+  }, this);
+};
+_s(AuditLogDashboard, "BVQ/MDpsCvh7z1CAObwjr5GoNpQ=");
+_c = AuditLogDashboard;
+var _c;
+$RefreshReg$(_c, "AuditLogDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/AuditLogDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBO0FBQUE7QUFBQSxTQXlGQTtBQUVSO0FBQUVoRCxHQW5JV0YsbUJBQW1EO0FBQUFtRCxLQUFuRG5EO0FBQW1ELElBQUFtRDtBQUFBQyxhQUFBRCxJQUFBIiwibmFtZXMiOlsidXNlU3RhdGUiLCJ1c2VNZW1vIiwiRmlsdGVySWNvbiIsIkF1ZGl0TG9nIiwiQXVkaXRMb2dUaW1lbGluZSIsIkF1ZGl0TG9nRGFzaGJvYXJkIiwibG9ncyIsIl9zIiwiYWN0aXZlVGFiIiwic2V0QWN0aXZlVGFiIiwidXNlckZpbHRlciIsInNldFVzZXJGaWx0ZXIiLCJhY3Rpb25GaWx0ZXIiLCJzZXRBY3Rpb25GaWx0ZXIiLCJzdGFydERhdGUiLCJzZXRTdGFydERhdGUiLCJlbmREYXRlIiwic2V0RW5kRGF0ZSIsInNlYXJjaFRlcm0iLCJzZXRTZWFyY2hUZXJtIiwidW5pcXVlVXNlcnMiLCJTZXQiLCJtYXAiLCJsb2ciLCJ1c2VyTmFtZSIsInNvcnQiLCJ1bmlxdWVBY3Rpb25UeXBlcyIsImFjdGlvbiIsInNwbGl0IiwiZmlsdGVyZWRMb2dzIiwiZmlsdGVyIiwibG9nRGF0ZSIsIkRhdGUiLCJ0aW1lc3RhbXAiLCJzdGFydCIsImVuZCIsInNldEhvdXJzIiwidXNlck1hdGNoIiwiYWN0aW9uTWF0Y2giLCJzdGFydHNXaXRoIiwiZGF0ZU1hdGNoIiwic2VhcmNoTWF0Y2giLCJkZXRhaWxzIiwidG9Mb3dlckNhc2UiLCJpbmNsdWRlcyIsInJlc291cmNlSWQiLCJjbGVhckZpbHRlcnMiLCJlIiwidGFyZ2V0IiwidmFsdWUiLCJ1c2VyIiwidHlwZSIsInRvTG9jYWxlU3RyaW5nIiwicmVzb3VyY2VUeXBlIiwiaWQiLCJsZW5ndGgiLCJfYyIsIiRSZWZyZXNoUmVnJCJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJBdWRpdExvZ0Rhc2hib2FyZC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0LCB7IHVzZVN0YXRlLCB1c2VNZW1vIH0gZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgQXVkaXRMb2cgfSBmcm9tICcuLi90eXBlcyc7XG5pbXBvcnQgeyBDbGlwYm9hcmRMaXN0SWNvbiwgRmlsdGVySWNvbiB9IGZyb20gJy4vaWNvbnMnO1xuXG5pbnRlcmZhY2UgQXVkaXRMb2dEYXNoYm9hcmRQcm9wcyB7XG4gICAgbG9nczogQXVkaXRMb2dbXTtcbn1cblxuaW1wb3J0IHsgQXVkaXRMb2cgYXMgQXVkaXRMb2dUaW1lbGluZSB9IGZyb20gJy4vQXVkaXRMb2cnO1xuXG5leHBvcnQgY29uc3QgQXVkaXRMb2dEYXNoYm9hcmQ6IFJlYWN0LkZDPEF1ZGl0TG9nRGFzaGJvYXJkUHJvcHM+ID0gKHsgbG9ncyB9KSA9PiB7XG4gICAgY29uc3QgW2FjdGl2ZVRhYiwgc2V0QWN0aXZlVGFiXSA9IHVzZVN0YXRlPCd0YWJsZScgfCAndGltZWxpbmUnPigndGltZWxpbmUnKTsgLy8gRGVmYXVsdCB0byBuZXcgVGltZSBNYWNoaW5lIHZpZXdcbiAgICBjb25zdCBbdXNlckZpbHRlciwgc2V0VXNlckZpbHRlcl0gPSB1c2VTdGF0ZTxzdHJpbmc+KCcnKTtcbiAgICBjb25zdCBbYWN0aW9uRmlsdGVyLCBzZXRBY3Rpb25GaWx0ZXJdID0gdXNlU3RhdGU8c3RyaW5nPignJyk7XG4gICAgY29uc3QgW3N0YXJ0RGF0ZSwgc2V0U3RhcnREYXRlXSA9IHVzZVN0YXRlPHN0cmluZz4oJycpO1xuICAgIGNvbnN0IFtlbmREYXRlLCBzZXRFbmREYXRlXSA9IHVzZVN0YXRlPHN0cmluZz4oJycpO1xuICAgIGNvbnN0IFtzZWFyY2hUZXJtLCBzZXRTZWFyY2hUZXJtXSA9IHVzZVN0YXRlPHN0cmluZz4oJycpO1xuXG4gICAgY29uc3QgdW5pcXVlVXNlcnMgPSB1c2VNZW1vKCgpID0+IFsuLi5uZXcgU2V0KGxvZ3MubWFwKGxvZyA9PiBsb2cudXNlck5hbWUpKV0uc29ydCgpLCBbbG9nc10pO1xuICAgIGNvbnN0IHVuaXF1ZUFjdGlvblR5cGVzID0gdXNlTWVtbygoKSA9PiBbLi4ubmV3IFNldChsb2dzLm1hcChsb2cgPT4gbG9nLmFjdGlvbi5zcGxpdCgnLicpWzBdKSldLnNvcnQoKSwgW2xvZ3NdKTtcblxuICAgIGNvbnN0IGZpbHRlcmVkTG9ncyA9IHVzZU1lbW8oKCkgPT4ge1xuICAgICAgICByZXR1cm4gbG9ncy5maWx0ZXIobG9nID0+IHtcbiAgICAgICAgICAgIGNvbnN0IGxvZ0RhdGUgPSBuZXcgRGF0ZShsb2cudGltZXN0YW1wKTtcbiAgICAgICAgICAgIGNvbnN0IHN0YXJ0ID0gc3RhcnREYXRlID8gbmV3IERhdGUoc3RhcnREYXRlKSA6IG51bGw7XG4gICAgICAgICAgICBjb25zdCBlbmQgPSBlbmREYXRlID8gbmV3IERhdGUoZW5kRGF0ZSkgOiBudWxsO1xuICAgICAgICAgICAgaWYgKHN0YXJ0KSBzdGFydC5zZXRIb3VycygwLCAwLCAwLCAwKTtcbiAgICAgICAgICAgIGlmIChlbmQpIGVuZC5zZXRIb3VycygyMywgNTksIDU5LCA5OTkpO1xuXG4gICAgICAgICAgICBjb25zdCB1c2VyTWF0Y2ggPSAhdXNlckZpbHRlciB8fCBsb2cudXNlck5hbWUgPT09IHVzZXJGaWx0ZXI7XG4gICAgICAgICAgICBjb25zdCBhY3Rpb25NYXRjaCA9ICFhY3Rpb25GaWx0ZXIgfHwgbG9nLmFjdGlvbi5zdGFydHNXaXRoKGFjdGlvbkZpbHRlcik7XG4gICAgICAgICAgICBjb25zdCBkYXRlTWF0Y2ggPSAoIXN0YXJ0IHx8IGxvZ0RhdGUgPj0gc3RhcnQpICYmICghZW5kIHx8IGxvZ0RhdGUgPD0gZW5kKTtcbiAgICAgICAgICAgIGNvbnN0IHNlYXJjaE1hdGNoID0gIXNlYXJjaFRlcm0gfHxcbiAgICAgICAgICAgICAgICBsb2cuZGV0YWlscy50b0xvd2VyQ2FzZSgpLmluY2x1ZGVzKHNlYXJjaFRlcm0udG9Mb3dlckNhc2UoKSkgfHxcbiAgICAgICAgICAgICAgICBsb2cucmVzb3VyY2VJZC50b0xvd2VyQ2FzZSgpLmluY2x1ZGVzKHNlYXJjaFRlcm0udG9Mb3dlckNhc2UoKSkgfHxcbiAgICAgICAgICAgICAgICBsb2cuYWN0aW9uLnRvTG93ZXJDYXNlKCkuaW5jbHVkZXMoc2VhcmNoVGVybS50b0xvd2VyQ2FzZSgpKTtcblxuICAgICAgICAgICAgcmV0dXJuIHVzZXJNYXRjaCAmJiBhY3Rpb25NYXRjaCAmJiBkYXRlTWF0Y2ggJiYgc2VhcmNoTWF0Y2g7XG4gICAgICAgIH0pO1xuICAgIH0sIFtsb2dzLCB1c2VyRmlsdGVyLCBhY3Rpb25GaWx0ZXIsIHN0YXJ0RGF0ZSwgZW5kRGF0ZSwgc2VhcmNoVGVybV0pO1xuXG4gICAgY29uc3QgY2xlYXJGaWx0ZXJzID0gKCkgPT4ge1xuICAgICAgICBzZXRVc2VyRmlsdGVyKCcnKTtcbiAgICAgICAgc2V0QWN0aW9uRmlsdGVyKCcnKTtcbiAgICAgICAgc2V0U3RhcnREYXRlKCcnKTtcbiAgICAgICAgc2V0RW5kRGF0ZSgnJyk7XG4gICAgICAgIHNldFNlYXJjaFRlcm0oJycpO1xuICAgIH07XG5cbiAgICByZXR1cm4gKFxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImNvbnRhaW5lciBteC1hdXRvIHNwYWNlLXktNlwiPlxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGp1c3RpZnktYmV0d2VlbiBpdGVtcy1jZW50ZXIgbWItNlwiPlxuICAgICAgICAgICAgICAgIDxkaXY+XG4gICAgICAgICAgICAgICAgICAgIDxoMiBjbGFzc05hbWU9XCJ0ZXh0LTJ4bCBmb250LXNlbWlib2xkIHRleHQtZ3JheS04MDAgZGFyazp0ZXh0LXdoaXRlIG1iLTJcIj5BdWRpdCBMb2c8L2gyPlxuICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+UmV2aWV3IHVzZXIgYWN0aW9ucyBhbmQgc3lzdGVtIGV2ZW50cy48L3A+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIHAtMSByb3VuZGVkLWxnIGJvcmRlciBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDAgZmxleFwiPlxuICAgICAgICAgICAgICAgICAgICA8YnV0dG9uXG4gICAgICAgICAgICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiBzZXRBY3RpdmVUYWIoJ3RpbWVsaW5lJyl9XG4gICAgICAgICAgICAgICAgICAgICAgICBjbGFzc05hbWU9e2BweC00IHB5LTIgdGV4dC1zbSBmb250LW1lZGl1bSByb3VuZGVkLW1kIHRyYW5zaXRpb24tY29sb3JzICR7YWN0aXZlVGFiID09PSAndGltZWxpbmUnID8gJ2JnLXByaW1hcnktMTAwIHRleHQtcHJpbWFyeS03MDAgZGFyazpiZy1wcmltYXJ5LTkwMC81MCBkYXJrOnRleHQtcHJpbWFyeS0zMDAnIDogJ3RleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwIGhvdmVyOmJnLWdyYXktNTAgZGFyazpob3ZlcjpiZy1ncmF5LTcwMCd9YH1cbiAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAg8J+VkiBUaW1lIE1hY2hpbmVcbiAgICAgICAgICAgICAgICAgICAgPC9idXR0b24+XG4gICAgICAgICAgICAgICAgICAgIDxidXR0b25cbiAgICAgICAgICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHNldEFjdGl2ZVRhYigndGFibGUnKX1cbiAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT17YHB4LTQgcHktMiB0ZXh0LXNtIGZvbnQtbWVkaXVtIHJvdW5kZWQtbWQgdHJhbnNpdGlvbi1jb2xvcnMgJHthY3RpdmVUYWIgPT09ICd0YWJsZScgPyAnYmctcHJpbWFyeS0xMDAgdGV4dC1wcmltYXJ5LTcwMCBkYXJrOmJnLXByaW1hcnktOTAwLzUwIGRhcms6dGV4dC1wcmltYXJ5LTMwMCcgOiAndGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDAgaG92ZXI6YmctZ3JheS01MCBkYXJrOmhvdmVyOmJnLWdyYXktNzAwJ31gfVxuICAgICAgICAgICAgICAgICAgICA+XG4gICAgICAgICAgICAgICAgICAgICAgICDwn5OLIERhdGEgVGFibGVcbiAgICAgICAgICAgICAgICAgICAgPC9idXR0b24+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICA8L2Rpdj5cblxuICAgICAgICAgICAge2FjdGl2ZVRhYiA9PT0gJ3RpbWVsaW5lJyA/IChcbiAgICAgICAgICAgICAgICA8QXVkaXRMb2dUaW1lbGluZSAvPlxuICAgICAgICAgICAgKSA6IChcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWQgYW5pbWF0ZS1pbiBmYWRlLWluIHNsaWRlLWluLWZyb20tYm90dG9tLTJcIj5cbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTQgYm9yZGVyLWIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8aDMgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LXNlbWlib2xkIGZsZXggaXRlbXMtY2VudGVyIG1iLTRcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8RmlsdGVySWNvbiBjbGFzc05hbWU9XCJtci0yIHRleHQtcHJpbWFyeS01MDBcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIEZpbHRlciBMb2dzXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2gzPlxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0xIG1kOmdyaWQtY29scy0yIGxnOmdyaWQtY29scy00IGdhcC00XCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGlucHV0XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHR5cGU9XCJ0ZXh0XCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgcGxhY2Vob2xkZXI9XCJTZWFyY2ggZGV0YWlscywgcmVzb3VyY2UuLi5cIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB2YWx1ZT17c2VhcmNoVGVybX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiBzZXRTZWFyY2hUZXJtKGUudGFyZ2V0LnZhbHVlKX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwidy1mdWxsIHB4LTMgcHktMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktNzAwIGJvcmRlciBib3JkZXItZ3JheS0zMDAgZGFyazpib3JkZXItZ3JheS02MDAgcm91bmRlZC1tZCBzaGFkb3ctc20gZm9jdXM6b3V0bGluZS1ub25lIGZvY3VzOnJpbmctcHJpbWFyeS01MDAgZm9jdXM6Ym9yZGVyLXByaW1hcnktNTAwIHNtOnRleHQtc21cIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNlbGVjdCB2YWx1ZT17dXNlckZpbHRlcn0gb25DaGFuZ2U9eyhlKSA9PiBzZXRVc2VyRmlsdGVyKGUudGFyZ2V0LnZhbHVlKX0gY2xhc3NOYW1lPVwidy1mdWxsIHB4LTMgcHktMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktNzAwIGJvcmRlciBib3JkZXItZ3JheS0zMDAgZGFyazpib3JkZXItZ3JheS02MDAgcm91bmRlZC1tZCBzbTp0ZXh0LXNtXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJcIj5BbGwgVXNlcnM8L29wdGlvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3VuaXF1ZVVzZXJzLm1hcCh1c2VyID0+IDxvcHRpb24ga2V5PXt1c2VyfSB2YWx1ZT17dXNlcn0+e3VzZXJ9PC9vcHRpb24+KX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3NlbGVjdD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c2VsZWN0IHZhbHVlPXthY3Rpb25GaWx0ZXJ9IG9uQ2hhbmdlPXsoZSkgPT4gc2V0QWN0aW9uRmlsdGVyKGUudGFyZ2V0LnZhbHVlKX0gY2xhc3NOYW1lPVwidy1mdWxsIHB4LTMgcHktMiBiZy13aGl0ZSBkYXJrOmJnLWdyYXktNzAwIGJvcmRlciBib3JkZXItZ3JheS0zMDAgZGFyazpib3JkZXItZ3JheS02MDAgcm91bmRlZC1tZCBzbTp0ZXh0LXNtXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJcIj5BbGwgQWN0aW9uIFR5cGVzPC9vcHRpb24+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHt1bmlxdWVBY3Rpb25UeXBlcy5tYXAodHlwZSA9PiA8b3B0aW9uIGtleT17dHlwZX0gdmFsdWU9e3R5cGV9Pnt0eXBlfTwvb3B0aW9uPil9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zZWxlY3Q+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8aW5wdXQgdHlwZT1cImRhdGVcIiB2YWx1ZT17c3RhcnREYXRlfSBvbkNoYW5nZT17ZSA9PiBzZXRTdGFydERhdGUoZS50YXJnZXQudmFsdWUpfSBjbGFzc05hbWU9XCJ3LWZ1bGwgcHgtMyBweS0yIGJnLXdoaXRlIGRhcms6YmctZ3JheS03MDAgYm9yZGVyIGJvcmRlci1ncmF5LTMwMCBkYXJrOmJvcmRlci1ncmF5LTYwMCByb3VuZGVkLW1kIHNtOnRleHQtc21cIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8aW5wdXQgdHlwZT1cImRhdGVcIiB2YWx1ZT17ZW5kRGF0ZX0gb25DaGFuZ2U9e2UgPT4gc2V0RW5kRGF0ZShlLnRhcmdldC52YWx1ZSl9IGNsYXNzTmFtZT1cInctZnVsbCBweC0zIHB5LTIgYmctd2hpdGUgZGFyazpiZy1ncmF5LTcwMCBib3JkZXIgYm9yZGVyLWdyYXktMzAwIGRhcms6Ym9yZGVyLWdyYXktNjAwIHJvdW5kZWQtbWQgc206dGV4dC1zbVwiIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxidXR0b24gb25DbGljaz17Y2xlYXJGaWx0ZXJzfSBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtcHJpbWFyeS02MDAgZGFyazp0ZXh0LXByaW1hcnktNDAwIGhvdmVyOnVuZGVybGluZVwiPkNsZWFyIEZpbHRlcnM8L2J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJvdmVyZmxvdy14LWF1dG9cIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDx0YWJsZSBjbGFzc05hbWU9XCJ3LWZ1bGwgdGV4dC1zbSB0ZXh0LWxlZnQgdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGhlYWQgY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LWdyYXktNzAwIHVwcGVyY2FzZSBiZy1ncmF5LTUwIGRhcms6YmctZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0cj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBzY29wZT1cImNvbFwiIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPlRpbWVzdGFtcDwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggc2NvcGU9XCJjb2xcIiBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5Vc2VyPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBzY29wZT1cImNvbFwiIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPkFjdGlvbjwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggc2NvcGU9XCJjb2xcIiBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5SZXNvdXJjZTwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggc2NvcGU9XCJjb2xcIiBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5EZXRhaWxzPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90cj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RoZWFkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0Ym9keT5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2ZpbHRlcmVkTG9ncy5tYXAobG9nID0+IChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ciBrZXk9e2xvZy5pZH0gY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCBib3JkZXItYiBkYXJrOmJvcmRlci1ncmF5LTcwMCBob3ZlcjpiZy1ncmF5LTUwIGRhcms6aG92ZXI6YmctZ3JheS02MDAvNTBcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNiBweS00IHdoaXRlc3BhY2Utbm93cmFwXCI+e25ldyBEYXRlKGxvZy50aW1lc3RhbXApLnRvTG9jYWxlU3RyaW5nKCl9PC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNiBweS00IGZvbnQtbWVkaXVtIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlXCI+e2xvZy51c2VyTmFtZX08L3RkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTRcIj48c3BhbiBjbGFzc05hbWU9XCJweC0yIHB5LTEgZm9udC1tb25vIHRleHQteHMgYmctZ3JheS0xMDAgZGFyazpiZy1ncmF5LTkwMCByb3VuZGVkLW1kXCI+e2xvZy5hY3Rpb259PC9zcGFuPjwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNFwiPjxzcGFuIGNsYXNzTmFtZT1cImZvbnQtbW9ubyB0ZXh0LXhzXCI+e2xvZy5yZXNvdXJjZVR5cGV9OiB7bG9nLnJlc291cmNlSWR9PC9zcGFuPjwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNFwiPntsb2cuZGV0YWlsc308L3RkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90cj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKSl9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtmaWx0ZXJlZExvZ3MubGVuZ3RoID09PSAwICYmIChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0cj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY29sU3Bhbj17NX0gY2xhc3NOYW1lPVwidGV4dC1jZW50ZXIgcHktOCB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBObyBhdWRpdCBsb2dzIG1hdGNoIHRoZSBjdXJyZW50IGZpbHRlcnMuXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdHI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICl9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90Ym9keT5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvdGFibGU+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgKX1cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07Il0sImZpbGUiOiJEOi9Eb3dubG9hZHMvZW50ZXJwcmlzZS1vbW5pLWFnZW50LWFpLXBsYXRmb3JtL2NvbXBvbmVudHMvQXVkaXRMb2dEYXNoYm9hcmQudHN4In0=

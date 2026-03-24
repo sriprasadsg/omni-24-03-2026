@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-omni-agent
+  labels:
+    app: omni-agent
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: omni-agent
+  template:
+    metadata:
+      labels:
+        app: omni-agent
+    spec:
+      containers:
+        - name: omni-agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: OMNI_REGISTRATION_KEY
+              value: "{{ .Values.registrationKey }}"
+            - name: OMNI_CLUSTER_NAME
+              value: "{{ .Values.clusterName }}"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

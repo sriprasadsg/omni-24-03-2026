@@ -1,0 +1,42 @@
+Found 4 vulnerabilities in database:
+
+CVE ID: CVE-2024-21415
+Severity: High
+Status: Open
+Software: Windows 10 Pro 22H2
+Description: Windows Kernel Elevation of Privilege Vulnerability
+Discovered: 2025-12-09T19:31:24.609829+00:00
+Asset ID: asset-EILT0197
+Tenant ID: tenant_sriprasad001
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-1234
+Severity: Critical
+Status: Open
+Software: OpenSSL 3.0.1
+Description: Buffer overflow in OpenSSL allows remote code execution.
+Discovered: 2025-12-18T14:11:16.383247+00:00
+Asset ID: asset-EILT0197
+Tenant ID: platform-admin
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2023-5678
+Severity: High
+Status: Open
+Software: Apache HTTP Server 2.4.54
+Description: Path traversal vulnerability in Apache HTTP Server.
+Discovered: 2025-12-18T14:11:16.383247+00:00
+Asset ID: asset-EILT0197
+Tenant ID: platform-admin
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-9999
+Severity: Medium
+Status: Patched
+Software: Windows Kernel
+Description: Privilege escalation in Windows Kernel.
+Discovered: 2025-12-18T14:11:16.383247+00:00
+Asset ID: asset-EILT0197
+Tenant ID: platform-admin
+--------------------------------------------------------------------------------
+

@@ -1,0 +1,162 @@
+[2026-02-05 13:53:08] Starting Full System Verification...
+[2026-02-05 13:53:10] Launching browser...
+[2026-02-05 13:53:23] Navigating to Login...
+[2026-02-05 13:53:25] [CRITICAL] Unexpected Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/
+Call log:
+  - navigating to "http://localhost:3000/", waiting until "load"
+
+[2026-02-05 13:53:28] Verification Complete.
+[2026-02-05 14:01:22] Starting Full System Verification...
+[2026-02-05 14:01:22] Launching browser...
+[2026-02-05 14:01:35] Navigating to Login...
+[2026-02-05 14:01:39] Waiting for Dashboard load...
+[2026-02-05 14:01:54] [CRITICAL] Unexpected Error: Page.wait_for_selector: Timeout 15000ms exceeded.
+Call log:
+  - waiting for locator("text=System Overview") to be visible
+
+[2026-02-05 14:01:55] Verification Complete.
+[2026-02-05 14:51:11] Starting Full System Verification...
+[2026-02-05 14:51:12] Launching browser...
+[2026-02-05 14:51:24] Navigating to Login...
+[2026-02-05 14:51:28] Waiting for Dashboard load...
+[2026-02-05 14:51:43] [CRITICAL] Unexpected Error: Page.wait_for_selector: Timeout 15000ms exceeded.
+Call log:
+  - waiting for locator("text=System Overview") to be visible
+
+[2026-02-05 14:51:44] Verification Complete.
+[2026-02-05 14:56:08] Starting Full System Verification (Run 3)...
+[2026-02-05 14:56:10] Launching browser...
+[2026-02-05 14:56:22] Navigating to Login...
+[2026-02-05 14:56:24] BROWSER CONSOLE: cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+[2026-02-05 14:56:24] BROWSER CONSOLE: [vite] connecting...
+[2026-02-05 14:56:24] BROWSER CONSOLE: [vite] connected.
+[2026-02-05 14:56:26] BROWSER CONSOLE: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-02-05 14:56:26] BROWSER CONSOLE: [UserContext] Module initialized
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Index] Script started
+[2026-02-05 14:56:26] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-02-05 14:56:26] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-02-05 14:56:26] BROWSER CONSOLE: No active session found on startup.
+[2026-02-05 14:56:26] BROWSER CONSOLE: No active session found on startup.
+[2026-02-05 14:56:26] Waiting for Dashboard load...
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Frontend] handleLogin called for admin@example.com
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Frontend] Login response data: {success: true, access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ…Tg2fQ.7QMGBbp72291TMd1hRCAo6G3763xFNUiB86Sm9sLj_M, refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ…zaCJ9.wyQ2tSDQsDD2r_RsvhUuroe-QMF6o6bxlnhIxn3-9vo, user: Object, tenant: Object}
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:56:26] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:56:28] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:56:28] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:56:28] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:56:28] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:56:28] BROWSER CONSOLE: The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(99%) and height(100%),
+       or add a minWidth(0) or minHeight(250) or use aspect(undefined) to control the
+       height and width.
+[2026-02-05 14:56:28] BROWSER CONSOLE: The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(99%) and height(100%),
+       or add a minWidth(0) or minHeight(250) or use aspect(undefined) to control the
+       height and width.
+[2026-02-05 14:56:29] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:56:29] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:56:29] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:56:29] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:56:46] [FAIL] Login Timeout. Current URL: http://localhost:3000/
+[2026-02-05 14:56:46] [CRITICAL] Unexpected Error: Page.wait_for_selector: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator("text=System Overview") to be visible
+
+[2026-02-05 14:56:46] Verification Complete.
+[2026-02-05 14:57:37] Starting Full System Verification (Run 4)...
+[2026-02-05 14:57:38] Launching browser...
+[2026-02-05 14:57:49] Navigating to Login...
+[2026-02-05 14:57:50] BROWSER CONSOLE: cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+[2026-02-05 14:57:50] BROWSER CONSOLE: [vite] connecting...
+[2026-02-05 14:57:50] BROWSER CONSOLE: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-02-05 14:57:50] BROWSER CONSOLE: [UserContext] Module initialized
+[2026-02-05 14:57:50] BROWSER CONSOLE: [Index] Script started
+[2026-02-05 14:57:50] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-02-05 14:57:50] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-02-05 14:57:50] BROWSER CONSOLE: No active session found on startup.
+[2026-02-05 14:57:50] BROWSER CONSOLE: No active session found on startup.
+[2026-02-05 14:57:50] BROWSER CONSOLE: [vite] connected.
+[2026-02-05 14:57:51] Waiting for Dashboard load...
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Frontend] handleLogin called for admin@example.com
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Frontend] Login response data: {success: true, access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ…jcxfQ.xHPtGop8JRLLHq4YdEsNc5-G2iK8Ojm0ZDvrfR-u3J0, refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ…zaCJ9.ujGFp04ZELcFVxmgV4fuHHEC-PicHGms7yRiwsb9H_Q, user: Object, tenant: Object}
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:51] [PASS] Login Successful.
+[2026-02-05 14:57:51] Verifying Dashboard (#dashboard)...
+[2026-02-05 14:57:51] [PASS] Dashboard Loaded.
+[2026-02-05 14:57:51] Verifying Agents (#agents)...
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:51] [PASS] Agents Loaded.
+[2026-02-05 14:57:51] Verifying Assets (#assets)...
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:51] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:52] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:52] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:52] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:52] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:54] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:54] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:57:54] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:57:54] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:01] [FAIL] Assets Timeout looking for 'text=Asset Inventory'
+[2026-02-05 14:58:01] Verifying Patching (#patching)...
+[2026-02-05 14:58:01] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:01] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:01] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:01] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:01] BROWSER CONSOLE: The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2026-02-05 14:58:01] BROWSER CONSOLE: The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2026-02-05 14:58:11] [FAIL] Patching Timeout looking for 'text=Patch Management Dashboard'
+[2026-02-05 14:58:11] Verifying Security (#security)...
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:11] [PASS] Security Loaded.
+[2026-02-05 14:58:11] Verifying Digital Twin (#digitalTwin)...
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:11] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:11] [PASS] Digital Twin Loaded.
+[2026-02-05 14:58:12] Verifying Sustainability (#sustainability)...
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] [PASS] Sustainability Loaded.
+[2026-02-05 14:58:12] Verifying Chaos Engineering (#chaosEngineering)...
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] [PASS] Chaos Engineering Loaded.
+[2026-02-05 14:58:12] Verifying AI Governance (#aiGovernance)...
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] [PASS] AI Governance Loaded.
+[2026-02-05 14:58:12] Verifying Swarm Intelligence (#swarm)...
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Rendering with user: admin@example.com isOpen: true
+[2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
+[2026-02-05 14:58:12] [PASS] Swarm Intelligence Loaded.
+[2026-02-05 14:58:12] Verification Complete.

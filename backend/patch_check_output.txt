@@ -1,0 +1,83 @@
+Found 9 patches in database:
+
+CVE ID: CVE-2024-45678
+Severity: Critical
+Status: Pending
+Description: Critical remote code execution vulnerability in Windows SMB protocol affecting all Windows versions
+Affected Assets: 5
+Assets: ['asset-001', 'asset-002', 'asset-003', 'asset-004', 'asset-005']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-56789
+Severity: High
+Status: Pending
+Description: Local privilege escalation vulnerability in Linux kernel versions 5.x through 6.x
+Affected Assets: 3
+Assets: ['asset-006', 'asset-007', 'asset-008']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-67890
+Severity: Medium
+Status: Pending
+Description: Denial of service vulnerability in Apache HTTP Server 2.4.x through 2.4.58
+Affected Assets: 2
+Assets: ['asset-009', 'asset-010']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-78901
+Severity: High
+Status: Pending
+Description: SQL injection vulnerability in Microsoft SQL Server affecting authentication module
+Affected Assets: 4
+Assets: ['asset-011', 'asset-012', 'asset-013', 'asset-014']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-89012
+Severity: Medium
+Status: Pending
+Description: Cryptographic weakness in OpenSSL 3.x key generation algorithm
+Affected Assets: 3
+Assets: ['asset-015', 'asset-016', 'asset-017']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-90123
+Severity: Critical
+Status: Pending
+Description: Zero-day vulnerability in Chrome browser's V8 JavaScript engine
+Affected Assets: 4
+Assets: ['asset-018', 'asset-019', 'asset-020', 'asset-021']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-01234
+Severity: Critical
+Status: Pending
+Description: Authentication bypass vulnerability in VMware ESXi hypervisor
+Affected Assets: 2
+Assets: ['asset-022', 'asset-023']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-11111
+Severity: High
+Status: Deployed
+Description: Container escape vulnerability in Docker Engine allowing host access
+Affected Assets: 1
+Assets: ['asset-024']
+Published Date: N/A
+--------------------------------------------------------------------------------
+
+CVE ID: CVE-2024-21415
+Severity: High
+Status: Pending
+Description: Security Update for Windows 10 Pro 22H2 (KB5034441)
+Affected Assets: 1
+Assets: ['asset-EILT0197']
+Published Date: N/A
+--------------------------------------------------------------------------------
+

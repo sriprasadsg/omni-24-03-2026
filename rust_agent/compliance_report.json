@@ -1,0 +1,176 @@
+{
+  "compliance_checks": [
+    {
+      "check": "BitLocker Encryption",
+      "details": "Check requires Admin privileges",
+      "evidence_content": "Get-BitLockerVolume Output: \n\nmanage-bde output:\nBitLocker Drive Encryption: Configuration Tool version 10.0.26100\r\nCopyright (C) 2013 Microsoft Corporation. All rights reserved.\r\n\r\nERROR: An attempt to access a required resource was denied.\r\n\r\nCheck that you have administrative rights on the computer.\r\n\nStderr: ",
+      "status": "Warning"
+    },
+    {
+      "check": "Windows Firewall Profiles",
+      "details": "Firewall enabled",
+      "evidence_content": "[\r\n    {\r\n        \"Name\":  \"Domain\",\r\n        \"Enabled\":  1\r\n    },\r\n    {\r\n        \"Name\":  \"Private\",\r\n        \"Enabled\":  1\r\n    },\r\n    {\r\n        \"Name\":  \"Public\",\r\n        \"Enabled\":  1\r\n    }\r\n]\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Windows Defender Antivirus",
+      "details": "Windows Defender Disabled (or not primary)",
+      "evidence_content": "{\r\n    \"AntivirusEnabled\":  false,\r\n    \"RealTimeProtectionEnabled\":  false\r\n}\r\n",
+      "status": "Fail"
+    },
+    {
+      "check": "Secure Boot",
+      "details": "Secure Boot Disabled or Not Supported",
+      "evidence_content": "",
+      "status": "Fail"
+    },
+    {
+      "check": "User Access Control",
+      "details": "UAC Enabled",
+      "evidence_content": "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\r\n    EnableLUA    REG_DWORD    0x1\r\n\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Password Policy (Min Length)",
+      "details": "Minimum length: 14 (Required: 8)",
+      "evidence_content": "Force user logoff how long after time expires?:       Never\r\nMinimum password age (days):                          1\r\nMaximum password age (days):                          45\r\nMinimum password length:                              14\r\nLength of password history maintained:                24\r\nLockout threshold:                                    5\r\nLockout duration (minutes):                           Never\r\nLockout observation window (minutes):                 5\r\nComputer role:                                        WORKSTATION\r\nThe command completed successfully.\r\n\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Maximum Password Age",
+      "details": "Max age: 45 days (Recommended: <=90)",
+      "evidence_content": "Force user logoff how long after time expires?:       Never\r\nMinimum password age (days):                          1\r\nMaximum password age (days):                          45\r\nMinimum password length:                              14\r\nLength of password history maintained:                24\r\nLockout threshold:                                    5\r\nLockout duration (minutes):                           Never\r\nLockout observation window (minutes):                 5\r\nComputer role:                                        WORKSTATION\r\nThe command completed successfully.\r\n\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Password History",
+      "details": "Maintains 24 passwords (Recommended: >=4)",
+      "evidence_content": "Force user logoff how long after time expires?:       Never\r\nMinimum password age (days):                          1\r\nMaximum password age (days):                          45\r\nMinimum password length:                              14\r\nLength of password history maintained:                24\r\nLockout threshold:                                    5\r\nLockout duration (minutes):                           Never\r\nLockout observation window (minutes):                 5\r\nComputer role:                                        WORKSTATION\r\nThe command completed successfully.\r\n\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Account Lockout Policy",
+      "details": "Lockout after 5 attempts (Recommended: 3-10)",
+      "evidence_content": "Force user logoff how long after time expires?:       Never\r\nMinimum password age (days):                          1\r\nMaximum password age (days):                          45\r\nMinimum password length:                              14\r\nLength of password history maintained:                24\r\nLockout threshold:                                    5\r\nLockout duration (minutes):                           Never\r\nLockout observation window (minutes):                 5\r\nComputer role:                                        WORKSTATION\r\nThe command completed successfully.\r\n\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Minimum Password Age",
+      "details": "Min age: 1 days (Recommended: >=1)",
+      "evidence_content": "Force user logoff how long after time expires?:       Never\r\nMinimum password age (days):                          1\r\nMaximum password age (days):                          45\r\nMinimum password length:                              14\r\nLength of password history maintained:                24\r\nLockout threshold:                                    5\r\nLockout duration (minutes):                           Never\r\nLockout observation window (minutes):                 5\r\nComputer role:                                        WORKSTATION\r\nThe command completed successfully.\r\n\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Risky Ports (Telnet)",
+      "details": "Port 23 closed",
+      "evidence_content": "\r\nActive Connections\r\n\r\n  Proto  Local Address          Foreign Address        State\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:2179           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:5000           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:5040           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:6",
+      "status": "Pass"
+    },
+    {
+      "check": "Risky Ports (FTP)",
+      "details": "Port 21 closed",
+      "evidence_content": "\r\nActive Connections\r\n\r\n  Proto  Local Address          Foreign Address        State\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:2179           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:5000           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:5040           0.0.0.0:0              LISTENING\r\n  TCP    0.0.0.0:6",
+      "status": "Pass"
+    },
+    {
+      "check": "SMBv1 Protocol Status",
+      "details": "SMBv1 Disabled",
+      "evidence_content": "{\r\n    \"EnableSMB1Protocol\":  false\r\n}\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "TLS Security Configuration",
+      "details": "Registry key not found (Windows Default)",
+      "evidence_content": "",
+      "status": "Warning"
+    },
+    {
+      "check": "Credential Guard",
+      "details": "Credential Guard Not Running",
+      "evidence_content": "{\r\n    \"SecurityServicesRunning\":  [\r\n                                    2,\r\n                                    3,\r\n                                    4\r\n                                ]\r\n}\r\n",
+      "status": "Fail"
+    },
+    {
+      "check": "Exploit Protection (DEP)",
+      "details": "DEP Disabled",
+      "evidence_content": "{\r\n    \"OverrideDEP\":  false,\r\n    \"Enable\":  0,\r\n    \"EmulateAtlThunks\":  0\r\n}\r\n",
+      "status": "Fail"
+    },
+    {
+      "check": "Guest Account Disabled",
+      "details": "Guest Account Disabled",
+      "evidence_content": "{\r\n    \"Enabled\":  false\r\n}\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "RDP NLA Required",
+      "details": "NLA Enforced",
+      "evidence_content": "{\r\n    \"UserAuthentication\":  1\r\n}\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Windows Update Service",
+      "details": "Service Running",
+      "evidence_content": "\r\nSERVICE_NAME: wuauserv \r\n        TYPE               : 30  WIN32  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Remote Desktop Service",
+      "details": "RDP Service Stopped",
+      "evidence_content": "\r\nSERVICE_NAME: TermService \r\n        TYPE               : 20  WIN32_SHARE_PROCESS  \r\n        STATE              : 1  STOPPED \r\n        WIN32_EXIT_CODE    : 1077  (0x435)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "WinRM Service Status",
+      "details": "WinRM Service Stopped",
+      "evidence_content": "\r\nSERVICE_NAME: WinRM \r\n        TYPE               : 20  WIN32_SHARE_PROCESS  \r\n        STATE              : 1  STOPPED \r\n        WIN32_EXIT_CODE    : 1077  (0x435)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Audit Logging Policy",
+      "details": "Logon/Logoff auditing verified",
+      "evidence_content": "",
+      "status": "Fail"
+    },
+    {
+      "check": "LLMNR/NetBIOS Protection",
+      "details": "LLMNR Enabled (Risk)",
+      "evidence_content": "",
+      "status": "Fail"
+    },
+    {
+      "check": "PowerShell Script Block Logging",
+      "details": "Logging Enabled",
+      "evidence_content": "{\r\n    \"EnableScriptBlockLogging\":  1\r\n}\r\n",
+      "status": "Pass"
+    },
+    {
+      "check": "Attack Surface Reduction",
+      "details": "No ASR Rules Found",
+      "evidence_content": "",
+      "status": "Warning"
+    },
+    {
+      "check": "Controlled Folder Access",
+      "details": "Disabled",
+      "evidence_content": "",
+      "status": "Warning"
+    },
+    {
+      "check": "DPDP-5.1 Consent Artifacts",
+      "details": "Consent logs missing",
+      "evidence_content": "Path: C:\\ProgramData\\OmniAgent\\consent_logs",
+      "status": "Fail"
+    },
+    {
+      "check": "DPDP-8.4 Data Retention Policy",
+      "details": "Policy missing",
+      "evidence_content": "Path: C:\\ProgramData\\OmniAgent\\retention_policy.json",
+      "status": "Fail"
+    }
+  ],
+  "compliance_score": 57.14285714285714,
+  "failed": 12,
+  "passed": 16,
+  "total_checks": 28
+}

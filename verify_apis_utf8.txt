@@ -1,0 +1,4 @@
+﻿--- FULL SYSTEM API AUDIT ---
+
+1. Verifying Authentication (Login)...
+Exception during tests: 'charmap' codec can't encode character '\u2705' in position 1: character maps to <undefined>

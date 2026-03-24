@@ -1,0 +1,683 @@
+{
+  "meta": {
+    "generated_at": "2025-12-16T01:41:13.180519+00:00",
+    "system": "Enterprise Omni Agent Platform",
+    "version": "1.0.0"
+  },
+  "access_control": {
+    "users": [
+      {
+        "id": "u-super-admin",
+        "email": "super@omni.ai",
+        "name": "Super Admin",
+        "role": "Super Admin",
+        "tenantId": "platform-admin",
+        "status": "Active",
+        "avatar": "https://github.com/shadcn.png"
+      },
+      {
+        "id": "user_d3ef2c51a133",
+        "email": "browser_test_user_v1@example.com",
+        "name": "Browser User",
+        "role": "Tenant Admin",
+        "tenantId": "tenant_cb0918a2f881",
+        "avatar": "",
+        "status": "Active",
+        "createdAt": "2025-12-07T17:00:05.610874+00:00",
+        "updatedAt": "2025-12-07T17:00:05.610874+00:00"
+      },
+      {
+        "email": "testadmin@example.com",
+        "id": "user-bffc08b7",
+        "name": "Test Admin",
+        "role": "Super Admin",
+        "status": "Active",
+        "tenantId": "tenant_test_123"
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-super-admin",
+        "name": "Super Admin",
+        "description": "Has all permissions across all tenants.",
+        "permissions": [
+          "view:dashboard",
+          "view:cxo_dashboard",
+          "view:reporting",
+          "export:reports",
+          "view:agents",
+          "view:software_deployment",
+          "view:agent_logs",
+          "remediate:agents",
+          "view:assets",
+          "view:patching",
+          "manage:patches",
+          "view:security",
+          "manage:security_cases",
+          "manage:security_playbooks",
+          "investigate:security",
+          "view:compliance",
+          "manage:compliance_evidence",
+          "view:ai_governance",
+          "manage:ai_risks",
+          "manage:settings",
+          "manage:tenants",
+          "view:cloud_security",
+          "view:finops",
+          "view:audit_log",
+          "manage:rbac",
+          "manage:api_keys",
+          "view:logs",
+          "view:threat_hunting",
+          "view:profile",
+          "view:automation",
+          "manage:automation",
+          "view:devsecops",
+          "view:developer_hub",
+          "view:insights",
+          "view:tracing",
+          "view:dspm",
+          "view:attack_path",
+          "view:service_catalog",
+          "view:dora_metrics",
+          "view:chaos",
+          "view:network",
+          "manage:pricing"
+        ],
+        "isCustom": false,
+        "isEditable": false,
+        "tenantId": "platform"
+      }
+    ],
+    "summary": "Found 3 users and 1 defined roles."
+  },
+  "assets": {
+    "total_assets": 1,
+    "fully_patched_count": 1,
+    "patch_compliance_rate": "100.0%",
+    "assets": [
+      {
+        "hostname": "EILT0197",
+        "cpuCores": 16,
+        "cpuModel": "Intel(R) Core(TM) Ultra 7 255H",
+        "cpuThreads": null,
+        "createdAt": "2025-12-07T18:18:14.560230+00:00",
+        "criticalFiles": [],
+        "disks": [
+          {
+            "device": "C:\\",
+            "mountpoint": "C:\\",
+            "fstype": "NTFS",
+            "total": 241910673408,
+            "used": 221909696512,
+            "percent": 91.7
+          },
+          {
+            "device": "D:\\",
+            "mountpoint": "D:\\",
+            "fstype": "NTFS",
+            "total": 234489901056,
+            "used": 214935252992,
+            "percent": 91.7
+          }
+        ],
+        "id": "asset-EILT0197",
+        "installedSoftware": [
+          {
+            "name": "Windows Driver Package - HP Inc. BrFilter_4_4_26_1391 ActivityMonitor  (07/23/2025 4.4.26.1391)",
+            "version": "07/23/2025 4.4.26.1391",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Windows Driver Package - HP Inc. BrCow_4_4_26_1391 ActivityMonitor  (07/23/2025 4.4.26.1391)",
+            "version": "07/23/2025 4.4.26.1391",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "DBeaver 25.3.0",
+            "version": "25.3.0",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Docker Desktop",
+            "version": "4.52.0",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Git",
+            "version": "2.52.0",
+            "installDate": "2025-11-20",
+            "updateAvailable": false
+          },
+          {
+            "name": "HP Documentation",
+            "version": "1.0.0.1",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Notepad++ (64-bit x64)",
+            "version": "8.8.9",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft 365 Apps for business - en-us",
+            "version": "16.0.19426.20186",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft OneDrive",
+            "version": "25.222.1112.0002",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft OneNote - en-us",
+            "version": "16.0.19426.20186",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Seqrite Endpoint Protection Client 10.13",
+            "version": "10.13",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "Go Programming Language amd64 go1.25.5",
+            "version": "1.25.5",
+            "installDate": "2025-12-08",
+            "updateAvailable": false
+          },
+          {
+            "name": "Universal CRT Tools x64",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07",
+            "updateAvailable": false
+          },
+          {
+            "name": "HP Wolf Security Application Support for Sure Sense",
+            "version": "4.4.26.1391",
+            "installDate": "2025-08-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 pip Bootstrap (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Canon G600 series Driver",
+            "version": "1.02",
+            "installDate": "Unknown",
+            "updateAvailable": false
+          },
+          {
+            "name": "FortiClient VPN",
+            "version": "7.4.3.1790",
+            "installDate": "2025-11-11",
+            "updateAvailable": false
+          },
+          {
+            "name": "Zabbix Agent (64-bit)",
+            "version": "7.4.1.2400",
+            "installDate": "2025-08-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Core Interpreter (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Windows Subsystem for Linux",
+            "version": "2.5.10.0",
+            "installDate": "2025-08-14",
+            "updateAvailable": false
+          },
+          {
+            "name": "HP Sure Run Module",
+            "version": "5.0.5.81",
+            "installDate": "2025-06-05",
+            "updateAvailable": false
+          },
+          {
+            "name": "Windows App Certification Kit Native Components",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07",
+            "updateAvailable": false
+          },
+          {
+            "name": "Poly Camera Pro Compatibility Add-on",
+            "version": "1.0.1.13203",
+            "installDate": "2025-06-05",
+            "updateAvailable": false
+          },
+          {
+            "name": "MongoDB 8.0.13 2008R2Plus SSL (64 bit)",
+            "version": "8.0.13",
+            "installDate": "2025-09-13",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.50.35719",
+            "version": "14.50.35719",
+            "installDate": "2025-11-26",
+            "updateAvailable": false
+          },
+          {
+            "name": "Windows SDK DirectX x64 Remote",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07",
+            "updateAvailable": false
+          },
+          {
+            "name": "MongoDB Shell",
+            "version": "2.5.7",
+            "installDate": "2025-09-04",
+            "updateAvailable": false
+          },
+          {
+            "name": "GitHub CLI",
+            "version": "2.83.1",
+            "installDate": "2025-12-03",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft Visual Studio Installer",
+            "version": "3.14.2084.208",
+            "installDate": "2025-08-07",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Tcl/Tk Support (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Development Libraries (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Seqrite Endpoint Protection",
+            "version": "18.00",
+            "installDate": "2025-12-12",
+            "updateAvailable": false
+          },
+          {
+            "name": "HP Sure Recover",
+            "version": "10.1.26.255",
+            "installDate": "2025-07-01",
+            "updateAvailable": false
+          },
+          {
+            "name": "HP Wolf Security Application Support for Chrome 136.0.7103.178",
+            "version": "4.4.25.2040",
+            "installDate": "2025-07-30",
+            "updateAvailable": false
+          },
+          {
+            "name": "Office 16 Click-to-Run Extensibility Component",
+            "version": "16.0.19426.20170",
+            "installDate": "2025-12-05",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft Teams Meeting Add-in for Microsoft Office",
+            "version": "1.25.28902",
+            "installDate": "2025-11-29",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Add to Path (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.50.35719",
+            "version": "14.50.35719",
+            "installDate": "2025-11-26",
+            "updateAvailable": false
+          },
+          {
+            "name": "Webex",
+            "version": "43.10.0.28042",
+            "installDate": "2025-10-15",
+            "updateAvailable": false
+          },
+          {
+            "name": "Epson Customer Research Participation",
+            "version": "1.83.0000",
+            "installDate": "2025-09-01",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Executables (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Microsoft Visual C++ 2019 X64 Debug Runtime - 14.29.30157",
+            "version": "14.29.30157",
+            "installDate": "2025-08-07",
+            "updateAvailable": false
+          },
+          {
+            "name": "Poly Lens Desktop",
+            "version": "2.3.1.4673",
+            "installDate": "2025-12-04",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Utility Scripts (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Standard Library (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Node.js",
+            "version": "22.21.1",
+            "installDate": "2025-11-03",
+            "updateAvailable": false
+          },
+          {
+            "name": "Poly Lens Control Service",
+            "version": "1.13.1032",
+            "installDate": "2025-12-04",
+            "updateAvailable": false
+          },
+          {
+            "name": "HP Wolf Security Application Support for Sure Sense",
+            "version": "4.4.25.1984",
+            "installDate": "2025-07-01",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Documentation (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Python 3.11.0 Test Suite (64-bit)",
+            "version": "3.11.150.0",
+            "installDate": "2025-10-06",
+            "updateAvailable": false
+          },
+          {
+            "name": "Application Verifier x64 External Package",
+            "version": "10.1.19041.5609",
+            "installDate": "2025-08-07",
+            "updateAvailable": false
+          },
+          {
+            "name": "MongoDB 8.2.1 2008R2Plus SSL (64 bit)",
+            "version": "8.2.1",
+            "installDate": "2025-10-11",
+            "updateAvailable": false
+          },
+          {
+            "name": "Google Chrome",
+            "version": "143.0.7499.110",
+            "installDate": "2025-12-15",
+            "updateAvailable": false
+          }
+        ],
+        "ipAddress": "192.168.0.104",
+        "kernel": "Unknown",
+        "lastScanned": "2025-12-15T22:50:43.441584+00:00",
+        "macAddress": "00:00:00:00:00:00",
+        "osName": "Windows 10 Multiprocessor Free SP0",
+        "osVersion": "10 10.0.26200 SP0",
+        "ram": "31.43 GB",
+        "ramDetails": null,
+        "securityFeatures": null,
+        "serialNumber": "SN-EILT0197",
+        "tenantId": "tenant_sriprasad001",
+        "updatedAt": "2025-12-15T22:50:43.441584+00:00",
+        "vulnerabilities": [],
+        "platform": "Windows",
+        "macAddresses": [
+          {
+            "interface": "Local Area Connection* 1",
+            "mac": "9C-B1-50-F4-58-13"
+          },
+          {
+            "interface": "Local Area Connection* 2",
+            "mac": "9E-B1-50-F4-58-12"
+          },
+          {
+            "interface": "Ethernet 3",
+            "mac": "00-09-0F-FE-00-01"
+          },
+          {
+            "interface": "Wi-Fi",
+            "mac": "9C-B1-50-F4-58-12"
+          },
+          {
+            "interface": "Ethernet",
+            "mac": "F8-ED-FC-6B-5E-EA"
+          },
+          {
+            "interface": "vEthernet (Default Switch)",
+            "mac": "00-15-5D-00-68-00"
+          }
+        ]
+      }
+    ]
+  },
+  "audit_logs": {
+    "count": 14,
+    "logs": [
+      {
+        "timestamp": "2025-12-15T21:12:04.446594",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:12:04.446594",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:11:19.082417",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:11:19.081412",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:07:31.535684",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:07:31.535684",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:06:33.046503",
+        "action": "config_change",
+        "actor": "test_admin",
+        "resource": "max_connections",
+        "details": {
+          "key": "max_connections",
+          "old_value": "100",
+          "new_value": "500"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-15T21:06:33.040286",
+        "action": "system_patch",
+        "actor": "test_admin",
+        "resource": "patch-kb50550",
+        "details": {
+          "patch_id": "KB50550",
+          "severity": "critical"
+        },
+        "status": "SUCCESS",
+        "tenantId": "unknown"
+      },
+      {
+        "timestamp": "2025-12-11T14:54:56.224982",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "b3f61dc0-e53a-4cb0-91b1-3a6c374ca277",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-42d64706_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T14:53:21.183769",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "c0382e19-c973-428b-9bf2-a5b5f625a9b8",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-bcbac0a5_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T13:47:16.812823",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "1db0d201-af6c-4b46-825e-88c3e724a8a7",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-843a0775_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T13:31:04.121348",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "149b191d-11c2-4bb7-bd71-1ef92965b1e2",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-bcbac0a5_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-11T13:29:55.186061",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "9eaa954c-055f-450c-90de-49179d801eb2",
+        "details": {
+          "source": "Compliance_Evidence_ctrl-843a0775_EILT0197_compliance_evidence_NO_EILT0197.md",
+          "content_snippet": "# Windows Security Compliance Audit - Evidence\r\n**"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      },
+      {
+        "timestamp": "2025-12-10T20:38:51.204981",
+        "action": "rag_ingest",
+        "actor": "api_user",
+        "resource": "86b8bbac-ddad-4c33-9d5d-f96534599d43",
+        "details": {
+          "source": "verify_script",
+          "content_snippet": "Audit Log Test Entry"
+        },
+        "status": "SUCCESS",
+        "tenantId": "default"
+      }
+    ]
+  },
+  "vulnerabilities": {
+    "total_open": 1,
+    "critical_open": 0,
+    "details": [
+      {
+        "id": "vuln-9adb9736",
+        "tenantId": "tenant_sriprasad001",
+        "assetId": "asset-EILT0197",
+        "cveId": "CVE-2024-21415",
+        "severity": "High",
+        "status": "Open",
+        "affectedSoftware": "Windows 10 Pro 22H2",
+        "description": "Windows Kernel Elevation of Privilege Vulnerability",
+        "discoveredAt": "2025-12-09T19:31:24.609829+00:00",
+        "lastChecked": "2025-12-09T19:31:24.609829+00:00"
+      }
+    ]
+  }
+}

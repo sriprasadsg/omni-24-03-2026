@@ -1,0 +1,23 @@
+WARNING: No libpcap provider available ! pcap won't be used
+2025-12-17 04:06:58,428 - __main__ - INFO - Starting Omni Agent v2.0 with 30s interval
+2025-12-17 04:06:58,428 - __main__ - INFO - Hostname: EILT0197
+2025-12-17 04:06:58,428 - __main__ - INFO - Available capabilities: 15
+2025-12-17 04:06:58,428 - __main__ - INFO - Agentic AI mode is disabled in config
+2025-12-17 04:06:58,428 - __main__ - ERROR - Failed to initialize metrics_collection: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,428 - __main__ - ERROR - Failed to initialize log_collection: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,428 - __main__ - ERROR - Failed to initialize fim: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize vulnerability_scanning: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize compliance_enforcement: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize runtime_security: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize predictive_health: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize ueba: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize sbom_analysis: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize ebpf_tracing: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize system_patching: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize software_management: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize remote_access: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize network_discovery: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:06:58,429 - __main__ - ERROR - Failed to initialize agent_update: 'AgentCapabilityManager' object has no attribute 'capability_instances'
+2025-12-17 04:07:00,474 - __main__ - INFO - Loaded configuration: 0 capabilities enabled
+2025-12-17 04:07:02,532 - __main__ - INFO - Loaded configuration: 0 capabilities enabled
+2025-12-17 04:07:02,585 - __main__ - ERROR - Unexpected error: 'AgentCapabilityManager' object has no attribute 'capability_instances'

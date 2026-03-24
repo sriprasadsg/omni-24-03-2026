@@ -1,0 +1,33 @@
+api_base_url: "http://localhost:5000"
+tenant_id: "tenant_sriprasad001"
+agent_token: ""
+interval_seconds: 10
+metrics_collection: true
+max_cpu_percent: 20
+
+# Agentic AI Configuration
+agentic_mode_enabled: true
+llm_config:
+  base_url: "http://localhost:11434"
+  model: "llama3.2:3b"
+  timeout: 30
+
+autonomous_actions:
+  enabled: true
+  require_approval: true
+  confidence_threshold: 0.8
+
+goals:
+  - name: "security_score"
+    target: 95.0
+    priority: 1
+    description: "Maintain a high security posture"
+  - name: "patch_compliance"
+    target: 100.0
+    priority: 2
+    description: "Ensure all critical patches are applied"
+
+swarm:
+  enabled: true
+  coordinator_url: "ray://localhost:10001"
+  discovery_mode: "p2p_simulated"

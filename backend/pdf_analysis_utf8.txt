@@ -1,0 +1,33 @@
+﻿Found 10 PDF files
+
+============================================================
+Analyzing: static/reports\compliance_report_soc2_20251229211444.pdf
+============================================================
+File size: 4,570 bytes
+Has /Catalog: True
+Has /Pages: True
+Has /Font: True
+Has Helvetica font: True
+Has text objects (BT...ET): False
+Has text operators (Tj/TJ): True
+Number of streams: 4
+
+No readable text content found in first 100 lines
+
+First 200 bytes (hex): 255044462d312e340a25938c8b9e205265706f72744c61622047656e6572617465642050444620646f63756d656e7420286f70656e736f75726365290a312030206f626a0a3c3c0a2f4631203220302052202f46322033203020520a3e3e0a656e646f626a0a322030206f626a0a3c3c0a2f42617365466f6e74202f48656c766574696361202f456e636f64696e67202f57696e416e7369456e636f64696e67202f4e616d65202f4631202f53756274797065202f5479706531202f54797065202f466f6e740a3e
+
+============================================================
+Analyzing: static/reports\compliance_report_soc2_20251229202350.pdf
+============================================================
+File size: 4,571 bytes
+Has /Catalog: True
+Has /Pages: True
+Has /Font: True
+Has Helvetica font: True
+Has text objects (BT...ET): False
+Has text operators (Tj/TJ): False
+Number of streams: 4
+
+No readable text content found in first 100 lines
+
+First 200 bytes (hex): 255044462d312e340a25938c8b9e205265706f72744c61622047656e6572617465642050444620646f63756d656e7420286f70656e736f75726365290a312030206f626a0a3c3c0a2f4631203220302052202f46322033203020520a3e3e0a656e646f626a0a322030206f626a0a3c3c0a2f42617365466f6e74202f48656c766574696361202f456e636f64696e67202f57696e416e7369456e636f64696e67202f4e616d65202f4631202f53756274797065202f5479706531202f54797065202f466f6e740a3e

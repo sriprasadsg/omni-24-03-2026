@@ -1,0 +1,4 @@
+Upserted Asset: asset-EILT0197
+Linked Agent to Asset
+Updated 0 Firewall records
+Updated 0 Audit records

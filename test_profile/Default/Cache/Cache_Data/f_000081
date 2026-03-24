@@ -1,0 +1,499 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/RuntimeSecurityTab.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import { ActivityIcon, NetworkIcon, AlertTriangleIcon, CheckIcon } from "/components/icons.tsx";
+export const RuntimeSecurityTab = ({ data }) => {
+  if (!data || !data.processes || !data.connections) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "text-center py-8 text-gray-500 dark:text-gray-400", children: [
+      /* @__PURE__ */ jsxDEV(ActivityIcon, { size: 48, className: "mx-auto mb-3 opacity-50" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 45,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { children: "No runtime security data available" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 46,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-sm mt-1", children: "Data will appear once the agent reports it" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 47,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+      lineNumber: 44,
+      columnNumber: 7
+    }, this);
+  }
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case "critical":
+        return "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30";
+      case "high":
+        return "text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30";
+      case "medium":
+        return "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30";
+      case "low":
+        return "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30";
+      default:
+        return "text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700";
+    }
+  };
+  const topProcesses = [...data.processes].sort((a, b) => b.cpu_percent - a.cpu_percent).slice(0, 10);
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-6", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: "Active Processes" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 72,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-2xl font-bold text-gray-900 dark:text-white mt-1", children: data.process_count || data.processes.length }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 73,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 71,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(ActivityIcon, { size: 32, className: "text-primary-500 opacity-50" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 77,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 70,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 69,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: "Network Connections" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 84,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-2xl font-bold text-gray-900 dark:text-white mt-1", children: data.connection_count || data.connections.length }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 85,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 83,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(NetworkIcon, { size: 32, className: "text-blue-500 opacity-50" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 89,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 82,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 81,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("div", { children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-600 dark:text-gray-400", children: "Suspicious Activities" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 96,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-2xl font-bold text-gray-900 dark:text-white mt-1", children: data.suspicious_activities?.length || 0 }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 97,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 95,
+          columnNumber: 25
+        }, this),
+        (data.suspicious_activities?.length || 0) > 0 ? /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 32, className: "text-red-500" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 102,
+          columnNumber: 13
+        }, this) : /* @__PURE__ */ jsxDEV(CheckIcon, { size: 32, className: "text-green-500 opacity-50" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 104,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 94,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 93,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+      lineNumber: 68,
+      columnNumber: 13
+    }, this),
+    data.suspicious_activities && data.suspicious_activities.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start", children: [
+      /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 20, className: "text-red-600 dark:text-red-400 mt-0.5 mr-3 flex-shrink-0" }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 113,
+        columnNumber: 25
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex-grow", children: [
+        /* @__PURE__ */ jsxDEV("h4", { className: "font-semibold text-red-900 dark:text-red-200 mb-2", children: "Suspicious Activities Detected" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 115,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "space-y-2", children: data.suspicious_activities.map(
+          (activity, idx) => /* @__PURE__ */ jsxDEV("div", { className: "flex items-start justify-between text-sm", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex-grow", children: [
+              /* @__PURE__ */ jsxDEV("span", { className: "font-medium text-red-800 dark:text-red-300", children: [
+                activity.type,
+                ":"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 120,
+                columnNumber: 45
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: "text-red-700 dark:text-red-400 ml-2", children: activity.description }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 121,
+                columnNumber: 45
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 119,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { className: `px-2 py-0.5 rounded text-xs font-medium ml-3 flex-shrink-0 ${getSeverityColor(activity.severity)}`, children: activity.severity.toUpperCase() }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 123,
+              columnNumber: 41
+            }, this)
+          ] }, idx, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 118,
+            columnNumber: 15
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 116,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 114,
+        columnNumber: 25
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+      lineNumber: 112,
+      columnNumber: 21
+    }, this) }, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+      lineNumber: 111,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("h4", { className: "text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center", children: [
+        /* @__PURE__ */ jsxDEV(ActivityIcon, { size: 16, className: "mr-2" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 136,
+          columnNumber: 21
+        }, this),
+        "Top Processes by CPU Usage"
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 135,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden", children: /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "min-w-full divide-y divide-gray-200 dark:divide-gray-700", children: [
+        /* @__PURE__ */ jsxDEV("thead", { className: "bg-gray-50 dark:bg-gray-700/50", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "PID" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 144,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "Process Name" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 145,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "User" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 146,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "CPU %" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 147,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "Memory %" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 148,
+            columnNumber: 37
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 143,
+          columnNumber: 33
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 142,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("tbody", { className: "divide-y divide-gray-200 dark:divide-gray-700", children: topProcesses.map(
+          (process, idx) => /* @__PURE__ */ jsxDEV("tr", { className: "hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors", children: [
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm font-mono text-gray-900 dark:text-gray-200", children: process.pid }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 154,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-300", children: process.name }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 155,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm text-gray-600 dark:text-gray-400", children: process.user }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 156,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-2 mr-2", children: /* @__PURE__ */ jsxDEV(
+                "div",
+                {
+                  className: "bg-primary-500 h-2 rounded-full transition-all",
+                  style: { width: `${Math.min(process.cpu_percent, 100)}%` }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                  lineNumber: 160,
+                  columnNumber: 53
+                },
+                this
+              ) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 159,
+                columnNumber: 49
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: "text-gray-700 dark:text-gray-300 font-medium", children: [
+                process.cpu_percent.toFixed(1),
+                "%"
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 165,
+                columnNumber: 49
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 158,
+              columnNumber: 45
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 157,
+              columnNumber: 41
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm text-gray-600 dark:text-gray-400", children: [
+              process.memory_percent.toFixed(1),
+              "%"
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 170,
+              columnNumber: 41
+            }, this)
+          ] }, idx, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 153,
+            columnNumber: 17
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 151,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 141,
+        columnNumber: 25
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 140,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 139,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+      lineNumber: 134,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("h4", { className: "text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center", children: [
+        /* @__PURE__ */ jsxDEV(NetworkIcon, { size: 16, className: "mr-2" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 183,
+          columnNumber: 21
+        }, this),
+        "Active Network Connections (",
+        data.connections.length,
+        " total)"
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 182,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto max-h-64 overflow-y-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "min-w-full divide-y divide-gray-200 dark:divide-gray-700", children: [
+          /* @__PURE__ */ jsxDEV("thead", { className: "bg-gray-50 dark:bg-gray-700/50 sticky top-0", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+            /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "Local" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 191,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "Remote" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 192,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "Status" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 193,
+              columnNumber: 37
+            }, this),
+            /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider", children: "PID" }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 194,
+              columnNumber: 37
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 190,
+            columnNumber: 33
+          }, this) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 189,
+            columnNumber: 29
+          }, this),
+          /* @__PURE__ */ jsxDEV("tbody", { className: "divide-y divide-gray-200 dark:divide-gray-700", children: data.connections.slice(0, 20).map(
+            (conn, idx) => /* @__PURE__ */ jsxDEV("tr", { className: "hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors", children: [
+              /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm font-mono text-gray-800 dark:text-gray-300", children: [
+                conn.local_address,
+                ":",
+                conn.local_port
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 200,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm font-mono text-gray-800 dark:text-gray-300", children: [
+                conn.remote_address,
+                ":",
+                conn.remote_port
+              ] }, void 0, true, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 203,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm", children: /* @__PURE__ */ jsxDEV("span", { className: `px-2 py-0.5 rounded text-xs font-medium ${conn.status === "ESTABLISHED" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : conn.status === "LISTEN" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400"}`, children: conn.status }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 207,
+                columnNumber: 45
+              }, this) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 206,
+                columnNumber: 41
+              }, this),
+              /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-2 text-sm font-mono text-gray-600 dark:text-gray-400", children: conn.pid || "-" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+                lineNumber: 214,
+                columnNumber: 41
+              }, this)
+            ] }, idx, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+              lineNumber: 199,
+              columnNumber: 17
+            }, this)
+          ) }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+            lineNumber: 197,
+            columnNumber: 29
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 188,
+          columnNumber: 25
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 187,
+          columnNumber: 21
+        }, this),
+        data.connections.length > 20 && /* @__PURE__ */ jsxDEV("div", { className: "bg-gray-50 dark:bg-gray-700/30 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 text-center border-t border-gray-200 dark:border-gray-700", children: [
+          "Showing 20 of ",
+          data.connections.length,
+          " connections"
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+          lineNumber: 223,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+        lineNumber: 186,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+      lineNumber: 181,
+      columnNumber: 13
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx",
+    lineNumber: 67,
+    columnNumber: 5
+  }, this);
+};
+_c = RuntimeSecurityTab;
+var _c;
+$RefreshReg$(_c, "RuntimeSecurityTab");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/RuntimeSecurityTab.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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O0FBQUEsZUFFQTtBQUFBLFdBdkNSO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUF5Q0E7QUFBQSxTQTlDSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBK0NBO0FBQUEsT0FqS0o7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQWtLQTtBQUVSO0FBQUV3QixLQTlMV3JDO0FBQXFELElBQUFxQztBQUFBQyxhQUFBRCxJQUFBIiwibmFtZXMiOlsiQWN0aXZpdHlJY29uIiwiTmV0d29ya0ljb24iLCJBbGVydFRyaWFuZ2xlSWNvbiIsIkNoZWNrSWNvbiIsIlJ1bnRpbWVTZWN1cml0eVRhYiIsImRhdGEiLCJwcm9jZXNzZXMiLCJjb25uZWN0aW9ucyIsImdldFNldmVyaXR5Q29sb3IiLCJzZXZlcml0eSIsInRvcFByb2Nlc3NlcyIsInNvcnQiLCJhIiwiYiIsImNwdV9wZXJjZW50Iiwic2xpY2UiLCJwcm9jZXNzX2NvdW50IiwibGVuZ3RoIiwiY29ubmVjdGlvbl9jb3VudCIsInN1c3BpY2lvdXNfYWN0aXZpdGllcyIsIm1hcCIsImFjdGl2aXR5IiwiaWR4IiwidHlwZSIsImRlc2NyaXB0aW9uIiwidG9VcHBlckNhc2UiLCJwcm9jZXNzIiwicGlkIiwibmFtZSIsInVzZXIiLCJ3aWR0aCIsIk1hdGgiLCJtaW4iLCJ0b0ZpeGVkIiwibWVtb3J5X3BlcmNlbnQiLCJjb25uIiwibG9jYWxfYWRkcmVzcyIsImxvY2FsX3BvcnQiLCJyZW1vdGVfYWRkcmVzcyIsInJlbW90ZV9wb3J0Iiwic3RhdHVzIiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiUnVudGltZVNlY3VyaXR5VGFiLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xyXG5pbXBvcnQgeyBBY3Rpdml0eUljb24sIE5ldHdvcmtJY29uLCBBbGVydFRyaWFuZ2xlSWNvbiwgQ2hlY2tJY29uIH0gZnJvbSAnLi9pY29ucyc7XHJcblxyXG5pbnRlcmZhY2UgUHJvY2VzcyB7XHJcbiAgICBwaWQ6IG51bWJlcjtcclxuICAgIG5hbWU6IHN0cmluZztcclxuICAgIHVzZXI6IHN0cmluZztcclxuICAgIGNwdV9wZXJjZW50OiBudW1iZXI7XHJcbiAgICBtZW1vcnlfcGVyY2VudDogbnVtYmVyO1xyXG4gICAgc3RhdHVzPzogc3RyaW5nO1xyXG59XHJcblxyXG5pbnRlcmZhY2UgTmV0d29ya0Nvbm5lY3Rpb24ge1xyXG4gICAgbG9jYWxfYWRkcmVzczogc3RyaW5nO1xyXG4gICAgbG9jYWxfcG9ydDogbnVtYmVyO1xyXG4gICAgcmVtb3RlX2FkZHJlc3M6IHN0cmluZztcclxuICAgIHJlbW90ZV9wb3J0OiBudW1iZXI7XHJcbiAgICBzdGF0dXM6IHN0cmluZztcclxuICAgIHBpZD86IG51bWJlcjtcclxufVxyXG5cclxuaW50ZXJmYWNlIFN1c3BpY2lvdXNBY3Rpdml0eSB7XHJcbiAgICB0eXBlOiBzdHJpbmc7XHJcbiAgICBkZXNjcmlwdGlvbjogc3RyaW5nO1xyXG4gICAgc2V2ZXJpdHk6ICdsb3cnIHwgJ21lZGl1bScgfCAnaGlnaCcgfCAnY3JpdGljYWwnO1xyXG4gICAgdGltZXN0YW1wOiBzdHJpbmc7XHJcbn1cclxuXHJcbmludGVyZmFjZSBSdW50aW1lU2VjdXJpdHlEYXRhIHtcclxuICAgIHByb2Nlc3NlczogUHJvY2Vzc1tdO1xyXG4gICAgY29ubmVjdGlvbnM6IE5ldHdvcmtDb25uZWN0aW9uW107XHJcbiAgICBzdXNwaWNpb3VzX2FjdGl2aXRpZXM6IFN1c3BpY2lvdXNBY3Rpdml0eVtdO1xyXG4gICAgcHJvY2Vzc19jb3VudDogbnVtYmVyO1xyXG4gICAgY29ubmVjdGlvbl9jb3VudDogbnVtYmVyO1xyXG59XHJcblxyXG5pbnRlcmZhY2UgUnVudGltZVNlY3VyaXR5VGFiUHJvcHMge1xyXG4gICAgZGF0YT86IFJ1bnRpbWVTZWN1cml0eURhdGE7XHJcbn1cclxuXHJcbmV4cG9ydCBjb25zdCBSdW50aW1lU2VjdXJpdHlUYWI6IFJlYWN0LkZDPFJ1bnRpbWVTZWN1cml0eVRhYlByb3BzPiA9ICh7IGRhdGEgfSkgPT4ge1xyXG4gICAgaWYgKCFkYXRhIHx8ICFkYXRhLnByb2Nlc3NlcyB8fCAhZGF0YS5jb25uZWN0aW9ucykge1xyXG4gICAgICAgIHJldHVybiAoXHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC1jZW50ZXIgcHktOCB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxyXG4gICAgICAgICAgICAgICAgPEFjdGl2aXR5SWNvbiBzaXplPXs0OH0gY2xhc3NOYW1lPVwibXgtYXV0byBtYi0zIG9wYWNpdHktNTBcIiAvPlxyXG4gICAgICAgICAgICAgICAgPHA+Tm8gcnVudGltZSBzZWN1cml0eSBkYXRhIGF2YWlsYWJsZTwvcD5cclxuICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gbXQtMVwiPkRhdGEgd2lsbCBhcHBlYXIgb25jZSB0aGUgYWdlbnQgcmVwb3J0cyBpdDwvcD5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgKTtcclxuICAgIH1cclxuXHJcbiAgICBjb25zdCBnZXRTZXZlcml0eUNvbG9yID0gKHNldmVyaXR5OiBzdHJpbmcpID0+IHtcclxuICAgICAgICBzd2l0Y2ggKHNldmVyaXR5KSB7XHJcbiAgICAgICAgICAgIGNhc2UgJ2NyaXRpY2FsJzogcmV0dXJuICd0ZXh0LXJlZC02MDAgZGFyazp0ZXh0LXJlZC00MDAgYmctcmVkLTEwMCBkYXJrOmJnLXJlZC05MDAvMzAnO1xyXG4gICAgICAgICAgICBjYXNlICdoaWdoJzogcmV0dXJuICd0ZXh0LW9yYW5nZS02MDAgZGFyazp0ZXh0LW9yYW5nZS00MDAgYmctb3JhbmdlLTEwMCBkYXJrOmJnLW9yYW5nZS05MDAvMzAnO1xyXG4gICAgICAgICAgICBjYXNlICdtZWRpdW0nOiByZXR1cm4gJ3RleHQteWVsbG93LTYwMCBkYXJrOnRleHQteWVsbG93LTQwMCBiZy15ZWxsb3ctMTAwIGRhcms6YmcteWVsbG93LTkwMC8zMCc7XHJcbiAgICAgICAgICAgIGNhc2UgJ2xvdyc6IHJldHVybiAndGV4dC1ibHVlLTYwMCBkYXJrOnRleHQtYmx1ZS00MDAgYmctYmx1ZS0xMDAgZGFyazpiZy1ibHVlLTkwMC8zMCc7XHJcbiAgICAgICAgICAgIGRlZmF1bHQ6IHJldHVybiAndGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDAgYmctZ3JheS0xMDAgZGFyazpiZy1ncmF5LTcwMCc7XHJcbiAgICAgICAgfVxyXG4gICAgfTtcclxuXHJcbiAgICBjb25zdCB0b3BQcm9jZXNzZXMgPSBbLi4uZGF0YS5wcm9jZXNzZXNdXHJcbiAgICAgICAgLnNvcnQoKGEsIGIpID0+IGIuY3B1X3BlcmNlbnQgLSBhLmNwdV9wZXJjZW50KVxyXG4gICAgICAgIC5zbGljZSgwLCAxMCk7XHJcblxyXG4gICAgcmV0dXJuIChcclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktNlwiPlxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTEgc206Z3JpZC1jb2xzLTMgZ2FwLTRcIj5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctZ3JheS01MCBkYXJrOmJnLWdyYXktNzAwLzUwIHJvdW5kZWQtbGcgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW5cIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5BY3RpdmUgUHJvY2Vzc2VzPC9wPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC0yeGwgZm9udC1ib2xkIHRleHQtZ3JheS05MDAgZGFyazp0ZXh0LXdoaXRlIG10LTFcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZGF0YS5wcm9jZXNzX2NvdW50IHx8IGRhdGEucHJvY2Vzc2VzLmxlbmd0aH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxBY3Rpdml0eUljb24gc2l6ZT17MzJ9IGNsYXNzTmFtZT1cInRleHQtcHJpbWFyeS01MDAgb3BhY2l0eS01MFwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLWdyYXktNTAgZGFyazpiZy1ncmF5LTcwMC81MCByb3VuZGVkLWxnIHAtNFwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1iZXR3ZWVuXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+TmV0d29yayBDb25uZWN0aW9uczwvcD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtMnhsIGZvbnQtYm9sZCB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZSBtdC0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2RhdGEuY29ubmVjdGlvbl9jb3VudCB8fCBkYXRhLmNvbm5lY3Rpb25zLmxlbmd0aH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxOZXR3b3JrSWNvbiBzaXplPXszMn0gY2xhc3NOYW1lPVwidGV4dC1ibHVlLTUwMCBvcGFjaXR5LTUwXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctZ3JheS01MCBkYXJrOmJnLWdyYXktNzAwLzUwIHJvdW5kZWQtbGcgcC00XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW5cIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDBcIj5TdXNwaWNpb3VzIEFjdGl2aXRpZXM8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LTJ4bCBmb250LWJvbGQgdGV4dC1ncmF5LTkwMCBkYXJrOnRleHQtd2hpdGUgbXQtMVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtkYXRhLnN1c3BpY2lvdXNfYWN0aXZpdGllcz8ubGVuZ3RoIHx8IDB9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICB7KGRhdGEuc3VzcGljaW91c19hY3Rpdml0aWVzPy5sZW5ndGggfHwgMCkgPiAwID8gKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPEFsZXJ0VHJpYW5nbGVJY29uIHNpemU9ezMyfSBjbGFzc05hbWU9XCJ0ZXh0LXJlZC01MDBcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICApIDogKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPENoZWNrSWNvbiBzaXplPXszMn0gY2xhc3NOYW1lPVwidGV4dC1ncmVlbi01MDAgb3BhY2l0eS01MFwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICB7ZGF0YS5zdXNwaWNpb3VzX2FjdGl2aXRpZXMgJiYgZGF0YS5zdXNwaWNpb3VzX2FjdGl2aXRpZXMubGVuZ3RoID4gMCAmJiAoXHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXJlZC01MCBkYXJrOmJnLXJlZC05MDAvMjAgYm9yZGVyIGJvcmRlci1yZWQtMjAwIGRhcms6Ym9yZGVyLXJlZC04MDAgcm91bmRlZC1sZyBwLTRcIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RhcnRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPEFsZXJ0VHJpYW5nbGVJY29uIHNpemU9ezIwfSBjbGFzc05hbWU9XCJ0ZXh0LXJlZC02MDAgZGFyazp0ZXh0LXJlZC00MDAgbXQtMC41IG1yLTMgZmxleC1zaHJpbmstMFwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleC1ncm93XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8aDQgY2xhc3NOYW1lPVwiZm9udC1zZW1pYm9sZCB0ZXh0LXJlZC05MDAgZGFyazp0ZXh0LXJlZC0yMDAgbWItMlwiPlN1c3BpY2lvdXMgQWN0aXZpdGllcyBEZXRlY3RlZDwvaDQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMlwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtkYXRhLnN1c3BpY2lvdXNfYWN0aXZpdGllcy5tYXAoKGFjdGl2aXR5LCBpZHgpID0+IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBrZXk9e2lkeH0gY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1zdGFydCBqdXN0aWZ5LWJldHdlZW4gdGV4dC1zbVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LWdyb3dcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJmb250LW1lZGl1bSB0ZXh0LXJlZC04MDAgZGFyazp0ZXh0LXJlZC0zMDBcIj57YWN0aXZpdHkudHlwZX06PC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtcmVkLTcwMCBkYXJrOnRleHQtcmVkLTQwMCBtbC0yXCI+e2FjdGl2aXR5LmRlc2NyaXB0aW9ufTwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPXtgcHgtMiBweS0wLjUgcm91bmRlZCB0ZXh0LXhzIGZvbnQtbWVkaXVtIG1sLTMgZmxleC1zaHJpbmstMCAke2dldFNldmVyaXR5Q29sb3IoYWN0aXZpdHkuc2V2ZXJpdHkpfWB9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHthY3Rpdml0eS5zZXZlcml0eS50b1VwcGVyQ2FzZSgpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApKX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICApfVxyXG5cclxuICAgICAgICAgICAgPGRpdj5cclxuICAgICAgICAgICAgICAgIDxoNCBjbGFzc05hbWU9XCJ0ZXh0LXNtIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTcwMCBkYXJrOnRleHQtZ3JheS0zMDAgbWItMyBmbGV4IGl0ZW1zLWNlbnRlclwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxBY3Rpdml0eUljb24gc2l6ZT17MTZ9IGNsYXNzTmFtZT1cIm1yLTJcIiAvPlxyXG4gICAgICAgICAgICAgICAgICAgIFRvcCBQcm9jZXNzZXMgYnkgQ1BVIFVzYWdlXHJcbiAgICAgICAgICAgICAgICA8L2g0PlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy13aGl0ZSBkYXJrOmJnLWdyYXktODAwIGJvcmRlciBib3JkZXItZ3JheS0yMDAgZGFyazpib3JkZXItZ3JheS03MDAgcm91bmRlZC1sZyBvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm92ZXJmbG93LXgtYXV0b1wiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8dGFibGUgY2xhc3NOYW1lPVwibWluLXctZnVsbCBkaXZpZGUteSBkaXZpZGUtZ3JheS0yMDAgZGFyazpkaXZpZGUtZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aGVhZCBjbGFzc05hbWU9XCJiZy1ncmF5LTUwIGRhcms6YmctZ3JheS03MDAvNTBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC00IHB5LTIgdGV4dC1sZWZ0IHRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDAgdXBwZXJjYXNlIHRyYWNraW5nLXdpZGVyXCI+UElEPC90aD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LWxlZnQgdGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMCB1cHBlcmNhc2UgdHJhY2tpbmctd2lkZXJcIj5Qcm9jZXNzIE5hbWU8L3RoPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtbGVmdCB0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIHVwcGVyY2FzZSB0cmFja2luZy13aWRlclwiPlVzZXI8L3RoPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtbGVmdCB0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIHVwcGVyY2FzZSB0cmFja2luZy13aWRlclwiPkNQVSAlPC90aD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LWxlZnQgdGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMCB1cHBlcmNhc2UgdHJhY2tpbmctd2lkZXJcIj5NZW1vcnkgJTwvdGg+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90cj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGhlYWQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGJvZHkgY2xhc3NOYW1lPVwiZGl2aWRlLXkgZGl2aWRlLWdyYXktMjAwIGRhcms6ZGl2aWRlLWdyYXktNzAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge3RvcFByb2Nlc3Nlcy5tYXAoKHByb2Nlc3MsIGlkeCkgPT4gKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHIga2V5PXtpZHh9IGNsYXNzTmFtZT1cImhvdmVyOmJnLWdyYXktNTAgZGFyazpob3ZlcjpiZy1ncmF5LTcwMC8zMCB0cmFuc2l0aW9uLWNvbG9yc1wiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtIGZvbnQtbW9ubyB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC1ncmF5LTIwMFwiPntwcm9jZXNzLnBpZH08L3RkPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS04MDAgZGFyazp0ZXh0LWdyYXktMzAwXCI+e3Byb2Nlc3MubmFtZX08L3RkPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtIHRleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+e3Byb2Nlc3MudXNlcn08L3RkPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlclwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInctMTYgYmctZ3JheS0yMDAgZGFyazpiZy1ncmF5LTYwMCByb3VuZGVkLWZ1bGwgaC0yIG1yLTJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXZcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJiZy1wcmltYXJ5LTUwMCBoLTIgcm91bmRlZC1mdWxsIHRyYW5zaXRpb24tYWxsXCJcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzdHlsZT17eyB3aWR0aDogYCR7TWF0aC5taW4ocHJvY2Vzcy5jcHVfcGVyY2VudCwgMTAwKX0lYCB9fVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtZ3JheS03MDAgZGFyazp0ZXh0LWdyYXktMzAwIGZvbnQtbWVkaXVtXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7cHJvY2Vzcy5jcHVfcGVyY2VudC50b0ZpeGVkKDEpfSVcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90ZD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC00IHB5LTIgdGV4dC1zbSB0ZXh0LWdyYXktNjAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtwcm9jZXNzLm1lbW9yeV9wZXJjZW50LnRvRml4ZWQoMSl9JVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90ZD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90cj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICApKX1cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGJvZHk+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvdGFibGU+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICA8ZGl2PlxyXG4gICAgICAgICAgICAgICAgPGg0IGNsYXNzTmFtZT1cInRleHQtc20gZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTMwMCBtYi0zIGZsZXggaXRlbXMtY2VudGVyXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPE5ldHdvcmtJY29uIHNpemU9ezE2fSBjbGFzc05hbWU9XCJtci0yXCIgLz5cclxuICAgICAgICAgICAgICAgICAgICBBY3RpdmUgTmV0d29yayBDb25uZWN0aW9ucyAoe2RhdGEuY29ubmVjdGlvbnMubGVuZ3RofSB0b3RhbClcclxuICAgICAgICAgICAgICAgIDwvaDQ+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgYm9yZGVyIGJvcmRlci1ncmF5LTIwMCBkYXJrOmJvcmRlci1ncmF5LTcwMCByb3VuZGVkLWxnIG92ZXJmbG93LWhpZGRlblwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwib3ZlcmZsb3cteC1hdXRvIG1heC1oLTY0IG92ZXJmbG93LXktYXV0b1wiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8dGFibGUgY2xhc3NOYW1lPVwibWluLXctZnVsbCBkaXZpZGUteSBkaXZpZGUtZ3JheS0yMDAgZGFyazpkaXZpZGUtZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aGVhZCBjbGFzc05hbWU9XCJiZy1ncmF5LTUwIGRhcms6YmctZ3JheS03MDAvNTAgc3RpY2t5IHRvcC0wXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRyPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtbGVmdCB0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIHVwcGVyY2FzZSB0cmFja2luZy13aWRlclwiPkxvY2FsPC90aD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LWxlZnQgdGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMCB1cHBlcmNhc2UgdHJhY2tpbmctd2lkZXJcIj5SZW1vdGU8L3RoPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtbGVmdCB0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwIHVwcGVyY2FzZSB0cmFja2luZy13aWRlclwiPlN0YXR1czwvdGg+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBjbGFzc05hbWU9XCJweC00IHB5LTIgdGV4dC1sZWZ0IHRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1ncmF5LTUwMCBkYXJrOnRleHQtZ3JheS00MDAgdXBwZXJjYXNlIHRyYWNraW5nLXdpZGVyXCI+UElEPC90aD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RyPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90aGVhZD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0Ym9keSBjbGFzc05hbWU9XCJkaXZpZGUteSBkaXZpZGUtZ3JheS0yMDAgZGFyazpkaXZpZGUtZ3JheS03MDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZGF0YS5jb25uZWN0aW9ucy5zbGljZSgwLCAyMCkubWFwKChjb25uLCBpZHgpID0+IChcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRyIGtleT17aWR4fSBjbGFzc05hbWU9XCJob3ZlcjpiZy1ncmF5LTUwIGRhcms6aG92ZXI6YmctZ3JheS03MDAvMzAgdHJhbnNpdGlvbi1jb2xvcnNcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC00IHB5LTIgdGV4dC1zbSBmb250LW1vbm8gdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtZ3JheS0zMDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7Y29ubi5sb2NhbF9hZGRyZXNzfTp7Y29ubi5sb2NhbF9wb3J0fVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90ZD5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC00IHB5LTIgdGV4dC1zbSBmb250LW1vbm8gdGV4dC1ncmF5LTgwMCBkYXJrOnRleHQtZ3JheS0zMDBcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7Y29ubi5yZW1vdGVfYWRkcmVzc306e2Nvbm4ucmVtb3RlX3BvcnR9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RkPlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMiB0ZXh0LXNtXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPXtgcHgtMiBweS0wLjUgcm91bmRlZCB0ZXh0LXhzIGZvbnQtbWVkaXVtICR7Y29ubi5zdGF0dXMgPT09ICdFU1RBQkxJU0hFRCcgPyAnYmctZ3JlZW4tMTAwIGRhcms6YmctZ3JlZW4tOTAwLzMwIHRleHQtZ3JlZW4tNzAwIGRhcms6dGV4dC1ncmVlbi00MDAnIDpcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNvbm4uc3RhdHVzID09PSAnTElTVEVOJyA/ICdiZy1ibHVlLTEwMCBkYXJrOmJnLWJsdWUtOTAwLzMwIHRleHQtYmx1ZS03MDAgZGFyazp0ZXh0LWJsdWUtNDAwJyA6XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJ2JnLWdyYXktMTAwIGRhcms6YmctZ3JheS03MDAgdGV4dC1ncmF5LTcwMCBkYXJrOnRleHQtZ3JheS00MDAnXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIH1gfT5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2Nvbm4uc3RhdHVzfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNCBweS0yIHRleHQtc20gZm9udC1tb25vIHRleHQtZ3JheS02MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAge2Nvbm4ucGlkIHx8ICctJ31cclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdHI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKSl9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3Rib2R5PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3RhYmxlPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgIHtkYXRhLmNvbm5lY3Rpb25zLmxlbmd0aCA+IDIwICYmIChcclxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJiZy1ncmF5LTUwIGRhcms6YmctZ3JheS03MDAvMzAgcHgtNCBweS0yIHRleHQtc20gdGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDAgdGV4dC1jZW50ZXIgYm9yZGVyLXQgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICBTaG93aW5nIDIwIG9mIHtkYXRhLmNvbm5lY3Rpb25zLmxlbmd0aH0gY29ubmVjdGlvbnNcclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICk7XHJcbn07XHJcbiJdLCJmaWxlIjoiRDovRG93bmxvYWRzL2VudGVycHJpc2Utb21uaS1hZ2VudC1haS1wbGF0Zm9ybS9jb21wb25lbnRzL1J1bnRpbWVTZWN1cml0eVRhYi50c3gifQ==

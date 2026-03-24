@@ -1,0 +1,14 @@
+Attempting Super Admin Login...
+Logged in successfully.
+
+Testing http://localhost:5000/api/assets/EILT0197/compliance...
+Status: 200
+Records found: 0
+
+Checking Agent Status for EILT0197...
+FOUND AGENT: EILT0197
+  ID: agent-8d86964b
+  Status: Online
+  Last Seen: 2026-02-16T22:31:59.895952
+  Version: 2.0.0
+  Capabilities: 0

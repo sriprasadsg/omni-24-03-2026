@@ -1,0 +1,299 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/components/ThreatHuntingDashboard.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d6705e33"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=d6705e33"; const useState = __vite__cjsImport1_react["useState"]; const useMemo = __vite__cjsImport1_react["useMemo"];
+import { UsersIcon, AlertTriangleIcon, CheckIcon } from "/components/icons.tsx";
+import { UebaFindingDetailModal } from "/components/UebaFindingDetailModal.tsx";
+import { ThreatHunting } from "/components/ThreatHunting.tsx";
+const getRiskInfo = (score) => {
+  if (score > 75) return { color: "text-red-500", label: "High", bg: "bg-red-500" };
+  if (score > 40) return { color: "text-orange-500", label: "Medium", bg: "bg-orange-500" };
+  return { color: "text-amber-500", label: "Low", bg: "bg-amber-500" };
+};
+export const ThreatHuntingDashboard = ({ findings, auditLogs, users }) => {
+  _s();
+  const [viewingFinding, setViewingFinding] = useState(null);
+  const [activeTab, setActiveTab] = useState("ai");
+  const sortedFindings = useMemo(() => {
+    return [...findings].sort((a, b) => b.riskScore - a.riskScore);
+  }, [findings]);
+  const relatedLogs = useMemo(() => {
+    if (!viewingFinding) return [];
+    return auditLogs.filter((log) => viewingFinding.relatedLogIds.includes(log.id));
+  }, [viewingFinding, auditLogs]);
+  const findingUser = useMemo(() => {
+    if (!viewingFinding) return void 0;
+    return users.find((u) => u.id === viewingFinding.userId);
+  }, [viewingFinding, users]);
+  return /* @__PURE__ */ jsxDEV("div", { className: "container mx-auto space-y-6", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex justify-between items-center mb-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-2xl font-semibold text-gray-800 dark:text-white mb-2", children: "Threat Hunting Center" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+          lineNumber: 42,
+          columnNumber: 21
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 dark:text-gray-400", children: "Proactively identify threats using AI or behavioral analytics." }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+          lineNumber: 43,
+          columnNumber: 21
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 41,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 flex", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setActiveTab("ai"),
+            className: `px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "ai" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"}`,
+            children: "⚡ Active AI Hunt"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 46,
+            columnNumber: 21
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setActiveTab("ueba"),
+            className: `px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "ueba" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"}`,
+            children: "🛡️ UEBA Findings"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 52,
+            columnNumber: 21
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 45,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+      lineNumber: 40,
+      columnNumber: 13
+    }, this),
+    activeTab === "ai" ? /* @__PURE__ */ jsxDEV(ThreatHunting, {}, void 0, false, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+      lineNumber: 62,
+      columnNumber: 7
+    }, this) : /* @__PURE__ */ jsxDEV("div", { className: "bg-white dark:bg-gray-800 rounded-lg shadow-md animate-in fade-in slide-in-from-bottom-2", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "p-4 border-b border-gray-200 dark:border-gray-700", children: /* @__PURE__ */ jsxDEV("h3", { className: "text-lg font-semibold flex items-center text-gray-800 dark:text-white", children: [
+        /* @__PURE__ */ jsxDEV(UsersIcon, { className: "mr-2 text-primary-500" }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+          lineNumber: 67,
+          columnNumber: 29
+        }, this),
+        "Anomalous Activity Findings"
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 66,
+        columnNumber: 25
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 65,
+        columnNumber: 21
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "overflow-x-auto", children: /* @__PURE__ */ jsxDEV("table", { className: "w-full text-sm text-left text-gray-500 dark:text-gray-400", children: [
+        /* @__PURE__ */ jsxDEV("thead", { className: "text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "User" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 75,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Summary" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 76,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Risk Score" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 77,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Time" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 78,
+            columnNumber: 37
+          }, this),
+          /* @__PURE__ */ jsxDEV("th", { scope: "col", className: "px-6 py-3", children: "Status" }, void 0, false, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 79,
+            columnNumber: 37
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+          lineNumber: 74,
+          columnNumber: 33
+        }, this) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+          lineNumber: 73,
+          columnNumber: 29
+        }, this),
+        /* @__PURE__ */ jsxDEV("tbody", { children: sortedFindings.map((finding) => {
+          const user = users.find((u) => u.id === finding.userId);
+          const riskInfo = getRiskInfo(finding.riskScore);
+          return /* @__PURE__ */ jsxDEV("tr", { onClick: () => setViewingFinding(finding), className: "bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer", children: [
+            /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 font-medium text-gray-900 dark:text-white", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center", children: [
+              user && /* @__PURE__ */ jsxDEV("img", { src: user.avatar, alt: user.name, className: "h-8 w-8 rounded-full object-cover mr-3" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 90,
+                columnNumber: 62
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { children: user?.name || finding.userId }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 91,
+                columnNumber: 53
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 89,
+              columnNumber: 49
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 88,
+              columnNumber: 45
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: finding.summary }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 94,
+              columnNumber: 45
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center", children: [
+              /* @__PURE__ */ jsxDEV("span", { className: `font-bold text-lg ${riskInfo.color}`, children: finding.riskScore }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 97,
+                columnNumber: 53
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: "w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 ml-3", children: /* @__PURE__ */ jsxDEV("div", { className: `${riskInfo.bg} h-1.5 rounded-full`, style: { width: `${finding.riskScore}%` } }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 99,
+                columnNumber: 57
+              }, this) }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 98,
+                columnNumber: 53
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 96,
+              columnNumber: 49
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 95,
+              columnNumber: 45
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4 whitespace-nowrap", children: new Date(finding.timestamp).toLocaleString() }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 103,
+              columnNumber: 45
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-6 py-4", children: /* @__PURE__ */ jsxDEV("span", { className: `inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${finding.status === "Open" ? "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300" : "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"}`, children: [
+              finding.status === "Open" ? /* @__PURE__ */ jsxDEV(AlertTriangleIcon, { size: 12, className: "mr-1.5" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 106,
+                columnNumber: 82
+              }, this) : /* @__PURE__ */ jsxDEV(CheckIcon, { size: 12, className: "mr-1.5" }, void 0, false, {
+                fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+                lineNumber: 106,
+                columnNumber: 135
+              }, this),
+              finding.status
+            ] }, void 0, true, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 105,
+              columnNumber: 49
+            }, this) }, void 0, false, {
+              fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+              lineNumber: 104,
+              columnNumber: 45
+            }, this)
+          ] }, finding.id, true, {
+            fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+            lineNumber: 87,
+            columnNumber: 19
+          }, this);
+        }) }, void 0, false, {
+          fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+          lineNumber: 82,
+          columnNumber: 29
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 72,
+        columnNumber: 25
+      }, this) }, void 0, false, {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 71,
+        columnNumber: 21
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+      lineNumber: 64,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV(
+      UebaFindingDetailModal,
+      {
+        isOpen: !!viewingFinding,
+        onClose: () => setViewingFinding(null),
+        finding: viewingFinding,
+        relatedLogs,
+        user: findingUser
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+        lineNumber: 119,
+        columnNumber: 13
+      },
+      this
+    )
+  ] }, void 0, true, {
+    fileName: "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx",
+    lineNumber: 39,
+    columnNumber: 5
+  }, this);
+};
+_s(ThreatHuntingDashboard, "JfexY/bzkHAnCqKkW5wNH4EreAA=");
+_c = ThreatHuntingDashboard;
+var _c;
+$RefreshReg$(_c, "ThreatHuntingDashboard");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/Downloads/enterprise-omni-agent-ai-platform/components/ThreatHuntingDashboard.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFTLGlFQUFpRSxzRUFBc0UsSUFDdFBWO0FBQUFBLHNCQUFRVSxXQUFXLFNBQVMsdUJBQUMscUJBQWtCLE1BQU0sSUFBSSxXQUFVLFlBQXZDO0FBQUE7QUFBQTtBQUFBO0FBQUEscUJBQStDLElBQU0sdUJBQUMsYUFBVSxNQUFNLElBQUksV0FBVSxZQUEvQjtBQUFBO0FBQUE7QUFBQTtBQUFBLHFCQUF1QztBQUFBLGNBQ3hIVixRQUFRVTtBQUFBQSxpQkFGYjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUdBLEtBSko7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFLQTtBQUFBLGVBdEJLVixRQUFRUCxJQUFqQjtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQXVCQTtBQUFBLFFBRVIsQ0FBQyxLQTlCTDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBK0JBO0FBQUEsV0F6Q0o7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQTBDQSxLQTNDSjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBNENBO0FBQUEsU0FuREo7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQW9EQTtBQUFBLElBR0o7QUFBQSxNQUFDO0FBQUE7QUFBQSxRQUNHLFFBQVEsQ0FBQyxDQUFDZDtBQUFBQSxRQUNWLFNBQVMsTUFBTUMsa0JBQWtCLElBQUk7QUFBQSxRQUNyQyxTQUFTRDtBQUFBQSxRQUNUO0FBQUEsUUFDQSxNQUFNZTtBQUFBQTtBQUFBQSxNQUxWO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxJQUtzQjtBQUFBLE9BckYxQjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBdUZBO0FBRVI7QUFBRWhCLEdBNUdXSix3QkFBNkQ7QUFBQXFDLEtBQTdEckM7QUFBNkQsSUFBQXFDO0FBQUFDLGFBQUFELElBQUEiLCJuYW1lcyI6WyJ1c2VTdGF0ZSIsInVzZU1lbW8iLCJVc2Vyc0ljb24iLCJBbGVydFRyaWFuZ2xlSWNvbiIsIkNoZWNrSWNvbiIsIlVlYmFGaW5kaW5nRGV0YWlsTW9kYWwiLCJUaHJlYXRIdW50aW5nIiwiZ2V0Umlza0luZm8iLCJzY29yZSIsImNvbG9yIiwibGFiZWwiLCJiZyIsIlRocmVhdEh1bnRpbmdEYXNoYm9hcmQiLCJmaW5kaW5ncyIsImF1ZGl0TG9ncyIsInVzZXJzIiwiX3MiLCJ2aWV3aW5nRmluZGluZyIsInNldFZpZXdpbmdGaW5kaW5nIiwiYWN0aXZlVGFiIiwic2V0QWN0aXZlVGFiIiwic29ydGVkRmluZGluZ3MiLCJzb3J0IiwiYSIsImIiLCJyaXNrU2NvcmUiLCJyZWxhdGVkTG9ncyIsImZpbHRlciIsImxvZyIsInJlbGF0ZWRMb2dJZHMiLCJpbmNsdWRlcyIsImlkIiwiZmluZGluZ1VzZXIiLCJ1bmRlZmluZWQiLCJmaW5kIiwidSIsInVzZXJJZCIsIm1hcCIsImZpbmRpbmciLCJ1c2VyIiwicmlza0luZm8iLCJhdmF0YXIiLCJuYW1lIiwic3VtbWFyeSIsIndpZHRoIiwiRGF0ZSIsInRpbWVzdGFtcCIsInRvTG9jYWxlU3RyaW5nIiwic3RhdHVzIiwiX2MiLCIkUmVmcmVzaFJlZyQiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiVGhyZWF0SHVudGluZ0Rhc2hib2FyZC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0LCB7IHVzZVN0YXRlLCB1c2VNZW1vIH0gZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgVWViYUZpbmRpbmcsIEF1ZGl0TG9nLCBVc2VyIH0gZnJvbSAnLi4vdHlwZXMnO1xuaW1wb3J0IHsgVXNlcnNJY29uLCBBbGVydFRyaWFuZ2xlSWNvbiwgQ2hlY2tJY29uIH0gZnJvbSAnLi9pY29ucyc7XG5pbXBvcnQgeyBVZWJhRmluZGluZ0RldGFpbE1vZGFsIH0gZnJvbSAnLi9VZWJhRmluZGluZ0RldGFpbE1vZGFsJztcbmltcG9ydCB7IFRocmVhdEh1bnRpbmcgfSBmcm9tICcuL1RocmVhdEh1bnRpbmcnO1xuXG5pbnRlcmZhY2UgVGhyZWF0SHVudGluZ0Rhc2hib2FyZFByb3BzIHtcbiAgICBmaW5kaW5nczogVWViYUZpbmRpbmdbXTtcbiAgICBhdWRpdExvZ3M6IEF1ZGl0TG9nW107XG4gICAgdXNlcnM6IFVzZXJbXTtcbn1cblxuY29uc3QgZ2V0Umlza0luZm8gPSAoc2NvcmU6IG51bWJlcik6IHsgY29sb3I6IHN0cmluZzsgbGFiZWw6IHN0cmluZzsgYmc6IHN0cmluZzsgfSA9PiB7XG4gICAgaWYgKHNjb3JlID4gNzUpIHJldHVybiB7IGNvbG9yOiAndGV4dC1yZWQtNTAwJywgbGFiZWw6ICdIaWdoJywgYmc6ICdiZy1yZWQtNTAwJyB9O1xuICAgIGlmIChzY29yZSA+IDQwKSByZXR1cm4geyBjb2xvcjogJ3RleHQtb3JhbmdlLTUwMCcsIGxhYmVsOiAnTWVkaXVtJywgYmc6ICdiZy1vcmFuZ2UtNTAwJyB9O1xuICAgIHJldHVybiB7IGNvbG9yOiAndGV4dC1hbWJlci01MDAnLCBsYWJlbDogJ0xvdycsIGJnOiAnYmctYW1iZXItNTAwJyB9O1xufTtcblxuXG5leHBvcnQgY29uc3QgVGhyZWF0SHVudGluZ0Rhc2hib2FyZDogUmVhY3QuRkM8VGhyZWF0SHVudGluZ0Rhc2hib2FyZFByb3BzPiA9ICh7IGZpbmRpbmdzLCBhdWRpdExvZ3MsIHVzZXJzIH0pID0+IHtcbiAgICBjb25zdCBbdmlld2luZ0ZpbmRpbmcsIHNldFZpZXdpbmdGaW5kaW5nXSA9IHVzZVN0YXRlPFVlYmFGaW5kaW5nIHwgbnVsbD4obnVsbCk7XG4gICAgY29uc3QgW2FjdGl2ZVRhYiwgc2V0QWN0aXZlVGFiXSA9IHVzZVN0YXRlPCd1ZWJhJyB8ICdhaSc+KCdhaScpO1xuXG4gICAgY29uc3Qgc29ydGVkRmluZGluZ3MgPSB1c2VNZW1vKCgpID0+IHtcbiAgICAgICAgcmV0dXJuIFsuLi5maW5kaW5nc10uc29ydCgoYSwgYikgPT4gYi5yaXNrU2NvcmUgLSBhLnJpc2tTY29yZSk7XG4gICAgfSwgW2ZpbmRpbmdzXSk7XG5cbiAgICBjb25zdCByZWxhdGVkTG9ncyA9IHVzZU1lbW8oKCkgPT4ge1xuICAgICAgICBpZiAoIXZpZXdpbmdGaW5kaW5nKSByZXR1cm4gW107XG4gICAgICAgIHJldHVybiBhdWRpdExvZ3MuZmlsdGVyKGxvZyA9PiB2aWV3aW5nRmluZGluZy5yZWxhdGVkTG9nSWRzLmluY2x1ZGVzKGxvZy5pZCkpO1xuICAgIH0sIFt2aWV3aW5nRmluZGluZywgYXVkaXRMb2dzXSk7XG5cbiAgICBjb25zdCBmaW5kaW5nVXNlciA9IHVzZU1lbW8oKCkgPT4ge1xuICAgICAgICBpZiAoIXZpZXdpbmdGaW5kaW5nKSByZXR1cm4gdW5kZWZpbmVkO1xuICAgICAgICByZXR1cm4gdXNlcnMuZmluZCh1ID0+IHUuaWQgPT09IHZpZXdpbmdGaW5kaW5nLnVzZXJJZCk7XG4gICAgfSwgW3ZpZXdpbmdGaW5kaW5nLCB1c2Vyc10pO1xuXG4gICAgcmV0dXJuIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb250YWluZXIgbXgtYXV0byBzcGFjZS15LTZcIj5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBqdXN0aWZ5LWJldHdlZW4gaXRlbXMtY2VudGVyIG1iLTZcIj5cbiAgICAgICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICAgICAgICA8aDIgY2xhc3NOYW1lPVwidGV4dC0yeGwgZm9udC1zZW1pYm9sZCB0ZXh0LWdyYXktODAwIGRhcms6dGV4dC13aGl0ZSBtYi0yXCI+VGhyZWF0IEh1bnRpbmcgQ2VudGVyPC9oMj5cbiAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LWdyYXktNTAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlByb2FjdGl2ZWx5IGlkZW50aWZ5IHRocmVhdHMgdXNpbmcgQUkgb3IgYmVoYXZpb3JhbCBhbmFseXRpY3MuPC9wPlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCBwLTEgcm91bmRlZC1sZyBib3JkZXIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwIGZsZXhcIj5cbiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvblxuICAgICAgICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gc2V0QWN0aXZlVGFiKCdhaScpfVxuICAgICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPXtgcHgtNCBweS0yIHRleHQtc20gZm9udC1tZWRpdW0gcm91bmRlZC1tZCB0cmFuc2l0aW9uLWNvbG9ycyAke2FjdGl2ZVRhYiA9PT0gJ2FpJyA/ICdiZy1ibHVlLTEwMCB0ZXh0LWJsdWUtNzAwIGRhcms6YmctYmx1ZS05MDAvNTAgZGFyazp0ZXh0LWJsdWUtMzAwJyA6ICd0ZXh0LWdyYXktNjAwIGRhcms6dGV4dC1ncmF5LTQwMCBob3ZlcjpiZy1ncmF5LTUwIGRhcms6aG92ZXI6YmctZ3JheS03MDAnfWB9XG4gICAgICAgICAgICAgICAgICAgID5cbiAgICAgICAgICAgICAgICAgICAgICAgIOKaoSBBY3RpdmUgQUkgSHVudFxuICAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvblxuICAgICAgICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gc2V0QWN0aXZlVGFiKCd1ZWJhJyl9XG4gICAgICAgICAgICAgICAgICAgICAgICBjbGFzc05hbWU9e2BweC00IHB5LTIgdGV4dC1zbSBmb250LW1lZGl1bSByb3VuZGVkLW1kIHRyYW5zaXRpb24tY29sb3JzICR7YWN0aXZlVGFiID09PSAndWViYScgPyAnYmctYmx1ZS0xMDAgdGV4dC1ibHVlLTcwMCBkYXJrOmJnLWJsdWUtOTAwLzUwIGRhcms6dGV4dC1ibHVlLTMwMCcgOiAndGV4dC1ncmF5LTYwMCBkYXJrOnRleHQtZ3JheS00MDAgaG92ZXI6YmctZ3JheS01MCBkYXJrOmhvdmVyOmJnLWdyYXktNzAwJ31gfVxuICAgICAgICAgICAgICAgICAgICA+XG4gICAgICAgICAgICAgICAgICAgICAgICDwn5uh77iPIFVFQkEgRmluZGluZ3NcbiAgICAgICAgICAgICAgICAgICAgPC9idXR0b24+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICA8L2Rpdj5cblxuICAgICAgICAgICAge2FjdGl2ZVRhYiA9PT0gJ2FpJyA/IChcbiAgICAgICAgICAgICAgICA8VGhyZWF0SHVudGluZyAvPlxuICAgICAgICAgICAgKSA6IChcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGRhcms6YmctZ3JheS04MDAgcm91bmRlZC1sZyBzaGFkb3ctbWQgYW5pbWF0ZS1pbiBmYWRlLWluIHNsaWRlLWluLWZyb20tYm90dG9tLTJcIj5cbiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTQgYm9yZGVyLWIgYm9yZGVyLWdyYXktMjAwIGRhcms6Ym9yZGVyLWdyYXktNzAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8aDMgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LXNlbWlib2xkIGZsZXggaXRlbXMtY2VudGVyIHRleHQtZ3JheS04MDAgZGFyazp0ZXh0LXdoaXRlXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPFVzZXJzSWNvbiBjbGFzc05hbWU9XCJtci0yIHRleHQtcHJpbWFyeS01MDBcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIEFub21hbG91cyBBY3Rpdml0eSBGaW5kaW5nc1xuICAgICAgICAgICAgICAgICAgICAgICAgPC9oMz5cbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwib3ZlcmZsb3cteC1hdXRvXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8dGFibGUgY2xhc3NOYW1lPVwidy1mdWxsIHRleHQtc20gdGV4dC1sZWZ0IHRleHQtZ3JheS01MDAgZGFyazp0ZXh0LWdyYXktNDAwXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoZWFkIGNsYXNzTmFtZT1cInRleHQteHMgdGV4dC1ncmF5LTcwMCB1cHBlcmNhc2UgYmctZ3JheS01MCBkYXJrOmJnLWdyYXktNzAwIGRhcms6dGV4dC1ncmF5LTQwMFwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggc2NvcGU9XCJjb2xcIiBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5Vc2VyPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBzY29wZT1cImNvbFwiIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPlN1bW1hcnk8L3RoPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRoIHNjb3BlPVwiY29sXCIgY2xhc3NOYW1lPVwicHgtNiBweS0zXCI+UmlzayBTY29yZTwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGggc2NvcGU9XCJjb2xcIiBjbGFzc05hbWU9XCJweC02IHB5LTNcIj5UaW1lPC90aD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0aCBzY29wZT1cImNvbFwiIGNsYXNzTmFtZT1cInB4LTYgcHktM1wiPlN0YXR1czwvdGg+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdHI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90aGVhZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGJvZHk+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHtzb3J0ZWRGaW5kaW5ncy5tYXAoZmluZGluZyA9PiB7XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjb25zdCB1c2VyID0gdXNlcnMuZmluZCh1ID0+IHUuaWQgPT09IGZpbmRpbmcudXNlcklkKTtcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNvbnN0IHJpc2tJbmZvID0gZ2V0Umlza0luZm8oZmluZGluZy5yaXNrU2NvcmUpO1xuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgcmV0dXJuIChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dHIga2V5PXtmaW5kaW5nLmlkfSBvbkNsaWNrPXsoKSA9PiBzZXRWaWV3aW5nRmluZGluZyhmaW5kaW5nKX0gY2xhc3NOYW1lPVwiYmctd2hpdGUgZGFyazpiZy1ncmF5LTgwMCBib3JkZXItYiBkYXJrOmJvcmRlci1ncmF5LTcwMCBob3ZlcjpiZy1ncmF5LTUwIGRhcms6aG92ZXI6YmctZ3JheS02MDAvNTAgY3Vyc29yLXBvaW50ZXJcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNCBmb250LW1lZGl1bSB0ZXh0LWdyYXktOTAwIGRhcms6dGV4dC13aGl0ZVwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlclwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHt1c2VyICYmIDxpbWcgc3JjPXt1c2VyLmF2YXRhcn0gYWx0PXt1c2VyLm5hbWV9IGNsYXNzTmFtZT1cImgtOCB3LTggcm91bmRlZC1mdWxsIG9iamVjdC1jb3ZlciBtci0zXCIgLz59XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4+e3VzZXI/Lm5hbWUgfHwgZmluZGluZy51c2VySWR9PC9zcGFuPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTRcIj57ZmluZGluZy5zdW1tYXJ5fTwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZCBjbGFzc05hbWU9XCJweC02IHB5LTRcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXJcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9e2Bmb250LWJvbGQgdGV4dC1sZyAke3Jpc2tJbmZvLmNvbG9yfWB9PntmaW5kaW5nLnJpc2tTY29yZX08L3NwYW4+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJ3LTE2IGJnLWdyYXktMjAwIGRhcms6YmctZ3JheS03MDAgcm91bmRlZC1mdWxsIGgtMS41IG1sLTNcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9e2Ake3Jpc2tJbmZvLmJnfSBoLTEuNSByb3VuZGVkLWZ1bGxgfSBzdHlsZT17eyB3aWR0aDogYCR7ZmluZGluZy5yaXNrU2NvcmV9JWAgfX0+PC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90ZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTYgcHktNCB3aGl0ZXNwYWNlLW5vd3JhcFwiPntuZXcgRGF0ZShmaW5kaW5nLnRpbWVzdGFtcCkudG9Mb2NhbGVTdHJpbmcoKX08L3RkPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNiBweS00XCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9e2BpbmxpbmUtZmxleCBpdGVtcy1jZW50ZXIgcHgtMiBweS0xIHRleHQteHMgZm9udC1tZWRpdW0gcm91bmRlZC1mdWxsICR7ZmluZGluZy5zdGF0dXMgPT09ICdPcGVuJyA/ICdiZy1yZWQtMTAwIHRleHQtcmVkLTgwMCBkYXJrOmJnLXJlZC05MDAvNTAgZGFyazp0ZXh0LXJlZC0zMDAnIDogJ2JnLWdyZWVuLTEwMCB0ZXh0LWdyZWVuLTgwMCBkYXJrOmJnLWdyZWVuLTkwMC81MCBkYXJrOnRleHQtZ3JlZW4tMzAwJ31gfT5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZmluZGluZy5zdGF0dXMgPT09ICdPcGVuJyA/IDxBbGVydFRyaWFuZ2xlSWNvbiBzaXplPXsxMn0gY2xhc3NOYW1lPVwibXItMS41XCIgLz4gOiA8Q2hlY2tJY29uIHNpemU9ezEyfSBjbGFzc05hbWU9XCJtci0xLjVcIiAvPn1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB7ZmluZGluZy5zdGF0dXN9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3NwYW4+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvdGQ+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90cj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIClcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgfSl9XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC90Ym9keT5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvdGFibGU+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgKX1cblxuICAgICAgICAgICAgPFVlYmFGaW5kaW5nRGV0YWlsTW9kYWxcbiAgICAgICAgICAgICAgICBpc09wZW49eyEhdmlld2luZ0ZpbmRpbmd9XG4gICAgICAgICAgICAgICAgb25DbG9zZT17KCkgPT4gc2V0Vmlld2luZ0ZpbmRpbmcobnVsbCl9XG4gICAgICAgICAgICAgICAgZmluZGluZz17dmlld2luZ0ZpbmRpbmd9XG4gICAgICAgICAgICAgICAgcmVsYXRlZExvZ3M9e3JlbGF0ZWRMb2dzfVxuICAgICAgICAgICAgICAgIHVzZXI9e2ZpbmRpbmdVc2VyfVxuICAgICAgICAgICAgLz5cbiAgICAgICAgPC9kaXY+XG4gICAgKTtcbn07Il0sImZpbGUiOiJEOi9Eb3dubG9hZHMvZW50ZXJwcmlzZS1vbW5pLWFnZW50LWFpLXBsYXRmb3JtL2NvbXBvbmVudHMvVGhyZWF0SHVudGluZ0Rhc2hib2FyZC50c3gifQ==

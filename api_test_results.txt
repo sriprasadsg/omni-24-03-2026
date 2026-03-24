@@ -1,0 +1,32 @@
+Attempting Super Admin Login...
+Logged in successfully.
+
+Testing http://localhost:5000/api/assets/EILT0197/compliance...
+Status: 200
+Records found: 0
+
+Testing http://localhost:5000/api/assets/asset-EILT0197/compliance...
+Status: 200
+Records found: 64
+First record sample: {
+  "controlId": "PCI-1.1.1",
+  "tenantId": "tenant_82dda0f33bc4",
+  "assetId": "asset-EILT0197",
+  "evidence": [
+    {
+      "id": "auto-ev-EILT0197-PCI-1.1.1-2026-02-16T22:13:17.237253+00:00",
+      "name": "System Check: Windows Firewall Profiles",
+      "url": "#",
+      "type": "application/json",
+      "uploadedAt": "2026-02-16T22:13:17.237253+00:00",
+      "assetId": "asset-EILT0197",
+      "controlId": "PCI-1.1.1",
+      "systemGenerated": true,
+      "content": "# System Compliance Evidence\n**Date:** 2026-02-16T22:13:17.237253+00:00\n**Asset:** EILT0197\n**Control:** PCI-1.1.1\n**Check Name:** Windows Firewall Profiles\n\n## 1. Check Status\n**Result:** Pass\n**Details:** Firewall enabled on 3 profiles\n\n## 2. Automated Command Output\n```json\n[\n    {\n        \"Name\":  \"Domain\",\n        \"Enabled\":  1\n    },\n    {\n        \"Name\":  \"Private\",\n        \"Enabled\":  1\n    },\n    {\n        \"Name\":  \"Public\",\n        \"Enabled\":  1\n    }\n]\n```\n\n## 3. Evidence Integrity\n**Agent Hash (SHA256):** `6b1107e746407477842557c79210efc4ab48db578d7e9d25150c5fca1bc025e0`\n**Backend Verification:** \u2705 Verified (Content Matches Agent Hash)\n"
+    }
+  ],
+  "lastAutomatedCheck": "2026-02-16T22:13:17.237253+00:00",
+  "lastUpdated": "2026-02-16T22:13:17.237253+00:00",
+  "status": "Compliant",
+  "checkName": "Windows Firewall Profiles"
+}
