@@ -57,11 +57,6 @@ class SecurityManager:
     def _initialize_crypto(self):
         """Initialize encryption keys, generating if needed (and feasible)"""
         try:
-            # In a real enterprise scenario, we might use a TPM or a pre-shared secret.
-            # Here, we will use a locally stored key that is generated once.
-            # Ideally, we would protect this key with system-level APIs (DPAPI on Windows, Keychain on Mac).
-            # For this implementation, we will perform a simple key generation and storage.
-            
             if self.key_file.exists():
                 try:
                     encrypted_key = self.key_file.read_bytes()
@@ -70,22 +65,28 @@ class SecurityManager:
                     else:
                         self._key = encrypted_key
                     self._fernet = Fernet(self._key)
+                    return
                 except Exception as e:
                     logger.error(f"Failed to load existing key: {e}")
-                    raise
+                    logger.warning("Key is invalid or corrupted. Deleting and regenerating...")
+                    try:
+                        self.key_file.unlink()
+                    except FileNotFoundError:
+                        pass
+            
+            # Generate new key
+            self._key = Fernet.generate_key()
+            if win32crypt and os.name == 'nt':
+                encrypted_key = win32crypt.CryptProtectData(self._key, "OmniAgent Master Key", None, None, None, 0)
+                self.key_file.write_bytes(encrypted_key)
             else:
-                self._key = Fernet.generate_key()
-                if win32crypt and os.name == 'nt':
-                    encrypted_key = win32crypt.CryptProtectData(self._key, "OmniAgent Master Key", None, None, None, 0)
-                    self.key_file.write_bytes(encrypted_key)
-                else:
-                    self.key_file.write_bytes(self._key)
-                    # On POSIX, restrict permissions
-                    if os.name == 'posix':
-                        os.chmod(self.key_file, 0o600)
-                
-                self._fernet = Fernet(self._key)
-                logger.info("Generated new protected encryption key.")
+                self.key_file.write_bytes(self._key)
+                # On POSIX, restrict permissions
+                if os.name == 'posix':
+                    os.chmod(self.key_file, 0o600)
+            
+            self._fernet = Fernet(self._key)
+            logger.info("Generated new protected encryption key.")
                 
         except Exception as e:
             logger.error(f"Crypto init failed: {e}")

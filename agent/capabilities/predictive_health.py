@@ -1,13 +1,30 @@
 """
 Predictive Health Capability
-Uses AI to predict potential agent or host issues
+Uses statistical trend analysis to predict potential agent or host issues.
 """
 from .base import BaseCapability
 import psutil
-import random
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from collections import deque
+
+
+def _linear_forecast(series: list, steps: int) -> List[float]:
+    """
+    Least-squares linear regression extrapolation.
+    Returns `steps` predicted values beyond the end of `series`.
+    Falls back to the last value when there are fewer than 2 data points.
+    """
+    n = len(series)
+    if n < 2:
+        return [series[-1] if series else 0.0] * steps
+    xs = list(range(n))
+    mean_x = sum(xs) / n
+    mean_y = sum(series) / n
+    denom = sum((x - mean_x) ** 2 for x in xs)
+    slope = sum((xs[i] - mean_x) * (series[i] - mean_y) for i in range(n)) / denom if denom else 0.0
+    intercept = mean_y - slope * mean_x
+    return [max(0.0, min(100.0, round(intercept + slope * (n + i), 1))) for i in range(steps)]
 
 class PredictiveHealthCapability(BaseCapability):
     
@@ -64,20 +81,30 @@ class PredictiveHealthCapability(BaseCapability):
         # Detect anomalies
         anomalies = self._detect_anomalies()
         
-        # Generate short-term forecast for charts
-        forecast = []
+        # Generate short-term forecast using linear regression on collected history
+        STEPS = 12  # next 2 hours at 10-min intervals
         now = datetime.now()
-        current_cpu = cpu_percent
-        current_mem = memory_percent
         current_health = self._calculate_health_score()
-        
-        for i in range(12): # Next 2 hours (10 min steps)
+
+        cpu_hist = list(self.metrics_history['cpu']) or [cpu_percent]
+        mem_hist = list(self.metrics_history['memory']) or [memory_percent]
+        cpu_fc = _linear_forecast(cpu_hist, STEPS)
+        mem_fc = _linear_forecast(mem_hist, STEPS)
+        # Health score forecast: recompute from predicted cpu/mem (disk assumed stable)
+        disk_val = list(self.metrics_history['disk'])[-1] if self.metrics_history['disk'] else disk_percent
+        health_fc = [
+            round(max(0, min(100, 100 - (cpu_fc[i] * 0.3 + mem_fc[i] * 0.4 + disk_val * 0.3))), 1)
+            for i in range(STEPS)
+        ]
+
+        forecast = []
+        for i in range(STEPS):
             future_time = now + timedelta(minutes=10 * i)
             forecast.append({
                 "timestamp": future_time.strftime("%H:%M"),
-                "cpu_prediction": round(current_cpu + random.uniform(-5, 5), 1),
-                "memory_prediction": round(current_mem + random.uniform(-2, 2), 1),
-                "health_score": round(current_health + random.uniform(-1, 1), 1)
+                "cpu_prediction": cpu_fc[i],
+                "memory_prediction": mem_fc[i],
+                "health_score": health_fc[i],
             })
 
         warnings = [p["resource"] + " exhaustion predicted" for p in predictions]
@@ -95,32 +122,49 @@ class PredictiveHealthCapability(BaseCapability):
         }
 
     def _recommend_remediation(self, predictions: List[Dict], anomalies: List[Dict]) -> Dict[str, Any]:
-        """Recommend remediation actions based on health state"""
-        action = None
-        reason = None
-        
-        # 1. Critical Memory Exhaustion -> Restart
-        # Check if memory is consistently high (>95%)
-        if len(self.metrics_history['memory']) > 10:
-            recent_mem = list(self.metrics_history['memory'])[-5:]
-            if all(m > 95 for m in recent_mem):
+        """Recommend remediation actions based on health state.
+
+        Thresholds are read from config so they can be tuned per agent/workload:
+          mem_restart_threshold  (default 95) — sustained % that triggers restart
+          cpu_throttle_threshold (default 95) — sustained % that triggers throttle
+          sustained_samples      (default 5)  — how many consecutive samples must exceed threshold
+        """
+        mem_threshold = float(self.config.get("mem_restart_threshold", 95))
+        cpu_threshold = float(self.config.get("cpu_throttle_threshold", 95))
+        sustained = int(self.config.get("sustained_samples", 5))
+
+        # Compute baselines to avoid alerting on workloads that normally run hot
+        mem_baseline = (
+            sum(list(self.metrics_history["memory"])[:-sustained]) /
+            max(1, len(self.metrics_history["memory"]) - sustained)
+        ) if len(self.metrics_history["memory"]) > sustained else 0.0
+        cpu_baseline = (
+            sum(list(self.metrics_history["cpu"])[:-sustained]) /
+            max(1, len(self.metrics_history["cpu"]) - sustained)
+        ) if len(self.metrics_history["cpu"]) > sustained else 0.0
+
+        # 1. Critical Memory Exhaustion → Restart (only if above baseline + threshold)
+        if len(self.metrics_history["memory"]) > sustained:
+            recent_mem = list(self.metrics_history["memory"])[-sustained:]
+            effective_mem_threshold = max(mem_threshold, mem_baseline + 10)
+            if all(m > effective_mem_threshold for m in recent_mem):
                 return {
                     "action": "restart_agent",
-                    "reason": "Critical Memory Usage (>95%) detected for sustained period",
-                    "timestamp": datetime.now().isoformat()
+                    "reason": f"Sustained memory usage >{effective_mem_threshold:.0f}% for {sustained} samples",
+                    "timestamp": datetime.now().isoformat(),
                 }
 
-        # 2. Critical CPU Usage -> Throttle
-        # Check if CPU is consistently high (>95%)
-        if len(self.metrics_history['cpu']) > 10:
-            recent_cpu = list(self.metrics_history['cpu'])[-5:]
-            if all(c > 95 for c in recent_cpu):
+        # 2. Critical CPU Usage → Throttle
+        if len(self.metrics_history["cpu"]) > sustained:
+            recent_cpu = list(self.metrics_history["cpu"])[-sustained:]
+            effective_cpu_threshold = max(cpu_threshold, cpu_baseline + 10)
+            if all(c > effective_cpu_threshold for c in recent_cpu):
                 return {
                     "action": "throttle",
-                    "reason": "Critical CPU Usage (>95%) detected",
-                    "timestamp": datetime.now().isoformat()
+                    "reason": f"Sustained CPU usage >{effective_cpu_threshold:.0f}% for {sustained} samples",
+                    "timestamp": datetime.now().isoformat(),
                 }
-                
+
         return None
     
     def _predict_resource_exhaustion(self, history: List[float], threshold: float, resource_name: str) -> Dict[str, Any]:

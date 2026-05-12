@@ -3,12 +3,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../types';
 import { getChatAssistantResponse } from '../services/apiService';
 // FIX: Replaced non-existent BotMessageSquareIcon with MessageSquareQuoteIcon and added missing SendIcon.
-import { XIcon, MessageSquareQuoteIcon, SendIcon, SparklesIcon, UserIcon } from './icons';
+import { XIcon, MessageSquareQuoteIcon, SendIcon, SparklesIcon, UserIcon, AlertTriangleIcon } from './icons';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 interface ChatAssistantProps {
   isOpen: boolean;
   onClose: () => void;
   context: any;
+  onNavigate?: (view: string) => void;
 }
 
 const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
@@ -32,19 +35,24 @@ const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
 };
 
 
-export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, context }) => {
+export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, context, onNavigate }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isMockMode, setIsMockMode] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setMessages([{
-        role: 'assistant',
-        content: `Hello! I'm the Omni-Agent AI. I have context on the current **${context.currentView}** page. Ask me to analyze data, correlate metrics, or even ask business questions like "Did the last deployment impact revenue?"`
-      }]);
-    }
+    if (!isOpen) return;
+    setMessages([{
+      role: 'assistant',
+      content: `Hello! I'm the Omni-Agent AI. I have context on the current **${context.currentView}** page. Ask me to analyze data, correlate metrics, or even ask business questions like "Did the last deployment impact revenue?"`
+    }]);
+    // Check whether the backend is running in mock / unconfigured LLM mode
+    fetch(`${API_BASE}/api/ai`)
+      .then(r => r.json())
+      .then(d => setIsMockMode(!!d.is_mock_mode))
+      .catch(() => {});
   }, [isOpen, context.currentView]);
 
   useEffect(() => {
@@ -93,6 +101,23 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
           </button>
         </header>
         
+        {isMockMode && (
+          <div className="flex-shrink-0 flex items-start gap-2 px-4 py-2 bg-yellow-50 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-700/50 text-xs text-yellow-800 dark:text-yellow-300">
+            <AlertTriangleIcon size={14} className="mt-0.5 flex-shrink-0" />
+            <span>Running in limited mode — no LLM configured. Set <strong>GEMINI_API_KEY</strong> or <strong>OLLAMA_URL</strong>, or{' '}
+              {onNavigate ? (
+                <button
+                  onClick={() => { onNavigate('settings'); onClose(); }}
+                  className="underline font-semibold hover:opacity-75"
+                >
+                  configure LLM provider
+                </button>
+              ) : (
+                <strong>Settings › LLM Provider</strong>
+              )}.
+            </span>
+          </div>
+        )}
         <main className="flex-grow p-4 overflow-y-auto space-y-4">
           {messages.map((message, index) => (
             <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>

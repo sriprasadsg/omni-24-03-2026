@@ -109,7 +109,68 @@ async def test_integration(
     request: dict,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Test integration (Mock)"""
-    print(f"Testing integration: {request}")
-    # Simulate success for verification
-    return {"success": True, "message": f"Test notification sent to {request.get('platform', 'unknown')}"}
+    """Test integration by sending a real test event to the configured endpoint."""
+    platform = request.get("platform", "unknown")
+    db = get_database()
+
+    # Load persisted config for this integration
+    config_doc = await db.integrations.find_one(
+        {"tenantId": current_user.tenant_id, "id": platform}, {"_id": 0}
+    ) or {}
+    config = config_doc.get("config", {})
+
+    try:
+        import httpx
+
+        if platform == "slack":
+            webhook_url = config.get("webhookUrl") or request.get("webhookUrl", "")
+            if not webhook_url:
+                return {"success": False, "message": "Slack webhookUrl not configured."}
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(webhook_url, json={"text": ":white_check_mark: Omni-Agent test notification"})
+            if resp.status_code in (200, 204):
+                return {"success": True, "message": "Slack test message sent successfully."}
+            return {"success": False, "message": f"Slack returned HTTP {resp.status_code}."}
+
+        if platform == "msteams":
+            webhook_url = config.get("webhookUrl") or request.get("webhookUrl", "")
+            if not webhook_url:
+                return {"success": False, "message": "Teams webhookUrl not configured."}
+            payload = {"@type": "MessageCard", "text": "Omni-Agent test notification"}
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(webhook_url, json=payload)
+            if resp.status_code in (200, 204):
+                return {"success": True, "message": "Teams test message sent successfully."}
+            return {"success": False, "message": f"Teams returned HTTP {resp.status_code}."}
+
+        if platform == "pagerduty":
+            api_key = config.get("apiKey") or request.get("apiKey", "")
+            if not api_key:
+                return {"success": False, "message": "PagerDuty apiKey not configured."}
+            headers = {"Authorization": f"Token token={api_key}", "Content-Type": "application/json"}
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get("https://api.pagerduty.com/abilities", headers=headers)
+            if resp.status_code == 200:
+                return {"success": True, "message": "PagerDuty API key validated successfully."}
+            return {"success": False, "message": f"PagerDuty returned HTTP {resp.status_code}."}
+
+        if platform == "jira":
+            api_url = config.get("apiUrl") or request.get("apiUrl", "")
+            api_token = config.get("apiToken") or request.get("apiToken", "")
+            if not api_url or not api_token:
+                return {"success": False, "message": "Jira apiUrl or apiToken not configured."}
+            import base64
+            auth = base64.b64encode(f"user:{api_token}".encode()).decode()
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"{api_url}/rest/api/3/myself", headers={"Authorization": f"Basic {auth}"})
+            if resp.status_code == 200:
+                return {"success": True, "message": "Jira API connection verified."}
+            return {"success": False, "message": f"Jira returned HTTP {resp.status_code}."}
+
+        # Generic: no test logic implemented for this platform
+        return {"success": True, "message": f"Integration '{platform}' saved — no live test available for this platform type."}
+
+    except httpx.ConnectError:
+        return {"success": False, "message": f"Could not connect to {platform} endpoint. Check the URL and network access."}
+    except Exception as e:
+        return {"success": False, "message": f"Test failed: {str(e)}"}

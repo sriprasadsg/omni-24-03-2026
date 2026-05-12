@@ -2,17 +2,76 @@
 EDR Telemetry API Endpoints
 Receives real-time process/network/alert events from EDR agents.
 Stores in MongoDB and surfaces them to the frontend EDR Dashboard.
+Automatically routes each incoming alert through the response orchestrator
+so that enabled policies can trigger kill/quarantine/isolate actions.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
+from response_orchestrator import ResponseOrchestrator
+from enhanced_playbook_engine import PlaybookExecutionEngine
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/edr", tags=["EDR - Real-Time Telemetry"])
+
+# Shared orchestrator instance (same as response_endpoints.py)
+_orchestrator = ResponseOrchestrator()
+
+
+_RANSOMWARE_ALERT_TYPES = {"RANSOMWARE_DETECTED", "ransomware_detected", "file_encryption", "mass_file_rename", "shadow_copy_deletion"}
+
+
+async def _run_orchestrator(alert: Dict[str, Any], agent_id: str) -> None:
+    """Background coroutine: evaluate one EDR alert against all enabled policies."""
+    try:
+        dispatched = await _orchestrator.evaluate_alert(alert, agent_id)
+        if dispatched:
+            logger.info(
+                "EDR auto-response: %d task(s) dispatched for alert %s on agent %s",
+                len(dispatched), alert.get("alert_id"), agent_id,
+            )
+    except Exception as exc:
+        logger.error("Orchestrator evaluation failed for alert %s: %s",
+                     alert.get("alert_id"), exc)
+
+
+async def _run_ransomware_playbooks(alert: Dict[str, Any], agent_id: str) -> None:
+    """
+    Immediately fire any enabled playbooks with trigger_type='alert' and
+    category='ransomware_recovery' when a ransomware alert is ingested.
+    This fires without waiting for the 5-minute XDR correlation scan.
+    """
+    try:
+        from database import get_database
+        db = get_database()
+        playbooks = await db._db.playbooks.find(
+            {"trigger_type": "alert", "trigger_conditions.alert_types": alert.get("type"), "enabled": True},
+            {"_id": 0}
+        ).to_list(length=10)
+        if not playbooks:
+            # Fall back: find the ransomware XDR seed playbook by id
+            playbooks = await db._db.playbooks.find(
+                {"id": "xdr-ransomware-recovery", "enabled": True},
+                {"_id": 0}
+            ).to_list(length=1)
+        for pb in playbooks:
+            engine = PlaybookExecutionEngine()
+            trigger_data = {**alert, "agent_id": agent_id}
+            asyncio.create_task(engine.execute_playbook(pb, trigger_data))
+            logger.warning(
+                "Ransomware alert %s — firing playbook '%s' immediately",
+                alert.get("alert_id"), pb.get("name"),
+            )
+    except Exception as exc:
+        logger.error("Ransomware playbook trigger failed for alert %s: %s",
+                     alert.get("alert_id"), exc)
 
 
 # ------------------------------------------------------------------
@@ -43,27 +102,63 @@ class IOCEntry(BaseModel):
 # Ingest endpoint (called by agent)
 # ------------------------------------------------------------------
 
-@router.post("/events")
-async def ingest_edr_events(batch: EDREventBatch):
+async def _verify_edr_agent(
+    batch: EDREventBatch,
+    x_tenant_key: Optional[str] = Header(None, alias="X-Tenant-Key"),
+    authorization: Optional[str] = Header(None),
+    db=Depends(get_database),
+) -> EDREventBatch:
     """
-    Receive real-time EDR telemetry from an agent.
-    Stores events and alerts in MongoDB.
-    Called by the agent every ~30 seconds.
+    Verify the inbound EDR batch comes from a registered agent.
+    Accepts the same credentials as other agent endpoints:
+      • X-Tenant-Key header (legacy)
+      • Authorization: Bearer <agent-jwt>
+    Also cross-checks that batch.agent_id is registered in the tenant.
+    """
+    from agent_endpoints import verify_agent_key
+    # Reuse the existing agent-key / JWT verifier — raises HTTP 401/403 on failure
+    tenant = await verify_agent_key(x_tenant_key=x_tenant_key, authorization=authorization, db=db)
+
+    # Ensure the reported agent_id actually belongs to the authenticated tenant
+    tenant_id = tenant.get("id") or tenant.get("tenantId")
+    agent = await db.agents.find_one({"id": batch.agent_id, "tenantId": tenant_id}, {"_id": 1})
+    if not agent:
+        # Allow newly-registered agents a grace period (registration may still be in-flight)
+        agent = await db.agents.find_one({"id": batch.agent_id}, {"_id": 1, "tenantId": 1})
+        if not agent:
+            raise HTTPException(status_code=403, detail=f"Agent '{batch.agent_id}' is not registered")
+        if agent.get("tenantId") != tenant_id:
+            raise HTTPException(status_code=403, detail=f"Agent '{batch.agent_id}' does not belong to this tenant")
+    return batch
+
+
+@router.post("/events")
+async def ingest_edr_events(batch: EDREventBatch = Depends(_verify_edr_agent)):
+    """
+    Receive real-time EDR telemetry from an authenticated agent.
+    Stores events and alerts in MongoDB and routes alerts through the response orchestrator.
     """
     db = get_database()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
-    # Store alert documents
+    # Store alert documents and route each through the response orchestrator
     if batch.alerts:
         alert_docs = []
         for alert in batch.alerts:
-            alert_docs.append({
+            enriched = {
                 **alert,
                 "agent_id": batch.agent_id,
                 "hostname": batch.hostname,
                 "ingested_at": now.isoformat(),
                 "acknowledged": False,
-            })
+            }
+            alert_docs.append(enriched)
+            # Fire-and-forget: evaluate policy match in background so ingest
+            # response is not delayed by policy evaluation I/O.
+            asyncio.create_task(_run_orchestrator(enriched, batch.agent_id))
+            # Ransomware alerts bypass the 5-min XDR scan and trigger playbooks immediately.
+            if alert.get("type") in _RANSOMWARE_ALERT_TYPES:
+                asyncio.create_task(_run_ransomware_playbooks(enriched, batch.agent_id))
         await db.edr_alerts.insert_many(alert_docs)
 
     # Store a telemetry snapshot (capped at last 500 per agent)
@@ -136,7 +231,7 @@ async def acknowledge_alert(
     result = await db.edr_alerts.update_one(
         {"alert_id": alert_id},
         {"$set": {"acknowledged": True, "acknowledged_by": current_user.username,
-                  "acknowledged_at": datetime.utcnow().isoformat()}}
+                  "acknowledged_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -170,7 +265,7 @@ async def get_telemetry_summary(
     """Get aggregated EDR health summary across all agents."""
     db = get_database()
     # Last 24h alerts by severity
-    since = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     pipeline = [
         {"$match": {"ingested_at": {"$gte": since}}},
         {"$group": {"_id": "$severity", "count": {"$sum": 1}}},
@@ -202,7 +297,7 @@ async def add_ioc(
     """Add a new Indicator of Compromise to the blocklist."""
     db = get_database()
     doc = {**ioc.dict(), "added_by": current_user.username,
-           "added_at": datetime.utcnow().isoformat()}
+           "added_at": datetime.now(timezone.utc).isoformat()}
     await db.edr_ioc.insert_one(doc)
     return {"status": "IOC added", "ioc": ioc.dict()}
 

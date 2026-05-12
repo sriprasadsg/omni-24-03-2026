@@ -21,7 +21,7 @@ interface ServicePricing {
     updatedAt?: string;
 }
 
-const CATEGORY_OPTIONS = ['Infrastructure', 'Software', 'Support', 'Network', 'Storage', 'Other'];
+const CATEGORY_OPTIONS = ['Infrastructure', 'Security', 'Software', 'Support', 'Network', 'Storage', 'AI Governance', 'Automation', 'Observability', 'Developer Tools', 'Management & Settings', 'Other'];
 const UNIT_OPTIONS = [
     'per_agent_per_month',
     'per_core_per_hour',

@@ -1,8 +1,10 @@
 import asyncio
-from typing import Dict, List, Any, Callable, Set
+import logging
+from typing import Dict, List, Any, Callable
 from datetime import datetime, timezone
-import json
 from collections import deque
+
+logger = logging.getLogger(__name__)
 
 class StreamBroker:
     _instance = None
@@ -30,15 +32,32 @@ class StreamBroker:
             self.history[topic] = deque(maxlen=100)
         self.history[topic].append(event)
         
-        # Notify subscribers
+        # Notify subscribers with per-callback retry (max 2 attempts)
         if topic in self.topics:
-            subscribers = self.topics[topic]
-            # Send to all subscribers (fire and forget to avoid blocking)
-            for callback in subscribers:
-                try:
-                    await callback(event)
-                except Exception as e:
-                    print(f"Error in subscriber callback: {e}")
+            dead_callbacks = []
+            for callback in list(self.topics[topic]):
+                for attempt in range(2):
+                    try:
+                        await callback(event)
+                        break
+                    except Exception as exc:
+                        if attempt == 0:
+                            logger.warning(
+                                "Subscriber callback on topic '%s' failed (attempt 1): %s — retrying",
+                                topic, exc,
+                            )
+                        else:
+                            logger.error(
+                                "Subscriber callback on topic '%s' failed permanently: %s — moving to dead-letter",
+                                topic, exc,
+                            )
+                            dead_callbacks.append((topic, event, str(exc)))
+            if dead_callbacks:
+                dl_topic = f"dead-letter:{topic}"
+                if dl_topic not in self.history:
+                    self.history[dl_topic] = deque(maxlen=100)
+                for _t, _ev, _err in dead_callbacks:
+                    self.history[dl_topic].append({**_ev, "_dead_letter_error": _err})
         
         # Update metrics (simple counter for now)
         metric_key = f"{topic}_count"
@@ -69,46 +88,60 @@ class StreamBroker:
 broker = StreamBroker()
 
 class StreamProcessor:
-    """Simulates a stream processing engine (like a mini-Flink)"""
+    """Stream processing engine with a real tumbling 10-second window."""
+
+    _WINDOW_SECONDS = 10
+
     def __init__(self):
         self.broker = broker
+        # Accumulator for the current window
+        self._current: Dict[str, int] = {}
+        # Snapshot published at each window boundary
         self.window_stats: Dict[str, int] = {}
         self.running = False
+        self._tick = 0  # counts 1-second ticks; resets at _WINDOW_SECONDS
 
     async def start(self):
         self.running = True
-        # Subscribe to common topics to calculate aggregates
         self.broker.subscribe("logs", self._process_log)
         self.broker.subscribe("security_events", self._process_security)
-        
-        # Start a background task to reset windows (simulate sliding window 10s)
         asyncio.create_task(self._window_manager())
 
     async def stop(self):
         self.running = False
 
     async def _process_log(self, event: Dict[str, Any]):
-        self.window_stats["logs_last_10s"] = self.window_stats.get("logs_last_10s", 0) + 1
+        self._current["logs_last_10s"] = self._current.get("logs_last_10s", 0) + 1
 
     async def _process_security(self, event: Dict[str, Any]):
-        self.window_stats["threats_last_10s"] = self.window_stats.get("threats_last_10s", 0) + 1
+        self._current["threats_last_10s"] = self._current.get("threats_last_10s", 0) + 1
 
     async def _window_manager(self):
-        """Reset stats every 10 seconds to simulate a window"""
+        """
+        Ticks every second.
+        Every _WINDOW_SECONDS ticks: snapshot the current window counts into
+        window_stats, reset the accumulator, and publish the snapshot.
+        Also publishes a live heartbeat each second so dashboards stay responsive.
+        """
         while self.running:
-            await asyncio.sleep(1) # Check every second? No, let's just emit stats stream
-            
-            # Emit system stats event every second
+            await asyncio.sleep(1)
+            self._tick += 1
+
+            if self._tick >= self._WINDOW_SECONDS:
+                # Commit the completed window
+                self.window_stats = dict(self._current)
+                self._current = {}
+                self._tick = 0
+
+            # Emit both the committed window snapshot and in-progress counts
             stats_event = {
                 "type": "window_stats",
-                "stats": self.window_stats.copy(),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "window_seconds": self._WINDOW_SECONDS,
+                "committed": self.window_stats,
+                "in_progress": dict(self._current),
+                "seconds_until_reset": self._WINDOW_SECONDS - self._tick,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             await self.broker.publish("system_stats", stats_event)
-            
-            # Decay stats (simple simulation)
-            for k in self.window_stats:
-                current = self.window_stats[k]
-                self.window_stats[k] = max(0, int(current * 0.9)) # Decay 10% per second
 
 processor = StreamProcessor()

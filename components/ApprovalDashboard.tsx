@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircleIcon, XCircleIcon, ClockIcon, AlertTriangleIcon, PlayCircleIcon } from './icons';
+import { authFetch } from '../services/apiService';
+import { CheckCircleIcon, XCircleIcon, ClockIcon, AlertTriangleIcon } from './icons';
 
 interface ApprovalRequest {
     id: string;
@@ -36,7 +37,7 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
 
     const fetchPendingApprovals = async () => {
         try {
-            const response = await fetch(`/api/deployments/approvals/pending?user_id=${currentUser.email}`);
+            const response = await authFetch(`/api/deployments/approvals/pending?user_id=${currentUser.email}`);
             const data = await response.json();
             setApprovals(data.approvals || []);
         } catch (error) {
@@ -48,9 +49,8 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
 
     const handleApprove = async (approvalId: string) => {
         try {
-            const response = await fetch(`/api/deployments/approvals/${approvalId}/approve`, {
+            const response = await authFetch(`/api/deployments/approvals/${approvalId}/approve`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     approved_by: currentUser.email,
                     comments: comments
@@ -78,9 +78,8 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
         }
 
         try {
-            const response = await fetch(`/api/deployments/approvals/${approvalId}/reject`, {
+            const response = await authFetch(`/api/deployments/approvals/${approvalId}/reject`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     rejected_by: currentUser.email,
                     reason: rejectionReason

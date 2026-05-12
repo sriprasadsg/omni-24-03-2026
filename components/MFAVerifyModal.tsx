@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-const API = '/api';
+import { authFetch } from '../services/apiService';
 
 interface MFAVerifyModalProps {
     mfaSessionToken: string;
@@ -30,9 +29,8 @@ export default function MFAVerifyModal({ mfaSessionToken, onSuccess, onCancel }:
         if (!code) return;
         setLoading(true); setError('');
         try {
-            const r = await fetch(`${API}/mfa/verify`, {
+            const r = await authFetch('/api/mfa/verify', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     session_token: mfaSessionToken,
                     code: code.replace(/\s/g, ''),

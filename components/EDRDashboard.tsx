@@ -1,18 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { authFetch } from '../services/apiService';
 
 // Use relative path so the Vite dev-server proxy routes it to localhost:5000
 const API = '/api';
-
-// Read the auth token from whichever localStorage key the app uses
-const getToken = (): string => {
-    return (
-        localStorage.getItem('access_token') ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('authToken') ||
-        (() => { try { return JSON.parse(localStorage.getItem('auth') || '{}').access_token || ''; } catch { return ''; } })() ||
-        ''
-    );
-};
 
 interface EDRAlert {
     alert_id: string;
@@ -68,17 +58,12 @@ export function EDRDashboard({ token }: { token?: string }) {
     const [iocList, setIocList] = useState<any[]>([]);
     const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
 
-    const getHeaders = () => ({
-        Authorization: `Bearer ${getToken()}`,
-        'Content-Type': 'application/json',
-    });
-
     const load = useCallback(async () => {
         setLoading(true);
         try {
             const [alertsRes, summaryRes] = await Promise.all([
-                fetch(`${API}/edr/alerts?acknowledged=${ackFilter === 'unack' ? 'false' : ''}&limit=100`, { headers: getHeaders() }),
-                fetch(`${API}/edr/telemetry/summary`, { headers: getHeaders() }),
+                authFetch(`${API}/edr/alerts?acknowledged=${ackFilter === 'unack' ? 'false' : ''}&limit=100`),
+                authFetch(`${API}/edr/telemetry/summary`),
             ]);
             if (alertsRes.ok) setAlerts(await alertsRes.json());
             if (summaryRes.ok) setSummary(await summaryRes.json());
@@ -88,14 +73,14 @@ export function EDRDashboard({ token }: { token?: string }) {
 
     const loadHistory = useCallback(async () => {
         try {
-            const r = await fetch(`${API}/response/history?limit=50`, { headers: getHeaders() });
+            const r = await authFetch(`${API}/response/history?limit=50`);
             if (r.ok) setResponseHistory(await r.json());
         } catch { }
     }, []);
 
     const loadIOC = useCallback(async () => {
         try {
-            const r = await fetch(`${API}/edr/ioc`, { headers: getHeaders() });
+            const r = await authFetch(`${API}/edr/ioc`);
             if (r.ok) setIocList(await r.json());
         } catch { }
     }, []);
@@ -108,7 +93,7 @@ export function EDRDashboard({ token }: { token?: string }) {
     const acknowledge = async (alertId: string) => {
         setResponding(alertId);
         try {
-            await fetch(`${API}/edr/alerts/${alertId}/acknowledge`, { method: 'PATCH', headers: getHeaders() });
+            await authFetch(`${API}/edr/alerts/${alertId}/acknowledge`, { method: 'PATCH' });
             setAlerts(a => a.map(al => al.alert_id === alertId ? { ...al, acknowledged: true } : al));
         } finally { setResponding(null); }
     };
@@ -121,9 +106,8 @@ export function EDRDashboard({ token }: { token?: string }) {
             if (responseAction === 'kill_process') params.pid = parseInt(responseParam) || 0;
             if (responseAction === 'quarantine_file') params.path = responseParam;
 
-            const r = await fetch(`${API}/response/execute`, {
+            const r = await authFetch(`${API}/response/execute`, {
                 method: 'POST',
-                headers: getHeaders(),
                 body: JSON.stringify({
                     agent_id: responseAgent,
                     action: responseAction,
@@ -145,9 +129,8 @@ export function EDRDashboard({ token }: { token?: string }) {
     const addIOC = async () => {
         if (!iocDesc) return;
         try {
-            const r = await fetch(`${API}/edr/ioc`, {
+            const r = await authFetch(`${API}/edr/ioc`, {
                 method: 'POST',
-                headers: getHeaders(),
                 body: JSON.stringify({ sha256: iocHash || undefined, process_name: iocProcess || undefined, description: iocDesc, severity: iocSeverity }),
             });
             if (r.ok) {

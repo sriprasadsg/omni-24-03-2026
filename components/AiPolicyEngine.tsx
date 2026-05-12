@@ -34,7 +34,7 @@ export const AiPolicyEngine: React.FC = () => {
         try {
             await api.createAiPolicy({
                 ...newPolicy,
-                id: `policy-${Math.random().toString(36).substr(2, 9)}`,
+                id: `policy-${crypto.randomUUID().replace(/-/g, '').substring(0, 9)}`,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             });

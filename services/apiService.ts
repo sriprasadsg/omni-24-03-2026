@@ -35,10 +35,16 @@ export const API_BASE = '/api';
 export const fetchSboms = async (): Promise<Sbom[]> => {
     try {
         const res = await authFetch(`${API_BASE}/sboms`);
-        if (!res.ok) throw new Error("Failed to fetch SBOMs");
+        if (!res.ok) {
+            console.error(`[fetchSboms] HTTP ${res.status}: ${res.statusText}`);
+            return [];
+        }
         const data = await res.json();
         return Array.isArray(data) ? data : (data.items || []);
-    } catch { return []; }
+    } catch (err) {
+        console.error('[fetchSboms] Request failed:', err);
+        return [];
+    }
 };
 
 export const fetchSoftwareComponents = async (): Promise<SoftwareComponent[]> => {
@@ -146,11 +152,10 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
     return response;
 }
 
-// Initialize local state as empty
+// Initialize local state as empty (only arrays still used as a write-through cache)
 let USERS: User[] = [];
 let ROLES: Role[] = [];
 let TENANTS: Tenant[] = [];
-let METRICS: Metric[] = [];
 let ALERTS: Alert[] = [];
 let COMPLIANCE_FRAMEWORKS: ComplianceFramework[] = [];
 let AI_SYSTEMS: AiSystem[] = [];
@@ -160,39 +165,18 @@ let SECURITY_CASES: SecurityCase[] = [];
 let PLAYBOOKS: Playbook[] = [];
 let SECURITY_EVENTS: SecurityEvent[] = [];
 let CLOUD_ACCOUNTS: CloudAccount[] = [];
-let CSPM_FINDINGS: CSPMFinding[] = [];
 let NOTIFICATIONS: Notification[] = [];
-let AUDIT_LOGS: AuditLog[] = [];
 let INTEGRATIONS: Integration[] = [];
 let ALERT_RULES: AlertRule[] = [];
 let AGENTS: Agent[] = [];
 let DATABASE_SETTINGS: DatabaseSettings | null = null;
 let LLM_SETTINGS: LlmSettings | null = null;
 let DATA_SOURCES: DataSource[] = [];
-let SBOMS: Sbom[] = [];
-let SOFTWARE_COMPONENTS: SoftwareComponent[] = [];
 let AGENT_UPGRADE_JOBS: AgentUpgradeJob[] = [];
-let PATCH_DEPLOYMENT_JOBS: PatchDeploymentJob[] = [];
 let VULNERABILITY_SCAN_JOBS: VulnerabilityScanJob[] = [];
-let LOGS: LogEntry[] = [];
-let UEBA_FINDINGS: UebaFinding[] = [];
-let MODEL_EXPERIMENTS: ModelExperiment[] = [];
 let REGISTERED_MODELS: RegisteredModel[] = [];
 let AUTOMATION_POLICIES: AutomationPolicy[] = [];
-let SAST_FINDINGS: SastFinding[] = [];
-let CODE_REPOSITORIES: CodeRepository[] = [];
-let API_DOCS: ApiDocEndpoint[] = [];
-let SENSITIVE_DATA_FINDINGS: SensitiveDataFinding[] = [];
-let ATTACK_PATHS: AttackPath[] = [];
-let SERVICE_TEMPLATES: ServiceTemplate[] = [];
-let PROVISIONED_SERVICES: ProvisionedService[] = [];
-let DORA_METRICS: DoraMetrics[] = [];
-let CHAOS_EXPERIMENTS: ChaosExperiment[] = [];
-let PROACTIVE_INSIGHTS: ProactiveInsight[] = [];
-let TRACES: Trace[] = [];
-let SERVICE_MAP: ServiceMap | null = null;
 let NETWORK_DEVICES: NetworkDevice[] = [];
-let THREAT_INTEL_FEED: ThreatIntelResult[] = [];
 
 export const checkBackendHealth = async (): Promise<boolean> => {
     try {
@@ -475,7 +459,6 @@ export const fetchLogs = async () => {
         if (!res.ok) throw new Error("Failed to fetch logs");
         const data = await res.json();
         const logs = Array.isArray(data) ? data : [];
-        LOGS = logs;
         return logs;
     } catch (e) {
         console.warn("Backend offline for logs", e);
@@ -519,7 +502,22 @@ export const fetchSecurityEvents = async () => {
     try {
         const res = await authFetch(`${API_BASE}/security-events`);
         const data = await res.json();
-        SECURITY_EVENTS = data.items ? data.items : data;
+        const raw: any[] = data.items ? data.items : data;
+        // Normalize OCSF-format events to frontend SecurityEvent shape
+        SECURITY_EVENTS = raw.map((e: any) => ({
+            id: e.id ?? e._id ?? crypto.randomUUID(),
+            tenantId: e.tenantId ?? e.tenant_id ?? '',
+            timestamp: e.timestamp ?? e.time ?? e.ingestedAt ?? new Date().toISOString(),
+            severity: e.severity ?? e.severity_id ?? 'Low',
+            description: e.description ?? e.message ?? e.class_name ?? e.category_name ?? 'Security Event',
+            type: e.type ?? e.class_name ?? e.category_name ?? 'Unknown',
+            source: {
+                ip: e.source?.ip ?? e.actor?.user?.ip ?? e.src_ip ?? 'N/A',
+                hostname: e.source?.hostname ?? e.actor?.user?.name ?? e.actor?.session?.uid ?? 'Unknown',
+            },
+            mitreAttack: e.mitreAttack ?? undefined,
+            details: e.details ?? e.metadata ?? undefined,
+        }));
         return SECURITY_EVENTS;
     } catch (e) {
         console.warn("Backend offline for security events");
@@ -537,7 +535,18 @@ export const fetchCloudAccounts = async () => {
         return [];
     }
 };
-export const fetchCspmFindings = async () => { return []; };
+export const fetchCspmFindings = async (tenantId?: string): Promise<CSPMFinding[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/cspm/findings?tenantId=${tenantId}` : `${API_BASE}/cspm/findings`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch CSPM findings');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for CSPM findings', e);
+        return [];
+    }
+};
 export const fetchNotifications = async () => {
     try {
         const res = await authFetch(`${API_BASE}/notifications`);
@@ -561,7 +570,18 @@ export const fetchIntegrations = async () => {
         return [];
     }
 };
-export const fetchAlertRules = async () => { return []; };
+export const fetchAlertRules = async (tenantId?: string): Promise<AlertRule[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/alert-rules?tenantId=${tenantId}` : `${API_BASE}/alert-rules`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch alert rules');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for alert rules', e);
+        return [];
+    }
+};
 export const fetchHistoricalData = async (tenantId?: string) => {
     try {
         const url = tenantId
@@ -629,9 +649,31 @@ export const fetchLlmSettings = async () => {
         return null;
     }
 };
-export const fetchDataSources = async () => { return []; };
+export const fetchDataSources = async (tenantId?: string): Promise<DataSource[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/data-sources?tenantId=${tenantId}` : `${API_BASE}/data-sources`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch data sources');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for data sources', e);
+        return [];
+    }
+};
 
-export const fetchAgentUpgradeJobs = async () => { return []; };
+export const fetchAgentUpgradeJobs = async (tenantId?: string): Promise<AgentUpgradeJob[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/agents/upgrade-jobs?tenantId=${tenantId}` : `${API_BASE}/agents/upgrade-jobs`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch agent upgrade jobs');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for agent upgrade jobs', e);
+        return [];
+    }
+};
 export const fetchPatchDeploymentJobs = async () => {
     try {
         const response = await authFetch(`${API_BASE}/patches/deployment-jobs`);
@@ -654,13 +696,74 @@ export const fetchVulnerabilityScanJobs = async () => {
     }
 };
 
-export const fetchUebaFindings = async () => { return []; };
-export const fetchModelExperiments = async () => { return []; };
-export const fetchRegisteredModels = async () => { return []; };
+export const fetchUebaFindings = async (): Promise<UebaFinding[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/ueba/risk-scores`);
+        if (!res.ok) throw new Error('Failed to fetch UEBA findings');
+        const data = await res.json();
+        const results = data.results || data;
+        return Array.isArray(results) ? results : [];
+    } catch (e) {
+        console.warn('Backend offline for UEBA findings', e);
+        return [];
+    }
+};
+export const fetchModelExperiments = async (): Promise<ModelExperiment[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/mlops/history`);
+        if (!res.ok) throw new Error('Failed to fetch model experiments');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for model experiments', e);
+        return [];
+    }
+};
+export const fetchRegisteredModels = async (): Promise<RegisteredModel[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/mlops/models`);
+        if (!res.ok) throw new Error('Failed to fetch registered models');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for registered models', e);
+        return [];
+    }
+};
 // fetchAutomationPolicies moved to bottom
-export const fetchSastFindings = async () => { return []; };
-export const fetchCodeRepositories = async () => { return []; };
-export const fetchApiDocs = async () => { return []; };
+export const fetchSastFindings = async (): Promise<SastFinding[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/sast/vulnerabilities`);
+        if (!res.ok) throw new Error('Failed to fetch SAST findings');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.vulnerabilities || data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for SAST findings', e);
+        return [];
+    }
+};
+export const fetchCodeRepositories = async (): Promise<CodeRepository[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/sast/projects`);
+        if (!res.ok) throw new Error('Failed to fetch code repositories');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for code repositories', e);
+        return [];
+    }
+};
+export const fetchApiDocs = async (): Promise<ApiDocEndpoint[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/developer-hub/endpoints`);
+        if (!res.ok) throw new Error('Failed to fetch API docs');
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    } catch (e) {
+        console.warn('Backend offline for API docs', e);
+        return [];
+    }
+};
 export const fetchIncidentImpactGraph = async (id: string) => {
     try {
         const res = await authFetch(`${API_BASE}/security/incident-impact/${id}`);
@@ -723,7 +826,18 @@ export const exportReport = async (type: string, format: 'csv' | 'pdf') => {
     }
 };
 
-export const fetchSensitiveDataFindings = async () => { return []; };
+export const fetchSensitiveDataFindings = async (): Promise<SensitiveDataFinding[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/dlp/incidents`);
+        if (!res.ok) throw new Error('Failed to fetch sensitive data findings');
+        const data = await res.json();
+        const items = data.incidents || data;
+        return Array.isArray(items) ? items : [];
+    } catch (e) {
+        console.warn('Backend offline for sensitive data findings', e);
+        return [];
+    }
+};
 export const fetchAttackPaths = async (tenantId?: string): Promise<AttackPath[]> => {
     try {
         const url = tenantId
@@ -738,9 +852,41 @@ export const fetchAttackPaths = async (tenantId?: string): Promise<AttackPath[]>
         return [];
     }
 };
-export const fetchServiceTemplates = async () => { return []; };
-export const fetchProvisionedServices = async () => { return []; };
-export const fetchDoraMetrics = async () => { return []; };
+export const fetchServiceTemplates = async (): Promise<ServiceTemplate[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/service-catalog/templates`);
+        if (!res.ok) throw new Error('Failed to fetch service templates');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for service templates', e);
+        return [];
+    }
+};
+export const fetchProvisionedServices = async (tenantId?: string): Promise<ProvisionedService[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/service-catalog/provisioned?tenantId=${tenantId}` : `${API_BASE}/service-catalog/provisioned`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch provisioned services');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for provisioned services', e);
+        return [];
+    }
+};
+export const fetchDoraMetrics = async (tenantId?: string): Promise<DoraMetrics[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/dora/metrics?tenantId=${tenantId}` : `${API_BASE}/dora/metrics`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch DORA metrics');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for DORA metrics', e);
+        return [];
+    }
+};
 export const fetchChaosExperiments = async (): Promise<ChaosExperiment[]> => {
     try {
         const res = await authFetch(`${API_BASE}/chaos/experiments`);
@@ -814,10 +960,32 @@ export const fetchMeshMetrics = async () => {
     }
 };
 
-export const fetchProactiveInsights = async () => { return []; };
+export const fetchProactiveInsights = async (tenantId?: string): Promise<ProactiveInsight[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/insights/proactive?tenantId=${tenantId}` : `${API_BASE}/insights/proactive`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch proactive insights');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for proactive insights', e);
+        return [];
+    }
+};
 // export const fetchTraces = async () => { return []; };
 // export const fetchServiceMap = async () => { return null; };
-export const fetchThreatIntelFeed = async () => { return []; };
+export const fetchThreatIntelFeed = async (tenantId?: string): Promise<ThreatIntelResult[]> => {
+    try {
+        const url = tenantId ? `${API_BASE}/threat-intel/feed?tenant_id=${tenantId}` : `${API_BASE}/threat-intel/feed`;
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed to fetch threat intel feed');
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.items || []);
+    } catch (e) {
+        console.warn('Backend offline for threat intel feed', e);
+        return [];
+    }
+};
 
 // --- Governance / Risk / Vendor API ---
 
@@ -903,18 +1071,8 @@ export const fetchBusinessKpis = async () => {
         if (!res.ok) throw new Error("Failed to fetch KPIs");
         return await res.json();
     } catch (e) {
-        console.warn("Backend offline for KPIs, using fallback data");
-        // Fallback data if backend is unreachable
-        return {
-            trends: [
-                { month: 'Jan', revenue: 50000, securityScore: 85, uptime: 99.9 },
-                { month: 'Feb', revenue: 55000, securityScore: 88, uptime: 99.95 },
-                { month: 'Mar', revenue: 48000, securityScore: 92, uptime: 99.98 },
-                { month: 'Apr', revenue: 60000, securityScore: 90, uptime: 99.92 },
-                { month: 'May', revenue: 75000, securityScore: 95, uptime: 99.99 },
-                { month: 'Jun', revenue: 80000, securityScore: 98, uptime: 100 },
-            ]
-        };
+        console.warn("Backend offline for KPIs — no fallback data shown");
+        return null;
     }
 };
 
@@ -1028,10 +1186,13 @@ export const createJob = async (jobData: any) => {
 
 export const addUser = async (user: NewUserPayload) => {
     try {
+        // Generate a cryptographically random temporary password (not displayed to admin)
+        const tempBytes = crypto.getRandomValues(new Uint8Array(16));
+        const tempPassword = Array.from(tempBytes).map(b => b.toString(16).padStart(2, '0')).join('');
         const payload = {
             email: user.email,
-            password: "TempPassword123!", // Temporary hardcoded password
-            full_name: user.name, // React sends 'name', Backend API model expects 'full_name'
+            password: tempPassword,
+            full_name: user.name,
             role: user.role,
             tenantId: user.tenantId
         };
@@ -1336,33 +1497,74 @@ export const fetchXdrHunts = async () => {
     } catch (e) { return {}; }
 };
 
+export const fetchXdrCorrelations = async (severity?: string) => {
+    try {
+        const url = severity ? `${API_BASE}/correlations/?severity=${severity}` : `${API_BASE}/correlations/`;
+        const res = await authFetch(url);
+        if (res.ok) return await res.json();
+        return [];
+    } catch (e) { return []; }
+};
+
+export const runXdrCorrelationAnalysis = async (timeWindowMinutes = 60) => {
+    try {
+        const res = await authFetch(`${API_BASE}/correlations/analyze`, {
+            method: 'POST',
+            body: JSON.stringify({ time_window_minutes: timeWindowMinutes }),
+        });
+        if (res.ok) return await res.json();
+        return [];
+    } catch (e) { return []; }
+};
+
+export const fetchMdrPolicies = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/response/policies`);
+        if (res.ok) return await res.json();
+        return [];
+    } catch (e) { return []; }
+};
+
+export const fetchMdrHistory = async (limit = 100) => {
+    try {
+        const res = await authFetch(`${API_BASE}/response/history?limit=${limit}`);
+        if (res.ok) return await res.json();
+        return [];
+    } catch (e) { return []; }
+};
+
+export const fetchMdrQuarantine = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/response/quarantine`);
+        if (res.ok) return await res.json();
+        return [];
+    } catch (e) { return []; }
+};
+
 export const registerNewTenant = async (payload: NewTenantPayload) => {
-    await mockDelay(1000);
-    const newTenant: Tenant = {
-        id: `tenant-${Date.now()}`,
-        name: payload.companyName,
-        subscriptionTier: 'Free',
-        registrationKey: `key-${Date.now()}`,
-        dataIngestionGB: 0,
-        apiCallsMillions: 0,
-        aiComputeVCPUHours: 0,
-        enabledFeatures: ['view:dashboard', 'view:agents', 'view:assets', 'view:profile'],
-        apiKeys: [],
-        budget: { monthlyLimit: 1000 }
-    };
-    const newUser: User = {
-        id: `user-${Date.now()}`,
-        tenantId: newTenant.id,
-        tenantName: newTenant.name,
-        name: payload.name,
-        email: payload.email,
-        password: payload.password,
-        role: 'Tenant Admin',
-        avatar: `https://i.pravatar.cc/150?u=${payload.email}`,
-        status: 'Active'
-    };
-    USERS = [...USERS, newUser];
+    const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            companyName: payload.companyName,
+            name: payload.name,
+            email: payload.email,
+            password: payload.password,
+        }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+        throw new Error(data.detail || data.message || 'Signup failed');
+    }
+    // Store the JWT so the new session is authenticated immediately
+    if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+    }
+    const newTenant: Tenant = { ...data.tenant, apiKeys: [] };
+    const newUser: User = { ...data.user, password: '' };
     TENANTS = [...TENANTS, newTenant];
+    USERS = [...USERS, newUser];
     return { success: true, newUser, newTenant };
 };
 
@@ -1583,33 +1785,21 @@ export const deleteAgent = async (agentId: string) => {
 };
 
 export const runAgentDiagnostics = async (agentId: string): Promise<Agent> => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/diagnostics`, { method: 'POST' });
+    if (!res.ok) throw new Error(`Diagnostics failed: ${res.status}`);
+    const data = await res.json();
+    // Merge the health result back into local AGENTS cache so UI reflects it immediately
     const agentIndex = AGENTS.findIndex(a => a.id === agentId);
-    if (agentIndex === -1) {
-        throw new Error(`Agent with ID ${agentId} not found.`);
+    if (agentIndex !== -1) {
+        AGENTS[agentIndex] = {
+            ...AGENTS[agentIndex],
+            health: data.health,
+            status: data.status || AGENTS[agentIndex].status,
+        };
+        return AGENTS[agentIndex];
     }
-
-    const agent = AGENTS[agentIndex];
-    // This is still a mock as there's no backend endpoint for diagnostics yet
-    const isHealthy = true;
-
-    const newHealth: AgentHealth = {
-        overallStatus: 'Healthy',
-        checks: [
-            { name: 'Connectivity', status: 'Pass', message: 'Agent is connected to the platform.' },
-            { name: 'Service Status', status: 'Pass', message: 'Service is running optimal.' },
-            { name: 'Cache Write Access', status: 'Pass', message: 'Local cache is writable.' }
-        ]
-    };
-
-    const updatedAgent = {
-        ...agent,
-        lastSeen: new Date().toISOString(),
-        status: 'Online',
-        health: newHealth
-    } as Agent;
-
-    AGENTS[agentIndex] = updatedAgent;
-    return updatedAgent;
+    // Agent not in local cache yet — return a minimal object with the health data
+    return { id: agentId, health: data.health, status: data.status } as unknown as Agent;
 };
 
 export const scheduleAgentUpgrade = async (agentIds: string[], targetVersion: string) => {
@@ -1662,7 +1852,8 @@ export const scheduleVulnerabilityScan = async (assetIds: string[], scanType: 'I
             body: JSON.stringify({
                 scan_type: scanType === 'Immediate' ? 'Full' : 'Scheduled',
                 assets: assetIds,
-                tenantId
+                tenantId,
+                ...(scheduleTime ? { schedule_time: scheduleTime } : {})
             })
         });
         if (!res.ok) throw new Error("Failed to schedule scan");
@@ -1700,25 +1891,20 @@ export const resetPassword = async (userId: string) => {
 };
 
 export const generateApiKey = async (tenantId: string, name: string, userId: string) => {
-    const newKey = `omni_sk_${Math.random().toString(36).substr(2, 18)}`;
-    const tenant = TENANTS.find(t => t.id === tenantId);
-    if (tenant) {
-        tenant.apiKeys.push({
-            id: `key-${Date.now()}`,
-            name,
-            key: newKey,
-            createdAt: new Date().toISOString(),
-            userId
-        });
-    }
-    return { name, key: newKey };
+    const res = await authFetch(`${API_BASE}/tenants/${tenantId}/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, userId }),
+    });
+    if (!res.ok) throw new Error(`Failed to generate API key: ${res.status}`);
+    return res.json();
 };
 
 export const revokeApiKey = async (tenantId: string, keyId: string) => {
-    const tenant = TENANTS.find(t => t.id === tenantId);
-    if (tenant) {
-        tenant.apiKeys = tenant.apiKeys.filter(k => k.id !== keyId);
-    }
+    const res = await authFetch(`${API_BASE}/tenants/${tenantId}/api-keys/${keyId}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) throw new Error(`Failed to revoke API key: ${res.status}`);
 };
 
 export const saveRole = async (role: Role) => {
@@ -1739,7 +1925,18 @@ export const updateSecurityCase = async (caseItem: SecurityCase) => {
     const index = SECURITY_CASES.findIndex(c => c.id === caseItem.id);
     if (index > -1) {
         SECURITY_CASES[index] = caseItem;
-        return caseItem;
+    } else {
+        SECURITY_CASES.unshift(caseItem);
+    }
+    try {
+        const res = await authFetch(`${API_BASE}/security-cases`, {
+            method: caseItem.id.startsWith('case-') ? 'POST' : 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(caseItem),
+        });
+        if (res.ok) return await res.json();
+    } catch {
+        // backend offline — local state already updated
     }
     return caseItem;
 };
@@ -1952,17 +2149,32 @@ export const addCloudAccount = async (data: any, tenantId: string) => {
     return newAccount;
 };
 
-export const saveAlertRule = async (rule: AlertRule) => {
-    const index = ALERT_RULES.findIndex(r => r.id === rule.id);
-    if (index > -1) {
-        ALERT_RULES[index] = rule;
-    } else {
-        ALERT_RULES.push(rule);
+export const saveAlertRule = async (rule: AlertRule): Promise<AlertRule> => {
+    try {
+        const isNew = !rule.id || ALERT_RULES.findIndex(r => r.id === rule.id) === -1;
+        const method = isNew ? 'POST' : 'PUT';
+        const url = isNew ? `${API_BASE}/alert-rules` : `${API_BASE}/alert-rules/${rule.id}`;
+        const res = await authFetch(url, { method, body: JSON.stringify(rule) });
+        if (res.ok) {
+            const saved = await res.json();
+            const index = ALERT_RULES.findIndex(r => r.id === saved.id);
+            if (index > -1) ALERT_RULES[index] = saved; else ALERT_RULES.push(saved);
+            return saved;
+        }
+    } catch (e) {
+        console.warn('Backend offline for saveAlertRule', e);
     }
+    const index = ALERT_RULES.findIndex(r => r.id === rule.id);
+    if (index > -1) ALERT_RULES[index] = rule; else ALERT_RULES.push(rule);
     return rule;
 };
 
-export const deleteAlertRule = async (id: string) => {
+export const deleteAlertRule = async (id: string): Promise<void> => {
+    try {
+        await authFetch(`${API_BASE}/alert-rules/${id}`, { method: 'DELETE' });
+    } catch (e) {
+        console.warn('Backend offline for deleteAlertRule', e);
+    }
     ALERT_RULES = ALERT_RULES.filter(r => r.id !== id);
 };
 
@@ -2034,26 +2246,45 @@ export const saveInfrastructure = async (updates: { db?: DatabaseSettings, llm?:
     return { db: DATABASE_SETTINGS, llm: LLM_SETTINGS };
 };
 
-export const saveDataSource = async (source: DataSource) => {
-    const index = DATA_SOURCES.findIndex(ds => ds.id === source.id);
-    if (index > -1) {
-        DATA_SOURCES[index] = source;
-    } else {
-        DATA_SOURCES.push(source);
+export const saveDataSource = async (source: DataSource): Promise<DataSource> => {
+    try {
+        const isNew = !source.id || DATA_SOURCES.findIndex(ds => ds.id === source.id) === -1;
+        const method = isNew ? 'POST' : 'PUT';
+        const url = isNew ? `${API_BASE}/data-sources` : `${API_BASE}/data-sources/${source.id}`;
+        const res = await authFetch(url, { method, body: JSON.stringify(source) });
+        if (res.ok) {
+            const saved = await res.json();
+            const index = DATA_SOURCES.findIndex(ds => ds.id === saved.id);
+            if (index > -1) DATA_SOURCES[index] = saved; else DATA_SOURCES.push(saved);
+            return saved;
+        }
+    } catch (e) {
+        console.warn('Backend offline for saveDataSource', e);
     }
+    const index = DATA_SOURCES.findIndex(ds => ds.id === source.id);
+    if (index > -1) DATA_SOURCES[index] = source; else DATA_SOURCES.push(source);
     return source;
 };
 
-export const deleteDataSource = async (id: string) => {
+export const deleteDataSource = async (id: string): Promise<void> => {
+    try {
+        await authFetch(`${API_BASE}/data-sources/${id}`, { method: 'DELETE' });
+    } catch (e) {
+        console.warn('Backend offline for deleteDataSource', e);
+    }
     DATA_SOURCES = DATA_SOURCES.filter(ds => ds.id !== id);
 };
 
-export const testDataSourceConnection = async (source: DataSource) => {
-    await mockDelay(1500);
-    if (Math.random() > 0.2) {
-        return { message: "Connection successful!" };
-    } else {
-        throw new Error("Failed to connect to data source.");
+export const testDataSourceConnection = async (source: DataSource): Promise<{ message: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/data-sources/${source.id}/test`, { method: 'POST' });
+        if (res.ok) return await res.json();
+        const err = await res.json().catch(() => ({ detail: 'Connection test failed' }));
+        throw new Error(err.detail || 'Connection test failed');
+    } catch (e: any) {
+        if (e?.message?.startsWith('Connection')) throw e;
+        console.warn('Backend offline for testDataSourceConnection', e);
+        throw new Error('Backend offline — cannot test connection.');
     }
 };
 
@@ -2110,9 +2341,30 @@ export const testSiemConnection = async (platform: string, config: any): Promise
     }
 };
 
+export const testLlmConnection = async (settings: Record<string, string>) => {
+    const res = await authFetch(`${API_BASE}/settings/test-llm-connection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'LLM connection test failed');
+    }
+    return res.json();
+};
+
 export const testDatabaseConnection = async (settings: DatabaseSettings) => {
-    await mockDelay(1500);
-    return { message: "Database connection established successfully." };
+    const res = await authFetch(`${API_BASE}/settings/test-db-connection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Connection test failed');
+    }
+    return res.json();
 };
 
 export const fetchTraces = async (tenantId?: string): Promise<Trace[]> => {
@@ -2146,16 +2398,37 @@ export const fetchServiceMap = async (tenantId?: string): Promise<ServiceMap | n
 
 
 export const scanArtifactWithVirusTotal = async (artifact: string, type: 'ip' | 'hash' | 'domain'): Promise<ThreatIntelResult> => {
-    // This is a mock as there's no backend endpoint for VT yet
+    try {
+        const res = await authFetch(`${API_BASE}/threat-intel/scan`, {
+            method: 'POST',
+            body: JSON.stringify({ artifact, type }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return {
+                id: data.id || `vt-scan-${Date.now()}`,
+                artifact: data.artifact || artifact,
+                artifactType: data.artifact_type || type,
+                source: data.source || 'VirusTotal',
+                verdict: data.verdict || 'Unknown',
+                detectionRatio: data.detection_ratio || '0/0',
+                scanDate: data.scan_date || new Date().toISOString(),
+                reportUrl: data.report_url || '',
+            };
+        }
+    } catch (e) {
+        console.error('scanArtifactWithVirusTotal failed:', e);
+    }
+    // Offline fallback — surface unknown rather than a false "Harmless"
     return {
-        id: `vt-scan-${Date.now()}`,
+        id: `vt-offline-${Date.now()}`,
         artifact,
         artifactType: type,
         source: 'VirusTotal',
-        verdict: 'Harmless',
-        detectionRatio: '0/88',
+        verdict: 'Unknown',
+        detectionRatio: 'N/A',
         scanDate: new Date().toISOString(),
-        reportUrl: 'https://www.virustotal.com/gui/'
+        reportUrl: '',
     };
 };
 
@@ -2177,56 +2450,127 @@ export const generatePlaybook = async (prompt: string): Promise<Playbook> => {
 };
 
 export const generateRiskRemediationPlan = async function* (system: AiSystem, risk: any): AsyncGenerator<AgenticStep> {
-    // This is a mock as there's no backend endpoint for risk remediation yet
-    const steps = [
-        { type: 'goal', content: `Mitigate risk: ${risk.title}` },
-        { type: 'thought', content: 'Analyzing risk factors and system configuration...' },
-        { type: 'action', content: 'Scanning training data for bias correlations...' },
-        { type: 'observation', content: 'Found uneven distribution in dataset.' },
-        { type: 'thought', content: 'Re-balancing dataset required.' },
-        { type: 'action', content: 'Applying re-weighting algorithm...' },
-        { type: 'observation', content: 'New dataset distribution verified.' },
-        { type: 'action', content: 'Initiating model retraining...' },
-        { type: 'observation', content: 'Retraining job started successfully.' }
-    ];
+    const prompt = `You are a security AI. Generate a step-by-step remediation plan for the following risk.
+System: ${system?.name || 'Unknown'}
+Risk: ${risk?.title || 'Unknown risk'}
+Severity: ${risk?.severity || 'Unknown'}
+Description: ${risk?.description || ''}
 
-    for (const step of steps) {
-        yield { ...step, timestamp: new Date().toISOString() } as AgenticStep;
+Respond with a JSON array of steps. Each step has: type ("goal"|"thought"|"action"|"observation"), content (string).`;
+
+    try {
+        const res = await authFetch(`${API_BASE}/ai/chat`, {
+            method: 'POST',
+            body: JSON.stringify({ message: prompt, context: { currentView: 'ai-governance' } }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const raw: string = typeof data === 'string' ? data : (data.response || data.message || '');
+            // Try to parse JSON array from AI response
+            const match = raw.match(/\[[\s\S]*\]/);
+            if (match) {
+                try {
+                    const steps: Array<{ type: string; content: string }> = JSON.parse(match[0]);
+                    for (const step of steps) {
+                        yield { ...step, timestamp: new Date().toISOString() } as AgenticStep;
+                    }
+                    return;
+                } catch { /* fall through to text parsing */ }
+            }
+            // Fallback: emit AI response as a single observation step
+            yield { type: 'observation', content: raw, timestamp: new Date().toISOString() } as AgenticStep;
+            return;
+        }
+    } catch (e) {
+        console.error('generateRiskRemediationPlan fetch failed:', e);
     }
+    // Offline fallback — emit a goal so the UI isn't blank
+    yield { type: 'goal', content: `Mitigate risk: ${risk?.title || 'Unknown'}`, timestamp: new Date().toISOString() } as AgenticStep;
+    yield { type: 'observation', content: 'AI backend unavailable — manual review required.', timestamp: new Date().toISOString() } as AgenticStep;
 };
 
 export const generateAgenticPlan = async function* (agent: Agent): AsyncGenerator<AgenticStep> {
-    // This is a mock as there's no backend endpoint for agentic plans yet
-    const steps = [
-        { type: 'goal', content: `Restore agent health on ${agent.hostname}` },
-        { type: 'thought', content: 'Checking connectivity and service status...' },
-        { type: 'action', content: `ssh ${agent.hostname} "systemctl status omni-agent"` },
-        { type: 'observation', content: 'Service is inactive (dead).' },
-        { type: 'thought', content: 'Attempting to restart service.' },
-        { type: 'action', content: `ssh ${agent.hostname} "systemctl restart omni-agent"` },
-        { type: 'observation', content: 'Service active (running).' },
-        { type: 'thought', content: 'Verifying connectivity...' },
-        { type: 'action', content: `ping -c 1 ${agent.ipAddress}` },
-        { type: 'observation', content: 'Packet loss: 0%.' }
-    ];
+    const prompt =
+        `You are an autonomous SOC agent. Generate a ReAct-style remediation plan for the following agent.\n` +
+        `Agent: ${agent.hostname} (${agent.ipAddress}), status: ${agent.status}.\n` +
+        `Return a JSON array of steps, each with "type" ("goal"|"thought"|"action"|"observation") and "content".`;
 
-    for (const step of steps) {
-        yield { ...step, timestamp: new Date().toISOString() } as AgenticStep;
+    try {
+        const res = await authFetch(`${API_BASE}/ai/chat`, {
+            method: 'POST',
+            body: JSON.stringify({ message: prompt, context: { currentView: 'agent-detail' } }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const raw: string = data.response || data.message || '';
+            const match = raw.match(/\[[\s\S]*\]/);
+            if (match) {
+                try {
+                    const steps: Array<{ type: string; content: string }> = JSON.parse(match[0]);
+                    for (const step of steps) {
+                        yield { ...step, timestamp: new Date().toISOString() } as AgenticStep;
+                    }
+                    return;
+                } catch { /* fall through */ }
+            }
+            yield { type: 'observation', content: raw, timestamp: new Date().toISOString() } as AgenticStep;
+            return;
+        }
+    } catch (e) {
+        console.error('generateAgenticPlan fetch failed:', e);
     }
+    // Offline fallback
+    yield { type: 'goal', content: `Restore agent health on ${agent.hostname}`, timestamp: new Date().toISOString() } as AgenticStep;
+    yield { type: 'observation', content: 'AI backend unavailable — manual review required.', timestamp: new Date().toISOString() } as AgenticStep;
 };
 
 export const fetchHealthAnalysis = async (metrics: Metric[], alerts: Alert[]) => {
-    return {
-        analysis: "Health analysis unavailable",
-        recommendations: []
+    const summary = {
+        metric_count: metrics.length,
+        alert_count: alerts.length,
+        critical_alerts: alerts.filter(a => a.severity === 'Critical').length,
+        top_metrics: metrics.slice(0, 5).map(m => ({ title: m.title, value: m.value, change: m.change })),
     };
+    try {
+        const res = await authFetch(`${API_BASE}/ai/chat`, {
+            method: 'POST',
+            body: JSON.stringify({
+                message: `Analyze this system health data and provide a concise assessment with actionable recommendations:\n${JSON.stringify(summary, null, 2)}`,
+                context: { currentView: 'dashboard' },
+            }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const text: string = data.response || data.message || '';
+            return { analysis: text, recommendations: [] };
+        }
+    } catch (e) { console.error('fetchHealthAnalysis failed:', e); }
+    return { analysis: 'Health analysis unavailable — AI backend unreachable.', recommendations: [] };
 };
 
 export const fetchSecurityAnalysis = async (events: SecurityEvent[]) => {
-    return {
-        analysis: "Security analysis unavailable",
-        recommendations: []
+    const summary = {
+        event_count: events.length,
+        critical: events.filter(e => e.severity === 'Critical').length,
+        high: events.filter(e => e.severity === 'High').length,
+        types: [...new Set(events.map(e => e.type))].slice(0, 10),
+        recent: events.slice(0, 3).map(e => ({ type: e.type, severity: e.severity, description: e.description })),
     };
+    try {
+        const res = await authFetch(`${API_BASE}/ai/chat`, {
+            method: 'POST',
+            body: JSON.stringify({
+                message: `You are a security analyst. Analyze these security events and provide a threat assessment with prioritized recommendations:\n${JSON.stringify(summary, null, 2)}`,
+                context: { currentView: 'vulnerabilities' },
+            }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const text: string = data.response || data.message || '';
+            return { analysis: text, recommendations: [] };
+        }
+    } catch (e) { console.error('fetchSecurityAnalysis failed:', e); }
+    return { analysis: 'Security analysis unavailable — AI backend unreachable.', recommendations: [] };
 };
 
 export const generateCSPMRemediation = async (finding: CSPMFinding) => {
@@ -2271,7 +2615,81 @@ export const getChatAssistantResponse = async (input: string, context: any): Pro
 
 export const executePlaybook = async function* (playbookId: string, targetId: string, targetType: string): AsyncGenerator<PlaybookExecutionStep> {
     yield { timestamp: new Date().toISOString(), message: `Starting playbook ${playbookId} on ${targetType} ${targetId}...`, status: 'running' };
-    yield { timestamp: new Date().toISOString(), message: `Playbook execution unavailable`, status: 'error' };
+    try {
+        const res = await authFetch(`${API_BASE}/playbooks/${playbookId}/execute`, {
+            method: 'POST',
+            body: JSON.stringify({ target_id: targetId, target_type: targetType, executed_by: 'frontend' }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            yield { timestamp: new Date().toISOString(), message: `Execution complete: ${data.status ?? 'ok'}`, status: data.status === 'error' ? 'error' : 'success' };
+        } else {
+            yield { timestamp: new Date().toISOString(), message: `Server returned ${res.status}`, status: 'error' };
+        }
+    } catch (e) {
+        yield { timestamp: new Date().toISOString(), message: `Execution failed: ${e instanceof Error ? e.message : 'Unknown error'}`, status: 'error' };
+    }
+};
+
+export const togglePlaybook = async (playbookId: string): Promise<{ id: string; enabled: boolean } | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/playbooks/${playbookId}/toggle`, { method: 'PATCH' });
+        if (res.ok) return await res.json();
+    } catch (e) {
+        console.error('togglePlaybook failed:', e);
+    }
+    return null;
+};
+
+export const createAlert = async (alert: Record<string, unknown>): Promise<Record<string, unknown> | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/alerts`, {
+            method: 'POST',
+            body: JSON.stringify(alert),
+        });
+        if (res.ok) return await res.json();
+    } catch (e) {
+        console.error('createAlert failed:', e);
+    }
+    return null;
+};
+
+export const assignAlert = async (alertId: string, assignedTo: string): Promise<boolean> => {
+    try {
+        const res = await authFetch(`${API_BASE}/alerts/${alertId}/assign`, {
+            method: 'PATCH',
+            body: JSON.stringify({ assigned_to: assignedTo }),
+        });
+        return res.ok;
+    } catch (e) {
+        console.error('assignAlert failed:', e);
+        return false;
+    }
+};
+
+export const submitAiFeedback = async (feedback: { prompt_id?: string; rating: number; helpful: boolean; comment?: string }): Promise<boolean> => {
+    try {
+        const res = await authFetch(`${API_BASE}/ai/feedback`, {
+            method: 'POST',
+            body: JSON.stringify(feedback),
+        });
+        return res.ok;
+    } catch (e) {
+        console.error('submitAiFeedback failed:', e);
+        return false;
+    }
+};
+
+export const recordCorrelationFalsePositive = async (correlationId: string): Promise<boolean> => {
+    try {
+        const res = await authFetch(`${API_BASE}/correlations/false-positive/${correlationId}`, {
+            method: 'POST',
+        });
+        return res.ok;
+    } catch (e) {
+        console.error('recordCorrelationFalsePositive failed:', e);
+        return false;
+    }
 };
 
 // --- REAL BACKEND INTEGRATION METHODS ---
@@ -2423,74 +2841,98 @@ export const getNotifications = async (tenantId: string = "default") => {
 
 // --- Compliance Reports ---
 export const generateComplianceReport = async (frameworkId: string) => {
-    try {
-        const formData = new FormData();
-        formData.append('framework_id', frameworkId);
-
-        const token = localStorage.getItem('token');
-        const headers: any = { 'Authorization': `Bearer ${token}` };
-
-        const res = await fetch(`${API_BASE}/compliance/reports/generate`, {
-            method: 'POST',
-            headers: headers,
-            body: formData
-        });
-        return await res.json();
-    } catch (e) {
-        console.error("Error generating report:", e);
-        throw e;
+    const formData = new FormData();
+    formData.append('framework_id', frameworkId);
+    const res = await authFetch(`${API_BASE}/compliance/reports/generate`, { method: 'POST', body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Report generation failed' }));
+        throw new Error(err.detail || 'Report generation failed');
     }
+    return await res.json();
 };
 
 export const generateExcelComplianceReport = async (frameworkId: string) => {
-    try {
-        const formData = new FormData();
-        formData.append('framework_id', frameworkId);
-
-        const token = localStorage.getItem('token');
-        const headers: any = { 'Authorization': `Bearer ${token}` };
-
-        const res = await fetch(`${API_BASE}/compliance/reports/generate/excel`, {
-            method: 'POST',
-            headers: headers,
-            body: formData
-        });
-        return await res.json();
-    } catch (e) {
-        console.error("Error generating Excel report:", e);
-        throw e;
+    const formData = new FormData();
+    formData.append('framework_id', frameworkId);
+    const res = await authFetch(`${API_BASE}/compliance/reports/generate/excel`, { method: 'POST', body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Excel report generation failed' }));
+        throw new Error(err.detail || 'Excel report generation failed');
     }
+    return await res.json();
 };
 
 export const generatePDFComplianceReport = async (frameworkId: string) => {
-    try {
-        const formData = new FormData();
-        formData.append('framework_id', frameworkId);
-
-        const token = localStorage.getItem('token');
-        const headers: any = { 'Authorization': `Bearer ${token}` };
-
-        const res = await fetch(`${API_BASE}/compliance/reports/generate/pdf`, {
-            method: 'POST',
-            headers: headers,
-            body: formData
-        });
-        return await res.json();
-    } catch (e) {
-        console.error("Error generating PDF report:", e);
-        throw e;
+    const formData = new FormData();
+    formData.append('framework_id', frameworkId);
+    const res = await authFetch(`${API_BASE}/compliance/reports/generate/pdf`, { method: 'POST', body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'PDF report generation failed' }));
+        throw new Error(err.detail || 'PDF report generation failed');
     }
+    return await res.json();
 };
 
-export const fetchComplianceReports = async () => {
+export const fetchComplianceReports = async (frameworkId?: string) => {
     try {
-        const res = await fetch(`${API_BASE}/compliance/reports`);
+        const url = frameworkId
+            ? `${API_BASE}/compliance/reports?framework_id=${encodeURIComponent(frameworkId)}`
+            : `${API_BASE}/compliance/reports`;
+        const res = await authFetch(url);
         if (res.ok) return await res.json();
         return [];
     } catch (e) {
-        console.error("Error fetching reports:", e);
+        console.error("Error fetching compliance reports:", e);
         return [];
     }
+};
+
+export const downloadComplianceReport = async (filename: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/compliance/reports/download/${encodeURIComponent(filename)}`);
+    if (!res.ok) throw new Error('Failed to download report');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
+// --- Analytical Reports ---
+export const fetchExecutiveSummaryReport = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/reports/executive-summary`);
+        if (!res.ok) throw new Error('Failed');
+        return await res.json();
+    } catch (e) { console.error('Executive summary error', e); return null; }
+};
+
+export const fetchSlaReport = async (framework = 'SOC2') => {
+    try {
+        const res = await authFetch(`${API_BASE}/reports/sla-compliance?framework=${framework}`);
+        if (!res.ok) throw new Error('Failed');
+        return await res.json();
+    } catch (e) { console.error('SLA report error', e); return null; }
+};
+
+export const fetchVulnerabilityExposureReport = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/reports/vulnerability-exposure`);
+        if (!res.ok) throw new Error('Failed');
+        return await res.json();
+    } catch (e) { console.error('Vuln report error', e); return null; }
+};
+
+export const fetchChangeManagementReport = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/reports/change-management`);
+        if (!res.ok) throw new Error('Failed');
+        return await res.json();
+    } catch (e) { console.error('Change mgmt report error', e); return null; }
 };
 
 // --- Security Simulations ---
@@ -2903,4 +3345,41 @@ export const bulkUpdateAssets = async (assetIds: string[], updates: any) => {
         throw err;
     }
 };
+
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+
+export const fetchTasks = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/tasks`);
+        if (!res.ok) throw new Error("Failed to fetch tasks");
+        return await res.json();
+    } catch (err) {
+        console.error("Error fetching tasks:", err);
+        return [];
+    }
+};
+
+export const createTask = async (text: string, priority: string) => {
+    const res = await authFetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({ text, priority }),
+    });
+    if (!res.ok) throw new Error("Failed to create task");
+    return await res.json();
+};
+
+export const updateTask = async (id: number, updates: { completed?: boolean; text?: string; priority?: string }) => {
+    const res = await authFetch(`${API_BASE}/tasks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update task");
+    return await res.json();
+};
+
+export const deleteTask = async (id: number) => {
+    const res = await authFetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error("Failed to delete task");
+};
+
 

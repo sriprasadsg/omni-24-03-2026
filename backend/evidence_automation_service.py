@@ -244,7 +244,6 @@ class EvidenceAutomationService:
         async for user in cursor:
             training_summary["total_users"] += 1
             
-            # Simulate training record (in real system, this would come from LMS)
             completed = user.get("securityTrainingCompleted", False)
             if completed:
                 training_summary["trained_users"] += 1

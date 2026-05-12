@@ -1,239 +1,238 @@
+"""
+Reporting & Notification Endpoints
+SLA compliance reports, vulnerability exposure, change management, and multi-channel notifications.
+"""
 
-# Reporting & Notification Endpoints
+from fastapi import APIRouter, HTTPException, Depends
+from datetime import datetime, timezone
+
+from database import get_database
+from authentication_service import get_current_user
+from auth_types import TokenData
 from reporting_service import get_reporting_service
 from notification_service import get_notification_service
+from tenant_context import set_tenant_id
 
-@app.get("/api/reports/sla-compliance")
+router = APIRouter(tags=["Reporting & Notifications"])
+
+_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
+
+def _elevate_if_admin(user: TokenData) -> None:
+    """Allow admins to query across all tenants by bypassing tenant isolation."""
+    if getattr(user, "role", "") in _ADMIN_ROLES:
+        set_tenant_id("platform-admin")
+
+
+# ── Reports ──────────────────────────────────────────────────────────────────
+
+@router.get("/api/reports/sla-compliance")
 async def get_sla_compliance_report(
     tenant_id: str = None,
     framework: str = "SOC2",
     start_date: str = None,
-    end_date: str = None
+    end_date: str = None,
+    current_user: TokenData = Depends(get_current_user),
 ):
-    """
-    Generate SLA compliance report
-    
-    Query params:
-    - tenant_id: Optional tenant filter
-    - framework: SOC2, PCI-DSS, HIPAA, ISO27001 (default: SOC2)
-    - start_date: ISO format (default: 30 days ago)
-    - end_date: ISO format (default: now)
-    """
+    """Generate SLA compliance report."""
     try:
+        _elevate_if_admin(current_user)
         db = get_database()
         reporting_service = get_reporting_service(db)
-        
         start = datetime.fromisoformat(start_date) if start_date else None
-        end= datetime.fromisoformat(end_date) if end_date else None
-        
-        report = await reporting_service.generate_sla_compliance_report(
-            tenant_id=tenant_id,
+        end = datetime.fromisoformat(end_date) if end_date else None
+        return await reporting_service.generate_sla_compliance_report(
+            tenant_id=tenant_id or getattr(current_user, "tenant_id", None),
             framework=framework,
             start_date=start,
-            end_date=end
+            end_date=end,
         )
-        
-        return report
     except Exception as e:
-        print(f"Error generating SLA report: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/reports/vulnerability-exposure")
-async def get_vulnerability_exposure_report(tenant_id: str = None):
-    """
-    Generate vulnerability exposure report
-    
-    Shows asset exposure, critical CVEs, and exploit probability
-    """
+@router.get("/api/reports/vulnerability-exposure")
+async def get_vulnerability_exposure_report(
+    tenant_id: str = None,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Generate vulnerability exposure report with asset exposure, critical CVEs, and EPSS scores."""
     try:
+        _elevate_if_admin(current_user)
         db = get_database()
         reporting_service = get_reporting_service(db)
-        
-        report = await reporting_service.generate_vulnerability_exposure_report(
+        return await reporting_service.generate_vulnerability_exposure_report(
             tenant_id=tenant_id
         )
-        
-        return report
     except Exception as e:
-        print(f"Error generating vulnerability report: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/reports/change-management")
+@router.get("/api/reports/change-management")
 async def get_change_management_log(
     tenant_id: str = None,
     start_date: str = None,
     end_date: str = None,
-    limit: int = 100
+    limit: int = 100,
+    current_user: TokenData = Depends(get_current_user),
 ):
-    """
-    Generate ITIL-compliant change management log
-    
-    Tracks all deployment activities for audit/compliance
-    """
+    """Generate ITIL-compliant change management log for audit/compliance."""
     try:
+        _elevate_if_admin(current_user)
         db = get_database()
         reporting_service = get_reporting_service(db)
-        
         start = datetime.fromisoformat(start_date) if start_date else None
         end = datetime.fromisoformat(end_date) if end_date else None
-        
-        report = await reporting_service.generate_change_management_log(
-            tenant_id=tenant_id,
+        return await reporting_service.generate_change_management_log(
+            tenant_id=tenant_id or getattr(current_user, "tenant_id", None),
             start_date=start,
             end_date=end,
-            limit=limit
+            limit=limit,
         )
-        
-        return report
     except Exception as e:
-        print(f"Error generating change log: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/reports/executive-summary")
-async def get_executive_summary(tenant_id: str = None):
-    """
-    Generate executive-level KPI summary
-    
-    High-level dashboard for C-suite:
-    - Security posture
-    - Compliance status
-    - Patch velocity
-    - Risk exposure
-    """
+@router.get("/api/reports/executive-summary")
+async def get_executive_summary(
+    tenant_id: str = None,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Generate executive-level KPI summary: security posture, compliance, patch velocity, risk exposure."""
     try:
+        _elevate_if_admin(current_user)
         db = get_database()
         reporting_service = get_reporting_service(db)
-        
-        summary = await reporting_service.generate_executive_summary(
+        return await reporting_service.generate_executive_summary(
             tenant_id=tenant_id
         )
-        
-        return summary
     except Exception as e:
-        print(f"Error generating executive summary: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# Notification Endpoints
+@router.post("/api/reports/schedule")
+async def schedule_report(
+    data: dict,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Schedule a recurring compliance report."""
+    try:
+        db = get_database()
+        schedule = {
+            "report_type": data.get("report_type"),
+            "frequency": data.get("frequency", "weekly"), # daily, weekly, monthly
+            "recipients": data.get("recipients", []),
+            "tenant_id": getattr(current_user, "tenant_id", "platform-admin"),
+            "created_by": current_user.email,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_run": None,
+            "next_run": data.get("next_run"), # ISO format
+            "active": True
+        }
+        result = await db.report_schedules.insert_one(schedule)
+        schedule["id"] = str(result.inserted_id)
+        return schedule
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/notifications/send")
-async def send_notification(data: dict):
+
+@router.get("/api/reports/schedules")
+async def get_report_schedules(
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Get all active report schedules for the tenant."""
+    try:
+        db = get_database()
+        tenant_id = getattr(current_user, "tenant_id", "platform-admin")
+        schedules = await db.report_schedules.find({"tenant_id": tenant_id}).to_list(length=100)
+        for s in schedules:
+            s["id"] = str(s.pop("_id"))
+        return schedules
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+@router.post("/api/notifications/send")
+async def send_notification(
+    data: dict,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
-    Send multi-channel notification
-    
-    Body:
-    {
-        "title": "Alert Title",
-        "message": "Alert message",
-        "severity": "critical|warning|info",
-        "recipients": ["email@example.com", "+1234567890"],
-        "channels": ["email", "sms", "slack", "webhook"],
-        "metadata": {}
-    }
+    Send multi-channel notification.
+    Body: { title, message, severity, recipients, channels, metadata }
     """
     try:
         db = get_database()
         notification_service = get_notification_service(db)
-        
-        result = await notification_service.send_alert(
+        return await notification_service.send_alert(
             title=data.get("title"),
             message=data.get("message"),
             severity=data.get("severity", "info"),
             recipients=data.get("recipients", []),
             channels=data.get("channels", ["email"]),
-            metadata=data.get("metadata")
+            metadata=data.get("metadata"),
         )
-        
-        return result
     except Exception as e:
-        print(f"Error sending notification: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/notifications/config")
-async def configure_notifications(data: dict):
+@router.post("/api/notifications/config")
+async def configure_notifications(
+    data: dict,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
-    Configure notification channels
-    
-    Body:
-    {
-        "type": "slack|email|sms",
-        "enabled": true,
-        "config": {
-            "webhook_url": "https://hooks.slack.com/...",
-            "smtp_host": "smtp.gmail.com",
-            "phone_number": "+1234567890"
-        }
-    }
+    Configure a notification channel.
+    Body: { type, enabled, config: { webhook_url | smtp_host | phone_number, ... } }
     """
     try:
         db = get_database()
-        
         config = {
             "type": data.get("type"),
             "enabled": data.get("enabled", True),
             **data.get("config", {}),
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-        
         await db.notification_config.update_one(
             {"type": data.get("type")},
             {"$set": config},
-            upsert=True
+            upsert=True,
         )
-        
-        return {
-            "success": True,
-            "message": f"{data.get('type')} notifications configured"
-        }
+        return {"success": True, "message": f"{data.get('type')} notifications configured"}
     except Exception as e:
-        print(f"Error configuring notifications: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/notifications/config")
-async def get_notification_configs():
-    """Get all notification channel configurations"""
+@router.get("/api/notifications/config")
+async def get_notification_configs(_current_user: TokenData = Depends(get_current_user)):
+    """Get all notification channel configurations (sensitive fields redacted)."""
     try:
         db = get_database()
-        
         configs = await db.notification_config.find({}, {"_id": 0}).to_list(length=None)
-        
-        # Redact sensitive fields
         for config in configs:
-            if "webhook_url" in config:
-                config["webhook_url"] =config["webhook_url"][:30] + "..." if len(config.get("webhook_url", "")) > 30 else config.get("webhook_url")
+            if len(config.get("webhook_url", "")) > 30:
+                config["webhook_url"] = config["webhook_url"][:30] + "..."
             if "smtp_password" in config:
                 config["smtp_password"] = "***"
-        
         return {"configs": configs}
     except Exception as e:
-        print(f"Error getting configs: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/notifications/history")
-async def get_notification_history(limit: int = 50, severity: str = None):
-    """Get notification history"""
+@router.get("/api/notifications/history")
+async def get_notification_history(
+    limit: int = 50,
+    severity: str = None,
+    _current_user: TokenData = Depends(get_current_user),
+):
+    """Get notification history, optionally filtered by severity."""
     try:
         db = get_database()
-        
         query = {}
         if severity:
             query["severity"] = severity
-        
-        notifications = await db.notifications.find(
-            query,
-            {"_id": 0}
-        ).sort("sent_at", -1).limit(limit).to_list(length=None)
-        
-        return {
-            "notifications": notifications,
-            "count": len(notifications)
-        }
+        notifications = await db.notifications.find(query, {"_id": 0}).sort("sent_at", -1).limit(limit).to_list(length=None)
+        return {"notifications": notifications, "count": len(notifications)}
     except Exception as e:
-        print(f"Error getting notification history: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))

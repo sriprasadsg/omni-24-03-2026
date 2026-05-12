@@ -173,6 +173,23 @@ class ITDRService:
         await db.itdr_alerts.insert_one(alert)
         alert.pop("_id", None)
         logger.warning(f"[ITDR] {severity.upper()} — {alert_type}: {description}")
+
+        # Mirror to the platform notifications collection so the UI bell picks it up
+        try:
+            await db.notifications.insert_one({
+                "alert_id": alert["alert_id"],
+                "type": "itdr",
+                "title": f"ITDR: {alert_type.replace('_', ' ').title()}",
+                "message": description,
+                "severity": severity,
+                "metadata": metadata,
+                "read": False,
+                "tenantId": "global",
+                "timestamp": alert["timestamp"],
+            })
+        except Exception as _e:
+            logger.debug("[ITDR] Failed to mirror alert to notifications: %s", _e)
+
         return alert
 
 

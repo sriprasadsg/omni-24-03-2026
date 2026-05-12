@@ -51,6 +51,10 @@ class ApprovalService:
         }
 
         await self.db.approval_requests.insert_one(request)
+
+        # Notify first-step approvers
+        await self._notify_approvers(request, steps[0])
+
         return request
 
     async def get_request(self, request_id: str) -> Optional[Dict[str, Any]]:
@@ -100,6 +104,7 @@ class ApprovalService:
 
         # Determine overall status
         new_status = "pending"
+        next_step = None
         if decision == "reject":
             new_status = "rejected"
         elif current_step_num == len(request["steps"]):
@@ -108,6 +113,7 @@ class ApprovalService:
             # Move to next step
             request["currentStep"] += 1
             request["steps"][current_step_num]["status"] = "pending"
+            next_step = request["steps"][current_step_num]
 
         request["status"] = new_status
         request["updatedAt"] = datetime.now(timezone.utc).isoformat()
@@ -121,6 +127,10 @@ class ApprovalService:
                 "updatedAt": request["updatedAt"]
             }}
         )
+
+        # Notify next-step approvers when workflow advances
+        if next_step is not None:
+            await self._notify_approvers(request, next_step)
 
         # Trigger notification if request is fully resolved
         if new_status in ["approved", "rejected"]:
@@ -146,7 +156,52 @@ class ApprovalService:
             except Exception as e:
                 print(f"[ApprovalService] Failed to send notification email: {e}")
 
+        # Always push to in-app notifications regardless of SMTP
+        try:
+            await self.db.notifications.insert_one({
+                "alert_id": f"jit-{request_id}",
+                "type": "jit_approval",
+                "title": f"JIT Request {new_status.capitalize()}: {request.get('actionType', '')}",
+                "message": f"Approval request '{request.get('description', request_id)}' was {new_status} by {user_email}.",
+                "severity": "info",
+                "read": False,
+                "tenantId": request.get("tenantId", "global"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+
         return request
+
+    async def _notify_approvers(self, request: Dict[str, Any], step: Dict[str, Any]) -> None:
+        """Send an email to all approvers for a given workflow step."""
+        approvers = step.get("approvers", [])
+        if not approvers:
+            return
+        try:
+            smtp_config = await self.db.smtp_config.find_one({"tenant_id": request["tenantId"]})
+            if not smtp_config:
+                return
+            subject = f"Action Required: Approval Request — {request.get('actionType', 'Unknown')}"
+            body_text = (
+                f"You have a pending approval request.\n\n"
+                f"Request ID : {request['id']}\n"
+                f"Action     : {request.get('actionType', 'N/A')}\n"
+                f"Description: {request.get('description', 'N/A')}\n"
+                f"Requested by: {request.get('requester', 'N/A')}\n"
+                f"Step       : {step['step_number']} — {step.get('role', 'N/A')}\n\n"
+                "Please log in to the platform to approve or reject this request."
+            )
+            for approver in approvers:
+                email_service.send_email(
+                    smtp_config=smtp_config,
+                    to_email=approver,
+                    subject=subject,
+                    body_text=body_text,
+                )
+        except Exception as exc:
+            print(f"[ApprovalService] Failed to notify approvers: {exc}")
+
 
 def get_approval_service(db):
     return ApprovalService(db)

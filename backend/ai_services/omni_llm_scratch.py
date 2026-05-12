@@ -48,21 +48,31 @@ class OmniLLM(nn.Module):
         return self.output_layer(x)
 
 class ScratchTrainer:
-    """
-    Simulated training engine that produces high-fidelity metrics for the platform dashboard.
-    """
+    """Training engine running real forward/backward passes on synthetic token sequences."""
     def __init__(self):
-        self.model = OmniLLM(vocab_size=1000)
+        self.vocab_size = 1000
+        self.model = OmniLLM(vocab_size=self.vocab_size)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
         self.criterion = nn.CrossEntropyLoss()
-        
+
     def train_step(self, epoch: int) -> Dict[str, Any]:
-        # Simulate local training logic
-        loss = 2.5 / (epoch + 1) + (torch.rand(1).item() * 0.1)
-        accuracy = min(0.99, 0.4 + (epoch * 0.05) + (torch.rand(1).item() * 0.02))
-        
+        self.model.train()
+        batch_size, seq_len = 4, 16
+        inputs = torch.randint(0, self.vocab_size, (batch_size, seq_len))
+        targets = torch.randint(0, self.vocab_size, (batch_size, seq_len))
+
+        self.optimizer.zero_grad()
+        logits = self.model(inputs)
+        loss = self.criterion(logits.view(-1, self.vocab_size), targets.view(-1))
+        loss.backward()
+        self.optimizer.step()
+
+        loss_val = loss.item()
+        # Perplexity-derived accuracy estimate (lower loss → higher accuracy)
+        accuracy = min(0.99, max(0.0, 1.0 - (loss_val / math.log(self.vocab_size))))
+
         return {
-            "loss": round(loss, 4),
+            "loss": round(loss_val, 4),
             "accuracy": round(accuracy, 4),
             "epoch": epoch,
             "status": "Training" if accuracy < 0.95 else "Optimizing"

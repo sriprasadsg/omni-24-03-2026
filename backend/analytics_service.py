@@ -63,16 +63,26 @@ async def generate_analytics(db, tenant_id: str = None) -> Dict[str, Any]:
     # Calculate compliance score based on compliant vs non-compliant controls
     compliance_results = await db.compliance_results.find(query_filter).to_list(length=10000)
     
-    if compliance_results:
-        for month_key in compliance_data.keys():
-            # Get results for this month (simplified - using all data for demo)
-            total_controls = len(compliance_results)
-            compliant = sum(1 for r in compliance_results if r.get("status") == "Passed")
-            compliance_data[month_key] = round((compliant / total_controls * 100) if total_controls > 0 else 75.0, 1)
-    else:
-        # Default trend if no data
-        for i, month_key in enumerate(compliance_data.keys()):
-            compliance_data[month_key] = min(70 + i * 2, 95)
+    # Group compliance results by month using their timestamp
+    month_compliance: Dict[str, list] = {month: [] for month in months}
+    for r in compliance_results:
+        ts_str = r.get("createdAt") or r.get("timestamp") or r.get("updatedAt", "")
+        if ts_str:
+            try:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                if start_date <= ts <= end_date:
+                    mk = ts.strftime("%b %Y")
+                    if mk in month_compliance:
+                        month_compliance[mk].append(r)
+            except Exception:
+                continue
+
+    for month_key in compliance_data.keys():
+        month_results = month_compliance[month_key]
+        if month_results:
+            total = len(month_results)
+            passed = sum(1 for r in month_results if r.get("status") in ("Passed", "Pass"))
+            compliance_data[month_key] = round(passed / total * 100, 1)
     
     # === VULNERABILITY DATA ===
     vulnerabilities = await db.vulnerabilities.find(query_filter).to_list(length=10000)

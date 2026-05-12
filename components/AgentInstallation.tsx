@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authFetch } from '../services/apiService';
 import { CopyIcon, CheckIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, ChevronDownIcon, AlertTriangleIcon, DownloadIcon, InfoIcon, CodeIcon, BuildingIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { Tenant } from '../types';
@@ -55,198 +56,6 @@ interface AgentInstallationProps {
     onSelectTenant?: (tenantId: string) => void;
 }
 
-const linuxScriptContent = `#!/bin/bash
-set -e
-
-REGISTRATION_KEY=""
-
-# Parse command-line arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --registration-key) REGISTRATION_KEY="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
-
-if [ -z "$REGISTRATION_KEY" ]; then
-    echo "Error: --registration-key is a required argument."
-    exit 1
-fi
-
-echo "Omni-Agent AI Installer for Linux/macOS"
-echo "========================================"
-
-echo "[1/4] Downloading agent package..."
-sleep 1
-echo "Download complete."
-
-echo "[2/4] Verifying package integrity..."
-sleep 1
-echo "Verification successful."
-
-echo "[3/4] Installing agent to /opt/omni-agent..."
-sleep 2
-echo "Installation complete."
-
-echo "[4/4] Configuring agent with registration key..."
-sleep 1
-echo "Configuration complete. Agent is starting."
-
-echo "✅ Omni-Agent AI has been installed successfully!"
-`;
-
-const windowsScriptContent = `[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true)]
-    [string]$RegistrationKey
-)
-
-Write-Host "Omni-Agent AI Installer for Windows"
-Write-Host "================================="
-
-if (-not $RegistrationKey) {
-    Write-Error "Error: -RegistrationKey is a required argument."
-    exit 1
-}
-
-Write-Host "[1/4] Downloading agent package..."
-Start-Sleep -Seconds 1
-Write-Host "Download complete."
-
-Write-Host "[2/4] Verifying package integrity..."
-Start-Sleep -Seconds 1
-Write-Host "Verification successful."
-
-Write-Host "[3/4] Installing agent to C:\\Program Files\\OmniAgent..."
-Start-Sleep -Seconds 2
-Write-Host "Installation complete."
-
-Write-Host "[4/4] Configuring agent with registration key..."
-Start-Sleep -Seconds 1
-Write-Host "Configuration complete. Agent service is starting."
-
-Write-Host "✅ Omni-Agent AI has been installed successfully!"
-`;
-
-const pythonScriptContent = `#!/usr/bin/env python3
-import argparse
-import time
-import sys
-import platform
-import socket
-import json
-from urllib import request
-
-# In a real scenario, this would be the actual API endpoint.
-# For this simulation, we'll just print the request.
-API_ENDPOINT = "http://127.0.0.1:5000/api/agents/register" 
-AGENT_VERSION = "3.1.0-python"
-
-def get_ip_address():
-    """Gets the local IP address of the machine."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # doesn't have to be reachable
-        s.connect(('10.255.255.255', 1))
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = '127.0.0.1'
-    finally:
-        s.close()
-    return IP
-
-def main():
-    parser = argparse.ArgumentParser(description="Omni-Agent AI Installer")
-    parser.add_argument(
-        "--registration-key",
-        required=True,
-        help="The tenant-specific registration key for agent installation."
-    )
-    args = parser.parse_args()
-
-    print("Omni-Agent AI Python Installer")
-    print("==============================")
-
-    try:
-        # Step 1: Simulate download
-        print("[1/5] Downloading agent dependencies...")
-        time.sleep(1)
-        print("      Download complete.")
-
-        # Step 2: Simulate verification
-        print("[2/5] Verifying package integrity...")
-        time.sleep(1)
-        print("      Verification successful.")
-
-        # Step 3: Simulate installation
-        install_path = "/opt/omni-agent" if platform.system() != "Windows" else "C:\\\\Program Files\\\\OmniAgent"
-        print(f"[3/5] Installing agent to {install_path}...")
-        time.sleep(2)
-        print("      Installation complete.")
-        
-        # Step 4: Gather system information
-        print("[4/5] Gathering system information for registration...")
-        hostname = socket.gethostname()
-        ip_address = get_ip_address()
-        os_platform = platform.system() # e.g., 'Linux', 'Windows', 'Darwin' (for macOS)
-        
-        # Map to platform types used in the UI
-        platform_map = {
-            'Linux': 'Linux',
-            'Windows': 'Windows',
-            'Darwin': 'macOS'
-        }
-        agent_platform = platform_map.get(os_platform, os_platform)
-
-        payload = {
-            "hostname": hostname,
-            "ipAddress": ip_address,
-            "platform": agent_platform,
-            "version": AGENT_VERSION,
-            "assetId": "new", # Instructs the backend to create a new asset
-            "registrationKey": args.registration_key
-        }
-        time.sleep(1)
-        print("      System information gathered.")
-
-        # Step 5: Simulate registration with the backend
-        print(f"[5/5] Registering agent with the Omni-Agent AI Platform...")
-        print("--------------------------------------------------")
-        print(f"SIMULATING API CALL TO: {API_ENDPOINT}")
-        print("METHOD: POST")
-        print("HEADERS: {'Content-Type': 'application/json'}")
-        print("PAYLOAD:")
-        print(json.dumps(payload, indent=2))
-        print("--------------------------------------------------")
-        
-        # In a real script, you would make the actual HTTP request here:
-        #
-        # try:
-        #     req = request.Request(API_ENDPOINT, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        #     with request.urlopen(req) as response:
-        #         if 200 <= response.status < 300:
-        #             print("      Registration successful.")
-        #         else:
-        #             print(f"      Registration failed with status: {response.status}")
-        #             print(response.read().decode('utf-8'))
-        #             sys.exit(1)
-        # except Exception as e:
-        #     print(f"      Error during registration: {e}")
-        #     sys.exit(1)
-
-        time.sleep(1.5)
-        print("      Registration successful (simulation).")
-
-        print("\\n✅ Omni-Agent AI (Python) has been installed and registered successfully!")
-
-    except Exception as e:
-        print(f"\\n❌ An error occurred during installation: {e}", file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
-`;
 
 
 export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrationKey, tenantId, tenants, onSelectTenant }) => {
@@ -256,16 +65,19 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     const [isOpen, setIsOpen] = useState(true);
     const [activeTab, setActiveTab] = useState<PlatformTab>('linux');
 
-    const commands = registrationKey ? (() => {
-        const backendBase = getBackendUrl();
-        return {
-            linux: `curl -sSL ${backendBase}/static/linux-install.sh | sudo bash -s -- --registration-key ${registrationKey}`,
-            windows: `powershell -Command "Invoke-WebRequest -Uri '${backendBase}/api/install-script' -OutFile 'install.ps1'; & './install.ps1' -RegistrationKey '${registrationKey}' -BackendUrl '${backendBase}'; Remove-Item 'install.ps1'"`,
-            python: `curl -sSL ${backendBase}/static/omni-agent-install.py | python3 - --registration-key ${registrationKey}`,
-            docker: `docker build -t omni-agent:latest ./agent\ndocker run -d --name omni-agent \\\n  -v /var/run/docker.sock:/var/run/docker.sock:ro \\\n  -e OMNI_REGISTRATION_KEY="${registrationKey}" \\\n  omni-agent:latest`,
-            kubernetes: `helm install omni-agent ./backend/static/charts/omni-agent \\\n  --set registrationKey=${registrationKey} \\\n  --set clusterName=my-prod-cluster`,
-        };
-    })() : null;
+    // Editable server URL — agents embed this in their config.yaml to call back to the platform.
+    // Defaults to the auto-detected backend URL but must be set to the real server IP/hostname
+    // when agents will run on machines other than localhost.
+    const [serverUrl, setServerUrl] = useState<string>(() => getBackendUrl() || window.location.origin);
+    const isLocalhost = /localhost|127\.0\.0\.1/.test(serverUrl);
+
+    const commands = registrationKey ? {
+        linux: `curl -sSL ${serverUrl}/static/linux-install.sh | sudo bash -s -- --registration-key ${registrationKey}`,
+        windows: `powershell -Command "Invoke-WebRequest -Uri '${serverUrl}/api/install-script' -OutFile 'install.ps1'; & './install.ps1' -RegistrationKey '${registrationKey}' -BackendUrl '${serverUrl}'; Remove-Item 'install.ps1'"`,
+        python: `curl -sSL ${serverUrl}/static/omni-agent-install.py | python3 - --registration-key ${registrationKey} --api-url ${serverUrl}`,
+        docker: `docker build -t omni-agent:latest ./agent\ndocker run -d --name omni-agent \\\n  -v /var/run/docker.sock:/var/run/docker.sock:ro \\\n  -e OMNI_REGISTRATION_KEY="${registrationKey}" \\\n  omni-agent:latest`,
+        kubernetes: `helm install omni-agent ./backend/static/charts/omni-agent \\\n  --set registrationKey=${registrationKey} \\\n  --set clusterName=my-prod-cluster`,
+    } : null;
 
     const tabs: { id: PlatformTab; name: string; icon: React.ReactNode }[] = [
         { id: 'linux', name: 'Linux/macOS', icon: <LinuxIcon size={20} /> },
@@ -284,54 +96,34 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
         }
     }
 
-    const handleDownload = (filename: string, content: string) => {
-        const element = document.createElement("a");
-        const file = new Blob([content], { type: 'text/plain' });
-        element.href = URL.createObjectURL(file);
-        element.download = filename;
-        document.body.appendChild(element); // Required for this to work in FireFox
-        element.click();
-        URL.revokeObjectURL(element.href);
-        document.body.removeChild(element);
-    };
-
     const [isDownloadingZip, setIsDownloadingZip] = React.useState(false);
 
     const handleDownloadAgentZip = async () => {
         if (!tenantId) return;
         setIsDownloadingZip(true);
         try {
-            const token = localStorage.getItem('token');
-            const backendBase = getBackendUrl();
-            const backendUrl = encodeURIComponent(backendBase);
-            const res = await fetch(`${backendBase}/api/agent/download/${tenantId}?api_url=${backendUrl}`, {
-                headers: { Authorization: `Bearer ${token}` }
+            const backendUrl = encodeURIComponent(serverUrl);
+
+            // Step 1: exchange the JWT for a short-lived (60s) one-time download token.
+            // This avoids the fetch()+blob+proxy pipeline that causes ERR_FAILED 200 on
+            // the Vite dev proxy (and some nginx configurations) for binary responses.
+            const tokenRes = await authFetch(`/api/agent/download-token/${tenantId}`, {
+                method: 'POST',
             });
-            if (!res.ok) {
-                alert('Failed to download agent package. Please try again.');
+            if (!tokenRes.ok) {
+                alert('Failed to initiate download. Please try again.');
                 return;
             }
-            const blob = await res.blob();
-            const cdHeader = res.headers.get('Content-Disposition') || '';
-            const match = cdHeader.match(/filename[^;=\n]*=(['"]?)([^'"\n;]+)\1/);
-            let filename = match?.[2] || `omni-agent-${tenantId}.zip`;
-            if (!filename.endsWith('.zip')) {
-                filename += '.zip';
-            }
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-            }, 1000);
+            const { token: downloadToken } = await tokenRes.json();
+
+            // Step 2: trigger a direct browser navigation so the download manager
+            // receives the ZIP — no JS body-reading, no proxy buffering issues.
+            window.location.href = `/api/agent/download/${tenantId}?download_token=${downloadToken}&api_url=${backendUrl}`;
         } catch (e) {
             alert('An error occurred while downloading the agent package.');
         } finally {
-            setIsDownloadingZip(false);
+            // Give the browser a moment to initiate the download before clearing the spinner
+            setTimeout(() => setIsDownloadingZip(false), 1500);
         }
     };
 
@@ -368,6 +160,30 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                                 Use the tenant-specific registration key below with the appropriate one-line command to install a new agent. The agent will automatically register to the correct tenant.
                             </p>
+
+                            {/* Server URL — embedded in agent config.yaml and install commands */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Platform Server URL
+                                </label>
+                                <input
+                                    type="text"
+                                    value={serverUrl}
+                                    onChange={e => setServerUrl(e.target.value.trimEnd())}
+                                    placeholder="http://192.168.1.100:5000"
+                                    className="block w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                                {isLocalhost ? (
+                                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <AlertTriangleIcon size={12} />
+                                        Using localhost — agents on remote machines won't be able to reach the server. Replace with your server's IP or hostname (e.g. <code className="font-mono">http://192.168.1.100:5000</code>).
+                                    </p>
+                                ) : (
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        This URL is embedded in install commands and the agent config.yaml so agents can call back to the platform.
+                                    </p>
+                                )}
+                            </div>
 
                             <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                                 <div className="flex-grow">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AiModel, fetchAiModels, registerAiModel } from '../services/apiService';
 import { PlusIcon, ServerIcon, ClockIcon, AlertTriangleIcon, SearchIcon, LayersIcon, ShieldCheckIcon, SparklesIcon } from './icons';
+import { useUser } from '../contexts/UserContext';
 
 interface AiModelRegistryProps {
     onEvaluate?: (modelId: string) => void;
@@ -8,6 +9,7 @@ interface AiModelRegistryProps {
 }
 
 export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, onExpertEvaluate }) => {
+    const { currentUser } = useUser();
     const [models, setModels] = useState<AiModel[]>([]);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -29,17 +31,17 @@ export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, on
         const newModel: Partial<AiModel> = {
             id: `model-${Date.now()}`,
             name: formData.get('name') as string,
-            tenantId: 'default',
+            tenantId: currentUser?.tenantId || 'default',
             description: formData.get('description') as string,
             framework: formData.get('framework') as string,
             type: formData.get('type') as string,
-            owner: 'admin', // mock
+            owner: currentUser?.name || currentUser?.email || 'unknown',
             riskLevel: formData.get('riskLevel') as any,
             versions: [
                 {
                     version: 'v1.0',
                     createdAt: new Date().toISOString(),
-                    createdBy: 'admin',
+                    createdBy: currentUser?.name || currentUser?.email || 'unknown',
                     status: 'Staging',
                     metrics: { accuracy: 0.85, latency: 150 }
                 }

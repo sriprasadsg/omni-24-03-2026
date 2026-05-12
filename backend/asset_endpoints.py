@@ -6,7 +6,6 @@ from authentication_service import get_current_user
 import datetime
 from cache_service import cached, invalidate_cache
 from pagination_utils import paginate_mongo_query, PaginationParams
-import random
 
 router = APIRouter(prefix="/api/assets", tags=["Assets"])
 
@@ -47,6 +46,50 @@ async def get_assets(
     )
     
     return result
+
+@router.get("/search")
+@cached(ttl=30, key_prefix="assets_search")
+async def search_assets(
+    q: str = Query(..., min_length=1, description="Search query"),
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+):
+    """Full-text search across asset name, hostname, IP, and type fields."""
+    regex = {"$regex": q, "$options": "i"}
+    query: Dict[str, Any] = {
+        "$or": [
+            {"name": regex},
+            {"hostname": regex},
+            {"ipAddress": regex},
+            {"type": regex},
+            {"os": regex},
+        ]
+    }
+    user_role = getattr(current_user, "role", "user")
+    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+    assets = await db.assets.find(query, {"_id": 0}).to_list(length=limit)
+    return assets
+
+
+@router.delete("/bulk")
+async def bulk_delete_assets_route(
+    ids: List[str] = Body(..., description="List of asset IDs to delete"),
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+):
+    """Delete multiple assets by ID."""
+    if not ids:
+        raise HTTPException(status_code=400, detail="No IDs provided")
+    query: Dict[str, Any] = {"id": {"$in": ids}}
+    user_role = getattr(current_user, "role", "user")
+    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+    result = await db.assets.delete_many(query)
+    invalidate_cache("assets:*")
+    return {"success": True, "deleted": result.deleted_count}
+
 
 @router.get("/{asset_id}")
 async def get_asset_details(
@@ -95,19 +138,19 @@ async def get_asset_metrics(
     metrics = await metrics_cursor.to_list(length=100)
     
     if not metrics:
-        # Fallback: Generate mock history based on current asset state if no history exists
-        # This ensures the UI Charts don't look broken
+        # No recorded history — seed a single snapshot from the asset's last-known telemetry
+        # so charts have at least one real data point rather than random numbers.
+        asset = await db.assets.find_one({"id": asset_id}, {"_id": 0})
+        telemetry = (asset or {}).get("telemetry") or {}
         now = datetime.datetime.now(datetime.timezone.utc)
-        for i in range(24):
-            ts = (now - datetime.timedelta(hours=i)).isoformat()
-            metrics.append({
-                "timestamp": ts,
-                "cpu": float(random.randint(5, 40)),
-                "ram": float(random.randint(20, 70)),
-                "disk": 45.5,
-                "network_in": float(random.randint(100, 5000)),
-                "network_out": float(random.randint(50, 2000))
-            })
+        metrics.append({
+            "timestamp": now.isoformat(),
+            "cpu": float(telemetry.get("cpu_percent", 0)),
+            "ram": float(telemetry.get("memory_percent", 0)),
+            "disk": float(telemetry.get("disk_percent", 0)),
+            "network_in": float(telemetry.get("network_bytes_recv", 0)),
+            "network_out": float(telemetry.get("network_bytes_sent", 0)),
+        })
             
     return {"assetId": asset_id, "metrics": metrics}
 
@@ -241,10 +284,44 @@ async def bulk_update_assets(
     )
     
     invalidate_cache("assets:*")
-    
+
     return {
-        "success": True, 
+        "success": True,
         "matched_count": result.matched_count,
         "modified_count": result.modified_count
     }
+
+
+@router.patch("/{asset_id}/criticality")
+async def set_asset_criticality(
+    asset_id: str,
+    body: Dict[str, Any],
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+):
+    """
+    Set the criticality level of an asset.
+    Accepted values: critical | high | medium | low
+    This controls whether autonomous actions (e.g. isolate_host) require
+    human approval even when confidence is high.
+    """
+    level = body.get("criticality", "").lower()
+    if level not in ("critical", "high", "medium", "low"):
+        raise HTTPException(status_code=400, detail="criticality must be critical|high|medium|low")
+
+    result = await db.assets.update_one(
+        {"id": asset_id},
+        {"$set": {
+            "criticality": level,
+            "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    invalidate_cache("assets:*")
+    return {"asset_id": asset_id, "criticality": level}
+
+
+
 

@@ -69,8 +69,6 @@ export const AttackPathDashboard: React.FC<AttackPathDashboardProps> = ({ attack
 
                 <div className="relative border-t border-white/5 pt-12">
                     <div className="flex flex-col items-center space-y-6">
-                        {/* Debug logging */}
-                        {console.log('AttackPathDashboard render:', displayPath)}
                         {(displayPath.nodes || []).map((node, index) => (
                             <React.Fragment key={node.id}>
                                 <div className="w-80">

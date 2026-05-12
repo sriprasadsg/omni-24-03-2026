@@ -18,19 +18,29 @@ class SocketService {
         }
 
         const token = localStorage.getItem('token');
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        // Use Vite proxy (same-origin, no CORS issues) so socket.io goes through
+        // http://host:3000/socket.io → proxy → http://127.0.0.1:5000/socket.io.
+        // VITE_API_BASE_URL overrides this for production deployments.
+        // Use current page origin so socket.io goes through Vite's /socket.io proxy rule.
+        // VITE_API_BASE_URL overrides this in production (e.g. behind a reverse proxy).
+        const API_BASE: string = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
-        console.log(`[WebSocket] Connecting for tenant: ${tenantId}`);
+        console.log(`[WebSocket] Connecting for tenant: ${tenantId} via ${API_BASE}`);
 
         this.socket = io(API_BASE, {
             auth: {
                 tenant_id: tenantId,
                 token: token
             },
-            transports: ['websocket', 'polling'], // Try WebSocket first, fallback to polling
+            // polling first: HTTP long-poll goes through Vite's proxy reliably,
+            // establishes the session, then upgrades to WebSocket automatically.
+            // Starting with 'websocket' causes Vite's proxy to fail the upgrade.
+            transports: ['polling', 'websocket'],
+            upgrade: true,
             reconnection: true,
             reconnectionAttempts: 5,
-            reconnectionDelay: 1000
+            reconnectionDelay: 3000,
+            timeout: 10000
         });
 
         // Connection events
@@ -49,7 +59,11 @@ class SocketService {
         });
 
         this.socket.on('connect_error', (error) => {
-            console.error('[WebSocket] Connection error:', error);
+            console.warn('[WebSocket] Connection error:', error.message);
+        });
+
+        this.socket.on('reconnect_failed', () => {
+            console.warn('[WebSocket] All reconnection attempts failed. Real-time updates disabled. Is the backend running with socket_app?');
         });
 
         // Application events

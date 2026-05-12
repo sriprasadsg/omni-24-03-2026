@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { TrendingUpIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
@@ -28,7 +29,7 @@ export const ExecutiveDashboard: React.FC<{ tenantId?: string }> = ({ tenantId }
     const fetchExecutiveSummary = async () => {
         try {
             const url = `/api/reports/executive-summary${tenantId ? `?tenant_id=${tenantId}` : ''}`;
-            const response = await fetch(url);
+            const response = await authFetch(url);
             const data = await response.json();
             setSummary(data);
         } catch (error) {

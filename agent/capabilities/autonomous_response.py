@@ -10,7 +10,6 @@ SentinelOne-style automated threat response actions:
 IMPORTANT: Requires elevated privileges (run agent as Administrator / SYSTEM service).
 """
 import os
-import sys
 import json
 import shutil
 import hashlib
@@ -18,7 +17,7 @@ import platform
 import logging
 import subprocess
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +71,53 @@ class AutonomousResponseCapability:
         except Exception as e:
             logger.exception(f"Response action '{action}' raised exception")
             return self._result(action, False, str(e))
+
+    # ------------------------------------------------------------------
+    # RAISE ALERT  (agent → backend)
+    # ------------------------------------------------------------------
+    def raise_alert(
+        self,
+        alert_type: str,
+        description: str,
+        severity: str = "High",
+        source_hostname: str = "",
+        backend_url: str = "http://localhost:5000",
+        api_key: str = "",
+        agent_id: str = "",
+    ) -> Dict[str, Any]:
+        """
+        POST a new alert to the backend /api/alerts endpoint.
+        Called when the agent autonomously detects a threat and needs to surface it.
+        """
+        import requests as _req
+        import time as _time
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        alert = {
+            "type": alert_type,
+            "description": description,
+            "severity": severity,
+            "source": {"hostname": source_hostname or platform.node(), "agent_id": agent_id},
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "open",
+        }
+        url = f"{backend_url.rstrip('/')}/api/alerts"
+        last_exc: Exception = RuntimeError("unreachable")
+        for attempt in range(3):
+            try:
+                resp = _req.post(url, json=alert, headers=headers, timeout=5)
+                if resp.status_code in (200, 201):
+                    logger.info("[RaiseAlert] Created alert: %s (%s)", alert_type, severity)
+                    return {"success": True, "alert": resp.json()}
+                logger.warning("[RaiseAlert] Attempt %d: HTTP %d", attempt + 1, resp.status_code)
+                return {"success": False, "status_code": resp.status_code}
+            except Exception as exc:
+                last_exc = exc
+                logger.warning("[RaiseAlert] Attempt %d failed: %s", attempt + 1, exc)
+                _time.sleep(2 ** attempt)
+        return {"success": False, "error": str(last_exc)}
 
     # ------------------------------------------------------------------
     # KILL PROCESS
@@ -145,8 +191,8 @@ class AutonomousResponseCapability:
             with open(meta_path) as f:
                 meta = json.load(f)
             original_path = meta.get("original_path", quarantine_id)
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as _meta_err:
+            logger.warning("[AutonomousResponse] Could not read quarantine metadata %s: %s — restoring to quarantine ID path", meta_path, _meta_err)
 
         try:
             shutil.move(quarantined, original_path)
@@ -157,6 +203,65 @@ class AutonomousResponseCapability:
                                 metadata={"quarantine_id": quarantine_id, "restored_to": original_path})
         except Exception as e:
             return self._result("unquarantine_file", False, str(e))
+
+    # ------------------------------------------------------------------
+    # BLOCK IP
+    # ------------------------------------------------------------------
+    def block_ip(self, ip: str) -> Dict[str, Any]:
+        """
+        Block an IP address via host firewall.
+        Uses Windows Firewall (netsh) on Windows and iptables on Linux.
+        """
+        import ipaddress
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            return self._result("block_ip", False, f"Invalid IP address: {ip}")
+
+        rule_name = f"OmniAgent-BLOCK-{ip.replace('.', '-').replace(':', '-')}"
+        if platform.system() == "Windows":
+            cmds = [
+                f'netsh advfirewall firewall add rule name="{rule_name}-IN" dir=in action=block remoteip={ip}',
+                f'netsh advfirewall firewall add rule name="{rule_name}-OUT" dir=out action=block remoteip={ip}',
+            ]
+        elif platform.system() == "Linux":
+            cmds = [
+                f"iptables -I INPUT -s {ip} -j DROP",
+                f"iptables -I OUTPUT -d {ip} -j DROP",
+            ]
+        else:
+            return self._result("block_ip", False, "IP blocking not supported on this OS")
+
+        errors = []
+        for cmd in cmds:
+            r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if r.returncode != 0:
+                errors.append(r.stderr.strip())
+
+        if errors:
+            return self._result("block_ip", False, f"Partial block for {ip}: {errors}")
+        return self._result("block_ip", True, f"Blocked IP {ip} inbound and outbound",
+                            metadata={"ip": ip, "rule": rule_name})
+
+    def unblock_ip(self, ip: str) -> Dict[str, Any]:
+        """Remove a previously blocked IP address from the host firewall."""
+        rule_name = f"OmniAgent-BLOCK-{ip.replace('.', '-').replace(':', '-')}"
+        if platform.system() == "Windows":
+            cmds = [
+                f'netsh advfirewall firewall delete rule name="{rule_name}-IN"',
+                f'netsh advfirewall firewall delete rule name="{rule_name}-OUT"',
+            ]
+        elif platform.system() == "Linux":
+            cmds = [
+                f"iptables -D INPUT -s {ip} -j DROP",
+                f"iptables -D OUTPUT -d {ip} -j DROP",
+            ]
+        else:
+            return self._result("unblock_ip", False, "IP unblocking not supported on this OS")
+
+        for cmd in cmds:
+            subprocess.run(cmd, shell=True, capture_output=True)
+        return self._result("unblock_ip", True, f"Unblocked IP {ip}", metadata={"ip": ip})
 
     # ------------------------------------------------------------------
     # ISOLATE HOST
@@ -279,8 +384,8 @@ class AutonomousResponseCapability:
             try:
                 with open(RESPONSE_LOG) as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except (OSError, json.JSONDecodeError) as _err:
+                logger.warning("[AutonomousResponse] Could not load audit log: %s — starting fresh", _err)
         return []
 
     def _save_audit_log(self):
@@ -302,6 +407,6 @@ class AutonomousResponseCapability:
                 try:
                     with open(os.path.join(QUARANTINE_DIR, fname)) as f:
                         items.append(json.load(f))
-                except Exception:
-                    pass
+                except (OSError, json.JSONDecodeError) as _qe:
+                    logger.warning("[AutonomousResponse] Skipping corrupt quarantine metadata %s: %s", fname, _qe)
         return items

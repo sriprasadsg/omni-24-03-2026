@@ -86,6 +86,42 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
       setViewingCase(result);
     };
 
+    const handleCreateCase = async (event: SecurityEvent) => {
+        if (!currentUser) return;
+        const now = new Date().toISOString();
+        const newCase: SecurityCase = {
+            id: `case-${Date.now()}`,
+            tenantId: event.tenantId ?? '',
+            title: `Case: ${event.description}`,
+            status: 'New',
+            severity: event.severity,
+            owner: currentUser.name,
+            createdAt: now,
+            updatedAt: now,
+            relatedEvents: [event],
+            comments: [],
+            enrichmentData: [],
+        };
+        await onCaseUpdate(newCase);
+        setActiveView('cases');
+    };
+
+    const handleRunPlaybook = (event: SecurityEvent) => {
+        if (playbooks.length > 0) {
+            setPlaybookToExecute(playbooks[0]);
+        } else {
+            setActiveView('playbooks');
+        }
+    };
+
+    const handleTogglePlaybook = async (playbook: Playbook) => {
+        try {
+            await api.togglePlaybook(playbook.id);
+        } catch (error) {
+            console.error('Failed to toggle playbook:', error);
+        }
+    };
+
     const handleScanArtifact = async (event: SecurityEvent, artifact: string, type: 'ip' | 'hash' | 'domain') => {
         try {
             const result = await api.scanArtifactWithVirusTotal(artifact, type);
@@ -112,7 +148,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                 return (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-6">
-                            <SecurityEventsFeed events={securityEvents} onScanArtifact={handleScanArtifact} />
+                            <SecurityEventsFeed events={securityEvents} onScanArtifact={handleScanArtifact} onCreateCase={handleCreateCase} onRunPlaybook={handleRunPlaybook} />
                             <ThreatIntelFeed feed={threatIntelFeed} onViewReport={setThreatIntelResultForModal} />
                         </div>
                         <div className="lg:col-span-1">
@@ -123,7 +159,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             case 'cases':
                 return <CaseManagement cases={securityCases} onViewCase={handleViewCase} />;
             case 'playbooks':
-                return <PlaybookManager playbooks={playbooks} onExecutePlaybook={setPlaybookToExecute} onGeneratePlaybook={() => setIsGeneratePlaybookModalOpen(true)} />;
+                return <PlaybookManager playbooks={playbooks} onExecutePlaybook={setPlaybookToExecute} onGeneratePlaybook={() => setIsGeneratePlaybookModalOpen(true)} onTogglePlaybook={handleTogglePlaybook} />;
             default:
                 return null;
         }
@@ -132,7 +168,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     return (
         <div className="container mx-auto">
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Security Operations Center</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Unified SIEM, XDR, and SOAR capabilities for proactive threat detection and response.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Unified SIEM and SOAR capabilities for proactive threat detection and response.</p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">

@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-import google.generativeai as genai
+from google import genai
 import json
 import os
 from database import get_database
@@ -11,7 +11,7 @@ class AgentLogicService:
         self.model = None
         self.provider_type = None
         self.ollama_url = None
-        self.model_name = None
+        self.model_name = "gemini-2.0-flash"
 
     async def initialize(self):
         """Initialize LLM using environment variables or database settings"""
@@ -42,9 +42,8 @@ class AgentLogicService:
             
         if api_key:
             try:
-                genai.configure(api_key=api_key)
-                model_name = settings.get("model", "gemini-2.0-flash") if settings else "gemini-2.0-flash"
-                self.model = genai.GenerativeModel(model_name)
+                self.model = genai.Client(api_key=api_key)
+                self.model_name = settings.get("model", "gemini-2.0-flash") if settings else "gemini-2.0-flash"
                 self.is_configured = True
                 self.provider_type = "gemini"
             except Exception as e:
@@ -86,7 +85,10 @@ class AgentLogicService:
                         resp.raise_for_status()
                         raw_text = resp.json().get("response", "")
                 else:
-                    response = self.model.generate_content(prompt)
+                    response = self.model.models.generate_content(
+                        model=self.model_name,
+                        contents=prompt
+                    )
                     raw_text = response.text
 
                 cleaned_text = raw_text.replace("```json", "").replace("```", "").strip()
@@ -98,33 +100,143 @@ class AgentLogicService:
         # --- SMART HEURISTIC FALLBACK ---
         goals = []
         meta = agent_data.get("meta", {})
-        
-        # 1. Resource Performance
-        cpu = meta.get("cpu_usage", 0)
+
+        # 1. Active threats / open alerts take highest priority
+        db = get_database()
+        agent_id = agent_data.get("id", "")
+        tenant_id = agent_data.get("tenantId", "")
+        open_alert_count = 0
+        try:
+            open_alert_count = await db.alerts.count_documents({
+                "tenantId": tenant_id,
+                "assetId": agent_id,
+                "status": {"$in": ["Open", "In Progress"]},
+                "severity": {"$in": ["Critical", "High"]},
+            })
+        except Exception:
+            pass
+        if open_alert_count > 0:
+            goals.append({
+                "name": "Resolve Active Threats",
+                "target": 0.0,
+                "current": float(open_alert_count),
+                "status": "active",
+            })
+
+        # 2. Resource Performance
+        cpu = float(meta.get("cpu_percent", meta.get("cpu_usage", 0)))
+        mem = float(meta.get("memory_percent", meta.get("ram_usage", 0)))
         if cpu > 70:
             goals.append({"name": "Optimize CPU Load", "target": 50.0, "current": cpu, "status": "active"})
-        else:
-            goals.append({"name": "Resource Efficiency", "target": 95.0, "current": 92.0, "status": "active"})
-            
-        # 2. Security / Compliance
-        compliance = meta.get("compliance_score", 100)
+        if mem > 85:
+            goals.append({"name": "Reduce Memory Pressure", "target": 75.0, "current": mem, "status": "active"})
+        if cpu <= 70 and mem <= 85:
+            goals.append({"name": "Resource Efficiency", "target": 95.0, "current": min(cpu, mem) if (cpu > 0 or mem > 0) else 0.0, "status": "active"})
+
+        # 3. Security / Compliance
+        compliance = float(meta.get("compliance_score", 100))
         if compliance < 90:
             goals.append({"name": "Remediate Compliance Gaps", "target": 100.0, "current": compliance, "status": "active"})
         else:
-            goals.append({"name": "Maintain Zero Trust Baseline", "target": 100.0, "current": 100.0, "status": "active"})
-            
-        # 3. Connectivity / Uptime
-        last_seen = agent_data.get("lastSeen", "")
-        # Real implementation would parse date, here we simulate
-        goals.append({"name": "Agent Heartbeat Stability", "target": 100.0, "current": 99.8, "status": "active"})
-        
-        return goals[:3]
+            goals.append({"name": "Maintain Zero Trust Baseline", "target": 100.0, "current": compliance, "status": "active"})
 
-    async def simulate_autonomous_decision(self, agent_id: str, context: str):
+        # 4. Connectivity — parse real last-seen timestamp
+        import datetime as _dt
+        heartbeat_score = 100.0
+        last_seen_str = agent_data.get("lastSeen", "")
+        if last_seen_str:
+            try:
+                last_seen_dt = _dt.datetime.fromisoformat(last_seen_str.replace("Z", "+00:00"))
+                age_min = (_dt.datetime.now(_dt.timezone.utc) - last_seen_dt).total_seconds() / 60
+                if age_min > 5:
+                    heartbeat_score = max(0.0, 100.0 - age_min * 2)
+            except Exception:
+                pass
+        goals.append({"name": "Agent Heartbeat Stability", "target": 100.0, "current": heartbeat_score, "status": "active"})
+
+        return goals[:5]
+
+    async def simulate_autonomous_decision(self, agent_id: str, context: str) -> list:
         """
-        Simulate an AI-driven autonomous decision loop.
-        In a real system, this would trigger an approval request.
+        Evaluate the agent's current goals and dispatch concrete instructions
+        back to the agent for any goal that is failing or below target.
+
+        Goal-to-instruction mapping:
+            "Resolve Active Threats"     → run_threat_response
+            "Optimize CPU Load"          → run_process_snapshot (identify top consumers)
+            "Remediate Compliance Gaps"  → run_compliance_scan
+            "Maintain Zero Trust ..."    → run_compliance_scan
+            "Agent Heartbeat Stability"  → no-op (monitoring only)
+            default                      → collect_telemetry
         """
-        pass # To be expanded in next steps
+        db = get_database()
+        agent = await db.agents.find_one({"id": agent_id})
+        if not agent:
+            return []
+
+        # Merge caller-supplied context string into agent meta so goal generation
+        # can use it (e.g. alert descriptions forwarded from the orchestrator).
+        if context:
+            agent.setdefault("meta", {})["caller_context"] = context
+
+        goals = await self.generate_goals(agent)
+        dispatched = []
+
+        GOAL_INSTRUCTION_MAP = {
+            "resolve active threat": "run_threat_response",
+            "threat":              "run_threat_response",
+            "malware":             "run_threat_response",
+            "ransomware":          "run_threat_response",
+            "isolat":              "isolate_endpoint",
+            "optimize cpu":        "run_process_snapshot",
+            "memory pressure":     "run_process_snapshot",
+            "compliance":          "run_compliance_scan",
+            "zero trust":          "run_compliance_scan",
+            "remediate":           "run_compliance_scan",
+            "security":            "run_vulnerability_scan",
+            "patch":               "run_patch_scan",
+            "pii":                 "run_pii_scan",
+            "shadow ai":           "run_shadow_ai_scan",
+            "persistence":         "run_persistence_scan",
+        }
+
+        for goal in goals:
+            name_lc = goal.get("name", "").lower()
+            current = goal.get("current", 100.0)
+            target = goal.get("target", 100.0)
+
+            # Only act on goals that are genuinely behind target
+            if current >= target:
+                continue
+
+            instruction = "collect_telemetry"  # safe default
+            for keyword, instr in GOAL_INSTRUCTION_MAP.items():
+                if keyword in name_lc:
+                    instruction = instr
+                    break
+
+            # Insert instruction for agent to pick up on next poll
+            instr_doc = {
+                "agent_id": agent_id,
+                "instruction": instruction,
+                "payload": {
+                    "goal_name": goal.get("name"),
+                    "current": current,
+                    "target": target,
+                    "triggered_by": "autonomous_decision_engine",
+                },
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source": "agent_logic_service",
+            }
+            await db.agent_instructions.insert_one(instr_doc)
+            dispatched.append({"goal": goal.get("name"), "instruction": instruction})
+
+        if dispatched:
+            print(
+                f"[AgentLogicService] Dispatched {len(dispatched)} instructions for agent {agent_id}: "
+                + str([d["instruction"] for d in dispatched])
+            )
+        return dispatched
 
 agent_logic_service = AgentLogicService()

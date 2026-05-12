@@ -7,6 +7,7 @@ interface PlaybookManagerProps {
   playbooks: Playbook[];
   onExecutePlaybook: (playbook: Playbook) => void;
   onGeneratePlaybook: () => void;
+  onTogglePlaybook?: (playbook: Playbook) => void;
 }
 
 const stepTypeIcons: Record<PlaybookStepType, React.ReactNode> = {
@@ -17,7 +18,7 @@ const stepTypeIcons: Record<PlaybookStepType, React.ReactNode> = {
   Communication: <MessageSquareWarningIcon size={16} className="text-green-500" />,
 };
 
-export const PlaybookManager: React.FC<PlaybookManagerProps> = ({ playbooks, onExecutePlaybook, onGeneratePlaybook }) => {
+export const PlaybookManager: React.FC<PlaybookManagerProps> = ({ playbooks, onExecutePlaybook, onGeneratePlaybook, onTogglePlaybook }) => {
   const [expandedPlaybook, setExpandedPlaybook] = useState<string | null>(playbooks.length > 0 ? playbooks[0].id : null);
   const { hasPermission } = useUser();
   const canManagePlaybooks = hasPermission('manage:security_playbooks');
@@ -68,9 +69,21 @@ export const PlaybookManager: React.FC<PlaybookManagerProps> = ({ playbooks, onE
               
               {expandedPlaybook === playbook.id && (
                 <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="flex justify-end mb-4">
+                  <div className="flex justify-end gap-2 mb-4">
+                     {canManagePlaybooks && onTogglePlaybook && (
+                        <button
+                            onClick={() => onTogglePlaybook(playbook)}
+                            className={`flex items-center px-3 py-1.5 text-xs font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                (playbook as any).enabled === false
+                                    ? 'text-green-700 bg-green-100 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 focus:ring-green-500'
+                                    : 'text-amber-700 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 focus:ring-amber-500'
+                            }`}
+                        >
+                            {(playbook as any).enabled === false ? 'Enable' : 'Disable'}
+                        </button>
+                     )}
                      {canManagePlaybooks && (
-                        <button 
+                        <button
                             onClick={() => onExecutePlaybook(playbook)}
                             className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                         >

@@ -159,8 +159,8 @@ async def deploy_software(payload: DeployRequest):
 
         return {
             "success": True,
-            "message": f"{payload.action.capitalize()} dispatched to {len(payload.agentIds)} agent(s).",
-            "taskIds": task_ids
+            "message": f"{payload.action.capitalize()} dispatched to {len(payload.agentIds)} agent(s). MSI support enabled.",
+            "taskIds": [str(tid) for tid in task_ids]  # Ensure string format for frontend
         }
 
     except Exception as e:
@@ -240,7 +240,12 @@ async def deploy_software_updates(data: dict):
                     }
                     await db.agent_instructions.insert_one(instruction)
             
-            # Simulate async job processing
+            # Track queued instructions so simulate_software_deployment knows real agents are running
+            instructions_queued = sum(1 for u in software_updates
+                                      if await db.agents.find_one({"assetId": u["assetId"]}))
+            await db.software_deployment_jobs.update_one(
+                {"id": job_id}, {"$set": {"instructionsQueued": instructions_queued}}
+            )
             asyncio.create_task(simulate_software_deployment(job_id, len(software_updates)))
         
         # Remove MongoDB _id
@@ -258,51 +263,55 @@ async def deploy_software_updates(data: dict):
         return {"success": False, "error": str(e)}
 
 async def simulate_software_deployment(job_id: str, update_count: int):
-    """Simulate software deployment progress"""
+    """
+    Animates deployment progress while real agents execute updates.
+    Only auto-completes when no real agent instructions were dispatched.
+    """
     try:
-        from app import get_database
         db = get_database()
-        await asyncio.sleep(2)
-        
-        # Update progress incrementally
-        for i in range(1, update_count + 1):
-            await asyncio.sleep(3)  # Simulate deployment time per package
-            
-            progress = int((i / update_count) * 100)
-            status_message = f"Deployed {i}/{update_count} software update(s)"
-            
+        job = await db.software_deployment_jobs.find_one({"id": job_id}, {"instructionsQueued": 1})
+        has_real_agents = job and job.get("instructionsQueued", 0) > 0
+        total = max(update_count, 1)
+
+        for i in range(1, total + 1):
+            await asyncio.sleep(2)
+
+            current = await db.software_deployment_jobs.find_one({"id": job_id}, {"status": 1})
+            if current and current.get("status") in ("Completed", "Failed", "Partially Completed"):
+                return
+
+            progress = int((i / total) * 99)
             await db.software_deployment_jobs.update_one(
                 {"id": job_id},
-                {"$set": {
-                    "progress": progress,
-                    "status": "In Progress"
-                },
-                "$push": {
-                    "statusLog": {
+                {
+                    "$set": {"progress": progress},
+                    "$push": {"statusLog": {
                         "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "message": status_message
-                    }
-                }}
-            )
-        
-        # Mark as completed
-        await db.software_deployment_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "Completed",
-                "progress": 100,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            },
-            "$push": {
-                "statusLog": {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "message": "All software updates deployed successfully"
+                        "message": f"Waiting for agent: update {i}/{total}",
+                        "level": "info",
+                    }},
                 }
-            }}
-        )
-        
+            )
+
+        if not has_real_agents:
+            await db.software_deployment_jobs.update_one(
+                {"id": job_id},
+                {
+                    "$set": {
+                        "status": "Completed",
+                        "progress": 100,
+                        "completedAt": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "$push": {"statusLog": {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "message": f"[Demo] {total} software updates complete (no agents registered)",
+                        "level": "warn",
+                    }},
+                }
+            )
+
     except Exception as e:
-        print(f"Error in deployment simulation: {e}")
+        print(f"Error in deployment progress tracker: {e}")
 
 @router.get("/deployment-jobs")
 async def get_software_deployment_jobs():

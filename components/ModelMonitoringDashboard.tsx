@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { ActivityIcon, TrendingUpIcon, AlertTriangleIcon, CheckCircleIcon } from './icons';
 
 interface DriftMetrics {
@@ -100,9 +101,7 @@ export const ModelMonitoringDashboard: React.FC<ModelMonitoringDashboardProps> =
     const loadModelsStatus = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/ml-monitoring/models-status?tenant_id=${tenantId}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await authFetch(`/api/ml-monitoring/models-status?tenant_id=${tenantId}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -121,12 +120,8 @@ export const ModelMonitoringDashboard: React.FC<ModelMonitoringDashboardProps> =
     const handleAnalyzeAll = async () => {
         setAnalyzing(true);
         try {
-            const response = await fetch('/api/ml-monitoring/analyze-all', {
+            const response = await authFetch('/api/ml-monitoring/analyze-all', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({ tenant_id: tenantId })
             });
 

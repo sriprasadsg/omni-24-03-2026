@@ -72,11 +72,6 @@
         Send SMS notification (Simulated via File Log)
         """
         # In production -> Client(twilio_sid, token).messages.create(...)
-        
-        # Simulate Gateway Latency
-        import asyncio
-        await asyncio.sleep(0.1)
-        
         # Log to "Gateway"
         with open("sms_outbox.log", "a") as f:
             for number in phone_numbers:

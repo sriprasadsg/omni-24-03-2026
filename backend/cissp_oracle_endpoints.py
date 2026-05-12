@@ -227,37 +227,85 @@ async def cissp_oracle_chat(request: Dict[str, Any]):
 
 
 async def _generate_cissp_response(message: str, context: str, findings: list, domain_filter: Optional[int]) -> dict:
-    """Generate a CISSP-aware response. Tries Ollama LLM first, falls back to rule-based."""
+    """
+    Generate a CISSP-aware response.
+    Priority: platform LLM proxy → local Ollama → rule-based fallback.
+    """
     import httpx
+    import os
 
-    # 1. Try local LLM (Ollama)
+    system_prompt = CISSP_SYSTEM_PROMPT.format(context=context)
+
+    # ── 1. Platform LLM proxy (Anthropic / OpenAI via llm_proxy.py) ───────────
     try:
-        system_prompt = CISSP_SYSTEM_PROMPT.format(context=context)
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        from database import get_database
+        db = get_database()
+        llm_cfg = await db.infrastructure.find_one({"type": "llm"}, {"_id": 0})
+        api_key = (llm_cfg or {}).get("apiKey") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
+        provider = (llm_cfg or {}).get("provider", "anthropic").lower()
+
+        if api_key:
+            if provider == "anthropic":
+                import anthropic
+                client = anthropic.Anthropic(api_key=api_key)
+                msg = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=1024,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": message}],
+                )
+                llm_text = msg.content[0].text if msg.content else ""
+            else:
+                # OpenAI-compatible
+                from openai import OpenAI
+                oa = OpenAI(api_key=api_key)
+                resp = oa.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": message},
+                    ],
+                    max_tokens=1024,
+                )
+                llm_text = resp.choices[0].message.content or ""
+
+            if llm_text:
+                return {
+                    "text": llm_text,
+                    "domains": _classify_domains(message + " " + llm_text),
+                    "risk_level": "See analysis",
+                    "recommendations": [],
+                    "source": "platform_llm",
+                }
+    except Exception:
+        pass
+
+    # ── 2. Local Ollama (if running) ──────────────────────────────────────────
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
                 "http://localhost:11434/api/generate",
                 json={
                     "model": "llama3",
                     "prompt": f"{system_prompt}\n\nUser question: {message}",
                     "stream": False,
-                    "options": {"temperature": 0.3, "num_predict": 800}
-                }
+                    "options": {"temperature": 0.3, "num_predict": 800},
+                },
             )
             if resp.status_code == 200:
-                data = resp.json()
-                llm_text = data.get("response", "")
+                llm_text = resp.json().get("response", "")
                 if llm_text:
                     return {
                         "text": llm_text,
                         "domains": _classify_domains(message + " " + llm_text),
                         "risk_level": "See analysis",
                         "recommendations": [],
-                        "source": "llm"
+                        "source": "ollama",
                     }
     except Exception:
-        pass  # Fall back to rule-based
+        pass
 
-    # 2. Rule-based CISSP advisor (always works, no LLM needed)
+    # ── 3. Rule-based fallback (always works) ─────────────────────────────────
     return _rule_based_cissp_response(message, findings, domain_filter)
 
 

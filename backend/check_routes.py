@@ -1,4 +1,4 @@
-from app import app
+from app import _fastapi_app as app
 import json
 
 with open("routes.txt", "w") as f:

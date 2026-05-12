@@ -28,7 +28,7 @@ class AuditService:
         try:
             db = get_database()
             event = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "action": action,
                 "actor": actor,
                 "resource": resource,

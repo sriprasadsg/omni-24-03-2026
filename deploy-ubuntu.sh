@@ -79,6 +79,7 @@ apt-get install -y -qq \
     libjpeg-dev \
     zlib1g-dev \
     libpcap-dev \
+    libyara-dev \
     nmap \
     ffmpeg \
     libsndfile1 \
@@ -97,17 +98,24 @@ print_info "Step 3/11: Checking Python 3 version..."
 if command -v python3 &> /dev/null; then
     PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
     print_info "Found Python $PY_VER"
-    if [ "$(get_version_number $PY_VER)" -lt "$(get_version_number 3.10)" ]; then
-        print_info "Python version is older than 3.10. Upgrading..."
-        apt-get install -y -qq python3 python3-venv python3-pip
+    if [ "$(get_version_number $PY_VER)" -lt "$(get_version_number 3.11)" ]; then
+        print_info "Python $PY_VER is older than 3.11 — installing 3.11..."
+        apt-get install -y -qq software-properties-common
+        add-apt-repository -y ppa:deadsnakes/ppa
+        apt-get update -qq
+        apt-get install -y -qq python3.11 python3.11-venv python3.11-dev python3-pip
+        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
     else
-        print_success "Suitable Python 3 version already installed."
-        # Ensure venv and pip are at least present
-        apt-get install -y -qq python3-venv python3-pip
+        print_success "Python $PY_VER — OK"
+        apt-get install -y -qq python3-venv python3-dev python3-pip
     fi
 else
-    print_info "Installing Python 3..."
-    apt-get install -y -qq python3 python3-venv python3-pip
+    print_info "Installing Python 3.11..."
+    apt-get install -y -qq software-properties-common
+    add-apt-repository -y ppa:deadsnakes/ppa
+    apt-get update -qq
+    apt-get install -y -qq python3.11 python3.11-venv python3.11-dev python3-pip
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 fi
 
 # Step 4: Install Node.js (ensure >= 18.x)
@@ -189,8 +197,8 @@ print_success "Old database cleared"
 cd "$PROJECT_DIR/backend"
 
 # Create/Update required directories
-mkdir -p logs backups uploads data_lake_storage
-chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage
+mkdir -p logs backups uploads data_lake_storage static/reports
+chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports
 
 # Virtual Env
 rm -rf venv
@@ -198,34 +206,8 @@ sudo -u $ACTUAL_USER python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip setuptools wheel
 if [ -f "requirements.txt" ]; then
-    sed -i 's/^chromadb.*/chromadb>=0.5.0/g' requirements.txt
-    # Core existing deps
-    grep -q "^celery" requirements.txt || echo "celery" >> requirements.txt
-    grep -q "^chromadb" requirements.txt || echo "chromadb>=0.5.0" >> requirements.txt
-    grep -q "^pydantic-settings" requirements.txt || echo "pydantic-settings" >> requirements.txt
-    grep -q "^PyYAML" requirements.txt || echo "PyYAML>=6.0.1" >> requirements.txt
-    # Phase 1: Real LLM
-    grep -q "^google-generativeai" requirements.txt || echo "google-generativeai" >> requirements.txt
-    grep -q "^openai" requirements.txt || echo "openai" >> requirements.txt
-    # Phase 3: Stripe Payment
-    grep -q "^stripe" requirements.txt || echo "stripe" >> requirements.txt
-    # Phase 4: MFA & SSO
-    grep -q "^pyotp" requirements.txt || echo "pyotp" >> requirements.txt
-    grep -q "^qrcode" requirements.txt || echo "qrcode[pil]" >> requirements.txt
-    grep -q "^authlib" requirements.txt || echo "authlib" >> requirements.txt
-    grep -q "^httpx" requirements.txt || echo "httpx" >> requirements.txt
-    # Phase 5: SAST scanning
-    grep -q "^bandit" requirements.txt || echo "bandit" >> requirements.txt
-    # Phase 7: PDF Report/Invoice
-    grep -q "^reportlab" requirements.txt || echo "reportlab" >> requirements.txt
-    # Phase 8: Voice Bot
-    grep -q "^gTTS" requirements.txt || echo "gTTS" >> requirements.txt
-    grep -q "^google-cloud-speech" requirements.txt || echo "google-cloud-speech" >> requirements.txt
-    grep -q "^google-cloud-texttospeech" requirements.txt || echo "google-cloud-texttospeech" >> requirements.txt
-    # Phase 9: Real Agent Metrics
-    grep -q "^psutil" requirements.txt || echo "psutil" >> requirements.txt
     pip install -r requirements.txt
-    print_success "Backend dependencies installed (Phases 1-10)"
+    print_success "Backend dependencies installed"
 fi
 
 # .env Configuration (Phases 1-10)
@@ -268,9 +250,49 @@ GOOGLE_APPLICATION_CREDENTIALS=
 
 # === Phase 10: Ticketing (Zoho/Custom) ===
 # Configured via UI — no static creds needed here
+
+# === Security: Backup Encryption (Fernet/AES-128) ===
+# Leave blank to auto-generate on first run; store the generated key safely
+BACKUP_ENCRYPTION_KEY=
+
+# === Security: SonarQube SAST (optional — falls back to pattern scan) ===
+SONARQUBE_URL=
+SONARQUBE_TOKEN=
+
+# === Security: OpenVAS/GVM Vulnerability Scanner (optional) ===
+GVM_URL=
+GVM_USERNAME=admin
+GVM_PASSWORD=
+
+# === Notifications: Twilio SMS (optional) ===
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+
+# === EDR Integrations (optional — configure one or more) ===
+# CrowdStrike
+CROWDSTRIKE_CLIENT_ID=
+CROWDSTRIKE_CLIENT_SECRET=
+CROWDSTRIKE_BASE_URL=https://api.crowdstrike.com
+# SentinelOne
+SENTINELONE_API_TOKEN=
+SENTINELONE_BASE_URL=
+# Microsoft Defender
+DEFENDER_TENANT_ID=
+DEFENDER_CLIENT_ID=
+DEFENDER_CLIENT_SECRET=
+
+# === SIEM Integrations (optional) ===
+# Wazuh
+WAZUH_URL=
+WAZUH_USER=
+WAZUH_PASS=
+# QRadar
+QRADAR_URL=
+QRADAR_TOKEN=
 EOF
     chown $ACTUAL_USER:$ACTUAL_USER .env
-    print_success "Backend .env file created (Phases 1-10)"
+    print_success "Backend .env file created (Phases 1-10 + Security extensions)"
 fi
 
 # Database Setup & Enterprise Unlock
@@ -378,27 +400,42 @@ if [ -f "package.json" ]; then
     print_success "Frontend dependencies installed and built"
 fi
 
-# Step 8.5: Setup Agent Configuration
-print_info "Step 8.5/11: Setting up default agent configuration..."
+# Step 8.5: Setup Agent (venv + dependencies + config)
+print_info "Step 8.5/11: Setting up agent virtualenv and configuration..."
 cd "$PROJECT_DIR/agent"
+
+# Create agent venv and install all required packages
+rm -rf venv
+sudo -u $ACTUAL_USER python3 -m venv venv
+venv/bin/pip install --upgrade pip setuptools wheel --quiet
+venv/bin/pip install -r requirements.txt --quiet
+chown -R $ACTUAL_USER:$ACTUAL_USER venv
+print_success "Agent virtualenv created and dependencies installed"
+
+# Generate default config.yaml if missing
 if [ ! -f "config.yaml" ]; then
     cat > config.yaml <<EOF
+api_base_url: http://$SYSTEM_IP:5000
 tenant_id: platform-admin
 registration_key: reg_platformadmin123
-api_base_url: http://localhost:5000
-log_level: INFO
-capabilities:
-  metrics: true
-  zero_trust: true
-  predictive_health: true
-  process_monitoring: true
-  log_collection: true
-  persistence_detection: true
-  ueba: true
+interval_seconds: 5
+agentic_mode_enabled: true
+swarm:
+  enabled: true
+autonomous_actions:
+  enabled: true
 EOF
     chown $ACTUAL_USER:$ACTUAL_USER config.yaml
-    print_success "Agent config.yaml generated"
+    print_success "Agent config.yaml generated with IP $SYSTEM_IP"
+else
+    # Update api_base_url to current system IP
+    sed -i "s|api_base_url:.*|api_base_url: http://$SYSTEM_IP:5000|g" config.yaml
+    print_success "Agent config.yaml updated with IP $SYSTEM_IP"
 fi
+
+# Update the static Python installer script with the correct server IP
+sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" "$PROJECT_DIR/backend/static/omni-agent-install.py" 2>/dev/null || true
+
 cd "$PROJECT_DIR"
 
 # Step 9: Nginx Configuration
@@ -502,7 +539,7 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# Agent Service
+# Agent Service (uses agent venv for watchdog, websockets, python-socketio, etc.)
 cat > /etc/systemd/system/omni-agent.service <<EOF
 [Unit]
 Description=Enterprise Omni Platform - Agent
@@ -512,10 +549,13 @@ After=network.target omni-backend.service
 Type=simple
 User=$ACTUAL_USER
 WorkingDirectory=$PROJECT_DIR/agent
-Environment="PATH=/usr/bin/python3"
-ExecStart=/usr/bin/python3 agent.py
+Environment="PATH=$PROJECT_DIR/agent/venv/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=$PROJECT_DIR/agent"
+ExecStart=$PROJECT_DIR/agent/venv/bin/python agent.py
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -602,6 +642,10 @@ print_success "Access the platform at: http://$(hostname -I | awk '{print $1}')"
 echo ""
 print_warning "Next Steps:"
 echo "1. Edit .env: $PROJECT_DIR/backend/.env"
-echo "2. Add your GEMINI_API_KEY"
-echo "3. Restart backend: sudo systemctl restart omni-backend"
+echo "2. Add your GEMINI_API_KEY / OPENAI_API_KEY for AI features"
+echo "3. (Optional) Set SONARQUBE_URL+TOKEN for real SAST scanning"
+echo "4. (Optional) Set TWILIO_* vars for SMS alerts"
+echo "5. (Optional) Set GVM_* vars for OpenVAS vulnerability scanning"
+echo "6. (Optional) Set CROWDSTRIKE_*/SENTINELONE_*/DEFENDER_* for EDR"
+echo "7. Restart backend: sudo systemctl restart omni-backend"
 echo ""

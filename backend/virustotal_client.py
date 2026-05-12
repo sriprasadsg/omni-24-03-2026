@@ -196,19 +196,13 @@ class VirusTotalClient:
         }
     
     def _mock_result(self, artifact: str, artifact_type: str) -> Dict[str, Any]:
-        """Mock result when API key not configured"""
+        """Error result returned when the API key is not configured."""
         return {
             'artifact': artifact,
             'type': artifact_type,
-            'verdict': 'Harmless',
-            'detectionRatio': '0/70',
-            'malicious': 0,
-            'suspicious': 0,
-            'harmless': 70,
-            'undetected': 0,
+            'verdict': 'Unconfigured',
+            'error': 'VirusTotal API key not configured. Set the VIRUSTOTAL_API_KEY environment variable.',
             'scanDate': datetime.now(timezone.utc).isoformat(),
-            'reputation': 0,
-            'message': 'MOCK DATA: VirusTotal API key not configured. Set VIRUSTOTAL_API_KEY environment variable.'
         }
 
 

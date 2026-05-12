@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { Network, Server, ArrowUpCircle, ArrowDownCircle, RefreshCw, Activity, AlertCircle } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -40,11 +41,7 @@ export const DataUtilizationDashboard: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('/api/agents/network-utilization', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
+            const response = await authFetch('/api/agents/network-utilization');
             if (!response.ok) throw new Error('Failed to fetch data');
             const result = await response.json();
             setData(result);

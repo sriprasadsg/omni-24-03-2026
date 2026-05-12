@@ -131,47 +131,86 @@ async def update_webhook(
     return updated_webhook
 
 @router.get("/{webhook_id}/deliveries")
-async def get_webhook_deliveries(webhook_id: str):
-    """Get delivery history for a webhook (mocked for now as we don't store full history yet)"""
-    # In a real implementation, we would query a webhook_deliveries collection
-    # For now, we return an empty list or mock data
-    return []
+async def get_webhook_deliveries(
+    webhook_id: str,
+    limit: int = 50,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Get real delivery history for a webhook from the webhook_deliveries collection."""
+    db = get_database()
+    cursor = db.webhook_deliveries.find(
+        {"webhook_id": webhook_id}, {"_id": 0}
+    ).sort("delivered_at", -1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+
+async def _record_delivery(db, webhook_id: str, event: str, payload: dict,
+                            success: bool, status_code: int = 0, error: str = ""):
+    """Persist a delivery attempt to webhook_deliveries collection."""
+    try:
+        await db.webhook_deliveries.insert_one({
+            "id": f"del-{uuid.uuid4().hex[:10]}",
+            "webhook_id": webhook_id,
+            "event": event,
+            "payload_preview": str(payload)[:500],
+            "success": success,
+            "status_code": status_code,
+            "error": error,
+            "delivered_at": datetime.now(timezone.utc).isoformat(),
+        })
+        # Cap history to 200 entries per webhook
+        count = await db.webhook_deliveries.count_documents({"webhook_id": webhook_id})
+        if count > 200:
+            oldest = await db.webhook_deliveries.find(
+                {"webhook_id": webhook_id}, {"_id": 1}
+            ).sort("delivered_at", 1).limit(count - 200).to_list(length=count - 200)
+            ids = [d["_id"] for d in oldest]
+            if ids:
+                await db.webhook_deliveries.delete_many({"_id": {"$in": ids}})
+    except Exception:
+        pass  # delivery logging must never break the caller
+
 
 @router.post("/{webhook_id}/test")
 async def test_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user)):
-    """Test a webhook by sending a ping event"""
+    """Test a webhook by sending a ping event and recording the delivery."""
     db = get_database()
     webhook = await db.webhooks.find_one({"id": webhook_id})
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
-        
+
     payload = {
         "event": "ping",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "data": {
             "message": "This is a test event from Omni Agent Platform",
-            "triggeredBy": current_user.username
-        }
+            "triggeredBy": current_user.username,
+        },
     }
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                webhook["url"], 
-                json=payload, 
-                headers={"Content-Type": "application/json", "User-Agent": "Omni-Platform-Test"},
-                timeout=5.0
+                webhook["url"],
+                json=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "Omni-Platform/1.0"},
+                timeout=5.0,
             )
-            
-        success = response.status_code >= 200 and response.status_code < 300
-        
-        return {
-            "success": success,
-            "status": response.status_code,
-            "response": response.text[:200]
-        }
+
+        success = 200 <= response.status_code < 300
+        await _record_delivery(db, webhook_id, "ping", payload, success, response.status_code)
+
+        # Update webhook last-result
+        await db.webhooks.update_one(
+            {"id": webhook_id},
+            {"$set": {"lastResult": "success" if success else "failure",
+                      "lastTestedAt": datetime.now(timezone.utc).isoformat()}},
+        )
+        return {"success": success, "status": response.status_code, "response": response.text[:200]}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        await _record_delivery(db, webhook_id, "ping", payload, False, 0, str(e))
+        await db.webhooks.update_one(
+            {"id": webhook_id},
+            {"$set": {"lastResult": "failure", "failureCount": 1}},
+        )
+        return {"success": False, "error": str(e)}

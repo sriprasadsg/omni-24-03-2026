@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { Tenant, Permission, SubscriptionTier } from '../types';
 import { TrashIcon } from './icons';
 import { SUBSCRIPTION_TIERS } from '../constants';
@@ -85,7 +86,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const res = await fetch('/api/finops/pricing');
+        const res = await authFetch('/api/finops/pricing');
         if (res.ok) {
           const data = await res.json();
           setDynamicServices(data);

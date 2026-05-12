@@ -171,10 +171,16 @@ async def evaluate_compliance(
     """
     service = get_continuous_compliance_service(db)
     
-    result = await service.evaluate_compliance(
-        tenant_id=request.tenant_id,
-        framework_id=request.framework_id
-    )
+    if request.framework_id in service.framework_modules:
+        result = await service.evaluate_framework_v2(
+            tenant_id=request.tenant_id,
+            framework_id=request.framework_id
+        )
+    else:
+        result = await service.evaluate_compliance(
+            tenant_id=request.tenant_id,
+            framework_id=request.framework_id
+        )
     
     return result
 

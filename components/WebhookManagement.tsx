@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Webhook, WebhookEvent, WebhookDelivery } from '../types';
 import { PlusCircleIcon, TrashIcon, RefreshCwIcon, CheckIcon, XCircleIcon, ClockIcon, CheckCircleIcon } from './icons';
+import { authFetch } from '../services/apiService';
 
 export const WebhookManagement: React.FC = () => {
     const [webhooks, setWebhooks] = useState<Webhook[]>([]);
@@ -26,7 +27,7 @@ export const WebhookManagement: React.FC = () => {
 
     const fetchWebhooks = async () => {
         try {
-            const response = await fetch('/api/webhooks');
+            const response = await authFetch('/api/webhooks');
             const data = await response.json();
             if (Array.isArray(data)) {
                 setWebhooks(data);
@@ -43,7 +44,7 @@ export const WebhookManagement: React.FC = () => {
 
     const fetchDeliveries = async (webhookId: string) => {
         try {
-            const response = await fetch(`/api/webhooks/${webhookId}/deliveries`);
+            const response = await authFetch(`/api/webhooks/${webhookId}/deliveries`);
             const data = await response.json();
             if (Array.isArray(data)) {
                 setDeliveries(data);
@@ -57,9 +58,8 @@ export const WebhookManagement: React.FC = () => {
 
     const handleCreateWebhook = async (formData: any) => {
         try {
-            const response = await fetch('/api/webhooks', {
+            const response = await authFetch('/api/webhooks', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
             const newWebhook = await response.json();
@@ -74,7 +74,7 @@ export const WebhookManagement: React.FC = () => {
         if (!confirm('Are you sure you want to delete this webhook?')) return;
 
         try {
-            await fetch(`/api/webhooks/${webhookId}`, {
+            await authFetch(`/api/webhooks/${webhookId}`, {
                 method: 'DELETE'
             });
             setWebhooks(webhooks.filter(w => w.id !== webhookId));
@@ -89,7 +89,7 @@ export const WebhookManagement: React.FC = () => {
 
     const handleTestWebhook = async (webhookId: string) => {
         try {
-            const response = await fetch(`/api/webhooks/${webhookId}/test`, {
+            const response = await authFetch(`/api/webhooks/${webhookId}/test`, {
                 method: 'POST'
             });
             const delivery = await response.json();

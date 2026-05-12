@@ -1,14 +1,13 @@
 import asyncio
-import sys
-sys.path.append('backend')
-from database import connect_to_mongo, get_database
+from motor.motor_asyncio import AsyncIOMotorClient
 
-async def list_tenants():
-    await connect_to_mongo()
-    db = get_database()
-    tenants = await db.tenants.find().to_list(length=100)
+async def main():
+    client = AsyncIOMotorClient('mongodb://127.0.0.1:27017')
+    db = client['omni_platform']
+    tenants = await db.tenants.find().to_list(100)
     for t in tenants:
-        print(f"ID: {t.get('id')}, Name: {t.get('name')}")
+        print(f"Tenant: {t.get('name')} Key: {t.get('registrationKey')}")
+    client.close()
 
 if __name__ == "__main__":
-    asyncio.run(list_tenants())
+    asyncio.run(main())

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { PlayIcon, CheckCircleIcon, XCircleIcon, ClockIcon, AlertTriangleIcon, ZapIcon } from './icons';
 
 interface PlaybookExecution {
@@ -110,18 +111,10 @@ export const SOARDashboard: React.FC<SOARDashboardProps> = ({ tenantId }) => {
         setLoading(true);
         try {
             const [executionsRes, approvalsRes, templatesRes, analyticsRes] = await Promise.all([
-                fetch('/api/playbooks/enhanced/executions', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/playbooks/enhanced/executions?status=waiting_approval', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/playbooks/enhanced/templates', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/playbooks/enhanced/analytics', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                })
+                authFetch('/api/playbooks/enhanced/executions'),
+                authFetch('/api/playbooks/enhanced/executions?status=waiting_approval'),
+                authFetch('/api/playbooks/enhanced/templates'),
+                authFetch('/api/playbooks/enhanced/analytics')
             ]);
 
             if (executionsRes.ok) setExecutions(await executionsRes.json());
@@ -140,12 +133,8 @@ export const SOARDashboard: React.FC<SOARDashboardProps> = ({ tenantId }) => {
 
     const handleApproval = async (executionId: string, stepIndex: number, action: 'approve' | 'reject', comment?: string) => {
         try {
-            const response = await fetch('/api/playbooks/enhanced/approve', {
+            const response = await authFetch('/api/playbooks/enhanced/approve', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({
                     execution_id: executionId,
                     step_index: stepIndex,
@@ -172,12 +161,8 @@ export const SOARDashboard: React.FC<SOARDashboardProps> = ({ tenantId }) => {
         if (!name) return;
 
         try {
-            const response = await fetch(`/api/playbooks/enhanced/templates?template_id=${templateId}`, {
+            const response = await authFetch(`/api/playbooks/enhanced/templates?template_id=${templateId}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({ name })
             });
 

@@ -4,14 +4,15 @@
 
 import React, { useState } from 'react';
 import { SecurityEvent, AlertSeverity } from '../types';
-import { AiInsights } from './AiInsights';
-import { BotIcon, FileCodeIcon, ShieldSearchIcon } from './icons';
+import { ShieldSearchIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 
 interface SecurityEventsFeedProps {
   events: SecurityEvent[];
   onScanArtifact: (event: SecurityEvent, artifact: string, type: 'ip' | 'hash' | 'domain') => void;
+  onCreateCase?: (event: SecurityEvent) => void;
+  onRunPlaybook?: (event: SecurityEvent) => void;
 }
 
 const severityClasses: Record<AlertSeverity, { bg: string; text: string; ring: string }> = {
@@ -21,7 +22,7 @@ const severityClasses: Record<AlertSeverity, { bg: string; text: string; ring: s
   Low: { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300', ring: 'ring-blue-500/20' },
 };
 
-export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, onScanArtifact }) => {
+export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, onScanArtifact, onCreateCase, onRunPlaybook }) => {
   const { timeZone } = useTimeZone();
   const [selectedEvent, setSelectedEvent] = useState<SecurityEvent | null>(events[0] || null);
   const { hasPermission } = useUser();
@@ -46,7 +47,7 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                 <div>
                   <p className="font-semibold text-gray-800 dark:text-gray-200">{event.description}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {new Date(event.timestamp).toLocaleString(undefined, { timeZone })} | Host: {event.source.hostname}
+                    {new Date(event.timestamp).toLocaleString(undefined, { timeZone })} | Host: {event.source?.hostname ?? 'Unknown'}
                   </p>
                 </div>
                 <span className={`ml-4 flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ring-1 ring-inset ${severityClasses[event.severity].bg} ${severityClasses[event.severity].text} ${severityClasses[event.severity].ring}`}>
@@ -66,9 +67,9 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                 <p><span className="font-medium text-gray-600 dark:text-gray-400">Description:</span> {selectedEvent.description}</p>
                 <p><span className="font-medium text-gray-600 dark:text-gray-400">Type:</span> {selectedEvent.type}</p>
                 <div className="flex items-center justify-between">
-                  <p><span className="font-medium text-gray-600 dark:text-gray-400">Source IP:</span> <span className="font-mono text-xs">{selectedEvent.source.ip}</span></p>
+                  <p><span className="font-medium text-gray-600 dark:text-gray-400">Source IP:</span> <span className="font-mono text-xs">{selectedEvent.source?.ip ?? 'N/A'}</span></p>
                   <button
-                    onClick={() => onScanArtifact(selectedEvent, selectedEvent.source.ip, 'ip')}
+                    onClick={() => onScanArtifact(selectedEvent, selectedEvent.source?.ip ?? '', 'ip')}
                     disabled={!canInvestigate}
                     title="Scan with VirusTotal"
                     className="flex items-center text-xs font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:no-underline">
@@ -104,6 +105,7 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
             </div>
             <div className="flex space-x-2">
               <button
+                onClick={() => selectedEvent && onCreateCase?.(selectedEvent)}
                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 disabled={!canManageCases}
                 title={!canManageCases ? "You don't have permission to create cases" : "Create a new case from this event"}
@@ -111,6 +113,7 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                 Create Case
               </button>
               <button
+                onClick={() => selectedEvent && onRunPlaybook?.(selectedEvent)}
                 className="flex-1 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-300 dark:hover:bg-primary-900 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
                 disabled={!canManagePlaybooks}
                 title={!canManagePlaybooks ? "You don't have permission to run playbooks" : "Run an automation playbook"}

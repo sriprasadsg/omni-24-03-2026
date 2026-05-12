@@ -31,12 +31,12 @@ class CacheService:
             # Test connection - fail fast if not available
             self.redis_client.ping() 
             self.enabled = True
-            logger.info(f"✅ Redis client initialized and verified: {host}:{port}")
+            logger.info(f"[SUCCESS] Redis client initialized and verified: {host}:{port}")
         except (redis.ConnectionError, redis.TimeoutError):
-            logger.warning(f"⚠️ Redis not available at {host}:{port}. Caching disabled.")
+            logger.warning(f"[WARN] Redis not available at {host}:{port}. Caching disabled.")
             self.enabled = False
         except Exception as e:
-            logger.error(f"❌ Redis initialization error: {e}. Caching disabled.")
+            logger.error(f"[ERROR] Redis initialization error: {e}. Caching disabled.")
             self.enabled = False
     
     def get(self, key: str) -> Optional[Any]:

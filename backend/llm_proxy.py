@@ -5,7 +5,7 @@ import uuid
 import datetime
 import os
 import logging
-import google.generativeai as genai
+from google import genai
 from database import get_database
 from ai_guardrails import scan_text
 from rbac_utils import require_permission
@@ -132,16 +132,18 @@ async def proxy_chat_completion(
                 if not api_key:
                     raise Exception("LLM Provider API Key not configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env")
 
-                genai.configure(api_key=api_key)
+                client = genai.Client(api_key=api_key)
                 model_name = prompt.model if "gemini" in prompt.model else os.getenv("LLM_MODEL", "gemini-2.0-flash")
-                model = genai.GenerativeModel(model_name)
                 # Build context from message history
                 system_msgs = [m["content"] for m in prompt.messages if m["role"] == "system"]
                 user_msgs = [m["content"] for m in reversed(prompt.messages) if m["role"] == "user"]
                 context = "\n".join(system_msgs)
                 user_message = user_msgs[0] if user_msgs else full_text
                 input_text = f"{context}\n\n{user_message}" if context else user_message
-                provider_resp = model.generate_content(input_text)
+                provider_resp = client.models.generate_content(
+                    model=model_name,
+                    contents=input_text
+                )
                 response_content = provider_resp.text
                 finish_reason = "stop"
 

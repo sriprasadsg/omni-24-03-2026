@@ -15,6 +15,7 @@ import {
     deleteMaintenanceWindow,
     checkMaintenanceStatus
 } from '../services/apiService';
+import { useUser } from '../contexts/UserContext';
 
 interface MaintenanceWindow {
     id: string;
@@ -27,6 +28,7 @@ interface MaintenanceWindow {
 }
 
 const MaintenanceWindowConfig: React.FC = () => {
+    const { currentUser } = useUser();
     const [windows, setWindows] = useState<MaintenanceWindow[]>([]);
     const [loading, setLoading] = useState(false);
     const [isInWindow, setIsInWindow] = useState(false);
@@ -58,7 +60,7 @@ const MaintenanceWindowConfig: React.FC = () => {
         if (!newName || !newStart || !newEnd) return;
 
         await createMaintenanceWindow({
-            tenant_id: "default",
+            tenant_id: currentUser?.tenantId || 'default',
             name: newName,
             start_time: newStart,
             end_time: newEnd,

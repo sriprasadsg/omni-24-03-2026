@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
-from risk_service import risk_service, Risk
+from risk_service import risk_service
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/risks", tags=["Risk Management"])
@@ -27,24 +27,24 @@ class RiskUpdate(BaseModel):
     owner: str = None
     mitigation_plan: str = None
 
-@router.get("", response_model=List[Risk])
-def get_risks():
-    return risk_service.get_all_risks()
+@router.get("")
+async def get_risks():
+    return await risk_service.get_all_risks()
 
-@router.post("", response_model=Risk)
-def create_risk(risk: RiskCreate):
-    return risk_service.create_risk(risk.dict(exclude_unset=True))
+@router.post("")
+async def create_risk(risk: RiskCreate):
+    return await risk_service.create_risk(risk.dict(exclude_unset=True))
 
-@router.put("/{risk_id}", response_model=Risk)
-def update_risk(risk_id: str, risk: RiskUpdate):
-    updated_risk = risk_service.update_risk(risk_id, risk.dict(exclude_unset=True))
+@router.put("/{risk_id}")
+async def update_risk(risk_id: str, risk: RiskUpdate):
+    updated_risk = await risk_service.update_risk(risk_id, risk.dict(exclude_unset=True))
     if not updated_risk:
         raise HTTPException(status_code=404, detail="Risk not found")
     return updated_risk
 
 @router.delete("/{risk_id}")
-def delete_risk(risk_id: str):
-    success = risk_service.delete_risk(risk_id)
+async def delete_risk(risk_id: str):
+    success = await risk_service.delete_risk(risk_id)
     if not success:
         raise HTTPException(status_code=404, detail="Risk not found")
     return {"message": "Risk deleted successfully"}

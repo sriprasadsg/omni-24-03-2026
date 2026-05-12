@@ -37,31 +37,41 @@ class ExportService:
             cursor = db.alerts.find(query, {"_id": 0}).limit(100) # Last 100 alerts
             return await cursor.to_list(length=100)
         elif report_type == 'AI Risk Register':
-             # Mock for now as we don't have a dedicated collection yet
-            return [
-                {"Risk ID": "R-101", "Description": "Model Hallucination in Finance", "Severity": "High", "Status": "Open"},
-                {"Risk ID": "R-102", "Description": "Prompt Injection Vulnerability", "Severity": "Critical", "Status": "Mitigated"},
-                {"Risk ID": "R-103", "Description": "Training Data Leakage", "Severity": "Medium", "Status": "Monitoring"}
-            ]
+            cursor = db.risks.find(query, {"_id": 0})
+            risks = await cursor.to_list(length=1000)
+            if not risks:
+                # Fallback: read from ai_systems collection risk assessments
+                cursor = db.ai_systems.find(query, {"_id": 0})
+                systems = await cursor.to_list(length=1000)
+                risks = [
+                    {
+                        "Risk ID": s.get("id", ""),
+                        "Description": s.get("riskDescription") or f"Risk for AI system: {s.get('name', '')}",
+                        "Severity": s.get("riskLevel") or s.get("risk_level", "Medium"),
+                        "Status": s.get("status", "Open"),
+                        "Owner": s.get("owner", ""),
+                        "System": s.get("name", ""),
+                    }
+                    for s in systems
+                ]
+            return risks
         return []
 
     def _generate_csv(self, data):
         if not data:
             return ""
-        
+
         output = io.StringIO()
-        # Flatten dictionary if needed or just take top level keys
         if isinstance(data[0], dict):
-            # Simple flattening for primary keys
-            keys = data[0].keys()
-            writer = csv.DictWriter(output, fieldnames=keys)
+            # Collect all unique keys across all rows so no row crashes DictWriter
+            all_keys = list(dict.fromkeys(k for row in data for k in row.keys()))
+            writer = csv.DictWriter(output, fieldnames=all_keys, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(data)
         else:
-            # List of lists
             writer = csv.writer(output)
             writer.writerows(data)
-            
+
         return output.getvalue()
 
     def _generate_pdf(self, data, title):

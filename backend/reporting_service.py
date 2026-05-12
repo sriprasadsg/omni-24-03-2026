@@ -61,14 +61,17 @@ class ReportingService:
         for patch in patches:
             severity = patch.get("severity", "Medium")
             sla_hours = patch.get("sla_hours") or patch_service.calculate_patch_sla_hours(severity, framework)
-            
-            created = datetime.fromisoformat(patch.get("createdAt", datetime.now(timezone.utc).isoformat()))
+
+            def _tz(dt: datetime) -> datetime:
+                return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+            created = _tz(datetime.fromisoformat(patch.get("createdAt", datetime.now(timezone.utc).isoformat())))
             deployed = patch.get("deployedAt")
             
             severity_stats[severity]["total"] += 1
             
             if deployed:
-                deployed_dt = datetime.fromisoformat(deployed)
+                deployed_dt = _tz(datetime.fromisoformat(deployed))
                 time_to_deploy = (deployed_dt - created).total_seconds() / 3600
                 
                 if time_to_deploy <= sla_hours:
@@ -344,11 +347,14 @@ class ReportingService:
         
         # Calculate MTTR (Mean Time To Remediate)
         deploy_times = []
+        def _tz(dt: datetime) -> datetime:
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
         for patch in deployed_patches:
             if patch.get("createdAt") and patch.get("deployedAt"):
-                created = datetime.fromisoformat(patch["createdAt"])
-                deployed = datetime.fromisoformat(patch["deployedAt"])
-                hours = (deployed - created).total_seconds() / 3600
+                created = _tz(datetime.fromisoformat(patch["createdAt"]))
+                deployed_dt = _tz(datetime.fromisoformat(patch["deployedAt"]))
+                hours = (deployed_dt - created).total_seconds() / 3600
                 deploy_times.append(hours)
         
         mttr_hours = sum(deploy_times) / len(deploy_times) if deploy_times else 0

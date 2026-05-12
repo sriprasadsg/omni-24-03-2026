@@ -17,7 +17,9 @@ async def recalculate_all_finops_costs():
     try:
         from database import get_database
         from finops_service import finops_service
+        from tenant_context import set_tenant_id
         
+        set_tenant_id("platform-admin")
         db = get_database()
         if not db:
             print("[Scheduler] Database not available, skipping finOps recalculation")
@@ -36,20 +38,40 @@ async def recalculate_all_finops_costs():
         
         for tenant in tenants:
             try:
-                await finops_service.calculate_tenant_costs(tenant["id"])
+                await finops_service.calculate_current_spend(tenant_id=tenant["id"])
                 success_count += 1
                 print(f"[Scheduler] [OK] Updated finOps for tenant: {tenant.get('name', tenant['id'])}")
             except Exception as e:
                 error_count += 1
                 print(f"[Scheduler] [ERROR] Failed to update finOps for tenant {tenant['id']}: {e}")
-        
+
+        # Refresh cost optimization recommendations once per run
+        try:
+            await finops_service.refresh_cost_recommendations(db)
+            print("[Scheduler] [OK] Cost optimization recommendations refreshed")
+        except Exception as e:
+            print(f"[Scheduler] [WARN] Failed to refresh cost recommendations: {e}")
+
+        # Run data warehouse ETL for each tenant
+        try:
+            from data_warehouse_service import get_data_warehouse_service
+            wh = get_data_warehouse_service(db._db)
+            for tenant in tenants:
+                try:
+                    await wh.run_etl(tenant["id"])
+                except Exception:
+                    pass
+            print(f"[Scheduler] [OK] Data warehouse ETL complete for {len(tenants)} tenant(s)")
+        except Exception as e:
+            print(f"[Scheduler] [WARN] Data warehouse ETL failed: {e}")
+
         print(f"[Scheduler] FinOps recalculation complete: {success_count} success, {error_count} errors")
         
         # Create audit log
         try:
             await db.audit_logs.insert_one({
-                "id": f"audit-{datetime.utcnow().timestamp()}",
-                "timestamp": datetime.utcnow().isoformat(),
+                "id": f"audit-{datetime.now(timezone.utc).timestamp()}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "action": "finops_recalculation",
                 "userName": "System Scheduler",
                 "userId": "system",

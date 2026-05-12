@@ -12,9 +12,9 @@ async def get_costs(
     """
     Get current cost snapshot and history.
     """
-    snapshot = finops_service.calculate_current_spend()
-    history = finops_service.get_cost_history()
-    forecast = finops_service.get_cost_forecast()
+    snapshot = await finops_service.calculate_current_spend()
+    history  = await finops_service.get_cost_history()
+    forecast = await finops_service.get_cost_forecast()
     
     return {
         "snapshot": snapshot,
@@ -38,7 +38,15 @@ async def generate_analysis(
 ):
     """
     Generate AI-powered FinOps analysis.
+    Injects tenantId from the authenticated user so anomaly alerts fire for the right tenant.
     """
+    tenant_id = (
+        current_user.get("tenantId") or current_user.get("tenant_id")
+        if isinstance(current_user, dict)
+        else getattr(current_user, "tenantId", None)
+    )
+    if tenant_id:
+        data = {**data, "tenantId": tenant_id}
     return finops_service.generate_ai_analysis(data)
 
 @router.post("/recalculate/{tenant_id}")

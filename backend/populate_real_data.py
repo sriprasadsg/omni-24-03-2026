@@ -39,7 +39,7 @@ async def main():
                 await db.network_devices.update_one(
                     {"_id": existing["_id"]},
                     {"$set": {
-                        "lastSeen": datetime.utcnow().isoformat(),
+                        "lastSeen": datetime.now(timezone.utc).isoformat(),
                         "status": "Up",
                         "hostname": device["hostname"],
                         "macAddress": device.get("mac", "Unknown"),
@@ -58,7 +58,7 @@ async def main():
                     "macAddress": device.get("mac"),
                     "deviceType": device.get("device_type", "Unknown"),
                     "status": "Up",
-                    "lastSeen": datetime.utcnow().isoformat(),
+                    "lastSeen": datetime.now(timezone.utc).isoformat(),
                     "vendor": device.get("vendor", "Unknown"),
                     "osVersion": device.get("os_version", "Unknown"),
                     "openPorts": device.get("open_ports", []),

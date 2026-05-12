@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, TerminalSquareIcon, FileCodeIcon, SearchIcon, ZapIcon, CrownIcon } from './icons';
+import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon } from './icons';
 import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
@@ -143,20 +143,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'reporting', label: 'Reporting', icon: <BarChart3Icon size={20} />, permission: 'view:reporting' },
                 { view: 'advancedBi', label: 'Advanced BI', icon: <BarChart3Icon size={20} />, permission: 'view:advanced_bi' },
                 { view: 'digitalTwin', label: 'Digital Twin', icon: <BoxIcon size={20} />, permission: 'view:dashboard' },
+                { view: 'futureTech', label: '2027 Horizon', icon: <ZapIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'sustainability', label: 'Sustainability', icon: <SunIcon size={20} />, permission: 'view:sustainability' },
+                { view: 'predictiveHealth', label: 'Predictive Health', icon: <ActivityIcon size={20} />, permission: 'view:predictive_health' },
+                { view: 'goalSystem', label: 'Goal System', icon: <TargetIcon size={20} />, permission: 'view:goal_system' },
+                { view: 'integrationsHub', label: 'Integrations Hub', icon: <PuzzleIcon size={20} />, permission: 'view:integrations' },
             ]
         },
         {
             title: "Observability",
             items: [
                 { view: 'distributedTracing', label: 'Distributed Tracing', icon: <GitMergeIcon size={20} />, permission: 'view:tracing' },
+                { view: 'apm', label: 'APM', icon: <GaugeIcon size={20} />, permission: 'view:tracing' },
                 { view: 'logExplorer', label: 'Log Explorer', icon: <FileTextIcon size={20} />, permission: 'view:logs' },
                 { view: 'networkObservability', label: 'Network', icon: <NetworkIcon size={20} />, permission: 'view:network' },
+                { view: 'networkTopology', label: 'Network Topology Map', icon: <NetworkIcon size={20} />, permission: 'view:network' },
                 { view: 'dataUtilization', label: 'Data Utilization', icon: <ActivityIcon size={20} />, permission: 'view:network' },
                 { view: 'webMonitoring', label: 'Web Monitoring', icon: <Globe size={20} />, permission: 'view:web_monitoring' },
                 { view: 'serviceMesh', label: 'Service Mesh', icon: <NetworkIcon size={20} />, permission: 'view:network' },
                 { view: 'streaming', label: 'Streaming Analytics', icon: <ActivityIcon size={20} />, permission: 'view:analytics' },
-                { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
             ]
         },
         {
@@ -170,6 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'softwareDeployment', label: 'Software Deployment', icon: <BoxIcon size={20} />, permission: 'view:software_deployment' },
                 { view: 'serviceCatalog', label: 'Service Catalog (IDP)', icon: <PuzzleIcon size={20} />, permission: 'view:service_catalog' },
                 { view: 'jobs', label: 'Jobs', icon: <ClipboardListIcon size={20} />, permission: 'view:jobs' },
+                { view: 'remoteAccess', label: 'Remote Access', icon: <ActivityIcon size={20} />, permission: 'view:agents' },
             ]
         },
         {
@@ -177,16 +183,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             items: [
                 { view: 'security', label: 'Security Overview', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'edr', label: 'EDR (Real-Time)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
+                { view: 'mdr', label: 'MDR Intelligence', icon: <ShieldZapIcon size={20} />, permission: 'view:mdr' },
+                { view: 'xdr', label: 'XDR Intelligence', icon: <NetworkIcon size={20} />, permission: 'view:xdr' },
                 { view: 'mitreAttack', label: 'MITRE ATT&CK', icon: <NetworkIcon size={20} />, permission: 'view:security' },
                 { view: 'dlp', label: 'Data Loss Prevention', icon: <ShieldLockIcon size={20} />, permission: 'view:security' },
                 { view: 'cloudSecurity', label: 'Cloud Security', icon: <CloudShieldIcon size={20} />, permission: 'view:cloud_security' },
                 { view: 'threatHunting', label: 'Threat Hunting', icon: <SearchIcon size={20} />, permission: 'view:threat_hunting' },
                 { view: 'siem', label: 'SIEM Dashboard (OCSF)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
-                { view: 'playbooks', label: 'SOAR Playbooks', icon: <TerminalSquareIcon size={20} />, permission: 'manage:settings' },
                 { view: 'threatIntelligence', label: 'Threat Intelligence', icon: <TargetIcon size={20} />, permission: 'view:threat_intel' },
                 { view: 'siemRules', label: 'SIEM Correlation Rules', icon: <ShieldIcon size={20} />, permission: 'view:security' },
                 { view: 'incidentResponse', label: 'Incident Response', icon: <AlertOctagonIcon size={20} />, permission: 'investigate:security' },
+                { view: 'incidentWarRoom', label: 'Incident War Room', icon: <AlertOctagonIcon size={20} />, permission: 'investigate:security' },
+                { view: 'deception', label: 'Deception Technology', icon: <ShieldIcon size={20} />, permission: 'view:security' },
                 { view: 'ueba', label: 'UEBA (Insider Threats)', icon: <UserIcon size={20} />, permission: 'view:security' },
+                { view: 'shadowAI', label: 'Shadow AI Detection', icon: <UserIcon size={20} />, permission: 'view:security' },
+                { view: 'insiderThreat', label: 'Insider Threat', icon: <UserIcon size={20} />, permission: 'view:security' },
+                { view: 'ndr', label: 'Network Detection (NDR)', icon: <NetworkIcon size={20} />, permission: 'view:security' },
+                { view: 'correlations', label: 'Event Correlations', icon: <ActivityIcon size={20} />, permission: 'view:security' },
+                { view: 'emailSecurity', label: 'Email Security', icon: <ShieldLockIcon size={20} />, permission: 'view:security' },
                 { view: 'incidentImpact', label: 'Incident Impact', icon: <ActivityIcon size={20} />, permission: 'investigate:security' },
                 { view: 'dataSecurity', label: 'Data Security (DSPM)', icon: <DnaIcon size={20} />, permission: 'view:dspm' },
                 { view: 'attackPath', label: 'Attack Path', icon: <NetworkIcon size={20} />, permission: 'view:attack_path' },
@@ -197,15 +211,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'persistenceDetection', label: 'Persistence Detection', icon: <SearchIcon size={20} />, permission: 'view:persistence' },
                 { view: 'securitySimulation', label: 'Simulation', icon: <BombIcon size={20} />, permission: 'view:security' },
                 { view: 'securityAudit', label: 'Security Audit', icon: <FileTextIcon size={20} />, permission: 'view:security_audit' },
+                { view: 'fim', label: 'File Integrity Monitor', icon: <ShieldCheckIcon size={20} />, permission: 'view:security' },
+                { view: 'runtimeSecurity', label: 'Runtime Security', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
+                { view: 'pam', label: 'Privileged Access (PAM)', icon: <Lock size={20} />, permission: 'manage:settings' },
             ]
         },
 
         {
             title: "DevSecOps & Engineering",
             items: [
+                { view: 'k8sSecurity', label: 'Kubernetes Security', icon: <ShieldCheckIcon size={20} />, permission: 'view:security' },
+                { view: 'apiSecurity', label: 'API Security', icon: <NetworkIcon size={20} />, permission: 'view:security' },
+                { view: 'databaseMonitoring', label: 'Database Monitor (DAM)', icon: <DatabaseIcon size={20} />, permission: 'view:security' },
+                { view: 'supplyChain', label: 'Supply Chain Security', icon: <ShieldCheckIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'devsecops', label: 'DevSecOps', icon: <GitPullRequestDraftIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'doraMetrics', label: 'DORA Metrics', icon: <GaugeIcon size={20} />, permission: 'view:dora_metrics' },
                 { view: 'sbom', label: 'SBOM', icon: <FileCodeIcon size={20} />, permission: 'view:sbom' },
+                { view: 'sast', label: 'SAST', icon: <SearchIcon size={20} />, permission: 'view:security' },
+                { view: 'pipelineSecurity', label: 'Pipeline Security', icon: <ShieldCheckIcon size={20} />, permission: 'view:devsecops' },
+                { view: 'iacSecurity', label: 'IaC Security', icon: <FileCodeIcon size={20} />, permission: 'view:devsecops' },
+                { view: 'containerScan', label: 'Container Scanning', icon: <BoxIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'chaosEngineering', label: 'Chaos Engineering', icon: <BombIcon size={20} />, permission: 'view:chaos' },
                 { view: 'developer_hub', label: 'Developer Hub', icon: <BookKeyIcon size={20} />, permission: 'view:developer_hub' },
                 { view: 'mlops', label: 'MLOps', icon: <WorkflowIcon size={20} />, permission: 'view:mlops' },
@@ -219,8 +244,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             title: "Governance & Compliance",
             items: [
                 { view: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
+                { view: 'complianceFrameworks', label: 'Framework Evaluator', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
+                { view: 'customFrameworks', label: 'Custom Frameworks', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceOracle', label: 'Compliance Oracle', icon: <BotIcon size={20} />, permission: 'view:compliance' },
                 { view: 'cissporacle', label: 'CISSP Oracle', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
+                { view: 'privacy', label: 'Privacy (GDPR/CCPA)', icon: <ShieldLockIcon size={20} />, permission: 'view:compliance' },
                 { view: 'riskRegister', label: 'Risk Register', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
                 { view: 'vendorManagement', label: 'Vendor Mgmt', icon: <UsersIcon size={20} />, permission: 'view:compliance' },
                 { view: 'trustCenter', label: 'Trust Center', icon: <Globe size={20} />, permission: 'view:compliance' },
@@ -230,6 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'dataGovernance', label: 'Data Governance', icon: <ShieldCheckIcon size={20} />, permission: 'view:governance' },
                 { view: 'auditLog', label: 'Audit Log', icon: <ClipboardListIcon size={20} />, permission: 'view:audit_log' },
                 { view: 'approvalWorkflows', label: 'Approvals', icon: <ClipboardListIcon size={20} />, permission: 'view:ai_governance' },
+                { view: 'baaManagement', label: 'BAA Management', icon: <FileTextIcon size={20} />, permission: 'view:compliance' },
             ]
         },
         {
@@ -237,7 +266,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             items: [
                 { view: 'automation', label: 'Automation', icon: <WorkflowIcon size={20} />, permission: 'view:automation' },
                 { view: 'playbooks', label: 'Playbooks', icon: <BookKeyIcon size={20} />, permission: 'manage:playbooks' },
+                { view: 'jitAccess', label: 'JIT Privileged Access', icon: <Lock size={20} />, permission: 'manage:settings' },
+                { view: 'scheduledReports', label: 'Scheduled Reports', icon: <ClipboardListIcon size={20} />, permission: 'view:reporting' },
                 { view: 'swarm', label: 'Autonomous Swarms', icon: <WorkflowIcon size={20} />, permission: 'view:swarm' },
+                { view: 'agentApproval', label: 'Agent Approvals', icon: <ShieldCheckIcon size={20} />, permission: 'view:agents' },
+                { view: 'aiRemediation', label: 'AI Remediation', icon: <ZapIcon size={20} />, permission: 'view:ai_governance' },
+                { view: 'rollback', label: 'Rollback & Checkpoints', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'tasks', label: 'My Tasks', icon: <ClipboardListIcon size={20} />, permission: 'view:profile' },
             ]
         },
@@ -245,10 +279,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             title: "Management & Settings",
             items: [
                 { view: 'finops', label: 'FinOps & Billing', icon: <DollarSignIcon size={20} />, permission: 'view:finops' },
-                { view: 'servicePricing', label: 'Service Pricing', icon: <DollarSignIcon size={20} />, permission: 'manage:settings' },
+                { view: 'servicePricing', label: 'Service Pricing', icon: <DollarSignIcon size={20} />, permission: 'manage:pricing' },
                 { view: 'paymentSettings', label: 'Payment Settings', icon: <CreditCard size={20} />, permission: 'manage:settings' },
                 { view: 'subscriptionManagement', label: 'Subscription & Billing', icon: <TrendingUp size={20} />, permission: 'view:dashboard' },
                 { view: 'invoices', label: 'Invoices', icon: <FileText size={20} />, permission: 'view:dashboard' },
+                { view: 'cloudIntegrations', label: 'Cloud Integrations', icon: <CloudShieldIcon size={20} />, permission: 'manage:settings' },
+                { view: 'secretsManagement', label: 'Secrets Management', icon: <Lock size={20} />, permission: 'manage:settings' },
+                { view: 'hadr', label: 'HA/DR & Backups', icon: <ShieldCheckIcon size={20} />, permission: 'manage:settings' },
+                { view: 'retentionPolicy', label: 'Data Retention', icon: <ClipboardListIcon size={20} />, permission: 'manage:settings' },
+                { view: 'knowledgeBase', label: 'Knowledge Base (RAG)', icon: <BookKeyIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },
                 { view: 'tenantManagement', label: 'Tenants', icon: <BuildingIcon size={20} />, permission: 'manage:tenants' },

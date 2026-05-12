@@ -54,6 +54,13 @@ class TaskResult(BaseModel):
     metadata: Dict[str, Any] = {}
 
 
+class TaskFeedback(BaseModel):
+    success: bool
+    false_positive: bool = False
+    message: str = ""
+    reported_by: str = "agent"
+
+
 # ------------------------------------------------------------------
 # Policies CRUD
 # ------------------------------------------------------------------
@@ -79,7 +86,7 @@ async def create_policy(
     doc = {
         **policy.dict(),
         "created_by": current_user.username,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "builtin": False,
     }
     await db.response_policies.insert_one(doc)
@@ -100,7 +107,7 @@ async def toggle_policy(
     new_state = not policy.get("enabled", True)
     await db.response_policies.update_one(
         {"policy_id": policy_id},
-        {"$set": {"enabled": new_state, "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {"enabled": new_state, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     return {"policy_id": policy_id, "enabled": new_state}
 
@@ -137,7 +144,7 @@ async def execute_response_action(
     """
     db = get_database()
     task = {
-        "task_id": f"MAN-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        "task_id": f"MAN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
         "agent_id": action.agent_id,
         "action": action.action,
         "params": action.params,
@@ -145,11 +152,11 @@ async def execute_response_action(
         "triggered_by_policy": None,
         "triggered_by_operator": current_user.username,
         "status": "queued",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "executed_at": None,
         "result": None,
     }
-    await db.response_tasks.insert_one(task)
+    await db._db.response_tasks.insert_one(task)
     task.pop("_id", None)
     return {"status": "queued", "task": task}
 
@@ -171,6 +178,26 @@ async def submit_task_result(task_id: str, result: TaskResult):
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"status": "recorded", "task_id": task_id}
+
+
+@router.post("/tasks/{task_id}/feedback")
+async def submit_task_feedback(task_id: str, feedback: TaskFeedback):
+    """
+    Agent or operator submits execution feedback for a completed task.
+    Feeds the autonomous learning loop — false positives are recorded
+    against the triggering policy/playbook/correlation pattern so thresholds
+    can be tuned over time.
+    """
+    success = await orchestrator.record_feedback(
+        task_id=task_id,
+        success=feedback.success,
+        false_positive=feedback.false_positive,
+        message=feedback.message,
+        reported_by=feedback.reported_by,
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"status": "feedback_recorded", "task_id": task_id}
 
 
 # ------------------------------------------------------------------

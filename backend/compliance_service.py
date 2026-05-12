@@ -16,8 +16,12 @@ async def calculate_compliance_status():
     
     if not assets or not frameworks:
         return frameworks
-        
+
     total_assets = len(assets)
+
+    # Pre-fetch RBAC counts for access_control check
+    rbac_user_count = await db.users.count_documents({})
+    rbac_role_count = await db.roles.count_documents({})
     
     # --- Evidence Storage ---
     async def store_compliance_evidence(control_id: str, status: str, description: str, raw_data: Any = None):
@@ -50,8 +54,11 @@ async def calculate_compliance_status():
 
     def check_access_control(assets):
         # Used by ALL (Identity, Access)
-        # Mock: Assume RBAC is on
-        return "Pass", "Centralized RBAC enforced (Simulated)."
+        if rbac_user_count > 0 and rbac_role_count > 0:
+            return "Pass", f"RBAC active: {rbac_user_count} users across {rbac_role_count} role definitions."
+        if rbac_user_count > 0:
+            return "At Risk", "Users exist but no RBAC roles are defined."
+        return "Pending", "No user accounts found to assess."
 
     def check_system_hardening(assets):
         # Used by CIS Benchmarks

@@ -3,6 +3,12 @@ import json
 
 logger = logging.getLogger(__name__)
 
+# Register security tools so the ReAct registry is non-empty at import time
+try:
+    from . import security_tools  # noqa: F401 — side-effect import, populates registry
+except Exception as _e:
+    logger.warning("Could not load security_tools: %s", _e)
+
 class AgenticReasoningEngine:
     """
     Core Decision Engine for the Agent.
@@ -13,11 +19,12 @@ class AgenticReasoningEngine:
     4. Action Recommendation
     """
     
-    def __init__(self, llm_engine, safety_guardrails, config=None):
+    def __init__(self, llm_engine, safety_guardrails, config=None, memory=None):
         self.llm = llm_engine
         self.safety = safety_guardrails
         self.config = config or {}
-        
+        self.memory = memory
+
         # Threshold for autonomous execution
         self.confidence_threshold = self.config.get("confidence_threshold", 0.8)
         self.require_approval = self.config.get("require_approval", True)
@@ -25,7 +32,26 @@ class AgenticReasoningEngine:
     def decide_action(self, context: dict) -> dict:
         """
         Main entry point for autonomous decision making.
+        Enriches context with similar past experiences before querying the LLM.
         """
+        # Retrieve relevant past experiences from memory to improve decision quality
+        memory = getattr(self, "memory", None)
+        if memory:
+            try:
+                similar = memory.find_similar_situations(context)
+                if similar:
+                    context = dict(context)
+                    context["past_experiences"] = [
+                        {
+                            "action":  e.get("action"),
+                            "success": e.get("outcome", {}).get("success"),
+                            "score":   e.get("outcome", {}).get("score", 0),
+                        }
+                        for e in similar[:3]
+                    ]
+            except Exception as _me:
+                logger.debug("Memory retrieval skipped: %s", _me)
+
         logger.info("Requesting LLM analysis for current context...")
         analysis = self.llm.analyze_situation(context)
         
@@ -42,14 +68,33 @@ class AgenticReasoningEngine:
 
         # Check Confidence
         if confidence < self.confidence_threshold:
-             return {"action": recommended_action, "is_autonomous": False, "reason": "Low Confidence"}
-             
-        return {
+            decision = {"action": recommended_action, "is_autonomous": False, "reason": "Low Confidence"}
+            self._store_decision(context, recommended_action, success=False)
+            return decision
+
+        decision = {
             "action": recommended_action,
             "is_autonomous": True,
             "reason": "Autonomous execution criteria met",
-            "plan": analysis
+            "plan": analysis,
         }
+        # Pre-execution memory record (outcome will be updated later by agent.py)
+        self._store_decision(context, recommended_action, success=None)
+        return decision
+
+    def _store_decision(self, context: dict, action: str, success=None):
+        """Persist decision to memory for future recall and learning."""
+        memory = getattr(self, "memory", None)
+        if not memory:
+            return
+        try:
+            memory.store_experience(
+                context=str(context),
+                action=action,
+                outcome={"success": success, "score": 0.5 if success is None else (1.0 if success else 0.0)},
+            )
+        except Exception as _me:
+            logger.debug("Memory store skipped: %s", _me)
 
     def run_react_loop(self, task: str, max_steps=5) -> dict:
         """
@@ -64,38 +109,18 @@ class AgenticReasoningEngine:
         for i in range(max_steps):
             logger.info(f"ReAct Step {i+1}/{max_steps}")
 
-            # 1. Build context and ask LLM to reason + pick action
-            context = {
-                "task": task,
-                "history": history,
-                "available_tools": registry.get_all_schemas(),
-                "instruction": (
-                    "You are an Agentic AI executing a ReAct loop. "
-                    "Choose a tool to call or return final_answer. "
-                    "Reply ONLY with JSON matching the format: "
-                    '{"thought": "<reasoning>", "action": "<tool_name or final_answer>", '
-                    '"action_input": <dict args or string answer>}'
-                )
-            }
+            # 1. Build prompt and ask LLM for raw text (not pre-parsed JSON)
+            prompt = self._construct_react_prompt(task, history, registry.get_all_schemas())
+            raw = self.llm.query_raw(prompt)
 
-            analysis = self.llm.analyze_situation(context)
-
-            # Extract structured decision from analysis
+            # 2. Extract structured decision from raw LLM text
+            import re
             try:
-                # analyze_situation may return {"recommended_action": ..., "reasoning": ..., "raw": ...}
-                raw = analysis.get("raw", "") or analysis.get("reasoning", "") or ""
-                # Attempt to parse embedded JSON from the raw LLM response
-                import re
                 json_match = re.search(r'\{.*\}', raw, re.DOTALL)
                 if json_match:
                     thought = json.loads(json_match.group())
                 else:
-                    # Fallback: treat recommended_action as the action
-                    thought = {
-                        "thought": analysis.get("reasoning", ""),
-                        "action": analysis.get("recommended_action", "final_answer"),
-                        "action_input": {}
-                    }
+                    thought = {"action": "final_answer", "action_input": "No JSON in LLM response"}
             except Exception:
                 thought = {"action": "final_answer", "action_input": "Failed to parse LLM response"}
 
@@ -111,7 +136,8 @@ class AgenticReasoningEngine:
 
             tool = registry.get_tool(action_name)
             if not tool:
-                observation = f"Error: Tool '{action_name}' not found. Choose from: {list(registry.get_all_schemas().keys())}"
+                available = [s['name'] for s in registry.get_all_schemas()]
+                observation = f"Error: Tool '{action_name}' not found. Available: {available}"
             else:
                 try:
                     result = registry.execute(action_name, action_input)

@@ -137,28 +137,46 @@ class NotificationService:
         phone_numbers: List[str],
         message: str
     ) -> Dict[str, Any]:
-        """
-        Send SMS notification (Simulated via File Log)
-        """
-        import asyncio
+        """Send SMS via Twilio when configured; log to file as fallback."""
         import os
-        
-        # Simulate Gateway Latency
-        await asyncio.sleep(0.1)
-        
-        # Log to "Gateway"
+        import aiohttp
+
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        from_number = os.environ.get("TWILIO_FROM_NUMBER", "")
+
+        if account_sid and auth_token and from_number:
+            results = []
+            url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+            auth = aiohttp.BasicAuth(account_sid, auth_token)
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(auth=auth, timeout=timeout) as session:
+                for number in phone_numbers:
+                    try:
+                        resp = await session.post(
+                            url,
+                            data={"From": from_number, "To": number, "Body": message},
+                        )
+                        results.append({"number": number, "success": resp.status in (200, 201)})
+                    except Exception as exc:
+                        results.append({"number": number, "success": False, "error": str(exc)})
+            sent = sum(1 for r in results if r["success"])
+            return {"success": sent > 0, "provider": "twilio",
+                    "sent": sent, "total": len(phone_numbers), "results": results}
+
+        # Fallback: write to file and warn
+        import logging
+        logging.getLogger(__name__).warning(
+            "SMS not sent — Twilio not configured (TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM_NUMBER missing). "
+            "Writing to sms_outbox.log instead."
+        )
         try:
             with open("sms_outbox.log", "a") as f:
                 for number in phone_numbers:
                     f.write(f"[SMS] To: {number} | Msg: {message}\n")
-        except Exception as e:
-            pass # Ignore file errors
-                
-        return {
-            "success": True,
-            "provider": "file_gateway",
-            "recipients": phone_numbers
-        }
+        except OSError:
+            pass
+        return {"success": False, "provider": "file_fallback", "recipients": phone_numbers}
     
     async def _send_slack(
         self,

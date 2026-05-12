@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, HardDrive, FileSearch, Cpu, Play, Square, RefreshCw, Layers } from 'lucide-react';
+import { Shield, Activity, HardDrive, FileSearch, Cpu, Play, Square, RefreshCw, Layers, Eye, Globe, Bot, Package, Box, TestTube, Zap, Network, Cloud, Search, BarChart3, FileText } from 'lucide-react';
 import { fetchAgents as apiFetchAgents } from '../services/apiService';
 
 interface Capability {
@@ -66,11 +66,33 @@ export const AgentCapabilitiesDashboard: React.FC = () => {
     const getCapabilityIcon = (id: string, className = "h-5 w-5") => {
         const iconClass = `${className} text-gray-400 dark:text-gray-500`;
         switch (id) {
-            case 'system_metrics': return <Cpu className={iconClass} />;
-            case 'process_monitor': return <Activity className={iconClass} />;
-            case 'file_integrity': return <FileSearch className={iconClass} />;
-            case 'vulnerability_scanner': return <Shield className={iconClass} />;
-            case 'ebpf_tracing': return <Layers className={iconClass} />;
+            // Core telemetry
+            case 'metrics_collection':  return <BarChart3 className={iconClass} />;
+            case 'log_collection':      return <FileText className={iconClass} />;
+            case 'process_monitor':     return <Activity className={iconClass} />;
+            // Security detection
+            case 'vulnerability_scanning': return <Shield className={iconClass} />;
+            case 'fim':                    return <FileSearch className={iconClass} />;
+            case 'compliance_enforcement': return <Shield className={iconClass} />;
+            case 'runtime_security':       return <Zap className={iconClass} />;
+            case 'edr_realtime':           return <Zap className={iconClass} />;
+            case 'persistence_detection':  return <Search className={iconClass} />;
+            // Network & cloud
+            case 'network_discovery': return <Network className={iconClass} />;
+            case 'cloud_metadata':    return <Cloud className={iconClass} />;
+            case 'web_monitor':       return <Globe className={iconClass} />;
+            // Data & privacy
+            case 'pii_scanner':   return <Eye className={iconClass} />;
+            case 'sbom_analysis': return <Layers className={iconClass} />;
+            // Advanced AI
+            case 'predictive_health': return <Cpu className={iconClass} />;
+            case 'ueba':              return <Activity className={iconClass} />;
+            case 'ebpf_tracing':      return <Layers className={iconClass} />;
+            case 'shadow_ai':         return <Bot className={iconClass} />;
+            // Remediation
+            case 'system_patching':              return <Package className={iconClass} />;
+            case 'software_management':          return <Box className={iconClass} />;
+            case 'process_injection_simulation': return <TestTube className={iconClass} />;
             default: return <HardDrive className={iconClass} />;
         }
     };

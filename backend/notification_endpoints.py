@@ -83,13 +83,139 @@ async def update_notification_config(config: Dict[str, Any] = Body(...), current
     db = get_database()
     tenant_id = get_tenant_id()
     config_type = config.get("type")
-    
+
     if not config_type:
         raise HTTPException(status_code=400, detail="Config type is required")
-        
+
     await db.notification_config.update_one(
         {"tenantId": tenant_id, "type": config_type},
         {"$set": {**config, "tenantId": tenant_id, "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
     return {"success": True}
+
+
+@router.post("/test/{channel}")
+async def test_notification_channel(
+    channel: str,
+    payload: Dict[str, Any] = Body(default={}),
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),
+):
+    """
+    Test a notification channel by sending a real test message.
+    channel: slack | teams | pagerduty | email | webhook | sms
+    Supply the config in the body, or it will be loaded from the saved tenant config.
+    """
+    import aiohttp as _aiohttp
+    db = get_database()
+    tenant_id = get_tenant_id()
+
+    # Load saved config and merge with any supplied override
+    saved = await db.notification_config.find_one(
+        {"tenantId": tenant_id, "type": channel}, {"_id": 0}
+    ) or {}
+    cfg = {**saved, **payload}
+
+    test_msg = f"[OmniAgent] Notification test — channel '{channel}' — {datetime.now(timezone.utc).isoformat()}"
+
+    try:
+        if channel == "slack":
+            webhook_url = cfg.get("webhook_url", "")
+            if not webhook_url:
+                return {"success": False, "message": "Slack webhook_url not configured"}
+            async with _aiohttp.ClientSession() as s:
+                async with s.post(webhook_url, json={"text": test_msg},
+                                  timeout=_aiohttp.ClientTimeout(total=8)) as r:
+                    ok = r.status == 200
+                    return {"success": ok, "http_status": r.status,
+                            "message": "Slack test sent" if ok else f"Slack returned HTTP {r.status}"}
+
+        elif channel == "teams":
+            webhook_url = cfg.get("webhook_url", "")
+            if not webhook_url:
+                return {"success": False, "message": "Teams webhook_url not configured"}
+            async with _aiohttp.ClientSession() as s:
+                payload_body = {"@type": "MessageCard", "@context": "http://schema.org/extensions",
+                                "summary": "OmniAgent Test", "themeColor": "0078D4",
+                                "sections": [{"activityTitle": "Notification Test",
+                                              "activityText": test_msg}]}
+                async with s.post(webhook_url, json=payload_body,
+                                  timeout=_aiohttp.ClientTimeout(total=8)) as r:
+                    ok = r.status in (200, 202)
+                    return {"success": ok, "http_status": r.status,
+                            "message": "Teams test sent" if ok else f"Teams returned HTTP {r.status}"}
+
+        elif channel == "pagerduty":
+            routing_key = cfg.get("routing_key", "")
+            if not routing_key:
+                return {"success": False, "message": "PagerDuty routing_key not configured"}
+            pd_payload = {
+                "routing_key": routing_key,
+                "event_action": "trigger",
+                "payload": {
+                    "summary": "OmniAgent notification channel test",
+                    "severity": "info",
+                    "source": "omni-agent-platform",
+                    "custom_details": {"message": test_msg},
+                },
+            }
+            async with _aiohttp.ClientSession() as s:
+                async with s.post("https://events.pagerduty.com/v2/enqueue",
+                                  json=pd_payload, timeout=_aiohttp.ClientTimeout(total=10)) as r:
+                    data = await r.json()
+                    ok = r.status == 202
+                    return {"success": ok, "http_status": r.status,
+                            "dedup_key": data.get("dedup_key"),
+                            "message": "PagerDuty event triggered" if ok else data.get("message", f"HTTP {r.status}")}
+
+        elif channel == "email":
+            recipient = cfg.get("test_recipient") or cfg.get("recipients", [None])[0]
+            if not recipient:
+                return {"success": False, "message": "No test_recipient configured for email channel"}
+            from email_service import email_service
+            result = await email_service.send_report(
+                recipient=recipient,
+                report_name="Notification Channel Test",
+                report_data={"report_type": "test", "message": test_msg,
+                             "generated_at": datetime.now(timezone.utc).isoformat()},
+            )
+            return result
+
+        elif channel == "webhook":
+            url = cfg.get("url", "") or cfg.get("webhook_url", "")
+            if not url:
+                return {"success": False, "message": "webhook url not configured"}
+            headers = {"Content-Type": "application/json"}
+            if cfg.get("secret"):
+                headers["X-OmniAgent-Secret"] = cfg["secret"]
+            async with _aiohttp.ClientSession() as s:
+                async with s.post(url, json={"event": "test", "message": test_msg},
+                                  headers=headers, timeout=_aiohttp.ClientTimeout(total=8)) as r:
+                    ok = r.status < 400
+                    return {"success": ok, "http_status": r.status,
+                            "message": "Webhook test delivered" if ok else f"Webhook returned HTTP {r.status}"}
+
+        elif channel == "sms":
+            account_sid = cfg.get("account_sid") or __import__("os").getenv("TWILIO_ACCOUNT_SID", "")
+            auth_token = cfg.get("auth_token") or __import__("os").getenv("TWILIO_AUTH_TOKEN", "")
+            from_number = cfg.get("from_number") or __import__("os").getenv("TWILIO_FROM", "")
+            to_number = cfg.get("to_number") or cfg.get("test_number", "")
+            if not all([account_sid, auth_token, from_number, to_number]):
+                return {"success": False, "message": "Twilio credentials or phone numbers not configured"}
+            async with _aiohttp.ClientSession() as s:
+                async with s.post(
+                    f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json",
+                    auth=_aiohttp.BasicAuth(account_sid, auth_token),
+                    data={"From": from_number, "To": to_number, "Body": test_msg},
+                    timeout=_aiohttp.ClientTimeout(total=10),
+                ) as r:
+                    data = await r.json()
+                    ok = r.status in (200, 201)
+                    return {"success": ok, "sid": data.get("sid"),
+                            "message": "SMS sent" if ok else data.get("message", f"HTTP {r.status}")}
+
+        else:
+            return {"success": False, "message": f"Unknown channel '{channel}'. Use: slack, teams, pagerduty, email, webhook, sms"}
+
+    except Exception as exc:
+        return {"success": False, "message": str(exc)}

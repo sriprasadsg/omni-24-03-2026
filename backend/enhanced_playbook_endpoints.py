@@ -12,15 +12,19 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timezone
 
 from database import get_database
-from enhanced_playbook_engine import get_playbook_engine, StepStatus
+from enhanced_playbook_engine import get_playbook_engine
 from soar_integrations import get_integration_manager
 from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/playbooks/enhanced", tags=["Enhanced SOAR"])
 
+_KEY_ALIASES = {"tenantId": "tenant_id", "email": "username"}
+
 def _get(user, key, default=None):
-    if isinstance(user, dict): return user.get(key, default)
-    return getattr(user, key, default)
+    if isinstance(user, dict):
+        return user.get(key, default)
+    attr = _KEY_ALIASES.get(key, key)
+    return getattr(user, attr, default)
 
 
 
@@ -57,7 +61,7 @@ class PlaybookTemplate(BaseModel):
 @router.post("/execute")
 async def execute_playbook(
     request: PlaybookExecutionRequest,
-    background_tasks: BackgroundTasks,
+    _background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("execute:playbooks"))
 ):
@@ -99,7 +103,7 @@ async def execute_playbook(
 async def test_playbook(
     request: PlaybookTestRequest,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("execute:playbooks"))
+    _current_user: dict = Depends(require_permission("execute:playbooks"))
 ):
     """
     Test a playbook in dry-run mode
@@ -227,16 +231,17 @@ async def approve_playbook_step(
     
     # Check if user is authorized approver
     approvers = approval.get("approvers", [])
-    if approvers and current_user.get("email") not in approvers:
+    actor = getattr(current_user, "username", None) or (current_user.get("email") if isinstance(current_user, dict) else None)
+    if approvers and actor not in approvers:
         raise HTTPException(status_code=403, detail="Not authorized to approve this step")
-    
+
     # Update approval status
     await db.playbook_approvals.update_one(
         {"_id": approval["_id"]},
         {
             "$set": {
                 "status": request.action,
-                "approved_by": current_user.get("email"),
+                "approved_by": actor,
                 "approved_at": datetime.now(timezone.utc).isoformat(),
                 "comment": request.comment
             }
@@ -267,7 +272,7 @@ async def approve_playbook_step(
                 "$set": {
                     "status": "rejected",
                     "completed_at": datetime.now(timezone.utc).isoformat(),
-                    "error": f"Rejected by {current_user.get('email')}: {request.comment}"
+                    "error": f"Rejected by {actor}: {request.comment}"
                 }
             }
         )
@@ -282,7 +287,7 @@ async def approve_playbook_step(
 async def get_playbook_templates(
     category: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:playbooks"))
+    _current_user: dict = Depends(require_permission("view:playbooks"))
 ):
     """
     Get playbook templates
@@ -337,8 +342,8 @@ async def create_playbook_from_template(
         "description": template.get("description"),
         "trigger": template.get("trigger"),
         "steps": template.get("steps"),
-        "tenantId": current_user.get("tenantId"),
-        "created_by": current_user.get("email"),
+        "tenantId": _get(current_user, "tenantId"),
+        "created_by": _get(current_user, "email"),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "template_id": template_id,
@@ -359,7 +364,7 @@ async def create_playbook_from_template(
 
 @router.get("/analytics")
 async def get_playbook_analytics(
-    days: int = 30,
+    _days: int = 30,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("view:playbooks"))
 ):
@@ -426,7 +431,7 @@ async def get_playbook_analytics(
 
 @router.get("/integrations")
 async def get_available_integrations(
-    current_user: dict = Depends(require_permission("view:playbooks"))
+    _current_user: dict = Depends(require_permission("view:playbooks"))
 ):
     """
     Get list of available integration connectors
@@ -468,7 +473,7 @@ async def test_integration(
     connector_name: str,
     action: str,
     params: Dict[str, Any],
-    current_user: dict = Depends(require_permission("manage:playbooks"))
+    _current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """
     Test an integration connector action

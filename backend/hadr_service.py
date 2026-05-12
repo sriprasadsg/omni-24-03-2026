@@ -19,7 +19,9 @@ import logging
 import hashlib
 import gzip
 import os
+import base64
 from pathlib import Path
+from cryptography.fernet import Fernet
 
 
 class BackupType:
@@ -50,6 +52,18 @@ class HADRService:
         self.rpo_hours = 1     # Recovery Point Objective
         self.backup_retention_days = 30
         self.encryption_enabled = True
+
+        # Load or generate AES-256 (Fernet) key for backup encryption
+        key_path = self.backup_dir / "backup.key"
+        raw_key = os.environ.get("BACKUP_ENCRYPTION_KEY")
+        if raw_key:
+            self._cipher = Fernet(raw_key.encode())
+        elif key_path.exists():
+            self._cipher = Fernet(key_path.read_bytes())
+        else:
+            new_key = Fernet.generate_key()
+            key_path.write_bytes(new_key)
+            self._cipher = Fernet(new_key)
     
     async def create_backup(
         self,
@@ -551,22 +565,22 @@ class HADRService:
         return sha256_hash.hexdigest()
     
     def _encrypt_backup(self, file_path: Path) -> Path:
-        """Encrypt backup file (placeholder - would use real encryption in production)"""
-        # In production, use AES-256 encryption with proper key management
-        # For now, just rename to indicate it's "encrypted"
+        """Encrypt backup file with AES-256 (Fernet) and write to <file>.enc."""
         encrypted_path = file_path.with_suffix(file_path.suffix + '.enc')
-        file_path.rename(encrypted_path)
+        plaintext = file_path.read_bytes()
+        encrypted_path.write_bytes(self._cipher.encrypt(plaintext))
+        file_path.unlink()
         return encrypted_path
-    
+
     def _decrypt_backup(self, file_path: Path) -> Path:
-        """Decrypt backup file (placeholder)"""
-        # In production, use proper decryption
-        # For now, just remove .enc extension
-        if file_path.suffix == '.enc':
-            decrypted_path = file_path.with_suffix('')
-            file_path.rename(decrypted_path)
-            return decrypted_path
-        return file_path
+        """Decrypt an AES-256 (Fernet) encrypted backup file."""
+        if file_path.suffix != '.enc':
+            return file_path
+        decrypted_path = file_path.with_suffix('')
+        ciphertext = file_path.read_bytes()
+        decrypted_path.write_bytes(self._cipher.decrypt(ciphertext))
+        file_path.unlink()
+        return decrypted_path
 
 
 # Singleton

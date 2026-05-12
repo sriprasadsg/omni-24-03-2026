@@ -12,7 +12,7 @@ async def list_experiments(
     """
     List all active experiments.
     """
-    return ab_service.get_all_experiments()
+    return await ab_service.get_all_experiments()
 
 @router.post("/")
 async def create_experiment(
@@ -30,7 +30,7 @@ async def create_experiment(
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
         
-    exp_id = ab_service.create_experiment(name, desc, variants)
+    exp_id = await ab_service.create_experiment(name, desc, variants)
     return {"experiment_id": exp_id, "message": "Experiment created"}
 
 @router.get("/{experiment_id}/variant")
@@ -43,7 +43,7 @@ async def get_variant(
     Get assigned variant for a user.
     """
     try:
-        variant = ab_service.get_variant(experiment_id, user_id)
+        variant = await ab_service.get_variant(experiment_id, user_id)
         return {"variant": variant, "user_id": user_id}
     except ValueError:
         raise HTTPException(status_code=404, detail="Experiment not found")
@@ -63,7 +63,7 @@ async def track_conversion(
         raise HTTPException(status_code=400, detail="user_id is required")
         
     try:
-        ab_service.track_conversion(experiment_id, user_id)
+        await ab_service.track_conversion(experiment_id, user_id)
         return {"status": "tracked"}
     except ValueError:
         raise HTTPException(status_code=404, detail="Experiment not found")
@@ -77,6 +77,6 @@ async def get_results(
     Get performance metrics for an experiment.
     """
     try:
-        return ab_service.get_results(experiment_id)
+        return await ab_service.get_results(experiment_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Experiment not found")

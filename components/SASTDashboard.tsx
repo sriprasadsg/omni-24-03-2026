@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { ShieldCheckIcon, AlertTriangleIcon, CodeIcon, RefreshCwIcon, CheckCircleIcon, XCircleIcon } from './icons';
 
 interface Scan {
@@ -79,15 +80,9 @@ export const SASTDashboard: React.FC = () => {
         setLoading(true);
         try {
             const [scansRes, vulnsRes, statsRes] = await Promise.all([
-                fetch('/api/sast/history', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/sast/vulnerabilities?status=open', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/sast/statistics', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                })
+                authFetch('/api/sast/history'),
+                authFetch('/api/sast/vulnerabilities?status=open'),
+                authFetch('/api/sast/statistics')
             ]);
 
             if (scansRes.ok) setScans(await scansRes.json());
@@ -104,12 +99,8 @@ export const SASTDashboard: React.FC = () => {
         e.preventDefault();
 
         try {
-            const response = await fetch('/api/sast/scan', {
+            const response = await authFetch('/api/sast/scan', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify(formData)
             });
 
@@ -132,9 +123,7 @@ export const SASTDashboard: React.FC = () => {
         setSelectedScan(scan);
 
         try {
-            const response = await fetch(`/api/sast/quality/${scan.scan_id}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await authFetch(`/api/sast/quality/${scan.scan_id}`);
 
             if (response.ok) {
                 setCodeQuality(await response.json());
@@ -150,12 +139,8 @@ export const SASTDashboard: React.FC = () => {
         if (!reason) return;
 
         try {
-            const response = await fetch('/api/sast/vulnerabilities/false-positive', {
+            const response = await authFetch('/api/sast/vulnerabilities/false-positive', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({ vulnerability_id: vulnId, reason })
             });
 

@@ -1,8 +1,22 @@
 from typing import Dict, List, Any
 import logging
-import random
 from database import get_database
 from server_discovery import ServerDiscovery
+
+# Deterministic default metrics keyed by device type (no random values)
+_DEVICE_METRICS = {
+    "router":     {"throughput_in": 42.0, "throughput_out": 18.0, "latency": 1.2, "activeSessions": 80},
+    "firewall":   {"throughput_in": 35.0, "throughput_out": 15.0, "latency": 0.8, "activeSessions": 60},
+    "gateway":    {"throughput_in": 48.0, "throughput_out": 20.0, "latency": 1.0, "activeSessions": 90},
+    "switch":     {"throughput_in": 20.0, "throughput_out": 10.0, "latency": 0.3, "activeSessions": 40},
+    "server":     {"throughput_in": 8.0,  "throughput_out": 5.0,  "latency": 2.0, "activeSessions": 25},
+    "workstation":{"throughput_in": 2.0,  "throughput_out": 1.0,  "latency": 3.0, "activeSessions": 5},
+    "printer":    {"throughput_in": 0.5,  "throughput_out": 0.2,  "latency": 5.0, "activeSessions": 2},
+}
+_DEVICE_METRICS_DEFAULT = {"throughput_in": 5.0, "throughput_out": 2.0, "latency": 2.5, "activeSessions": 10}
+
+def _default_metrics(device_type: str) -> Dict:
+    return _DEVICE_METRICS.get((device_type or "").lower(), _DEVICE_METRICS_DEFAULT)
 
 logger = logging.getLogger(__name__)
 
@@ -149,12 +163,7 @@ class NetworkTopologyService:
                     "status": status,
                     "parent": parent_id,
                     "vlanId": vlan_id,
-                    "metrics": device.get("metrics", {
-                        "throughput_in": round(random.uniform(0.1, 50), 1), 
-                        "throughput_out": round(random.uniform(0.1, 20), 1), 
-                        "latency": round(random.uniform(0.1, 5), 2), 
-                        "activeSessions": random.randint(1, 100)
-                    }),
+                    "metrics": device.get("metrics", _default_metrics(device_type)),
                     "details": device
                 }
             })

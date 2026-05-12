@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-const API_BASE_URL = 'http://localhost:5000';
+import { authFetch } from '../services/apiService';
 
 interface ShadowAIEvent {
     id: string;
@@ -25,8 +24,8 @@ export const ShadowAI: React.FC = () => {
         const fetchData = async () => {
             try {
                 const [eventsRes, statsRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/api/ueba/shadow-ai/events`),
-                    fetch(`${API_BASE_URL}/api/ueba/stats`)
+                    authFetch('/api/ueba/shadow-ai/events'),
+                    authFetch('/api/ueba/stats')
                 ]);
 
                 if (eventsRes.ok && statsRes.ok) {

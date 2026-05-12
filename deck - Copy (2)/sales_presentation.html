@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>OmniAgent Platform — Enterprise Sales Deck</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --ink:#040812; --ink2:#070e1f; --ink3:#0d1731; --ink4:#1a2540;
+  --b:#6366f1; --b2:#818cf8; --b3:#4f46e5;
+  --cy:#06b6d4; --cy2:#67e8f9;
+  --gr:#10b981; --gr2:#6ee7b7;
+  --rd:#ef4444; --rd2:#fca5a5;
+  --or:#f97316; --or2:#fdba74;
+  --yw:#eab308; --yw2:#fde047;
+  --pu:#8b5cf6; --pu2:#c4b5fd;
+  --tx:#f1f5f9; --mt:#94a3b8; --mt2:#64748b;
+  --border:rgba(255,255,255,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+.reveal{font-family:'Inter',sans-serif;background:var(--ink)}
+.reveal .slides{text-align:left}
+.section{width:100%;height:100%;padding:25px 50px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.grid-overlay{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.02) 1px,transparent 1px);background-size:60px 60px;pointer-events:none}
+
+.hero{font-size:3.2em;font-weight:900;line-height:1.05;letter-spacing:-.04em;color:#fff}
+.h1{font-size:2.2em;font-weight:900;line-height:1.1;color:#fff}
+.h2{font-size:1.7em;font-weight:800;line-height:1.1;color:#fff}
+.h3{font-size:1.2em;font-weight:700;line-height:1.2;color:#fff}
+.h4{font-size:.75em;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px}
+.lead{font-size:.8em;color:var(--mt);line-height:1.4}
+.body{font-size:.56em;color:var(--mt);line-height:1.4}
+.small{font-size:.45em;color:var(--mt2);line-height:1.3}
+.label{font-size:.5em;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--b2)}
+
+.g-ib{background:linear-gradient(135deg,var(--b),var(--cy));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.card{background:var(--ink3);border:1px solid var(--border);border-radius:10px;padding:15px;height:100%}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+.feature-box{margin-bottom:12px}
+.feature-title{font-size:.58em;font-weight:800;color:var(--tx);margin-bottom:2px;display:flex;align-items:center;gap:6px}
+.feature-desc{font-size:.5em;color:var(--mt);line-height:1.3}
+.f-dot{width:6px;height:6px;border-radius:50%;background:var(--b)}
+
+.usage-pill{display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.05);font-size:.45em;color:var(--mt2);font-weight:600;margin-top:4px}
+
+.chapter-slide{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- 01 COVER -->
+<section data-background-color="#040812">
+<div class="section">
+<div class="grid-overlay"></div>
+<div style="margin-bottom:30px;display:flex;align-items:center;gap:12px">
+  <div style="width:40px;height:40px;background:linear-gradient(135deg,var(--b),var(--b3));border-radius:12px;display:flex;align-items:center;justify-content:center">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+  </div>
+  <span style="font-size:.9em;font-weight:900;color:var(--mt)">OMNIAGENT PLATFORM</span>
+</div>
+<p class="hero" style="margin-bottom:20px">The Complete <span class="g-ib">Enterprise Engine.</span></p>
+<p class="lead" style="max-width:650px">34 modules covering Security, Compliance, Observability, and Future Ops. One unified workspace for the modern enterprise.</p>
+</div>
+</section>
+
+<!-- 02 SECURITY & THREAT OPS -->
+<section>
+  <section data-background-color="#0c0508">
+    <div class="chapter-slide">
+      <div class="label" style="color:var(--rd2)">Pillar 01</div>
+      <h1 class="chapter-title" style="font-size:3.5em;color:var(--rd)">Security <span style="color:#fff">&amp; Threat Ops</span></h1>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Threat Operations <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Security Case Management</div>
+            <div class="feature-desc">Full incident lifecycle tracking, evidence enrichment, and cross-team collaboration for security investigations.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>SOAR Playbooks</div>
+            <div class="feature-desc">Autonomous incident response workflows. Auto-isolate hosts, block IPs, and detonate malware in seconds.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Threat Hunting</div>
+            <div class="feature-desc">Deep-query endpoint telemetry via eBPF to uncover lateral movement and advanced persistence (APT).</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Threat Intel Feed</div>
+            <div class="feature-desc">Automatic enrichment of alerts with IOCs from VirusTotal, AlienVault, and private industry feeds.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Attack Path Analysis</div>
+            <div class="feature-desc">Graph-based visualization of potential breach paths from public assets to internal "crown jewel" data.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Data Security (DSPM)</div>
+            <div class="feature-desc">Scan S3, SQL, and NoSQL stores for sensitive PII/Financial data and unauthorized exposures.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- 03 COMPLIANCE & GOVERNANCE -->
+<section>
+  <section data-background-color="#04100a">
+    <div class="chapter-slide">
+      <div class="label" style="color:var(--gr2)">Pillar 02</div>
+      <h1 class="chapter-title" style="font-size:3.5em;color:var(--gr)">Governance <span style="color:#fff">&amp; Compliance</span></h1>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Continuous GRC <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Compliance Management</div>
+            <div class="feature-desc">Real-time posture monitoring for SOC2, ISO 27001, HIPAA, and PCI-DSS across all endpoints.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Audit Log Retention</div>
+            <div class="feature-desc">Long-term, immutable storage of every system action for forensic integrity and regulatory requirements.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>AI Governance</div>
+            <div class="feature-desc">Registry for internal LLMs. Monitors for bias, hallucinations, and prompt-injection risks.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Automation Policies</div>
+            <div class="feature-desc">Define drift-prevention rules that automatically remediate unauthorized configuration changes.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Evidence Management</div>
+            <div class="feature-desc">Automated screenshots and log snippets collected 24/7 to prove control compliance to auditors.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Manage AI Risks</div>
+            <div class="feature-desc">Risk assessments and mitigation tracking for every AI model deployed in the enterprise.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- 04 OBSERVABILITY & AGENTS -->
+<section>
+  <section data-background-color="#030d12">
+    <div class="chapter-slide">
+      <div class="label" style="color:var(--cy2)">Pillar 03</div>
+      <h1 class="chapter-title" style="font-size:3.5em;color:var(--cy)">Observability <span style="color:#fff">&amp; Insights</span></h1>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Deep System Visibility <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:15px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Agent Fleet Management</div>
+            <div class="feature-desc">Centralized control of the OmniAgent (Rust/Go). Unified health, updates, and configuration.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Log Explorer</div>
+            <div class="feature-desc">High-speed search across terabytes of agent logs with AI-assisted pattern discovery.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Distributed Tracing</div>
+            <div class="feature-desc">Visualizing request flow across microservices to identify bottlenecks and failure points.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Network Observability</div>
+            <div class="feature-desc">Real-time topology maps and flow analysis of VPC and internal data center traffic.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Proactive Insights</div>
+            <div class="feature-desc">AIOps engine that predicts system failures (e.g., Disk/CPU exhaustion) 72 hours in advance.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Software Deployment Hub</div>
+            <div class="feature-desc">Bulk installation and versioning of enterprise software (MSI, PKG, DEB) via the agent.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Asset Management</div>
+            <div class="feature-desc">Dynamic inventory of every hardware component and software package in the fleet.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Agent Remediation</div>
+            <div class="feature-desc">Remote shell access and one-click self-healing for corrupted or misconfigured agents.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- 05 PLATFORM & DEV TOOLS -->
+<section>
+  <section data-background-color="#08040f">
+    <div class="chapter-slide">
+      <div class="label" style="color:var(--pu2)">Pillar 04</div>
+      <h1 class="chapter-title" style="font-size:3.5em;color:var(--pu)">Platform <span style="color:#fff">&amp; DevTools</span></h1>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Modern Delivery <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Patch Management</div>
+            <div class="feature-desc">Comprehensive vulnerability tracking and automated patching for Windows and Linux.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>DevSecOps Dashboard</div>
+            <div class="feature-desc">SAST/DAST results, secret scanning, and pipeline health for every engineering repo.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Chaos Engineering</div>
+            <div class="feature-desc">Inject faults (latency, pod failure, CPU hog) to test and prove system resilience.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Service Catalog (IDP)</div>
+            <div class="feature-desc">Self-service portal for developers to provision standardized, secure infrastructure.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>DORA Metrics</div>
+            <div class="feature-desc">Track Deployment Frequency, Lead Time, and MTTR to measure engineering velocity.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Cloud Security (CSPM)</div>
+            <div class="feature-desc">Detection of misconfigured S3 buckets, open security groups, and IAM over-privileging.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- 06 MANAGEMENT & FINOPS -->
+<section>
+  <section data-background-color="#040812">
+    <div class="chapter-slide">
+      <div class="label" style="color:var(--yw2)">Pillar 05</div>
+      <h1 class="chapter-title" style="font-size:3.5em;color:var(--yw)">Value <span style="color:#fff">&amp; Administration</span></h1>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Enterprise Control <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>FinOps &amp; Billing</div>
+            <div class="feature-desc">AI-driven cloud cost optimization and unit-economics tracking across multi-cloud environments.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Sustainability (ESG)</div>
+            <div class="feature-desc">Carbon footprint tracking for your digital infrastructure to meet green energy targets.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Multi-Tenant Management</div>
+            <div class="feature-desc">Secure isolation and centralized administration for large enterprises with multiple subsidiaries.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>RBAC &amp; Roles</div>
+            <div class="feature-desc">Granular permission system to ensure least-privilege access for analysts, engineers, and admins.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Webhook Management</div>
+            <div class="feature-desc">Connect OmniAgent alerts to PagerDuty, Jira, Slack, or custom automation endpoints.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>API Key Management</div>
+            <div class="feature-desc">Secure lifecycle for programmatic access to the OmniAgent platform.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- 07 CTA -->
+<section data-background-color="#040812">
+<div class="section" style="text-align:center">
+  <h1 class="hero" style="font-size:4.5em;margin-bottom:30px">One Platform.</h1>
+  <p class="lead" style="margin-bottom:40px">Unlimited Enterprise Possibilities.</p>
+  <div style="display:inline-flex;gap:12px;background:linear-gradient(135deg,var(--b),var(--b3));color:#fff;border-radius:12px;padding:18px 45px;font-size:1.1em;font-weight:800;box-shadow:0 15px 50px rgba(99,102,241,.4)">
+    Book your Enterprise Demo
+  </div>
+</div>
+</section>
+
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  width: 1920,
+  height: 1080,
+  margin: 0.1,
+  minScale: 0.1,
+  maxScale: 1.5,
+  center: true,
+  navigationMode: 'linear'
+});
+</script>
+</body>
+</html>

@@ -18,12 +18,13 @@ class SwarmCoordinator:
     def __init__(self, agent_id, config=None):
         self.agent_id = agent_id
         self.config = config or {}
-        self.peers = set() 
+        self.peers = set()
         self.swarm_id = str(uuid.uuid4())[:8]
         self.gossip_port = random.randint(10000, 20000)
         self.local_ip = self._get_local_ip()
         self.running = False
-        self.peer_data = {} # Latest state from peers
+        self.peer_data = {}  # Latest state from peers
+        self.capability_mgr = None  # Set by AgentCapabilityManager after init
 
     def _get_local_ip(self):
         try:
@@ -73,17 +74,24 @@ class SwarmCoordinator:
         return True
 
     def handle_remote_task(self, payload: dict):
-        """
-        Process a task received from a peer.
-        """
+        """Process a task offloaded from a peer and dispatch it locally."""
         source = payload.get("source_id")
-        task = payload.get("content")
-        logger.info(f"Received OFF_LOADED task from {source}: {task.get('description', 'Unknown Task')}")
-        
-        # In a real implementation, this would spawn a thread to execute the task
-        # and report completion back to the source.
-        # For now, we simulate acceptance.
-        logger.info("Task accepted and queued for execution.")
+        task   = payload.get("content", {})
+        instruction = task.get("instruction") or task.get("description", "")
+        logger.info("Received offloaded task from %s: %s", source, instruction)
+
+        if not self.capability_mgr or not instruction:
+            logger.warning("Swarm task ignored — no capability_mgr or empty instruction")
+            return
+
+        def _run():
+            try:
+                result = self.capability_mgr.execute_single_instruction(instruction, payload=task)
+                logger.info("Swarm offload '%s' result: %s", instruction, result.get("status", result))
+            except Exception as e:
+                logger.error("Swarm offload '%s' failed: %s", instruction, e)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def _run_gossip_server(self):
         """Lightweight TCP server to receive gossip JSON"""
@@ -114,39 +122,87 @@ class SwarmCoordinator:
         except Exception as e:
             logger.error(f"Gossip Server Error: {e}")
             
+    def _collect_local_threats(self) -> List[str]:
+        """Gather active threat indicators from local capabilities."""
+        threats = []
+        if not self.capability_mgr:
+            return threats
+        for cap_id in ("persistence_detection", "shadow_ai", "edr_realtime"):
+            cap = getattr(self.capability_mgr, "capability_instances", {}).get(cap_id)
+            if not cap:
+                continue
+            try:
+                result = cap.collect() if hasattr(cap, "collect") else cap.execute()
+                # Each capability signals threats differently
+                if result.get("threats") or result.get("detections") or result.get("suspicious"):
+                    threats.append(cap_id)
+            except Exception:
+                pass
+        return threats
+
+    def _handle_peer_threats(self, peer_payload: dict):
+        """
+        Act on threat indicators received from a peer via gossip.
+        If the peer reports active threats, raise a local alert so the
+        SOC and orchestrator are notified across the swarm.
+        """
+        peer_threats = peer_payload.get("threats", [])
+        peer_id = peer_payload.get("agent_id", "unknown")
+        if not peer_threats or not self.capability_mgr:
+            return
+        for threat in peer_threats:
+            logger.warning("Swarm threat received from peer %s: %s", peer_id, threat)
+            # Delegate to autonomous_response capability if available
+            ar_cap = getattr(self.capability_mgr, "capability_instances", {}).get("autonomous_response")
+            if ar_cap and hasattr(ar_cap, "raise_alert"):
+                try:
+                    cfg = self.config
+                    ar_cap.raise_alert(
+                        alert_type="SWARM_THREAT_INTEL",
+                        description=f"Peer {peer_id} reported threat: {threat}",
+                        severity="High",
+                        backend_url=cfg.get("coordinator_url", "http://localhost:5000").replace("ray://", "http://").replace("10001", "5000"),
+                        api_key=cfg.get("api_key", ""),
+                        agent_id=self.agent_id,
+                    )
+                except Exception as e:
+                    logger.error("Failed to raise swarm threat alert: %s", e)
+
     def _run_gossip_loop(self):
         """Periodically fetch peers and gossip local state"""
         while self.running:
             try:
                 # 1. Fetch peers from backend
                 peers_to_gossip = self._fetch_peers_from_backend()
-                
-                # 2. Select random peers
+
+                # 2. Process threats received from peers already stored in peer_data
+                for peer_id, peer_payload in list(self.peer_data.items()):
+                    self._handle_peer_threats(peer_payload)
+
+                # 3. Select random peers and send local state with real threat data
                 if peers_to_gossip:
                     targets = random.sample(peers_to_gossip, min(len(peers_to_gossip), 3))
-                    
-                    # 3. Send local state
+                    local_threats = self._collect_local_threats()
                     local_state = {
                         "type": "GOSSIP",
                         "agent_id": self.agent_id,
                         "timestamp": time.time(),
-                        "health": "optimal",
-                        "active_tasks": 0, # Mock
-                        "insights": ["No threats detected"],
+                        "health": "degraded" if local_threats else "optimal",
+                        "active_tasks": 0,
+                        "threats": local_threats,
                         "gossip_port": self.gossip_port,
-                        "ip_address": self.local_ip
+                        "ip_address": self.local_ip,
                     }
-                    
                     for target in targets:
-                        self._send_gossip(target["ip_address"], target.get("port", 15000), local_state) # Default port if not known
-                
+                        self._send_gossip(target["ip_address"], target.get("port", 15000), local_state)
+
                 # 4. Report topology (refresh connections)
                 self.report_topology()
-                
+
             except Exception as e:
                 logger.error(f"Gossip Loop Error: {e}")
-            
-            time.sleep(10) # Gossip every 10 seconds
+
+            time.sleep(10)  # Gossip every 10 seconds
 
     def _fetch_peers_from_backend(self):
         try:
@@ -159,8 +215,8 @@ class SwarmCoordinator:
             resp = requests.get(url, timeout=2)
             if resp.status_code == 200:
                 return resp.json().get("peers", [])
-        except:
-            pass
+        except Exception as exc:
+            logger.debug("Peer discovery failed: %s", exc)
         return []
 
     def _send_gossip(self, ip, port, payload):
@@ -170,9 +226,8 @@ class SwarmCoordinator:
             client.connect((ip, int(port)))
             client.send(json.dumps(payload).encode('utf-8'))
             client.close()
-        except:
-            # logger.warning(f"Failed to send gossip to {ip}:{port}")
-            pass
+        except Exception as exc:
+            logger.warning("Failed to send gossip to %s:%s — %s", ip, port, exc)
 
     def report_topology(self):
         """Send current peer connections to the backend for visualization"""

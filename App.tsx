@@ -24,6 +24,7 @@ import { AuditLogDashboard } from './components/AuditLogDashboard';
 import { SecurityAuditDashboard } from './components/SecurityAuditDashboard';
 import { SettingsDashboard } from './components/SettingsDashboard';
 import { SiemRulesDashboard } from './components/SiemRulesDashboard';
+import { IncidentResponseDashboard } from './components/IncidentResponseDashboard';
 import { TenantManagementDashboard } from './components/TenantManagementDashboard';
 import { AddNewTenantModal } from './components/AddNewTenantModal';
 import { ManageTenantModal } from './components/ManageTenantModal';
@@ -97,9 +98,51 @@ import { ServiceMeshDashboard } from './components/ServiceMeshDashboard';
 import { WebMonitoringDashboard } from './components/WebMonitoringDashboard';
 import { EDRDashboard } from './components/EDRDashboard';
 import { UEBADashboard } from './components/UEBADashboard';
+import { MDRDashboard } from './components/MDRDashboard';
+import { XDRDashboard } from './components/XDRDashboard';
+import { APMDashboard } from './components/APMDashboard';
+import AgentApprovalDashboard from './components/AgentApprovalDashboard';
 import ThreatDashboard from './components/ThreatDashboard';
+import CloudIntegrationsDashboard from './components/CloudIntegrationsDashboard';
+import JITAccessDashboard from './components/JITAccessDashboard';
+import IncidentWarRoomDashboard from './components/IncidentWarRoomDashboard';
+import PrivacyDashboard from './components/PrivacyDashboard';
+import ScheduledReportsDashboard from './components/ScheduledReportsDashboard';
+import { SecretsManagementDashboard } from './components/SecretsManagementDashboard';
+import CustomFrameworkBuilder from './components/CustomFrameworkBuilder';
+import DeceptionDashboard from './components/DeceptionDashboard';
+import { NetworkTopologyMap } from './components/NetworkTopologyMap';
+import { ShadowAI } from './components/ShadowAI';
+import KnowledgeBaseDashboard from './components/KnowledgeBaseDashboard';
+import RetentionPolicyDashboard from './components/RetentionPolicyDashboard';
+import APISecurityDashboard from './components/APISecurityDashboard';
+import DAMDashboard from './components/DAMDashboard';
+import K8sSecurityDashboard from './components/K8sSecurityDashboard';
+import NDRDashboard from './components/NDRDashboard';
+import InsiderThreatDashboard from './components/InsiderThreatDashboard';
+import EmailSecurityDashboard from './components/EmailSecurityDashboard';
+import SupplyChainDashboard from './components/SupplyChainDashboard';
+import { HADRDashboard } from './components/HADRDashboard';
+import { CorrelationDashboard } from './components/CorrelationDashboard';
 
 import { PentestDashboard } from './components/PentestDashboard';
+import FutureTechDashboard from './components/FutureTechDashboard';
+const PredictiveHealthDashboard = React.lazy(() => import('./components/PredictiveHealthDashboard').then(m => ({ default: m.PredictiveHealthDashboard })));
+const SystemHealthDashboard = React.lazy(() => import('./components/SystemHealthDashboard').then(m => ({ default: m.SystemHealthDashboard })));
+const GoalSystemDashboard = React.lazy(() => import('./components/GoalSystemDashboard').then(m => ({ default: m.GoalSystemDashboard })));
+const IntegrationsHub = React.lazy(() => import('./components/IntegrationsHub').then(m => ({ default: m.IntegrationsHub })));
+const ComplianceFrameworksDashboard = React.lazy(() => import('./components/ComplianceFrameworksDashboard').then(m => ({ default: m.ComplianceFrameworksDashboard })));
+const RemoteAccessDashboard = React.lazy(() => import('./components/RemoteAccessDashboard').then(m => ({ default: m.RemoteAccessDashboard })));
+const AIRemediationDashboard = React.lazy(() => import('./components/AIRemediationDashboard').then(m => ({ default: m.AIRemediationDashboard })));
+const RollbackDashboard = React.lazy(() => import('./components/RollbackDashboard').then(m => ({ default: m.RollbackDashboard })));
+const FimAlertsDashboard = React.lazy(() => import('./components/FimAlertsPanel').then(m => ({ default: m.FimAlertsPanel })));
+const RuntimeSecurityDashboard = React.lazy(() => import('./components/RuntimeSecurityTab').then(m => ({ default: m.RuntimeSecurityTab })));
+const SASTDashboardLazy = React.lazy(() => import('./components/SASTDashboard').then(m => ({ default: m.SASTDashboard })));
+const PipelineSecurityDashboard = React.lazy(() => import('./components/PipelineSecurityDashboard').then(m => ({ default: m.PipelineSecurityDashboard })));
+const IaCSecurityDashboard = React.lazy(() => import('./components/IaCSecurityDashboard').then(m => ({ default: m.IaCSecurityDashboard })));
+const ContainerScanDashboard = React.lazy(() => import('./components/ContainerScanDashboard').then(m => ({ default: m.ContainerScanDashboard })));
+const PAMDashboard = React.lazy(() => import('./components/PAMDashboard').then(m => ({ default: m.PAMDashboard })));
+const BAAManagement = React.lazy(() => import('./components/BAAManagement').then(m => ({ default: m.BAAManagement })));
 const MitreAttackHeatmap = React.lazy(() => import('./components/MitreAttackHeatmap'));
 const DLPDashboard = React.lazy(() => import('./components/DLPDashboard'));
 const TicketingIntegration = React.lazy(() => import('./components/TicketingIntegration'));
@@ -175,6 +218,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   llmops: 'view:ai_governance',
   zeroTrustQuantum: 'view:security',
   futureOps: 'view:dashboard',
+  futureTech: 'view:dashboard',
   unifiedOps: 'view:dashboard',
   jobs: 'view:dashboard',
   securitySimulation: 'view:security',
@@ -185,7 +229,6 @@ const viewPermissionMap: Record<AppView, Permission> = {
   paymentSettings: 'manage:settings',
   subscriptionManagement: 'view:dashboard',
   invoices: 'view:dashboard',
-  dastFindings: 'view:security',
   securityAudit: 'view:security_audit',
   advancedBi: 'view:advanced_bi',
   pentest: 'view:security',
@@ -203,6 +246,8 @@ const viewPermissionMap: Record<AppView, Permission> = {
   networkTopology: 'view:network',
   webMonitoring: 'view:web_monitoring',
   edr: 'view:security',
+  mdr: 'view:mdr',
+  xdr: 'view:xdr',
   mitreAttack: 'view:security',
   dlp: 'view:security',
   ticketing: 'manage:settings',
@@ -211,6 +256,43 @@ const viewPermissionMap: Record<AppView, Permission> = {
   vulnerabilities: 'view:vulnerabilities',
   siemRules: 'view:security',
   incidentResponse: 'investigate:security',
+  apm: 'view:tracing',
+  agentApproval: 'view:agents',
+  cloudIntegrations: 'manage:settings',
+  jitAccess: 'manage:settings',
+  incidentWarRoom: 'investigate:security',
+  privacy: 'view:compliance',
+  scheduledReports: 'view:reporting',
+  secretsManagement: 'manage:settings',
+  customFrameworks: 'view:compliance',
+  deception: 'view:security',
+  shadowAI: 'view:security',
+  hadr: 'manage:settings',
+  correlations: 'view:security',
+  knowledgeBase: 'view:dashboard',
+  retentionPolicy: 'manage:settings',
+  apiSecurity: 'view:security',
+  databaseMonitoring: 'view:security',
+  k8sSecurity: 'view:security',
+  ndr: 'view:security',
+  insiderThreat: 'view:security',
+  emailSecurity: 'view:security',
+  supplyChain: 'view:devsecops',
+  predictiveHealth: 'view:predictive_health',
+  goalSystem: 'view:goal_system',
+  integrationsHub: 'view:integrations',
+  complianceFrameworks: 'view:compliance',
+  fim: 'view:security',
+  runtimeSecurity: 'view:security',
+  sast: 'view:security',
+  remoteAccess: 'view:agents',
+  aiRemediation: 'view:ai_governance',
+  rollback: 'manage:settings',
+  pipelineSecurity: 'view:devsecops',
+  iacSecurity: 'view:devsecops',
+  containerScan: 'view:devsecops',
+  pam: 'manage:settings',
+  baaManagement: 'view:compliance',
 };
 
 
@@ -388,11 +470,11 @@ const App: React.FC = () => {
         api.fetchAgentUpgradeJobs(), api.fetchPatchDeploymentJobs(), api.fetchVulnerabilityScanJobs(), api.fetchLogs(), api.fetchUebaFindings(),
         api.fetchModelExperiments(), api.fetchRegisteredModels(), api.fetchAutomationPolicies(),
         api.fetchSastFindings(), api.fetchCodeRepositories(), api.fetchApiDocs(),
-        api.fetchIncidentImpactGraph('dummy-id'), api.fetchSensitiveDataFindings(),
+        api.fetchSensitiveDataFindings(),
         api.fetchAttackPaths(), api.fetchServiceTemplates(), api.fetchProvisionedServices(),
         api.fetchDoraMetrics(), api.fetchChaosExperiments(), api.fetchProactiveInsights(),
         api.fetchTraces(), api.fetchServiceMap(), api.fetchThreatIntelFeed(), api.fetchNetworkDevices(),
-        api.fetchGlobalComplianceData(),
+        api.fetchGlobalComplianceData(), api.fetchTasks(),
       ]);
 
       const getResult = <T,>(index: number, fallback: T): T => {
@@ -442,20 +524,20 @@ const App: React.FC = () => {
       setSastFindings(getResult(32, []));
       setCodeRepositories(getResult(33, []));
       setApiDocs(getResult(34, []));
-      setIncidentImpactGraph(getResult(35, null));
-      setSensitiveDataFindings(getResult(36, []));
-      setAttackPaths(getResult(37, []));
-      setServiceTemplates(getResult(38, []));
-      setProvisionedServices(getResult(39, []));
-      setDoraMetrics(getResult(40, []));
-      setChaosExperiments(getResult(41, []));
-      setProactiveInsights(getResult(42, []));
-      setTraces(getResult(43, []));
-      setServiceMap(getResult(44, null));
-      setThreatIntelFeed(getResult(45, []));
-      const netDevs = getResult(46, []);
+      setSensitiveDataFindings(getResult(35, []));
+      setAttackPaths(getResult(36, []));
+      setServiceTemplates(getResult(37, []));
+      setProvisionedServices(getResult(38, []));
+      setDoraMetrics(getResult(39, []));
+      setChaosExperiments(getResult(40, []));
+      setProactiveInsights(getResult(41, []));
+      setTraces(getResult(42, []));
+      setServiceMap(getResult(43, null));
+      setThreatIntelFeed(getResult(44, []));
+      const netDevs = getResult(45, []);
       setNetworkDevices(netDevs);
-      setAssetComplianceData(getResult(47, []));
+      setAssetComplianceData(getResult(46, []));
+      setMyTasks(getResult(47, []));
 
       // Check if any critical data failed to determine "Backend Connected" status roughly
       const criticalFailures = results.slice(0, 3).filter(r => r.status === 'rejected').length;
@@ -636,7 +718,7 @@ const App: React.FC = () => {
             return acc;
           }, {} as Record<string, typeof agentsData[0]>)
         );
-        setAgents(uniqueAgents);
+        setAgents(uniqueAgents as Agent[]);
       }).catch(err => console.error("Error polling agents:", err));
     }, 5000);
 
@@ -669,13 +751,10 @@ const App: React.FC = () => {
         console.log('[App] New notification via WebSocket:', notification);
         setNotifications(prev => [{
           id: `notif-${Date.now()}`,
-          type: notification.type || 'info',
-          title: notification.title || 'Notification',
-          message: notification.message,
+          message: notification.message || notification.title || 'Notification',
           timestamp: notification.timestamp || new Date().toISOString(),
-          read: false,
-          userId: currentUser.id,
-          tenantId: activeTenantId
+          isRead: false,
+          linkTo: 'dashboard' as AppView,
         }, ...prev]);
       };
 
@@ -742,7 +821,7 @@ const App: React.FC = () => {
       const tenant = tenants.find(t => t.id === currentUser.tenantId);
       if (tenant && currentUser.role !== 'Super Admin') {
         // Intersect user permissions with tenant's enabled features
-        effectiveFeatures = userPerms.filter(p => tenant.enabledFeatures.includes(p as string));
+        effectiveFeatures = userPerms.filter(p => tenant.enabledFeatures.includes(p));
       } else {
         effectiveFeatures = userPerms;
       }
@@ -1152,7 +1231,12 @@ const App: React.FC = () => {
 
   const handleCaseUpdate = async (caseItem: SecurityCase): Promise<SecurityCase> => {
     const updatedCase = await api.updateSecurityCase(caseItem);
-    setSecurityCases(prev => prev.map(c => c.id === updatedCase.id ? updatedCase : c));
+    setSecurityCases(prev => {
+      const exists = prev.some(c => c.id === updatedCase.id);
+      return exists
+        ? prev.map(c => c.id === updatedCase.id ? updatedCase : c)
+        : [updatedCase, ...prev];
+    });
     return updatedCase;
   };
 
@@ -1243,22 +1327,34 @@ const App: React.FC = () => {
     setIsCommandBarOpen(false);
   };
 
-  const handleAddTask = (text: string, priority: Priority) => {
-    const newTask: Task = {
-      id: Date.now(),
-      text,
-      priority,
-      completed: false
-    };
-    setMyTasks(prev => [...prev, newTask]);
+  const handleAddTask = async (text: string, priority: Priority) => {
+    try {
+      const newTask = await api.createTask(text, priority);
+      setMyTasks(prev => [newTask, ...prev]);
+    } catch {
+      const newTask: Task = { id: Date.now(), text, priority, completed: false };
+      setMyTasks(prev => [newTask, ...prev]);
+    }
   };
 
-  const handleToggleTask = (id: number) => {
+  const handleToggleTask = async (id: number) => {
+    const task = myTasks.find(t => t.id === id);
+    if (!task) return;
     setMyTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    try {
+      await api.updateTask(id, { completed: !task.completed });
+    } catch {
+      setMyTasks(prev => prev.map(t => t.id === id ? { ...t, completed: task.completed } : t));
+    }
   };
 
-  const handleDeleteTask = (id: number) => {
+  const handleDeleteTask = async (id: number) => {
     setMyTasks(prev => prev.filter(t => t.id !== id));
+    try {
+      await api.deleteTask(id);
+    } catch {
+      // deletion best-effort; task already removed from UI
+    }
   };
 
   const userContextValue = useMemo(() => ({
@@ -1335,9 +1431,11 @@ const App: React.FC = () => {
       case 'aiGovernance': return <AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} />;
       case 'finops': return <FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} />;
       case 'auditLog': return <AuditLogDashboard logs={tenantData.auditLogs} />;
-      case 'settings': return <SettingsDashboard integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => prev.map(r => r.id === saved.id ? saved : r)))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onAddTenant={handleAddNewTenant} onDeleteTenant={handleDeleteTenant} />;
+      case 'settings': return <SettingsDashboard integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => prev.map(r => r.id === saved.id ? saved : r)))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} />;
       case 'tenantManagement': return <TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} />;
       case 'siem': return <ThreatDashboard />;
+      case 'siemRules': return <SiemRulesDashboard />;
+      case 'incidentResponse': return <IncidentResponseDashboard />;
       case 'logExplorer': return <LogExplorerDashboard />;
       case 'threatHunting': return <ThreatHuntingDashboard findings={tenantData.uebaFindings} auditLogs={auditLogs} users={users} />;
       case 'incidentImpact': return <IncidentImpactDashboard graph={incidentImpactGraph!} context={viewingImpactFor} alerts={tenantData.alerts} cases={tenantData.securityCases} onAnalyze={handleAnalyzeImpact} />;
@@ -1387,6 +1485,8 @@ const App: React.FC = () => {
       case 'unifiedOps':
       case 'futureOps':
         return <FutureOpsDashboard />;
+      case 'futureTech':
+        return <FutureTechDashboard />;
       case 'swarm': return <SwarmDashboard />;
       case 'digitalTwin': return <SimulationDashboard />;
       case 'riskRegister': return <RiskRegister />;
@@ -1396,6 +1496,7 @@ const App: React.FC = () => {
       case 'securityTraining': return <SecurityTraining />;
       case 'complianceOracle': return <ComplianceOracleDashboard />;
       case 'cissporacle': return <CISSPOracle />;
+      case 'complianceFrameworks': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Compliance Frameworks...</div>}><ComplianceFrameworksDashboard /></Suspense>;
       case 'jobs': return <JobsDashboard />;
       case 'llmops': return <LLMOpsDashboard />;
       case 'softwareDeployment': return <SoftwareDeployment />;
@@ -1407,7 +1508,10 @@ const App: React.FC = () => {
       case 'approvalWorkflows': return <MultiStepApprovalDashboard />;
       case 'advancedBi':
       case 'biDashboard': return <AdvancedBiDashboard tenantId={activeTenantId || undefined} />;
-      case 'systemHealth': return <ApiStatusDashboard />;
+      case 'systemHealth': return <Suspense fallback={<div className="p-8 text-slate-400">Loading System Health...</div>}><SystemHealthDashboard /></Suspense>;
+      case 'predictiveHealth': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Predictive Health...</div>}><PredictiveHealthDashboard /></Suspense>;
+      case 'goalSystem': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Goal System...</div>}><GoalSystemDashboard /></Suspense>;
+      case 'integrationsHub': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Integrations Hub...</div>}><IntegrationsHub /></Suspense>;
       case 'securityAudit': return <SecurityAuditDashboard />;
       case 'dataWarehouse': return <DataWarehouseDashboard />;
       case 'streaming': return <StreamingDashboard />;
@@ -1418,12 +1522,48 @@ const App: React.FC = () => {
       case 'xai': return <XAIDashboard />;
       case 'abTesting': return <ABTestingDashboard />;
       case 'edr': return <EDRDashboard token={localStorage.getItem('access_token') || undefined} />;
+      case 'mdr': return <MDRDashboard />;
+      case 'xdr': return <XDRDashboard />;
       case 'mitreAttack': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading MITRE ATT&CK...</div>}><MitreAttackHeatmap /></Suspense>;
       case 'dlp': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading DLP...</div>}><DLPDashboard /></Suspense>;
       case 'ticketing': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Ticketing...</div>}><TicketingIntegration /></Suspense>;
       case 'ueba': return <UEBADashboard />;
       case 'vulnerabilities': return <VulnerabilityManagement />;
-      default: return <Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} currentUser={currentUser} setCurrentView={handleSetCurrentView} />;
+      case 'apm': return <APMDashboard tenantId={activeTenantId || ''} />;
+      case 'agentApproval': return <AgentApprovalDashboard />;
+      case 'cloudIntegrations': return <CloudIntegrationsDashboard />;
+      case 'jitAccess': return <JITAccessDashboard />;
+      case 'incidentWarRoom': return <IncidentWarRoomDashboard />;
+      case 'privacy': return <PrivacyDashboard />;
+      case 'scheduledReports': return <ScheduledReportsDashboard />;
+      case 'secretsManagement': return <SecretsManagementDashboard />;
+      case 'customFrameworks': return <CustomFrameworkBuilder />;
+      case 'deception': return <DeceptionDashboard />;
+      case 'shadowAI': return <ShadowAI />;
+      case 'networkTopology': return <NetworkTopologyMap refreshKey={0} />;
+      case 'hadr': return <HADRDashboard />;
+      case 'correlations': return <CorrelationDashboard tenantId={activeTenantId || ''} />;
+      case 'knowledgeBase': return <KnowledgeBaseDashboard />;
+      case 'retentionPolicy': return <RetentionPolicyDashboard />;
+      case 'apiSecurity': return <APISecurityDashboard />;
+      case 'databaseMonitoring': return <DAMDashboard />;
+      case 'k8sSecurity': return <K8sSecurityDashboard />;
+      case 'ndr': return <NDRDashboard />;
+      case 'insiderThreat': return <InsiderThreatDashboard />;
+      case 'emailSecurity': return <EmailSecurityDashboard />;
+      case 'supplyChain': return <SupplyChainDashboard />;
+      case 'fim': return <Suspense fallback={<div className="p-8 text-slate-400">Loading FIM...</div>}><FimAlertsDashboard /></Suspense>;
+      case 'runtimeSecurity': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Runtime Security...</div>}><RuntimeSecurityDashboard /></Suspense>;
+      case 'sast': return <Suspense fallback={<div className="p-8 text-slate-400">Loading SAST...</div>}><SASTDashboardLazy /></Suspense>;
+      case 'remoteAccess': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Remote Access...</div>}><RemoteAccessDashboard /></Suspense>;
+      case 'aiRemediation': return <Suspense fallback={<div className="p-8 text-slate-400">Loading AI Remediation...</div>}><AIRemediationDashboard /></Suspense>;
+      case 'rollback': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Rollback...</div>}><RollbackDashboard /></Suspense>;
+      case 'pipelineSecurity': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Pipeline Security...</div>}><PipelineSecurityDashboard /></Suspense>;
+      case 'iacSecurity': return <Suspense fallback={<div className="p-8 text-slate-400">Loading IaC Security...</div>}><IaCSecurityDashboard /></Suspense>;
+      case 'containerScan': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Container Scan...</div>}><ContainerScanDashboard /></Suspense>;
+      case 'pam': return <Suspense fallback={<div className="p-8 text-slate-400">Loading PAM...</div>}><PAMDashboard /></Suspense>;
+      case 'baaManagement': return <Suspense fallback={<div className="p-8 text-slate-400">Loading BAA Management...</div>}><BAAManagement /></Suspense>;
+      default: return <Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} />;
 
     }
   };
@@ -1518,6 +1658,7 @@ const App: React.FC = () => {
               onClose={() => setManagingTenant(null)}
               tenant={managingTenant}
               onSave={handleSaveTenantFeatures}
+              onDelete={handleDeleteTenant}
             />
           )}
           <RegisterAgentModal
@@ -1530,6 +1671,7 @@ const App: React.FC = () => {
             isOpen={isChatOpen}
             onClose={() => setIsChatOpen(false)}
             context={{ currentView }}
+            onNavigate={(view) => setCurrentView(view as any)}
           />
           <AICommandBar
             isOpen={isCommandBarOpen}

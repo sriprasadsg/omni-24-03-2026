@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KeyIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon, RefreshCwIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
+import { authFetch } from '../services/apiService';
 
 interface Secret {
     id: string;
@@ -76,15 +77,9 @@ export const SecretsManagementDashboard: React.FC = () => {
         setLoading(true);
         try {
             const [secretsRes, statsRes, auditRes] = await Promise.all([
-                fetch('/api/secrets/list', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/secrets/stats', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                fetch('/api/secrets/audit-log?limit=50', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                })
+                authFetch('/api/secrets/list'),
+                authFetch('/api/secrets/stats'),
+                authFetch('/api/secrets/audit-log?limit=50'),
             ]);
 
             if (secretsRes.ok) setSecrets(await secretsRes.json());
@@ -101,12 +96,8 @@ export const SecretsManagementDashboard: React.FC = () => {
         e.preventDefault();
 
         try {
-            const response = await fetch('/api/secrets/create', {
+            const response = await authFetch('/api/secrets/create', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify(formData)
             });
 
@@ -129,12 +120,8 @@ export const SecretsManagementDashboard: React.FC = () => {
         if (!confirm(`Rotate secret "${name}"? This will generate a new value.`)) return;
 
         try {
-            const response = await fetch('/api/secrets/rotate', {
+            const response = await authFetch('/api/secrets/rotate', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({ name })
             });
 
@@ -156,12 +143,8 @@ export const SecretsManagementDashboard: React.FC = () => {
         if (!confirm(`Revoke secret "${name}"? This action cannot be undone.`)) return;
 
         try {
-            const response = await fetch('/api/secrets/revoke', {
+            const response = await authFetch('/api/secrets/revoke', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({ name })
             });
 
@@ -180,9 +163,7 @@ export const SecretsManagementDashboard: React.FC = () => {
 
     const handleViewSecret = async (secret: Secret) => {
         try {
-            const response = await fetch(`/api/secrets/${secret.name}/value`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await authFetch(`/api/secrets/${secret.name}/value`);
 
             if (response.ok) {
                 const data = await response.json();

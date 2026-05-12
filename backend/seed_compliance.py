@@ -6,7 +6,7 @@ async def seed_compliance():
     await connect_to_mongo()
     db = get_database()
     
-    print("🌱 Seeding Massive Compliance Frameworks...")
+    print("Seeding Massive Compliance Frameworks...")
     
     # Massive Expanded Dataset
     frameworks = [
@@ -492,7 +492,7 @@ async def seed_compliance():
             {"$set": fw},
             upsert=True
         )
-        print(f"✅ Sealed {fw['name']}")
+        print(f"Sealed {fw['name']}")
 
     await close_mongo_connection()
 

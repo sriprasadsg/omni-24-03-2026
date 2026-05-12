@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authFetch } from '../services/apiService';
 import { PatchDeploymentJob, PatchDeploymentJobStatus } from '../types';
 import { UploadCloudIcon, ZapIcon, ChevronDownIcon, ClockIcon, CheckIcon, AlertTriangleIcon, XCircleIcon, CogIcon, TerminalSquareIcon, XIcon, RefreshCwIcon } from './icons';
 
@@ -61,9 +62,8 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
 
         setRollingBack(jobId);
         try {
-            const response = await fetch(`/api/deployments/${jobId}/rollback`, {
+            const response = await authFetch(`/api/deployments/${jobId}/rollback`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reason: 'Manual rollback from UI' })
             });
 
@@ -119,8 +119,8 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
                                                 <span className="text-xs font-medium">{job.progress}%</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-xs">{(job.patchIds || job.targetPatchIds || []).length} Patches to {(job.targetAssets || job.targetAssetIds || []).length} Assets</td>
-                                        <td className="px-4 py-3 text-xs">{new Date(job.startTime || job.scheduledAt).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-xs">{(job.targetPatchIds || []).length} Patches to {(job.targetAssetIds || []).length} Assets</td>
+                                        <td className="px-4 py-3 text-xs">{new Date(job.scheduledAt).toLocaleString()}</td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex justify-end gap-2">
                                                 <button
@@ -130,7 +130,7 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
                                                 >
                                                     <TerminalSquareIcon size={14} />
                                                 </button>
-                                                {(job.status === 'Completed' || job.status === 'Failed' || job.status === 'Partially Completed') && (
+                                                {(job.status === 'Completed' || job.status === 'Failed' || job.status === 'Completed with errors') && (
                                                     <button
                                                         onClick={() => handleRollback(job.id)}
                                                         disabled={rollingBack === job.id}

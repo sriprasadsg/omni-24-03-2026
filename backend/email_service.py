@@ -381,5 +381,59 @@ View full details in your dashboard.
             'results': results
         }
 
+    async def send_report(self, recipient: str, report_name: str, report_data: dict, attachments=None) -> dict:
+        """Send a scheduled report to a recipient via SMTP using saved tenant settings."""
+        try:
+            from database import get_database
+            db = get_database()
+            smtp_doc = await db.smtp_config.find_one({})
+            if not smtp_doc or not smtp_doc.get("smtpPasswordEncrypted"):
+                return {"success": False, "message": "SMTP not configured"}
+
+            report_type = report_data.get("report_type", "report")
+            generated_at = report_data.get("generated_at", "")
+            period_start = report_data.get("period_start", "")
+            period_end = report_data.get("period_end", "")
+
+            rows = []
+            for key, value in report_data.items():
+                if key in ("report_type", "report_name", "generated_at", "tenant_id", "period_start", "period_end"):
+                    continue
+                rows.append(f"  {key.replace('_', ' ').title()}: {value}")
+
+            body_text = (
+                f"Report: {report_name}\n"
+                f"Generated: {generated_at}\n"
+                f"Period: {period_start} — {period_end}\n\n"
+                + "\n".join(rows)
+            )
+
+            body_html = f"""<!DOCTYPE html>
+<html><head><style>
+body{{font-family:Arial,sans-serif;color:#333;}}
+.header{{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:24px;border-radius:8px 8px 0 0;}}
+.content{{background:#f9f9f9;padding:24px;border-radius:0 0 8px 8px;}}
+table{{border-collapse:collapse;width:100%;}}
+td,th{{padding:8px 12px;border:1px solid #ddd;text-align:left;}}
+th{{background:#667eea;color:#fff;}}
+</style></head><body>
+<div class="header"><h2>{report_name}</h2><p>Generated: {generated_at}</p></div>
+<div class="content">
+<table><tr><th>Metric</th><th>Value</th></tr>
+{"".join(f"<tr><td>{k.replace('_',' ').title()}</td><td>{v}</td></tr>" for k,v in report_data.items() if k not in ('report_type','report_name','generated_at','tenant_id','period_start','period_end'))}
+</table></div></body></html>"""
+
+            return self.send_email(
+                smtp_config=smtp_doc,
+                to_email=recipient,
+                subject=f"Scheduled Report: {report_name}",
+                body_text=body_text,
+                body_html=body_html,
+                attachments=attachments,
+            )
+        except Exception as exc:
+            return {"success": False, "message": str(exc)}
+
+
 # Global email service instance
 email_service = EmailService()

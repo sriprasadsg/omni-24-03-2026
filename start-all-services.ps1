@@ -16,12 +16,25 @@ if (-not (Test-Path $projectRoot)) {
     exit 1
 }
 
+Write-Host "Checking for existing processes on ports 3000 and 5000..." -ForegroundColor Yellow
+$ports = @(3000, 5000)
+foreach ($p in $ports) {
+    $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+    if ($conns) {
+        foreach ($c in $conns) {
+            Write-Host "Killing PID $($c.OwningProcess) on port $p..." -ForegroundColor Red
+            Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+Write-Host ""
+
 Write-Host "Starting services..." -ForegroundColor Green
 Write-Host ""
 
 # 1. Launch Backend (uvicorn)
 Write-Host "[1/3] Starting Backend (Port 5000)..." -ForegroundColor Yellow
-$backendCmd = "cd '$projectRoot\backend'; Write-Host 'Backend Server Starting...' -ForegroundColor Green; & 'venv\Scripts\python.exe' -m uvicorn app:app --reload --port 5000 --host 127.0.0.1"
+$backendCmd = "cd '$projectRoot\backend'; Write-Host 'Backend Server Starting...' -ForegroundColor Green; & 'venv\Scripts\python.exe' -m uvicorn app:socket_app --port 5000 --host 0.0.0.0"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
 Write-Host "  ✓ Backend launched in new window" -ForegroundColor Green
 Start-Sleep -Seconds 2

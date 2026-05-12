@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authFetch } from '../services/apiService';
 import { Search, Terminal, AlertTriangle, CheckCircle, Play } from 'lucide-react';
 
 interface ThreatHuntResult {
@@ -20,9 +21,8 @@ export function ThreatHunting() {
         setResult(null);
 
         try {
-            const response = await fetch('/api/ai/threat-hunt', {
+            const response = await authFetch('/api/ai/threat-hunt', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query })
             });
 

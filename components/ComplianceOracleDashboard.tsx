@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authFetch } from '../services/apiService';
 import { FileText, Shield, Code, CheckCircle, Upload, ArrowRight, Zap } from 'lucide-react';
 
 interface TechnicalRule {
@@ -24,9 +25,8 @@ const ComplianceOracleDashboard: React.FC = () => {
         if (!policyText.trim()) return;
         setLoading(true);
         try {
-            const res = await fetch('/api/compliance_oracle/analyze', {
+            const res = await authFetch('/api/compliance_oracle/analyze', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ policy_text: policyText })
             });
             const data = await res.json();

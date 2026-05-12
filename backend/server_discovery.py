@@ -356,7 +356,7 @@ class ServerDiscovery:
                     "os_version": os_version,
                     "open_ports": open_ports,
                     "params": "nmap",
-                    "lastSeen": datetime.utcnow().isoformat()
+                    "lastSeen": datetime.now(timezone.utc).isoformat()
                 })
             except Exception as e:
                  logging.warning(f"Error parsing Nmap result for {host}: {e}")
@@ -385,7 +385,7 @@ class ServerDiscovery:
                     "hostname": ServerDiscovery._resolve_hostname(received.psrc),
                     "status": "Up",
                     "device_type": ServerDiscovery._guess_device_type(received.psrc),
-                    "lastSeen": datetime.utcnow().isoformat()
+                    "lastSeen": datetime.now(timezone.utc).isoformat()
                 })
         except Exception as e:
             logging.error(f"ARP scan failed: {e}")
@@ -432,7 +432,7 @@ class ServerDiscovery:
                     "os_version": details.get("os_version", "Unknown"),
                     "open_ports": details.get("open_ports", []),
                     "params": "fallback_ping",
-                    "lastSeen": datetime.utcnow().isoformat()
+                    "lastSeen": datetime.now(timezone.utc).isoformat()
                 })
 
         # Scan full /24 subnet

@@ -97,7 +97,7 @@ class SoftwareManagementCapability(BaseCapability):
 
         if temp_file_path and os.path.exists(temp_file_path):
             try: os.remove(temp_file_path)
-            except: pass
+            except OSError: pass
             
         return ret
 
@@ -144,7 +144,7 @@ class SoftwareManagementCapability(BaseCapability):
             
         if temp_file_path and os.path.exists(temp_file_path):
             try: os.remove(temp_file_path)
-            except: pass
+            except OSError: pass
             
         return ret
 
@@ -276,7 +276,7 @@ class SoftwareManagementCapability(BaseCapability):
 
         if temp_file_path and os.path.exists(temp_file_path):
             try: os.remove(temp_file_path)
-            except: pass
+            except OSError: pass
             
         return ret
 
@@ -351,27 +351,48 @@ class SoftwareManagementCapability(BaseCapability):
             return {"status": "error", "error": str(e)}
 
 
-    def install_from_url(self, url: str, filename: str, install_args: str = None) -> Dict[str, Any]:
+    def install_from_url(self, url: str, filename: str, install_args: str = None,
+                         expected_sha256: str = None) -> Dict[str, Any]:
         """
         Download and install software from a URL (e.g., self-hosted repo).
+        Pass expected_sha256 (hex digest) to verify download integrity before executing.
         """
         import requests
         import tempfile
         import os
         import shlex
-        
+        import hashlib
+
         logger.info(f"Downloading software from {url}")
         try:
             # Create temp file
             temp_dir = tempfile.gettempdir()
             file_path = os.path.join(temp_dir, filename)
-            
-            # Download
+
+            # Download and compute SHA-256 simultaneously
+            sha256 = hashlib.sha256()
             with requests.get(url, stream=True) as r:
                 r.raise_for_status()
                 with open(file_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
+                        sha256.update(chunk)
+
+            # Verify integrity before executing anything
+            if expected_sha256:
+                actual = sha256.hexdigest().lower()
+                expected = expected_sha256.lower()
+                if actual != expected:
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+                    return {
+                        "status": "error",
+                        "error": "SHA-256 mismatch — download may be tampered",
+                        "expected": expected,
+                        "actual": actual,
+                    }
                         
             logger.info(f"Downloaded to {file_path}. Installing...")
             

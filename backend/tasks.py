@@ -22,7 +22,6 @@ def add(x, y):
     """
     Simple task to verify Celery worker is up and running.
     """
-    time.sleep(2) # Simulate work
     return x + y
 
 @celery_app.task(name='tasks.run_agent_task_async')
@@ -57,23 +56,57 @@ def run_agent_task_async(task_description: str, agent_id: str = "default"):
         }
 
 @celery_app.task(name='tasks.execute_remediation_script')
-def execute_remediation_script(script_content: str, language: str = "powershell"):
+def execute_remediation_script(script_content: str, language: str = "powershell", agent_id: str = None, tenant_id: str = None):
     """
-    Executes a remediation script (PowerShell/Bash) securely.
-    IN REALITY: This would send a command to the actual Agent via WebSocket/HTTP.
-    FOR DEMO: We simulate execution.
+    Dispatches a remediation script to a real agent via the instructions collection.
+    Polls for up to 60 seconds for completion, then returns timeout status.
     """
     import time
-    print(f"[Worker] Executing Remediation Script ({language})...")
-    print(f"Content: {script_content[:50]}...")
-    
-    time.sleep(3) # Simulate execution time
-    
-    # Mock Success
-    return {
-        "status": "success",
-        "output": "Package updated successfully. Service restarted. Vulnerability mitigated."
+    import uuid
+    from datetime import datetime, timezone
+    from pymongo import MongoClient
+
+    print(f"[Worker] Dispatching remediation script ({language}) to agent {agent_id}...")
+
+    mongo_url = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
+    client = MongoClient(mongo_url)
+    db = client['omni-agent']
+
+    instruction_id = str(uuid.uuid4())
+    instruction = {
+        "id": instruction_id,
+        "agent_id": agent_id,
+        "tenant_id": tenant_id,
+        "type": "run_script",
+        "parameters": {"script": script_content, "language": language},
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source": "remediation_task"
     }
+
+    if not agent_id:
+        # No agent target — log and return actionable error
+        client.close()
+        return {"status": "failed", "output": "No agent_id provided; cannot dispatch remediation script."}
+
+    db.instructions.insert_one(instruction)
+    print(f"[Worker] Instruction {instruction_id} queued for agent {agent_id}")
+
+    # Poll for result for up to 60 seconds
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        time.sleep(3)
+        result_doc = db.instruction_results.find_one({"instruction_id": instruction_id})
+        if result_doc:
+            client.close()
+            return {
+                "status": result_doc.get("status", "completed"),
+                "output": result_doc.get("output", ""),
+                "instruction_id": instruction_id
+            }
+
+    client.close()
+    return {"status": "timeout", "output": f"Agent {agent_id} did not respond within 60 seconds.", "instruction_id": instruction_id}
 
 @celery_app.task(name='tasks.run_periodic_patch_scan')
 def run_periodic_patch_scan():

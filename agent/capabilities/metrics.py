@@ -222,6 +222,26 @@ class MetricsCapability(BaseCapability):
              # Fallback or specific platform handling if needed
              pass
 
+        disk_metrics = []
+        for partition in psutil.disk_partitions():
+            if 'cdrom' in partition.opts:
+                continue
+            try:
+                usage = psutil.disk_usage(partition.mountpoint)
+                disk_metrics.append({
+                    "device": partition.device,
+                    "mountpoint": partition.mountpoint,
+                    "type": partition.fstype,
+                    "total": usage.total,
+                    "used": usage.used,
+                    "free": usage.free,
+                    "percent": usage.percent
+                })
+            except (PermissionError, OSError):
+                continue
+            except Exception as e:
+                continue
+
         return {
             "cpu": {
                 "percent": psutil.cpu_percent(interval=1),
@@ -233,18 +253,7 @@ class MetricsCapability(BaseCapability):
                 "available": psutil.virtual_memory().available,
                 "percent": psutil.virtual_memory().percent
             },
-            "disk": [
-                {
-                    "device": partition.device,
-                    "mountpoint": partition.mountpoint,
-                    "type": partition.fstype,
-                    "total": psutil.disk_usage(partition.mountpoint).total,
-                    "used": psutil.disk_usage(partition.mountpoint).used,
-                    "free": psutil.disk_usage(partition.mountpoint).free,
-                    "percent": psutil.disk_usage(partition.mountpoint).percent
-                }
-                for partition in psutil.disk_partitions() if 'cdrom' not in partition.opts
-            ],
+            "disk": disk_metrics,
             "network": {
                 "bytes_sent": psutil.net_io_counters().bytes_sent,
                 "bytes_recv": psutil.net_io_counters().bytes_recv,

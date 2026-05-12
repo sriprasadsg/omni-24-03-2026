@@ -23,7 +23,7 @@ async def seed_network():
         "deviceType": "Router",
         "subnet": "192.168.1.0/24",
         "status": "Up",
-        "lastSeen": datetime.utcnow().isoformat(),
+        "lastSeen": datetime.now(timezone.utc).isoformat(),
         "tenantId": "default",
         "interfaces": [], "configBackups": [], "vulnerabilities": []
     })
@@ -35,7 +35,7 @@ async def seed_network():
         "deviceType": "Firewall",
         "subnet": "192.168.1.0/24",
         "status": "Up",
-        "lastSeen": datetime.utcnow().isoformat(),
+        "lastSeen": datetime.now(timezone.utc).isoformat(),
         "tenantId": "default",
         "interfaces": [], "configBackups": [], "vulnerabilities": []
     })
@@ -50,7 +50,7 @@ async def seed_network():
             "deviceType": "Linux Web Server",
             "subnet": "10.0.0.0/24",
             "status": "Up",
-            "lastSeen": datetime.utcnow().isoformat(),
+            "lastSeen": datetime.now(timezone.utc).isoformat(),
             "tenantId": "default",
             "interfaces": [], "configBackups": [], "vulnerabilities": []
         })
@@ -63,7 +63,7 @@ async def seed_network():
         "deviceType": "Linux Database Server",
         "subnet": "10.0.0.0/24",
         "status": "Up",
-        "lastSeen": datetime.utcnow().isoformat(),
+        "lastSeen": datetime.now(timezone.utc).isoformat(),
         "tenantId": "default",
         "interfaces": [], "configBackups": [], "vulnerabilities": []
     })
@@ -78,7 +78,7 @@ async def seed_network():
             "deviceType": "Printer",
             "subnet": "172.16.0.0/16",
             "status": "Up",
-            "lastSeen": datetime.utcnow().isoformat(),
+            "lastSeen": datetime.now(timezone.utc).isoformat(),
             "tenantId": "default",
             "interfaces": [], "configBackups": [], "vulnerabilities": []
         })

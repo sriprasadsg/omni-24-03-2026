@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { authFetch } from '../services/apiService';
 import { Terminal, Power, X, Wifi, WifiOff } from 'lucide-react';
 import { Agent } from '../types';
 
@@ -30,7 +31,8 @@ export default function AgentRemoteControl({ agent, onClose }: AgentRemoteContro
         const userId = payload.sub; // This is the email
 
         // Connect to WebSocket
-        const websocket = new WebSocket(`ws://localhost:5000/api/agents/remote/ws/user/${userId}`);
+        const wsBase = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host;
+        const websocket = new WebSocket(`${wsBase}/api/agents/remote/ws/user/${userId}`);
 
         websocket.onopen = () => {
             setIsConnected(true);
@@ -188,13 +190,8 @@ Examples:
 
         // Execute remote command
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`/api/agents/remote/${agent.id}/execute`, {
+                const response = await authFetch(`/api/agents/remote/${agent.id}/execute`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
                 body: JSON.stringify({ command: cmd })
             });
 
@@ -255,12 +252,8 @@ Examples:
         }
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`/api/agents/remote/${agent.id}/restart`, {
+                const response = await authFetch(`/api/agents/remote/${agent.id}/restart`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
             });
 
             const data = await response.json();
@@ -289,9 +282,9 @@ Examples:
                             <h2 className="text-lg font-bold text-white flex items-center gap-2">
                                 Remote Terminal: {agent.hostname}
                                 {isConnected ? (
-                                    <Wifi size={16} className="text-green-400" title="Connected" />
+                                    <Wifi size={16} className="text-green-400" aria-label="Connected" />
                                 ) : (
-                                    <WifiOff size={16} className="text-red-400" title="Disconnected" />
+                                    <WifiOff size={16} className="text-red-400" aria-label="Disconnected" />
                                 )}
                             </h2>
                             <p className="text-xs text-gray-400">

@@ -28,9 +28,9 @@ class CloudRemediationService:
             self.iam_client = boto3.client('iam')
             self.cloudtrail_client = boto3.client('cloudtrail')
             self.aws_enabled = True
-            logger.info("✅ AWS SDK initialized")
+            logger.info("[SUCCESS] AWS SDK initialized")
         except Exception as e:
-            logger.warning(f"⚠️ AWS SDK not available: {e}")
+            logger.warning(f"[WARN] AWS SDK not available: {e}")
         
         # Azure
         try:
@@ -39,9 +39,9 @@ class CloudRemediationService:
             from azure.mgmt.storage import StorageManagementClient
             self.azure_credential = DefaultAzureCredential()
             self.azure_enabled = True
-            logger.info("✅ Azure SDK initialized")
+            logger.info("[SUCCESS] Azure SDK initialized")
         except Exception as e:
-            logger.warning(f"⚠️ Azure SDK not available: {e}")
+            logger.warning(f"[WARN] Azure SDK not available: {e}")
         
         # GCP
         try:
@@ -50,9 +50,9 @@ class CloudRemediationService:
             self.gcp_compute = compute_v1.InstancesClient()
             self.gcp_storage = storage.Client()
             self.gcp_enabled = True
-            logger.info("✅ GCP SDK initialized")
+            logger.info("[SUCCESS] GCP SDK initialized")
         except Exception as e:
-            logger.warning(f"⚠️ GCP SDK not available: {e}")
+            logger.warning(f"[WARN] GCP SDK not available: {e}")
     
     # ==================== AWS Remediation Actions ====================
     

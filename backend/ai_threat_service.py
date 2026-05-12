@@ -20,9 +20,7 @@ class AIThreatService:
             await ai_service.initialize()
             
         if not ai_service.is_configured:
-            # Fallback to Ollama if Gemini not configured? 
-            # For now, return error or try local default
-            pass
+            return {"success": False, "error": "AI service not configured. Set GEMINI_API_KEY or OLLAMA_HOST in LLM settings."}
 
         # context: Schema definition
         schema_context = """

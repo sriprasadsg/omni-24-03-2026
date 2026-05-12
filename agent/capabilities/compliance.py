@@ -163,7 +163,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                     if len(parts) > 1:
                         try:
                             min_pass_len = int(parts[1].strip())
-                        except: pass
+                        except ValueError: pass
             
             checks.append({
                 "check": "Password Policy (Min Length)",
@@ -405,7 +405,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                             age_str = parts[1].strip().split()[0]
                             if age_str.lower() != "unlimited":
                                 max_pw_age = int(age_str)
-                        except: pass
+                        except ValueError: pass
             
             checks.append({
                 "check": "Maximum Password Age",
@@ -429,7 +429,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                             thresh_str = parts[1].strip()
                             if "never" not in thresh_str.lower():
                                 lockout_threshold = int(thresh_str)
-                        except: pass
+                        except ValueError: pass
             
             checks.append({
                 "check": "Account Lockout Policy",
@@ -471,7 +471,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                         
                         # Cleanup
                         try: os.remove(secedit_path) 
-                        except: pass
+                        except ValueError: pass
                         
                         checks.append({
                             "check": "Password Complexity",
@@ -503,7 +503,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                     if len(parts) > 1:
                         try:
                             password_history = int(parts[1].strip())
-                        except: pass
+                        except ValueError: pass
             
             checks.append({
                 "check": "Password History",
@@ -525,7 +525,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                     if len(parts) > 1:
                         try:
                             min_pw_age = int(parts[1].strip().split()[0])
-                        except: pass
+                        except ValueError: pass
             
             checks.append({
                 "check": "Minimum Password Age",
@@ -770,7 +770,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                     data = json.loads(raw_output)
                     ss_active = str(data.get('ScreenSaveActive', '0')) == '1'
                     ss_timeout = int(data.get('ScreenSaveTimeOut', '9999'))
-                except: pass
+                except (json.JSONDecodeError, ValueError, KeyError): pass
                 
             timeout_mins = ss_timeout // 60
             passed = ss_active and timeout_mins <= 15
@@ -796,7 +796,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                 try:
                     data = json.loads(raw_output)
                     usb_disabled = data.get('Start', 3) == 4
-                except: pass
+                except (json.JSONDecodeError, KeyError): pass
                 
             checks.append({
                 "check": "USB Mass Storage Access",
@@ -822,7 +822,7 @@ class ComplianceEnforcementCapability(BaseCapability):
                     if isinstance(data, dict): data = [data]
                     admin_count = len(data)
                     admins = [d.get("Name", "Unknown") for d in data]
-                except: pass
+                except (json.JSONDecodeError, TypeError): pass
                 
             # Arbitrary threshold: If more than 3 local admins, flag as warning
             passed = admin_count <= 3
@@ -902,12 +902,11 @@ class ComplianceEnforcementCapability(BaseCapability):
                         "evidence_content": content
                     })
             else:
-                 # Check if implemented in code (Mock check)
-                 checks.append({
+                checks.append({
                     "check": "DPDP-8.4 Data Retention Policy",
-                    "status": "Pass", # Simulating Pass for demo as it might be internal
-                    "details": "Default retention policy active (Internal)",
-                    "evidence_content": "Internal Policy: 90 Days"
+                    "status": "Manual Review Required",
+                    "details": "Retention policy file not found. Process/organizational control — requires human verification.",
+                    "evidence_content": "[INFO] Automated check not applicable — no retention_policy.json at expected path."
                 })
         except Exception as e:
             checks.append({
@@ -940,13 +939,13 @@ class ComplianceEnforcementCapability(BaseCapability):
              checks.append({"check": "DPDP-8.5 Breach Notification", "status": "Error", "details": str(e), "evidence_content": str(e)})
 
         # DPDP-9.1: Child Data Age-Gating
-        # Check if age-gating is enabled in app config (simulated)
+        # DPDP-9.1: age-gating requires application-layer config that cannot be verified by endpoint inspection
         try:
             checks.append({
                 "check": "DPDP-9.1 Child Data Age-Gating",
-                "status": "Pass",
-                "details": "Age-gating verification module active",
-                "evidence_content": "Module: AgeGateVerifier v1.0 [Active]"
+                "status": "Manual Review Required",
+                "details": "Age-gating implementation requires review of application config and data flow diagrams.",
+                "evidence_content": "[INFO] Endpoint agent cannot verify application-layer age-gating. Review app config manually."
             })
         except:
              pass
@@ -1325,21 +1324,21 @@ class ComplianceEnforcementCapability(BaseCapability):
         except Exception as e:
             pass
             
-        # Add the remaining universal ones as simulated passes so we still get 100% coverage
-        remaining = [
-            "Secure Development & Coding Simulation", "Change Management Simulation", 
-            "Network Security & Segregation Simulation", "Web Filtering & Security Simulation",
-            "Secure Configuration Simulation", "Vulnerability Management Extension Simulation",
-            "Audit Logging Extension Simulation", "Utility Programs & Audit Tools Simulation",
-            "Data Leakage Prevention Simulation", "Universal Non-Tech Controls Simulation"
+        # Organizational/process controls that cannot be verified by endpoint inspection alone
+        org_controls = [
+            "Secure Development & Coding", "Change Management",
+            "Network Security & Segregation", "Web Filtering & Security",
+            "Secure Configuration", "Vulnerability Management Extension",
+            "Audit Logging Extension", "Utility Programs & Audit Tools",
+            "Data Leakage Prevention", "Universal Non-Tech Controls"
         ]
-        
-        for r in remaining:
+
+        for ctrl in org_controls:
             checks.append({
-                "check": r,
-                "status": "Pass",
-                "details": "Organizational / Process control validated.",
-                "evidence_content": "[OK] Policy Validated Active. Standard operating procedure in place verified by HR/IT."
+                "check": ctrl,
+                "status": "Manual Review Required",
+                "details": "Process/organizational control — requires human verification.",
+                "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
             })
 
         return checks

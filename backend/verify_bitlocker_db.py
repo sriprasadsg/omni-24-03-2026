@@ -27,7 +27,7 @@ async def check():
         
         # Check if updated recently (today)
         scan_time = doc.get('lastUpdated')
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if scan_time and scan_time.startswith(today):
              print("✅ BitLocker updated TODAY.")
         else:

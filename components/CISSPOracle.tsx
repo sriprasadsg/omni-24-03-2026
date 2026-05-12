@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-const API = 'http://localhost:5000';
+import { authFetch } from '../services/apiService';
 
 // CISSP Domain colors matching backend
 const DOMAIN_COLORS: Record<number, string> = {
@@ -122,7 +121,7 @@ export default function CISSPOracle() {
         const timer = setInterval(async () => {
             setPollCount(p => p + 1);
             try {
-                const r = await fetch(`${API}/api/cissp/oracle/assess/${currentAssessId}`);
+                const r = await authFetch(`/api/cissp/oracle/assess/${currentAssessId}`);
                 if (r.ok) {
                     const data = await r.json();
                     if (data.assessment?.status === 'completed') {
@@ -138,7 +137,7 @@ export default function CISSPOracle() {
 
     const fetchDomains = async () => {
         try {
-            const r = await fetch(`${API}/api/cissp/oracle/domains`);
+            const r = await authFetch('/api/cissp/oracle/domains');
             const data = await r.json();
             setDomains(data.domains || []);
         } catch (e) { console.error(e); }
@@ -146,7 +145,7 @@ export default function CISSPOracle() {
 
     const fetchAssessments = async () => {
         try {
-            const r = await fetch(`${API}/api/cissp/oracle/assessments`);
+            const r = await authFetch('/api/cissp/oracle/assessments');
             const data = await r.json();
             setAssessments(data.assessments || []);
         } catch (e) { }
@@ -162,9 +161,8 @@ export default function CISSPOracle() {
         setIsLoading(true);
 
         try {
-            const r = await fetch(`${API}/api/cissp/oracle/chat`, {
+            const r = await authFetch('/api/cissp/oracle/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: msg }),
             });
             const data = await r.json();
@@ -191,9 +189,8 @@ export default function CISSPOracle() {
         setAssessRunning(true);
         setPollCount(0);
         try {
-            const r = await fetch(`${API}/api/cissp/oracle/assess`, {
+            const r = await authFetch('/api/cissp/oracle/assess', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             });
             const data = await r.json();

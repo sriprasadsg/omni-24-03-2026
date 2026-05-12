@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-
-const API = '/api';
-function getHeaders(): HeadersInit {
-    const keys = ['access_token', 'token', 'authToken'];
-    let token = '';
-    for (const k of keys) { token = localStorage.getItem(k) || ''; if (token) break; }
-    return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-}
+import { authFetch } from '../services/apiService';
 
 interface Tactic { id: string; name: string; techniques: Technique[]; }
 interface Technique { id: string; name: string; }
@@ -25,8 +18,8 @@ export default function MitreAttackHeatmap() {
 
     useEffect(() => {
         Promise.all([
-            fetch(`${API}/mitre/matrix`, { headers: getHeaders() }).then(r => r.json()),
-            fetch(`${API}/mitre/coverage`, { headers: getHeaders() }).then(r => r.json()),
+            authFetch('/api/mitre/matrix').then(r => r.json()),
+            authFetch('/api/mitre/coverage').then(r => r.json()),
         ]).then(([m, h]) => {
             setMatrix(m.tactics || []);
             setHeatmap(Array.isArray(h) ? h : []);
@@ -36,13 +29,13 @@ export default function MitreAttackHeatmap() {
     const getCell = (techId: string) => heatmap.find(h => h.technique_id === techId);
 
     const showDetail = async (techId: string) => {
-        const r = await fetch(`${API}/mitre/technique/${techId}`, { headers: getHeaders() });
+        const r = await authFetch(`/api/mitre/technique/${techId}`);
         const d = await r.json();
         setSelected(d);
     };
 
     const exportNavigator = async () => {
-        const r = await fetch(`${API}/mitre/navigator-export`, { headers: getHeaders() });
+        const r = await authFetch('/api/mitre/navigator-export');
         const blob = await r.blob();
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
         a.download = 'attack-layer.json'; a.click();

@@ -6,18 +6,22 @@ Provides API for centralized secrets management, rotation, and auditing.
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from database import get_database
-from secrets_service import get_secrets_service, SecretType, SecretStatus
+from secrets_service import get_secrets_service, SecretStatus
 from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/secrets", tags=["Secrets Management"])
 
+_KEY_ALIASES = {"tenantId": "tenant_id", "email": "username"}
+
 def _get(user, key, default=None):
-    if isinstance(user, dict): return user.get(key, default)
-    return getattr(user, key, default)
+    if isinstance(user, dict):
+        return user.get(key, default)
+    attr = _KEY_ALIASES.get(key, key)
+    return getattr(user, attr, default)
 
 
 
@@ -65,8 +69,8 @@ async def create_secret(
     - webhook_secret: Webhook secrets
     """
     secrets_service = get_secrets_service(db)
-    tenant_id = current_user.get("tenantId")
-    
+    tenant_id = _get(current_user, "tenantId")
+
     try:
         secret = await secrets_service.create_secret(
             name=request.name,
@@ -107,7 +111,9 @@ async def list_secrets(
         )
         return secrets
     except Exception as e:
-        return []
+        import logging as _log
+        _log.getLogger(__name__).error("Failed to list secrets: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to list secrets: {e}")
 
 
 @router.get("/{name}")
@@ -149,9 +155,9 @@ async def get_secret_value(
     All access is logged for audit purposes.
     """
     secrets_service = get_secrets_service(db)
-    tenant_id = current_user.get("tenantId")
-    user = current_user.get("email", "unknown")
-    
+    tenant_id = _get(current_user, "tenantId")
+    user = _get(current_user, "email", "unknown")
+
     try:
         value = await secrets_service.get_secret(
             name=name,
@@ -179,9 +185,9 @@ async def update_secret(
     Old versions are archived and can be retrieved if needed.
     """
     secrets_service = get_secrets_service(db)
-    tenant_id = current_user.get("tenantId")
-    user = current_user.get("email", "unknown")
-    
+    tenant_id = _get(current_user, "tenantId")
+    user = _get(current_user, "email", "unknown")
+
     try:
         result = await secrets_service.update_secret(
             name=request.name,
@@ -241,9 +247,9 @@ async def revoke_secret(
     Revoked secrets cannot be accessed or used.
     """
     secrets_service = get_secrets_service(db)
-    tenant_id = current_user.get("tenantId")
-    user = current_user.get("email", "unknown")
-    
+    tenant_id = _get(current_user, "tenantId")
+    user = _get(current_user, "email", "unknown")
+
     try:
         result = await secrets_service.revoke_secret(
             name=request.name,
@@ -262,7 +268,7 @@ async def revoke_secret(
 @router.get("/rotation/check")
 async def check_rotation_needed(
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:secrets"))
+    _current_user: dict = Depends(require_permission("view:secrets"))
 ):
     """
     Check which secrets need rotation
@@ -287,7 +293,7 @@ async def check_rotation_needed(
 async def scan_code_for_secrets(
     file: UploadFile = File(...),
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:secrets"))
+    _current_user: dict = Depends(require_permission("view:secrets"))
 ):
     """
     Scan code file for hardcoded secrets
@@ -335,8 +341,8 @@ async def get_audit_log(
     Shows all access, updates, rotations, and revocations.
     """
     secrets_service = get_secrets_service(db)
-    tenant_id = current_user.get("tenantId")
-    
+    tenant_id = _get(current_user, "tenantId")
+
     try:
         logs = await secrets_service.get_secret_access_log(
             secret_name=secret_name,
@@ -358,8 +364,8 @@ async def get_secrets_stats(
     """
     Get secrets management statistics
     """
-    tenant_id = current_user.get("tenantId")
-    
+    tenant_id = _get(current_user, "tenantId")
+
     # Count secrets by status
     pipeline = [
         {"$match": {"tenant_id": tenant_id}},

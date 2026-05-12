@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { DollarSignIcon, SaveIcon, RefreshCwIcon, CheckIcon, PlusIcon, TrashIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 
@@ -34,7 +35,7 @@ export const ServicePricing: React.FC = () => {
         setIsLoading(true);
         try {
             // FIX: Use correct finops endpoint
-            const res = await fetch('/api/finops/pricing');
+            const res = await authFetch('/api/finops/pricing');
             if (res.ok) {
                 const data = await res.json();
                 setPrices(data);
@@ -56,14 +57,8 @@ export const ServicePricing: React.FC = () => {
         setIsSaving(true);
         try {
             // FIX: Use finops bulk update endpoint (POST)
-            const res = await fetch('/api/finops/pricing', {
+            const res = await authFetch('/api/finops/pricing', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                // Create auth header if needed, assuming cookie/token handling is global or implied
-                // For now, using standard fetch assuming credential inclusion if configured globally
-                // but checking ServicePricing original code, no special headers were added.
-                // Adding Authorization header just in case if context provides it, but original didn't use it.
-                // Assuming proxy or cookie auth.
                 body: JSON.stringify(prices)
             });
 
@@ -73,7 +68,7 @@ export const ServicePricing: React.FC = () => {
             setTimeout(() => setSaveMessage(''), 3000);
 
             // Trigger recalculation
-            await fetch('/api/finops/recalculate/all', { method: 'POST' }).catch(() => { });
+            await authFetch('/api/finops/recalculate/all', { method: 'POST' }).catch(() => { });
             // Note: Endpoint /finops/refresh-all might be legacy, trying generic or skipping if not critical.
 
         } catch (error) {
@@ -91,9 +86,8 @@ export const ServicePricing: React.FC = () => {
         }
 
         try {
-            const res = await fetch('/api/finops/pricing/service', {
+            const res = await authFetch('/api/finops/pricing/service', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newService)
             });
 
@@ -115,7 +109,7 @@ export const ServicePricing: React.FC = () => {
     const handleDelete = async (id: string) => {
         if (!window.confirm('Delete this service configuration?')) return;
         try {
-            const res = await fetch(`/api/finops/pricing/service/${id}`, {
+            const res = await authFetch(`/api/finops/pricing/service/${id}`, {
                 method: 'DELETE'
             });
             if (res.ok) {

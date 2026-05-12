@@ -1,33 +1,50 @@
+import logging
 from datetime import datetime
 from models import RemediationRequest
 from tasks import execute_remediation_script  # Import Celery task reference
 
-# In a real scenario, this would import OpenAI/Anthropic client
-# from openai import OpenAI 
+logger = logging.getLogger(__name__)
+
 
 class RemediationService:
     @staticmethod
     async def generate_fix_proposal(tenant_id: str, asset_id: str, vulnerability_id: str, cve_id: str) -> RemediationRequest:
         """
-        Simulates calling an LLM to generate a remediation script for a given CVE.
+        Calls the AI service to generate a remediation script for a given CVE.
+        Falls back to a rule-based template only if the AI service is unavailable.
         """
-        print(f"🤖 AI generating fix for {cve_id} on asset {asset_id}...")
-        
-        # MOCK LLM LOGIC
-        # In reality: prompt = f"Write a PowerShell script to fix {cve_id}..."
-        
-        mock_script = ""
-        action = ""
-        
-        if "SQL" in cve_id or "Injection" in cve_id:
-            action = "Sanitize Input & Update Config"
-            mock_script = "# Fixed SQL Injection Vulnerability\nUpdate-WebConfig -SafeMode $true"
-        elif "Log4j" in cve_id:
-            action = "Patch Log4j Library"
-            mock_script = "Remove-Item -Path 'C:\\Apps\\Log4j-2.14.jar' -Force\nCopy-Item 'C:\\Patches\\Log4j-2.17.jar' -Destination 'C:\\Apps\\'"
-        else:
-            action = "Generic Security Patch"
-            mock_script = "apt-get update && apt-get upgrade -y security-packages"
+        logger.info("AI generating fix for %s on asset %s", cve_id, asset_id)
+
+        action = "Security Patch"
+        script_content = ""
+
+        try:
+            from ai_service import ai_service
+            prompt = (
+                f"You are a senior security engineer. Generate a concise remediation script for "
+                f"CVE: {cve_id} on asset {asset_id}.\n"
+                f"Return ONLY the script (bash or PowerShell as appropriate). "
+                f"No explanation, no markdown fencing."
+            )
+            script_content = await ai_service.generate_text(prompt, source="remediation")
+            if script_content.startswith("BLOCKED:"):
+                raise ValueError(script_content)
+            action = f"AI-generated fix for {cve_id}"
+            logger.info("AI remediation script generated for %s", cve_id)
+        except Exception as exc:
+            logger.warning("AI fix generation failed for %s: %s — using rule-based fallback", cve_id, exc)
+            if "SQL" in cve_id or "Injection" in cve_id:
+                action = "Sanitize Input & Update Config"
+                script_content = "# Remediation: SQL Injection\nUpdate-WebConfig -SafeMode $true"
+            elif "Log4j" in cve_id or "log4j" in cve_id.lower():
+                action = "Patch Log4j Library"
+                script_content = (
+                    "Remove-Item -Path 'C:\\Apps\\Log4j-2.14.jar' -Force\n"
+                    "Copy-Item 'C:\\Patches\\Log4j-2.17.jar' -Destination 'C:\\Apps\\'"
+                )
+            else:
+                action = "Generic Security Patch"
+                script_content = "apt-get update && apt-get upgrade -y --only-upgrade"
 
         return RemediationRequest(
             id=f"rem-{int(datetime.now().timestamp())}",
@@ -35,7 +52,7 @@ class RemediationService:
             assetId=asset_id,
             vulnerabilityId=vulnerability_id,
             proposedAction=action,
-            scriptContent=mock_script,
+            scriptContent=script_content,
             status="Pending",
             createdAt=datetime.now().isoformat(),
             updatedAt=datetime.now().isoformat()
@@ -48,12 +65,11 @@ class RemediationService:
         Also updates the vulnerability status in the database.
         """
         from database import get_database
-        from bson import ObjectId
 
         if request.status != "Pending":
             raise ValueError("Only Pending requests can be executed.")
-            
-        print(f"✅ Approving remediation {request.id}. Dispatching to specific agent...")
+
+        logger.info("Approving remediation %s — dispatching to agent", request.id)
         
         # Update status
         request.status = "In Progress"
@@ -66,31 +82,25 @@ class RemediationService:
         # Update Database: Mark Vulnerability as Patched
         db = get_database()
         try:
-            # Try to convert to ObjectId, if valid
+            # Match by string 'id' field first (seeded data), fall back to _id ObjectId
+            query: dict = {"id": request.vulnerabilityId}
             try:
-                vuln_obj_id = ObjectId(request.vulnerabilityId)
-                query = {"_id": vuln_obj_id}
-            except:
-                # Fallback to string search if ID format differs
-                query = {"id": request.vulnerabilityId}  # Legacy support or seeded id
+                from bson import ObjectId
+                query = {"$or": [{"id": request.vulnerabilityId}, {"_id": ObjectId(request.vulnerabilityId)}]}
+            except Exception:
+                pass  # vulnerabilityId is not a valid ObjectId hex — use string id only
 
-            # Also try matching by string ID in case the seeded data uses 'id' field
-            # Ideally we check both but find_one_and_update is simplest
-            
-            # Simple approach: Try by _id first
             result = await db.vulnerabilities.update_one(
-                {"$or": [{"_id": vuln_obj_id if 'vuln_obj_id' in locals() else "dummy"}, {"id": request.vulnerabilityId}]},
+                query,
                 {"$set": {"status": "Patched", "remediatedAt": datetime.now().isoformat()}}
             )
-            
             if result.modified_count > 0:
-                print(f"🎉 Vulnerability {request.vulnerabilityId} marked as PATCHED in DB.")
-                request.status = "Executed" # Or 'Patched'
+                logger.info("Vulnerability %s marked as PATCHED", request.vulnerabilityId)
+                request.status = "Executed"
             else:
-                print(f"⚠️ Warning: Could not find vulnerability {request.vulnerabilityId} to patch.")
-
-        except Exception as e:
-            print(f"❌ Error updating DB status: {e}")
+                logger.warning("Vulnerability %s not found in DB — already patched or missing", request.vulnerabilityId)
+        except Exception as exc:
+            logger.error("Error updating vulnerability status: %s", exc)
 
         return request
 

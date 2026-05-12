@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CloudShieldIcon, ActivityIcon, ShieldIcon, DatabaseIcon, NetworkIcon } from './icons';
+import { CloudShieldIcon, ActivityIcon, NetworkIcon } from './icons';
 
 const UnifiedFutureOpsDashboard: React.FC = () => {
     const [aiopsData, setAiopsData] = useState<any>(null);
@@ -7,24 +7,22 @@ const UnifiedFutureOpsDashboard: React.FC = () => {
     const [multicloud, setMulticloud] = useState<any>(null);
     const [privacy, setPrivacy] = useState<any>(null);
     const [blockchain, setBlockchain] = useState<any>(null);
-    const [xdr, setXdr] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchAllData();
-        const interval = setInterval(fetchAllData, 5000); // Refresh every 5s
+        const interval = setInterval(fetchAllData, 5000);
         return () => clearInterval(interval);
     }, []);
 
     const fetchAllData = async () => {
         try {
-            const [aiopsRes, streamingRes, multicloudRes, privacyRes, blockchainRes, xdrRes] = await Promise.all([
+            const [aiopsRes, streamingRes, multicloudRes, privacyRes, blockchainRes] = await Promise.all([
                 fetch('/api/aiops/capacity-predictions'),
                 fetch('/api/streaming/live-events'),
                 fetch('/api/multicloud/cost-optimization'),
                 fetch('/api/privacy/consent-tracking'),
                 fetch('/api/blockchain/audit-chain'),
-                fetch('/api/xdr/automated-hunts')
             ]);
 
             setAiopsData(await aiopsRes.json());
@@ -32,7 +30,6 @@ const UnifiedFutureOpsDashboard: React.FC = () => {
             setMulticloud(await multicloudRes.json());
             setPrivacy(await privacyRes.json());
             setBlockchain(await blockchainRes.json());
-            setXdr(await xdrRes.json());
             setLoading(false);
         } catch (error) {
             console.error('Error fetching 2030 features data:', error);
@@ -54,12 +51,12 @@ const UnifiedFutureOpsDashboard: React.FC = () => {
                     2030 Advanced Operations Dashboard
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    AIOps, Real-Time Analytics, Multi-Cloud, Privacy, Blockchain & XDR
+                    AIOps, Real-Time Analytics, Multi-Cloud, Privacy & Blockchain
                 </p>
             </div>
 
             {/* Real-Time Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md p-4 text-white">
                     <div className="flex items-center justify-between">
                         <div>
@@ -91,17 +88,6 @@ const UnifiedFutureOpsDashboard: React.FC = () => {
                         <NetworkIcon size={36} className="opacity-80" />
                     </div>
                     <p className="text-xs mt-2 opacity-75">Immutable Audit Trail</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-md p-4 text-white">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm opacity-90">Active Threat Hunts</p>
-                            <p className="text-3xl font-bold mt-1">{xdr?.activeHunts || 0}</p>
-                        </div>
-                        <ShieldIcon size={36} className="opacity-80" />
-                    </div>
-                    <p className="text-xs mt-2 opacity-75">Automated XDR</p>
                 </div>
             </div>
 
@@ -216,38 +202,6 @@ const UnifiedFutureOpsDashboard: React.FC = () => {
                                 <p className="text-xs text-gray-500 mt-1">{block.events} events</p>
                             </div>
                         ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* XDR Threat Intelligence */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Extended Detection & Response (XDR)
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Findings (24h)</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                            {xdr?.findingsLast24h}
-                        </p>
-                        <p className="text-xs text-red-600 mt-2">
-                            {xdr?.confirmedThreats} confirmed threats
-                        </p>
-                    </div>
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Active Hunts</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                            {xdr?.activeHunts}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">Automated detection running</p>
-                    </div>
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">False Positives</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                            {xdr?.falsePositives}
-                        </p>
-                        <p className="text-xs text-green-600 mt-2">Low false positive rate</p>
                     </div>
                 </div>
             </div>

@@ -1,6 +1,5 @@
 from ai_service import ai_service
 import json
-import os
 from database import get_database
 from datetime import datetime
 import uuid
@@ -10,7 +9,11 @@ class AIPlaybookService:
         self.model = None
         self.is_configured = False
 
-        pass # Initialization handled by ai_service
+    async def initialize(self):
+        """Delegate initialisation to the shared ai_service singleton."""
+        if not ai_service.is_configured:
+            await ai_service.initialize()
+        self.is_configured = ai_service.is_configured
 
     async def generate_playbook(self, prompt: str, tenant_id: str = "default"):
         """Generate a playbook from a natural language prompt"""
@@ -19,7 +22,7 @@ class AIPlaybookService:
             
         if not self.is_configured:
             # Fallback to mock/template if not configured
-            return self._generate_mock_playbook(prompt, tenant_id)
+            return self._generate_fallback_playbook(prompt, tenant_id)
 
         system_prompt = """
         You are an expert SOAR (Security Orchestration, Automation and Response) Engineer.
@@ -57,8 +60,8 @@ class AIPlaybookService:
             # Add metadata
             playbook_data["id"] = f"pb-{uuid.uuid4()}"
             playbook_data["tenantId"] = tenant_id
-            playbook_data["created_at"] = datetime.utcnow().isoformat()
-            playbook_data["updated_at"] = datetime.utcnow().isoformat()
+            playbook_data["created_at"] = datetime.now(timezone.utc).isoformat()
+            playbook_data["updated_at"] = datetime.now(timezone.utc).isoformat()
             playbook_data["is_active"] = True
             
             # Save to DB
@@ -72,11 +75,14 @@ class AIPlaybookService:
             return playbook_data
             
         except Exception as e:
-            print(f"Error generating playbook: {e}")
-            return self._generate_mock_playbook(prompt, tenant_id, error=str(e))
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "AI playbook generation failed, returning fallback template: %s", e
+            )
+            return self._generate_fallback_playbook(prompt, tenant_id, error=str(e))
 
-    def _generate_mock_playbook(self, prompt: str, tenant_id: str, error: str = None):
-        """Fallback generator"""
+    def _generate_fallback_playbook(self, prompt: str, tenant_id: str, error: str = ""):
+        """Minimal valid playbook returned when the AI service is unavailable."""
         return {
             "id": f"pb-{uuid.uuid4()}",
             "tenantId": tenant_id,
@@ -101,10 +107,10 @@ class AIPlaybookService:
             ],
             "estimatedDuration": "10 minutes",
             "tags": ["generated", "fallback"],
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "is_active": True,
-            "note": "This is a placeholder. Configure AI Settings to enable real generation."
+            "note": f"Fallback template — AI unavailable{(': ' + error) if error else ''}. Configure AI Settings to enable real generation."
         }
 
 ai_playbook_service = AIPlaybookService()

@@ -35,21 +35,18 @@ class RetentionService:
         })
         return result.deleted_count
         
-    async def run_cleanup(self) -> dict:
-        """Run all cleanup tasks"""
-        print(f"[{datetime.now()}] Starting Data Retention Cleanup...")
-        
-        audit_deleted = await self.cleanup_audit_logs()
-        metrics_deleted = await self.cleanup_system_metrics()
-        notif_deleted = await self.cleanup_notifications()
-        
+    async def run_cleanup(self, policies: dict = None) -> dict:
+        """Run cleanup tasks using DB-configured retention days."""
+        p = policies or {}
+        audit_deleted   = await self.cleanup_audit_logs(p.get("audit_logs", 90))
+        metrics_deleted = await self.cleanup_system_metrics(p.get("metrics", 30))
+        notif_deleted   = await self.cleanup_notifications(p.get("notifications", 30))
         report = {
-            "audit_logs_deleted": audit_deleted,
-            "metrics_deleted": metrics_deleted,
+            "audit_logs_deleted":   audit_deleted,
+            "metrics_deleted":      metrics_deleted,
             "notifications_deleted": notif_deleted,
-            "status": "completed"
+            "status": "completed",
         }
-        print(f"[{datetime.now()}] Cleanup Complete: {report}")
         return report
 
 def get_retention_service(db):

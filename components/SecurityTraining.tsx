@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import {
     BookOpen, Video, CheckCircle, Clock, Play, GraduationCap,
     Plus, Trophy, Award, BarChart
@@ -39,7 +40,7 @@ export default function SecurityTraining() {
 
     const fetchMyTraining = async () => {
         try {
-            const res = await fetch('/api/training/my-training');
+            const res = await authFetch('/api/training/my-training');
             if (res.ok) setAssignments(await res.json());
         } catch (error) {
             console.error("Error fetching training", error);
@@ -50,7 +51,7 @@ export default function SecurityTraining() {
 
     const fetchAllModules = async () => {
         try {
-            const res = await fetch('/api/training/modules');
+            const res = await authFetch('/api/training/modules');
             if (res.ok) setModules(await res.json());
         } catch (error) {
             console.error("Error fetching modules", error);
@@ -60,9 +61,8 @@ export default function SecurityTraining() {
     const startModule = async (assignment: UserProgress) => {
         if (assignment.status === 'Assigned') {
             try {
-                await fetch(`/api/training/progress/${assignment.id}`, {
+                await authFetch(`/api/training/progress/${assignment.id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'In Progress' })
                 });
                 // Optimistic update
@@ -76,9 +76,8 @@ export default function SecurityTraining() {
 
     const completeModule = async (assignmentId: string) => {
         try {
-            await fetch(`/api/training/progress/${assignmentId}`, {
+            await authFetch(`/api/training/progress/${assignmentId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'Completed', quiz_score: 100 }) // Mock score
             });
             setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, status: 'Completed', quiz_score: 100 } : a));

@@ -1,8 +1,14 @@
-import React, { useContext } from 'react';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useContext, useEffect, useState } from 'react';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { ThemeContext } from '../contexts/ThemeContext';
-import { exportReport } from '../services/apiService';
-import { BarChart3Icon, DownloadIcon, ActivityIcon } from './icons';
+import {
+    exportReport,
+    fetchExecutiveSummaryReport,
+    fetchSlaReport,
+    fetchVulnerabilityExposureReport,
+    fetchChangeManagementReport,
+} from '../services/apiService';
+import { BarChart3Icon, DownloadIcon, ActivityIcon, ShieldCheckIcon, TrendingUpIcon } from './icons';
 import { Asset, HistoricalData } from '../types';
 import { useUser } from '../contexts/UserContext';
 
@@ -15,8 +21,40 @@ interface ReportingDashboardProps {
     assets: Asset[];
 }
 
-export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historicalData, assets }) => {
-    const [exportingType, setExportingType] = React.useState<string | null>(null);
+const KpiCard: React.FC<{ label: string; value: string | number; sub?: string; color?: string }> = ({ label, value, sub, color = 'text-primary-600 dark:text-primary-400' }) => (
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-md flex flex-col">
+        <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{label}</span>
+        <span className={`text-3xl font-bold ${color}`}>{value}</span>
+        {sub && <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</span>}
+    </div>
+);
+
+const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; subtitle?: string }> = ({ icon, title, subtitle }) => (
+    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold flex items-center text-gray-800 dark:text-white">
+            {icon}
+            <span className="ml-2">{title}</span>
+        </h3>
+        {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>}
+    </div>
+);
+
+const SEVERITY_COLORS: Record<string, string> = {
+    Critical: '#ef4444',
+    High: '#f97316',
+    Medium: '#f59e0b',
+    Low: '#22c55e',
+};
+
+export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historicalData }) => {
+    const [exportingType, setExportingType] = useState<string | null>(null);
+    const [executiveSummary, setExecutiveSummary] = useState<any>(null);
+    const [slaReport, setSlaReport] = useState<any>(null);
+    const [vulnReport, setVulnReport] = useState<any>(null);
+    const [changeReport, setChangeReport] = useState<any>(null);
+    const [loadingReports, setLoadingReports] = useState(true);
+    const [activeTab, setActiveTab] = useState<'sla' | 'vuln' | 'change'>('sla');
+
     const { theme } = useContext(ThemeContext);
     const { hasPermission } = useUser();
     const canExport = hasPermission('export:reports');
@@ -24,75 +62,122 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
     const gridColor = theme === 'dark' ? '#374151' : '#e5e7eb';
     const textColor = theme === 'dark' ? '#d1d5db' : '#374151';
 
+    useEffect(() => {
+        Promise.all([
+            fetchExecutiveSummaryReport(),
+            fetchSlaReport(),
+            fetchVulnerabilityExposureReport(),
+            fetchChangeManagementReport(),
+        ]).then(([exec, sla, vuln, change]) => {
+            setExecutiveSummary(exec);
+            setSlaReport(sla);
+            setVulnReport(vuln);
+            setChangeReport(change);
+        }).finally(() => setLoadingReports(false));
+    }, []);
+
     const handleExport = async (module: string, format: 'csv' | 'pdf') => {
         if (!canExport) {
             alert("Permission Denied: You do not have 'export:reports' scope.");
             return;
         }
-
         setExportingType(`${module}-${format}`);
         try {
             await exportReport(module, format);
         } catch (e) {
-            alert(`Failed to export ${module}. Please check console.`);
+            alert(`Failed to export ${module}.`);
         } finally {
             setExportingType(null);
         }
     };
 
-    const ExportCard: React.FC<{ title: string; onExport: (format: 'csv' | 'pdf') => void }> = ({ title, onExport }) => (
+    const ExportCard: React.FC<{ title: string; onExport: (f: 'csv' | 'pdf') => void }> = ({ title, onExport }) => (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center">
             <h4 className="font-semibold text-gray-800 dark:text-white">{title}</h4>
             <div className="flex space-x-2">
                 <button
                     onClick={() => onExport('csv')}
                     disabled={!canExport || !!exportingType}
-                    title={!canExport ? "Permission Denied" : "Export as CSV"}
-                    className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
-                    {exportingType === `${title}-csv` ? (
-                        <ActivityIcon size={14} className="animate-spin mr-1" />
-                    ) : null}
+                    {exportingType === `${title}-csv` ? <ActivityIcon size={14} className="animate-spin mr-1" /> : null}
                     CSV
                 </button>
                 <button
                     onClick={() => onExport('pdf')}
                     disabled={!canExport || !!exportingType}
-                    title={!canExport ? "Permission Denied" : "Export as PDF"}
-                    className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/50 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/50 dark:text-red-300 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
-                    {exportingType === `${title}-pdf` ? (
-                        <ActivityIcon size={14} className="animate-spin mr-1" />
-                    ) : null}
+                    {exportingType === `${title}-pdf` ? <ActivityIcon size={14} className="animate-spin mr-1" /> : null}
                     PDF
                 </button>
             </div>
         </div>
     );
 
-    return (
-        <div className="container mx-auto">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Reporting & Analytics</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Analyze historical trends and export data for compliance and strategic planning.</p>
+    const kpis = executiveSummary?.kpis;
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-6">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold flex items-center">
-                        <BarChart3Icon className="mr-2 text-primary-500" />
-                        Historical Trends
-                    </h3>
-                </div>
-                <div className="p-4 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                        <h3 className="text-md font-semibold mb-4 text-gray-800 dark:text-white">Alert Frequency (6 Months)</h3>
-                        <div className="h-64">
+    const severityPieData = vulnReport?.severity_distribution
+        ? Object.entries(vulnReport.severity_distribution).map(([name, value]) => ({ name, value }))
+        : [];
+
+    return (
+        <div className="container mx-auto space-y-6">
+            <div>
+                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-1">Reporting & Analytics</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Analyze historical trends and export data for compliance and strategic planning.</p>
+            </div>
+
+            {/* ── Executive Summary KPIs ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                <SectionHeader
+                    icon={<TrendingUpIcon className="text-primary-500" size={20} />}
+                    title="Executive Summary"
+                    subtitle="Live KPIs across security, compliance, and patch velocity"
+                />
+                {loadingReports ? (
+                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">Loading reports...</div>
+                ) : (
+                    <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <KpiCard
+                            label="SLA Compliance"
+                            value={kpis ? `${kpis.compliance_rate}%` : '—'}
+                            sub="Last 30 days"
+                            color={kpis?.compliance_rate >= 90 ? 'text-green-600 dark:text-green-400' : kpis?.compliance_rate >= 70 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}
+                        />
+                        <KpiCard label="Patches/Week" value={kpis ? kpis.patches_per_week : '—'} sub="Deployment velocity" />
+                        <KpiCard
+                            label="MTTR"
+                            value={kpis ? `${kpis.mttr_hours}h` : '—'}
+                            sub="Mean time to remediate"
+                            color={kpis?.mttr_hours <= 24 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}
+                        />
+                        <KpiCard
+                            label="Asset Exposure"
+                            value={kpis ? `${kpis.asset_exposure_rate}%` : '—'}
+                            sub="Assets with open vulns"
+                            color={kpis?.asset_exposure_rate > 30 ? 'text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'}
+                        />
+                        <KpiCard label="Critical Vulns" value={kpis ? kpis.critical_vulnerabilities : '—'} sub="Open critical CVEs" color="text-red-600 dark:text-red-400" />
+                        <KpiCard label="High Exploit Risk" value={kpis ? kpis.high_exploit_risk : '—'} sub="EPSS > 50%" color="text-orange-600 dark:text-orange-400" />
+                    </div>
+                )}
+            </div>
+
+            {/* ── Historical Trends ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                <SectionHeader icon={<BarChart3Icon className="text-primary-500" size={20} />} title="Historical Trends (6 Months)" />
+                <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div>
+                        <h4 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Alert Frequency</h4>
+                        <div className="h-56">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={historicalData.alerts}>
+                                <BarChart data={historicalData.alerts || []}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                                    <XAxis dataKey="date" stroke={textColor} fontSize={12} />
-                                    <YAxis stroke={textColor} fontSize={12} />
-                                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff', border: `1px solid ${gridColor}`, borderRadius: '0.5rem' }} />
-                                    <Legend wrapperStyle={{ fontSize: "12px" }} />
+                                    <XAxis dataKey="date" stroke={textColor} fontSize={11} />
+                                    <YAxis stroke={textColor} fontSize={11} />
+                                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#fff', border: `1px solid ${gridColor}`, borderRadius: '0.5rem' }} />
+                                    <Legend wrapperStyle={{ fontSize: '11px' }} />
                                     <Bar dataKey="Critical" stackId="a" fill="#ef4444" />
                                     <Bar dataKey="High" stackId="a" fill="#f97316" />
                                     <Bar dataKey="Medium" stackId="a" fill="#f59e0b" />
@@ -100,36 +185,36 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                             </ResponsiveContainer>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                        <h3 className="text-md font-semibold mb-4 text-gray-800 dark:text-white">Compliance Posture Trend</h3>
-                        <div className="h-64">
+                    <div>
+                        <h4 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Compliance Posture</h4>
+                        <div className="h-56">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={historicalData.compliance}>
+                                <AreaChart data={historicalData.compliance || []}>
                                     <defs>
-                                        <linearGradient id="complianceColor" x1="0" y1="0" x2="0" y2="1">
+                                        <linearGradient id="compGrad" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
                                             <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                                    <XAxis dataKey="date" stroke={textColor} fontSize={12} />
-                                    <YAxis domain={[70, 100]} unit="%" stroke={textColor} fontSize={12} />
-                                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff', border: `1px solid ${gridColor}`, borderRadius: '0.5rem' }} />
-                                    <Area type="monotone" dataKey="score" stroke="#22c55e" fill="url(#complianceColor)" />
+                                    <XAxis dataKey="date" stroke={textColor} fontSize={11} />
+                                    <YAxis domain={[0, 100]} unit="%" stroke={textColor} fontSize={11} />
+                                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#fff', border: `1px solid ${gridColor}`, borderRadius: '0.5rem' }} />
+                                    <Area type="monotone" dataKey="score" stroke="#22c55e" fill="url(#compGrad)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                        <h3 className="text-md font-semibold mb-4 text-gray-800 dark:text-white">Open Vulnerabilities Trend</h3>
-                        <div className="h-64">
+                    <div>
+                        <h4 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Open Vulnerabilities</h4>
+                        <div className="h-56">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={historicalData.vulnerabilities}>
+                                <AreaChart data={historicalData.vulnerabilities || []}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                                    <XAxis dataKey="date" stroke={textColor} fontSize={12} />
-                                    <YAxis stroke={textColor} fontSize={12} />
-                                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff', border: `1px solid ${gridColor}`, borderRadius: '0.5rem' }} />
-                                    <Legend wrapperStyle={{ fontSize: "12px" }} />
+                                    <XAxis dataKey="date" stroke={textColor} fontSize={11} />
+                                    <YAxis stroke={textColor} fontSize={11} />
+                                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#fff', border: `1px solid ${gridColor}`, borderRadius: '0.5rem' }} />
+                                    <Legend wrapperStyle={{ fontSize: '11px' }} />
                                     <Area type="monotone" dataKey="Critical" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} />
                                     <Area type="monotone" dataKey="High" stackId="1" stroke="#f97316" fill="#f97316" fillOpacity={0.3} />
                                 </AreaChart>
@@ -139,18 +224,182 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                 </div>
             </div>
 
+            {/* ── Analytical Reports ── */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold flex items-center">
-                        <DownloadIcon className="mr-2 text-primary-500" />
-                        Data Export Center
-                    </h3>
+                <SectionHeader icon={<ShieldCheckIcon className="text-primary-500" size={20} />} title="Analytical Reports" subtitle="Live reports computed from your data" />
+                <div className="border-b border-gray-200 dark:border-gray-700 px-4 flex space-x-1">
+                    {(['sla', 'vuln', 'change'] as const).map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab
+                                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                            }`}
+                        >
+                            {tab === 'sla' ? 'SLA Compliance' : tab === 'vuln' ? 'Vulnerability Exposure' : 'Change Management'}
+                        </button>
+                    ))}
                 </div>
+
+                <div className="p-4">
+                    {loadingReports ? (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
+                    ) : activeTab === 'sla' && slaReport ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <KpiCard label="Total Patches" value={slaReport.summary?.total_patches ?? 0} sub={`Last ${slaReport.period?.days ?? 30} days`} />
+                                <KpiCard label="Compliant" value={slaReport.summary?.compliant ?? 0} color="text-green-600 dark:text-green-400" />
+                                <KpiCard label="Breached" value={slaReport.summary?.breached ?? 0} color="text-red-600 dark:text-red-400" />
+                                <KpiCard label="At Risk" value={slaReport.summary?.at_risk ?? 0} color="text-yellow-600 dark:text-yellow-400" />
+                            </div>
+                            {slaReport.patches?.breached?.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">SLA Breaches</h4>
+                                    <div className="overflow-auto max-h-56">
+                                        <table className="w-full text-xs text-left">
+                                            <thead className="bg-gray-50 dark:bg-gray-700">
+                                                <tr>
+                                                    {['CVE', 'Severity', 'SLA (h)', 'Breach (h)', 'Status'].map(h => (
+                                                        <th key={h} className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">{h}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {slaReport.patches.breached.map((p: any, i: number) => (
+                                                    <tr key={i} className="border-t border-gray-200 dark:border-gray-700">
+                                                        <td className="px-3 py-2 font-mono">{p.cveId || p.id || '—'}</td>
+                                                        <td className="px-3 py-2">
+                                                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.severity === 'Critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300'}`}>
+                                                                {p.severity}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2">{p.sla_hours}</td>
+                                                        <td className="px-3 py-2 text-red-600 dark:text-red-400">{p.breach_hours?.toFixed(1)}</td>
+                                                        <td className="px-3 py-2">{p.status || 'overdue'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                            {(!slaReport.patches?.breached?.length && slaReport.summary?.total_patches === 0) && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No patch data in the last 30 days.</p>
+                            )}
+                        </div>
+                    ) : activeTab === 'vuln' && vulnReport ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <KpiCard label="Total Assets" value={vulnReport.summary?.total_assets ?? 0} />
+                                <KpiCard label="Exposed Assets" value={vulnReport.summary?.exposed_assets ?? 0} color="text-orange-600 dark:text-orange-400" sub={`${vulnReport.summary?.exposure_rate ?? 0}% exposure rate`} />
+                                <KpiCard label="Pending Patches" value={vulnReport.summary?.pending_patches ?? 0} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {severityPieData.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Severity Distribution</h4>
+                                        <div className="h-48">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={severityPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, value }) => `${name}: ${value}`} labelLine={false} fontSize={11}>
+                                                        {severityPieData.map((entry, i) => (
+                                                            <Cell key={i} fill={SEVERITY_COLORS[entry.name] || '#6b7280'} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+                                {vulnReport.critical_vulnerabilities?.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Top Critical Vulnerabilities</h4>
+                                        <div className="overflow-auto max-h-48">
+                                            <table className="w-full text-xs text-left">
+                                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                                    <tr>
+                                                        {['CVE', 'CVSS', 'Status'].map(h => (
+                                                            <th key={h} className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">{h}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {vulnReport.critical_vulnerabilities.slice(0, 10).map((v: any, i: number) => (
+                                                        <tr key={i} className="border-t border-gray-200 dark:border-gray-700">
+                                                            <td className="px-3 py-2 font-mono">{v.cveId || v.id || '—'}</td>
+                                                            <td className="px-3 py-2 text-red-600 dark:text-red-400">{v.cvss_score ?? '—'}</td>
+                                                            <td className="px-3 py-2">{v.status || '—'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            {(!vulnReport.critical_vulnerabilities?.length && severityPieData.length === 0) && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No vulnerability data available.</p>
+                            )}
+                        </div>
+                    ) : activeTab === 'change' && changeReport ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <KpiCard label="Total Changes" value={changeReport.summary?.total_changes ?? 0} sub={`Last ${changeReport.period ? Math.round((new Date(changeReport.period.end).getTime() - new Date(changeReport.period.start).getTime()) / 86400000) : 30} days`} />
+                                <KpiCard label="Deployments" value={changeReport.summary?.deployments ?? 0} />
+                                <KpiCard label="Staged" value={changeReport.summary?.staged_deployments ?? 0} />
+                                <KpiCard label="Rollbacks" value={changeReport.summary?.rollbacks ?? 0} color="text-red-600 dark:text-red-400" />
+                            </div>
+                            {changeReport.changes?.length > 0 ? (
+                                <div className="overflow-auto max-h-64">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                            <tr>
+                                                {['Type', 'Status', 'Created By', 'Date', 'Details'].map(h => (
+                                                    <th key={h} className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {changeReport.changes.map((c: any, i: number) => (
+                                                <tr key={i} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                    <td className="px-3 py-2">
+                                                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${c.type === 'rollback' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'}`}>
+                                                            {c.type?.replace('_', ' ')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2">{c.status || '—'}</td>
+                                                    <td className="px-3 py-2">{c.created_by || '—'}</td>
+                                                    <td className="px-3 py-2">{c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}</td>
+                                                    <td className="px-3 py-2 text-gray-500">
+                                                        {c.patch_count != null ? `${c.patch_count} patches` : ''}
+                                                        {c.asset_count != null ? ` · ${c.asset_count} assets` : ''}
+                                                        {c.reason ? `Reason: ${c.reason}` : ''}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No change management records in the last 30 days.</p>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No data available for this report.</p>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Data Export Center ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                <SectionHeader icon={<DownloadIcon className="text-primary-500" size={20} />} title="Data Export Center" subtitle="Download raw data as CSV or PDF" />
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ExportCard title="Asset Inventory" onExport={(format) => handleExport('Asset Inventory', format)} />
-                    <ExportCard title="Patch Management Report" onExport={(format) => handleExport('Patch Management', format)} />
-                    <ExportCard title="AI Risk Register" onExport={(format) => handleExport('AI Risk Register', format)} />
-                    <ExportCard title="Security Events (Last 30 days)" onExport={(format) => handleExport('Security Events', format)} />
+                    <ExportCard title="Asset Inventory" onExport={f => handleExport('Asset Inventory', f)} />
+                    <ExportCard title="Patch Management Report" onExport={f => handleExport('Patch Management', f)} />
+                    <ExportCard title="AI Risk Register" onExport={f => handleExport('AI Risk Register', f)} />
+                    <ExportCard title="Security Events (Last 30 days)" onExport={f => handleExport('Security Events', f)} />
                 </div>
             </div>
         </div>

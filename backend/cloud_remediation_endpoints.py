@@ -2,6 +2,7 @@
 Cloud Remediation API Endpoints
 """
 
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict
 from authentication_service import get_current_user
@@ -10,12 +11,20 @@ from database import get_database
 
 router = APIRouter(prefix="/api/cloud/remediation", tags=["Cloud Remediation"])
 
+
+def _tenant_id(user) -> str:
+    if isinstance(user, dict):
+        return user.get("tenant_id") or user.get("tenantId", "")
+    return getattr(user, "tenant_id", "") or ""
+
+
 @router.get("/capabilities")
 async def get_remediation_capabilities(
-    current_user: dict = Depends(get_current_user)
+    _current_user: dict = Depends(get_current_user)
 ) -> Dict:
     """Get available cloud remediation capabilities"""
     return cloud_remediation.get_capabilities()
+
 
 @router.post("/execute/{finding_id}")
 async def execute_remediation(
@@ -23,36 +32,32 @@ async def execute_remediation(
     current_user: dict = Depends(get_current_user)
 ) -> Dict:
     """Execute auto-remediation for a security finding"""
-    # Get finding from database
     db = get_database()
     finding = await db.cloud_findings.find_one({"id": finding_id})
-    
+
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
-    
-    # Check tenant ownership
-    user_tid = current_user.get("tenant_id") or current_user.get("tenantId", "")
+
+    user_tid = _tenant_id(current_user)
     if finding.get("tenantId") != user_tid and finding.get("tenant_id") != user_tid:
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Execute remediation
+
     result = await cloud_remediation.execute_remediation(finding)
-    
-    # Log remediation job
-    user_tid = current_user.get("tenant_id") or current_user.get("tenantId", "")
+
+    actor = getattr(current_user, "username", None) or (current_user.get("email", "") if isinstance(current_user, dict) else "")
     job = {
         "finding_id": finding_id,
         "tenant_id": user_tid,
-        "user": current_user.get("email", ""),
+        "user": actor,
         "action": finding.get("remediationType"),
         "cloud_provider": finding.get("cloudProvider"),
         "result": result,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    
     await db.remediation_jobs.insert_one(job)
-    
+
     return result
+
 
 @router.get("/status/{job_id}")
 async def get_remediation_status(
@@ -62,15 +67,15 @@ async def get_remediation_status(
     """Get status of a remediation job"""
     db = get_database()
     job = await db.remediation_jobs.find_one({"_id": job_id})
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    user_tid = current_user.get("tenant_id") or current_user.get("tenantId", "")
-    if job.get("tenant_id") != user_tid:
+
+    if job.get("tenant_id") != _tenant_id(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     return job
+
 
 @router.get("/history")
 async def get_remediation_history(
@@ -79,14 +84,10 @@ async def get_remediation_history(
 ):
     """Get remediation history for tenant"""
     db = get_database()
-    user_tid = current_user.get("tenant_id") or current_user.get("tenantId", "")
     try:
-        history = await db.remediation_jobs.find({
-            "tenant_id": user_tid
-        }).sort("timestamp", -1).limit(limit).to_list(length=limit)
+        history = await db.remediation_jobs.find(
+            {"tenant_id": _tenant_id(current_user)}
+        ).sort("timestamp", -1).limit(limit).to_list(length=limit)
     except Exception:
         history = []
     return history
-
-# Import for timestamp
-from datetime import datetime

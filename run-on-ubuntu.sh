@@ -149,8 +149,16 @@ grep -q "^google-cloud-speech" requirements.txt || echo "google-cloud-speech" >>
 grep -q "^google-cloud-texttospeech" requirements.txt || echo "google-cloud-texttospeech" >> requirements.txt
 # Phase 9: Agent Metrics
 grep -q "^psutil" requirements.txt || echo "psutil" >> requirements.txt
+# Security: Backup encryption, HTTP client, ML, SMS
+grep -q "^cryptography" requirements.txt || echo "cryptography" >> requirements.txt
+grep -q "^aiohttp" requirements.txt || echo "aiohttp" >> requirements.txt
+grep -q "^scikit-learn" requirements.txt || echo "scikit-learn" >> requirements.txt
+grep -q "^numpy" requirements.txt || echo "numpy" >> requirements.txt
+grep -q "^joblib" requirements.txt || echo "joblib" >> requirements.txt
+# Twilio SMS
+grep -q "^twilio" requirements.txt || echo "twilio" >> requirements.txt
 pip install -r requirements.txt
-print_success "Backend dependencies installed (Phases 1-10)"
+print_success "Backend dependencies installed (Phases 1-10 + Security extensions)"
 
 # Create .env with correct IP settings (Phases 1-10)
 cat > .env <<EOF
@@ -190,9 +198,53 @@ GOOGLE_CLOUD_PROJECT=
 GOOGLE_APPLICATION_CREDENTIALS=
 
 # === Phase 10: Ticketing (Zoho/Custom configured via UI) ===
+
+# === Security: Backup Encryption (Fernet/AES-128) ===
+# Leave blank to auto-generate on first run; store the generated key safely
+BACKUP_ENCRYPTION_KEY=
+
+# === Security: SonarQube SAST (optional — falls back to pattern scan) ===
+SONARQUBE_URL=
+SONARQUBE_TOKEN=
+
+# === Security: OpenVAS/GVM Vulnerability Scanner (optional) ===
+GVM_URL=
+GVM_USERNAME=admin
+GVM_PASSWORD=
+
+# === Notifications: Twilio SMS (optional) ===
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+
+# === EDR Integrations (optional — configure one or more) ===
+# CrowdStrike
+CROWDSTRIKE_CLIENT_ID=
+CROWDSTRIKE_CLIENT_SECRET=
+CROWDSTRIKE_BASE_URL=https://api.crowdstrike.com
+# SentinelOne
+SENTINELONE_API_TOKEN=
+SENTINELONE_BASE_URL=
+# Microsoft Defender
+DEFENDER_TENANT_ID=
+DEFENDER_CLIENT_ID=
+DEFENDER_CLIENT_SECRET=
+
+# === SIEM Integrations (optional) ===
+# Wazuh
+WAZUH_URL=
+WAZUH_USER=
+WAZUH_PASS=
+# QRadar
+QRADAR_URL=
+QRADAR_TOKEN=
 EOF
 chown $ACTUAL_USER:$ACTUAL_USER .env
-print_success "Backend .env created with IP $SYSTEM_IP (Phases 1-10)"
+print_success "Backend .env created with IP $SYSTEM_IP (Phases 1-10 + Security extensions)"
+
+# Create required backend directories (including report export path)
+mkdir -p logs backups uploads data_lake_storage static/reports
+chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports
 
 # Update agent install script with the correct IP
 sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" static/omni-agent-install.py
@@ -213,12 +265,33 @@ sudo -u $ACTUAL_USER npm install
 sudo -u $ACTUAL_USER npm run build
 print_success "Frontend built"
 
-# Step 5: Setup Agent
-print_info "Step 5: Configuring Agent..."
-if [ -f "agent/config.yaml" ]; then
-    sed -i "s|api_base_url:.*|api_base_url: http://$SYSTEM_IP:5000|g" agent/config.yaml
+# Step 5: Setup Agent (venv + deps + config)
+print_info "Step 5: Setting up agent virtualenv and configuration..."
+cd "$PROJECT_DIR/agent"
+
+# Create agent venv if not present; always ensure deps are installed
+if [ ! -d "venv" ]; then
+    sudo -u $ACTUAL_USER python3 -m venv venv
+fi
+venv/bin/pip install --upgrade pip setuptools wheel --quiet
+# Ensure new required packages are present in requirements.txt
+grep -q "^watchdog" requirements.txt || echo "watchdog>=4.0.0" >> requirements.txt
+grep -q "^websockets" requirements.txt || echo "websockets>=12.0" >> requirements.txt
+grep -q "^python-socketio" requirements.txt || echo "python-socketio>=5.10.0" >> requirements.txt
+venv/bin/pip install -r requirements.txt --quiet
+chown -R $ACTUAL_USER:$ACTUAL_USER venv
+print_success "Agent virtualenv ready (watchdog, websockets, python-socketio included)"
+
+# Update agent config with correct IP
+if [ -f "config.yaml" ]; then
+    sed -i "s|api_base_url:.*|api_base_url: http://$SYSTEM_IP:5000|g" config.yaml
     print_success "Agent config updated to http://$SYSTEM_IP:5000"
 fi
+
+# Update static Python installer with correct IP
+sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" "$PROJECT_DIR/backend/static/omni-agent-install.py" 2>/dev/null || true
+
+cd "$PROJECT_DIR"
 
 # Step 6: Configure Nginx — proxies frontend and all /api/* to backend
 print_info "Step 6: Configuring Nginx..."
@@ -392,6 +465,18 @@ echo -e "${GREEN}[✓] PDF Invoice Export${NC} - Phase 7"
 echo -e "${GREEN}[✓] Voice Bot (gTTS/Google Cloud)${NC} - Phase 8"
 echo -e "${GREEN}[✓] Real Agent Metrics (psutil)${NC} - Phase 9"
 echo -e "${GREEN}[✓] Ticketing: Jira, ServiceNow, Zoho Desk, Custom Webhook${NC} - Phase 10"
+echo -e "${GREEN}[✓] SBOM Vulnerability Correlation${NC} - live CVE cross-reference against patches + vuln DB"
+echo -e "${GREEN}[✓] Backup Encryption${NC} - AES-128 via Fernet (BACKUP_ENCRYPTION_KEY env var)"
+echo -e "${GREEN}[✓] Real EDR Integration${NC} - CrowdStrike OAuth2, SentinelOne Token, Microsoft Defender"
+echo -e "${GREEN}[✓] SIEM Integration${NC} - Wazuh REST API + QRadar Reference Data API"
+echo -e "${GREEN}[✓] SAST with SonarQube${NC} - real issue fetch; pattern-scan fallback"
+echo -e "${GREEN}[✓] Approval Notifications${NC} - email approvers on IR workflow create/advance"
+echo -e "${GREEN}[✓] SMS Alerts via Twilio${NC} - patch/SLA breach SMS notifications"
+echo -e "${GREEN}[✓] Attack Path Analysis${NC} - live DB-backed with critical CVE derivation fallback"
+echo -e "${GREEN}[✓] ML Patch Failure Prediction${NC} - Random Forest model + heuristic fallback"
+echo -e "${GREEN}[✓] UEBA Risk Scores${NC} - /api/ueba/risk-scores endpoint (prefix fix applied)"
+echo -e "${GREEN}[✓] Agent Full Dependencies${NC} - watchdog, websockets, python-socketio installed via agent venv"
+echo -e "${GREEN}[✓] Distributed Tracing${NC} - TenantIsolatedCollection.create_collection fix applied"
 print_info "==========================================================="
 
 # Backend Service (uses socket_app for Socket.IO support)
@@ -501,12 +586,21 @@ done
 echo ""
 echo "==========================================================="
 echo "  Deployment Complete! System IP: $SYSTEM_IP"
+echo ""
+echo "  Frontend:    http://$SYSTEM_IP"
+echo "  Backend API: http://$SYSTEM_IP:5000/api"
+echo ""
 echo " [x] 2030 GOVERNANCE & TRUST"
 echo "     - Risk Register (Enabled)"
 echo "     - Vendor Risk Management (Enabled)"
 echo "     - Trust Center (Enabled)"
-echo " [x] ADVANCED SECURITY HUB"
-echo "  Frontend: http://$SYSTEM_IP"
-echo "  Backend API: http://$SYSTEM_IP:5000/api"
+echo " [x] ADVANCED SECURITY HUB (with EDR, SIEM, SAST, SMS, Backup Encryption)"
+echo ""
+print_warning "Configure optional integrations in: $PROJECT_DIR/backend/.env"
+echo "  - SONARQUBE_URL / SONARQUBE_TOKEN   (real SAST)"
+echo "  - TWILIO_*                           (SMS alerts)"
+echo "  - GVM_URL / GVM_PASSWORD             (OpenVAS scanning)"
+echo "  - CROWDSTRIKE_* / SENTINELONE_* / DEFENDER_*  (EDR)"
+echo "  - WAZUH_URL / QRADAR_URL             (SIEM)"
 echo "==========================================================="
 echo ""

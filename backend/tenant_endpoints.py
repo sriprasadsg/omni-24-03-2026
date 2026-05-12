@@ -5,6 +5,7 @@ from database import get_database, mongodb
 from authentication_service import get_current_user
 from datetime import datetime, timezone
 import uuid
+import secrets
 
 router = APIRouter(prefix="/api/tenants", tags=["Tenant Management"])
 
@@ -249,5 +250,68 @@ async def update_tenant_branding(
     
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
-        
+
     return {"success": True, "message": "Branding updated"}
+
+
+# ── API Key Management ────────────────────────────────────────────────────────
+
+@router.post("/{tenant_id}/api-keys")
+async def generate_api_key(
+    tenant_id: str,
+    data: Dict[str, Any],
+    current_user=Depends(get_current_user),
+):
+    """Generate a new API key for the tenant. Returns the plaintext key once — store it safely."""
+    is_super_admin = getattr(current_user, "role", "") in ("Super Admin", "superadmin")
+    is_own_admin = (
+        getattr(current_user, "tenant_id", None) == tenant_id
+        and getattr(current_user, "role", "") in ("Admin", "Tenant Admin", "tenant_admin")
+    )
+    if not is_super_admin and not is_own_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to manage API keys for this tenant")
+
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    plaintext = f"omni_sk_{secrets.token_urlsafe(32)}"
+    key_id = f"key-{uuid.uuid4().hex[:10]}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    key_doc = {
+        "id": key_id,
+        "name": data.get("name", "API Key"),
+        "key": plaintext[:12] + "••••••••••••",   # store only prefix for display
+        "createdAt": now,
+        "userId": data.get("userId") or getattr(current_user, "username", ""),
+    }
+    await mongodb.db.tenants.update_one(
+        {"id": tenant_id},
+        {"$push": {"apiKeys": key_doc}},
+    )
+    return {"id": key_id, "name": key_doc["name"], "key": plaintext, "createdAt": now}
+
+
+@router.delete("/{tenant_id}/api-keys/{key_id}")
+async def revoke_api_key(
+    tenant_id: str,
+    key_id: str,
+    current_user=Depends(get_current_user),
+):
+    """Revoke (delete) an API key for the tenant."""
+    is_super_admin = getattr(current_user, "role", "") in ("Super Admin", "superadmin")
+    is_own_admin = (
+        getattr(current_user, "tenant_id", None) == tenant_id
+        and getattr(current_user, "role", "") in ("Admin", "Tenant Admin", "tenant_admin")
+    )
+    if not is_super_admin and not is_own_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to manage API keys for this tenant")
+
+    result = await mongodb.db.tenants.update_one(
+        {"id": tenant_id},
+        {"$pull": {"apiKeys": {"id": key_id}}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return {"success": True}

@@ -160,3 +160,49 @@ Call log:
 [2026-02-05 14:58:12] BROWSER CONSOLE: [Sidebar] Visible nav items: 42 User role: Super Admin
 [2026-02-05 14:58:12] [PASS] Swarm Intelligence Loaded.
 [2026-02-05 14:58:12] Verification Complete.
+[2026-04-16 02:21:43] Starting Full System Verification (Run 4)...
+[2026-04-16 02:21:49] Launching browser...
+[2026-04-16 02:21:52] Navigating to Login...
+[2026-04-16 02:21:55] BROWSER CONSOLE: [vite] connecting...
+[2026-04-16 02:21:55] BROWSER CONSOLE: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-04-16 02:21:55] BROWSER CONSOLE: [UserContext] Module initialized
+[2026-04-16 02:21:56] BROWSER CONSOLE: [Index] Script started
+[2026-04-16 02:21:56] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-04-16 02:21:56] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-04-16 02:21:56] BROWSER CONSOLE: No active session found on startup.
+[2026-04-16 02:21:56] BROWSER CONSOLE: No active session found on startup.
+[2026-04-16 02:21:56] BROWSER CONSOLE: [vite] connected.
+[2026-04-16 02:21:56] BROWSER CONSOLE: Failed to load resource: the server responded with a status of 401 (Unauthorized)
+[2026-04-16 02:21:56] BROWSER CONSOLE: Login error: Error: Invalid credentials
+    at Module.login (http://localhost:3000/services/apiService.ts:216:11)
+    at async handleLogin (http://localhost:3000/components/LoginPage.tsx:43:20)
+[2026-04-16 02:21:56] Waiting for Dashboard load...
+[2026-04-16 02:22:16] [FAIL] Login Timeout. Current URL: http://localhost:3000/
+[2026-04-16 02:22:16] [CRITICAL] Unexpected Error: Page.wait_for_selector: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator("text=Welcome back") to be visible
+
+[2026-04-16 02:22:16] Verification Complete.
+[2026-04-16 13:58:23] Starting Full System Verification (Run 4)...
+[2026-04-16 13:58:37] Launching browser...
+[2026-04-16 13:58:40] Navigating to Login...
+[2026-04-16 13:58:45] BROWSER CONSOLE: [vite] connecting...
+[2026-04-16 13:58:46] BROWSER CONSOLE: [vite] connected.
+[2026-04-16 13:58:48] BROWSER CONSOLE: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-04-16 13:58:48] BROWSER CONSOLE: [UserContext] Module initialized
+[2026-04-16 13:58:49] BROWSER CONSOLE: [Index] Script started
+[2026-04-16 13:58:49] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-04-16 13:58:49] BROWSER CONSOLE: [App] App component mounted and useEffect running
+[2026-04-16 13:58:49] BROWSER CONSOLE: No active session found on startup.
+[2026-04-16 13:58:49] BROWSER CONSOLE: No active session found on startup.
+[2026-04-16 13:58:49] Waiting for Dashboard load...
+[2026-04-16 13:58:49] BROWSER CONSOLE: Failed to load resource: the server responded with a status of 401 (Unauthorized)
+[2026-04-16 13:58:49] BROWSER CONSOLE: Login error: Error: Invalid credentials
+    at Module.login (http://localhost:3000/services/apiService.ts:216:11)
+    at async handleLogin (http://localhost:3000/components/LoginPage.tsx:43:20)
+[2026-04-16 13:59:09] [FAIL] Login Timeout. Current URL: http://localhost:3000/
+[2026-04-16 13:59:09] [CRITICAL] Unexpected Error: Page.wait_for_selector: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator("text=Welcome back") to be visible
+
+[2026-04-16 13:59:09] Verification Complete.

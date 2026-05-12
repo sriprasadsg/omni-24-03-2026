@@ -27,7 +27,7 @@ class DataLakeService:
         Save data to the Data Lake.
         path: {zone}/{category}/{YYYY}/{MM}/{DD}/{filename}
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         path = f"{zone}/{category}/{now.year}/{now.month:02d}/{now.day:02d}/{filename}"
         
         content = json.dumps(data, indent=2)

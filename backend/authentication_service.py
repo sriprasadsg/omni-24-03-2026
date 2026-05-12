@@ -1,12 +1,14 @@
 import jwt
+import os
+import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Optional
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
-from auth_types import TokenData, Token  # Re-export TokenData and Token
+from auth_types import TokenData  # Token re-exported by auth_types directly
 
-# Configuration (In production, use env vars)
-SECRET_KEY = "enterprise-omni-agent-secret-key-change-me"
+# Load JWT secret from environment; generate a secure random key if not set
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or secrets.token_urlsafe(64)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
 REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days
@@ -32,24 +34,71 @@ def create_refresh_token(data: dict):
 
 def verify_token(token: str) -> TokenData:
     try:
-        print(f"[DEBUG AUTH] Verifying token: {token[:20]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(f"[DEBUG AUTH] Payload: {payload}")
         username: str = payload.get("sub")
         role: str = payload.get("role", "user")
         tenant_id: str = payload.get("tenant_id")
-        
         if username is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials - missing sub",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        # Revocation check handled by verify_token_async (async context).
+        # Sync callers skip the DB check — use verify_token_async where possible.
+
         return TokenData(
-            username=username, 
-            role=role, 
+            username=username,
+            role=role,
             tenant_id=tenant_id,
-            mfa_verified=payload.get("mfa_verified", False)
+            mfa_verified=payload.get("mfa_verified", False),
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials - invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+async def verify_token_async(token: str) -> TokenData:
+    """Async version of verify_token — performs DB revocation check properly."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        role: str = payload.get("role", "user")
+        tenant_id: str = payload.get("tenant_id")
+        jti: str = payload.get("jti", "")
+
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials - missing sub",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if jti:
+            try:
+                from database import get_database
+                db = get_database()
+                revoked = await db.revoked_tokens.find_one({"jti": jti}, {"_id": 1})
+                if revoked:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been revoked",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+
+        return TokenData(
+            username=username,
+            role=role,
+            tenant_id=tenant_id,
+            mfa_verified=payload.get("mfa_verified", False),
         )
     except jwt.PyJWTError:
         raise HTTPException(
@@ -59,36 +108,21 @@ def verify_token(token: str) -> TokenData:
         )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-import sys
+_oauth2_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """
-    Dependency to get the current user from the token.
-    Checks for MFA enforcement if enabled.
-    """
+    """Dependency to get the current user; performs async revocation check."""
+    return await verify_token_async(token)
+
+async def get_optional_user(token: Optional[str] = Depends(_oauth2_optional)):
+    """Like get_current_user but returns None instead of raising 401 when no token is provided.
+    Used by endpoints that accept alternative auth (e.g. one-time download tokens)."""
+    if not token:
+        return None
     try:
-        data = verify_token(token)
-        
-        # Check if MFA is required but not verified
-        # For simplicity, we assume 'admin' roles require MFA if they have it enabled in DB
-        # In a real system, we'd check a 'mfa_enabled' flag in the user document
-        if not data.mfa_verified:
-            # We skip enforcement here to avoid breaking current trial access, 
-            # but in a strict system we would:
-            # raise HTTPException(status_code=403, detail="MFA verification required")
-            pass
-            
-        with open("debug_auth.txt", "w") as f:
-            f.write(f"Auth Success: {data}\n")
-        return data
-    except Exception as e:
-        with open("debug_auth.txt", "w") as f:
-            f.write(f"Auth Error: {e}\n")
-        sys.stderr.write(f"CRITICAL ERROR in get_current_user: {e}\n")
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        raise e
+        return await verify_token_async(token)
+    except HTTPException:
+        return None
 
 async def require_mfa(user: TokenData = Depends(get_current_user)):
     """

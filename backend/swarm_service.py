@@ -1,110 +1,61 @@
-from fastapi import APIRouter, BackgroundTasks
-from pydantic import BaseModel
-from typing import List, Dict, Any
+"""
+Supplementary swarm routes not covered by swarm_endpoints.py.
+The main swarm lifecycle (start/status/list/topology/peers/report) lives in swarm_endpoints.py.
+"""
+from fastapi import APIRouter, BackgroundTasks, Depends
+from typing import Dict, Any
 import uuid
-import time
-import asyncio
+from datetime import datetime, timezone
+from authentication_service import get_current_user
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
 
-class SwarmMission(BaseModel):
-    goal: str
-    priority: str
 
-class AgentMessage(BaseModel):
-    agent_name: str
-    role: str
-    message: str
-    timestamp: float
+@router.post("/propagate-antibody")
+async def propagate_antibody(
+    threat_data: Dict[str, Any],
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_user),
+):
+    """
+    Digital Immune System: Dispatches a block rule (antibody) to all online agents
+    in the tenant via the instructions collection.
+    """
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    antibody_id = f"antibody-{uuid.uuid4().hex[:8]}"
+    threat_type = threat_data.get("threat_type", "Unknown")
+    indicator = threat_data.get("indicator") or threat_data.get("ip") or threat_data.get("hash", "")
 
-# In-memory store
-missions = {}
+    async def distribute():
+        from database import mongodb
+        db = mongodb.db
+        agents = await db.agents.find(
+            {"tenantId": tenant_id, "status": {"$in": ["Online", "Active", "online", "active"]}},
+            {"id": 1}
+        ).to_list(length=1000)
+        now = datetime.now(timezone.utc).isoformat()
+        instructions = [
+            {
+                "id": str(uuid.uuid4()),
+                "agent_id": a["id"],
+                "tenant_id": tenant_id,
+                "type": "apply_block_rule",
+                "parameters": {"antibody_id": antibody_id, "threat_type": threat_type, "indicator": indicator},
+                "status": "pending",
+                "created_at": now,
+                "source": "immune_system"
+            }
+            for a in agents if a.get("id")
+        ]
+        if instructions:
+            await db.instructions.insert_many(instructions)
+        print(f"[IMMUNE] Antibody {antibody_id} dispatched to {len(instructions)} agents.")
 
-async def run_swarm_lifecycle(mission_id: str, goal: str):
-    """Simulates the autonomous swarm loop"""
-    # 1. Coordinator Planning
-    await asyncio.sleep(2)
-    if mission_id in missions:
-       missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Coordinator", role="Manager", message=f"Received goal: '{goal}'. Analyzing requirements...", timestamp=time.time()
-    ))
-    
-    await asyncio.sleep(2)
-    if mission_id in missions:
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Coordinator", role="Manager", message="Plan created. Step 1: Scan for vulnerabilities. Step 2: Patch if found.", timestamp=time.time()
-    ))
-
-    # 2. Worker Execution (Scanner)
-    await asyncio.sleep(2)
-    if mission_id in missions:
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Scanner-01", role="Researcher", message="Starting generic vulnerability scan on network...", timestamp=time.time()
-    ))
-    
-    await asyncio.sleep(3)
-    if mission_id in missions:
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Scanner-01", role="Researcher", message="Scan complete. Found critical issue: CVE-2026-1234 (Remote Code Execution).", timestamp=time.time()
-    ))
-
-    # 3. Coordinator Decision
-    await asyncio.sleep(1)
-    if mission_id in missions:
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Coordinator", role="Manager", message="Critical issue confirmed. Assigning Patcher-Alpha to remediate.", timestamp=time.time()
-    ))
-
-    # 4. Worker Execution (Patcher)
-    await asyncio.sleep(2)
-    if mission_id in missions:
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Patcher-Alpha", role="Engineer", message="Applying patch 'sec-fix-v4.2'. Verifying system stability...", timestamp=time.time()
-    ))
-    
-    await asyncio.sleep(2)
-    if mission_id in missions:
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Patcher-Alpha", role="Engineer", message="Patch applied successfully. System generated 200 OK responses.", timestamp=time.time()
-    ))
-
-    # 5. Conclusion
-    await asyncio.sleep(1)
-    if mission_id in missions:
-        missions[mission_id]["status"] = "Completed"
-        missions[mission_id]["logs"].append(AgentMessage(
-        agent_name="Coordinator", role="Manager", message="Mission accomplished. Vulnerability resolved.", timestamp=time.time()
-    ))
-
-@router.post("/start")
-async def start_mission(mission: SwarmMission, background_tasks: BackgroundTasks):
-    mission_id = str(uuid.uuid4())
-    missions[mission_id] = {
-        "id": mission_id,
-        "goal": mission.goal,
-        "status": "Running",
-        "logs": []
+    background_tasks.add_task(distribute)
+    return {
+        "status": "Propagating",
+        "antibody_id": antibody_id,
+        "threat_type": threat_type,
+        "indicator": indicator,
+        "action": f"Distributed block rule for threat: {threat_type}",
     }
-    background_tasks.add_task(run_swarm_lifecycle, mission_id, mission.goal)
-    return {"mission_id": mission_id, "status": "Started"}
-
-@router.get("/status/{mission_id}")
-async def get_mission_status(mission_id: str):
-    return missions.get(mission_id, {"error": "Mission not found"})
-
-@router.get("/list")
-async def list_missions():
-    # Convert logs objects to dicts for JSON serialization
-    results = []
-    for m in missions.values():
-        clean_m = m.copy()
-        # Ensure logs are serializable
-        clean_logs = []
-        for log in m["logs"]:
-            if isinstance(log, AgentMessage):
-                clean_logs.append(log.dict())
-            else:
-                clean_logs.append(log)
-        clean_m["logs"] = clean_logs
-        results.append(clean_m)
-    return results

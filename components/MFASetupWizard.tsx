@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-
-const API = '/api';
-function getHeaders(): HeadersInit {
-    const keys = ['access_token', 'token', 'authToken', 'auth.access_token'];
-    let token = '';
-    for (const k of keys) { token = localStorage.getItem(k) || ''; if (token) break; }
-    return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-}
+import { authFetch } from '../services/apiService';
 
 interface MFASetupWizardProps {
     onClose: () => void;
@@ -26,7 +19,7 @@ export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardPro
     const startSetup = async () => {
         setLoading(true); setError('');
         try {
-            const r = await fetch(`${API}/mfa/setup`, { headers: getHeaders() });
+            const r = await authFetch('/api/mfa/setup');
             const d = await r.json();
             if (!r.ok) throw new Error(d.detail || 'Setup failed');
             setSecret(d.secret);
@@ -41,8 +34,8 @@ export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardPro
         if (code.length !== 6) { setError('Enter the 6-digit code from your authenticator app'); return; }
         setLoading(true); setError('');
         try {
-            const r = await fetch(`${API}/mfa/verify-setup`, {
-                method: 'POST', headers: getHeaders(),
+            const r = await authFetch('/api/mfa/verify-setup', {
+                method: 'POST',
                 body: JSON.stringify({ totp_code: code }),
             });
             const d = await r.json();

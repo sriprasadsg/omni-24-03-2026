@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { LlmSettings as LlmSettingsType } from '../types';
 import { BrainCircuitIcon, XIcon, CogIcon, CheckIcon, AlertTriangleIcon, InfoIcon } from './icons';
 import { GoogleGenAI } from '@google/genai';
+import { testLlmConnection } from '../services/apiService';
 
 interface LlmSettingsProps {
     isOpen: boolean;
@@ -21,6 +22,12 @@ const geminiModelDescriptions: Record<string, string> = {
     'gemini-2.5-flash-preview-tts': 'A model for high-quality text-to-speech generation.',
     'veo-3.1-fast-generate-preview': 'A model for general video generation tasks.',
     'imagen-4.0-generate-001': 'A model for high-quality, photorealistic image generation.',
+};
+
+const anthropicModelDescriptions: Record<string, string> = {
+    'claude-opus-4-7': 'Most capable Claude model for complex reasoning, analysis, and nuanced tasks.',
+    'claude-sonnet-4-6': 'Balanced performance and speed — ideal for security analysis, chatbots, and general-purpose tasks.',
+    'claude-haiku-4-5-20251001': 'Fastest and most compact Claude model for high-throughput, low-latency tasks.',
 };
 
 const localModelDescriptions: Record<string, string> = {
@@ -78,9 +85,43 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
         setTestMessage('');
 
         if (formData.provider === 'Local') {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setTestStatus('success');
-            setTestMessage(`Successfully connected to local model endpoint at ${formData.host || 'localhost'} (simulation).`);
+            try {
+                const result = await testLlmConnection({
+                    provider: 'ollama',
+                    ollamaUrl: formData.host ? `http://${formData.host}` : 'http://localhost:11434',
+                });
+                if (result.success) {
+                    setTestStatus('success');
+                    setTestMessage(result.message);
+                } else {
+                    setTestStatus('failed');
+                    setTestMessage(result.message);
+                }
+            } catch (error: any) {
+                setTestStatus('failed');
+                setTestMessage(error.message || 'Failed to reach local model endpoint');
+            }
+            return;
+        }
+
+        if (formData.provider === 'Anthropic Claude') {
+            try {
+                const result = await testLlmConnection({
+                    provider: 'anthropic',
+                    apiKey: formData.apiKey,
+                    model: formData.model || 'claude-haiku-4-5-20251001',
+                });
+                if (result.success) {
+                    setTestStatus('success');
+                    setTestMessage(result.message || 'Connection successful!');
+                } else {
+                    setTestStatus('failed');
+                    setTestMessage(result.message || 'Connection failed');
+                }
+            } catch (error: any) {
+                setTestStatus('failed');
+                setTestMessage(error.message || 'Failed to reach Anthropic API');
+            }
             return;
         }
 
@@ -90,7 +131,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
             }
             const ai = new GoogleGenAI({ apiKey: formData.apiKey });
             const response = await ai.models.generateContent({
-                model: 'gemini-2.0-flash', // Always test with a simple model
+                model: 'gemini-2.0-flash',
                 contents: 'Say "test successful"',
             });
 
@@ -111,8 +152,11 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
     const allGeminiModels = [...availableGeminiModels, ...customModels];
     const availableModels = formData.provider === 'Local' ? availableLocalModels
         : formData.provider === 'Omni-LLM-Scratch' ? ['omni-llm-v1']
+        : formData.provider === 'Anthropic Claude' ? Object.keys(anthropicModelDescriptions)
         : allGeminiModels;
-    const modelDescriptions = formData.provider === 'Local' || formData.provider === 'Omni-LLM-Scratch' ? localModelDescriptions : geminiModelDescriptions;
+    const modelDescriptions = formData.provider === 'Local' || formData.provider === 'Omni-LLM-Scratch' ? localModelDescriptions
+        : formData.provider === 'Anthropic Claude' ? anthropicModelDescriptions
+        : geminiModelDescriptions;
 
     const renderField = (label: string, name: keyof LlmSettingsType, type: string = 'text', options?: string[]) => (
         <div>
@@ -144,7 +188,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                 </div>
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {renderField('Provider', 'provider', 'select', ['Gemini', 'Local', 'Omni-LLM-Scratch'])}
+                        {renderField('Provider', 'provider', 'select', ['Gemini', 'Anthropic Claude', 'Local', 'Omni-LLM-Scratch'])}
                         <div>
                             <label htmlFor="model" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Preferred Model</label>
                             <div className="flex space-x-2">
@@ -202,7 +246,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                             <p>{modelDescriptions[formData.model] || 'Custom model. Ensure this model is available.'}</p>
                         </div>
                     </div>
-                    {(formData.provider === 'Gemini') && (
+                    {formData.provider === 'Gemini' && (
                         <div>
                             <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API Key</label>
                             <div className="relative mt-1">
@@ -220,6 +264,27 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                             </div>
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 Don't have a key? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">Get an API key from Google AI Studio</a>.
+                            </p>
+                        </div>
+                    )}
+                    {formData.provider === 'Anthropic Claude' && (
+                        <div>
+                            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API Key</label>
+                            <div className="relative mt-1">
+                                <input
+                                    type={showKey ? 'text' : 'password'}
+                                    id="apiKey" name="apiKey"
+                                    value={formData.apiKey}
+                                    onChange={handleChange}
+                                    className="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm"
+                                    placeholder="sk-ant-..."
+                                />
+                                <button type="button" onClick={() => setShowKey(!showKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-sm text-gray-500">
+                                    {showKey ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                Get an API key from the <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">Anthropic Console</a>.
                             </p>
                         </div>
                     )}

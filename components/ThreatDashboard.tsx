@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { authFetch } from "../services/apiService";
 import { 
   Shield, 
   AlertTriangle, 
@@ -46,8 +47,8 @@ const ThreatDashboard: React.FC = () => {
     setLoading(true);
     try {
       const [eventsRes, summaryRes] = await Promise.all([
-        fetch("/api/siem/events?limit=50"),
-        fetch("/api/siem/summary")
+        authFetch("/api/siem/events?limit=50"),
+        authFetch("/api/siem/summary")
       ]);
       const eventsData = await eventsRes.json();
       const summaryData = await summaryRes.json();

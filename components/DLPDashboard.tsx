@@ -1,11 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { authFetch } from '../services/apiService';
 
 const API = '/api';
-function getHeaders(): HeadersInit {
-    const keys = ['access_token', 'token', 'authToken'];
-    let t = ''; for (const k of keys) { t = localStorage.getItem(k) || ''; if (t) break; }
-    return { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) };
-}
 
 interface Incident { scan_id: string; filename: string; finding_count: number; sensitivity: string; status: string; scanned_at: string; findings: any[]; }
 interface Policy { policy_id: string; name: string; pattern: string; severity: string; enabled: boolean; }
@@ -26,8 +22,8 @@ export default function DLPDashboard() {
 
     const load = async () => {
         const [r1, r2] = await Promise.all([
-            fetch(`${API}/dlp/incidents`, { headers: getHeaders() }).then(r => r.json()),
-            fetch(`${API}/dlp/policies`, { headers: getHeaders() }).then(r => r.json()),
+            authFetch(`${API}/dlp/incidents`).then(r => r.json()),
+            authFetch(`${API}/dlp/policies`).then(r => r.json()),
         ]);
         setIncidents(Array.isArray(r1) ? r1 : []);
         setPolicies(Array.isArray(r2) ? r2 : []);
@@ -46,14 +42,14 @@ export default function DLPDashboard() {
     };
 
     const resolve = async (scanId: string) => {
-        await fetch(`${API}/dlp/incidents/${scanId}/resolve`, { method: 'PATCH', headers: getHeaders() });
+        await authFetch(`${API}/dlp/incidents/${scanId}/resolve`, { method: 'PATCH' });
         load();
     };
 
     const addPolicy = async () => {
         if (!newPolicy.name || !newPolicy.pattern) return;
         setSaving(true);
-        const r = await fetch(`${API}/dlp/policies`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(newPolicy) });
+        const r = await authFetch(`${API}/dlp/policies`, { method: 'POST', body: JSON.stringify(newPolicy) });
         const d = await r.json();
         setFeedback({ msg: d.success ? 'Policy created' : (d.detail || 'Error'), ok: !!d.success });
         setTimeout(() => setFeedback(null), 3000);

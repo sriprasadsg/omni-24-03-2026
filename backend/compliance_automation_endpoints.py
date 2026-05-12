@@ -97,8 +97,10 @@ async def get_automation_rules(
             _get(current_user, "tenantId", "default")
         )
         return rules
-    except Exception:
-        return []
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).error("Failed to fetch automation rules: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch automation rules: {exc}")
 
 @router.get("/evidence/package/{framework}")
 async def download_evidence_package(

@@ -93,7 +93,7 @@ async def create_user(user: UserCreate, current_user: dict = Depends(get_current
         "role": user.role,
         "tenantId": target_tenant_id,
         "is_active": True,
-        "created_at": datetime.datetime.utcnow().isoformat()
+        "created_at": datetime.datetime.now(timezone.utc).isoformat()
     }
     
     try:

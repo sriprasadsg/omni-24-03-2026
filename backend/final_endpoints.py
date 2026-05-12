@@ -35,7 +35,7 @@ async def send_to_siem(data: dict):
         return result
     except Exception as e:
         print(f"Error sending to SIEM: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/integrations/cmdb/sync")
@@ -61,7 +61,7 @@ async def sync_to_cmdb(data: dict):
         return result
     except Exception as e:
         print(f"Error syncing to CMDB: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/integrations/ticketing/create")
@@ -93,7 +93,7 @@ async def create_ticket(data: dict):
         return result
     except Exception as e:
         print(f"Error creating ticket: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/integrations/config")
@@ -137,7 +137,7 @@ async def configure_integration(data: dict):
         }
     except Exception as e:
         print(f"Error configuring integration: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Phase 9: ML/AI Endpoints
@@ -165,7 +165,7 @@ async def predict_patch_failure(data: dict):
         return prediction
     except Exception as e:
         print(f"Error predicting failure: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/ml/detect-anomalies")
@@ -189,7 +189,7 @@ async def detect_anomalies(tenant_id: str = None, lookback_days: int = 7):
         return anomalies
     except Exception as e:
         print(f"Error detecting anomalies: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/ml/recommend-action")
@@ -218,7 +218,7 @@ async def recommend_autonomous_action(data: dict):
         return recommendation
     except Exception as e:
         print(f"Error generating recommendation: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Phase 7: Scalability Status Endpoint
@@ -261,7 +261,4 @@ async def get_system_health():
         }
     except Exception as e:
         print(f"Error getting health: {e}")
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }, 503
+        raise HTTPException(status_code=503, detail=str(e))

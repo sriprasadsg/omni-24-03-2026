@@ -61,8 +61,8 @@ class SquareGateway(PaymentGatewayInterface):
                     "id": sub["id"],
                     "status": sub["status"],
                     "plan": {"id": sub["plan_id"]},
-                    "current_period_start": datetime.utcnow().timestamp(), # Square doesn't always return this easily in creation
-                    "current_period_end": datetime.utcnow().timestamp() + (30*24*3600) # Mock 30 days
+                    "current_period_start": datetime.now(timezone.utc).timestamp(), # Square doesn't always return this easily in creation
+                    "current_period_end": datetime.now(timezone.utc).timestamp() + (30*24*3600)  # Square doesn't return period_end on creation; derive from +30 days
                 }
             else:
                 raise Exception(f"Square create subscription failed: {result.errors}")
@@ -114,7 +114,7 @@ class SquareGateway(PaymentGatewayInterface):
                     "currency": payment["amount_money"]["currency"],
                     "status": payment["status"],
                     "paid": payment["status"] == "COMPLETED",
-                    "created": datetime.utcnow().timestamp()
+                    "created": datetime.now(timezone.utc).timestamp()
                 }
             else:
                 raise Exception(f"Square payment failed: {result.errors}")

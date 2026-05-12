@@ -406,7 +406,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                     style={{
                         height: '100%',
                         animationDelay: `${i * 0.1}s`,
-                        animationDuration: `${0.5 + Math.random()}s`
+                        animationDuration: `${(0.5 + i * 0.15).toFixed(2)}s`
                     }}
                 ></div>
             ))}

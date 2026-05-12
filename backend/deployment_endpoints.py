@@ -52,7 +52,7 @@ async def create_staged_deployment(data: dict, current_user: TokenData = Depends
         }
     except Exception as e:
         print(f"Error creating staged deployment: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/deployments/staged/{deployment_id}")
@@ -66,15 +66,15 @@ async def get_staged_deployment(deployment_id: str, current_user: TokenData = De
         deployment = await deployment_service.get_deployment(deployment_id)
         
         if not deployment:
-            return {"error": "Deployment not found"}, 404
+            raise HTTPException(status_code=404, detail="Deployment not found")
             
         if deployment.get("tenant_id") != tenant_id and deployment.get("tenantId") != tenant_id:
-             return {"error": "Unauthorized"}, 403
+             raise HTTPException(status_code=403, detail="Unauthorized")
         
         return deployment
     except Exception as e:
         print(f"Error getting deployment: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/deployments/staged/{deployment_id}/progress")
@@ -89,9 +89,9 @@ async def update_deployment_progress(deployment_id: str, data: dict, current_use
         
         deployment = await deployment_service.get_deployment(deployment_id)
         if not deployment:
-            return {"error": "Deployment not found"}, 404
+            raise HTTPException(status_code=404, detail="Deployment not found")
         if deployment.get("tenant_id") != tenant_id and deployment.get("tenantId") != tenant_id:
-             return {"error": "Unauthorized"}, 403
+             raise HTTPException(status_code=403, detail="Unauthorized")
         
         stage_data = await deployment_service.update_stage_progress(
             deployment_id=deployment_id,
@@ -107,7 +107,7 @@ async def update_deployment_progress(deployment_id: str, data: dict, current_use
         }
     except Exception as e:
         print(f"Error updating progress: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/deployments/approvals/request")
@@ -123,9 +123,9 @@ async def request_stage_approval(data: dict, current_user: TokenData = Depends(r
         deployment_id = data.get("deployment_id")
         deployment = await deployment_service.get_deployment(deployment_id)
         if not deployment:
-            return {"error": "Deployment not found"}, 404
+            raise HTTPException(status_code=404, detail="Deployment not found")
         if deployment.get("tenant_id") != tenant_id and deployment.get("tenantId") != tenant_id:
-             return {"error": "Unauthorized"}, 403
+             raise HTTPException(status_code=403, detail="Unauthorized")
         
         approval = await deployment_service.request_approval(
             deployment_id=deployment_id,
@@ -140,7 +140,7 @@ async def request_stage_approval(data: dict, current_user: TokenData = Depends(r
         }
     except Exception as e:
         print(f"Error requesting approval: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/deployments/approvals/pending")
@@ -177,7 +177,7 @@ async def get_pending_approvals(current_user: TokenData = Depends(rbac_service.h
         }
     except Exception as e:
         print(f"Error getting approvals: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/deployments/approvals/{approval_id}/approve")
@@ -193,11 +193,11 @@ async def approve_deployment_stage(approval_id: str, data: dict, current_user: T
         # Verify ownership via deployment
         approval_doc = await db.deployment_approvals.find_one({"id": approval_id})
         if not approval_doc:
-             return {"error": "Approval not found"}, 404
+             raise HTTPException(status_code=404, detail="Approval not found")
              
         deployment = await deployment_service.get_deployment(approval_doc["deployment_id"])
         if not deployment or (deployment.get("tenant_id") != tenant_id and deployment.get("tenantId") != tenant_id):
-             return {"error": "Unauthorized"}, 403
+             raise HTTPException(status_code=403, detail="Unauthorized")
         
         approval = await deployment_service.approve_stage(
             approval_id=approval_id,
@@ -224,7 +224,7 @@ async def approve_deployment_stage(approval_id: str, data: dict, current_user: T
         }
     except Exception as e:
         print(f"Error approving stage: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/deployments/approvals/{approval_id}/reject")
@@ -239,11 +239,11 @@ async def reject_deployment_stage(approval_id: str, data: dict, current_user: To
         
         approval_doc = await db.deployment_approvals.find_one({"id": approval_id})
         if not approval_doc:
-             return {"error": "Approval not found"}, 404
+             raise HTTPException(status_code=404, detail="Approval not found")
              
         deployment = await deployment_service.get_deployment(approval_doc["deployment_id"])
         if not deployment or (deployment.get("tenant_id") != tenant_id and deployment.get("tenantId") != tenant_id):
-             return {"error": "Unauthorized"}, 403
+             raise HTTPException(status_code=403, detail="Unauthorized")
         
         approval = await deployment_service.reject_stage(
             approval_id=approval_id,
@@ -270,7 +270,7 @@ async def reject_deployment_stage(approval_id: str, data: dict, current_user: To
         }
     except Exception as e:
         print(f"Error rejecting stage: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/deployments/{deployment_id}/rollback")
@@ -285,7 +285,7 @@ async def rollback_deployment(deployment_id: str, data: dict, current_user: Toke
         
         deployment = await deployment_service.get_deployment(deployment_id)
         if not deployment or (deployment.get("tenant_id") != tenant_id and deployment.get("tenantId") != tenant_id):
-             return {"error": "Unauthorized"}, 403
+             raise HTTPException(status_code=403, detail="Unauthorized")
         
         rollback = await deployment_service.trigger_rollback(
             deployment_id=deployment_id,
@@ -311,7 +311,7 @@ async def rollback_deployment(deployment_id: str, data: dict, current_user: Toke
         }
     except Exception as e:
         print(f"Error triggering rollback: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/deployments/staged")
@@ -336,4 +336,4 @@ async def list_staged_deployments(current_user: TokenData = Depends(rbac_service
         }
     except Exception as e:
         print(f"Error listing deployments: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))

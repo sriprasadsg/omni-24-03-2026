@@ -486,7 +486,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                 {activeTab === 'integrity' && (
                     <div className="space-y-4">
                         {/* FIM Alerts Panel */}
-                        <FimAlertsPanel changes={asset.meta?.fim?.recent_changes} />
+                        <FimAlertsPanel changes={(asset as any).meta?.fim?.recent_changes} />
 
                         {/* Existing File Table */}
                         <div className="max-h-[450px] overflow-y-auto">
@@ -585,7 +585,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
 
             {isTerminalOpen && (
                 <RemoteTerminal
-                    agent={asset}
+                    agent={asset as unknown as import('../types').Agent}
                     onClose={() => setIsTerminalOpen(false)}
                 />
             )}

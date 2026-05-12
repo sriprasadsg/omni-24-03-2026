@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Agent, AgentPlatform, AgentStatus, AgentCapability, Asset, VulnerabilitySeverity, Tenant } from '../types';
-import { XIcon, ServerIcon, CheckIcon, XCircleIcon, AlertCircleIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, BarChart3Icon, ShieldSearchIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, CogIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, HistoryIcon, ShieldAlertIcon, TerminalSquareIcon, ArrowRightIcon } from './icons';
+import { XIcon, ServerIcon, CheckIcon, XCircleIcon, AlertCircleIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, BarChart3Icon, ShieldSearchIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, CogIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, HistoryIcon, ShieldAlertIcon, TerminalSquareIcon, ArrowRightIcon, ZapIcon, SearchIcon, NetworkIcon, CloudShieldIcon, GlobeIcon, EyeIcon, BotIcon, PackageCheckIcon, BoxIcon, TestTubeIcon, ActivityIcon, SendIcon, RadarIcon, BinocularsIcon, ClipboardCheckIcon, HeartHandshakeIcon, DownloadIcon, WorkflowIcon, BrainCircuitIcon, RefreshCwIcon, DatabaseIcon, HardDriveIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { RuntimeSecurityTab } from './RuntimeSecurityTab';
@@ -38,16 +38,45 @@ const platformIcons: Record<AgentPlatform, React.ReactNode> = {
 };
 
 const capabilityInfo: Record<AgentCapability, { icon: React.ReactNode; label: string; }> = {
-    metrics_collection: { icon: <BarChart3Icon size={16} />, label: "Metric Collection" },
-    vulnerability_scanning: { icon: <ShieldSearchIcon size={16} />, label: "Vulnerability Scanning" },
-    log_collection: { icon: <FileTextIcon size={16} />, label: "Log Collection" },
-    fim: { icon: <FileShieldIcon size={16} />, label: "File Integrity Monitoring" },
-    compliance_enforcement: { icon: <ShieldCheckIcon size={16} />, label: "Compliance Enforcement" },
-    runtime_security: { icon: <ShieldZapIcon size={16} />, label: "Runtime Security" },
-    predictive_health: { icon: <LightbulbIcon size={16} />, label: 'Predictive Health' },
-    ueba: { icon: <UsersIcon size={16} />, label: 'Behavior Analytics (UEBA)' },
-    sbom_analysis: { icon: <ComponentIcon size={16} />, label: 'SBOM Analysis' },
-    ebpf_tracing: { icon: <GitMergeIcon size={16} />, label: 'eBPF Tracing' },
+    // Core telemetry
+    metrics_collection: { icon: <BarChart3Icon size={16} />,  label: 'Metric Collection' },
+    log_collection:     { icon: <FileTextIcon size={16} />,   label: 'Log Collection' },
+    process_monitor:    { icon: <ActivityIcon size={16} />,   label: 'Process Monitor' },
+    log_shipper:        { icon: <SendIcon size={16} />,        label: 'Log Shipper' },
+    // Security detection
+    vulnerability_scanning:       { icon: <ShieldSearchIcon size={16} />, label: 'Vulnerability Scanning' },
+    fim:                           { icon: <FileShieldIcon size={16} />,   label: 'File Integrity Monitoring' },
+    real_time_fim:                 { icon: <RadarIcon size={16} />,        label: 'Real-Time FIM' },
+    compliance_enforcement:        { icon: <ShieldCheckIcon size={16} />,  label: 'Compliance Enforcement' },
+    runtime_security:              { icon: <ShieldZapIcon size={16} />,    label: 'Runtime Security (XDR)' },
+    edr_realtime:                  { icon: <ZapIcon size={16} />,          label: 'EDR Real-Time' },
+    persistence_detection:         { icon: <SearchIcon size={16} />,       label: 'Persistence Detection' },
+    deception_monitor:             { icon: <BinocularsIcon size={16} />,   label: 'Deception Monitor' },
+    // Network & cloud
+    network_discovery: { icon: <NetworkIcon size={16} />,        label: 'Network Discovery' },
+    cloud_metadata:    { icon: <CloudShieldIcon size={16} />,    label: 'Cloud Metadata Collector' },
+    web_monitor:       { icon: <GlobeIcon size={16} />,           label: 'Web Monitor' },
+    remote_access:     { icon: <TerminalSquareIcon size={16} />, label: 'Remote Access' },
+    // Data & privacy
+    pii_scanner:                   { icon: <EyeIcon size={16} />,            label: 'PII Data Scanner' },
+    sbom_analysis:                 { icon: <ComponentIcon size={16} />,      label: 'SBOM Analysis' },
+    compliance_evidence_collector: { icon: <ClipboardCheckIcon size={16} />, label: 'Compliance Evidence Collector' },
+    vendor_risk:                   { icon: <HeartHandshakeIcon size={16} />, label: 'Vendor Risk Scanner' },
+    // Advanced AI
+    predictive_health: { icon: <LightbulbIcon size={16} />, label: 'Predictive Health AI' },
+    ueba:              { icon: <UsersIcon size={16} />,      label: 'Behavior Analytics (UEBA)' },
+    ebpf_tracing:      { icon: <GitMergeIcon size={16} />,  label: 'eBPF Kernel Tracing' },
+    shadow_ai:         { icon: <BotIcon size={16} />,        label: 'Shadow AI Detector' },
+    // Remediation
+    system_patching:              { icon: <PackageCheckIcon size={16} />, label: 'Autonomous Patching' },
+    patch_installer:              { icon: <DownloadIcon size={16} />,     label: 'Patch Installer' },
+    software_management:          { icon: <BoxIcon size={16} />,          label: 'Software Management' },
+    remediation_executor:         { icon: <WorkflowIcon size={16} />,     label: 'Remediation Executor' },
+    autonomous_response:          { icon: <BrainCircuitIcon size={16} />, label: 'Autonomous Response' },
+    agent_update:                 { icon: <RefreshCwIcon size={16} />,    label: 'Agent Self-Update' },
+    vss_manager:                  { icon: <DatabaseIcon size={16} />,     label: 'VSS Manager' },
+    backup_verifier:              { icon: <HardDriveIcon size={16} />,    label: 'Backup Verifier' },
+    process_injection_simulation: { icon: <TestTubeIcon size={16} />,     label: 'Injection Simulator' },
 };
 
 const severityClasses: Record<VulnerabilitySeverity, string> = {
@@ -122,7 +151,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const { timeZone } = useTimeZone();
 
     const canViewLogs = hasPermission('view:agent_logs');
-    const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software' | 'patching'>('overview');
     const [fetchedComplianceData, setFetchedComplianceData] = useState<ComplianceData | null>(null);
     const [tenantName, setTenantName] = useState<string>('Loading...');
 
@@ -146,6 +175,19 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const [targetTenantId, setTargetTenantId] = useState('');
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [isMoving, setIsMoving] = useState(false);
+
+    // Live asset data (fetched when modal opens to get fresh vulnerability data)
+    const [liveAsset, setLiveAsset] = useState<Asset | null>(null);
+
+    React.useEffect(() => {
+        if (isOpen && agent?.assetId) {
+            fetchAssets().then((assets: Asset[]) => {
+                setLiveAsset(assets.find((a: Asset) => a.id === agent.assetId) || null);
+            }).catch(() => setLiveAsset(null));
+        } else {
+            setLiveAsset(null);
+        }
+    }, [isOpen, agent?.assetId]);
 
     // Link Asset State
     const [isLinkingAsset, setIsLinkingAsset] = useState(false);
@@ -466,14 +508,15 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
 
     const sortedVulnerabilities = React.useMemo(() => {
-        if (!asset || !asset.vulnerabilities) return [];
-        return [...asset.vulnerabilities]
+        const effectiveAsset = liveAsset || asset;
+        if (!effectiveAsset || !effectiveAsset.vulnerabilities) return [];
+        return [...effectiveAsset.vulnerabilities]
             .filter(v => v.status === 'Open')
             .sort((a, b) => {
                 const severityOrder: Record<VulnerabilitySeverity, number> = { Critical: 4, High: 3, Medium: 2, Low: 1, Informational: 0 };
                 return severityOrder[b.severity] - severityOrder[a.severity];
             });
-    }, [asset]);
+    }, [liveAsset, asset]);
 
     if (!isOpen || !agent) return null;
 
@@ -664,16 +707,18 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Enabled Capabilities</h3>
                                 {agent.capabilities && agent.capabilities.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                                        {agent.capabilities.map(cap => (
-                                            capabilityInfo[cap] ?
-                                                <div key={cap} title={capabilityInfo[cap].label} className="flex items-center">
+                                        {agent.capabilities.map((cap: any) => {
+                                            const capId = (typeof cap === 'string' ? cap : cap?.id) as AgentCapability;
+                                            const info = capabilityInfo[capId];
+                                            return info ? (
+                                                <div key={capId} title={info.label} className="flex items-center">
                                                     <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-primary-500 dark:text-primary-400">
-                                                        {capabilityInfo[cap].icon}
+                                                        {info.icon}
                                                     </div>
-                                                    <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">{capabilityInfo[cap].label}</span>
+                                                    <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">{info.label}</span>
                                                 </div>
-                                                : null
-                                        ))}
+                                            ) : null;
+                                        })}
                                     </div>
                                 ) : (
                                     <p className="text-sm text-gray-400">No capabilities enabled.</p>
