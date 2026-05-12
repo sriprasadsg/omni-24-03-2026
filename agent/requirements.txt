@@ -37,5 +37,8 @@ yara-python>=4.3.0      # yara_scanner: malware rule matching — C extension, n
 #                       #   Ubuntu/Debian: apt install bpfcc-tools python3-bpfcc
 #                       #   Fedora/RHEL:   dnf install bcc-tools
 
-# ── Build only (not needed to run the agent) ─────────────────────────────────
-# PyInstaller>=6.0.0
+# ── Windows build tools (needed to produce omni-agent.exe) ───────────────────
+# Run: pip install -r requirements.txt  (installs everything including build tools)
+# Then: python build_windows.py
+PyInstaller>=6.0.0
+pyinstaller-hooks-contrib>=2024.0
