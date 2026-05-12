@@ -12,11 +12,13 @@ import {
     Search,
     Filter,
     Plus,
-    Activity,
-    Database,
     Zap,
     Key
 } from 'lucide-react';
+import * as api from '../services/apiService';
+import { Integration } from '../types';
+import { AddIntegrationModal } from './AddIntegrationModal';
+import { IntegrationSettingsModal } from './IntegrationSettingsModal';
 
 interface Integration {
     id: string;
@@ -32,36 +34,85 @@ export const IntegrationsHub: React.FC = () => {
     const [integrations, setIntegrations] = useState<Integration[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
+    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
-    const fetchIntegrations = async () => {
+    const loadIntegrations = async () => {
         setLoading(true);
-        // Simulating data since multi-endpoint fetch is needed
-        // In real app, we'd have /api/integrations/status
-        setTimeout(() => {
-            setIntegrations([
-                { id: '1', name: 'AWS CloudTrail', provider: 'aws', status: 'connected', last_sync: new Date().toISOString(), events_count: 14205, description: 'Ingesting CloudTrail audit logs for account 123456789' },
-                { id: '2', name: 'Azure Defender', provider: 'azure', status: 'connected', last_sync: new Date().toISOString(), events_count: 843, description: 'Security Center alerts and Sentinel incidents' },
-                { id: '3', name: 'Okta Identity', provider: 'okta', status: 'error', last_sync: new Date(Date.now() - 3600000).toISOString(), events_count: 59012, description: 'Identity and auth events for omni.okta.com' },
-                { id: '4', name: 'Legacy Syslog', provider: 'syslog', status: 'connected', last_sync: new Date().toISOString(), events_count: 1045021, description: 'UDP 514 syslog receiver for on-prem gear' },
-                { id: '5', name: 'GCP Security Command Center', provider: 'gcp', status: 'pending', last_sync: 'Never', events_count: 0, description: 'GCP finding and threat detection sync' }
-            ]);
+        try {
+            const data = await api.fetchIntegrations();
+            setIntegrations(data);
+        } catch (error) {
+            console.error("Failed to fetch integrations:", error);
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
     useEffect(() => {
-        fetchIntegrations();
+        loadIntegrations();
     }, []);
 
-    const getProviderIcon = (provider: string) => {
-        switch (provider) {
-            case 'aws': return <Cloud className="w-8 h-8 text-amber-500" />;
-            case 'azure': return <Cloud className="w-8 h-8 text-blue-500" />;
-            case 'gcp': return <Cloud className="w-8 h-8 text-emerald-500" />;
-            case 'okta': return <Key className="w-8 h-8 text-indigo-500" />;
-            case 'syslog': return <Database className="w-8 h-8 text-slate-500" />;
-            default: return <Settings className="w-8 h-8 text-slate-400" />;
+    const handleSaveIntegration = async (id: string, config: any, isEnabled: boolean) => {
+        try {
+            const integrationToSave = integrations.find(i => i.id === id);
+            if (integrationToSave) {
+                await api.saveIntegrationConfig({
+                    ...integrationToSave,
+                    config,
+                    isEnabled
+                });
+                await loadIntegrations();
+            }
+        } catch (error) {
+            console.error("Error saving integration:", error);
         }
+    };
+
+    const handleAddCustomIntegration = async (data: any) => {
+        try {
+            await api.saveIntegrationConfig({
+                id: data.name.toLowerCase().replace(/\s+/g, '-'),
+                name: data.name,
+                category: data.category,
+                description: data.description,
+                isEnabled: true,
+                config: {
+                    apiUrl: data.apiUrl,
+                    apiKey: data.apiKey
+                }
+            });
+            await loadIntegrations();
+        } catch (error) {
+            console.error("Error adding custom integration:", error);
+        }
+    };
+
+    const filteredIntegrations = integrations.filter(integ => {
+        const matchesSearch = integ.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                             integ.description.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = filter === 'all' || integ.category.toLowerCase() === filter.toLowerCase();
+        return matchesSearch && matchesCategory;
+    });
+
+    const getProviderIcon = (id: string, category: string) => {
+        const lowerId = id.toLowerCase();
+        const lowerCat = category.toLowerCase();
+
+        if (lowerId.includes('aws')) return <Cloud className="w-8 h-8 text-amber-500" />;
+        if (lowerId.includes('azure')) return <Cloud className="w-8 h-8 text-blue-500" />;
+        if (lowerId.includes('gcp')) return <Cloud className="w-8 h-8 text-emerald-500" />;
+        if (lowerId.includes('okta')) return <Key className="w-8 h-8 text-indigo-500" />;
+        if (lowerId.includes('slack')) return <Zap className="w-8 h-8 text-orange-500" />;
+        if (lowerId.includes('teams')) return <Zap className="w-8 h-8 text-blue-600" />;
+        if (lowerId.includes('jira')) return <Shield className="w-8 h-8 text-blue-400" />;
+        
+        if (lowerCat.includes('logging')) return <Database className="w-8 h-8 text-slate-500" />;
+        if (lowerCat.includes('security')) return <Shield className="w-8 h-8 text-red-500" />;
+        
+        return <Settings className="w-8 h-8 text-slate-400" />;
     };
 
     const getStatusColor = (status: string) => {
@@ -80,7 +131,10 @@ export const IntegrationsHub: React.FC = () => {
                         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Integrations Hub</h1>
                         <p className="text-slate-500 mt-1">Manage and monitor all external telemetry and log sources</p>
                     </div>
-                    <button className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20">
+                    <button 
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+                    >
                         <Plus className="w-5 h-5 mr-2" />
                         Add Integration
                     </button>
@@ -119,7 +173,7 @@ export const IntegrationsHub: React.FC = () => {
 
                 <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <div className="flex space-x-2">
-                        {['all', 'cloud', 'identity', 'logging'].map(cat => (
+                        {['all', 'Collaboration', 'Ticketing', 'SIEM', 'Observability', 'Security'].map(cat => (
                             <button 
                                 key={cat}
                                 onClick={() => setFilter(cat)}
@@ -135,6 +189,8 @@ export const IntegrationsHub: React.FC = () => {
                             <input 
                                 type="text" 
                                 placeholder="Search..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 w-64"
                             />
                         </div>
@@ -145,14 +201,14 @@ export const IntegrationsHub: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {integrations.map(integ => (
+                    {filteredIntegrations.map(integ => (
                         <div key={integ.id} className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
                             <div className="flex justify-between items-start mb-6">
                                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl group-hover:bg-white transition-colors border border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700">
-                                    {getProviderIcon(integ.provider)}
+                                    {getProviderIcon(integ.id, integ.category)}
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(integ.status)}`}>
-                                    {integ.status}
+                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${integ.isEnabled ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'text-slate-400 bg-slate-50 dark:bg-slate-900/20'}`}>
+                                    {integ.isEnabled ? 'Active' : 'Disabled'}
                                 </span>
                             </div>
 
@@ -167,22 +223,28 @@ export const IntegrationsHub: React.FC = () => {
 
                                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50 dark:border-slate-700">
                                     <div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Last Sync</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Category</p>
                                         <p className="text-xs font-bold text-slate-900 dark:text-slate-300">
-                                            {integ.last_sync === 'Never' ? 'Never' : new Date(integ.last_sync).toLocaleTimeString()}
+                                            {integ.category}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Events</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Status</p>
                                         <p className="text-xs font-bold text-slate-900 dark:text-slate-300">
-                                            {integ.events_count.toLocaleString()}
+                                            {integ.isEnabled ? 'Operational' : 'Idle'}
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="mt-6 flex space-x-2">
-                                <button className="flex-1 py-2 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors">
+                                <button 
+                                    onClick={() => {
+                                        setSelectedIntegration(integ);
+                                        setIsConfigModalOpen(true);
+                                    }}
+                                    className="flex-1 py-2 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors"
+                                >
                                     Configure
                                 </button>
                                 <button className="flex-1 py-2 bg-indigo-600/10 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center">
@@ -190,17 +252,14 @@ export const IntegrationsHub: React.FC = () => {
                                     Sync
                                 </button>
                             </div>
-
-                            {integ.status === 'error' && (
-                                <div className="absolute top-0 right-0 p-2">
-                                    <div className="w-2 h-2 rounded-full bg-red-500 animate-ping"></div>
-                                </div>
-                            )}
                         </div>
                     ))}
                     
                     {/* Add Placeholder */}
-                    <div className="bg-slate-50 dark:bg-slate-900/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-6 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-300 hover:bg-indigo-50/10 transition-all cursor-pointer group">
+                    <div 
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="bg-slate-50 dark:bg-slate-900/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-6 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-300 hover:bg-indigo-50/10 transition-all cursor-pointer group"
+                    >
                         <div className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform">
                             <Plus className="w-6 h-6 text-slate-300 group-hover:text-indigo-500" />
                         </div>
@@ -208,6 +267,20 @@ export const IntegrationsHub: React.FC = () => {
                         <p className="text-xs mt-1">Connect a custom API or webhook</p>
                     </div>
                 </div>
+
+                {/* Modals */}
+                <AddIntegrationModal 
+                    isOpen={isAddModalOpen}
+                    onClose={() => setIsAddModalOpen(false)}
+                    onSave={handleAddCustomIntegration}
+                />
+
+                <IntegrationSettingsModal 
+                    isOpen={isConfigModalOpen}
+                    onClose={() => setIsConfigModalOpen(false)}
+                    integration={selectedIntegration}
+                    onSave={handleSaveIntegration}
+                />
             </div>
         </div>
     );

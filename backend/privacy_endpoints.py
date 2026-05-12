@@ -137,6 +137,17 @@ async def create_processing_activity(
 
 # ── Breach Notifications ───────────────────────────────────────────────────────
 
+@router.get("/breaches")
+async def list_breaches(current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    tid = _tid(current_user)
+    role = _role(current_user)
+    query: dict = {} if role in ("super_admin", "Super Admin") else {"tenant_id": tid}
+    docs = await db.breach_notifications.find(query, {"_id": 0}).sort("created_at", -1).to_list(length=200)
+    return {"breaches": docs, "total": len(docs)}
+
+
 @router.post("/breaches")
 async def report_breach(
     payload: Dict[str, Any] = Body(...),

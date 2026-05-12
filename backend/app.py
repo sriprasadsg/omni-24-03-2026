@@ -229,7 +229,7 @@ async def seed_database():
             'view:security_audit', 'view:mlops', 'view:llmops', 'view:automl',
             'manage:experiments', 'view:xai', 'view:governance', 'manage:playbooks',
             'view:swarm', 'view:mdr', 'view:xdr', 'view:agent_capabilities',
-            'manage:pricing', 'manage:agents'
+            'manage:pricing', 'manage:agents', 'view:integrations'
         ]
         
         await db.roles.update_one(

@@ -15,11 +15,15 @@ interface SecurityEventsFeedProps {
   onRunPlaybook?: (event: SecurityEvent) => void;
 }
 
-const severityClasses: Record<AlertSeverity, { bg: string; text: string; ring: string }> = {
-  Critical: { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300', ring: 'ring-red-500/20' },
-  High: { bg: 'bg-orange-100 dark:bg-orange-900/50', text: 'text-orange-800 dark:text-orange-300', ring: 'ring-orange-500/20' },
-  Medium: { bg: 'bg-amber-100 dark:bg-amber-900/50', text: 'text-amber-800 dark:text-amber-300', ring: 'ring-amber-500/20' },
-  Low: { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300', ring: 'ring-blue-500/20' },
+const getSeverityClasses = (severity: string) => {
+  const s = severity?.charAt(0).toUpperCase() + severity?.slice(1).toLowerCase();
+  const classes: Record<string, { bg: string; text: string; ring: string }> = {
+    Critical: { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300', ring: 'ring-red-500/20' },
+    High: { bg: 'bg-orange-100 dark:bg-orange-900/50', text: 'text-orange-800 dark:text-orange-300', ring: 'ring-orange-500/20' },
+    Medium: { bg: 'bg-amber-100 dark:bg-amber-900/50', text: 'text-amber-800 dark:text-amber-300', ring: 'ring-amber-500/20' },
+    Low: { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300', ring: 'ring-blue-500/20' },
+  };
+  return classes[s] || classes.Low;
 };
 
 export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, onScanArtifact, onCreateCase, onRunPlaybook }) => {
@@ -50,7 +54,7 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                     {new Date(event.timestamp).toLocaleString(undefined, { timeZone })} | Host: {event.source?.hostname ?? 'Unknown'}
                   </p>
                 </div>
-                <span className={`ml-4 flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ring-1 ring-inset ${severityClasses[event.severity].bg} ${severityClasses[event.severity].text} ${severityClasses[event.severity].ring}`}>
+                <span className={`ml-4 flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ring-1 ring-inset ${getSeverityClasses(event.severity).bg} ${getSeverityClasses(event.severity).text} ${getSeverityClasses(event.severity).ring}`}>
                   {event.severity}
                 </span>
               </div>
