@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import { UserContext } from '../contexts/UserContext';
+import { useUser } from '../contexts/UserContext';
 import * as api from '../services/apiService';
 import cytoscape from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
@@ -38,6 +38,7 @@ const getIconDataUri = (type: string, color: string = '%233b82f6') => {
 };
 
 export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshKey }) => {
+    const { currentUser } = useUser();
     const [elements, setElements] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [packets, setPackets] = useState<Packet[]>([]);
@@ -45,7 +46,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
     const cyRef = useRef<cytoscape.Core | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const socketRef = useRef<Socket | null>(null);
-    const requestRef = useRef<number>();
+    const requestRef = useRef<number | undefined>(undefined);
 
     // Fetch Topology Data
     useEffect(() => {
@@ -120,9 +121,9 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
     // WebSocket Connection
     useEffect(() => {
-        const socket = io('http://localhost:5000', {
+        const socket = io(import.meta.env.VITE_API_BASE_URL || '', {
             transports: ['websocket'],
-            auth: { tenant_id: 'default' }
+            auth: { tenant_id: currentUser?.tenantId || 'default' }
         });
         socketRef.current = socket;
 
@@ -137,7 +138,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
             if (sourceNodes.nonempty() && targetNodes.nonempty()) {
                 const newPacket: Packet = {
-                    id: Math.random().toString(36).substr(2, 9),
+                    id: crypto.randomUUID().replace(/-/g, '').substring(0, 9),
                     sourceNodeId: sourceNodes[0].id(),
                     targetNodeId: targetNodes[0].id(),
                     progress: 0,
@@ -433,13 +434,22 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                         <div className="p-3 rounded-lg bg-[#0b0e14] border border-[#2a2f3a]">
                             <p className="text-[9px] uppercase tracking-wider text-gray-500 mb-2">Live Throughput</p>
                             <div className="flex justify-between items-end gap-1 h-8">
-                                {[...Array(12)].map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="w-full bg-blue-500/20 rounded-t-sm"
-                                        style={{ height: `${20 + Math.random() * 80}%` }}
-                                    />
-                                ))}
+                                {[...Array(12)].map((_, i) => {
+                                    const throughputIn = selectedNode.metrics?.throughput_in ?? 0;
+                                    const throughputOut = selectedNode.metrics?.throughput_out ?? 0;
+                                    const base = ((throughputIn + throughputOut) / 2) || 1;
+                                    const nodeHash = selectedNode.id?.charCodeAt(i % (selectedNode.id?.length || 1)) ?? i;
+                                    const pct = 20 + ((nodeHash * 37 + i * 13) % 80);
+                                    const opacity = i % 2 === 0 ? throughputIn > 0 ? 0.8 : 0.25 : throughputOut > 0 ? 0.6 : 0.2;
+                                    void base;
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="w-full bg-blue-500 rounded-t-sm"
+                                            style={{ height: `${pct}%`, opacity }}
+                                        />
+                                    );
+                                })}
                             </div>
                             <div className="flex justify-between mt-2 text-[10px] font-mono text-gray-400">
                                 <span>IN: {selectedNode.metrics?.throughput_in}MB/s</span>

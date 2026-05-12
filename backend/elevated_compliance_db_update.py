@@ -28,7 +28,7 @@ cg_pass = cg != "" and cg != "0"
 hostname = socket.gethostname().upper()
 asset_id = f"asset-{hostname}"
 # Use proper ISO 8601 formatting for DB
-timestamp = datetime.utcnow().isoformat() + "Z"
+timestamp = datetime.now(timezone.utc).isoformat() + "Z"
 
 # Simulated compliance_data matching what agent sends
 compliance_data = {
@@ -91,7 +91,7 @@ for check in compliance_data['compliance_checks']:
 """
 
         evidence_record = {
-            "evidence_id": f"elevated-ev-{hostname.lower()}-{control_id}-{int(datetime.utcnow().timestamp())}",
+            "evidence_id": f"elevated-ev-{hostname.lower()}-{control_id}-{int(datetime.now(timezone.utc).timestamp())}",
             "check_name": check_name,
             "status": compliance_status,
             "details": check['details'],

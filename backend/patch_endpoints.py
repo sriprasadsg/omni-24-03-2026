@@ -4,17 +4,25 @@ import asyncio
 from database import get_database
 from patch_service import get_patch_service
 from security_service import get_security_service
+from authentication_service import get_current_user
+from auth_types import TokenData
 import base64
 
 router = APIRouter(prefix="/api/patches", tags=["Patch Management"])
 
 @router.get("")
-async def list_patches(tenant_id: str = None):
+async def list_patches(
+    tenant_id: str = None,
+    current_user: TokenData = Depends(get_current_user),
+):
     """List all patches"""
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
     query = {}
     if tenant_id:
         query["tenantId"] = tenant_id
+    elif not is_admin:
+        query["tenantId"] = getattr(current_user, "tenant_id", "default")
     patches = await db.patches.find(query, {"_id": 0}).to_list(length=100)
     return patches
 
@@ -44,54 +52,146 @@ class BulkSoftwareUpdateRequest(BaseModel):
     tenant_id: Optional[str] = None
 
 @router.post("/deploy")
-async def create_deployment_job(request: PatchDeploymentRequest):
+async def create_deployment_job(
+    request: PatchDeploymentRequest,
+    current_user: TokenData = Depends(get_current_user),
+):
     """
     Schedule a patch deployment job.
+
+    For each (patch, asset) pair:
+      1. Resolve the patch doc to get its KB/package identifier.
+      2. Look up the agent for the asset.
+      3. Queue an agent_instructions doc so the agent picks it up on next poll.
+
+    Immediate deployments also start a progress-simulation task so the
+    frontend progress bar moves while waiting for real agent callbacks.
+    Scheduled deployments are dispatched by the APScheduler every minute.
     """
     try:
+        from scheduler import simulate_patch_deployment
         db = get_database()
-        
+
         job_id = f"job-{int(datetime.now(timezone.utc).timestamp())}"
-        
+        is_immediate = request.deployment_type != "Scheduled"
+        tenant_id = request.tenantId or getattr(current_user, "tenant_id", "default")
+        now = datetime.now(timezone.utc).isoformat()
+
         job = {
             "id": job_id,
-            "tenantId": request.tenantId or "default",
+            "tenantId": tenant_id,
             "patchIds": request.patch_ids,
             "targetAssets": request.asset_ids,
-            "status": "Scheduled" if request.deployment_type == "Scheduled" else "In Progress",
+            "status": "In Progress" if is_immediate else "Scheduled",
             "progress": 0,
-            "startTime": request.schedule_time or datetime.now(timezone.utc).isoformat(),
-            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "startTime": request.schedule_time or now,
+            "scheduledAt": request.schedule_time or now,
+            "createdAt": now,
+            "createdBy": getattr(current_user, "username", str(current_user)),
             "type": "Patch Deployment",
-            "deploymentType": request.deployment_type
+            "deploymentType": request.deployment_type,
         }
-        
+
         await db.patch_deployment_jobs.insert_one(job.copy())
-        
-        # In a real system, we would trigger a background task here
-        # For now, we'll just return the job details
-        
-        # Remove _id from response
-        if "_id" in job:
-            del job["_id"]
-            
+        job.pop("_id", None)
+
+        # ── Resolve patch identifiers (KB numbers / package names) ────────────
+        patch_docs = []
+        for pid in request.patch_ids:
+            doc = await db.patches.find_one(
+                {"$or": [{"id": pid}, {"_id": pid}, {"cve_id": pid}]},
+                {"_id": 0},
+            )
+            patch_docs.append(doc or {"id": pid, "kb_number": pid, "name": pid})
+
+        def _patch_identifier(doc: dict) -> str:
+            """Return the best identifier for the agent instruction string."""
+            return (
+                doc.get("kb_number")
+                or doc.get("package_name")
+                or doc.get("name")
+                or doc.get("id", "")
+            )
+
+        # ── Queue one instruction per agent ───────────────────────────────────
+        instructions_queued = 0
+        for asset_id in request.asset_ids:
+            # Resolve asset → agent
+            agent = await db.agents.find_one(
+                {"$or": [{"id": asset_id}, {"hostname": asset_id}, {"assetId": asset_id}]},
+                {"id": 1, "tenantId": 1},
+            )
+            if not agent:
+                continue
+            agent_id = agent["id"]
+
+            # Build KB / package list for this agent
+            patch_identifiers = [_patch_identifier(d) for d in patch_docs if _patch_identifier(d)]
+            if not patch_identifiers:
+                continue
+
+            # Format: "Install Patches: KB5034441 KB5033375 Job: job-xxx"
+            # Works for both KB numbers and Linux package names.
+            instruction_str = "Install Patches: " + " ".join(patch_identifiers) + f" Job: {job_id}"
+
+            instr_doc = {
+                "agent_id":    agent_id,
+                "instruction": instruction_str,
+                "status":      "pending",
+                "created_at":  now,
+                "type":        "os_patch_install",
+                "job_id":      job_id,
+                "metadata":    {"patches": patch_identifiers, "job_id": job_id},
+                "payload":     {},
+            }
+
+            # For scheduled deployments, tag with scheduledAt so the scheduler
+            # only dispatches once the time arrives.
+            if not is_immediate and request.schedule_time:
+                instr_doc["scheduledAt"] = request.schedule_time
+                instr_doc["status"] = "scheduled"
+
+            await db.agent_instructions.insert_one(instr_doc)
+            instructions_queued += 1
+
+        job["instructionsQueued"] = instructions_queued
+
+        # ── Simulation task (keeps progress bar alive until agent callbacks) ──
+        if is_immediate:
+            asyncio.create_task(
+                simulate_patch_deployment(
+                    job_id,
+                    len(request.patch_ids),
+                    max(1, len(request.asset_ids)),
+                )
+            )
+
         return job
     except Exception as e:
         print(f"Error creating deployment job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/deployment-jobs")
-async def list_deployment_jobs(tenant_id: str = None):
+async def list_deployment_jobs(
+    tenant_id: str = None,
+    current_user: TokenData = Depends(get_current_user),
+):
     """List patch deployment jobs"""
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
     query = {}
     if tenant_id:
         query["tenantId"] = tenant_id
+    elif not is_admin:
+        query["tenantId"] = getattr(current_user, "tenant_id", "default")
     jobs = await db.patch_deployment_jobs.find(query, {"_id": 0}).to_list(length=100)
     return jobs
 
 @router.post("/apply-software-update")
-async def apply_software_update(request: SoftwareUpdateRequest):
+async def apply_software_update(
+    request: SoftwareUpdateRequest,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Trigger a package upgrade on an agent.
     """
@@ -131,7 +231,10 @@ async def apply_software_update(request: SoftwareUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/bulk-apply-software-update")
-async def apply_bulk_software_update(request: BulkSoftwareUpdateRequest):
+async def apply_bulk_software_update(
+    request: BulkSoftwareUpdateRequest,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Trigger multiple package upgrades across potentially different agents.
     """
@@ -171,7 +274,10 @@ async def apply_bulk_software_update(request: BulkSoftwareUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/apply-os-patches")
-async def apply_os_patches(request: OsPatchRequest):
+async def apply_os_patches(
+    request: OsPatchRequest,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Trigger OS patch installation on an agent.
     """
@@ -209,23 +315,23 @@ async def apply_os_patches(request: OsPatchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/cve/{cve_id}")
-async def get_cve_info(cve_id: str):
+async def get_cve_info(
+    cve_id: str,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """Get detailed CVE information from NVD"""
-    try:
-        patch_service = get_patch_service()
-        cve_data = await patch_service.get_cve_details(cve_id)
-        
-        if cve_data:
-            return cve_data
-        else:
-            return {"error": "CVE not found"}, 404
-    except Exception as e:
-        print(f"Error fetching CVE: {e}")
-        return {"error": str(e)}, 500
+    patch_service = get_patch_service()
+    cve_data = await patch_service.get_cve_details(cve_id)
+    if not cve_data:
+        raise HTTPException(status_code=404, detail="CVE not found")
+    return cve_data
 
 
 @router.get("/{patch_id}/enrich")
-async def enrich_patch(patch_id: str):
+async def enrich_patch(
+    patch_id: str,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Enrich a patch with CVE/CVSS/EPSS intelligence
     Returns enhanced patch data with priority scoring
@@ -233,9 +339,9 @@ async def enrich_patch(patch_id: str):
     try:
         db = get_database()
         patch = await db.patches.find_one({"id": patch_id}, {"_id": 0})
-        
+
         if not patch:
-            return {"error": "Patch not found"}, 404
+            raise HTTPException(status_code=404, detail="Patch not found")
         
         patch_service = get_patch_service()
         enriched_patch = await patch_service.enrich_patch_with_intelligence(patch)
@@ -255,13 +361,18 @@ async def enrich_patch(patch_id: str):
         )
         
         return enriched_patch
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error enriching patch: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/api/patches/enrich-all")
-async def enrich_all_patches(tenant_id: str = None):
+@router.post("/enrich-all")
+async def enrich_all_patches(
+    tenant_id: str = None,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Batch enrich all pending patches with CVE intelligence
     Useful for initial setup or periodic refresh
@@ -310,11 +421,14 @@ async def enrich_all_patches(tenant_id: str = None):
         }
     except Exception as e:
         print(f"Error in batch enrichment: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/prioritized")
-async def get_prioritized_patches(tenant_id: str = None):
+async def get_prioritized_patches(
+    tenant_id: str = None,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Get patches sorted by intelligent priority score
     Returns patches with CVE/CVSS/EPSS data
@@ -340,11 +454,15 @@ async def get_prioritized_patches(tenant_id: str = None):
         }
     except Exception as e:
         print(f"Error getting prioritized patches: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/compliance-status")
-async def get_compliance_status(tenant_id: str = None, framework: str = "SOC2"):
+async def get_compliance_status(
+    tenant_id: str = None,
+    framework: str = "SOC2",
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Get patch compliance status against regulatory framework
     Shows patches exceeding SLA deadlines
@@ -405,17 +523,20 @@ async def get_compliance_status(tenant_id: str = None, framework: str = "SOC2"):
         }
     except Exception as e:
         print(f"Error calculating compliance: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 11: Real-Time Software Version Validation Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
-from software_version_service import get_version_service, compare_versions
+from software_version_service import get_version_service
 
 @router.post("/scan")
-async def trigger_live_software_scan(tenant_id: str = None):
+async def trigger_live_software_scan(
+    tenant_id: str = None,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Trigger a live software inventory scan on all online agents for a tenant.
     Queues a 'run_software_scan' instruction for every online agent.
@@ -460,7 +581,11 @@ async def trigger_live_software_scan(tenant_id: str = None):
 
 
 @router.get("/outdated")
-async def get_outdated_software(tenant_id: str = None, pkg_type: str = None):
+async def get_outdated_software(
+    tenant_id: str = None,
+    pkg_type: str = None,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Returns all software packages where a newer version is available.
     Queries PyPI / npm / Ubuntu Packages API for latest versions.
@@ -530,7 +655,10 @@ async def get_outdated_software(tenant_id: str = None, pkg_type: str = None):
 
 
 @router.get("/os")
-async def get_os_patches(tenant_id: str = None):
+async def get_os_patches(
+    tenant_id: str = None,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Returns OS-level pending patches grouped by asset.
     Includes:
@@ -586,7 +714,11 @@ async def get_os_patches(tenant_id: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{patch_id}/verify-integrity")
-async def verify_patch_integrity(patch_id: str, data: dict):
+async def verify_patch_integrity(
+    patch_id: str,
+    data: dict,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Verify patch file integrity using checksums
     """
@@ -612,10 +744,14 @@ async def verify_patch_integrity(patch_id: str, data: dict):
         return result
     except Exception as e:
         print(f"Error verifying patch integrity: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{patch_id}/generate-checksums")
-async def generate_patch_checksums(patch_id: str, data: dict):
+async def generate_patch_checksums(
+    patch_id: str,
+    data: dict,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Generate checksums for a patch file
     """
@@ -637,10 +773,14 @@ async def generate_patch_checksums(patch_id: str, data: dict):
         }
     except Exception as e:
         print(f"Error generating checksums: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{patch_id}/verify-signature")
-async def verify_patch_signature(patch_id: str, data: dict):
+async def verify_patch_signature(
+    patch_id: str,
+    data: dict,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """
     Verify digital signature of a patch
     """
@@ -650,7 +790,7 @@ async def verify_patch_signature(patch_id: str, data: dict):
         # Get public key
         key_record = await db.signing_keys.find_one({"id": data.get("public_key_id")}, {"_id": 0})
         if not key_record:
-            return {"error": "Public key not found"}, 404
+            raise HTTPException(status_code=404, detail="Public key not found")
         
         # Decode data
         p_data = base64.b64decode(data.get("patch_data"))
@@ -675,6 +815,8 @@ async def verify_patch_signature(patch_id: str, data: dict):
             severity="info" if result["valid"] else "critical"
         )
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error verifying signature: {e}")
-        return {"error": str(e)}, 500
+        raise HTTPException(status_code=500, detail=str(e))

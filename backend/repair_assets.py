@@ -41,7 +41,7 @@ async def repair_assets():
                 "ipAddress": agent.get("ipAddress", "0.0.0.0"),
                 "status": "active",
                 "type": "server",
-                "lastScanned": datetime.utcnow().isoformat(),
+                "lastScanned": datetime.now(timezone.utc).isoformat(),
                 "agentStatus": agent.get("status", "Online"),
                 "agentVersion": agent.get("version", "1.0.0"),
                 "agentCapabilities": agent.get("capabilities", []),

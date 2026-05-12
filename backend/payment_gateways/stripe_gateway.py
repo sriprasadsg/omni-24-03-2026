@@ -19,10 +19,11 @@ def get_stripe_client():
 
 
 class StripeGateway:
-    def __init__(self):
-        self.api_key = os.getenv("STRIPE_SECRET_KEY", "")
-        self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-        self.publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    def __init__(self, credentials: dict = None):
+        credentials = credentials or {}
+        self.api_key = credentials.get("api_key") or os.getenv("STRIPE_SECRET_KEY", "")
+        self.webhook_secret = credentials.get("webhook_secret") or os.getenv("STRIPE_WEBHOOK_SECRET", "")
+        self.publishable_key = credentials.get("publishable_key") or os.getenv("STRIPE_PUBLISHABLE_KEY", "")
         if self.api_key:
             stripe.api_key = self.api_key
 

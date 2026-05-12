@@ -59,17 +59,27 @@ class ToolRegistry:
     def get_all_schemas(self) -> list:
         return list(self._schemas.values())
 
-    def execute(self, tool_name: str, arguments: dict) -> Any:
+    def execute(self, tool_name: str, arguments: dict, retries: int = 2) -> Any:
+        """Execute a registered tool with retry on transient failures.
+
+        Raises on persistent failure so callers can detect errors rather than
+        silently receiving an error string that looks like a valid result.
+        """
         func = self._tools.get(tool_name)
         if not func:
-            raise ValueError(f"Tool '{tool_name}' not found")
-        
-        try:
-            logger.info(f"Executing tool: {tool_name} with args: {arguments}")
-            return func(**arguments)
-        except Exception as e:
-            logger.error(f"Tool execution failed: {e}")
-            return f"Error: {str(e)}"
+            raise ValueError(f"Tool '{tool_name}' not found in registry")
+
+        last_exc: Exception = RuntimeError("unreachable")
+        for attempt in range(retries + 1):
+            try:
+                logger.info("Executing tool '%s' (attempt %d) args=%s", tool_name, attempt + 1, arguments)
+                return func(**arguments)
+            except Exception as e:
+                last_exc = e
+                logger.warning("Tool '%s' attempt %d failed: %s", tool_name, attempt + 1, e)
+
+        logger.error("Tool '%s' failed after %d attempts: %s", tool_name, retries + 1, last_exc)
+        raise last_exc
 
 # Global Registry Instance
 registry = ToolRegistry()

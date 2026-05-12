@@ -1,36 +1,46 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# ─── Stage 1: dependency builder ──────────────────────────────
+FROM python:3.11-slim AS builder
 
-# Set working directory
-WORKDIR /app
+WORKDIR /build
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
+# System deps for native packages (motor, cryptography, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libffi-dev \
+    libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
 COPY requirements.txt .
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# ─── Stage 2: runtime ──────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+WORKDIR /app
+
+# Runtime system deps only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
 
 # Copy application code
 COPY . .
 
-# Create logs directory
-RUN mkdir -p logs
+# Create non-root user for security
+RUN groupadd -r omni && useradd -r -g omni omni \
+    && chown -R omni:omni /app
 
-# Expose port
-EXPOSE 5000
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
+USER omni
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Run application
-CMD ["python", "app.py"]
+EXPOSE 5000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "2"]

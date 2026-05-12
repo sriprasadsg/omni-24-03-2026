@@ -4,7 +4,6 @@ from typing import List, Dict, Optional
 from database import get_database
 from authentication_service import get_current_user
 from datetime import datetime, timezone
-import random
 
 router = APIRouter(prefix="/api", tags=["Zero Trust & Quantum Security"])
 
@@ -145,14 +144,27 @@ async def get_device_trust_scores(current_user: dict = Depends(get_current_user)
             except:
                 os_patched = is_online
         
-        # Antivirus active = agent is online
-        antivirus_active = is_online
-        
-        # Disk encrypted - default to True (can be enhanced with agent property later)
-        disk_encrypted = True
-        
-        # Compliant location - default to True (can be enhanced with geolocation)
-        compliant_location = True
+        # Antivirus active: check agent-reported antivirus status, fall back to online status
+        antivirus_active = agent.get("antivirus_active", agent.get("antivirusActive", is_online))
+
+        # Disk encrypted: use agent-reported value if present, else unknown → penalise
+        raw_enc = agent.get("disk_encrypted", agent.get("diskEncrypted", None))
+        disk_encrypted = bool(raw_enc) if raw_enc is not None else False
+
+        # Compliant location: flag agents on non-RFC1918 (public) IPs as non-compliant
+        # unless explicitly approved via allowlisted_public_ip flag
+        ip = agent.get("ipAddress", agent.get("ip_address", ""))
+        def _is_private(ip_str: str) -> bool:
+            try:
+                import ipaddress
+                return ipaddress.ip_address(ip_str).is_private
+            except Exception:
+                return True  # unknown → assume private (benefit of doubt)
+        compliant_location = (
+            _is_private(ip)
+            or agent.get("allowlisted_public_ip", False)
+            or not ip
+        )
         
         # Calculate trust score
         score = 100

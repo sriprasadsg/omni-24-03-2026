@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from database import get_database
 from authentication_service import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from datetime import timedelta
+from datetime import timedelta, timezone
 import httpx
 import uuid
 
@@ -101,7 +101,7 @@ async def google_callback(code: str, state: str = None):
             "tenantId": "default",
             "sso_provider": "google",
             "google_sub": userinfo.get("sub"),
-            "created_at": __import__("datetime").datetime.utcnow().isoformat(),
+            "created_at": __import__("datetime").datetime.now(timezone.utc).isoformat(),
         }
         await db.users.insert_one(new_user)
         user = new_user

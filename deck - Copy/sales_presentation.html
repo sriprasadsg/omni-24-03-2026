@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>OmniAgent Platform — Enterprise Sales Deck</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --ink:#040812; --ink2:#070e1f; --ink3:#0d1731; --ink4:#1a2540;
+  --b:#6366f1; --b2:#818cf8; --b3:#4f46e5;
+  --cy:#06b6d4; --cy2:#67e8f9;
+  --gr:#10b981; --gr2:#6ee7b7;
+  --rd:#ef4444; --rd2:#fca5a5;
+  --or:#f97316; --or2:#fdba74;
+  --yw:#eab308; --yw2:#fde047;
+  --pu:#8b5cf6; --pu2:#c4b5fd;
+  --tx:#f1f5f9; --mt:#94a3b8; --mt2:#64748b;
+  --border:rgba(255,255,255,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+.reveal{font-family:'Inter',sans-serif;background:var(--ink)}
+.reveal .slides{text-align:left}
+
+/* CRITICAL: Use smaller padding and ensure no overflow */
+.section{width:100%;height:100%;padding:30px 60px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.grid-overlay{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.02) 1px,transparent 1px);background-size:60px 60px;pointer-events:none}
+
+.hero{font-size:3.2em;font-weight:900;line-height:1.05;letter-spacing:-.04em;color:#fff}
+.h1{font-size:2.4em;font-weight:900;line-height:1.08;letter-spacing:-.035em;color:#fff}
+.h2{font-size:1.8em;font-weight:800;line-height:1.1;letter-spacing:-.03em;color:#fff}
+.h3{font-size:1.3em;font-weight:700;line-height:1.2;color:#fff}
+.h4{font-size:.8em;font-weight:700;color:#fff}
+.lead{font-size:.85em;color:var(--mt);line-height:1.5}
+.body{font-size:.58em;color:var(--mt);line-height:1.4}
+.small{font-size:.48em;color:var(--mt2);line-height:1.4}
+.label{font-size:.58em;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--mt2)}
+
+.g-ib{background:linear-gradient(135deg,var(--b),var(--cy));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:.52em;font-weight:700;border:1px solid}
+.b-grn{background:rgba(16,185,129,.1);color:var(--gr2);border-color:rgba(16,185,129,.28)}
+
+.card{background:var(--ink3);border:1px solid var(--border);border-radius:10px;padding:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+.chapter{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.chapter-title{font-size:3.2em;font-weight:900;line-height:1}
+
+.feature-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px}
+.feature-item{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;padding:6px 10px;display:flex;align-items:center;gap:8px}
+.f-text{font-size:.5em;font-weight:600;color:var(--tx)}
+
+.btn-p{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--b),var(--b3));color:#fff;border-radius:10px;padding:14px 32px;font-size:.9em;font-weight:700;box-shadow:0 8px 30px rgba(99,102,241,.3)}
+
+.mockup{background:#070d1e;border:1px solid rgba(255,255,255,.06);border-radius:12px;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.6)}
+.mock-topbar{background:#0a1120;height:32px;display:flex;align-items:center;padding:0 12px;gap:6px;border-bottom:1px solid rgba(255,255,255,.04)}
+.mock-dot{width:8px;height:8px;border-radius:50%}
+.mock-content{padding:15px;overflow:hidden}
+.fr{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.015);border-radius:6px;font-size:.58em;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- COVER -->
+<section data-background-color="#040812">
+<div class="section">
+<div class="grid-overlay"></div>
+<div style="position:relative;z-index:2;max-width:850px">
+  <div style="margin-bottom:30px;display:flex;align-items:center;gap:12px">
+    <div style="width:40px;height:40px;background:linear-gradient(135deg,var(--b),var(--b3));border-radius:12px;display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </div>
+    <span style="font-size:1em;font-weight:800;color:var(--mt)">OmniAgent Platform</span>
+    <span class="badge b-grn">v2025 Enterprise</span>
+  </div>
+  <p class="hero" style="margin-bottom:20px">Your entire enterprise<br/>on one engine. <br/><span class="g-ib">34 Global Features.</span></p>
+  <p class="lead" style="max-width:600px;margin-bottom:35px">Securing, observing, and automating thousands of endpoints with a single AI-native platform. Unified XDR, GRC, and AIOps.</p>
+</div>
+</div>
+</section>
+
+<!-- ALL FEATURES MASTER LIST -->
+<section data-background-color="#040812">
+<div class="section">
+  <span class="label">The Platform Surface</span>
+  <h2 class="h2" style="margin:8px 0 15px 0">Every capability. <span class="g-ib">Full 34-Module Scope.</span></h2>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+    <div class="card"><div class="h4" style="color:var(--rd)">Security Pillar</div>
+      <div class="small">XDR · MDR · SIEM · Threat Hunting · Threat Intel · Incident Impact · Data Security (DSPM) · Attack Paths · AppSec (SAST/DAST) · Secrets Mgmt · Zero Trust</div>
+    </div>
+    <div class="card"><div class="h4" style="color:var(--gr)">Governance Pillar</div>
+      <div class="small">Compliance (SOC2/ISO) · AI Governance · Automation Policies · Audit Logs · Risk Register · Vendor Risk · Sustainability (ESG) · Chaos Engineering</div>
+    </div>
+    <div class="card"><div class="h4" style="color:var(--cy)">Observability Pillar</div>
+      <div class="small">Insights · Tracing · Network Map · Log Explorer · Agents Dashboard · Asset Mgmt · CXO Dashboard · DORA Metrics · Service Catalog · Developer Hub</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- CHAPTER 1: SECURITY -->
+<section>
+  <section data-background-color="#0c0508">
+    <div class="chapter">
+      <div class="chapter-title">Unified <span style="color:var(--rd)">Security</span></div>
+      <p class="lead" style="margin-top:15px">XDR · MDR · SIEM · Hunting · AppSec</p>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">SecOps &amp; Threat Intelligence</h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="h4">XDR &amp; SIEM Lake</div>
+          <p class="body">Unified correlation across Endpoint, Cloud, and Identity. No more siloed alerts.</p>
+          <div class="feature-grid">
+            <div class="feature-item"><span class="f-text">Managed Detection (MDR)</span></div>
+            <div class="feature-item"><span class="f-text">Log Explorer &amp; SIEM</span></div>
+            <div class="feature-item"><span class="f-text">Incident Impact Map</span></div>
+            <div class="feature-item"><span class="f-text">Threat Intel (VT/OTX)</span></div>
+          </div>
+        </div>
+        <div class="mockup">
+          <div class="mock-topbar"><div class="mock-dot" style="background:#ef4444"></div><div class="mock-url"></div></div>
+          <div class="mock-content">
+            <div class="h4" style="margin-bottom:8px;color:var(--rd2)">Active Incident: EXFIL-09</div>
+            <div class="fr"><div class="fdot" style="background:var(--rd)"></div><div class="fmsg">Unauthorised S3 egress detected</div></div>
+            <div class="fr"><div class="fdot" style="background:var(--or)"></div><div class="fmsg">Host isolated by MDR engine ✓</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- CHAPTER 2: GOVERNANCE -->
+<section>
+  <section data-background-color="#04100a">
+    <div class="chapter">
+      <div class="chapter-title">Continuous <span style="color:var(--gr)">Governance</span></div>
+      <p class="lead" style="margin-top:15px">SOC 2 · ISO · AI Auditor · Risk Mgmt</p>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Compliance &amp; AI Risk</h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="h4">Audit Readiness</div>
+          <p class="body">24/7 evidence collection from every agent. Automated mapping to global control frameworks.</p>
+          <div class="feature-grid">
+            <div class="feature-item"><span class="f-text">Compliance Dashboard</span></div>
+            <div class="feature-item"><span class="f-text">Immutable Audit Logs</span></div>
+            <div class="feature-item"><span class="f-text">Automation Policies</span></div>
+            <div class="feature-item"><span class="f-text">Risk Register Mgmt</span></div>
+          </div>
+        </div>
+        <div class="card" style="border-color:var(--gr)">
+          <div class="h4">AI Governance</div>
+          <p class="body">Monitor and secure your own LLMs. Hallucination detection, prompt versioning, and bias auditing.</p>
+          <div class="feature-grid">
+            <div class="feature-item"><span class="f-text">AI Auditor Hub</span></div>
+            <div class="feature-item"><span class="f-icon">🧠</span><span class="f-text">LLM Risk Scoring</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- CHAPTER 3: OBSERVABILITY -->
+<section>
+  <section data-background-color="#030d12">
+    <div class="chapter">
+      <div class="chapter-title">Deep <span style="color:var(--cy)">Observability</span></div>
+      <p class="lead" style="margin-top:15px">Tracing · Network · Insights · AIOps</p>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Performance &amp; Insights</h2>
+      <div class="g3" style="margin-top:20px">
+        <div class="card"><div class="h4">Tracing</div><p class="body">Distributed visibility across microservices.</p></div>
+        <div class="card"><div class="h4">Network</div><p class="body">Real-time topology and flow analysis.</p></div>
+        <div class="card"><div class="h4">Insights</div><p class="body">AIOps root cause detection.</p></div>
+      </div>
+      <div class="card" style="margin-top:15px">
+        <div class="h4">Agent Fleet: 18 Capabilities</div>
+        <p class="small">FIM · UEBA · eBPF · SBOM · Vuln Scan · Patching · Remote Shell · Process Injection Sim · Network Discovery · Metrics · Logs · Self-Healing</p>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- CHAPTER 4: FINOPS & FUTURE -->
+<section>
+  <section data-background-color="#040812">
+    <div class="chapter">
+      <div class="chapter-title">Value &amp; <span style="color:var(--yw)">Future</span></div>
+      <p class="lead" style="margin-top:15px">FinOps · Sustainability · Zero Trust · DORA</p>
+    </div>
+  </section>
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Cloud Mastery</h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="h4">FinOps &amp; ESG</div>
+          <p class="body">Optimize spend and track carbon footprint across AWS, Azure, and GCP.</p>
+          <div class="feature-grid">
+            <div class="feature-item"><span class="f-text">Cost Intelligence</span></div>
+            <div class="feature-item"><span class="f-text">Carbon Tracking</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="h4">Resilience</div>
+          <p class="body">Build resilient systems with DORA metrics and Chaos Engineering.</p>
+          <div class="feature-grid">
+            <div class="feature-item"><span class="f-text">DORA Dashboard</span></div>
+            <div class="feature-item"><span class="f-text">Chaos Engine</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- CTA -->
+<section data-background-color="#040812">
+<div class="section" style="text-align:center">
+  <h1 class="hero" style="font-size:4.5em;margin-bottom:30px">Ready to lead?</h1>
+  <p class="lead" style="margin-bottom:40px">Deploy the OmniAgent Swarm in 60 seconds.</p>
+  <div class="btn-p" style="font-size:1.2em">Book your Enterprise Demo</div>
+</div>
+</section>
+
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+Reveal.initialize({hash:true,width:1920,height:1080,margin:0.1,minScale:0.1,maxScale:1.5,center:true});
+</script>
+</body>
+</html>

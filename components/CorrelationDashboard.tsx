@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangleIcon, ShieldAlertIcon, ActivityIcon, TrendingUpIcon } from './icons';
+import { authFetch } from '../services/apiService';
 
 interface Correlation {
     id: string;
@@ -93,9 +94,7 @@ export const CorrelationDashboard: React.FC<CorrelationDashboardProps> = ({ tena
             if (selectedSeverity) params.append('severity', selectedSeverity);
             params.append('limit', '50');
 
-            const response = await fetch(`/api/correlations?${params}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await authFetch(`/api/correlations?${params}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -110,9 +109,7 @@ export const CorrelationDashboard: React.FC<CorrelationDashboardProps> = ({ tena
 
     const loadStats = async () => {
         try {
-            const response = await fetch(`/api/correlations/stats?tenant_id=${tenantId}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await authFetch(`/api/correlations/stats?tenant_id=${tenantId}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -126,16 +123,9 @@ export const CorrelationDashboard: React.FC<CorrelationDashboardProps> = ({ tena
     const handleAnalyze = async () => {
         setAnalyzing(true);
         try {
-            const response = await fetch('/api/correlations/analyze', {
+            const response = await authFetch('/api/correlations/analyze', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                    tenant_id: tenantId,
-                    time_window_minutes: 60
-                })
+                body: JSON.stringify({ tenant_id: tenantId, time_window_minutes: 60 })
             });
 
             if (response.ok) {

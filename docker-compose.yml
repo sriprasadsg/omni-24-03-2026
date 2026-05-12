@@ -1,136 +1,104 @@
-version: '3.8'
+version: "3.9"
 
 services:
-  # MongoDB Database
-  mongodb:
+  # ── MongoDB ────────────────────────────────────────────────
+  mongo:
     image: mongo:7.0
-    container_name: omni-mongodb
+    container_name: omniagent-mongo
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: omni_platform
+      MONGO_INITDB_DATABASE: omniagent
+    volumes:
+      - mongo_data:/data/db
     ports:
       - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    networks:
-      - omni-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Backend API
+  # ── Redis (rate limiting & caching) ───────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: omniagent-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── FastAPI Backend ────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: omni-backend
+    container_name: omniagent-backend
     restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/omniagent
+      - REDIS_URL=redis://redis:6379
     ports:
       - "5000:5000"
-    environment:
-      - MONGODB_URL=mongodb://mongodb:27017/
-      - DATABASE_NAME=omni_platform
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-secret-key}
-      - JWT_REFRESH_SECRET_KEY=${JWT_REFRESH_SECRET_KEY:-change-this-refresh-key}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - PYTHONUNBUFFERED=1
     depends_on:
-      mongodb:
+      mongo:
         condition: service_healthy
-    networks:
-      - omni-network
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
-      - backend_logs:/app/logs
+      - ./backend/static:/app/static
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  # Frontend
+  # ── Vite Frontend ──────────────────────────────────────────
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: omni-frontend
+    image: node:20-alpine
+    container_name: omniagent-frontend
     restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3000"
+    env_file:
+      - .env
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000
+      - VITE_WS_URL=ws://localhost:5000
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_BASE=http://localhost:5000/api
-      - VITE_PROXY_TARGET=http://backend:5000
-    depends_on:
-      - backend
-    networks:
-      - omni-network
-    volumes:
-      - ./src:/app/src
-      - ./public:/app/public
-      - ./index.html:/app/index.html
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Agent (Optional)
-  agent:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
-    container_name: omni-agent
-    restart: unless-stopped
-    environment:
-      - AGENT_TOKEN=${AGENT_TOKEN}
-      - BACKEND_URL=http://backend:5000
-      - TENANT_ID=${TENANT_ID}
     depends_on:
       backend:
         condition: service_healthy
-    networks:
-      - omni-network
     volumes:
-      - ./agent:/app
-      - agent_logs:/app/logs
-    profiles:
-      - agent  # Only start if explicitly enabled
+      - .:/app
+      - node_modules:/app/node_modules
 
-  # Nginx Reverse Proxy (Production)
-  nginx:
-    image: nginx:alpine
-    container_name: omni-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
+  # ── Demo Data Seeder (one-shot) ────────────────────────────
+  seeder:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: omniagent-seeder
+    restart: "no"
+    command: python seed_demo_data.py
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/omniagent
     depends_on:
-      - backend
-      - frontend
-    networks:
-      - omni-network
+      mongo:
+        condition: service_healthy
     profiles:
-      - production  # Only start in production
-
-networks:
-  omni-network:
-    driver: bridge
+      - seed
 
 volumes:
-  mongodb_data:
-    driver: local
-  mongodb_config:
-    driver: local
-  backend_logs:
-    driver: local
-  agent_logs:
-    driver: local
-  nginx_logs:
-    driver: local
+  mongo_data:
+  node_modules:

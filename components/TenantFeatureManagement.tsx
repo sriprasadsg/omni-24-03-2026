@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { Tenant, Permission } from '../types';
 import { CheckIcon, SaveIcon } from './icons';
 
@@ -80,7 +81,7 @@ export const TenantFeatureManagement: React.FC<TenantFeatureManagementProps> = (
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const res = await fetch('/api/finops/pricing');
+        const res = await authFetch('/api/finops/pricing');
         if (res.ok) {
           const data = await res.json();
           setDynamicServices(data);

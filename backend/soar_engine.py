@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime
 import uuid
 
@@ -65,7 +66,7 @@ class SOAREngine:
             
             logger.debug(f"Executing node {current_id} ({node_type})")
             
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             node_status = "success"
             error_msg = None
             result = None
@@ -89,7 +90,7 @@ class SOAREngine:
                 # For this basic implementation, halt on failure
                 break
                 
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             
             execution_log.append({
                 "node_id": current_id,
@@ -141,39 +142,122 @@ class SOAREngine:
             
         return True # Default to pass if eval fails in demo
 
-    # --- PLUGINS (Mocked Integrations) ---
+    # --- PLUGINS (Real Integrations) ---
 
     async def _plugin_enrich_ip_vt(self, data: dict, context: dict):
         ip = data.get("ip", context["trigger"].get("source_ip", "8.8.8.8"))
-        await asyncio.sleep(0.5) # simulate API call
-        # Mock VT response
-        is_malicious = ip.startswith("192.168") # Fake logic
-        return {"malicious": is_malicious, "score": 85 if is_malicious else 0, "ip": ip}
+        try:
+            from virustotal_client import get_virustotal_client
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: get_virustotal_client().scan_ip(ip))
+            malicious = result.get("malicious", 0) > 0
+            score = result.get("malicious", 0) * 10
+            return {"malicious": malicious, "score": score, "ip": ip, "verdict": result.get("verdict", "Unknown"), "detectionRatio": result.get("detectionRatio", "0/0")}
+        except Exception as e:
+            logger.error(f"VT enrich failed for {ip}: {e}")
+            return {"malicious": False, "score": 0, "ip": ip, "error": str(e)}
 
     async def _plugin_block_ip_firewall(self, data: dict, context: dict):
         ip = data.get("ip", context["trigger"].get("source_ip"))
-        await asyncio.sleep(0.5)
-        logger.warning(f"SOAR ACTION: Blocked IP {ip} on Corporate Firewall")
-        return {"action": "blocked", "ip": ip, "firewall": "PaloAlto-HQ"}
+        agent_id = data.get("agent_id", context["trigger"].get("agent_id"))
+        logger.warning(f"SOAR ACTION: Blocking IP {ip} via agent {agent_id}")
+        if agent_id:
+            try:
+                from database import mongodb
+                import uuid as _uuid
+                from datetime import timezone
+                instruction = {
+                    "id": str(_uuid.uuid4()),
+                    "agent_id": agent_id,
+                    "type": "block_ip",
+                    "parameters": {"ip": ip},
+                    "status": "pending",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "soar"
+                }
+                await mongodb.db.instructions.insert_one(instruction)
+                return {"action": "queued", "ip": ip, "agent_id": agent_id, "instruction_id": instruction["id"]}
+            except Exception as e:
+                logger.error(f"block_ip dispatch failed: {e}")
+                return {"action": "failed", "ip": ip, "error": str(e)}
+        return {"action": "skipped", "ip": ip, "reason": "no agent_id provided"}
 
     async def _plugin_suspend_okta_user(self, data: dict, context: dict):
         user = data.get("username", context["trigger"].get("user", "unknown"))
-        await asyncio.sleep(0.5)
-        logger.warning(f"SOAR ACTION: Suspended Okta User {user}")
-        return {"action": "suspended", "user": user, "idp": "Okta"}
+        okta_domain = os.getenv("OKTA_DOMAIN", "")
+        okta_token = os.getenv("OKTA_API_TOKEN", "")
+        logger.warning(f"SOAR ACTION: Suspending Okta user {user}")
+        if not okta_domain or not okta_token:
+            return {"action": "skipped", "user": user, "reason": "OKTA_DOMAIN or OKTA_API_TOKEN not configured"}
+        try:
+            import httpx
+            headers = {"Authorization": f"SSWS {okta_token}", "Accept": "application/json"}
+            # Lookup user ID first
+            async with httpx.AsyncClient(timeout=10) as client:
+                search = await client.get(f"https://{okta_domain}/api/v1/users/{user}", headers=headers)
+                if search.status_code != 200:
+                    return {"action": "failed", "user": user, "reason": f"User not found: {search.status_code}"}
+                user_id = search.json().get("id")
+                resp = await client.post(f"https://{okta_domain}/api/v1/users/{user_id}/lifecycle/suspend", headers=headers)
+                if resp.status_code in (200, 204):
+                    return {"action": "suspended", "user": user, "idp": "Okta", "okta_user_id": user_id}
+                return {"action": "failed", "user": user, "status": resp.status_code, "detail": resp.text[:200]}
+        except Exception as e:
+            logger.error(f"Okta suspend failed for {user}: {e}")
+            return {"action": "failed", "user": user, "error": str(e)}
 
     async def _plugin_send_slack_message(self, data: dict, context: dict):
         channel = data.get("channel", "#soc-alerts")
         msg = data.get("message", "Automated SOAR Action Executed")
-        await asyncio.sleep(0.2)
-        logger.info(f"SOAR ACTION: Sent Slack message to {channel}: {msg}")
-        return {"action": "messaged", "channel": channel}
+        webhook_url = os.getenv("SLACK_WEBHOOK_URL", "")
+        slack_token = os.getenv("SLACK_BOT_TOKEN", "")
+        logger.info(f"SOAR ACTION: Sending Slack message to {channel}")
+        try:
+            import httpx
+            if webhook_url:
+                async with httpx.AsyncClient(timeout=8) as client:
+                    resp = await client.post(webhook_url, json={"channel": channel, "text": msg})
+                    return {"action": "messaged", "channel": channel, "status": resp.status_code}
+            elif slack_token:
+                async with httpx.AsyncClient(timeout=8) as client:
+                    resp = await client.post("https://slack.com/api/chat.postMessage",
+                        headers={"Authorization": f"Bearer {slack_token}"},
+                        json={"channel": channel, "text": msg})
+                    result = resp.json()
+                    return {"action": "messaged" if result.get("ok") else "failed", "channel": channel, "ts": result.get("ts")}
+            else:
+                return {"action": "skipped", "channel": channel, "reason": "SLACK_WEBHOOK_URL or SLACK_BOT_TOKEN not configured"}
+        except Exception as e:
+            logger.error(f"Slack send failed: {e}")
+            return {"action": "failed", "channel": channel, "error": str(e)}
 
     async def _plugin_isolate_host(self, data: dict, context: dict):
         host_id = data.get("host_id", context["trigger"].get("agent_id"))
-        await asyncio.sleep(1)
-        logger.warning(f"SOAR ACTION: Network Isolated Host {host_id}")
-        return {"action": "isolated", "host_id": host_id}
+        logger.warning(f"SOAR ACTION: Isolating host {host_id}")
+        if not host_id:
+            return {"action": "skipped", "reason": "no host_id provided"}
+        try:
+            from database import mongodb
+            import uuid as _uuid
+            from datetime import timezone
+            instruction = {
+                "id": str(_uuid.uuid4()),
+                "agent_id": host_id,
+                "type": "network_isolate",
+                "parameters": {"mode": "full"},
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source": "soar"
+            }
+            await mongodb.db.instructions.insert_one(instruction)
+            await mongodb.db.agents.update_one(
+                {"id": host_id},
+                {"$set": {"isolated": True, "isolation_time": datetime.now(timezone.utc).isoformat()}}
+            )
+            return {"action": "isolated", "host_id": host_id, "instruction_id": instruction["id"]}
+        except Exception as e:
+            logger.error(f"isolate_host failed for {host_id}: {e}")
+            return {"action": "failed", "host_id": host_id, "error": str(e)}
 
 # Global engine instance
 soar_engine = SOAREngine()

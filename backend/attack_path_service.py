@@ -1,60 +1,133 @@
-from datetime import datetime, timezone
-import random
+from datetime import datetime, timezone, timedelta
 import uuid
 from typing import List, Dict, Any
 
 class AttackPathService:
     def __init__(self, db=None):
         self.db = db
-    
+
     async def ensure_attack_paths_collection(self):
-        """Ensure attack paths collection exists (no seed data)"""
         if not self.db:
             return
-            
         collections = await self.db.list_collection_names()
-        
-        # Only create collection if it doesn't exist, no seed data
         if "attack_paths" not in collections:
             await self.db.create_collection("attack_paths")
-    
+
     async def get_attack_paths(self, tenant_id: str = None) -> List[Dict[str, Any]]:
         """
-        Calculates and returns a list of potential attack paths using graph traversal.
+        Builds real attack paths by correlating assets and open vulnerabilities.
+        Each path represents an exploit chain: vulnerable entry point → internal hop → target asset.
+        Falls back to stored attack_paths collection if direct calculation is unavailable.
         """
-        # In a real system, we'd build a graph from the 'assets' and 'vulnerabilities' collections.
-        # Here we implement the graph engine logic with 3 distinct enterprise scenarios.
+        if not self.db:
+            return []
+
+        query = {"tenantId": tenant_id} if tenant_id else {}
+
+        # 1. Check for already-computed paths stored in the collection
+        stored = await self.db.attack_paths.find(query, {"_id": 0}).sort(
+            "timestamp", -1
+        ).to_list(length=50)
+        if stored:
+            return stored
+
+        # 2. Build paths from real assets + open vulnerabilities
+        assets = await self.db.assets.find(query, {"_id": 0}).to_list(length=500)
+        vulns = await self.db.vulnerabilities.find(
+            {**query, "status": {"$ne": "Fixed"}},
+            {"_id": 0}
+        ).to_list(length=500)
+
+        if not assets and not vulns:
+            # Check cspm_findings as alternative vulnerability source
+            vulns = await self.db.cspm_findings.find(
+                {**query, "status": {"$nin": ["Resolved", "Suppressed"]}},
+                {"_id": 0}
+            ).to_list(length=200)
+
+        # Index assets by id/name for quick lookup
+        asset_map: Dict[str, dict] = {}
+        for a in assets:
+            key = a.get("id") or a.get("name") or str(a.get("_id", ""))
+            asset_map[key] = a
+
+        # Group vulnerabilities by affected asset
+        vuln_by_asset: Dict[str, List[dict]] = {}
+        for v in vulns:
+            asset_key = v.get("assetId") or v.get("asset_id") or v.get("resourceId") or "unknown"
+            vuln_by_asset.setdefault(asset_key, []).append(v)
+
+        # Tag assets as internet-facing (entry points) vs internal (targets)
+        entry_assets = [a for a in assets if a.get("isInternetFacing") or a.get("type") in ("Web Server", "Load Balancer", "VPN Gateway", "Firewall")]
+        target_assets = [a for a in assets if a.get("type") in ("Database", "Storage", "Domain Controller", "Secret Manager", "Data Warehouse") or a.get("sensitivityLevel") in ("High", "Critical")]
+
+        if not entry_assets:
+            entry_assets = assets[:len(assets)//2] or assets
+        if not target_assets:
+            target_assets = assets[len(assets)//2:] or assets
+
         paths = []
-        
-        scenarios = [
-            {"name": "External Web Compromise", "entry": "Public Web Srv", "target": "Customer DB"},
-            {"name": "Phishing Lateral Movement", "entry": "Workstation-04", "target": "Email Srv"},
-            {"name": "Cloud Metadata Exfiltration", "entry": "K8s App Pod", "target": "S3 Data Bucket"}
-        ]
-        
-        for i, scene in enumerate(scenarios):
-            # Nodes representing assets in the attack graph
-            nodes = [
-                {"id": f"node-{i}-0", "label": scene["entry"], "type": "entry", "risk": 0.8},
-                {"id": f"node-{i}-1", "label": "Internal Gateway", "type": "hop", "risk": 0.5},
-                {"id": f"node-{i}-2", "label": scene["target"], "type": "target", "risk": 0.95}
-            ]
-            
-            # Edges representing vulnerabilities/exploits (BFS transitions)
-            paths.append({
-                "id": str(uuid.uuid4()),
-                "name": scene["name"],
-                "nodes": nodes,
-                "edges": [
-                    {"source": nodes[0]["id"], "target": nodes[1]["id"], "vulnerability": "CVE-2023-44487"},
-                    {"source": nodes[1]["id"], "target": nodes[2]["id"], "vulnerability": "Lateral Movement: PTH"}
-                ],
-                "probability": round(0.4 + (i * 0.1), 2),
-                "impact": "High",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-            
+        seen_pairs: set = set()
+
+        for entry in entry_assets[:5]:
+            entry_vulns = vuln_by_asset.get(entry.get("id") or entry.get("name"), [])
+            if not entry_vulns and not target_assets:
+                continue
+
+            for target in target_assets[:3]:
+                pair = (entry.get("id"), target.get("id"))
+                if pair in seen_pairs or entry.get("id") == target.get("id"):
+                    continue
+                seen_pairs.add(pair)
+
+                # Choose the highest-severity vuln on the entry point
+                entry_cve = "Unknown"
+                if entry_vulns:
+                    sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+                    best = sorted(entry_vulns, key=lambda v: sev_order.get(v.get("severity", "Low"), 99))
+                    entry_cve = best[0].get("cveId") or best[0].get("id") or best[0].get("title") or "CVE-Unknown"
+
+                entry_name = entry.get("name") or entry.get("hostname") or entry.get("id", "Entry Asset")
+                target_name = target.get("name") or target.get("hostname") or target.get("id", "Target Asset")
+                hop_name = "Internal Gateway"
+
+                path_id = str(uuid.uuid4())
+                node_e = {"id": f"{path_id}-0", "label": entry_name, "type": "entry", "risk": 0.85, "assetId": entry.get("id")}
+                node_h = {"id": f"{path_id}-1", "label": hop_name, "type": "hop", "risk": 0.5}
+                node_t = {"id": f"{path_id}-2", "label": target_name, "type": "target", "risk": 0.95, "assetId": target.get("id")}
+
+                # Probability based on number of open vulns and severity
+                crit_count = sum(1 for v in entry_vulns if v.get("severity") in ("Critical", "High"))
+                probability = min(0.95, 0.2 + (crit_count * 0.15))
+
+                path = {
+                    "id": path_id,
+                    "tenantId": tenant_id,
+                    "name": f"{entry_name} → {target_name}",
+                    "nodes": [node_e, node_h, node_t],
+                    "edges": [
+                        {"source": node_e["id"], "target": node_h["id"], "vulnerability": entry_cve},
+                        {"source": node_h["id"], "target": node_t["id"], "vulnerability": "Lateral Movement"},
+                    ],
+                    "probability": round(probability, 2),
+                    "impact": "Critical" if target.get("sensitivityLevel") == "Critical" else "High",
+                    "openVulnerabilities": len(entry_vulns),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                paths.append(path)
+
+                # Persist computed path so subsequent reads are fast
+                try:
+                    await self.db.attack_paths.update_one(
+                        {"id": path_id},
+                        {"$set": path},
+                        upsert=True
+                    )
+                except Exception:
+                    pass
+
         return paths
+
 
 _attack_path_service = None
 

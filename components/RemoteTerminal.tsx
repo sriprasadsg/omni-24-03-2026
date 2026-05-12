@@ -87,8 +87,11 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
                     terminal.writeln('\x1b[34mSession created. Connecting...\x1b[0m');
 
                     let wsUrl = response.websocket_url;
-                    if (wsUrl && wsUrl.includes("localhost:5000")) {
-                        wsUrl = `${protocol}//${window.location.hostname}:5000/api/tunnel/${response.session_id}/user`;
+                    if (wsUrl) {
+                        const wsHost = import.meta.env.VITE_WS_URL
+                            ? import.meta.env.VITE_WS_URL.replace(/^https?/, wsUrl.startsWith('wss') ? 'wss' : 'ws')
+                            : `${protocol}//${window.location.host}`;
+                        wsUrl = `${wsHost}/api/tunnel/${response.session_id}/user`;
                     }
 
                     connectWebSocket(wsUrl);

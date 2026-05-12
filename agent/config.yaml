@@ -1,3 +1,42 @@
+agent_id: agent-b3b3b3eb
+agent_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ2VudC1iM2IzYjNlYiIsInJvbGUiOiJhZ2VudCIsInRlbmFudF9pZCI6InRlbmFudF9lZTJmYzczNDU0Y2QiLCJqdGkiOiIxMDc5MTJhNi1jM2U5LTRkM2UtOGNiZi02NzYyZjdhYzk5MDYiLCJleHAiOjIwOTM0NDY3OTJ9.bX7Fd9d2VCTvrcWDqrNchpvI0-AH14st1toHF66SLMQ
 api_base_url: http://127.0.0.1:5000
+goals:
+- description: Reduce overall attack surface score by 40%
+  name: reduce_attack_surface
+  priority: 2
+  target: 40.0
+  unit: '% reduction'
+- description: Achieve 100% patching of CVSS 9.0+ vulnerabilities
+  name: patch_critical_cves
+  priority: 1
+  target: 100.0
+  unit: '% patched'
+- description: Achieve 90% passing controls across all compliance frameworks
+  name: compliance_coverage
+  priority: 2
+  target: 90.0
+  unit: '% controls passing'
+integrations:
+  azure_defender:
+    client_id: ''
+    client_secret: ''
+    poll_interval_seconds: 300
+    sentinel_workspace_id: ''
+    subscription_id: ''
+    tenant_id: ''
+  gcp_scc:
+    organization_id: ''
+    poll_interval_seconds: 300
+    project_id: ''
+    service_account_path: ''
+  okta:
+    api_token: ''
+    org_url: ''
+    poll_interval_seconds: 60
+  syslog:
+    max_message_size: 65536
+    source_allowlist: []
+    udp_port: 5140
 interval_seconds: 5
-registration_key: reg_platformadmin123
+registration_key: reg_f69eb9f052e34141

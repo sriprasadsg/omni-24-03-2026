@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import {
     Link as LinkIcon, Lock, Clock, Eye, Trash2, Copy, FileText, Plus, Check
 } from 'lucide-react';
@@ -38,7 +39,7 @@ export default function SecureFileShare() {
 
     const fetchShares = async () => {
         try {
-            const response = await fetch('/api/file-share/shares');
+            const response = await authFetch('/api/file-share/shares');
             if (response.ok) {
                 setShares(await response.json());
             }
@@ -54,9 +55,8 @@ export default function SecureFileShare() {
         expires_at.setDate(expires_at.getDate() + newShare.expires_in_days);
 
         try {
-            const response = await fetch('/api/file-share/shares', {
+            const response = await authFetch('/api/file-share/shares', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     file_name: newShare.file_name,
                     file_url: newShare.file_url,
@@ -80,7 +80,7 @@ export default function SecureFileShare() {
 
     const handleRevoke = async (id: string) => {
         try {
-            const response = await fetch(`/api/file-share/shares/${id}`, {
+            const response = await authFetch(`/api/file-share/shares/${id}`, {
                 method: 'DELETE'
             });
             if (response.ok) {

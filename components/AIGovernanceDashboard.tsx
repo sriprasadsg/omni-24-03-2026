@@ -1,16 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AiModelRegistry } from './AiModelRegistry';
 import { AiPolicyEngine } from './AiPolicyEngine';
 import { AiComplianceReport } from './AiComplianceReport';
 import { AIGuardrails } from './AIGuardrails';
 import { ShadowAI } from './ShadowAI';
 import { LayersIcon, ShieldCheckIcon, AlertTriangleIcon, SearchIcon, XIcon } from './icons';
+import { authFetch, API_BASE } from '../services/apiService';
+
+interface GovStats {
+    total_models: number;
+    compliant_models: number;
+    compliance_rate: number;
+    average_risk_score: number;
+    total_violations: number;
+    active_policies: number;
+    risk_distribution: { Low: number; Medium: number; High: number; Critical: number };
+}
 
 export const AIGovernanceDashboard: React.FC<any> = (props) => {
     const [activeTab, setActiveTab] = useState<'registry' | 'policies' | 'compliance' | 'guardrails' | 'shadow_ai'>('registry');
     const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
     const [showReport, setShowReport] = useState(false);
     const [reviewType, setReviewType] = useState<'static' | 'expert'>('static');
+    const [govStats, setGovStats] = useState<GovStats | null>(null);
+
+    useEffect(() => {
+        authFetch(`${API_BASE}/ai-governance/dashboard`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d && setGovStats(d))
+            .catch(() => {});
+    }, []);
 
     return (
         <div className="p-6">
@@ -29,6 +48,46 @@ export const AIGovernanceDashboard: React.FC<any> = (props) => {
                     </div>
                 )}
             </div>
+
+            {/* Governance Health Summary */}
+            {govStats && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Compliance Rate</p>
+                        <p className={`text-2xl font-bold ${govStats.compliance_rate >= 80 ? 'text-green-600' : govStats.compliance_rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                            {govStats.compliance_rate}%
+                        </p>
+                        <p className="text-xs text-gray-400">{govStats.compliant_models}/{govStats.total_models} models</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Risk Score</p>
+                        <p className={`text-2xl font-bold ${govStats.average_risk_score >= 80 ? 'text-green-600' : govStats.average_risk_score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+                            {govStats.average_risk_score}
+                        </p>
+                        <p className="text-xs text-gray-400">out of 100</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Policy Violations</p>
+                        <p className={`text-2xl font-bold ${govStats.total_violations === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {govStats.total_violations}
+                        </p>
+                        <p className="text-xs text-gray-400">{govStats.active_policies} active policies</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Risk Distribution</p>
+                        <div className="flex items-end gap-1 h-8">
+                            {(['Critical','High','Medium','Low'] as const).map(level => {
+                                const count = govStats.risk_distribution[level] ?? 0;
+                                const color = level === 'Critical' ? 'bg-red-500' : level === 'High' ? 'bg-orange-400' : level === 'Medium' ? 'bg-amber-400' : 'bg-green-400';
+                                return count > 0 ? (
+                                    <div key={level} className={`${color} rounded flex-1`} style={{ height: `${Math.min(100, count * 20)}%` }} title={`${level}: ${count}`} />
+                                ) : null;
+                            })}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">{govStats.total_models} models total</p>
+                    </div>
+                </div>
+            )}
 
             {/* Tab Navigation */}
             <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit mb-8">

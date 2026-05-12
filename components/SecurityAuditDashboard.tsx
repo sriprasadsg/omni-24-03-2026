@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { ShieldCheckIcon, AlertTriangleIcon, ShieldLockIcon, KeyIcon } from './icons';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 
@@ -31,7 +32,7 @@ export const SecurityAuditDashboard: React.FC = () => {
     const fetchAuditLog = async () => {
         try {
             const url = `/api/security/audit-log?limit=100${selectedSeverity !== 'all' ? `&severity=${selectedSeverity}` : ''}`;
-            const response = await fetch(url);
+            const response = await authFetch(url);
             const data = await response.json();
 
             setEvents(data.events || []);

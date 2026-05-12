@@ -84,25 +84,16 @@ def main():
         time.sleep(1)
         print("      System information gathered.")
 
-        # Step 5: Simulate registration with the backend
+        # Step 5: Register with the backend
         api_endpoint = f"{args.api_url.rstrip('/')}/api/agents/register"
         print(f"[5/5] Registering agent with the Omni-Agent AI Platform...")
-        print("--------------------------------------------------")
-        print(f"CALLING API TO: {api_endpoint}")
-        print("METHOD: POST")
-        print("HEADERS: {'Content-Type': 'application/json'}")
-        print("PAYLOAD:")
-        print(json.dumps(payload, indent=2))
-        print("--------------------------------------------------")
-        
+
         try:
             data = json.dumps(payload).encode('utf-8')
             req = request.Request(api_endpoint, data=data, headers={'Content-Type': 'application/json'})
-            with request.urlopen(req) as response:
+            with request.urlopen(req, timeout=30) as response:
                 if 200 <= response.status < 300:
                     print("      Registration successful.")
-                    resp_body = response.read().decode('utf-8')
-                    print(f"      Server response: {resp_body}")
                 else:
                     print(f"      Registration failed with status: {response.status}")
                     print(response.read().decode('utf-8'))

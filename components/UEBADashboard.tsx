@@ -100,27 +100,7 @@ export function UEBADashboard() {
                     ...h.vector
                 }));
 
-                // If empty or too small, generate some dummy sparkline data so the chart isn't empty for the demo
-                if (formatted.length < 2) {
-                    const dummy = [];
-                    let currentScore = Math.max(0, user.score - 40);
-                    for (let i = 10; i >= 0; i--) {
-                        const d = new Date();
-                        d.setHours(d.getHours() - i);
-
-                        currentScore = currentScore + (Math.random() * 20 - 5);
-                        if (i === 0) currentScore = user.score; // Ensure last point matches current score
-
-                        dummy.push({
-                            time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            score: Math.min(100, Math.max(0, Math.round(currentScore))),
-                            fullDate: d.toLocaleString()
-                        });
-                    }
-                    setUserHistory(dummy);
-                } else {
-                    setUserHistory(formatted);
-                }
+                setUserHistory(formatted);
             }
         } catch (error) {
             console.error('Error fetching user history:', error);
@@ -330,6 +310,10 @@ export function UEBADashboard() {
                                         {isLoadingHistory ? (
                                             <div className="h-full w-full flex items-center justify-center">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                            </div>
+                                        ) : userHistory.length === 0 ? (
+                                            <div className="h-full w-full flex items-center justify-center text-slate-500 text-sm">
+                                                No risk score history available for this user.
                                             </div>
                                         ) : (
                                             <ResponsiveContainer width="100%" height="100%">

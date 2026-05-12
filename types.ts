@@ -60,7 +60,7 @@ export type AppView =
   | 'paymentSettings'
   | 'subscriptionManagement'
   | 'invoices'
-  | 'dastFindings'
+  | 'shadowAI'
   | 'persistence'
   | 'securityAudit'
   | 'advancedBi'
@@ -95,7 +95,46 @@ export type AppView =
   | 'dataUtilization'
   | 'siemRules'
   | 'pentest'
-  | 'incidentResponse';
+  | 'incidentResponse'
+  | 'mdr'
+  | 'xdr'
+  | 'apm'
+  | 'agentApproval'
+  | 'customFrameworks'
+  | 'deception'
+  | 'cloudIntegrations'
+  | 'jitAccess'
+  | 'incidentWarRoom'
+  | 'privacy'
+  | 'scheduledReports'
+  | 'secretsManagement'
+  | 'hadr'
+  | 'correlations'
+  | 'knowledgeBase'
+  | 'retentionPolicy'
+  | 'apiSecurity'
+  | 'databaseMonitoring'
+  | 'k8sSecurity'
+  | 'ndr'
+  | 'insiderThreat'
+  | 'emailSecurity'
+  | 'predictiveHealth'
+  | 'goalSystem'
+  | 'integrationsHub'
+  | 'supplyChain'
+  | 'futureTech'
+  | 'complianceFrameworks'
+  | 'fim'
+  | 'runtimeSecurity'
+  | 'sast'
+  | 'remoteAccess'
+  | 'aiRemediation'
+  | 'rollback'
+  | 'pipelineSecurity'
+  | 'iacSecurity'
+  | 'containerScan'
+  | 'pam'
+  | 'baaManagement';
 
 
 export type Permission =
@@ -104,6 +143,7 @@ export type Permission =
   | 'view:reporting'
   | 'export:reports'
   | 'view:agents'
+  | 'view:agent_capabilities'
   | 'view:software_deployment'
   | 'view:agent_logs'
   | 'remediate:agents'
@@ -165,7 +205,14 @@ export type Permission =
   | 'view:automl'
   | 'view:xai'
   | 'view:web_monitoring'
-  | 'manage:experiments';
+  | 'manage:experiments'
+  | 'view:mdr'
+  | 'view:xdr'
+  | 'manage:agents'
+  | 'view:predictive_health'
+  | 'view:goal_system'
+  | 'view:integrations'
+  | 'admin:*';
 
 
 export type Filter = {
@@ -424,17 +471,46 @@ export interface AiSystemDocumentationLink {
 export type AgentPlatform = 'Linux' | 'Windows' | 'macOS' | 'Docker' | 'Kubernetes' | 'AWS EC2';
 export type AgentStatus = 'Online' | 'Offline' | 'Error';
 export type AgentCapability =
+  // Core telemetry
   | 'metrics_collection'
-  | 'vulnerability_scanning'
   | 'log_collection'
+  | 'process_monitor'
+  // Security detection
+  | 'vulnerability_scanning'
   | 'fim'
   | 'compliance_enforcement'
   | 'runtime_security'
-  // 2030 Vision Capabilities
+  | 'edr_realtime'
+  | 'persistence_detection'
+  // Network & cloud
+  | 'network_discovery'
+  | 'cloud_metadata'
+  | 'web_monitor'
+  // Data & privacy
+  | 'pii_scanner'
+  | 'sbom_analysis'
+  // Advanced / AI
   | 'predictive_health'
   | 'ueba'
-  | 'sbom_analysis'
-  | 'ebpf_tracing';
+  | 'ebpf_tracing'
+  | 'shadow_ai'
+  // Remediation
+  | 'system_patching'
+  | 'software_management'
+  | 'process_injection_simulation'
+  // Extended capabilities
+  | 'remote_access'
+  | 'agent_update'
+  | 'patch_installer'
+  | 'remediation_executor'
+  | 'real_time_fim'
+  | 'vss_manager'
+  | 'autonomous_response'
+  | 'log_shipper'
+  | 'compliance_evidence_collector'
+  | 'vendor_risk'
+  | 'backup_verifier'
+  | 'deception_monitor';
 
 
 export interface AgentHealthCheck {
@@ -520,6 +596,8 @@ export interface Asset {
     low: number;
   };
   vulnerabilities: Vulnerability[];
+  osType?: string;
+  criticality?: 'critical' | 'high' | 'medium' | 'low';
   agentStatus?: AgentStatus;
   agentVersion?: string;
   agentCapabilities?: AgentCapability[];
@@ -564,7 +642,7 @@ export interface ThreatIntelResult {
   artifact: string;
   artifactType: 'ip' | 'hash' | 'domain';
   source: string;
-  verdict: 'Malicious' | 'Suspicious' | 'Harmless';
+  verdict: 'Malicious' | 'Suspicious' | 'Harmless' | 'Unknown';
   detectionRatio: string;
   scanDate: string;
   reportUrl: string;
@@ -688,7 +766,7 @@ export interface VoiceBotSettings {
 }
 
 export interface LlmSettings {
-  provider: 'Gemini' | 'Local';
+  provider: 'Gemini' | 'Local' | 'Omni-LLM-Scratch' | 'Anthropic Claude';
   apiKey: string;
   model: string;
   host?: string;

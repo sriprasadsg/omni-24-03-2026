@@ -3,7 +3,7 @@ import urllib.request
 import urllib.error
 import sys
 
-BASE_URL = "http://localhost:5001/api"
+BASE_URL = "http://localhost:5000/api"
 
 def login(email, password):
     url = f"{BASE_URL}/auth/login"

@@ -46,8 +46,8 @@ async def trigger_scan(
     - quick: Fast scan with essential checks only
     """
     sast_service = get_sast_service(db)
-    tenant_id = current_user.get("tenantId")
-    
+    tenant_id = current_user.tenant_id
+
     try:
         scan = await sast_service.trigger_scan(
             project_name=request.project_name,
@@ -123,7 +123,7 @@ async def mark_false_positive(
 ):
     """Mark a vulnerability as false positive"""
     sast_service = get_sast_service(db)
-    user = current_user.get("email", "unknown")
+    user = current_user.username or "unknown"
     
     try:
         result = await sast_service.mark_false_positive(
@@ -181,6 +181,41 @@ async def get_scan_history(
         raise HTTPException(status_code=500, detail=f"Failed to get history: {str(e)}")
 
 
+@router.get("/projects")
+async def list_projects(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("view:devsecops"))
+):
+    """List distinct code repositories/projects that have been scanned."""
+    tenant_id = current_user.tenant_id
+    try:
+        # Aggregate distinct projects from scan history
+        pipeline = [
+            {"$match": {"tenantId": tenant_id}} if tenant_id else {"$match": {}},
+            {"$group": {
+                "_id": "$project_name",
+                "repositoryUrl": {"$first": "$repository_url"},
+                "lastScanned": {"$max": "$start_time"},
+                "totalScans": {"$sum": 1},
+                "branch": {"$first": "$branch"},
+            }},
+            {"$project": {
+                "_id": 0,
+                "name": "$_id",
+                "repositoryUrl": 1,
+                "lastScanned": 1,
+                "totalScans": 1,
+                "branch": 1,
+            }},
+            {"$sort": {"lastScanned": -1}},
+        ]
+        cursor = db.sast_scans.aggregate(pipeline)
+        projects = await cursor.to_list(length=200)
+        return projects
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list projects: {str(e)}")
+
+
 @router.get("/statistics")
 async def get_statistics(
     db: AsyncIOMotorDatabase = Depends(get_database),
@@ -188,7 +223,7 @@ async def get_statistics(
 ):
     """Get SAST statistics"""
     sast_service = get_sast_service(db)
-    tenant_id = current_user.get("tenantId")
+    tenant_id = current_user.tenant_id
     
     try:
         stats = await sast_service.get_statistics(tenant_id)

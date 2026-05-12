@@ -1,33 +1,87 @@
 from fastapi import APIRouter, Depends
-from typing import List, Dict, Any
+from datetime import datetime, timezone, timedelta
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
+from tenant_context import set_tenant_id
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
+_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
+
 @router.get("/historical")
 async def get_historical_data(current_user: TokenData = Depends(get_current_user)):
-    """Get historical analytics data"""
+    """Compute 6-month historical trend data from live collections."""
+    is_admin = getattr(current_user, "role", "") in _ADMIN_ROLES
+    if is_admin:
+        set_tenant_id("platform-admin")
     db = get_database()
-    # Get the most recent historical data point
-    cursor = db.analytics_historical.find({}, {"_id": 0}).sort("date", -1).limit(1)
-    data = await cursor.to_list(length=1)
-    
-    if data:
-        return data[0]
-        
-    # Return default empty structure if no data exists
-    return {
-        "alerts": [],
-        "compliance": [],
-        "vulnerabilities": []
-    }
+    tenant_id = None if is_admin else getattr(current_user, "tenant_id", None)
+
+    now = datetime.now(timezone.utc)
+    alerts_data = []
+    compliance_data = []
+    vuln_data = []
+
+    for i in range(5, -1, -1):
+        month_start = (now - timedelta(days=30 * i)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        month_end = (now - timedelta(days=30 * (i - 1))).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) if i > 0 else now
+        label = month_start.strftime("%b")
+        start_iso = month_start.isoformat()
+        end_iso = month_end.isoformat()
+
+        def _q(extra: dict) -> dict:
+            q = {"createdAt": {"$gte": start_iso, "$lte": end_iso}}
+            if tenant_id:
+                q["tenantId"] = tenant_id
+            q.update(extra)
+            return q
+
+        critical = await db.alerts.count_documents(
+            _q({"severity": {"$in": ["Critical", "critical"]}})
+        )
+        high = await db.alerts.count_documents(
+            _q({"severity": {"$in": ["High", "high"]}})
+        )
+        medium = await db.alerts.count_documents(
+            _q({"severity": {"$in": ["Medium", "medium"]}})
+        )
+        alerts_data.append({"date": label, "Critical": critical, "High": high, "Medium": medium})
+
+        # Compliance: average complianceScore across all frameworks
+        fw_query = {}
+        if tenant_id:
+            fw_query["tenantId"] = tenant_id
+        frameworks = await db.compliance_frameworks.find(
+            fw_query, {"_id": 0, "complianceScore": 1}
+        ).to_list(length=200)
+        if frameworks:
+            scores = [f.get("complianceScore", 0) for f in frameworks if f.get("complianceScore") is not None]
+            avg_score = round(sum(scores) / len(scores), 1) if scores else 85.0
+        else:
+            avg_score = 85.0
+        compliance_data.append({"date": label, "score": avg_score})
+
+        crit_vuln = await db.patches.count_documents(
+            _q({"severity": {"$in": ["Critical", "critical"]}, "status": {"$in": ["Pending", "pending", "Open", "open"]}})
+        )
+        high_vuln = await db.patches.count_documents(
+            _q({"severity": {"$in": ["High", "high"]}, "status": {"$in": ["Pending", "pending", "Open", "open"]}})
+        )
+        vuln_data.append({"date": label, "Critical": crit_vuln, "High": high_vuln})
+
+    return {"alerts": alerts_data, "compliance": compliance_data, "vulnerabilities": vuln_data}
+
 
 @router.get("/bi")
 async def get_bi_metrics(
     tenant_id: str = None,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user),
 ):
     """Get advanced BI metrics"""
     db = get_database()

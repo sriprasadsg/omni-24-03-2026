@@ -60,16 +60,13 @@ async def get_persistence_results(agent_id: str, tenant_id: str = "default"):
     """Get latest persistence scan results for an agent"""
     db = get_database()
     
-    # In a real implementation, the agent would report results back to a specific endpoint
-    # or we would fetch them from the task result. 
-    # For this simulation, we'll look for the latest completed scan or mock data if none exists.
-    
-    results = await db.persistence_results.find({"agentId": agent_id, "tenantId": tenant_id}, {"_id": 0}).sort("timestamp", -1).to_list(length=1)
-    
+    results = await db.persistence_results.find(
+        {"agentId": agent_id, "tenantId": tenant_id}, {"_id": 0}
+    ).sort("timestamp", -1).to_list(length=1)
+
     if not results:
-        # Return empty list if no results found
-        return {"findings": [], "count": 0}
-        
+        return {"findings": [], "count": 0, "message": "No scan results yet. Trigger a scan via POST /api/persistence/scan."}
+
     return results[0]
 
 @router.post("/report")

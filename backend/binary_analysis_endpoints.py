@@ -47,7 +47,7 @@ async def analyze_file(
         "filename": file.filename,
         "file_size": len(content),
         "submitted_by": current_user.username,
-        "submitted_at": datetime.utcnow().isoformat(),
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
         "status": "queued",
         "run_sandbox": run_sandbox,
         "report": None,
@@ -78,7 +78,7 @@ async def _run_analysis(job_id: str, content: bytes, filename: str, run_sandbox:
             {"$set": {
                 "status": "completed",
                 "report": report,
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
     except Exception as e:

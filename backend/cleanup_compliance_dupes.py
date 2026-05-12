@@ -73,7 +73,7 @@ async def cleanup_compliance():
                 
                 await db.asset_compliance.update_one(
                     {"_id": existing_target["_id"]},
-                    {"$set": {"evidence": new_evidence, "lastUpdated": datetime.datetime.utcnow().isoformat()}}
+                    {"$set": {"evidence": new_evidence, "lastUpdated": datetime.datetime.now(timezone.utc).isoformat()}}
                 )
                 await db.asset_compliance.delete_one({"_id": doc["_id"]})
                 deleted_count += 1
@@ -81,7 +81,7 @@ async def cleanup_compliance():
                 # Update this record to the new ID
                 await db.asset_compliance.update_one(
                     {"_id": doc["_id"]},
-                    {"$set": {"controlId": control_id, "lastUpdated": datetime.datetime.utcnow().isoformat()}}
+                    {"$set": {"controlId": control_id, "lastUpdated": datetime.datetime.now(timezone.utc).isoformat()}}
                 )
             migrated_count += 1
             # Explicitly fetch the updated document for internal dedupe or reload it

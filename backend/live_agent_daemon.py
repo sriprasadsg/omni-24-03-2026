@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
@@ -10,6 +11,8 @@ import socket
 import platform
 import psutil
 import uuid
+
+_log = logging.getLogger(__name__)
 import json
 
 # Configuration
@@ -171,7 +174,8 @@ def get_disk_information():
             except PermissionError:
                 continue
         return disks
-    except:
+    except Exception as exc:
+        _log.warning("get_disk_info failed: %s", exc)
         return []
 
 def get_installed_software():
@@ -196,7 +200,8 @@ def get_installed_software():
                     })
         # For Linux/Mac, we'd use dpkg, rpm, or brew
         return software[:10]  # Limit to 10 items
-    except:
+    except Exception as exc:
+        _log.warning("get_installed_software failed: %s", exc)
         return []
 
 def get_comprehensive_system_info():

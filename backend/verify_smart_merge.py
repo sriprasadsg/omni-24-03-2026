@@ -25,7 +25,7 @@ async def verify_smart_merge():
         "macAddress": "Unknown",
         "hostname": "device-in-a",
         "status": "Up",
-        "lastSeen": datetime.datetime.utcnow().isoformat(),
+        "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
         "openPorts": [80]
     })
     
@@ -37,7 +37,7 @@ async def verify_smart_merge():
         "macAddress": common_mac,
         "hostname": "device-in-b",
         "status": "Up",
-        "lastSeen": datetime.datetime.utcnow().isoformat(),
+        "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
         "openPorts": [443]
     })
     
@@ -48,7 +48,7 @@ async def verify_smart_merge():
         "mac": common_mac,
         "hostname": "new-hostname",
         "device_type": "Workstation",
-        "lastSeen": datetime.datetime.utcnow().isoformat(),
+        "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
         "open_ports": [22],
         "params": "smart-scan"
     }

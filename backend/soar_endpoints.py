@@ -33,7 +33,7 @@ async def create_playbook(playbook: PlaybookDef):
     db = get_database()
     doc = playbook.dict()
     doc["id"] = str(uuid.uuid4())
-    doc["created_at"] = datetime.utcnow().isoformat()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.soar_playbooks.insert_one(doc)
     doc["_id"] = str(doc["_id"])
     return doc
@@ -67,7 +67,7 @@ async def run_and_save(playbook: dict, trigger_context: dict):
         "run_id": result["run_id"],
         "playbook_id": playbook["id"],
         "tenant_id": playbook.get("tenant_id", "default"),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": result["status"],
         "log": result["log"],
     }

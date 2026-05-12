@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import random
 from datetime import datetime
 from typing import Dict, Any, Optional
 from .omni_llm_scratch import ScratchTrainer
@@ -48,10 +47,8 @@ class TrainingService:
         
         for epoch in range(1, self.current_job['epochs'] + 1):
             if not self.is_training: break
-            
-            await asyncio.sleep(3) # Simulate compute time
-            
-            # Get metrics from trainer
+
+            # Get metrics from trainer (runs real forward/backward pass — no artificial delay)
             metrics = self.trainer.train_step(epoch)
             
             self.current_job.update({

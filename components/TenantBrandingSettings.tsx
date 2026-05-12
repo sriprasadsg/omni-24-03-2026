@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { authFetch } from '../services/apiService';
 import { UploadIcon, SaveIcon } from './icons';
 
 interface BrandingConfig {
@@ -14,8 +14,6 @@ interface TenantBrandingSettingsProps {
     onClose: () => void;
 }
 
-const API_BASE_URL = 'http://localhost:5000';
-
 export const TenantBrandingSettings: React.FC<TenantBrandingSettingsProps> = ({ tenantId, tenantName, onClose }) => {
     const [config, setConfig] = useState<BrandingConfig>({});
     const [loading, setLoading] = useState(false);
@@ -24,8 +22,8 @@ export const TenantBrandingSettings: React.FC<TenantBrandingSettingsProps> = ({ 
     useEffect(() => {
         const fetchBranding = async () => {
             try {
-                const res = await axios.get(`${API_BASE_URL}/api/tenants/${tenantId}/branding`);
-                setConfig(res.data);
+                const res = await authFetch(`/api/tenants/${tenantId}/branding`);
+                if (res.ok) setConfig(await res.json());
             } catch (error) {
                 console.error("Failed to load branding", error);
             }
@@ -36,7 +34,7 @@ export const TenantBrandingSettings: React.FC<TenantBrandingSettingsProps> = ({ 
     const handleSave = async () => {
         setLoading(true);
         try {
-            await axios.post(`${API_BASE_URL}/api/tenants/${tenantId}/branding`, config);
+            await authFetch(`/api/tenants/${tenantId}/branding`, { method: 'POST', body: JSON.stringify(config) });
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
         } catch (error) {

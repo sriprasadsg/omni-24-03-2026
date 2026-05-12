@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { Activity, Play, AlertTriangle, CheckCircle, Server, FileText, Zap } from 'lucide-react';
 
 interface SimulationResult {
@@ -28,7 +29,7 @@ const SimulationDashboard: React.FC = () => {
 
     const fetchState = async () => {
         try {
-            const res = await fetch('/api/digital_twin/state');
+            const res = await authFetch('/api/digital_twin/state');
             const data = await res.json();
             setTwinState(data);
         } catch (err) {
@@ -39,9 +40,8 @@ const SimulationDashboard: React.FC = () => {
     const runSimulation = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/digital_twin/simulate', {
+            const res = await authFetch('/api/digital_twin/simulate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action_type: actionType,
                     target_id: "global",

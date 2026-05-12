@@ -1,0 +1,198 @@
+# Default values for omni-platform Helm chart.
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# ── Namespace ─────────────────────────────────────────────────────────────────
+namespace:
+  create: true
+  name: omni-platform
+
+# ── Backend ───────────────────────────────────────────────────────────────────
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: omni-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    PYTHONUNBUFFERED: "1"
+    DATABASE_NAME: "omni_platform"
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    failureThreshold: 3
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: omni-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# ── MongoDB ───────────────────────────────────────────────────────────────────
+mongodb:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mongo
+    tag: "6.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 27017
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 20Gi
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+  auth:
+    enabled: true
+    username: omni
+    database: omni_platform
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/websocket-services: "backend"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: omni-platform.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /socket.io
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - secretName: omni-platform-tls
+      hosts:
+        - omni-platform.example.com
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+secrets:
+  # Set these via --set or a values override file — never commit plaintext secrets
+  jwtSecret: ""
+  mongoPassword: ""
+  encryptionKey: ""
+  existingSecret: ""  # Use an existing Kubernetes secret instead
+
+# ── Network Policies ──────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # Backend only accepts traffic from frontend and ingress controller
+  backendAllowFrom:
+    - podSelector:
+        matchLabels:
+          app: frontend
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+
+# ── Pod Security ──────────────────────────────────────────────────────────────
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# ── Service Account ───────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ── Monitoring (Prometheus) ───────────────────────────────────────────────────
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    namespace: monitoring
+    interval: 30s
+    path: /metrics
+
+# ── Affinity and Topology Spread ─────────────────────────────────────────────
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - backend
+          topologyKey: kubernetes.io/hostname

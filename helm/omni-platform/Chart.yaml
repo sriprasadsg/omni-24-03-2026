@@ -1,0 +1,17 @@
+apiVersion: v2
+name: omni-platform
+description: Enterprise Omni-Agent AI Security Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - security
+  - siem
+  - compliance
+  - edr
+  - xdr
+home: https://github.com/your-org/enterprise-omni-agent-ai-platform
+maintainers:
+  - name: Platform Team
+    email: platform@example.com
+dependencies: []

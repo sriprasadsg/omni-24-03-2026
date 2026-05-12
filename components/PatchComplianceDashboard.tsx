@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { ShieldCheckIcon, AlertTriangleIcon, ClockIcon, TrendingUpIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -35,7 +36,7 @@ export const PatchComplianceDashboard: React.FC<ComplianceDashboardProps> = ({ t
         setLoading(true);
         try {
             const url = `/api/patches/compliance-status?framework=${selectedFramework}${tenantId ? `&tenant_id=${tenantId}` : ''}`;
-            const response = await fetch(url);
+            const response = await authFetch(url);
             const data = await response.json();
             setComplianceData(data);
         } catch (error) {

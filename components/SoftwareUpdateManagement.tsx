@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { authFetch } from '../services/apiService';
 import { BoxIcon, DownloadIcon, RefreshCwIcon, AlertCircleIcon, CheckIcon, SearchIcon } from './icons';
 import { Asset } from '../types';
 import { DeploySoftwareUpdatesModal } from './DeploySoftwareUpdatesModal';
@@ -119,9 +120,8 @@ export const SoftwareUpdateManagement: React.FC<SoftwareUpdateManagementProps> =
         const selectedItems = filteredSoftware.filter(sw => selectedSoftwareIds.has(sw.id));
 
         try {
-            const response = await fetch('/api/software/updates/deploy', {
+            const response = await authFetch('/api/software/updates/deploy', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     softwareUpdates: selectedItems,
                     deploymentType,

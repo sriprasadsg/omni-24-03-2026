@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { SearchIcon, FilterIcon, RefreshCw, BarChart2Icon, DatabaseIcon, CpuIcon, CloudIcon, ShieldCheckIcon, AlertTriangleIcon } from 'lucide-react';
 
 export const LogExplorerDashboard: React.FC = () => {
     // Basic fetch wrapper for API calls
     const fetchApi = async (url: string, options: any = {}) => {
-        const response = await fetch(url, options);
+        const response = await authFetch(url, options);
         if (!response.ok) throw new Error(`API error: ${response.status}`);
         return response.json();
     };

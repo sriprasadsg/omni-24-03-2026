@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from database import get_database
 from rbac_utils import require_permission
@@ -9,53 +9,53 @@ from ai_auditor_service import get_auditor
 logger = logging.getLogger("ai_auditor_api")
 router = APIRouter()
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 
 @router.post("/audit-framework/{framework_id}")
 async def audit_framework_evidence(
     framework_id: str,
     background_tasks: BackgroundTasks,
-    db: AsyncIOMotorDatabase = Depends(get_database)
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("manage:compliance")),
 ):
     """
     Triggers the local LLM to evaluate all collected evidence for a specific framework.
     Runs in background to prevent timeouts.
     """
-    print(f"\n[AI AUDITOR] --- Starting Audit for {framework_id} ---")
-    
+    logger.info("[AI AUDITOR] Starting audit for framework: %s", framework_id)
+
     # 1. Fetch Framework Controls
     framework = await db.compliance_frameworks.find_one({"id": framework_id})
     if not framework:
-        print(f"[AI AUDITOR] Error: Framework {framework_id} not found")
+        logger.error("[AI AUDITOR] Framework not found: %s", framework_id)
         raise HTTPException(status_code=404, detail="Framework not found")
-        
+
     controls_map = {c["id"]: c for c in framework.get("controls", [])}
     if not controls_map:
         return {"status": "success", "message": "No controls to audit"}
 
     async def run_ai_audit_task():
-        print(f"[AI AUDITOR] Background Task Started for {framework_id}")
+        logger.info("[AI AUDITOR] Background task started for %s", framework_id)
         auditor = get_auditor()
-        
+
         # 2. Fetch Evidence
         asset_compliance = await db.asset_compliance.find(
             {"controlId": {"$in": list(controls_map.keys())}}
         ).to_list(length=500)
-        
-        print(f"[AI AUDITOR] Found {len(asset_compliance)} asset-control pairs with evidence.")
-        
+
+        logger.info("[AI AUDITOR] Found %d asset-control pairs with evidence.", len(asset_compliance))
+
         evaluated_count = 0
-        
+
         for ac in asset_compliance:
             control_id = ac.get("controlId")
             evidence_list = ac.get("evidence", [])
-            
+
             if not evidence_list:
                 continue
-                
+
             ctrl = controls_map.get(control_id, {})
             control_desc = ctrl.get("description", "") + " " + ctrl.get("name", "")
-            
+
             # Combine all technical evidence content
             combined_evidence = ""
             for ev in evidence_list:
@@ -65,40 +65,44 @@ async def audit_framework_evidence(
 
             if not combined_evidence.strip():
                 continue
-            
-            print(f"[AI AUDITOR] [{evaluated_count+1}] Evaluating {control_id} for asset {ac.get('assetId')}...")
-            
+
+            logger.debug("[AI AUDITOR] Evaluating %s for asset %s", control_id, ac.get("assetId"))
+
             # Run inference
             try:
                 ai_result = auditor.evaluate_evidence(
                     framework_name=framework.get("name", framework_id),
                     control_desc=control_desc,
-                    evidence_text=combined_evidence
+                    evidence_text=combined_evidence,
                 )
-                
+
                 evaluation_record = {
                     "verified": ai_result.get("verified", False),
                     "reasoning": ai_result.get("reasoning", "AI Error"),
                     "evaluatedAt": ai_result.get("evaluatedAt"),
-                    "model_used": auditor.model_id
+                    "model_used": auditor.model_id,
                 }
-                
+
                 # Update Database
                 await db.asset_compliance.update_one(
                     {"_id": ac["_id"]},
-                    {"$set": {"ai_evaluation": evaluation_record}}
+                    {"$set": {"ai_evaluation": evaluation_record}},
                 )
                 evaluated_count += 1
-                print(f"[AI AUDITOR] [{evaluated_count}] DONE: {control_id} -> {'PASS' if ai_result['verified'] else 'FAIL'}")
+                verdict = "PASS" if ai_result.get("verified") else "FAIL"
+                logger.info("[AI AUDITOR] %s -> %s (%d evaluated)", control_id, verdict, evaluated_count)
             except Exception as e:
-                print(f"[AI AUDITOR] Error evaluating {control_id}: {e}")
+                logger.error("[AI AUDITOR] Error evaluating %s: %s", control_id, e)
 
-        print(f"[AI AUDITOR] --- Framework Audit Complete: {framework_id} ({evaluated_count} controls evaluated) ---")
+        logger.info(
+            "[AI AUDITOR] Framework audit complete: %s (%d controls evaluated)",
+            framework_id, evaluated_count,
+        )
 
     # Start background task
     background_tasks.add_task(run_ai_audit_task)
 
     return {
-        "status": "success", 
-        "message": f"AI Auditor started in background. Evaluation for {len(controls_map)} controls initiated."
+        "status": "success",
+        "message": f"AI Auditor started in background. Evaluation for {len(controls_map)} controls initiated.",
     }

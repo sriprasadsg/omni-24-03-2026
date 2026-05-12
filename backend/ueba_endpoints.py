@@ -6,7 +6,7 @@ from database import get_database
 from tenant_context import get_tenant_id
 from authentication_service import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api/ueba", tags=["UEBA"])
 
 @router.get("/risk-scores", dependencies=[Depends(get_current_user)])
 async def get_all_risk_scores(tenant_id: str = Depends(get_tenant_id)):

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, PlayCircleIcon, PauseCircleIcon, RefreshCcwIcon } from './icons';
 
 interface StageData {
@@ -45,7 +46,7 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
 
     const fetchDeployment = async () => {
         try {
-            const response = await fetch(`/api/deployments/staged/${deploymentId}`);
+            const response = await authFetch(`/api/deployments/staged/${deploymentId}`);
             const data = await response.json();
             setDeployment(data);
         } catch (error) {

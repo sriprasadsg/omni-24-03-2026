@@ -6,14 +6,21 @@ Real-time compliance posture tracking and policy-as-code enforcement.
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
+import importlib
 from motor.motor_asyncio import AsyncIOMotorDatabase
-
 
 class ContinuousComplianceService:
     """Continuous Compliance Monitoring and Policy Enforcement"""
     
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
+        
+        # Mapping framework IDs to their module paths
+        self.framework_modules = {
+            "nist_csf": "frameworks.nist_rmf",
+            "cis_v8": "frameworks.cis_controls",
+            "iso27001_2022": "frameworks.iso27001"
+        }
         
         # Compliance policies (simplified for MVP)
         self.policies = {
@@ -23,7 +30,45 @@ class ContinuousComplianceService:
             "access_control": self._check_access_control,
             "backup_policy": self._check_backup_policy,
         }
-    
+
+    async def evaluate_framework_v2(self, tenant_id: str, framework_id: str) -> Dict[str, Any]:
+        """New automated framework evaluation using specific framework modules."""
+        module_path = self.framework_modules.get(framework_id)
+        if not module_path:
+            return {"error": f"Framework {framework_id} not supported for automated checks"}
+        
+        try:
+            # Dynamically import the framework module
+            module = importlib.import_module(module_path)
+            
+            # Run the automated evaluation
+            results = await module.evaluate_controls(self.db)
+            
+            total = len(results)
+            passed = sum(1 for r in results if r["status"] == "pass")
+            
+            score = (passed / total * 100) if total > 0 else 0
+            
+            evaluation = {
+                "tenant_id": tenant_id,
+                "framework_id": framework_id,
+                "framework_name": getattr(module, "FRAMEWORK_NAME", framework_id),
+                "compliance_score": round(score, 2),
+                "total_controls": total,
+                "compliant_controls": passed,
+                "results": results,
+                "evaluated_at": datetime.now(timezone.utc).isoformat(),
+                "status": self._get_compliance_status(score)
+            }
+            
+            # Store result
+            await self.db.compliance_evaluations.insert_one(evaluation)
+            return evaluation
+            
+        except Exception as e:
+            logger.error(f"Failed to evaluate framework {framework_id}: {e}")
+            return {"error": str(e)}
+
     async def evaluate_compliance(
         self,
         tenant_id: str,

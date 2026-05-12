@@ -1,7 +1,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Enterprise Omni-Agent AI Platform — Backend Requirements
 # Fully audited: 2026-03-19
+# Recommended Python: 3.11.x – 3.13.x  (3.14 requires build tools for C extensions)
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ── Build prerequisites (install these first on any Python version) ───────────
+# pip install --upgrade pip setuptools wheel
+setuptools>=70.0.0
+wheel>=0.43.0
 
 # ── Core Web Framework ──────────────────────────────────────────────────────
 fastapi>=0.100.0
@@ -54,7 +60,7 @@ numpy>=1.26.0                  # Numerical operations
 pandas>=2.2.0                  # Data analysis and manipulation
 joblib>=1.3.0                  # Model persistence and parallel jobs
 chromadb>=0.5.0                # Vector DB for RAG / knowledge base
-google-generativeai>=0.5.0     # Gemini AI / Google GenAI SDK
+google-genai>=1.0.0            # Gemini AI / Google GenAI SDK (new SDK)
 sentencepiece>=0.2.0           # Tokenizer for transformer models
 
 # ── Payment Gateways ─────────────────────────────────────────────────────────
@@ -78,11 +84,13 @@ google-cloud-storage>=2.14.0   # GCP Cloud Storage
 
 # ── Network & Security Analysis ──────────────────────────────────────────────
 python-nmap>=0.7.1             # Nmap network scanning wrapper
-psutil>=5.9.0                  # System metrics: CPU, RAM, Disk, Network
+psutil>=7.0.0                  # System metrics: CPU, RAM, Disk, Network
 pefile>=2023.2.7               # PE header parsing (binary analysis)
 pywin32>=306; sys_platform=="win32"  # Windows ETW/EventLog (EDR)
 # scapy>=2.5.0                 # Packet capture (uncomment if needed, requires Npcap on Windows)
-# yara-python>=4.3.1           # YARA scanning (uncomment when build tools available)
+# yara-python>=4.5.4           # YARA scanning — C extension, needs build tools on Python 3.14:
+#                              #   Windows: pip install yara-python --no-binary yara-python
+#                              #   Linux:   apt install libyara-dev && pip install yara-python
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 slowapi==0.1.9                 # FastAPI rate limiter
@@ -90,3 +98,7 @@ slowapi==0.1.9                 # FastAPI rate limiter
 # ── Ticketing & Integrations ─────────────────────────────────────────────────
 # atlassian-python-api>=3.41.0  # Optional: Jira client
 # pdpyras>=4.5.1                # Optional: PagerDuty client
+
+# ── Cloud Security Integrations ───────────────────────────────────────────────
+google-cloud-securitycenter>=1.23.0   # GCP Security Command Center ingest
+azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Analytics

@@ -121,11 +121,20 @@ async def delete_package(filename: str, current_user: Any = Depends(get_current_
 
 
 @router.get("/download/{filename}")
-async def download_package(filename: str, tenantId: str = Query(...)):
-    """ 
-    Serve the package file to agents. 
-    Requires tenantId query param matching the file's tenant.
+async def download_package(
+    filename: str,
+    tenantId: str = Query(...),
+    current_user: Any = Depends(get_current_user),
+):
     """
+    Serve the package file to agents.
+    Requires valid JWT; tenantId must match caller's tenant (Super Admin may cross tenants).
+    """
+    caller_tenant = getattr(current_user, "tenantId", None)
+    caller_role = getattr(current_user, "role", None)
+    if caller_role != "Super Admin" and caller_tenant and caller_tenant != tenantId:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+
     db = get_database()
     pkg = await db.local_repo.find_one({"tenantId": tenantId, "filename": filename})
     if not pkg:

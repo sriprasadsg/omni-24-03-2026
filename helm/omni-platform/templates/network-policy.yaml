@@ -1,0 +1,69 @@
+{{- if .Values.networkPolicy.enabled }}
+# Backend: only accepts inbound from frontend and ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "omni-platform.fullname" . }}-backend-netpol
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "omni-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicy.backendAllowFrom | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: 5000
+  egress:
+    # MongoDB
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mongodb
+      ports:
+        - protocol: TCP
+          port: 27017
+    # DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # External HTTPS (for LLM providers, cloud APIs, etc.)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+# MongoDB: only accepts connections from backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "omni-platform.fullname" . }}-mongodb-netpol
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "omni-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: mongodb
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - protocol: TCP
+          port: 27017
+{{- end }}

@@ -107,11 +107,23 @@ class ETLService:
         return stats
 
     async def _aggregate_api_usage(self, tenant_id: str) -> List[Dict[str, Any]]:
-        """Mock aggregation for API usage since we might not have request logs populated yet"""
-        return [
-            {"endpoint": "/api/agents", "count": 150, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
-            {"endpoint": "/api/security", "count": 45, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")}
+        """Aggregate API call counts from audit logs grouped by action/endpoint."""
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        pipeline = [
+            {"$match": {"tenantId": tenant_id, "timestamp": {"$regex": f"^{today}"}}},
+            {"$group": {"_id": "$action", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 20},
         ]
+        cursor = self.db.audit_logs.aggregate(pipeline)
+        stats = []
+        async for doc in cursor:
+            stats.append({
+                "endpoint": doc["_id"] or "unknown",
+                "count": doc["count"],
+                "date": today,
+            })
+        return stats
 
     async def _load_to_warehouse(self, tenant_id: str, table_name: str, data: List[Dict[str, Any]]):
         """Load aggregated data into analytics collections (Warehouse)"""

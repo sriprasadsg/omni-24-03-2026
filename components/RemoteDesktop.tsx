@@ -20,9 +20,8 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
 
         // Construct WebSocket URL
         // In prod, this would likely be a separate path or negotiated via API
-        // For MVP, we reuse the /api/tunnel path but expect the agent to be sending JSON frames
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.hostname}:5000/api/tunnel/${sessionId}/viewer`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sessionId}/viewer`;
 
         console.log(`Connecting to Desktop Stream: ${wsUrl}`);
         const ws = new WebSocket(wsUrl);

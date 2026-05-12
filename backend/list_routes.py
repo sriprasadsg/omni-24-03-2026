@@ -4,7 +4,7 @@ import os
 backend_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(backend_path)
 
-from app import app
+from app import _fastapi_app as app
 
 def list_filtered_routes():
     routes = []

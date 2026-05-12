@@ -60,23 +60,32 @@ async def start_remote_session(payload: dict, current_user: User = Depends(get_c
         "protocol": protocol,
         "type": session_type,
         "status": "pending",
-        "created_at": datetime.datetime.utcnow().isoformat()
+        "created_at": datetime.datetime.now(timezone.utc).isoformat()
     }
     await db.remote_sessions.insert_one(session_data)
     
-    # Queue instruction for agent
-    # We use the agent_id provided. The agent_endpoints logic handles mapping if needed.
+    # Determine the backend's externally reachable address so agents on remote hosts work
+    import os as _os
+    _backend_host = _os.getenv("BACKEND_HOST", "localhost")
+    _backend_port = _os.getenv("BACKEND_PORT", "5000")
+    _agent_ws_base = f"ws://{_backend_host}:{_backend_port}"
+
     instruction = {
         "agent_id": agent_id,
         "type": "start_remote_session",
         "payload": {
             "session_id": session_id,
             "protocol": protocol,
-            "url": f"ws://localhost:5000/api/tunnel/{session_id}/agent" 
+            "type": session_type,
+            "url": f"{_agent_ws_base}/api/tunnel/{session_id}/agent",
         },
         "status": "pending",
-        "created_at": datetime.datetime.utcnow().isoformat()
+        "created_at": datetime.datetime.now(timezone.utc).isoformat(),
     }
     await db.agent_instructions.insert_one(instruction)
-    
-    return {"session_id": session_id, "status": "pending", "websocket_url": f"ws://localhost:5000/api/tunnel/{session_id}/user"}
+
+    return {
+        "session_id": session_id,
+        "status": "pending",
+        "websocket_url": f"/api/tunnel/{session_id}/user",
+    }

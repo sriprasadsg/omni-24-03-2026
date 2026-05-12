@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import {
     ShieldCheckIcon,
     AlertTriangleIcon,
@@ -34,7 +35,7 @@ const AgentApprovalDashboard: React.FC = () => {
 
     const fetchApprovals = async () => {
         try {
-            const res = await fetch('/api/agents/approvals/pending');
+            const res = await authFetch('/api/agents/approvals/pending');
             if (res.ok) {
                 const data = await res.json();
                 setPendingApprovals(data);
@@ -48,9 +49,8 @@ const AgentApprovalDashboard: React.FC = () => {
 
     const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
         try {
-            const res = await fetch(`/api/agents/approvals/${id}/decide`, {
+            const res = await authFetch(`/api/agents/approvals/${id}/decide`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ decision, reason: "User manual decision via UI" })
             });
 

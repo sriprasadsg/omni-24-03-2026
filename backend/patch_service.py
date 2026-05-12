@@ -19,45 +19,56 @@ class PatchManagementService:
     
     async def get_cve_details(self, cve_id: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch CVE details from NVD API
+        Fetch CVE details from NVD API with up to 3 retries (exponential back-off).
         Returns CVSS scores, severity, description, etc.
         """
-        try:
-            headers = {}
-            if self.nvd_api_key:
-                headers["apiKey"] = self.nvd_api_key
-            
-            async with aiohttp.ClientSession() as session:
-                url = f"{self.nvd_base_url}?cveId={cve_id}"
-                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status == 200:
+        headers = {}
+        if self.nvd_api_key:
+            headers["apiKey"] = self.nvd_api_key
+        url = f"{self.nvd_base_url}?cveId={cve_id}"
+
+        for attempt in range(3):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    timeout = aiohttp.ClientTimeout(total=10 + attempt * 5)  # 10s, 15s, 20s
+                    async with session.get(url, headers=headers, timeout=timeout) as response:
+                        if response.status == 429:
+                            # NVD rate-limit — back off and retry
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        if response.status != 200:
+                            return None
                         data = await response.json()
-                        if data.get("vulnerabilities"):
-                            vuln = data["vulnerabilities"][0]
-                            cve_data = vuln.get("cve", {})
-                            
-                            # Extract CVSS scores
-                            metrics = cve_data.get("metrics", {})
-                            cvss_v3 = metrics.get("cvssMetricV31", [{}])[0].get("cvssData", {}) if metrics.get("cvssMetricV31") else {}
-                            cvss_v2 = metrics.get("cvssMetricV2", [{}])[0].get("cvssData", {}) if metrics.get("cvssMetricV2") else {}
-                            
-                            return {
-                                "cve_id": cve_id,
-                                "description": cve_data.get("descriptions", [{}])[0].get("value", ""),
-                                "published_date": cve_data.get("published"),
-                                "last_modified": cve_data.get("lastModified"),
-                                "cvss_v3_score": cvss_v3.get("baseScore"),
-                                "cvss_v3_severity": cvss_v3.get("baseSeverity"),
-                                "cvss_v3_vector": cvss_v3.get("vectorString"),
-                                "cvss_v2_score": cvss_v2.get("baseScore"),
-                                "cvss_v2_severity": cvss_v2.get("baseSeverity"),
-                                "references": [ref.get("url") for ref in cve_data.get("references", [])],
-                                "weaknesses": [w.get("description", [{}])[0].get("value") for w in cve_data.get("weaknesses", [])]
-                            }
-            return None
-        except Exception as e:
-            print(f"Error fetching CVE {cve_id}: {e}")
-            return None
+                        if not data.get("vulnerabilities"):
+                            return None
+                        vuln = data["vulnerabilities"][0]
+                        cve_data = vuln.get("cve", {})
+                        metrics = cve_data.get("metrics", {})
+                        cvss_v3 = (metrics.get("cvssMetricV31") or [{}])[0].get("cvssData", {})
+                        cvss_v2 = (metrics.get("cvssMetricV2") or [{}])[0].get("cvssData", {})
+                        return {
+                            "cve_id": cve_id,
+                            "description": (cve_data.get("descriptions") or [{}])[0].get("value", ""),
+                            "published_date": cve_data.get("published"),
+                            "last_modified": cve_data.get("lastModified"),
+                            "cvss_v3_score": cvss_v3.get("baseScore"),
+                            "cvss_v3_severity": cvss_v3.get("baseSeverity"),
+                            "cvss_v3_vector": cvss_v3.get("vectorString"),
+                            "cvss_v2_score": cvss_v2.get("baseScore"),
+                            "cvss_v2_severity": cvss_v2.get("baseSeverity"),
+                            "references": [ref.get("url") for ref in cve_data.get("references", [])],
+                            "weaknesses": [
+                                w.get("description", [{}])[0].get("value")
+                                for w in cve_data.get("weaknesses", [])
+                            ],
+                        }
+            except asyncio.TimeoutError:
+                print(f"NVD timeout for {cve_id} (attempt {attempt + 1}/3)")
+                await asyncio.sleep(2 ** attempt)
+            except Exception as e:
+                print(f"Error fetching CVE {cve_id}: {e}")
+                return None
+        return None
     
     async def get_epss_score(self, cve_id: str) -> Optional[Dict[str, Any]]:
         """

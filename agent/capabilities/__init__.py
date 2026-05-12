@@ -30,6 +30,11 @@ from .vss_manager import VSSManagerCapability
 from .autonomous_response import AutonomousResponseCapability
 from .edr_realtime import EDRRealtimeCapability
 from .process_monitor import ProcessMonitorCapability
+from .log_shipper import LogShipperCapability
+from .compliance_evidence_collector import ComplianceEvidenceCollectorCapability
+from .vendor_risk import VendorRiskCapability
+from .backup_verifier import BackupVerifierCapability
+from .deception_monitor import DeceptionMonitorCapability
 # CISSP analysis is a standalone function module (no BaseCapability subclass needed)
 
 __all__ = [
@@ -61,6 +66,11 @@ __all__ = [
     'AutonomousResponseCapability',
     'EDRRealtimeCapability',
     'ProcessMonitorCapability',
+    'LogShipperCapability',
+    'ComplianceEvidenceCollectorCapability',
+    'VendorRiskCapability',
+    'BackupVerifierCapability',
+    'DeceptionMonitorCapability',
 ]
 
 # Capability registry mapping IDs to classes
@@ -93,4 +103,9 @@ CAPABILITY_REGISTRY = {
     'autonomous_response':          AutonomousResponseCapability,
     'edr_realtime':                 EDRRealtimeCapability,
     'process_monitor':              ProcessMonitorCapability,
+    'log_shipper':                       LogShipperCapability,
+    'compliance_evidence_collector':     ComplianceEvidenceCollectorCapability,
+    'vendor_risk':                       VendorRiskCapability,
+    'backup_verifier':                   BackupVerifierCapability,
+    'deception_monitor':                 DeceptionMonitorCapability,
 }

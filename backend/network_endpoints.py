@@ -47,7 +47,7 @@ async def add_network_device(
         "id": device_id,
         "tenantId": tenant_id,
         "status": "Up",
-        "lastSeen": datetime.datetime.utcnow().isoformat(),
+        "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
         "interfaces": [], 
         "configBackups": [], 
         "vulnerabilities": [],

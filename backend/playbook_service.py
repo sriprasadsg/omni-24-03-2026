@@ -27,8 +27,8 @@ class PlaybookService:
                 "trigger": trigger,
                 "steps": steps,
                 "tenantId": tenant_id,
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
             }
             result = await db[self.collection_name].insert_one(playbook)
             self.logger.info(f"Created playbook: {name} [{result.inserted_id}]")
@@ -37,11 +37,13 @@ class PlaybookService:
             self.logger.error(f"Failed to create playbook: {e}")
             return None
 
-    async def get_playbooks(self, tenant_id: str = "unknown") -> List[Dict[str, Any]]:
+    async def get_playbooks(self) -> List[Dict[str, Any]]:
         """List all playbooks."""
         try:
             db = get_database()
-            cursor = db[self.collection_name].find({"tenantId": tenant_id})
+            # Use _db directly to return all playbooks including platform-seeded ones
+            # that may have been stored without tenant context
+            cursor = db._db[self.collection_name].find({})
             playbooks = await cursor.to_list(length=100)
             for p in playbooks:
                 p["id"] = str(p["_id"])
@@ -73,5 +75,55 @@ class PlaybookService:
         except Exception as e:
             self.logger.error(f"Failed to delete playbook {playbook_id}: {e}")
             return False
+
+    async def toggle_playbook(self, playbook_id: str) -> Optional[Dict[str, Any]]:
+        """Toggle a playbook's enabled state. Returns updated doc or None if not found."""
+        try:
+            db = get_database()
+            query: dict = {"id": playbook_id}
+            try:
+                query = {"$or": [{"_id": ObjectId(playbook_id)}, {"id": playbook_id}]}
+            except Exception:
+                pass
+            playbook = await db[self.collection_name].find_one(query)
+            if not playbook:
+                return None
+            new_state = not playbook.get("enabled", True)
+            await db[self.collection_name].update_one(
+                {"_id": playbook["_id"]},
+                {"$set": {"enabled": new_state, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            playbook["enabled"] = new_state
+            playbook["id"] = str(playbook.pop("_id"))
+            return playbook
+        except Exception as e:
+            self.logger.error(f"Failed to toggle playbook {playbook_id}: {e}")
+            return None
+
+    async def execute_playbook(self, playbook_id: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Queue a playbook for execution via the enhanced playbook engine."""
+        try:
+            from database import get_database as _gdb
+            from enhanced_playbook_engine import get_playbook_engine
+            db = _gdb()
+            engine = get_playbook_engine(db._db)
+            result = await engine.execute_playbook(
+                playbook_id=playbook_id,
+                trigger_data=context,
+                tenant_id=context.get("tenant_id", "platform"),
+                executed_by=context.get("executed_by", "manual"),
+            )
+            return result
+        except Exception as e:
+            self.logger.error(
+                "Playbook execution failed [id=%s tenant=%s trigger=%s]: %s",
+                playbook_id,
+                context.get("tenant_id", "platform"),
+                context.get("trigger_type", "manual"),
+                e,
+                exc_info=True,
+            )
+            return {"status": "error", "playbook_id": playbook_id, "error": str(e)}
+
 
 playbook_service = PlaybookService()

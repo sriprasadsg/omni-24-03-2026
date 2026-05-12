@@ -35,6 +35,26 @@ async def get_warehouse_stats(
     Get high-level warehouse statistics.
     """
     service = get_data_warehouse_service(db)
-    tenant_id = current_user.tenant_id
-    
-    return await service.get_aggregated_stats(tenant_id)
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else "default")
+
+    # Auto-seed ETL on first call so the dashboard is never empty
+    stats = await service.get_aggregated_stats(tenant_id)
+    if stats.get("total_threats_processed", 0) == 0 and stats.get("total_api_calls_analyzed", 0) == 0:
+        try:
+            await service.run_etl(tenant_id)
+            stats = await service.get_aggregated_stats(tenant_id)
+        except Exception:
+            pass
+    return stats
+
+
+@router.post("/etl")
+async def trigger_etl(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("view:reporting"))
+):
+    """Manually trigger a full ETL run for the current tenant."""
+    service = get_data_warehouse_service(db)
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else "default")
+    result = await service.run_etl(tenant_id)
+    return {"status": "complete", **result}

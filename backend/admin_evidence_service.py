@@ -38,7 +38,7 @@ def _run_ps(cmd: str, timeout: int = 15) -> tuple[str, str, int]:
 def _make_record(asset_id: str, hostname: str, control_id: str,
                  check_name: str, status: str, details: str, raw_output: str) -> dict:
     """Build a standardised compliance evidence record."""
-    ts = datetime.datetime.utcnow().isoformat()
+    ts = datetime.datetime.now(timezone.utc).isoformat()
     content_hash = hashlib.sha256(raw_output.encode("utf-8", errors="replace")).hexdigest()
     compliance_status = (
         "Compliant" if status == "Pass"
@@ -241,7 +241,7 @@ async def run_evidence_collection_for_asset(hostname: str, db: AsyncIOMotorDatab
 
     logger.info(f"[AdminEvidence] Collected {len(checks)} checks. Persisting to DB...")
 
-    ts = datetime.datetime.utcnow().isoformat()
+    ts = datetime.datetime.now(timezone.utc).isoformat()
     ctrl_status_map: dict[str, str] = {}
 
     for ctrl_id, check_name, status, details, raw_output in checks:
@@ -277,7 +277,7 @@ async def run_evidence_collection_for_asset(hostname: str, db: AsyncIOMotorDatab
             return "In Progress"
         return "At Risk"
 
-    today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for ctrl_id, status in ctrl_status_map.items():
         await db.compliance_frameworks.update_one(
             {"controls.id": ctrl_id},

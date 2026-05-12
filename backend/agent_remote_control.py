@@ -60,7 +60,7 @@ async def execute_command(
         "user_id": current_user.username,
         "command": command.get("command"),
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     })
     
     # PAM: Log to Immutable Ledger (Async)
@@ -121,7 +121,7 @@ async def restart_agent(
         "user_id": current_user.username,
         "command": "RESTART",
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     })
     
     return {"success": True, "status": "restart_initiated", "command_id": command_id}

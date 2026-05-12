@@ -60,7 +60,7 @@ const AddControlModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose:
   );
 };
 
-const ReportsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const ReportsModal = ({ isOpen, onClose, frameworkId }: { isOpen: boolean; onClose: () => void; frameworkId?: string }) => {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -68,22 +68,18 @@ const ReportsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
   React.useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      api.fetchComplianceReports().then(setReports).finally(() => setLoading(false));
+      api.fetchComplianceReports(frameworkId).then(setReports).finally(() => setLoading(false));
     }
-  }, [isOpen]);
+  }, [isOpen, frameworkId]);
 
-  const handleDownload = (report: any) => {
+  const handleDownload = async (report: any) => {
+    setDownloading(report.filename);
     try {
-      setDownloading(report.filename);
-
-      // Direct download using window.location since backend now sets proper Content-Disposition header
-      window.location.href = report.url;
-
-      // Clear downloading state after a short delay
-      setTimeout(() => setDownloading(null), 1000);
+      await api.downloadComplianceReport(report.filename);
     } catch (error) {
       console.error('Download error:', error);
       alert('Failed to download file. Please try again.');
+    } finally {
       setDownloading(null);
     }
   };
@@ -112,7 +108,7 @@ const ReportsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
               {reports.map((report, idx) => (
                 <tr key={idx} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700">
                   <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{report.filename}</td>
-                  <td className="px-4 py-2">{new Date(report.created).toLocaleString()}</td>
+                  <td className="px-4 py-2">{report.generatedAt ? new Date(report.generatedAt).toLocaleString() : '—'}</td>
                   <td className="px-4 py-2">
                     <button
                       onClick={() => handleDownload(report)}
@@ -264,12 +260,14 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
         res = await api.generateComplianceReport(framework.id);
       }
 
-      if (res.success) {
+      if (res?.filename) {
         alert(`${reportFormat.toUpperCase()} report generated successfully!`);
         setIsReportsModalOpen(true);
+      } else {
+        alert('Report generation returned an unexpected response.');
       }
-    } catch (e) {
-      alert('Failed to generate report');
+    } catch (e: any) {
+      alert(`Failed to generate report: ${e?.message || 'Unknown error'}`);
     }
   };
 
@@ -628,6 +626,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
       <ReportsModal
         isOpen={isReportsModalOpen}
         onClose={() => setIsReportsModalOpen(false)}
+        frameworkId={framework.id}
       />
     </div>
   );

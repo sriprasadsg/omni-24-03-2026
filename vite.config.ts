@@ -9,12 +9,15 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
       hmr: {
-        overlay: true, // Enable error overlay for HMR issues
-        clientPort: 3000,
+        overlay: true,
+        // Use a dedicated port for HMR WebSocket so it doesn't compete
+        // with the /socket.io proxy upgrade on port 3000.
+        port: 24678,
+        clientPort: 24678,
       },
       proxy: {
         '/api': {
-          target: 'http://127.0.0.1:5000',
+          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '/api'),
         },
@@ -23,8 +26,9 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/socket.io': {
-          target: env.VITE_PROXY_TARGET ? env.VITE_PROXY_TARGET.replace('http', 'ws') : 'ws://127.0.0.1:5000',
+          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
           ws: true,
+          changeOrigin: true,
         },
         '/health': {
           target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',

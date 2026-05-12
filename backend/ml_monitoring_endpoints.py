@@ -46,13 +46,18 @@ class DriftDetectionResult(BaseModel):
 async def train_predictive_model(
     current_user: dict = Depends(require_permission("manage:ai_systems"))
 ):
-    """Manually triggers retraining of the Patch Failure Prediction Model"""
+    """Manually triggers retraining of the Patch Failure Prediction Model and Anomaly Model"""
     from ml_service import MLPredictionService
     db = get_database()
     ml_service = MLPredictionService(db)
     
-    result = await ml_service.train_model()
-    return result
+    patch_result = await ml_service.train_model()
+    anomaly_result = await ml_service.train_anomaly_model()
+    
+    return {
+        "patch_model": patch_result,
+        "anomaly_model": anomaly_result
+    }
 
 @router.post("/detect-drift", response_model=DriftDetectionResult)
 async def detect_model_drift(
@@ -122,9 +127,11 @@ async def get_all_models_drift_status(
         status = await service.get_all_models_drift_status(
             tenant_id=tenant_id or _get(current_user, "tenantId")
         )
-    except Exception:
-        status = {"models": [], "drift_detected_count": 0, "healthy_count": 0}
-    
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("ML drift status check failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Drift status check failed: {exc}")
+
     return status
 
 

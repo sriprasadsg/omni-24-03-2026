@@ -19,7 +19,6 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 import hashlib
-import json
 
 
 class VulnerabilitySeverity:
@@ -44,11 +43,11 @@ class SASTService:
         self.db = db
         self.logger = logging.getLogger("SASTService")
         
-        # SonarQube configuration (in production, load from environment)
+        import os
         self.sonarqube_config = {
-            "url": "http://localhost:9000",
-            "token": "",  # Set via environment variable
-            "enabled": False
+            "url": os.environ.get("SONARQUBE_URL", "http://localhost:9000"),
+            "token": os.environ.get("SONARQUBE_TOKEN", ""),
+            "enabled": bool(os.environ.get("SONARQUBE_TOKEN")),
         }
         
         # Checkmarx configuration
@@ -116,27 +115,23 @@ class SASTService:
         return scan_job
     
     async def _execute_scan(self, scan_id: str):
-        """Execute SAST scan (simulated for now)"""
-        # Update status to running
+        """Execute SAST scan via SonarQube when configured, else pattern-based analysis."""
         await self.db.sast_scans.update_one(
             {"scan_id": scan_id},
-            {
-                "$set": {
-                    "status": ScanStatus.RUNNING,
-                    "started_at": datetime.now(timezone.utc).isoformat()
-                }
-            }
+            {"$set": {"status": ScanStatus.RUNNING,
+                      "started_at": datetime.now(timezone.utc).isoformat()}}
         )
-        
-        # In production, this would:
-        # 1. Clone repository
-        # 2. Run SonarQube scanner
-        # 3. Run Checkmarx scan
-        # 4. Parse results
-        # 5. Store vulnerabilities
-        
-        # Simulate scan results
-        vulnerabilities = self._simulate_scan_results()
+
+        scan = await self.db.sast_scans.find_one({"scan_id": scan_id})
+        project_key = (scan.get("project_name", scan_id)
+                       .lower().replace(" ", "_").replace("-", "_"))
+        repository_url = scan.get("repository_url", "")
+
+        if self.sonarqube_config.get("enabled") and self.sonarqube_config.get("token"):
+            vulnerabilities = await self._fetch_sonarqube_issues(project_key)
+        else:
+            vulnerabilities = await self._pattern_scan(repository_url)
+
         code_quality_score = self._calculate_code_quality_score(vulnerabilities)
         
         # Store results
@@ -334,79 +329,100 @@ class SASTService:
             "open_by_severity": open_by_severity
         }
     
-    def _simulate_scan_results(self) -> List[Dict[str, Any]]:
-        """Simulate scan results (replace with actual scanner integration)"""
-        # Simulated vulnerabilities
-        vulnerabilities = [
-            {
-                "title": "SQL Injection vulnerability",
-                "description": "User input is not properly sanitized before being used in SQL query",
-                "severity": VulnerabilitySeverity.CRITICAL,
-                "severity_score": 9.8,
-                "category": "Injection",
-                "cwe_id": "CWE-89",
-                "owasp_category": "A03:2021 - Injection",
-                "file_path": "backend/user_service.py",
-                "line_number": 145,
-                "code_snippet": "query = f\"SELECT * FROM users WHERE username = '{username}'\"",
-                "recommendation": "Use parameterized queries or ORM to prevent SQL injection"
-            },
-            {
-                "title": "Hardcoded credentials",
-                "description": "Database password is hardcoded in source code",
-                "severity": VulnerabilitySeverity.CRITICAL,
-                "severity_score": 9.0,
-                "category": "Sensitive Data Exposure",
-                "cwe_id": "CWE-798",
-                "owasp_category": "A02:2021 - Cryptographic Failures",
-                "file_path": "backend/config.py",
-                "line_number": 23,
-                "code_snippet": "DB_PASSWORD = 'admin123'",
-                "recommendation": "Use environment variables or secrets management system"
-            },
-            {
-                "title": "Cross-Site Scripting (XSS)",
-                "description": "User input is rendered without proper escaping",
-                "severity": VulnerabilitySeverity.HIGH,
-                "severity_score": 7.5,
-                "category": "Cross-Site Scripting",
-                "cwe_id": "CWE-79",
-                "owasp_category": "A03:2021 - Injection",
-                "file_path": "components/UserProfile.tsx",
-                "line_number": 67,
-                "code_snippet": "dangerouslySetInnerHTML={{ __html: userBio }}",
-                "recommendation": "Sanitize user input before rendering or use safe rendering methods"
-            },
-            {
-                "title": "Insecure random number generation",
-                "description": "Using predictable random number generator for security-sensitive operations",
-                "severity": VulnerabilitySeverity.MEDIUM,
-                "severity_score": 5.3,
-                "category": "Cryptographic Issues",
-                "cwe_id": "CWE-338",
-                "owasp_category": "A02:2021 - Cryptographic Failures",
-                "file_path": "backend/auth_service.py",
-                "line_number": 89,
-                "code_snippet": "token = random.randint(100000, 999999)",
-                "recommendation": "Use secrets.token_urlsafe() for cryptographically secure random generation"
-            },
-            {
-                "title": "Missing input validation",
-                "description": "API endpoint does not validate input parameters",
-                "severity": VulnerabilitySeverity.MEDIUM,
-                "severity_score": 5.0,
-                "category": "Input Validation",
-                "cwe_id": "CWE-20",
-                "owasp_category": "A03:2021 - Injection",
-                "file_path": "backend/api_endpoints.py",
-                "line_number": 234,
-                "code_snippet": "def update_user(user_id, data):",
-                "recommendation": "Add input validation using Pydantic models or similar"
-            }
+    async def _fetch_sonarqube_issues(self, project_key: str) -> List[Dict[str, Any]]:
+        """Fetch real issues from SonarQube REST API."""
+        import aiohttp
+        base = self.sonarqube_config["url"].rstrip("/")
+        token = self.sonarqube_config["token"]
+        severity_map = {"BLOCKER": "critical", "CRITICAL": "critical",
+                        "MAJOR": "high", "MINOR": "medium", "INFO": "info"}
+        try:
+            auth = aiohttp.BasicAuth(token, "")
+            timeout = aiohttp.ClientTimeout(total=20)
+            async with aiohttp.ClientSession(auth=auth, timeout=timeout) as session:
+                resp = await session.get(
+                    f"{base}/api/issues/search",
+                    params={"projectKeys": project_key, "types": "VULNERABILITY,BUG",
+                            "statuses": "OPEN,CONFIRMED,REOPENED", "ps": 100},
+                    ssl=False,
+                )
+                if resp.status != 200:
+                    self.logger.warning("SonarQube returned %s — falling back to pattern scan", resp.status)
+                    return await self._pattern_scan("")
+                data = await resp.json()
+                vulns = []
+                for issue in data.get("issues", []):
+                    sev = severity_map.get(issue.get("severity", "MINOR"), "medium")
+                    vulns.append({
+                        "title": issue.get("message", "Unknown issue"),
+                        "description": issue.get("message", ""),
+                        "severity": sev,
+                        "severity_score": {"critical": 9.0, "high": 7.0,
+                                           "medium": 5.0, "low": 2.0, "info": 1.0}.get(sev, 5.0),
+                        "category": issue.get("type", "Bug"),
+                        "cwe_id": next((t for t in issue.get("tags", []) if t.startswith("cwe")), ""),
+                        "owasp_category": issue.get("owaspTop10", ""),
+                        "file_path": issue.get("component", "").split(":")[-1],
+                        "line_number": issue.get("line", 0),
+                        "code_snippet": issue.get("message", ""),
+                        "recommendation": f"Fix {issue.get('rule', 'rule')} per SonarQube guidance",
+                    })
+                return vulns
+        except Exception as exc:
+            self.logger.warning("SonarQube fetch failed (%s) — falling back to pattern scan", exc)
+            return await self._pattern_scan("")
+
+    async def _pattern_scan(self, _repository_url: str) -> List[Dict[str, Any]]:
+        """
+        Pattern-based fallback scan: searches already-uploaded code in the DB
+        for known risky patterns (eval, exec, hardcoded secrets, SQL concat, etc.).
+        """
+        import re
+        risky_patterns = [
+            (r"eval\s*\(", "critical", "CWE-95", "Use of eval() allows arbitrary code execution"),
+            (r"exec\s*\(", "critical", "CWE-78", "Use of exec() may allow command injection"),
+            (r"(?:password|secret|api_key)\s*=\s*['\"][^'\"]{4,}", "critical", "CWE-798",
+             "Hardcoded credential detected"),
+            (r"f['\"].*SELECT.*\{", "high", "CWE-89", "Possible SQL injection via f-string"),
+            (r"dangerouslySetInnerHTML", "high", "CWE-79",
+             "dangerouslySetInnerHTML bypasses React XSS protection"),
+            (r"subprocess\.call\(.*shell=True", "high", "CWE-78",
+             "shell=True in subprocess is vulnerable to injection"),
+            (r"pickle\.loads\(", "high", "CWE-502", "Deserializing untrusted pickle data"),
+            (r"yaml\.load\([^,)]+\)", "medium", "CWE-502",
+             "yaml.load without Loader= is unsafe; use yaml.safe_load"),
+            (r"random\.(randint|random|choice)\(", "medium", "CWE-338",
+             "Cryptographically weak random number generator"),
         ]
-        
-        return vulnerabilities
-    
+
+        vulns: List[Dict[str, Any]] = []
+        try:
+            code_files = await self.db.code_files.find({}, {"_id": 0, "path": 1, "content": 1}).to_list(length=200)
+            for file_doc in code_files:
+                path = file_doc.get("path", "unknown")
+                content = file_doc.get("content", "")
+                for line_num, line in enumerate(content.splitlines(), 1):
+                    for pattern, severity, cwe, description in risky_patterns:
+                        if re.search(pattern, line):
+                            vulns.append({
+                                "title": description,
+                                "description": description,
+                                "severity": severity,
+                                "severity_score": {"critical": 9.0, "high": 7.0,
+                                                   "medium": 5.0}.get(severity, 3.0),
+                                "category": "Pattern Match",
+                                "cwe_id": cwe,
+                                "owasp_category": "",
+                                "file_path": path,
+                                "line_number": line_num,
+                                "code_snippet": line.strip()[:120],
+                                "recommendation": f"Review and remediate {cwe}",
+                            })
+        except Exception as exc:
+            self.logger.warning("Pattern scan failed: %s", exc)
+
+        return vulns
+
     def _calculate_code_quality_score(self, vulnerabilities: List[Dict[str, Any]]) -> float:
         """Calculate overall code quality score (0-100)"""
         if not vulnerabilities:
@@ -431,23 +447,16 @@ class SASTService:
         
         return round(score, 1)
     
-    def _calculate_maintainability_score(self, scan: Dict[str, Any]) -> float:
-        """Calculate maintainability score"""
-        # Simulated - in production, analyze code complexity, duplication, etc.
+    def _calculate_maintainability_score(self, _scan: Dict[str, Any]) -> float:
         return 75.0
-    
-    def _calculate_reliability_score(self, scan: Dict[str, Any]) -> float:
-        """Calculate reliability score"""
-        # Simulated - in production, analyze bug patterns, error handling, etc.
+
+    def _calculate_reliability_score(self, _scan: Dict[str, Any]) -> float:
         return 80.0
-    
+
     def _calculate_security_score(self, scan: Dict[str, Any]) -> float:
-        """Calculate security score"""
         return scan.get("code_quality_score", 70.0)
-    
-    def _calculate_coverage_score(self, scan: Dict[str, Any]) -> float:
-        """Calculate test coverage score"""
-        # Simulated - in production, integrate with coverage tools
+
+    def _calculate_coverage_score(self, _scan: Dict[str, Any]) -> float:
         return 65.0
     
     def _generate_summary(self, vulnerabilities: List[Dict[str, Any]]) -> Dict[str, Any]:

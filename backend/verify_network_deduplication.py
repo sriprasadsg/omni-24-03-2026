@@ -16,7 +16,7 @@ async def verify_deduplication():
             "hostname": "device1",
             "mac": "00:11:22:33:44:55",
             "device_type": "Workstation",
-            "lastSeen": datetime.datetime.utcnow().isoformat(),
+            "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
             "params": "test"
         },
         {
@@ -24,7 +24,7 @@ async def verify_deduplication():
             "hostname": "device1-duplicate",
             "mac": "Unknown",
             "device_type": "Workstation",
-            "lastSeen": datetime.datetime.utcnow().isoformat(),
+            "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
             "params": "test-fallback"
         },
         {
@@ -32,7 +32,7 @@ async def verify_deduplication():
             "hostname": "device2",
             "mac": "Unknown",
             "device_type": "Server",
-            "lastSeen": datetime.datetime.utcnow().isoformat(),
+            "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
             "params": "test"
         }
     ]

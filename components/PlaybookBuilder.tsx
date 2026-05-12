@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { authFetch } from '../services/apiService';
 import ReactFlow, {
     ReactFlowProvider,
     addEdge,
@@ -14,7 +15,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { PlayIcon, SaveIcon, PlusIcon, BoltIcon, ShieldBanIcon, ShieldCheckIcon, MessageSquareIcon, GlobeIcon, DatabaseIcon } from 'lucide-react';
-import { useApi } from '../hooks/useApi';
 
 // Custom Node Components
 const TriggerNode = ({ data }: any) => (
@@ -100,7 +100,7 @@ const ActionDraggable = ({ type, title, label, icon: Icon, colorClass }: any) =>
 export const PlaybookBuilder: React.FC = () => {
     // API
     const fetchApi = async (url: string, options: any = {}) => {
-        const response = await fetch(url, options);
+        const response = await authFetch(url, options);
         if (!response.ok) throw new Error(`API error: ${response.status}`);
         return response.json();
     };
@@ -161,7 +161,6 @@ export const PlaybookBuilder: React.FC = () => {
 
             await fetchApi('/api/soar/playbooks', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(def)
             });
             alert('Playbook saved successfully!');

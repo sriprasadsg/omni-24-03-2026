@@ -12,7 +12,12 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 
+_MAX_HASH_SIZE = 50 * 1024 * 1024   # skip hashing executables larger than 50 MB
+
+
 class ProcessMonitorCapability(BaseCapability):
+    # {filepath: (mtime_float, sha256_or_None)} — survives across collect() calls
+    _hash_cache: Dict[str, tuple] = {}
 
     @property
     def capability_id(self) -> str:
@@ -27,12 +32,24 @@ class ProcessMonitorCapability(BaseCapability):
         raw = list(psutil.process_iter([
             "pid", "name", "ppid", "username", "exe",
             "cmdline", "create_time", "status",
-            "cpu_percent", "memory_percent", "num_threads",
-            "open_files", "connections"
+            "cpu_percent", "memory_percent", "num_threads"
         ]))
 
         all_procs: List[Dict] = []
         pid_map: Dict[int, Dict] = {}
+
+        # Pre-collect network connections once at the process-list level to avoid
+        # per-process proc.connections() calls (each is a blocking kernel syscall).
+        try:
+            all_conns = psutil.net_connections(kind="inet")
+            conn_by_pid: Dict[int, int] = {}
+            for c in all_conns:
+                if c.pid:
+                    conn_by_pid[c.pid] = conn_by_pid.get(c.pid, 0) + 1
+        except Exception:
+            conn_by_pid = {}
+
+        mem_total = psutil.virtual_memory().total
 
         for proc in raw:
             try:
@@ -40,17 +57,6 @@ class ProcessMonitorCapability(BaseCapability):
                 exe = info.get("exe") or ""
                 sha256 = self._hash_file(exe) if exe and os.path.isfile(exe) else None
                 cmdline = " ".join(info.get("cmdline") or [])
-
-                # Attempt to count open handles (Windows) / file descriptors (Linux)
-                try:
-                    open_files = len(proc.open_files())
-                except Exception:
-                    open_files = -1
-
-                try:
-                    conn_count = len(proc.connections())
-                except Exception:
-                    conn_count = 0
 
                 entry = {
                     "pid": info["pid"],
@@ -65,10 +71,9 @@ class ProcessMonitorCapability(BaseCapability):
                     ).isoformat(),
                     "status": info.get("status"),
                     "cpu_percent": round(info.get("cpu_percent") or 0, 1),
-                    "memory_mb": round((info.get("memory_percent") or 0) * psutil.virtual_memory().total / (100 * 1024 * 1024), 1),
+                    "memory_mb": round((info.get("memory_percent") or 0) * mem_total / (100 * 1024 * 1024), 1),
                     "threads": info.get("num_threads") or 0,
-                    "open_files": open_files,
-                    "connections": conn_count,
+                    "connections": conn_by_pid.get(info["pid"], 0),
                     "children": [],
                 }
                 all_procs.append(entry)
@@ -102,14 +107,24 @@ class ProcessMonitorCapability(BaseCapability):
             "top_memory_processes": [{"pid": p["pid"], "name": p["name"], "memory_mb": p["memory_mb"]} for p in top_mem],
         }
 
-    @staticmethod
-    def _hash_file(filepath: str) -> Optional[str]:
-        """Compute SHA-256 of an executable file."""
+    @classmethod
+    def _hash_file(cls, filepath: str) -> Optional[str]:
+        """SHA-256 of an executable, cached by (path, mtime) to avoid rehashing on every collect()."""
         try:
+            mtime = os.path.getmtime(filepath)
+            cached = cls._hash_cache.get(filepath)
+            if cached and cached[0] == mtime:
+                return cached[1]
+            # Skip very large executables — unlikely to be tampered payloads and too slow
+            if os.path.getsize(filepath) > _MAX_HASH_SIZE:
+                cls._hash_cache[filepath] = (mtime, None)
+                return None
             sha = hashlib.sha256()
             with open(filepath, "rb") as f:
                 for chunk in iter(lambda: f.read(65536), b""):
                     sha.update(chunk)
-            return sha.hexdigest()
+            result = sha.hexdigest()
+            cls._hash_cache[filepath] = (mtime, result)
+            return result
         except Exception:
             return None

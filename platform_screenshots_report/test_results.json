@@ -1,0 +1,196 @@
+{
+  "screenshots": [
+    "platform_screenshots_report\\01_login_page.png",
+    "platform_screenshots_report\\02_after_login.png",
+    "platform_screenshots_report\\03_dashboard.png",
+    "platform_screenshots_report\\04_agents.png",
+    "platform_screenshots_report\\04_ai_chat.png",
+    "platform_screenshots_report\\04_ai_governance.png",
+    "platform_screenshots_report\\04_compliance.png",
+    "platform_screenshots_report\\04_finops.png",
+    "platform_screenshots_report\\04_network.png",
+    "platform_screenshots_report\\04_playbooks.png",
+    "platform_screenshots_report\\04_security.png",
+    "platform_screenshots_report\\04_settings.png",
+    "platform_screenshots_report\\04_threat_intel.png",
+    "platform_screenshots_report\\04_ueba.png",
+    "platform_screenshots_report\\04_xdr.png",
+    "platform_screenshots_report\\05_ai_chat_no_input.png",
+    "platform_screenshots_report\\06_final_state.png"
+  ],
+  "page_results": [
+    {
+      "page": "Login Page",
+      "url": "http://localhost:3000",
+      "status": "captured"
+    },
+    {
+      "page": "Post-Login Dashboard",
+      "status": "logged_in"
+    },
+    {
+      "page": "Dashboard",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "captured"
+    },
+    {
+      "page": "Agents",
+      "url": "http://localhost:3000/agents",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "Security/SIEM",
+      "url": "http://localhost:3000/security",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "Compliance",
+      "url": "http://localhost:3000/compliance",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "Playbooks/MDR",
+      "url": "http://localhost:3000/playbooks",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "AI Chat",
+      "url": "http://localhost:3000/ai",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "FinOps",
+      "url": "http://localhost:3000/finops",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "Threat Intelligence",
+      "url": "http://localhost:3000/threat-intel",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "Network",
+      "url": "http://localhost:3000/network",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "UEBA/Shadow AI",
+      "url": "http://localhost:3000/ueba",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "XDR",
+      "url": "http://localhost:3000/xdr",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "AI Governance",
+      "url": "http://localhost:3000/ai-governance",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "Settings",
+      "url": "http://localhost:3000/settings",
+      "title": "Enterprise Omni-Agent AI Platform",
+      "status": "working"
+    },
+    {
+      "page": "AI Chat",
+      "status": "no_input_found"
+    }
+  ],
+  "console_errors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Login error: Error: Invalid credentials\n    at Module.login (http://localhost:3000/services/apiService.ts:220:11)\n    at async handleLogin (http://localhost:3000/components/LoginPage.tsx:43:20)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    }
+  ],
+  "total_screenshots": 17
+}

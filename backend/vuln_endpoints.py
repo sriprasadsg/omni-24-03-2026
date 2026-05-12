@@ -66,8 +66,71 @@ async def schedule_scan(
         # Remove _id
         if "_id" in job:
             del job["_id"]
-            
+
         return job
     except Exception as e:
         print(f"Error scheduling scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{vuln_id}/apply-patch")
+async def apply_patch(
+    vuln_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:patches")),
+):
+    """Queue a patch deployment job for a specific vulnerability."""
+    import uuid
+    db = get_database()
+    tenant_id = get_tenant_id()
+    now = datetime.now(timezone.utc).isoformat()
+
+    vuln = await db.vulnerabilities.find_one({"id": vuln_id, "tenantId": tenant_id}, {"_id": 0})
+    if not vuln:
+        vuln = {"id": vuln_id}
+
+    job_id = f"patch-{uuid.uuid4().hex[:10]}"
+    job = {
+        "id": job_id,
+        "type": "patch_deployment",
+        "vuln_id": vuln_id,
+        "cve_id": vuln.get("cve_id") or vuln.get("cveId") or vuln_id,
+        "asset_id": data.get("asset_id") or vuln.get("assetId"),
+        "tenantId": tenant_id,
+        "status": "scheduled",
+        "created_at": now,
+        "created_by": getattr(current_user, "username", "system"),
+        "scheduled_for": data.get("scheduled_for", "next_maintenance_window"),
+    }
+    await db.patch_jobs.insert_one(job)
+    await db.vulnerabilities.update_one(
+        {"id": vuln_id},
+        {"$set": {"patch_status": "scheduled", "patch_job_id": job_id, "updated_at": now}},
+    )
+    return {"task_id": job_id, "status": "scheduled", "message": "Patch queued for next maintenance window"}
+
+
+@router.post("/{vuln_id}/resolve")
+async def resolve_vulnerability(
+    vuln_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:security_cases")),
+):
+    """Mark a vulnerability as resolved."""
+    db = get_database()
+    tenant_id = get_tenant_id()
+    now = datetime.now(timezone.utc).isoformat()
+
+    resolution = data.get("resolution", "manually_resolved")
+    result = await db.vulnerabilities.update_one(
+        {"id": vuln_id, "tenantId": tenant_id},
+        {"$set": {
+            "status": "resolved",
+            "resolution": resolution,
+            "resolved_at": now,
+            "resolved_by": getattr(current_user, "username", "system"),
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Vulnerability not found")
+    return {"success": True, "status": "resolved"}

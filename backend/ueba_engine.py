@@ -69,8 +69,7 @@ class UEBAEngine:
             if ip := log.get("details", {}).get("ipAddress"):
                 distinct_ips.add(ip)
         
-        # Simulate bytes downloaded (DLP or Network proxy data)
-        # For the demo, we'll calculate a proxy based on access frequency if real data is missing
+        # Sum file sizes from download/export audit log entries; proxy is zero when no DLP data exists
         bytes_downloaded = 0
         file_access_logs = [log for log in audit_logs if log.get("action") in ["file.download", "file.export"]]
         for log in file_access_logs:

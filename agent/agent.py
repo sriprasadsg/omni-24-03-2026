@@ -18,7 +18,7 @@ from secure_logs import setup_secure_logging
 
 AGENT_VERSION = "2.0.1"
 
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # Setup logging
 # ─────────────────────────────────────────────
 logging.basicConfig(
@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # Optional Agentic Core imports
 # ─────────────────────────────────────────────
 try:
@@ -39,7 +39,7 @@ try:
     from goal_system.manager import GoalManager
     from knowledge_base.memory import AgentMemory
     from swarm.coordinator import SwarmCoordinator
-except ImportError:
+except ImportError as _agentic_import_err:
     AgenticLLM = None
     SafetyGuardrails = None
     AgenticReasoningEngine = None
@@ -47,12 +47,21 @@ except ImportError:
     GoalManager = None
     AgentMemory = None
     SwarmCoordinator = None
+    logging.warning(
+        "[Agent] Agentic core unavailable — agent running in degraded mode "
+        "(no autonomous reasoning, remediation, goal management, or swarm). "
+        "Import error: %s",
+        _agentic_import_err,
+    )
 
 from security import SecurityManager
 from platform_utils import PlatformUtils
 
+# Thread-safe buffer: completed response-task outcomes flushed via next heartbeat
+_pending_task_feedback: list = []
 
-# ─────────────────────────────────────────────
+
+# ---------------------------------------------
 # Offline message buffer (SQLite)
 # ─────────────────────────────────────────────
 class MessageBuffer:
@@ -201,9 +210,9 @@ def get_ip_address():
     return PlatformUtils.get_ip_address()
 
 
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # Fix 3: Agent Registration Flow
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 def register_agent(cfg) -> bool:
     """
     Exchange registration_key for a permanent agent_token + agent_id.
@@ -212,7 +221,7 @@ def register_agent(cfg) -> bool:
     """
     # Already registered
     if cfg.get("agent_token") and cfg.get("agent_id"):
-        logger.info(f"✅ Agent already registered — ID: {cfg['agent_id']}")
+        logger.info(f"[SUCCESS] Agent already registered - ID: {cfg['agent_id']}")
         return True
 
     base_url = cfg.get("api_base_url", "http://localhost:5000").rstrip("/")
@@ -220,7 +229,7 @@ def register_agent(cfg) -> bool:
     hostname = socket.gethostname()
 
     try:
-        logger.info(f"Registering agent '{hostname}' with backend at {base_url} …")
+        logger.info(f"Registering agent '{hostname}' with backend at {base_url}...")
         resp = requests.post(
             f"{base_url}/api/agents/register",
             json={
@@ -244,7 +253,7 @@ def register_agent(cfg) -> bool:
                 cfg["agent_token"] = agent_token
                 cfg["agent_id"]    = agent_id
                 save_config(cfg)
-                logger.info(f"✅ Registration successful — Agent ID: {agent_id}")
+                logger.info(f"[SUCCESS] Registration successful - Agent ID: {agent_id}")
                 return True
             else:
                 logger.warning(f"Registration response missing token/id: {data}")
@@ -267,9 +276,9 @@ def register_agent(cfg) -> bool:
         return False
 
 
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # Capability Manager
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 class AgentCapabilityManager:
     """Manages agent capabilities dynamically based on backend configuration"""
 
@@ -309,10 +318,9 @@ class AgentCapabilityManager:
                     self.reasoning = AgenticReasoningEngine(
                         self.llm_engine,
                         self.safety,
-                        self.cfg.get('autonomous_actions', {})
+                        self.cfg.get('autonomous_actions', {}),
+                        memory=self.memory,
                     )
-                    if self.memory:
-                        self.reasoning.memory = self.memory
 
                     self.remediation = AutonomousRemediationEngine(
                         self.reasoning,
@@ -329,6 +337,7 @@ class AgentCapabilityManager:
                         if 'coordinator_url' not in swarm_init:
                             swarm_init['coordinator_url'] = self.cfg.get('api_base_url')
                         self.swarm = SwarmCoordinator(self.agent_id, swarm_init)
+                        self.swarm.capability_mgr = self  # enable task dispatch
                         self.swarm.join_swarm()
 
                     logger.info("✅ Agentic AI Core fully initialized (LLM+Safety+Reasoning+Remediation+Goals+Memory+Swarm)")
@@ -595,15 +604,271 @@ class AgentCapabilityManager:
                 return cap.execute()
             return {"status": "error", "error": "Agent Update capability not enabled"}
 
+        # ── Run Vulnerability Scan ─────────────────────────────────────────
+        if instruction in ("run_vulnerability_scan", "Run Vulnerability Scan"):
+            cap = self.capability_instances.get('vulnerability_scanning')
+            if cap:
+                logger.info("Direct Execution: Running Vulnerability Scan")
+                result = cap.collect() if hasattr(cap, 'collect') else cap.execute()
+                try:
+                    url = self.cfg.get("api_base_url").rstrip("/") + f"/api/agents/{self.agent_id}/vulnerability-scan"
+                    requests.post(url, json=result, headers=self._auth_headers(), timeout=10)
+                except Exception as e:
+                    logger.error(f"Failed to report vuln scan: {e}")
+                return result
+            return {"status": "error", "error": "vulnerability_scanning capability not available"}
+
+        # ── Run Process Snapshot ───────────────────────────────────────────
+        if instruction in ("run_process_snapshot", "Run Process Snapshot"):
+            pm_cap = self.capability_instances.get('process_monitor')
+            if pm_cap:
+                logger.info("Direct Execution: Running Process Snapshot")
+                result = pm_cap.collect() if hasattr(pm_cap, 'collect') else pm_cap.execute()
+                try:
+                    url = self.cfg.get("api_base_url").rstrip("/") + f"/api/agents/{self.agent_id}/process-snapshot"
+                    requests.post(url, json=result, headers=self._auth_headers(), timeout=10)
+                except Exception as e:
+                    logger.error(f"Failed to report process snapshot: {e}")
+                return result
+            return {"status": "error", "error": "process_monitor capability not available"}
+
+        # ── Run Patch Scan ─────────────────────────────────────────────────
+        if instruction in ("run_patch_scan", "Run Patch Scan"):
+            cap = self.capability_instances.get('system_patching')
+            if cap:
+                logger.info("Direct Execution: Running Patch Scan")
+                result = cap.collect() if hasattr(cap, 'collect') else cap.execute()
+                return result
+            return {"status": "error", "error": "system_patching capability not available"}
+
+        # ── Run Shadow AI Scan ─────────────────────────────────────────────
+        if instruction in ("run_shadow_ai_scan", "Run Shadow AI Scan"):
+            cap = self.capability_instances.get('shadow_ai')
+            if cap:
+                logger.info("Direct Execution: Running Shadow AI Scan")
+                result = cap.collect() if hasattr(cap, 'collect') else cap.execute()
+                return result
+            return {"status": "error", "error": "shadow_ai capability not available"}
+
+        # ── Autonomous Threat Hunt ─────────────────────────────────────────
+        if instruction in ("run_threat_hunt", "Run Threat Hunt"):
+            logger.warning("⚡ THREAT HUNT TRIGGERED — running comprehensive scan")
+            results = {}
+            for cap_id in ("vulnerability_scanning", "compliance_enforcement",
+                           "process_monitor", "persistence_detection", "shadow_ai"):
+                cap = self.capability_instances.get(cap_id)
+                if cap:
+                    try:
+                        results[cap_id] = cap.collect() if hasattr(cap, 'collect') else cap.execute()
+                    except Exception as e:
+                        results[cap_id] = {"error": str(e)}
+            try:
+                url = self.cfg.get("api_base_url").rstrip("/") + f"/api/agents/{self.agent_id}/threat-hunt-results"
+                requests.post(
+                    url,
+                    json={"results": results, "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())},
+                    headers=self._auth_headers(), timeout=15,
+                )
+            except Exception as e:
+                logger.error(f"Failed to report threat hunt: {e}")
+            return {"status": "success", "capabilities_run": list(results.keys())}
+
+        # ── Kill-Chain Pre-staged Defenses ────────────────────────────────
+        if instruction in ("enable_enhanced_auth_logging", "Enable Enhanced Auth Logging"):
+            logger.info("Enabling enhanced authentication logging")
+            return self._enable_enhanced_auth_logging()
+
+        if instruction in ("enable_privilege_monitoring", "Enable Privilege Monitoring"):
+            logger.info("Enabling privilege escalation monitoring")
+            return self._enable_privilege_monitoring()
+
+        if instruction in ("enable_data_loss_monitoring", "Enable Data Loss Monitoring"):
+            logger.info("Enabling data loss monitoring")
+            results = {}
+            for cap_id in ("shadow_ai", "fim"):
+                cap = self.capability_instances.get(cap_id)
+                if cap:
+                    try:
+                        results[cap_id] = cap.collect() if hasattr(cap, 'collect') else cap.execute()
+                    except Exception as e:
+                        results[cap_id] = {"error": str(e)}
+            return {"status": "success", "message": "Data loss monitoring activated", "results": results}
+
+        if instruction in ("create_vss_snapshot", "Create VSS Snapshot"):
+            vss_cap = self.capability_instances.get('vss_manager')
+            if vss_cap:
+                try:
+                    fn = getattr(vss_cap, 'create_snapshot', None) or getattr(vss_cap, 'execute', None)
+                    result = fn() if fn else {"status": "error", "error": "no create_snapshot method"}
+                    return {"status": "success", "message": "VSS snapshot created", "result": result}
+                except Exception as e:
+                    return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": "vss_manager capability not available"}
+
+        if instruction in ("run_vss_rollback_check", "Run VSS Rollback Check"):
+            vss_cap = self.capability_instances.get('vss_manager')
+            if vss_cap:
+                try:
+                    fn = getattr(vss_cap, 'check_snapshots', None) or getattr(vss_cap, 'execute', None)
+                    result = fn() if fn else {"status": "error", "error": "no check_snapshots method"}
+                    return {"status": "success", "result": result}
+                except Exception as e:
+                    return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": "vss_manager capability not available"}
+
+        # ── Chaos Engineering ──────────────────────────────────────────────
+        _chaos_type = (payload or {}).get("metadata", {}).get("chaos_type", "") if payload else ""
+        if not _chaos_type:
+            # Infer from instruction text
+            if "chaos_cpu_hog" in instruction or "stress --cpu" in instruction or "CPU stress" in instruction:
+                _chaos_type = "CPU Hog"
+            elif "chaos_latency" in instruction or "tc qdisc" in instruction or "netem delay" in instruction:
+                _chaos_type = "Latency Injection"
+            elif "chaos_process_kill" in instruction or "kill -9" in instruction or "chaos_process" in instruction:
+                _chaos_type = "Pod Failure"
+            elif "chaos_disk_fill" in instruction or "dd if=/dev/zero" in instruction:
+                _chaos_type = "Disk Fill"
+            elif "chaos_memory" in instruction or "bytearray" in instruction and "chaos" in instruction:
+                _chaos_type = "Memory Leak"
+
+        if _chaos_type:
+            import subprocess, platform as _platform, threading as _threading
+            _os = _platform.system()
+            _result = {"chaos_type": _chaos_type, "platform": _os}
+
+            def _run(cmd, shell=True, timeout=90):
+                try:
+                    r = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
+                    return {"rc": r.returncode, "stdout": r.stdout[:500], "stderr": r.stderr[:200]}
+                except subprocess.TimeoutExpired:
+                    return {"rc": -1, "note": "timeout (experiment still running)"}
+                except Exception as exc:
+                    return {"rc": -1, "error": str(exc)}
+
+            try:
+                if _chaos_type == "CPU Hog":
+                    if _os == "Windows":
+                        # Busy-loop in a background thread for 60 s
+                        def _cpu_burn():
+                            import time
+                            end = time.time() + 60
+                            while time.time() < end:
+                                _ = sum(i * i for i in range(10000))
+                        for _ in range(4):
+                            t = _threading.Thread(target=_cpu_burn, daemon=True)
+                            t.start()
+                        _result.update({"status": "success", "note": "4 CPU-burn threads started for 60s"})
+                    else:
+                        _r = _run("stress --cpu 4 --timeout 60s 2>/dev/null || stress-ng --cpu 4 --timeout 60s 2>/dev/null || true", timeout=5)
+                        _result.update({"status": "success", "note": "stress started in background", **_r})
+
+                elif _chaos_type == "Latency Injection":
+                    if _os != "Windows":
+                        iface = "eth0"
+                        _run(f"tc qdisc del dev {iface} root 2>/dev/null || true", timeout=5)
+                        _r = _run(f"tc qdisc add dev {iface} root netem delay 200ms 2>/dev/null || true", timeout=5)
+                        # Auto-clean after 60 s
+                        def _clean_tc():
+                            import time; time.sleep(60)
+                            subprocess.run(f"tc qdisc del dev {iface} root 2>/dev/null || true", shell=True)
+                        _threading.Thread(target=_clean_tc, daemon=True).start()
+                        _result.update({"status": "success", "note": "200ms latency injected for 60s", **_r})
+                    else:
+                        _result.update({"status": "skipped", "note": "tc/netem not available on Windows"})
+
+                elif _chaos_type == "Pod Failure":
+                    target = (payload or {}).get("metadata", {}).get("target", "")
+                    if not target:
+                        import re as _re
+                        m = _re.search(r'pgrep -f ([^\s)]+)', instruction)
+                        target = m.group(1) if m else ""
+                    if target and _os != "Windows":
+                        _r = _run(f"kill -9 $(pgrep -f '{target}') 2>/dev/null || true", timeout=10)
+                        _result.update({"status": "success", "note": f"SIGKILL sent to processes matching '{target}'", **_r})
+                    elif target and _os == "Windows":
+                        _r = _run(f"taskkill /F /IM {target} 2>nul || echo skipped", timeout=10)
+                        _result.update({"status": "success", "note": f"taskkill attempted for '{target}'", **_r})
+                    else:
+                        _result.update({"status": "skipped", "note": "no target process specified"})
+
+                elif _chaos_type == "Disk Fill":
+                    tmp = "C:\\Windows\\Temp\\chaos_fill.bin" if _os == "Windows" else "/tmp/chaos_fill.bin"
+                    def _fill_and_clean():
+                        import time
+                        try:
+                            with open(tmp, "wb") as f:
+                                f.write(b"\x00" * (512 * 1024 * 1024))
+                        except Exception:
+                            pass
+                        time.sleep(60)
+                        try:
+                            import os as _os2; _os2.remove(tmp)
+                        except Exception:
+                            pass
+                    _threading.Thread(target=_fill_and_clean, daemon=True).start()
+                    _result.update({"status": "success", "note": "512 MB written to temp, will auto-delete in 60s"})
+
+                elif _chaos_type == "Memory Leak":
+                    def _alloc():
+                        import time
+                        data = [bytearray(1024 * 1024) for _ in range(256)]
+                        time.sleep(60)
+                        del data
+                    _threading.Thread(target=_alloc, daemon=True).start()
+                    _result.update({"status": "success", "note": "256 MB allocated for 60s then released"})
+
+            except Exception as exc:
+                _result.update({"status": "error", "error": str(exc)})
+
+            # Report back to backend
+            _exp_id = (payload or {}).get("metadata", {}).get("experiment_id", "")
+            if _exp_id and self.agent_id:
+                try:
+                    import requests as _req
+                    _req.post(
+                        f"{self.cfg.get('api_base_url', '').rstrip('/')}/api/chaos/experiments/{_exp_id}/result",
+                        json={"agent_id": self.agent_id, "result": _result},
+                        headers=self._auth_headers(), timeout=5,
+                    )
+                except Exception:
+                    pass
+
+            return _result
+
         # ── Fallback: LLM Reasoning ────────────────────────────────────────
         if not self.reasoning:
+            # Try to run the instruction directly via any matching capability
+            for cap_id, cap_instance in self.capability_instances.items():
+                if hasattr(cap_instance, "execute") and cap_id in instruction.lower():
+                    try:
+                        result = cap_instance.execute({"instruction": instruction})
+                        return {"status": "success", "instruction": instruction, "source": cap_id, **result}
+                    except Exception:
+                        pass
             return {
-                "status": "simulated",
-                "message": "Reasoning Engine not active, returning mock response.",
+                "status": "unavailable",
+                "message": "Reasoning Engine not active; no matching capability found.",
                 "instruction": instruction
             }
         try:
             decision = self.reasoning.decide_action({"instruction": instruction, "context": "instruction_dispatch"})
+            # Post to backend for audit/approval when agent cannot act autonomously
+            if not decision.get("is_autonomous") and self.agent_id and self.api_base_url:
+                try:
+                    requests.post(
+                        f"{self.api_base_url.rstrip('/')}/api/agents/{self.agent_id}/agentic-decision",
+                        json={
+                            "context":             {"instruction": instruction},
+                            "recommended_action":  decision.get("action", "none"),
+                            "confidence":          decision.get("plan", {}).get("confidence", 0.0),
+                            "reasoning":           decision.get("reason", ""),
+                            "requires_approval":   True,
+                        },
+                        headers=self._auth_headers(),
+                        timeout=5,
+                    )
+                except Exception as _de:
+                    logger.debug("Failed to post agentic decision: %s", _de)
             return {
                 "status":        "success",
                 "instruction":   instruction,
@@ -613,6 +878,50 @@ class AgentCapabilityManager:
             }
         except Exception as e:
             return {"status": "error", "error": str(e)}
+
+    def _enable_enhanced_auth_logging(self) -> dict:
+        """Enable verbose authentication event logging (platform-specific)."""
+        import subprocess, platform as _platform
+        try:
+            if _platform.system() == "Windows":
+                subprocess.run(
+                    ["auditpol", "/set", "/subcategory:Logon", "/success:enable", "/failure:enable"],
+                    capture_output=True, timeout=15, check=False,
+                )
+                subprocess.run(
+                    ["auditpol", "/set", "/subcategory:Account Logon", "/success:enable", "/failure:enable"],
+                    capture_output=True, timeout=15, check=False,
+                )
+            else:
+                subprocess.run(
+                    ["bash", "-c", "auditctl -a always,exit -F arch=b64 -S execve -k auth_monitoring 2>/dev/null || true"],
+                    capture_output=True, timeout=10, check=False,
+                )
+            logger.info("Enhanced auth logging enabled")
+            return {"status": "success", "message": "Enhanced authentication logging enabled"}
+        except Exception as e:
+            logger.warning("_enable_enhanced_auth_logging: %s", e)
+            return {"status": "partial", "message": str(e)}
+
+    def _enable_privilege_monitoring(self) -> dict:
+        """Enable privilege escalation monitoring (platform-specific)."""
+        import subprocess, platform as _platform
+        try:
+            if _platform.system() == "Windows":
+                subprocess.run(
+                    ["auditpol", "/set", "/subcategory:Sensitive Privilege Use", "/success:enable", "/failure:enable"],
+                    capture_output=True, timeout=15, check=False,
+                )
+            else:
+                subprocess.run(
+                    ["bash", "-c", "auditctl -a always,exit -F arch=b64 -S setuid -S setgid -k priv_escalation 2>/dev/null || true"],
+                    capture_output=True, timeout=10, check=False,
+                )
+            logger.info("Privilege escalation monitoring enabled")
+            return {"status": "success", "message": "Privilege escalation monitoring enabled"}
+        except Exception as e:
+            logger.warning("_enable_privilege_monitoring: %s", e)
+            return {"status": "partial", "message": str(e)}
 
     def _auth_headers(self) -> dict:
         """Build Authorization headers from stored token or registration key."""
@@ -832,8 +1141,87 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
                 meta["total_memory_gb"]     = round(data.get("memory", {}).get("total",     0) / (1024**3), 2)
                 meta["available_memory_gb"] = round(data.get("memory", {}).get("available", 0) / (1024**3), 2)
 
-    meta["capabilities"]        = list(CAPABILITY_REGISTRY.keys())
-    meta["capabilities_status"] = capability_mgr.get_all_capabilities_status()
+    meta["available_capabilities"] = list(CAPABILITY_REGISTRY.keys())
+    meta["capabilities_status"]    = capability_mgr.get_all_capabilities_status()
+
+    # Update GoalManager progress from live capability metrics
+    if capability_mgr.goal_manager:
+        try:
+            metrics_data = capability_data.get("metrics_collection", {}).get("data", {})
+            patch_data   = capability_data.get("software_management", {}).get("data", {})
+            health_data  = capability_data.get("predictive_health",   {}).get("data", {})
+            rt_data      = capability_data.get("runtime_security",     {}).get("data", {})
+            _gm = capability_mgr.goal_manager
+            if metrics_data:
+                _gm.update_goal_progress("system_uptime",    float(100 - metrics_data.get("cpu", {}).get("percent", 0)))
+            if patch_data:
+                _gm.update_goal_progress("patch_critical_cves", float(patch_data.get("compliance_pct", 0)))
+            if health_data:
+                _gm.update_goal_progress("predictive_health_score", float(health_data.get("health_score", 0)))
+            if rt_data:
+                _gm.update_goal_progress("threat_detection_rate", float(rt_data.get("detections_count", 0)))
+        except Exception as _gme:
+            logger.debug("Goal progress update failed: %s", _gme)
+
+    # Post shadow AI scan results to dedicated endpoint
+    shadow_data = capability_data.get("shadow_ai", {})
+    if shadow_data.get("status") == "success" and shadow_data.get("data"):
+        try:
+            sd = shadow_data["data"]
+            if sd.get("detected_count", 0) > 0:
+                shadow_payload = {
+                    "detected_count":    sd.get("detected_count", 0),
+                    "ai_connections":    sd.get("ai_connections", []),
+                    "local_ai_processes": sd.get("local_ai_processes", []),
+                    "local_ai_ports":    sd.get("local_ai_ports", []),
+                }
+                shadow_url = cfg["api_base_url"].rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/shadow-ai-scan"
+                requests.post(shadow_url, json=shadow_payload, headers=capability_mgr._auth_headers(), timeout=10)
+                logger.info("[Heartbeat] Shadow AI scan posted (%d detections)", sd.get("detected_count", 0))
+        except Exception as _se:
+            logger.debug("Shadow AI scan post failed: %s", _se)
+
+    # Post vulnerability scan results to dedicated endpoint
+    vuln_data = capability_data.get("vulnerability_scanner", {})
+    if vuln_data.get("status") == "success" and vuln_data.get("data"):
+        try:
+            vd = vuln_data["data"]
+            vscan_payload = {
+                "total_packages":      vd.get("total_packages", 0),
+                "vulnerable_packages": vd.get("vulnerable_packages", []),
+                "total_cves":          vd.get("total_cves", 0),
+                "scan_source":         vd.get("scan_source", "osv"),
+                "os_patches":          vd.get("os_patches", {}),
+            }
+            vscan_url = cfg["api_base_url"].rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/vulnerability-scan"
+            requests.post(vscan_url, json=vscan_payload, headers=capability_mgr._auth_headers(), timeout=15)
+            logger.info("[Heartbeat] Vulnerability scan results posted (%d CVEs)", vscan_payload["total_cves"])
+        except Exception as _ve:
+            logger.debug("Vulnerability scan post failed: %s", _ve)
+
+    # Post persistence findings to dedicated endpoint
+    persist_data = capability_data.get("persistence_detection", {})
+    if persist_data.get("status") == "success" and persist_data.get("data"):
+        try:
+            pd = persist_data["data"]
+            persist_payload = {
+                "total_entries":      pd.get("total_entries", 0),
+                "suspicious_entries": pd.get("suspicious_entries", []),
+                "critical_count":     pd.get("critical_count", 0),
+                "high_count":         pd.get("high_count", 0),
+                "platform":           pd.get("platform", sys_info.get("os", "unknown")),
+            }
+            persist_url = cfg["api_base_url"].rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/persistence-findings"
+            requests.post(persist_url, json=persist_payload, headers=capability_mgr._auth_headers(), timeout=15)
+            logger.info("[Heartbeat] Persistence findings posted (%d suspicious)", pd.get("total_entries", 0))
+        except Exception as _pe:
+            logger.debug("Persistence findings post failed: %s", _pe)
+
+    # Flush buffered task feedback (batch resilience for offline periods)
+    global _pending_task_feedback
+    if _pending_task_feedback:
+        meta["task_feedback"] = _pending_task_feedback[:20]
+        _pending_task_feedback = _pending_task_feedback[20:]
 
     payload = {
         "hostname":  socket.gethostname(),
@@ -1044,6 +1432,31 @@ def check_and_execute_instructions(cfg, capability_mgr):
                     result = {"status": "skipped", "reason": "No instruction text"}
 
                 logger.info(f"Instruction '{instr_type}' result: {result.get('status', result)}")
+
+                # Store every instruction outcome so the agent learns what works
+                if instr_type and instr_type != "skipped":
+                    _instr_success = result.get("status") not in ("error", "simulated")
+                    if capability_mgr.memory:
+                        try:
+                            capability_mgr.memory.store_experience(
+                                context={"instruction": instr_type, "payload": payload or {}},
+                                action=instr_type,
+                                outcome={
+                                    "success": _instr_success,
+                                    "score":   0.0 if result.get("status") == "error" else 1.0,
+                                    "status":  result.get("status", "unknown"),
+                                },
+                            )
+                        except Exception as _me:
+                            logger.debug("Memory store_experience (instruction) failed: %s", _me)
+                    if capability_mgr.llm_engine:
+                        try:
+                            capability_mgr.llm_engine.record_outcome(
+                                success=_instr_success,
+                                reasoning=f"instruction:{instr_type} status:{result.get('status','unknown')}",
+                            )
+                        except Exception as _le:
+                            logger.debug("LLM record_outcome (instruction) failed: %s", _le)
         elif resp.status_code == 404:
             logger.debug(f"No instructions endpoint for agent {agent_id}")
         else:
@@ -1130,6 +1543,40 @@ def poll_response_tasks(cfg, capability_mgr):
                 requests.post(result_url, json=result, headers=headers, timeout=5)
                 logger.info(f"Response task {task_id} ({action}) completed: success={result.get('success')}")
 
+                # Buffer feedback for batch delivery via next heartbeat
+                _pending_task_feedback.append({
+                    "task_id": task_id,
+                    "success": bool(result.get("success", False)),
+                    "false_positive": False,
+                    "message": str(result.get("message", ""))[:200],
+                })
+                if len(_pending_task_feedback) > 50:
+                    _pending_task_feedback.pop(0)
+
+                # Store experience so the agent learns from each outcome
+                _task_success = bool(result.get("success", False))
+                if capability_mgr.memory:
+                    try:
+                        capability_mgr.memory.store_experience(
+                            context={"action": action, "params": params, "task_id": task_id},
+                            action=action,
+                            outcome={
+                                "success": _task_success,
+                                "score": 1.0 if _task_success else 0.0,
+                                "message": str(result.get("message", ""))[:200],
+                            },
+                        )
+                    except Exception as _me:
+                        logger.debug("Memory store_experience failed: %s", _me)
+                if capability_mgr.llm_engine:
+                    try:
+                        capability_mgr.llm_engine.record_outcome(
+                            success=_task_success,
+                            reasoning=f"task:{action} success:{_task_success}",
+                        )
+                    except Exception as _le:
+                        logger.debug("LLM record_outcome (task) failed: %s", _le)
+
             except Exception as ex:
                 logger.error(f"Failed to execute response task {task_id} ({action}): {ex}")
                 try:
@@ -1140,8 +1587,249 @@ def poll_response_tasks(cfg, capability_mgr):
                     )
                 except Exception:
                     pass
-    except Exception:
-        pass  # Silently ignore network errors between polls
+    except Exception as _net_err:
+        logger.debug("poll_response_tasks: network error: %s", _net_err)
+
+
+# ─────────────────────────────────────────────
+# IoC Broadcast Polling
+# ─────────────────────────────────────────────
+def poll_threat_intel(cfg, capability_mgr):
+    """
+    Poll backend for IoC broadcasts from the correlation engine.
+    Each broadcast contains IOCs (IPs, hashes, domains) that should trigger
+    local defensive actions immediately.
+    """
+    agent_id = capability_mgr.agent_id
+    base_url = cfg.get("api_base_url", "http://localhost:5000").rstrip("/")
+    url      = f"{base_url}/api/agents/{agent_id}/threat-intel"
+    headers  = capability_mgr._auth_headers()
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code != 200 or not resp.json():
+            return
+        broadcasts = resp.json()
+        logger.warning("Received %d IoC broadcast(s) from correlation engine", len(broadcasts))
+
+        ar_cap = capability_mgr.capability_instances.get("autonomous_response")
+
+        for broadcast in broadcasts:
+            iocs = broadcast.get("iocs", {})
+
+            # Block malicious IPs via autonomous_response capability
+            for ip in iocs.get("ips", []):
+                if ar_cap and hasattr(ar_cap, "block_ip"):
+                    try:
+                        ar_cap.block_ip(ip)
+                        logger.warning("IoC: Blocked IP %s", ip)
+                    except Exception as e:
+                        logger.error("IoC: Failed to block IP %s: %s", ip, e)
+
+            # Quarantine known-bad file hashes (if FIM found matching files)
+            for file_hash in iocs.get("hashes", []):
+                logger.warning("IoC: Alerting on known-bad hash %s", file_hash)
+
+            # Log domain IOCs for DNS-level blocking awareness
+            for domain in iocs.get("domains", []):
+                logger.warning("IoC: Malicious domain flagged %s", domain)
+
+    except Exception as e:
+        logger.debug("IoC broadcast poll error: %s", e)
+
+
+# ─────────────────────────────────────────────
+# Playbook Polling
+# ─────────────────────────────────────────────
+def poll_pending_playbooks(cfg, capability_mgr):
+    """
+    Poll the backend for playbooks assigned to this agent or triggered by
+    agent-side events (on_agent_start, on_heartbeat, on_threat_detected).
+    Each playbook step maps to an existing execute_single_instruction handler.
+    """
+    agent_id = capability_mgr.agent_id
+    base_url = cfg.get("api_base_url", "http://localhost:5000").rstrip("/")
+    url      = f"{base_url}/api/agents/{agent_id}/pending-playbooks"
+    headers  = capability_mgr._auth_headers()
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code != 200 or not resp.json():
+            return
+        playbooks = resp.json()
+        logger.info("Received %d pending playbook(s) to execute", len(playbooks))
+
+        for pb in playbooks:
+            pb_id   = pb.get("id")
+            pb_name = pb.get("name", pb_id)
+            steps   = pb.get("steps", [])
+            status  = "executed"
+
+            logger.info("Executing playbook '%s' (%d steps)", pb_name, len(steps))
+            for step in steps:
+                action      = step.get("action", "")
+                step_params = step.get("params", {})
+                if not action:
+                    continue
+                try:
+                    result = capability_mgr.execute_single_instruction(action, payload=step_params)
+                    if result.get("status") == "error":
+                        status = "failed"
+                        logger.error("Playbook '%s' step '%s' failed: %s", pb_name, action, result)
+                    else:
+                        logger.info("Playbook '%s' step '%s' → %s", pb_name, action, result.get("status"))
+                except Exception as se:
+                    status = "failed"
+                    logger.error("Playbook '%s' step '%s' exception: %s", pb_name, action, se)
+
+            # Acknowledge back to backend so it isn't re-delivered
+            try:
+                ack_url = f"{base_url}/api/agents/{agent_id}/playbook-ack"
+                requests.post(
+                    ack_url,
+                    json={"playbook_id": pb_id, "status": status},
+                    headers=headers,
+                    timeout=5,
+                )
+            except Exception as ae:
+                logger.warning("Playbook ack failed for '%s': %s", pb_name, ae)
+
+    except Exception as e:
+        logger.debug("Playbook poll error: %s", e)
+
+
+# ─────────────────────────────────────────────
+# Approval Decision Polling
+# ─────────────────────────────────────────────
+
+# In-memory store: {request_id: action_callback}
+_pending_approvals: dict = {}
+
+
+def register_approval_request(request_id: str, action_callback):
+    """Called before an action is gated for human approval."""
+    _pending_approvals[request_id] = action_callback
+
+
+def poll_pending_approvals(cfg, capability_mgr):
+    """
+    Poll the backend for each outstanding approval request.
+    When the backend returns status='approved', execute the stored callback.
+    Clears approved/rejected requests from the local store.
+    """
+    if not _pending_approvals:
+        return
+
+    agent_id = capability_mgr.agent_id
+    base_url = cfg.get("api_base_url", "http://localhost:5000").rstrip("/")
+    headers  = capability_mgr._auth_headers()
+    resolved = []
+
+    for request_id, callback in list(_pending_approvals.items()):
+        try:
+            url  = f"{base_url}/api/agents/{agent_id}/approvals/{request_id}"
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code != 200:
+                continue
+            data   = resp.json()
+            status = data.get("status", "pending")
+
+            if status in ("approved", "auto_approved"):
+                logger.info("Approval %s granted — executing deferred action", request_id)
+                try:
+                    extra_params = data.get("params", {})
+                    callback(extra_params)
+                except Exception as cb_err:
+                    logger.error("Approved action for %s failed: %s", request_id, cb_err)
+                resolved.append(request_id)
+
+            elif status in ("rejected", "escalated", "skipped"):
+                logger.warning("Approval %s %s — action cancelled", request_id, status)
+                resolved.append(request_id)
+
+        except Exception as e:
+            logger.debug("Approval poll error for %s: %s", request_id, e)
+
+    for rid in resolved:
+        _pending_approvals.pop(rid, None)
+
+
+# ─────────────────────────────────────────────
+# Proactive Threat Hunting (scheduled, no instruction needed)
+# ─────────────────────────────────────────────
+def run_proactive_threat_hunt(cfg, capability_mgr):
+    """
+    Autonomously run a lightweight threat hunt every N heartbeats.
+    Covers persistence, shadow AI, and process anomalies — the three
+    most likely early-stage indicators that don't need a backend trigger.
+    Results are posted to the backend and stored in agent memory.
+    """
+    logger.warning("🔍 Proactive threat hunt starting (autonomous schedule)…")
+    results = {}
+    scan_caps = ("persistence_detection", "shadow_ai", "process_monitor")
+
+    for cap_id in scan_caps:
+        cap = capability_mgr.capability_instances.get(cap_id)
+        if not cap:
+            continue
+        try:
+            results[cap_id] = cap.collect() if hasattr(cap, "collect") else cap.execute()
+        except Exception as e:
+            results[cap_id] = {"error": str(e)}
+
+    # Post results to backend
+    try:
+        url = cfg.get("api_base_url", "").rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/threat-hunt-results"
+        requests.post(
+            url,
+            json={
+                "results": results,
+                "triggered_by": "proactive_schedule",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            headers=capability_mgr._auth_headers(),
+            timeout=15,
+        )
+    except Exception as e:
+        logger.error("Proactive hunt report failed: %s", e)
+
+    # Learn from this hunt — store experience so future ReAct decisions can reference it
+    if capability_mgr.memory:
+        try:
+            any_findings = any(
+                isinstance(v, dict) and v.get("status") not in ("error", None)
+                for v in results.values()
+            )
+            capability_mgr.memory.store_experience(
+                context={"action": "proactive_threat_hunt", "caps_run": list(results.keys())},
+                action="proactive_threat_hunt",
+                outcome={"success": True, "findings": any_findings, "score": 1.0},
+            )
+        except Exception:
+            pass
+
+    # Raise backend alerts for any confirmed suspicious findings
+    ar_cap = capability_mgr.capability_instances.get("autonomous_response")
+    if ar_cap and hasattr(ar_cap, "raise_alert"):
+        backend_url = cfg.get("api_base_url", "http://localhost:5000")
+        api_key     = cfg.get("agent_token", "")
+        agent_id    = capability_mgr.agent_id
+        for cap_id, result in results.items():
+            if not isinstance(result, dict):
+                continue
+            # Treat any non-error result with actual data as a potential finding
+            suspicious = result.get("threats_detected") or result.get("anomalies") or result.get("items")
+            if suspicious:
+                ar_cap.raise_alert(
+                    alert_type=f"PROACTIVE_HUNT_{cap_id.upper()}",
+                    description=f"Proactive threat hunt ({cap_id}) found suspicious activity: {str(suspicious)[:200]}",
+                    severity="High",
+                    backend_url=backend_url,
+                    api_key=api_key,
+                    agent_id=agent_id,
+                )
+
+    logger.warning("🔍 Proactive threat hunt complete — capabilities run: %s", list(results.keys()))
 
 
 # ─────────────────────────────────────────────
@@ -1241,6 +1929,33 @@ def main(service_instance=None):
             send_heartbeat(cfg, capability_mgr, buffer_mgr)
             check_and_execute_instructions(cfg, capability_mgr)
             poll_response_tasks(cfg, capability_mgr)
+
+            # IoC broadcast check every 5 heartbeats
+            if heartbeat_count % 5 == 0:
+                poll_threat_intel(cfg, capability_mgr)
+
+            # Playbook polling every 12 heartbeats (~1 min at 5s interval)
+            if heartbeat_count % 12 == 0 and heartbeat_count > 0:
+                poll_pending_playbooks(cfg, capability_mgr)
+
+            # Approval decision polling every 6 heartbeats (~30s at 5s interval)
+            if heartbeat_count % 6 == 0 and heartbeat_count > 0:
+                poll_pending_approvals(cfg, capability_mgr)
+
+            # Proactive autonomous threat hunt every 60 heartbeats (~5 min at 5s interval)
+            if heartbeat_count % 60 == 0 and heartbeat_count > 0:
+                run_proactive_threat_hunt(cfg, capability_mgr)
+
+            # Refresh dynamic safety rules from backend every 60 heartbeats
+            if heartbeat_count % 60 == 0 and capability_mgr.safety:
+                try:
+                    capability_mgr.safety.load_remote_rules(
+                        api_base_url=cfg.get("api_base_url", ""),
+                        api_key=cfg.get("agent_token", ""),
+                        agent_id=capability_mgr.agent_id,
+                    )
+                except Exception as _sr:
+                    logger.debug("Safety rule refresh failed: %s", _sr)
 
             # Goal evaluation (if enabled)
             if capability_mgr.goal_manager:

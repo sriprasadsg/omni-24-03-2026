@@ -57,7 +57,7 @@ class BinaryAnalysisService:
             "md5": md5,
             "file_size_bytes": file_size,
             "file_type": file_type,
-            "analysis_timestamp": datetime.utcnow().isoformat(),
+            "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
             "static": {},
             "yara_matches": [],
             "sandbox": {},

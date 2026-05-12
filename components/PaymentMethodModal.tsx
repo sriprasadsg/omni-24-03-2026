@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Loader, Settings, CheckCircle } from 'lucide-react';
+import { X, CreditCard, Loader, CheckCircle, AlertCircle } from 'lucide-react';
 import * as api from '../services/apiService';
+import { API_BASE } from '../services/apiService';
 
 interface PaymentMethodModalProps {
     isOpen: boolean;
@@ -22,7 +22,6 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
     isOpen,
     onClose,
     onConfirm,
-    onAddMethod,
     mode,
     planName,
     price
@@ -32,18 +31,24 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
     const [selectedGateway, setSelectedGateway] = useState<string | null>(null);
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Mock Card Form State
-    const [cardName, setCardName] = useState('');
-    const [cardNumber, setCardNumber] = useState('');
-    const [expiry, setExpiry] = useState('');
-    const [cvc, setCvc] = useState('');
+    const [stripeConfigured, setStripeConfigured] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             fetchGateways();
+            fetchStripeConfig();
         }
     }, [isOpen]);
+
+    const fetchStripeConfig = async () => {
+        try {
+            const res = await api.authFetch(`${API_BASE}/billing/stripe-config`);
+            if (res.ok) {
+                const data = await res.json();
+                setStripeConfigured(data.configured === true);
+            }
+        } catch (_) {}
+    };
 
     const fetchGateways = async () => {
         try {
@@ -52,15 +57,13 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
             const data = await response.json();
             if (data.success) {
                 setGateways(data.gateways);
-                if (data.gateways.length === 1) {
-                    setSelectedGateway(data.gateways[0].gateway);
-                }
+                if (data.gateways.length === 1) setSelectedGateway(data.gateways[0].gateway);
             } else {
-                setError("Failed to load payment methods.");
+                setError('Failed to load payment methods.');
             }
         } catch (err) {
             console.error(err);
-            setError("Network error loading payment methods.");
+            setError('Network error loading payment methods.');
         } finally {
             setLoading(false);
         }
@@ -68,14 +71,12 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
 
     const handleConfirm = async () => {
         if (!selectedGateway) return;
-
         setConfirming(true);
         setError(null);
         try {
             await onConfirm(selectedGateway);
-            // Modal should be closed by parent on success
         } catch (err: any) {
-            setError(err.message || "Failed to process subscription.");
+            setError(err.message || 'Failed to process subscription.');
             setConfirming(false);
         }
     };
@@ -84,16 +85,24 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
         e.preventDefault();
         setConfirming(true);
         setError(null);
-
-        // MOCK: Generate a fake payment method ID
-        // In reality, we would use Stripe Elements to get a token
-        const mockPaymentMethodId = `pm_mock_${Math.random().toString(36).substring(7)}`;
-
         try {
-            await onAddMethod(mockPaymentMethodId);
-            // Modal closed by parent
+            if (!stripeConfigured) {
+                throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY in the backend .env file.');
+            }
+            // Redirect to Stripe Checkout hosted page for secure card tokenisation
+            const res = await api.authFetch(`${API_BASE}/billing/stripe/checkout`, {
+                method: 'POST',
+                body: JSON.stringify({ price_id: 'setup' }),
+            });
+            if (!res.ok) throw new Error('Failed to create Stripe checkout session.');
+            const data = await res.json();
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+                return;
+            }
+            throw new Error('No checkout URL returned from server.');
         } catch (err: any) {
-            setError(err.message || "Failed to add payment method.");
+            setError(err.message || 'Failed to add payment method.');
             setConfirming(false);
         }
     };
@@ -115,7 +124,7 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     {mode === 'add_method' ? 'Add Payment Method' : `Upgrade to ${planName}`}
                 </h2>
 
-                {mode === 'upgrade' && (
+                {mode === 'upgrade' && price != null && (
                     <div className="mb-6 text-gray-600 dark:text-gray-400">
                         <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                             ${price}/mo
@@ -131,6 +140,30 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-red-700 dark:text-red-300 mb-4">
                         {error}
                     </div>
+                ) : mode === 'add_method' ? (
+                    <form onSubmit={handleAddMethod} className="space-y-4">
+                        {stripeConfigured ? (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm text-blue-700 dark:text-blue-300">
+                                You will be redirected to Stripe's secure checkout to add your card details.
+                            </div>
+                        ) : (
+                            <div className="flex items-start gap-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+                                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                                    <p className="font-semibold mb-1">Stripe not configured</p>
+                                    <p>Set <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">STRIPE_SECRET_KEY</code> and <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">STRIPE_PUBLISHABLE_KEY</code> in the backend <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">.env</code> file to enable payments.</p>
+                                </div>
+                            </div>
+                        )}
+                        <button
+                            type="submit"
+                            disabled={confirming || !stripeConfigured}
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+                        >
+                            {confirming ? <Loader className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                            {confirming ? 'Redirecting…' : 'Continue to Stripe'}
+                        </button>
+                    </form>
                 ) : gateways.length === 0 ? (
                     <div className="text-center py-6">
                         <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
@@ -141,80 +174,6 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                             Please configure a payment gateway in settings first.
                         </p>
                     </div>
-                ) : mode === 'add_method' ? (
-                    <form onSubmit={handleAddMethod} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Cardholder Name
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={cardName}
-                                onChange={e => setCardName(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                placeholder="John Doe"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Card Number
-                            </label>
-                            <div className="relative">
-                                <CreditCard className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
-                                <input
-                                    type="text"
-                                    required
-                                    value={cardNumber}
-                                    onChange={e => setCardNumber(e.target.value.replace(/\D/g, '').substring(0, 16))}
-                                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
-                                    placeholder="0000 0000 0000 0000"
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Expiry
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={expiry}
-                                    onChange={e => {
-                                        let v = e.target.value.replace(/\D/g, '').substring(0, 4);
-                                        if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
-                                        setExpiry(v);
-                                    }}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
-                                    placeholder="MM/YY"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    CVC
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={cvc}
-                                    onChange={e => setCvc(e.target.value.replace(/\D/g, '').substring(0, 4))}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
-                                    placeholder="123"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="pt-4">
-                            <button
-                                type="submit"
-                                disabled={confirming}
-                                className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-all"
-                            >
-                                {confirming ? <Loader className="w-5 h-5 animate-spin" /> : 'Add Card'}
-                            </button>
-                        </div>
-                    </form>
                 ) : (
                     <>
                         <div className="mb-6">
@@ -226,10 +185,11 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                                     <button
                                         key={g.gateway}
                                         onClick={() => setSelectedGateway(g.gateway)}
-                                        className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all ${selectedGateway === g.gateway
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                                            }`}
+                                        className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all ${
+                                            selectedGateway === g.gateway
+                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                                        }`}
                                     >
                                         <div className="flex items-center">
                                             <CreditCard className="w-5 h-5 text-gray-500 mr-3" />
@@ -244,19 +204,15 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                                 ))}
                             </div>
                         </div>
-
                         <button
                             onClick={handleConfirm}
                             disabled={!selectedGateway || confirming}
-                            className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-xl"
+                            className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
                         >
                             {confirming ? (
-                                <>
-                                    <Loader className="w-5 h-5 animate-spin mr-2" />
-                                    Processing...
-                                </>
+                                <><Loader className="w-5 h-5 animate-spin mr-2" />Processing…</>
                             ) : (
-                                `Confirm Upgrade`
+                                'Confirm Upgrade'
                             )}
                         </button>
                     </>
@@ -265,6 +221,3 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
         </div>
     );
 };
-
-// Start of Import Helper Icon
-import { AlertCircle } from 'lucide-react';

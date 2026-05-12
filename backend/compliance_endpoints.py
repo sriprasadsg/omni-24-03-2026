@@ -1,15 +1,153 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks, Depends
 from typing import List, Optional
-import shutil
 import os
+import hashlib
 from datetime import datetime, timezone
 from database import get_database
+from authentication_service import get_current_user
 
 
 router = APIRouter()
 
 UPLOAD_DIR = "static/evidence"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Categories for manually uploaded evidence artifacts
+MANUAL_ARTIFACT_CATEGORIES = [
+    "pentest_report",
+    "vulnerability_assessment",
+    "vendor_assessment",
+    "dpa_agreement",          # Data Processing Agreement
+    "baa_agreement",          # Business Associate Agreement (HIPAA)
+    "soc2_report",            # Third-party SOC 2 report
+    "iso27001_certificate",
+    "restore_test_result",    # Manual backup restore test outcome
+    "risk_assessment",
+    "security_awareness_training",
+    "incident_report",
+    "policy_document",
+    "other",
+]
+
+
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+@router.post("/api/compliance/artifacts/upload")
+async def upload_manual_artifact(
+    file: UploadFile = File(...),
+    category: str = Form(..., description=f"One of: {', '.join(MANUAL_ARTIFACT_CATEGORIES)}"),
+    control_ids: str = Form("", description="Comma-separated control IDs this artifact satisfies"),
+    description: str = Form("", description="Brief description of what this artifact proves"),
+    asset_id: Optional[str] = Form(None, description="Asset or tenant this artifact belongs to"),
+    current_user=Depends(get_current_user),
+):
+    """
+    Upload a manual compliance evidence artifact (pentest report, DPA, vendor SOC2 report,
+    restore test result, etc.).  Returns the record with SHA-256 integrity hash.
+
+    Covers gaps that cannot be collected automatically by the agent:
+      - Penetration test reports (SOC2 CC7.1, PCI-DSS 11.4)
+      - Vendor/third-party assessments (SOC2 CC9.2, ISO27001 A.5.21)
+      - Data Processing Agreements (GDPR Art.28, HIPAA 164.308(b))
+      - Backup restore test results (NIST CP-9, DORA Art.12)
+      - ISO 27001 / SOC 2 certificates from third parties
+    """
+    if category not in MANUAL_ARTIFACT_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid category '{category}'. Valid: {MANUAL_ARTIFACT_CATEGORIES}"
+        )
+
+    file_content = await file.read()
+    if len(file_content) > 50 * 1024 * 1024:   # 50 MB limit
+        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
+
+    file_ext = os.path.splitext(file.filename or "artifact")[1].lower()
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    uploader = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
+    safe_filename = f"artifact_{category}_{timestamp}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+
+    with open(file_path, "wb") as f:
+        f.write(file_content)
+
+    sha256 = _sha256_file(file_path)
+    control_list = [c.strip() for c in control_ids.split(",") if c.strip()]
+
+    record = {
+        "id": f"artifact-{timestamp}",
+        "type": "manual_artifact",
+        "category": category,
+        "filename": file.filename,
+        "stored_as": safe_filename,
+        "url": f"/static/evidence/{safe_filename}",
+        "sha256": sha256,
+        "size_bytes": len(file_content),
+        "content_type": file.content_type,
+        "description": description,
+        "control_ids": control_list,
+        "asset_id": asset_id,
+        "uploaded_by": uploader,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "status": "pending_review",
+    }
+
+    db = get_database()
+    await db.compliance_artifacts.insert_one({**record, "_id": record["id"]})
+
+    # If control_ids provided, mark those controls as having evidence pending review
+    for control_id in control_list:
+        scope = {"assetId": asset_id, "controlId": control_id} if asset_id else {"controlId": control_id}
+        await db.asset_compliance.update_one(
+            scope,
+            {
+                "$set": {"status": "Pending_Review", "lastUpdated": record["uploaded_at"]},
+                "$push": {"evidence": record},
+            },
+            upsert=True,
+        )
+
+    return {"success": True, "artifact": record}
+
+
+@router.get("/api/compliance/artifacts")
+async def list_manual_artifacts(
+    category: Optional[str] = None,
+    asset_id: Optional[str] = None,
+    current_user=Depends(get_current_user),
+):
+    """List all manually uploaded compliance artifacts, optionally filtered by category or asset."""
+    db = get_database()
+    query: dict = {"type": "manual_artifact"}
+    if category:
+        query["category"] = category
+
+    # Non-super-admin users can only see artifacts for their own tenant
+    user_role = getattr(current_user, "role", "")
+    user_tenant = getattr(current_user, "tenant_id", None)
+    is_super_admin = user_role in ("Super Admin", "superadmin", "super_admin")
+    if not is_super_admin:
+        query["asset_id"] = asset_id or user_tenant
+    elif asset_id:
+        query["asset_id"] = asset_id
+
+    docs = await db.compliance_artifacts.find(query).sort("uploaded_at", -1).to_list(200)
+    for d in docs:
+        d.pop("_id", None)
+    return {"artifacts": docs, "count": len(docs)}
+
+
+@router.get("/api/compliance/artifacts/categories")
+async def list_artifact_categories():
+    """Return the list of valid manual artifact categories."""
+    return {"categories": MANUAL_ARTIFACT_CATEGORIES}
+
 
 @router.post("/api/assets/{asset_id}/compliance/evidence")
 async def upload_compliance_evidence(
@@ -23,9 +161,10 @@ async def upload_compliance_evidence(
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         safe_filename = f"{asset_id}_{control_id}_{timestamp}{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
-        
+
+        file_content = await file.read()
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_content)
             
         # File URL (assuming static mount)
         file_url = f"http://localhost:5000/static/evidence/{safe_filename}"
@@ -168,7 +307,7 @@ async def trigger_agent_scan(agent_id: str):
     
     result = await db.agent_instructions.insert_one(instruction)
     
-    print(f"📡 Sent 'Run Compliance Scan' to agent {agent_id}")
+    print(f"Sent 'Run Compliance Scan' to agent {agent_id}")
     
     return {
         "success": True,

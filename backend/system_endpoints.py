@@ -11,45 +11,52 @@ router = APIRouter(prefix="/api/system", tags=["System Health"])
 
 @router.get("/routes")
 async def get_routes(request: Request, current_user: TokenData = Depends(get_current_user)):
-    """
-    List all registered API routes and their health status.
-    """
+    """List all registered API routes with their handler status."""
     routes = []
     for route in request.app.routes:
-        # Filter for API routes only
-        if hasattr(route, "path") and route.path.startswith("/api/"):
-            routes.append({
-                "path": route.path,
-                "name": route.name,
-                "methods": list(route.methods) if hasattr(route, "methods") else ["GET"],
-                "status": "Active" # In a real system, we might ping each one
-            })
+        if not (hasattr(route, "path") and route.path.startswith("/api/")):
+            continue
+        # A route is considered healthy if it has at least one endpoint function bound to it
+        has_handler = bool(getattr(route, "endpoint", None))
+        routes.append({
+            "path": route.path,
+            "name": route.name,
+            "methods": list(route.methods) if hasattr(route, "methods") else ["GET"],
+            "status": "Active" if has_handler else "Unregistered",
+        })
     return routes
 
 @router.post("/remediate")
 async def remediate_route(data: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
-    """
-    Analyze a failed route and suggest a fix using AI.
-    """
-    route = data.get("route")
+    """Analyze a failed route and suggest a fix using AI."""
+    route = data.get("route", "unknown")
     error = data.get("error", "Unknown Error")
-    
     logger.info(f"Remediation requested for {route} with error: {error}")
-    
-    # Mock AI Logic (Replace with real LLM call if available)
-    # In a real scenario, this would query the 'ai_service' with the traceback
-    
-    analysis = f"AI Analysis for endpoint '{route}':\n"
-    analysis += f"The reported error '{error}' indicates a potential service disruption or configuration issue."
-    
-    suggestion = "Recommended Actions:\n"
-    suggestion += "1. Verify that the dependent database service is running.\n"
-    suggestion += "2. Check the backend logs for specific traceback details.\n"
-    suggestion += "3. If this is a 500 error, it might be a missing import or syntax error in the endpoint handler."
-    
+
+    analysis = ""
+    try:
+        from ai_service import get_ai_service
+        ai = get_ai_service()
+        prompt = (
+            f"A FastAPI backend endpoint '{route}' reported this error: {error}\n\n"
+            "Provide a concise technical root-cause analysis and 3 specific remediation steps. "
+            "Be direct and actionable. Respond in plain text, no markdown."
+        )
+        analysis = await ai.generate_text(prompt, max_tokens=300)
+    except Exception:
+        pass
+
+    if not analysis:
+        analysis = (
+            f"Error on '{route}': {error}.\n"
+            "1. Check backend logs for the full traceback.\n"
+            "2. Verify the database connection and dependent services are running.\n"
+            "3. Ensure all required environment variables are set."
+        )
+
     return {
         "route": route,
         "analysis": analysis,
-        "suggestion": suggestion,
-        "auto_fix_available": False # Set to True if we can actually run a command
+        "suggestion": analysis,
+        "auto_fix_available": False,
     }

@@ -1,30 +1,110 @@
 import requests
 import json
 import logging
+import os
 import time
 
 logger = logging.getLogger(__name__)
+
+_TUNING_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "llm_tuning.json")
 
 class AgenticLLM:
     """
     Local LLM Engine for Agentic AI Reasoning.
     Connects to a local Ollama instance to provide intelligent analysis.
     """
-    
+
     def __init__(self, config=None):
         self.config = config or {}
         self.provider = self.config.get("provider", "ollama")
-        
+
         # Local Ollama Config
         self.base_url = self.config.get("base_url", "http://localhost:11434")
         self.model = self.config.get("model", "llama3.2:3b")
-        
+
         # Backend API Config
         self.api_base_url = self.config.get("api_base_url", "http://localhost:5000")
         self.api_key = self.config.get("api_key", "")
-        
+
         self.temperature = self.config.get("temperature", 0.7)
         self.timeout = self.config.get("timeout", 30)
+
+        # Self-tuning state: track recent LLM outcomes to adjust temperature
+        self._performance_history: list = []
+        self._load_tuning_state()
+
+    def record_outcome(self, success: bool, reasoning: str = "") -> None:
+        """Record an action outcome so self_tune() can adjust parameters."""
+        self._performance_history.append({
+            "success": success,
+            "reasoning": reasoning[:200],
+            "temperature": self.temperature,
+            "timestamp": time.time(),
+        })
+        # Keep only the last 100 entries
+        if len(self._performance_history) > 100:
+            self._performance_history = self._performance_history[-100:]
+        # Auto-tune every 20 new data points
+        if len(self._performance_history) % 20 == 0:
+            self.self_tune()
+
+    def self_tune(self) -> None:
+        """
+        Adjust temperature based on recent success rate.
+        High success → lower temperature (more deterministic).
+        Low success → raise temperature (more creative).
+        """
+        recent = self._performance_history[-50:]
+        if not recent:
+            return
+        success_rate = sum(1 for r in recent if r["success"]) / len(recent)
+        old_temp = self.temperature
+        if success_rate > 0.80:
+            self.temperature = max(0.3, round(self.temperature - 0.05, 2))
+        elif success_rate < 0.50:
+            self.temperature = min(1.0, round(self.temperature + 0.05, 2))
+        if self.temperature != old_temp:
+            logger.info(
+                "SELF-TUNE: temperature %.2f → %.2f (success_rate=%.0f%%, n=%d)",
+                old_temp, self.temperature, success_rate * 100, len(recent),
+            )
+        self._save_tuning_state()
+
+    def _load_tuning_state(self) -> None:
+        """Restore persisted temperature and performance history from disk."""
+        try:
+            with open(_TUNING_FILE) as f:
+                state = json.load(f)
+            self.temperature = float(state.get("temperature", self.temperature))
+            self._performance_history = state.get("history", [])[-100:]
+            logger.debug("Loaded LLM tuning state: temp=%.2f, history=%d entries",
+                         self.temperature, len(self._performance_history))
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
+    def _save_tuning_state(self) -> None:
+        """Persist current temperature and performance history to disk."""
+        try:
+            os.makedirs(os.path.dirname(_TUNING_FILE), exist_ok=True)
+            with open(_TUNING_FILE, "w") as f:
+                json.dump({
+                    "temperature": self.temperature,
+                    "history": self._performance_history[-100:],
+                }, f)
+        except Exception as e:
+            logger.debug("Could not save LLM tuning state: %s", e)
+
+    def query_raw(self, prompt: str) -> str:
+        """Return raw LLM text without JSON parsing — used by the ReAct loop."""
+        if not self.is_available():
+            return '{"thought": "LLM unavailable", "action": "final_answer", "action_input": "LLM provider not reachable"}'
+        try:
+            if self.provider == "backend":
+                return self._query_backend(prompt)
+            return self._query_ollama(prompt)
+        except Exception as e:
+            logger.error("query_raw failed: %s", e)
+            return '{"action": "final_answer", "action_input": "query failed"}'
 
     def is_available(self) -> bool:
         """Check if the configured LLM provider is running and accessible"""
@@ -148,19 +228,19 @@ RESPONSE FORMAT (Valid JSON only):
 
     def plan_remediation(self, issue: dict) -> dict:
         """
-        Generate a structured remediation plan for a specific issue.
+        Generate a structured remediation plan for a specific issue using the
+        dedicated remediation prompt (includes AVAILABLE_ACTIONS schema).
         """
         if not self.is_available():
             logger.warning("Agentic LLM is not available. Cannot plan remediation.")
             return {"error": "LLM_UNAVAILABLE"}
 
         prompt = self._construct_remediation_prompt(issue)
-        
         try:
-            response_text = self._query_ollama(prompt)
-            return self._parse_response(response_text)
+            raw = self.query_raw(prompt)
+            return self._parse_response(raw)
         except Exception as e:
-            logger.error(f"Error during LLM remediation planning: {e}")
+            logger.error("Error during LLM remediation planning: %s", e)
             return {"error": str(e)}
 
     def _construct_remediation_prompt(self, issue: dict) -> str:

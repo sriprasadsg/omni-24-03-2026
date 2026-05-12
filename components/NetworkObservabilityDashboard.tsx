@@ -34,8 +34,8 @@ export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboa
         return { total, up, withChanges, withVulns };
     }, [networkDevices]);
 
-    const handleSaveDevice = (deviceData: Omit<NetworkDevice, 'id' | 'tenantId' | 'status' | 'lastSeen' | 'interfaces' | 'configBackups' | 'vulnerabilities'>) => {
-        onAddDevice(deviceData);
+    const handleSaveDevice = (deviceData: { hostname: string; ipAddress: string; deviceType: import('../types').NetworkDeviceType; model: string; osVersion: string; }) => {
+        onAddDevice({ macAddress: '', ...deviceData });
         setIsAddModalOpen(false);
     };
 

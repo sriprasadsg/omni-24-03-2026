@@ -24,12 +24,14 @@ export function StreamingDashboard() {
         // Connect to WebSocket
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/stream/live`;
-        // For local dev with different port if needed, but proxy should handle it. 
-        // Assuming backend on same origin or proxy forwarding.
-        // If pure local dev split: ws://localhost:5000/api/stream/live
-
-        // Fallback for localhost dev where frontend is 3000 and backend is 5000
-        const finalUrl = window.location.hostname === 'localhost' ? 'ws://localhost:5000/api/stream/live' : wsUrl;
+        // In local dev the frontend (Vite :5173) and backend (:5000) run on different ports.
+        // VITE_WS_URL can override the WebSocket base for any deployment target.
+        const envWsBase = import.meta.env.VITE_WS_URL as string | undefined;
+        const finalUrl = envWsBase
+            ? `${envWsBase}/api/stream/live`
+            : (window.location.hostname === 'localhost'
+                ? `ws://localhost:${import.meta.env.VITE_BACKEND_PORT ?? 5000}/api/stream/live`
+                : wsUrl);
 
         const ws = new WebSocket(finalUrl);
         wsRef.current = ws;

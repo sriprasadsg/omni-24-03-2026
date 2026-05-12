@@ -29,7 +29,7 @@ class SyslogProtocol(asyncio.DatagramProtocol):
         parsed_doc = {
             "id": str(uuid.uuid4()),
             "tenant_id": self.tenant_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "source_ip": addr[0],
             "raw_message": message,
             "log_type": "syslog",
@@ -55,6 +55,8 @@ class SyslogProtocol(asyncio.DatagramProtocol):
             # Naive K=V parsing for extensions could go here
 
         try:
+            from tenant_context import set_tenant_id
+            set_tenant_id("platform-admin")
             db = get_database()
             # Store in the logs collection
             await db.siem_logs.insert_one(parsed_doc)

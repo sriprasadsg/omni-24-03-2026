@@ -1,14 +1,14 @@
-from typing import Any, List, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Body
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from authentication_service import create_access_token, create_refresh_token, get_current_user, Token, ACCESS_TOKEN_EXPIRE_MINUTES
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
+from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 from database import get_database
-from models import User
 from auth_utils import verify_password, hash_password
+from rate_limiter import limiter
 from pydantic import BaseModel
 from datetime import timedelta, timezone
 import uuid
 import datetime
+import jwt
 
 class LoginRequest(BaseModel):
     username: str | None = None
@@ -24,12 +24,33 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
+async def _run_ueba_analysis(db, user_id: str, ip_address: str, user_agent: str) -> None:
+    """Fire-and-forget UEBA behavioral analysis after successful login."""
+    try:
+        from ueba_service import analyze_login, LoginEvent
+        event = LoginEvent(
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            timestamp=datetime.datetime.now(timezone.utc).isoformat(),
+            login_success=True,
+        )
+        await analyze_login(db, event)
+        await db.login_events.update_one(
+            {"user_id": user_id, "ip_address": ip_address},
+            {"$setOnInsert": event.dict()},
+            upsert=True,
+        )
+    except Exception:
+        pass
+
+
 @router.post("/login")
-async def login_for_access_token(login_request: LoginRequest):
+@limiter.limit("10/minute")
+async def login_for_access_token(request: Request, login_request: LoginRequest):  # noqa: ARG001
     db = get_database()
     identifier = login_request.get_identifier()
-    print(f"[DEBUG] Login attempt for identifier: {identifier}")
-    
+
     # Check username OR email
     # Bypass tenant isolation for initial auth lookup since tenant might not be known yet
     user = await db._db.users.find_one({
@@ -38,22 +59,12 @@ async def login_for_access_token(login_request: LoginRequest):
             {"email": identifier}
         ]
     })
-    
-    # 1. Check if user exists
-    if not user:
-        print(f"[DEBUG] User NOT found for identifier: {identifier}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"DEBUG: User not found for {identifier}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
-    # 2. Verify Password 
-    if not verify_password(login_request.password, user['password']):
-        print(f"[DEBUG] Password verification FAILED for user: {identifier}")
+    # 1 & 2. Validate credentials — use a single generic message to prevent user enumeration
+    if not user or not verify_password(login_request.password, user['password']):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"DEBUG: Password verification FAILED for {identifier}",
+            detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -63,7 +74,6 @@ async def login_for_access_token(login_request: LoginRequest):
         try:
             import mfa_service
             session_token = mfa_service.create_mfa_session(user["email"])
-            print(f"[DEBUG] MFA required for {identifier} — issuing mfa_session_token")
             return {
                 "access_token": "",
                 "token_type": "mfa_required",
@@ -73,23 +83,25 @@ async def login_for_access_token(login_request: LoginRequest):
                 "user": {},
             }
         except ImportError:
-            pass  # MFA service unavailable — fall through to direct login
+            raise HTTPException(
+                status_code=503,
+                detail="MFA is required for this account but the MFA service is unavailable. Contact your administrator.",
+            )
 
     # 4. Create full JWT (MFA not enabled or MFA service unavailable)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     role = user.get("role", "user")
     tenant_id = user.get("tenantId", "default")
     
-    access_token = create_access_token(
-        data={"sub": user["email"], "role": role, "tenant_id": tenant_id},
-        expires_delta=access_token_expires
-    )
-    
+    token_payload = {"sub": user["email"], "role": role, "tenant_id": tenant_id}
+    access_token = create_access_token(data=token_payload, expires_delta=access_token_expires)
+    refresh_token = create_refresh_token(data={"sub": user["email"]})
+
     # Prepare user object for frontend (exclude sensitive fields)
     user_data = {k: v for k, v in user.items() if k not in ('password', '_id', 'mfa')}
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
-        
+
     # Add permissions from role
     role_obj = await db.roles.find_one({"name": role})
     if role_obj:
@@ -97,8 +109,15 @@ async def login_for_access_token(login_request: LoginRequest):
     else:
         user_data['permissions'] = []
 
+    # UEBA behavioral analysis (non-blocking)
+    import asyncio as _asyncio
+    client_ip = request.client.host if request.client else "unknown"
+    client_ua = request.headers.get("user-agent", "")
+    _asyncio.create_task(_run_ueba_analysis(db._db, user["email"], client_ip, client_ua))
+
     return {
-        "access_token": access_token, 
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "success": True,
         "user": user_data
@@ -139,8 +158,6 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     
     # Expose MFA enabled flag (not the secret)
     user_data['mfa_enabled'] = user.get('mfa', {}).get('enabled', False)
-    
-    print(f"[DEBUG] /me endpoint - User: {user_data.get('email')}, Role: {role_name}, Permissions: {user_data.get('permissions')}")
     
     return user_data
 
@@ -225,7 +242,19 @@ async def signup(data: dict[str, Any] = Body(...)):
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
-    
+
+    # Seed GDPR/CCPA consent record for the new user
+    await db.user_consents.insert_one({
+        "user_id": user_id,
+        "email": email,
+        "tenantId": tenant_id,
+        "status": "granted",
+        "consent_type": "platform_terms",
+        "granted_at": datetime.now(timezone.utc).isoformat(),
+        "ip_address": None,
+        "version": "1.0",
+    })
+
     # 4. Prepare return data (similar to login)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
@@ -254,3 +283,135 @@ async def signup(data: dict[str, Any] = Body(...)):
             "enabledFeatures": enterprise_features
         }
     }
+
+
+@router.post("/refresh")
+async def refresh_access_token(data: dict[str, Any] = Body(...)):
+    """Exchange a valid refresh token for a new access token."""
+    refresh_token = data.get("refresh_token", "")
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="Refresh token is required")
+
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token has expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    db = get_database()
+    user = await db._db.users.find_one({"email": email})
+    if not user or user.get("status") != "Active":
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    token_data = {
+        "sub": email,
+        "role": user.get("role", "user"),
+        "tenant_id": user.get("tenantId", "default"),
+    }
+    new_access_token = create_access_token(data=token_data)
+    return {"success": True, "access_token": new_access_token}
+
+
+@router.post("/logout")
+async def logout(_current_user=Depends(get_current_user)):
+    """
+    Logout endpoint. Tokens are stateless JWTs; the client must discard them.
+    A token blocklist can be introduced here when needed.
+    """
+    return {"success": True, "message": "Logged out successfully"}
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+
+# In-memory reset token store — replace with DB collection in production
+_reset_tokens: dict[str, dict] = {}
+
+
+@router.post("/reset-password/request")
+async def request_password_reset(body: PasswordResetRequest):
+    """Issue a password-reset token (returned in response for demo; send via email in production)."""
+    db = get_database()
+    user = await db._db.users.find_one({"email": body.email})
+    # Always return 200 to prevent email enumeration
+    if not user:
+        return {"success": True, "message": "If that address is registered you will receive a reset link"}
+
+    reset_token = uuid.uuid4().hex
+    expires_at = datetime.datetime.now(timezone.utc) + timedelta(minutes=30)
+    _reset_tokens[reset_token] = {"email": body.email, "expires_at": expires_at}
+
+    # Persist to DB so token survives process restarts; fall back to in-memory dict
+    try:
+        await db._db.password_reset_tokens.insert_one({
+            "token": reset_token,
+            "email": body.email,
+            "expires_at": expires_at.isoformat(),
+        })
+    except Exception:
+        pass  # in-memory dict is the fallback
+
+    # NOTE: in production wire this to an email delivery service (SES/SendGrid)
+    # and remove the token from the response body entirely.
+    import logging as _log
+    _log.getLogger(__name__).info("[PasswordReset] Token issued for %s", body.email)
+    return {
+        "success": True,
+        "message": "If that address is registered you will receive a reset link",
+    }
+
+
+@router.post("/reset-password/confirm")
+async def confirm_password_reset(body: PasswordResetConfirm):
+    """Apply a new password using a valid reset token."""
+    now = datetime.datetime.now(timezone.utc)
+    entry = _reset_tokens.get(body.token)
+
+    # Fall back to DB lookup (handles server-restart case)
+    db = get_database()
+    if not entry:
+        try:
+            db_token = await db._db.password_reset_tokens.find_one({"token": body.token})
+            if db_token:
+                expires_at = datetime.datetime.fromisoformat(db_token["expires_at"])
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                entry = {"email": db_token["email"], "expires_at": expires_at}
+        except Exception:
+            pass
+
+    if not entry:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if now > entry["expires_at"]:
+        _reset_tokens.pop(body.token, None)
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    hashed = hash_password(body.new_password)
+    await db._db.users.update_one(
+        {"email": entry["email"]},
+        {"$set": {"password": hashed}},
+    )
+    _reset_tokens.pop(body.token, None)
+    try:
+        await db._db.password_reset_tokens.delete_one({"token": body.token})
+    except Exception:
+        pass
+    return {"success": True, "message": "Password updated successfully"}

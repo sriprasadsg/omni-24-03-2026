@@ -16,12 +16,27 @@ if not exist "%PROJECT_ROOT%" (
     exit /b 1
 )
 
+echo Checking for existing processes on ports 3000 and 5000...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000') do (
+    if "%%a" neq "0" (
+        echo Killing process %%a on port 3000...
+        taskkill /F /PID %%a 2>nul
+    )
+)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5000') do (
+    if "%%a" neq "0" (
+        echo Killing process %%a on port 5000...
+        taskkill /F /PID %%a 2>nul
+    )
+)
+echo.
+
 echo Starting services...
 echo.
 
 REM 1. Launch Backend
 echo [1/3] Starting Backend (Port 5000)...
-start "Backend Server" /D "%PROJECT_ROOT%\backend" cmd /k "venv\Scripts\python.exe -m uvicorn app:app --port 5000 --host 0.0.0.0"
+start "Backend Server" /D "%PROJECT_ROOT%\backend" cmd /k "venv\Scripts\python.exe -m uvicorn app:socket_app --port 5000 --host 0.0.0.0"
 echo   Backend launched in new window
 timeout /t 2 /nobreak >nul
 

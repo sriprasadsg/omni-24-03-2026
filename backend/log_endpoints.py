@@ -7,6 +7,7 @@ from auth_types import TokenData
 from datetime import datetime, timezone
 import uuid
 from streaming_service import broker
+from provenance_verifier import provenance_engine
 
 router = APIRouter(prefix="/api/logs", tags=["Logs"])
 
@@ -46,7 +47,12 @@ async def ingest_log(log: LogEntry, background_tasks: BackgroundTasks, current_u
     if current_user and current_user.tenant_id:
         log_dict["tenantId"] = current_user.tenant_id
         
-    # 2. Persist to MongoDB
+    # 2. Digital Provenance (2027 Standard)
+    # Sign the individual log entry as part of a single-entry block for real-time verification
+    provenance = provenance_engine.sign_block([log_dict])
+    log_dict["provenance"] = provenance
+
+    # 3. Persist to MongoDB
     await db.logs.insert_one(log_dict)
     
     # 3. Stream to Real-time UI (Fire and Forget)

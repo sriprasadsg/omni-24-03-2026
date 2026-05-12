@@ -48,19 +48,22 @@ class GoalManager:
     def generate_strategic_plan(self, failed_goal: AgentGoal, context: dict) -> dict:
         """
         Use LLM to generate a high-level strategy to achieve a specific goal.
+        Works with any configured provider (ollama, backend, omni-llm-scratch).
         """
         if not self.llm:
             return {"error": "No LLM available for planning"}
-        
+
         logger.info(f"Generating strategy for failing goal: {failed_goal.name}")
-        
+
         prompt = self._construct_planning_prompt(failed_goal, context)
-        response = self.llm._query_ollama(prompt)
-        
         try:
-            return self.llm._parse_response(response)
+            raw = self.llm.query_raw(prompt)
+            result = self.llm._parse_response(raw)
+            if "error" in result:
+                logger.warning("LLM planning returned error: %s", result["error"])
+            return result
         except Exception as e:
-            logger.error(f"Failed to parse strategic plan: {e}")
+            logger.error("Failed to generate strategic plan: %s", e)
             return {"error": "Planning Failed"}
 
     def _construct_planning_prompt(self, goal: AgentGoal, context: dict) -> str:

@@ -13,7 +13,7 @@ from reportlab.lib.units import inch
 
 class ComplianceReportingService:
     def __init__(self):
-        self.reports_dir = "static/reports"
+        self.reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "reports")
         os.makedirs(self.reports_dir, exist_ok=True)
 
     async def _get_evidence_for_control(self, db, control_id):

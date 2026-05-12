@@ -1,8 +1,7 @@
 import asyncio
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timezone, timedelta
-import uuid
+from datetime import datetime, timezone
 import bcrypt
 
 # Configuration
@@ -137,7 +136,7 @@ async def reset():
         "discoveredAt": heartbeat
     })
 
-    # 8. Create Role Objects (Optional but good for robustness)
+    # 8. Create Role Objects
     await db.roles.insert_one({
         "name": "Tenant Admin",
         "permissions": enterprise_permissions
@@ -147,10 +146,101 @@ async def reset():
         "permissions": enterprise_permissions + ["manage:tenants"]
     })
 
+    # 9. Seed sample patches (Critical + High CVEs so patch management works immediately)
+    print("Seeding sample patches for Exafluence...")
+    sample_patches = [
+        {
+            "id": "patch-cve-2024-0001", "cve_id": "CVE-2024-0001",
+            "name": "CVE-2024-0001", "title": "OpenSSL Critical RCE Vulnerability",
+            "description": "Remote code execution via malformed TLS handshake.",
+            "severity": "Critical", "cvss_score": 9.8,
+            "affected_products": ["openssl 3.0.x", "openssl 1.1.x"],
+            "status": "Available", "source": "seed",
+            "tenantId": exafluence_id,
+            "epss_score": 0.72, "exploit_probability": "72.00%",
+            "synced_at": heartbeat,
+        },
+        {
+            "id": "patch-cve-2024-0002", "cve_id": "CVE-2024-0002",
+            "name": "CVE-2024-0002", "title": "Linux Kernel Privilege Escalation",
+            "description": "Local privilege escalation via kernel use-after-free.",
+            "severity": "High", "cvss_score": 7.8,
+            "affected_products": ["linux kernel 5.x", "linux kernel 6.x"],
+            "status": "Available", "source": "seed",
+            "tenantId": exafluence_id,
+            "epss_score": 0.45, "exploit_probability": "45.00%",
+            "synced_at": heartbeat,
+        },
+        {
+            "id": "patch-kb5034441", "cve_id": "CVE-2024-0003",
+            "name": "KB5034441", "title": "Windows Defender Security Update",
+            "description": "Patches CVE-2024-0003 in Windows Defender Engine.",
+            "severity": "High", "cvss_score": 7.5,
+            "kb_number": "KB5034441",
+            "affected_products": ["windows 10", "windows 11", "windows server 2022"],
+            "status": "Available", "source": "seed",
+            "tenantId": exafluence_id,
+            "epss_score": 0.31, "exploit_probability": "31.00%",
+            "synced_at": heartbeat,
+        },
+    ]
+    for p in sample_patches:
+        await db.patches.update_one({"cve_id": p["cve_id"]}, {"$set": p}, upsert=True)
+
+    # 10. Seed notification channel config (email defaults)
+    print("Seeding notification config defaults...")
+    await db.notification_config.update_one(
+        {"type": "email"},
+        {"$set": {
+            "type": "email", "enabled": False,
+            "smtp_host": "", "smtp_port": 587,
+            "smtp_user": "", "smtp_password": "",
+            "updated_at": heartbeat,
+        }},
+        upsert=True,
+    )
+
+    # 11. Seed default integration configs
+    print("Seeding integration config defaults...")
+    for integration in [
+        {"type": "siem", "platform": "splunk", "enabled": False, "endpoint": "", "token": ""},
+        {"type": "ticketing", "platform": "jira", "enabled": False, "instance_url": "", "auth_token": ""},
+        {"type": "cmdb", "platform": "servicenow", "enabled": False, "instance_url": "", "auth_token": ""},
+    ]:
+        integration["updated_at"] = heartbeat
+        await db.integration_configs.update_one(
+            {"type": integration["type"], "platform": integration["platform"]},
+            {"$set": integration},
+            upsert=True,
+        )
+
+    # 12. Seed SIEM integration config stubs (disabled by default, admins enable via UI)
+    print("Seeding SIEM config stubs...")
+    for siem_cfg in [
+        {
+            "provider": "aws_cloudtrail", "enabled": False,
+            "tenant_id": exafluence_id,
+            "s3_bucket": "", "aws_access_key": "", "aws_secret_key": "",
+            "region": "us-east-1", "description": "AWS CloudTrail S3 log ingestion",
+        },
+        {
+            "provider": "okta", "enabled": False,
+            "tenant_id": exafluence_id,
+            "domain": "", "api_token": "",
+            "description": "Okta system log ingestion",
+        },
+    ]:
+        siem_cfg["updated_at"] = heartbeat
+        await db.siem_configs.update_one(
+            {"provider": siem_cfg["provider"], "tenant_id": siem_cfg["tenant_id"]},
+            {"$set": siem_cfg},
+            upsert=True,
+        )
+
     print("\nReset and initialization complete!")
     print(f"Tenant: Exafluence ({exafluence_id})")
     print(f"Agent: 1 Online")
-    print(f"Login: admin@exafluence.com / password123")
+    print("Login: admin@exafluence.com (use configured password)")
 
     client.close()
 

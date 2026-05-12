@@ -29,13 +29,12 @@ class VulnerabilityScanningCapability(BaseCapability):
         elif system == "Linux":
             software = self._get_linux_software()
         
-        # Simulate vulnerability detection (in production, query CVE database)
-        vulnerabilities = self._simulate_vulnerability_check(software)
-        
+        vulnerabilities = self._check_vulnerabilities(software)
+
         return {
             "installed_software_count": len(software),
             "vulnerabilities_found": len(vulnerabilities),
-            "vulnerabilities": vulnerabilities[:10],  # Limit to 10 for heartbeat
+            "vulnerabilities": vulnerabilities[:10],
             "scan_timestamp": self._get_timestamp()
         }
     
@@ -93,32 +92,39 @@ class VulnerabilityScanningCapability(BaseCapability):
         
         return []
     
-    def _simulate_vulnerability_check(self, software: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-        """Simulate vulnerability checking (mock data for demo)"""
-        # In production, this would query NVD API or local CVE database
+    def _check_vulnerabilities(self, software: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        """Query OSV API for real CVEs; fall back to outdated-package detection."""
+        try:
+            from .vulnerability_scanner import VulnerabilityScanner
+            scanner = VulnerabilityScanner()
+            report = scanner.generate_scan_report()
+            vulnerabilities = []
+            for pkg in report.get("software", []):
+                for cve in pkg.get("cves", []):
+                    vulnerabilities.append({
+                        "package": pkg["name"],
+                        "version": pkg["version"],
+                        "cve_id": cve.get("cve") or cve.get("id", "UNKNOWN"),
+                        "severity": cve.get("severity", "Medium"),
+                        "description": cve.get("summary", ""),
+                    })
+            return vulnerabilities
+        except Exception:
+            pass
+
+        # Fallback: flag any software packages without a known-good version string
         vulnerabilities = []
-        
-        # Simulate finding vulnerabilities in older software
-        risky_keywords = ['openssl', 'apache', 'nginx', 'kernel', 'python', 'node']
-        
-        for pkg in software[:20]:  # Check first 20 packages
-            name = pkg.get('name', '').lower()
-            if any(keyword in name for keyword in risky_keywords):
-                # Simulate vulnerability
+        for pkg in software[:50]:
+            version = pkg.get("version", "")
+            if not version or version in ("", "N/A", "Unknown"):
                 vulnerabilities.append({
-                    "package": pkg.get('name'),
-                    "version": pkg.get('version'),
-                    "cve_id": f"CVE-2024-{hash(name) % 10000:04d}",
-                    "severity": self._random_severity(name),
-                    "description": f"Potential vulnerability in {pkg.get('name')}"
+                    "package": pkg.get("name"),
+                    "version": version,
+                    "cve_id": "UNKNOWN-VERSION",
+                    "severity": "Low",
+                    "description": f"Package {pkg.get('name')} has no version metadata — cannot assess CVE exposure.",
                 })
-        
         return vulnerabilities
-    
-    def _random_severity(self, seed: str) -> str:
-        """Generate consistent severity based on package name"""
-        hash_val = hash(seed) % 4
-        return ["Critical", "High", "Medium", "Low"][hash_val]
     
     def _get_timestamp(self) -> str:
         from datetime import datetime

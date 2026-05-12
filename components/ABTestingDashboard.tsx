@@ -17,7 +17,7 @@ export function ABTestingDashboard() {
     const [experiments, setExperiments] = useState<Experiment[]>([]);
     const [selectedExpId, setSelectedExpId] = useState<string | null>(null);
     const [results, setResults] = useState<any>(null);
-    const [demoUserId, setDemoUserId] = useState(`user-${Math.floor(Math.random() * 1000)}`);
+    const [demoUserId, setDemoUserId] = useState(`user-demo-001`);
     const [assignedVariant, setAssignedVariant] = useState<string | null>(null);
 
     useEffect(() => {
@@ -92,7 +92,7 @@ export function ABTestingDashboard() {
     };
 
     const randomizeUser = () => {
-        setDemoUserId(`user-${Math.floor(Math.random() * 10000)}`);
+        setDemoUserId(`user-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`);
     };
 
     return (

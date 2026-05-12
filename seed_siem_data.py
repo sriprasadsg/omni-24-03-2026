@@ -9,7 +9,7 @@ ALGORITHM = "HS256"
 
 async def seed_siem():
     # Corrected URL: no /api prefix based on app.py and siem_endpoints.py
-    url = "http://localhost:5010/api/siem/ingest"
+    url = "http://localhost:5000/api/siem/ingest"
     
     tenant_id = "tenant_2af80af8f8bc" 
     

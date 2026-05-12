@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { authFetch } from '../services/apiService';
 
 const API = '/api';
-function getHeaders(): HeadersInit {
-    const keys = ['access_token', 'token', 'authToken'];
-    let t = ''; for (const k of keys) { t = localStorage.getItem(k) || ''; if (t) break; }
-    return { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) };
-}
 
 const PROVIDERS = ['jira', 'servicenow', 'zoho', 'custom'];
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
@@ -27,8 +23,8 @@ export default function TicketingIntegration() {
 
     const load = async () => {
         const [r1, r2] = await Promise.all([
-            fetch(`${API}/ticketing/config`, { headers: getHeaders() }).then(r => r.json()).catch(() => { }),
-            fetch(`${API}/ticketing/tickets`, { headers: getHeaders() }).then(r => r.json()).catch(() => []),
+            authFetch(`${API}/ticketing/config`).then(r => r.json()).catch(() => { }),
+            authFetch(`${API}/ticketing/tickets`).then(r => r.json()).catch(() => []),
         ]);
         if (r1 && r1.provider) {
             // Ensure JSON fields are parsed if they come as strings (though backend sends objects)
@@ -40,7 +36,7 @@ export default function TicketingIntegration() {
 
     const save = async () => {
         setSaving(true);
-        const r = await fetch(`${API}/ticketing/config`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(config) });
+        const r = await authFetch(`${API}/ticketing/config`, { method: 'POST', body: JSON.stringify(config) });
         const d = await r.json();
         setFeedback({ msg: d.success ? 'Configuration saved!' : 'Failed to save.', ok: !!d.success });
         setTimeout(() => setFeedback(null), 3000);
@@ -49,7 +45,7 @@ export default function TicketingIntegration() {
 
     const testConnection = async () => {
         setTesting(true);
-        const r = await fetch(`${API}/ticketing/test`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ provider: config.provider }) });
+        const r = await authFetch(`${API}/ticketing/test`, { method: 'POST', body: JSON.stringify({ provider: config.provider }) });
         const d = await r.json();
         setFeedback({ msg: d.success ? `✓ Test ticket created: ${d.ticket_key || d.ticket_number || 'ok'}` : `✗ ${d.error || 'Connection failed'}`, ok: !!d.success });
         setTimeout(() => setFeedback(null), 5000);

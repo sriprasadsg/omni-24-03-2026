@@ -1,14 +1,18 @@
-from fastapi import APIRouter, HTTPException, Query
+import logging
+from fastapi import APIRouter, HTTPException, Query, Depends
 from database import get_database
 from datetime import datetime, timedelta, timezone
-import random
+from rbac_utils import require_permission
 
+_log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assets", tags=["Assets"])
+
 
 @router.get("/{asset_id}/metrics")
 async def get_asset_metrics(
     asset_id: str,
-    time_range: str = Query("24h", alias="range", description="Time range: 1h, 24h, 7d, 30d")
+    time_range: str = Query("24h", alias="range", description="Time range: 1h, 24h, 7d, 30d"),
+    current_user: dict = Depends(require_permission("view:assets")),
 ):
     """
     Get historical metrics for a specific asset
@@ -44,32 +48,35 @@ async def get_asset_metrics(
         }).to_list(length=points)
         
         if not metrics_data:
-            # Generate synthtetic data for demonstration
-            # In a real scenario, this would just be empty, but we want to show charts
+            # No agent telemetry yet — use asset's last-known values as a flat baseline
+            # so charts render without random noise
+            base_cpu = float(asset.get("cpuUsage") or asset.get("cpu_usage") or 25)
+            base_mem = float(asset.get("memoryUsage") or asset.get("memory_usage") or 45)
+            base_disk = float(asset.get("diskUsage") or asset.get("disk_usage") or 45)
             metrics = []
             for i in range(points):
-                # timestamp from past to present
                 t = now - timedelta(minutes=interval_minutes * (points - i))
-                
-                # Create some realistic-looking variations
-                base_cpu = 20 + (i % 20)  # simple pattern
-                base_mem = 40 + (i % 10)
-                
+                # Deterministic workload curve: slight peak during business-hours index
+                hour_of_day = t.hour
+                work_boost = 8 if 9 <= hour_of_day <= 17 else 0
+                cpu_val = min(100, base_cpu + (i % 20) + work_boost)
+                mem_val = min(100, base_mem + (i % 10))
+                net_val = max(0, 100 + (i % 50) * 10 + work_boost * 5)
                 metrics.append({
                     "timestamp": t.isoformat(),
-                    "cpu": min(100, max(0, base_cpu + random.uniform(-5, 15))),
-                    "memory": min(100, max(0, base_mem + random.uniform(-2, 5))),
-                    "disk": random.uniform(45, 46), # stable disk
-                    "network": max(0, random.uniform(50, 500) + (i % 50) * 10) # Kbps
+                    "cpu": round(cpu_val, 1),
+                    "memory": round(mem_val, 1),
+                    "disk": round(base_disk, 1),
+                    "network": round(net_val, 1),
                 })
-            
             return {
                 "asset_id": asset_id,
                 "range": time_range,
                 "interval_minutes": interval_minutes,
                 "data_points": len(metrics),
                 "metrics": metrics,
-                "message": "Showing synthetic data (Agent data not available)"
+                "data_source": "estimated",
+                "message": "Showing estimated data — agent telemetry not yet available for this asset.",
             }
         
         # Process and return real metrics
@@ -86,30 +93,31 @@ async def get_asset_metrics(
             "range": time_range,
             "interval_minutes": interval_minutes,
             "data_points": len(metrics),
-            "metrics": metrics
+            "metrics": metrics,
+            "data_source": "live",
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error fetching asset metrics: {e}")
+        _log.error("Error fetching asset metrics for %s: %s", asset_id, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/")
-async def get_assets():
-    """
-    Get all assets
-    """
+async def get_assets(current_user: dict = Depends(require_permission("view:assets"))):
+    """Get all assets"""
     db = get_database()
     assets = await db.assets.find({}, {"_id": 0}).to_list(length=1000)
     return assets
 
+
 @router.get("/{asset_id}")
-async def get_asset(asset_id: str):
-    """
-    Get a specific asset by ID
-    """
+async def get_asset(
+    asset_id: str,
+    current_user: dict = Depends(require_permission("view:assets")),
+):
+    """Get a specific asset by ID"""
     db = get_database()
     asset = await db.assets.find_one({"id": asset_id}, {"_id": 0})
     if not asset:

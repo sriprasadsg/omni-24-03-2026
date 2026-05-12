@@ -1,8 +1,41 @@
-requests
-PyYAML
-psutil
-py-cpuinfo
-mss
-Pillow
-scapy
+# ── Build prerequisites (install these first) ─────────────────────────────────
+# pip install --upgrade pip setuptools wheel
+# Required on Python 3.12+ and 3.14 where legacy build systems are removed.
+setuptools>=70.0.0
+wheel>=0.43.0
+
+# ── Core runtime ─────────────────────────────────────────────────────────────
+requests>=2.31.0
+PyYAML>=6.0
+psutil>=7.0.0
+py-cpuinfo>=9.0.0
 cryptography>=41.0.0
+httpx>=0.26.0
+
+# ── File integrity monitoring ─────────────────────────────────────────────────
+watchdog>=4.0.0
+
+# ── WebSocket / Socket.IO ─────────────────────────────────────────────────────
+websockets>=12.0
+websocket-client>=1.7.0           # remote_access: reverse-shell WebSocket (import websocket)
+python-socketio[client]>=5.10.0   # [client] extra pulls in websocket-client for sync use
+
+# ── Windows service & ETW (Windows only) ─────────────────────────────────────
+pywin32>=306; sys_platform=="win32"
+
+# ── Optional capabilities (agent degrades gracefully if missing) ──────────────
+# NOTE: These packages have C extensions and require pre-built wheels.
+# On Python 3.14 without wheels available, you need build tools:
+#   Windows: Install "Microsoft C++ Build Tools" from visualstudio.microsoft.com/visual-cpp-build-tools/
+#   Linux:   sudo apt install python3-dev build-essential  (Debian/Ubuntu)
+#            sudo dnf install python3-devel gcc            (Fedora/RHEL)
+scapy>=2.5.0            # network_discovery: ARP/ICMP scanning (pure Python, no build needed)
+mss>=9.0.0              # remote_access: screen capture
+Pillow>=10.0.0          # remote_access: screenshot encoding
+yara-python>=4.3.0      # yara_scanner: malware rule matching — C extension, needs build tools on 3.14
+# bcc                   # ebpf: Linux only — NOT pip-installable:
+#                       #   Ubuntu/Debian: apt install bpfcc-tools python3-bpfcc
+#                       #   Fedora/RHEL:   dnf install bcc-tools
+
+# ── Build only (not needed to run the agent) ─────────────────────────────────
+# PyInstaller>=6.0.0

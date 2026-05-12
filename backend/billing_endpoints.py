@@ -153,7 +153,83 @@ async def get_payment_methods(current_user=Depends(get_current_user)):
         except Exception:
             pass
 
-    return {"payment_methods": [], "source": "none", "note": "Configure Stripe to manage payment methods"}
+    # PayPal fallback: check if PayPal credentials are configured
+    paypal_client = os.getenv("PAYPAL_CLIENT_ID")
+    if paypal_client:
+        try:
+            saved = await db.billing_payment_methods.find(
+                {"tenantId": tenant_id}, {"_id": 0}
+            ).to_list(length=20)
+            if saved:
+                return {"payment_methods": saved, "source": "paypal"}
+        except Exception:
+            pass
+
+    return {"payment_methods": [], "source": "none", "note": "Configure Stripe or PayPal to manage payment methods"}
+
+
+@router.get("/stripe-config")
+async def get_stripe_config(current_user=Depends(get_current_user)):
+    """Return Stripe publishable key so the frontend can load Stripe.js. Empty string when unconfigured."""
+    publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    return {"publishable_key": publishable_key, "configured": bool(publishable_key)}
+
+
+@router.get("/paypal-config")
+async def get_paypal_config(current_user=Depends(get_current_user)):
+    """Return PayPal client ID for frontend SDK. Empty when unconfigured."""
+    client_id = os.getenv("PAYPAL_CLIENT_ID", "")
+    mode = os.getenv("PAYPAL_MODE", "sandbox")
+    return {"client_id": client_id, "mode": mode, "configured": bool(client_id)}
+
+
+@router.post("/paypal/order")
+async def create_paypal_order(
+    plan: str,
+    current_user=Depends(get_current_user)
+):
+    """Create a PayPal order for a plan upgrade. Returns approval URL for redirect."""
+    client_id = os.getenv("PAYPAL_CLIENT_ID", "")
+    client_secret = os.getenv("PAYPAL_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=503, detail="PayPal is not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.")
+
+    plan_pricing = {"Starter": 99, "Standard": 299, "Professional": 799, "Enterprise": 1999}
+    amount = plan_pricing.get(plan, 299)
+    mode = os.getenv("PAYPAL_MODE", "sandbox")
+    base = "https://api-m.sandbox.paypal.com" if mode == "sandbox" else "https://api-m.paypal.com"
+
+    import aiohttp as _aiohttp
+    try:
+        async with _aiohttp.ClientSession() as session:
+            # Get access token
+            async with session.post(f"{base}/v1/oauth2/token",
+                                    auth=_aiohttp.BasicAuth(client_id, client_secret),
+                                    data="grant_type=client_credentials") as tr:
+                token_data = await tr.json()
+                access_token = token_data.get("access_token", "")
+
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+            # Create order
+            async with session.post(f"{base}/v2/checkout/orders",
+                                    headers={"Authorization": f"Bearer {access_token}",
+                                             "Content-Type": "application/json"},
+                                    json={
+                                        "intent": "CAPTURE",
+                                        "purchase_units": [{"amount": {"currency_code": "USD",
+                                                                        "value": str(amount)}}],
+                                        "application_context": {
+                                            "return_url": f"{frontend_url}/billing?paypal=success&plan={plan}",
+                                            "cancel_url": f"{frontend_url}/billing?paypal=cancel",
+                                        }
+                                    }) as or_:
+                order = await or_.json()
+                approval_url = next(
+                    (link["href"] for link in order.get("links", []) if link.get("rel") == "approve"), ""
+                )
+                return {"order_id": order.get("id"), "approval_url": approval_url, "amount": amount, "plan": plan}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PayPal order creation failed: {exc}")
 
 
 @router.post("/stripe/checkout")

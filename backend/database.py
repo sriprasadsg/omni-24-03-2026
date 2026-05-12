@@ -117,7 +117,7 @@ class TenantIsolatedDatabase:
     def __getattr__(self, name):
         collection = getattr(self._db, name)
         # We only wrap actual collections, not internal methods
-        if name.startswith("_") or name in ["client", "name", "codec_options", "read_preference", "write_concern", "read_concern", "list_collection_names"]:
+        if name.startswith("_") or name in ["client", "name", "codec_options", "read_preference", "write_concern", "read_concern", "list_collection_names", "create_collection", "drop_collection", "validate_collection", "command", "dereference"]:
             return collection
         # EXEMPTION: global reference data
         if name in [
@@ -167,12 +167,23 @@ async def connect_to_mongo():
         mongodb.client = client
         print(f"Connected to REAL MongoDB at {mongodb_url}")
     except Exception as e:
-        print(f"Failed to connect to real MongoDB: {e}")
-        if AsyncMongoMockClient:
-            print("Falling back to MOCK MongoDB (mongomock-motor)")
-            mongodb.client = AsyncMongoMockClient()
+        import logging as _logging
+        _logging.critical(
+            "[DATABASE] MongoDB connection FAILED: %s\n"
+            "  URL attempted: %s\n"
+            "  All data written during this session will be LOST on restart.\n"
+            "  Set MONGODB_URL to a reachable MongoDB instance to persist data.",
+            e, mongodb_url,
+        )
+        if os.getenv("ALLOW_MOCK_DB", "true").lower() in ("1", "true", "yes"):
+            if AsyncMongoMockClient:
+                _logging.warning("[DATABASE] Starting with in-memory mock database (ALLOW_MOCK_DB=true). NO DATA PERSISTED.")
+                mongodb.client = AsyncMongoMockClient()
+            else:
+                _logging.critical("[DATABASE] mongomock-motor not installed and MongoDB unreachable. Cannot start.")
+                raise e
         else:
-            print("CRITICAL: MongoDB connection failed and mongomock-motor not installed.")
+            _logging.critical("[DATABASE] ALLOW_MOCK_DB is not set — refusing to start without real MongoDB.")
             raise e
 
     mongodb.db = mongodb.client[mongodb_db_name]
@@ -223,3 +234,8 @@ def get_database():
     if mongodb.db is None:
         return None
     return TenantIsolatedDatabase(mongodb.db)
+
+# Alias used by newer endpoint files as a FastAPI Depends target
+def get_db():
+    """FastAPI dependency that returns the tenant-isolated database."""
+    return get_database()

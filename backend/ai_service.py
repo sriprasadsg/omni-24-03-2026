@@ -1,5 +1,5 @@
 
-import google.generativeai as genai
+from google import genai
 import json
 import os
 import httpx
@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from database import get_database
 from guardrail_service import guardrail_service
+from ai_guardrails import scan_text
 
 # --- Provider Abstraction ---
 
@@ -28,7 +29,8 @@ class AIProvider(ABC):
 
 class GeminiProvider(AIProvider):
     def __init__(self):
-        self.model = None
+        self.client = None
+        self.model_name = "gemini-2.0-flash"
 
     @property
     def name(self) -> str:
@@ -39,18 +41,20 @@ class GeminiProvider(AIProvider):
         if not api_key:
             return False
         try:
-            genai.configure(api_key=api_key)
-            model_name = settings.get("model", "gemini-2.0-flash")
-            self.model = genai.GenerativeModel(model_name)
+            self.client = genai.Client(api_key=api_key)
+            self.model_name = settings.get("model", "gemini-2.0-flash")
             return True
         except Exception as e:
             print(f"Gemini Configuration Failed: {e}")
             return False
 
     async def generate(self, prompt: str) -> str:
-        if not self.model:
-            raise RuntimeError("Gemini model not initialized")
-        response = self.model.generate_content(prompt)
+        if not self.client:
+            raise RuntimeError("Gemini client not initialized")
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt
+        )
         return response.text
 
 class OllamaProvider(AIProvider):
@@ -89,22 +93,73 @@ class OllamaProvider(AIProvider):
             resp.raise_for_status()
             return resp.json().get("response", "")
 
-class MockProvider(AIProvider):
+class AnthropicProvider(AIProvider):
+    def __init__(self):
+        self.api_key: Optional[str] = None
+        self.model_name = "claude-sonnet-4-6"
+
     @property
     def name(self) -> str:
-        return "Chitti (Mock)"
+        return "Anthropic Claude"
 
     async def configure(self, settings: dict) -> bool:
+        api_key = settings.get("apiKey") or settings.get("anthropicApiKey")
+        if not api_key:
+            return False
+        self.api_key = api_key
+        self.model_name = settings.get("model", "claude-sonnet-4-6")
         return True
 
     async def generate(self, prompt: str) -> str:
-        # Simple rule-based mock responses for common queries
+        if not self.api_key:
+            raise RuntimeError("Anthropic API key not configured")
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": self.model_name,
+                    "max_tokens": 1024,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["content"][0]["text"]
+
+
+class MockProvider(AIProvider):
+    _DEGRADED_NOTICE = (
+        "\n\n⚠️ **AI running in limited mode** — no LLM provider is configured. "
+        "Configure an LLM (Anthropic, Gemini, or Ollama) in Settings → AI Configuration for full capabilities."
+    )
+
+    @property
+    def name(self) -> str:
+        return "Limited Mode (No LLM configured)"
+
+    async def configure(self, _settings: dict) -> bool:
+        return True
+
+    async def generate(self, prompt: str) -> str:
         lower_prompt = prompt.lower()
         if "dashboard" in lower_prompt:
-            return "The dashboard provides a real-time overview of your enterprise security posture. [NAVIGATE:dashboard]"
-        if "agents" in lower_prompt:
-            return "I can help you monitor and manage your active agents. [NAVIGATE:agents]"
-        return "I am currently operating in limited mode, but I am here to assist with your security operations. [NAVIGATE:home]"
+            base = "The dashboard provides a real-time overview of your enterprise security posture. [NAVIGATE:dashboard]"
+        elif "agent" in lower_prompt:
+            base = "I can help you monitor and manage your active agents. [NAVIGATE:agents]"
+        elif "alert" in lower_prompt or "incident" in lower_prompt:
+            base = "Navigate to the Alerts section to review and triage active security incidents. [NAVIGATE:alerts]"
+        elif "compliance" in lower_prompt:
+            base = "Compliance frameworks (NIST, CIS, ISO 27001, HIPAA, PCI-DSS, SOC 2) are available in the Compliance section. [NAVIGATE:compliance]"
+        elif "threat" in lower_prompt:
+            base = "Threat hunting and intelligence are available in the Threat Intelligence section. [NAVIGATE:threats]"
+        else:
+            base = "I can assist with security operations, compliance, threat hunting, and agent management."
+        return base + self._DEGRADED_NOTICE
 
 # --- Main Service ---
 
@@ -140,12 +195,44 @@ class IncidentAnalyzer:
                 self.provider = gemini
                 self.is_configured = True
                 return
+        elif env_provider in ("anthropic", "claude"):
+            anthropic = AnthropicProvider()
+            settings = {
+                "apiKey": os.getenv("ANTHROPIC_API_KEY"),
+                "model": os.getenv("LLM_MODEL", "claude-sonnet-4-6")
+            }
+            if await anthropic.configure(settings):
+                self.provider = anthropic
+                self.is_configured = True
+                return
+
+        # Auto-detect from bare env keys when LLM_PROVIDER is not set
+        if not env_provider:
+            if os.getenv("ANTHROPIC_API_KEY"):
+                anthropic = AnthropicProvider()
+                if await anthropic.configure({"apiKey": os.getenv("ANTHROPIC_API_KEY")}):
+                    self.provider = anthropic
+                    self.is_configured = True
+                    return
+            if os.getenv("GEMINI_API_KEY"):
+                gemini = GeminiProvider()
+                if await gemini.configure({"apiKey": os.getenv("GEMINI_API_KEY")}):
+                    self.provider = gemini
+                    self.is_configured = True
+                    return
 
         # 2. Fallback to database settings
         db = get_database()
         settings = (await db.system_settings.find_one({"type": "llm"})) if db else {}
         settings = settings or {}
         configured_provider = settings.get("provider")
+
+        if configured_provider == "Anthropic Claude":
+            anthropic = AnthropicProvider()
+            if await anthropic.configure(settings):
+                self.provider = anthropic
+                self.is_configured = True
+                return
 
         if configured_provider == "Gemini":
             gemini = GeminiProvider()
@@ -174,6 +261,12 @@ class IncidentAnalyzer:
             self.is_configured = True
             return
 
+        import logging as _logging
+        _logging.warning(
+            "[AI] No LLM provider configured. Falling back to MockProvider (limited rule-based responses). "
+            "Set LLM_PROVIDER and the corresponding API key environment variable to enable full AI capabilities. "
+            "Supported: LLM_PROVIDER=anthropic (ANTHROPIC_API_KEY), gemini (GEMINI_API_KEY), ollama (OLLAMA_URL)."
+        )
         self.provider = MockProvider()
         self.is_configured = True
 
@@ -186,24 +279,36 @@ class IncidentAnalyzer:
         policy = settings.get("policy", {})
         return scan_text(text, policy.get("block_pii", True), policy.get("block_injection", True))
 
-    async def generate_text(self, prompt: str, source: str = "generic") -> str:
-        """Public generic generation method with guardrails"""
+    async def generate_text(self, prompt: str, source: str = "generic", _retries: int = 3) -> str:
+        """Public generic generation method with guardrails and exponential-backoff retry."""
+        import asyncio as _asyncio
         if not self.is_configured:
             await self.initialize()
-        
+
         # 1. Pre-Generation Scan
         scan = await guardrail_service.scan_and_log(prompt, f"{source}_input")
         if not scan.passed:
             return f"BLOCKED: Security policy violation in prompt. Findings: {', '.join(scan.findings)}"
-        
+
         if self.provider:
-            response = await self.provider.generate(prompt)
-            
-            # 2. Post-Generation Scan (optional, but recommended for PII leakage)
+            last_err: Exception = RuntimeError("provider not ready")
+            for attempt in range(_retries):
+                try:
+                    response = await self.provider.generate(prompt)
+                    break
+                except Exception as e:
+                    last_err = e
+                    if attempt < _retries - 1:
+                        wait = 2 ** attempt  # 1s, 2s, 4s
+                        await _asyncio.sleep(wait)
+            else:
+                return f"Error: AI generation failed after {_retries} attempts: {last_err}"
+
+            # 2. Post-Generation Scan
             output_scan = await guardrail_service.scan_and_log(response, f"{source}_output")
             if not output_scan.passed:
                 return f"BLOCKED: Security policy violation in AI output. Findings: {', '.join(output_scan.findings)}"
-            
+
             return response
         return ""
 
@@ -234,6 +339,63 @@ class IncidentAnalyzer:
         except Exception as e:
             return {"error": f"AI Analysis failed: {str(e)}"}
 
+    async def negotiate_agent_action(self, goal: str, constraints: dict) -> dict:
+        """
+        [2027 ROADMAP] Negotiator Persona: Evaluates a goal vs. cost/risk constraints.
+        """
+        if not self.is_configured:
+            await self.initialize()
+
+        prompt = f"""
+        You are the OmniAgent Negotiator. Evaluate the following goal against the provided constraints.
+        
+        GOAL: {goal}
+        CONSTRAINTS: {json.dumps(constraints, indent=2)}
+        
+        DECISION LOGIC:
+        1. If cost > budget and priority is not CRITICAL, suggest a deferred action.
+        2. If risk is HIGH, require manual approval.
+        3. Otherwise, authorize and suggest the most cost-effective agent.
+        
+        Return JSON: {{"authorized": bool, "suggested_action": str, "negotiation_log": str, "estimated_cost": float}}
+        """
+        try:
+            raw_text = await self.generate_text(prompt)
+            cleaned_text = raw_text.replace("```json", "").replace("```", "").strip()
+            return json.loads(cleaned_text)
+        except Exception:
+            return {"authorized": False, "suggested_action": "Retry Negotiation", "negotiation_log": "Negotiator logic failure", "estimated_cost": 0.0}
+
+    async def _get_feedback_guidance(self) -> str:
+        """
+        Read recent ai_feedback records and return a one-line system-prompt
+        adjustment so the model learns from past low-rated responses.
+        Called once per chat session (result is cached for 5 min).
+        """
+        try:
+            import time as _time
+            cache = getattr(self, "_feedback_cache", None)
+            if cache and _time.time() - cache["ts"] < 300:
+                return cache["text"]
+
+            db = get_database()
+            recent = await db.ai_feedback.find(
+                {"rating": {"$lte": 2}},
+                {"comment": 1, "response_preview": 1},
+            ).sort("created_at", -1).limit(10).to_list(length=10)
+
+            if not recent:
+                return ""
+
+            patterns = "; ".join(
+                f['comment'] for f in recent if f.get('comment')
+            )[:400]
+            guidance = f"Avoid these patterns from past low-rated responses: {patterns}." if patterns else ""
+            self._feedback_cache = {"ts": _time.time(), "text": guidance}
+            return guidance
+        except Exception:
+            return ""
+
     async def chat(self, message: str, context: dict):
         """Chat with the AI assistant"""
         if not self.is_configured:
@@ -249,11 +411,11 @@ class IncidentAnalyzer:
         lower_msg = message.lower()
 
         # --- Demo Start/Trigger ---
-        demo_keywords = ["demo", "explain project", "what is this", "tell me about", "overview", "tour", "project details", "how it works", "features", "project features", "usecase", "use case", "capabilities", "present", "presentation"]
+        demo_keywords = ["demo", "explain project", "what is this", "tell me about", "overview", "tour", "project details", "how it works", "features", "project features", "usecase", "use case", "capabilities", "present", "presentation", "walkthrough", "guide"]
         if any(keyword in lower_msg for keyword in demo_keywords):
             self.demo_sessions[user_id] = {"step": 0, "state": "explaining"}
             step = DEMO_STEPS[0]
-            return f"Certainly! This platform is a next-gen security operations hub. {step['text']} [NAVIGATE:{step['navigate']}] [AUTO_CONTINUE]"
+            return f"Certainly! Genesis is a state-of-the-art enterprise management and security hub. {step['text']} [NAVIGATE:{step['navigate']}] [AUTO_CONTINUE]"
 
         # --- Stateful Demo Handling ---
         if session:
@@ -269,25 +431,28 @@ class IncidentAnalyzer:
                     return f"{step['text']} [NAVIGATE:{step['navigate']}] [AUTO_CONTINUE]"
                 else:
                     self.demo_sessions.pop(user_id)
-                    return "That concludes our project demo! I hope that was helpful. What else can I do for you today? [NAVIGATE:dashboard]"
+                    return "That concludes our comprehensive platform tour! I hope that provided a clear view of how Genesis can secure and scale your enterprise. What else can I help you with? [NAVIGATE:dashboard]"
 
             if "more" in lower_msg or ("yes" in lower_msg and state == "awaiting_satisfaction"):
-                prompt = f"The user wants more details about: {session.get('last_question', 'their last question')}. Provide a more in-depth but concise explanation."
+                prompt = f"Using this project context: {PROJECT_DETAILS}\n\nThe user wants more details about: {session.get('last_question', 'their last question')}. Provide a more in-depth but concise explanation."
                 answer = await self.generate_text(prompt)
-                return f"{answer} Are you satisfied now, or should we continue the project demo?"
+                return f"{answer} Are you satisfied now, or should we continue the platform tour?"
 
             if "?" in message or any(kw in lower_msg for kw in ["how", "what", "why", "can you"]):
-                prompt = f"Answer this question concisely: {message}. Then ask if they are satisfied and want to continue the demo."
+                prompt = f"Using this project context: {PROJECT_DETAILS}\n\nAnswer this question concisely: {message}. Then ask if they are satisfied and want to continue the tour."
                 answer = await self.generate_text(prompt)
                 self.demo_sessions[user_id]["state"] = "awaiting_satisfaction"
                 self.demo_sessions[user_id]["last_question"] = message
-                return f"{answer} Does that answer satisfy you? If so, should we continue the project demo?"
+                return f"{answer} Does that answer satisfy you? If so, should we continue the platform tour?"
 
         # --- Standard Chat ---
+        feedback_guidance = await self._get_feedback_guidance()
         prompt = f"""
-        Your name is Chitti. You are a professional AI assistant. 
+        {PROJECT_DETAILS}
+        Your name is Chitti. You are a professional AI security and enterprise assistant.
         Keep responses under 3 sentences and end with a follow-up question.
         Current view: {context.get('currentView', 'unknown')}.
+        {feedback_guidance}
         User query: {message}
         Include EXACTLY ONE navigation tag at the end exactly formatted like [NAVIGATE:dashboard] without spaces.
         """
@@ -298,32 +463,70 @@ class IncidentAnalyzer:
 
 ai_service = IncidentAnalyzer()
 
+PROJECT_DETAILS = """
+The Enterprise Omni-Agent AI Platform (Genesis) is a state-of-the-art security operations and enterprise management hub. 
+Key Features & USPs:
+1. Unified FutureOps (2030): A futuristic vision for autonomous, self-healing enterprise operations using Digital Twins.
+2. CXO Insights: Real-time, executive-level strategic dashboards driven by multi-tenant analytics.
+3. Advanced SecOps (XDR/EDR/MDR): Comprehensive threat detection (MITRE ATT&CK), correlation, and automated SOAR response.
+4. AI Governance & Policy: A dedicated engine to monitor, govern, and secure enterprise AI models with XAI (Explainability).
+5. Autonomous Agent Fleet: Scalable agent management with real-time telemetry, remote control, and self-healing.
+6. Zero Trust & Quantum Security: Next-gen encryption and zero-trust access control patterns.
+7. Full-Stack Observability: Distributed tracing, network metrics, chaos engineering, and log exploration.
+8. Integrated Governance & Compliance: Automated framework assessments (SOC2, ISO27001, etc.) via the Compliance Oracle.
+"""
+
 DEMO_STEPS = [
     {
         "id": "intro",
-        "text": "The Enterprise Omni-Agent AI Platform is a comprehensive security and management system. It's designed to act as your digital SecOps assistant.",
+        "text": "Welcome to Genesis. We provide a unified view of your entire organization's health, security, and strategic growth. Let's start with the Global Dashboard.",
         "navigate": "dashboard"
     },
     {
+        "id": "cxo",
+        "text": "For executive leadership, our CXO Insights dashboard provides high-level strategic data, financial impact analysis, and risk trajectories in real-time.",
+        "navigate": "cxo"
+    },
+    {
+        "id": "security",
+        "text": "Our Security Operations Hub is the core of your defense. It integrates EDR, XDR, and MDR intelligence to detect and neutralize threats autonomously.",
+        "navigate": "security"
+    },
+    {
+        "id": "attack_path",
+        "text": "Advanced Threat Defense includes Attack Path Visualization and MITRE ATT&CK mapping, showing exactly how adversaries move through your network.",
+        "navigate": "attackPath"
+    },
+    {
         "id": "agents",
-        "text": "First, let's look at Agent Management. We provide real-time telemetry, remote updates, and self-healing for edge devices.",
+        "text": "The Autonomous Agent Fleet manages thousands of edge and server devices with real-time telemetry and self-healing capabilities.",
         "navigate": "agents"
     },
     {
-        "id": "secops",
-        "text": "Next is the SecOps Hub. This is where incident analysis happens. Chitti performs impact assessments and executes automated playbooks.",
-        "navigate": "vulnerabilities"
+        "id": "observability",
+        "text": "Our Observability suite includes Distributed Tracing and Network Observability to ensure system resilience and performance.",
+        "navigate": "distributedTracing"
     },
     {
-        "id": "gov_appsec",
-        "text": "We also offer Governance & AppSec functionalities. We manage SBOMs, scan for vulnerabilities, and track compliance.",
+        "id": "compliance",
+        "text": "Governance is automated via our Compliance Oracle, tracking framework adherence (SOC2, ISO) and automating evidence collection.",
         "navigate": "compliance"
     },
     {
-        "id": "observability",
-        "text": "Finally, we have Advanced Observability features. We offer distributed tracing, network analysis, and chaos engineering simulations.",
-        "navigate": "insights"
+        "id": "ai_governance",
+        "text": "We provide a dedicated AI Governance engine to monitor model performance, enforce policies, and ensure AI explainability (XAI).",
+        "navigate": "aiGovernance"
+    },
+    {
+        "id": "future_ops",
+        "text": "Unified FutureOps represents our vision for a fully autonomous operations center using Digital Twins and Predictive AI.",
+        "navigate": "unifiedOps"
+    },
+    {
+        "id": "finops",
+        "text": "Finally, FinOps & DORA metrics ensure your operations are cost-effective and your engineering pipelines are highly efficient.",
+        "navigate": "finops"
     }
 ]
 
-PROJECT_OVERVIEW = "Omni-Agent is your unified platform for AI-driven security operations, agent lifecycle management, and enterprise governance. [NAVIGATE:dashboard]"
+PROJECT_OVERVIEW = "Genesis is your unified platform for AI-driven security operations, agent lifecycle management, and enterprise governance. [NAVIGATE:dashboard]"

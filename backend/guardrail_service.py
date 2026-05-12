@@ -56,7 +56,7 @@ class GuardrailService:
         db = get_database()
         if db:
             log_entry = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "tenantId": tenant_id or "system",
                 "source": source,
                 "passed": result.passed,

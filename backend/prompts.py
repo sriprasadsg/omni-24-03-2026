@@ -11,8 +11,8 @@ class PromptTemplate(BaseModel):
     input_variables: List[str]
     description: Optional[str] = None
     tags: List[str] = []
-    created_at: str = datetime.utcnow().isoformat()
-    updated_at: str = datetime.utcnow().isoformat()
+    created_at: str = datetime.now(timezone.utc).isoformat()
+    updated_at: str = datetime.now(timezone.utc).isoformat()
 
 class PromptRegistry:
     def __init__(self):

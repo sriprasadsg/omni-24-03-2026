@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { ZapIcon, PlusIcon, EditIcon, TrashIcon, ToggleRightIcon, ToggleLeftIcon } from './icons';
 
 interface Policy {
@@ -40,7 +41,7 @@ export const PolicyManager: React.FC<PolicyManagerProps> = ({ tenantId }) => {
     const fetchPolicies = async () => {
         try {
             const url = `/api/policies${tenantId ? `?tenant_id=${tenantId}` : ''}`;
-            const response = await fetch(url);
+            const response = await authFetch(url);
             const data = await response.json();
             setPolicies(data.policies || []);
         } catch (error) {
@@ -52,9 +53,8 @@ export const PolicyManager: React.FC<PolicyManagerProps> = ({ tenantId }) => {
 
     const togglePolicyStatus = async (policyId: string, currentStatus: boolean) => {
         try {
-            const response = await fetch(`/api/policies/${policyId}`, {
+            const response = await authFetch(`/api/policies/${policyId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enabled: !currentStatus })
             });
 
@@ -70,7 +70,7 @@ export const PolicyManager: React.FC<PolicyManagerProps> = ({ tenantId }) => {
         if (!confirm('Are you sure you want to delete this policy?')) return;
 
         try {
-            const response = await fetch(`/api/policies/${policyId}`, {
+            const response = await authFetch(`/api/policies/${policyId}`, {
                 method: 'DELETE'
             });
 
@@ -84,9 +84,8 @@ export const PolicyManager: React.FC<PolicyManagerProps> = ({ tenantId }) => {
 
     const createPolicy = async () => {
         try {
-            const response = await fetch('/api/policies', {
+            const response = await authFetch('/api/policies', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...newPolicy,
                     tenant_id: tenantId

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { Play, Activity, Cpu, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 const ModelTrainingDashboard = () => {
@@ -8,10 +9,7 @@ const ModelTrainingDashboard = () => {
 
     const fetchStatus = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const resp = await fetch('http://localhost:5000/api/ai/train/status', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const resp = await authFetch('/api/ai/train/status');
             if (resp.ok) {
                 const data = await resp.json();
                 setStatus(data);
@@ -26,10 +24,8 @@ const ModelTrainingDashboard = () => {
     const startTraining = async () => {
         setIsStarting(true);
         try {
-            const token = localStorage.getItem('token');
-            await fetch('http://localhost:5000/api/ai/train/start', {
+            await authFetch('/api/ai/train/start', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
             });
             await fetchStatus();
         } catch (err) {

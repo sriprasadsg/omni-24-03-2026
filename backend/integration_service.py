@@ -3,9 +3,12 @@ Integration Service - External Platform Integrations
 SIEM, CMDB, Ticketing, EDR/XDR integrations
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import aiohttp
+
+_log = logging.getLogger(__name__)
 
 
 class IntegrationService:
@@ -123,22 +126,51 @@ class IntegrationService:
         details: Dict[str, Any],
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Simulation: Send event to Wazuh manager"""
-        # In production, this would use Wazuh API or Syslog
-        print(f"[SIEM][WAZUH] Sending {event_type} (Severity: {severity}) to {config.get('endpoint', 'N/A')}")
-        
-        return {
-            "success": True,
-            "platform": "wazuh",
-            "status": "simulated",
-            "transmission_id": f"wz-{datetime.now(timezone.utc).timestamp()}",
-            "details": {
-                "event_type": event_type,
-                "endpoint": config.get("endpoint"),
-                "agent_id": details.get("agent_id", "global")
-            }
-        }
-    
+        """Send event to Wazuh manager via REST API (Wazuh 4.4+)."""
+        base = config.get("endpoint", "").rstrip("/")
+        username = config.get("username", "wazuh")
+        password = config.get("password", "")
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Authenticate
+                auth_resp = await session.post(
+                    f"{base}/security/user/authenticate",
+                    auth=aiohttp.BasicAuth(username, password),
+                    ssl=False,
+                )
+                if auth_resp.status != 200:
+                    return {"success": False, "platform": "wazuh", "error": f"Auth failed: {auth_resp.status}"}
+                token = (await auth_resp.json())["data"]["token"]
+
+                # Inject event
+                payload = {
+                    "events": [
+                        {
+                            "log": {
+                                "full_log": f"event_type={event_type} severity={severity} "
+                                            + " ".join(f"{k}={v}" for k, v in details.items())
+                            }
+                        }
+                    ]
+                }
+                resp = await session.post(
+                    f"{base}/events",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {token}"},
+                    ssl=False,
+                )
+                body = await resp.json()
+                return {
+                    "success": resp.status in (200, 201),
+                    "platform": "wazuh",
+                    "status_code": resp.status,
+                    "details": body,
+                }
+        except Exception as exc:
+            return {"success": False, "platform": "wazuh", "error": str(exc)}
+
     async def _send_to_qradar(
         self,
         event_type: str,
@@ -146,20 +178,50 @@ class IntegrationService:
         details: Dict[str, Any],
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Simulation: Send event to IBM QRadar"""
-        # In production, this would use QRadar REST API or LEEF logs
-        print(f"[SIEM][QRADAR] Sending {event_type} (Severity: {severity}) to {config.get('endpoint', 'N/A')}")
-        
-        return {
-            "success": True,
-            "platform": "qradar",
-            "status": "simulated",
-            "transmission_id": f"qr-{datetime.now(timezone.utc).timestamp()}",
-            "details": {
-                "event_type": event_type,
-                "leef_version": "2.0"
-            }
+        """Send event to IBM QRadar via REST API using a reference-data set."""
+        base = config.get("endpoint", "").rstrip("/")
+        api_token = config.get("api_token", "")
+        set_name = config.get("ref_set", "omni_agent_events")
+
+        payload = {
+            "event_type": event_type,
+            "severity": severity,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **{k: str(v) for k, v in details.items()},
         }
+
+        headers = {
+            "SEC": api_token,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Version": "17.0",
+        }
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Ensure the reference set exists (ignore 409 Conflict = already exists)
+                await session.post(
+                    f"{base}/api/reference_data/sets",
+                    params={"name": set_name, "element_type": "ALN"},
+                    headers=headers,
+                    ssl=False,
+                )
+                # Add the event entry
+                resp = await session.post(
+                    f"{base}/api/reference_data/sets/{set_name}",
+                    params={"value": str(payload)},
+                    headers=headers,
+                    ssl=False,
+                )
+                return {
+                    "success": resp.status in (200, 201),
+                    "platform": "qradar",
+                    "status_code": resp.status,
+                    "ref_set": set_name,
+                }
+        except Exception as exc:
+            return {"success": False, "platform": "qradar", "error": str(exc)}
     
     async def sync_assets_to_cmdb(
         self,
@@ -369,23 +431,136 @@ class IntegrationService:
         platform: str = "crowdstrike"
     ) -> Dict[str, Any]:
         """
-        Send action to EDR/XDR platform
-        
-        Supported: crowdstrike, sentinelone, microsoft_defender
+        Send action to EDR/XDR platform.
+        Supported platforms: crowdstrike, sentinelone, microsoft_defender
         Actions: isolate, scan, update
         """
         config = await self._get_integration_config("edr", platform)
-        
+
         if not config or not config.get("enabled"):
             return {"success": False, "error": f"EDR {platform} not configured"}
-        
-        return {
-            "success": True,
-            "platform": platform,
-            "asset_id": asset_id,
-            "action": action,
-            "message": f"{platform} integration placeholder"
-        }
+
+        if platform == "crowdstrike":
+            return await self._crowdstrike_action(asset_id, action, config)
+        elif platform == "sentinelone":
+            return await self._sentinelone_action(asset_id, action, config)
+        elif platform == "microsoft_defender":
+            return await self._defender_action(asset_id, action, config)
+        else:
+            return {"success": False, "error": f"Unsupported EDR platform: {platform}"}
+
+    async def _crowdstrike_action(
+        self, asset_id: str, action: str, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute action via CrowdStrike Falcon REST API (OAuth2)."""
+        base = config.get("endpoint", "https://api.crowdstrike.com").rstrip("/")
+        client_id = config.get("client_id", "")
+        client_secret = config.get("client_secret", "")
+
+        cs_action_map = {"isolate": "contain", "scan": "hide_host", "update": "lift_containment"}
+        cs_action = cs_action_map.get(action, action)
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Get OAuth2 token
+                token_resp = await session.post(
+                    f"{base}/oauth2/token",
+                    data={"client_id": client_id, "client_secret": client_secret},
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    ssl=False,
+                )
+                if token_resp.status != 201:
+                    return {"success": False, "platform": "crowdstrike",
+                            "error": f"Auth failed: {token_resp.status}"}
+                token = (await token_resp.json())["access_token"]
+
+                # Execute action
+                resp = await session.post(
+                    f"{base}/devices/entities/responses/v1",
+                    params={"action_name": cs_action},
+                    json={"ids": [asset_id]},
+                    headers={"Authorization": f"Bearer {token}"},
+                    ssl=False,
+                )
+                body = await resp.json()
+                return {"success": resp.status in (200, 202), "platform": "crowdstrike",
+                        "action": cs_action, "status_code": resp.status, "details": body}
+        except Exception as exc:
+            return {"success": False, "platform": "crowdstrike", "error": str(exc)}
+
+    async def _sentinelone_action(
+        self, asset_id: str, action: str, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute action via SentinelOne REST API."""
+        base = config.get("endpoint", "").rstrip("/")
+        api_token = config.get("api_token", "")
+
+        s1_action_map = {"isolate": "disconnect", "scan": "initiateScanning", "update": "connect"}
+        s1_action = s1_action_map.get(action, action)
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                resp = await session.post(
+                    f"{base}/web/api/v2.1/agents/actions/{s1_action}",
+                    json={"filter": {"ids": [asset_id]}},
+                    headers={"Authorization": f"ApiToken {api_token}",
+                             "Content-Type": "application/json"},
+                    ssl=False,
+                )
+                body = await resp.json()
+                return {"success": resp.status == 200, "platform": "sentinelone",
+                        "action": s1_action, "status_code": resp.status, "details": body}
+        except Exception as exc:
+            return {"success": False, "platform": "sentinelone", "error": str(exc)}
+
+    async def _defender_action(
+        self, asset_id: str, action: str, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute action via Microsoft Defender for Endpoint REST API."""
+        tenant_azure = config.get("tenant_id", "")
+        client_id = config.get("client_id", "")
+        client_secret = config.get("client_secret", "")
+
+        defender_action_map = {"isolate": "isolate", "scan": "runAntiVirusScan", "update": "unisolate"}
+        d_action = defender_action_map.get(action, action)
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Acquire Azure AD token
+                token_resp = await session.post(
+                    f"https://login.microsoftonline.com/{tenant_azure}/oauth2/v2.0/token",
+                    data={
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "scope": "https://api.securitycenter.microsoft.com/.default",
+                        "grant_type": "client_credentials",
+                    },
+                )
+                if token_resp.status != 200:
+                    return {"success": False, "platform": "microsoft_defender",
+                            "error": f"Auth failed: {token_resp.status}"}
+                token = (await token_resp.json())["access_token"]
+
+                body_payload: Dict[str, Any] = {}
+                if d_action == "isolate":
+                    body_payload = {"Comment": "Isolated by Omni-Agent", "IsolationType": "Full"}
+                elif d_action == "runAntiVirusScan":
+                    body_payload = {"Comment": "Scan triggered by Omni-Agent", "ScanType": "Quick"}
+
+                resp = await session.post(
+                    f"https://api.securitycenter.microsoft.com/api/machines/{asset_id}/{d_action}",
+                    json=body_payload,
+                    headers={"Authorization": f"Bearer {token}",
+                             "Content-Type": "application/json"},
+                )
+                resp_body = await resp.json()
+                return {"success": resp.status in (200, 201), "platform": "microsoft_defender",
+                        "action": d_action, "status_code": resp.status, "details": resp_body}
+        except Exception as exc:
+            return {"success": False, "platform": "microsoft_defender", "error": str(exc)}
     
     async def _get_integration_config(
         self,
@@ -611,6 +786,108 @@ class IntegrationService:
         print(f"[TICKETING][ZOHO] Adding comment to {ticket_id}: {comment}")
         return {"success": True, "platform": "zohodesk"}
 
+    # ---------------------------------------------------------
+    # Identity Provider (IdP) Integrations (Okta & Entra ID)
+    # ---------------------------------------------------------
+
+    async def fetch_okta_users(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Fetch users from Okta via REST API"""
+        url = f"{config.get('url', '').rstrip('/')}/api/v1/users"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"SSWS {config.get('api_token', '')}"
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=10) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    _log.warning("Okta list_users returned HTTP %s", response.status)
+                    return []
+        except Exception as exc:
+            _log.error("Okta list_users failed: %s", exc)
+            return []
+
+    async def suspend_okta_user(self, user_id: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Suspend a user in Okta"""
+        url = f"{config.get('url', '').rstrip('/')}/api/v1/users/{user_id}/lifecycle/suspend"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"SSWS {config.get('api_token', '')}"
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, timeout=10) as response:
+                    return {"success": response.status == 200, "status_code": response.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def fetch_entra_users(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Fetch users from Microsoft Entra ID (Azure AD) via Graph API"""
+        tenant_id = config.get("tenant_id", "")
+        client_id = config.get("client_id", "")
+        client_secret = config.get("client_secret", "")
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 1. Get Token
+                token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+                token_data = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "scope": "https://graph.microsoft.com/.default",
+                    "grant_type": "client_credentials"
+                }
+                token_resp = await session.post(token_url, data=token_data)
+                if token_resp.status != 200:
+                    return []
+                token = (await token_resp.json()).get("access_token")
+
+                # 2. Fetch Users
+                users_url = "https://graph.microsoft.com/v1.0/users"
+                headers = {"Authorization": f"Bearer {token}"}
+                users_resp = await session.get(users_url, headers=headers, timeout=10)
+                if users_resp.status == 200:
+                    data = await users_resp.json()
+                    return data.get("value", [])
+                _log.warning("Entra ID list_users returned HTTP %s", users_resp.status)
+                return []
+        except Exception as exc:
+            _log.error("Entra ID list_users failed: %s", exc)
+            return []
+
+    async def suspend_entra_user(self, user_id: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Suspend (disable account) for a user in Entra ID"""
+        tenant_id = config.get("tenant_id", "")
+        client_id = config.get("client_id", "")
+        client_secret = config.get("client_secret", "")
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 1. Get Token
+                token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+                token_data = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "scope": "https://graph.microsoft.com/.default",
+                    "grant_type": "client_credentials"
+                }
+                token_resp = await session.post(token_url, data=token_data)
+                if token_resp.status != 200:
+                    return {"success": False, "error": "Failed to get access token"}
+                token = (await token_resp.json()).get("access_token")
+
+                # 2. Update User (accountEnabled = false)
+                users_url = f"https://graph.microsoft.com/v1.0/users/{user_id}"
+                headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                payload = {"accountEnabled": False}
+                
+                users_resp = await session.patch(users_url, headers=headers, json=payload, timeout=10)
+                return {"success": users_resp.status == 204, "status_code": users_resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 def get_integration_service(db):
     """Get integration service instance"""

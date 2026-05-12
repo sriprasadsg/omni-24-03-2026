@@ -1,6 +1,7 @@
 
 import paypalrestsdk
 from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
 from payment_gateway_service import PaymentGatewayInterface, SubscriptionStatus, InvoiceStatus
 import logging
 
@@ -49,7 +50,7 @@ class PayPalGateway(PaymentGatewayInterface):
         billing_agreement = paypalrestsdk.BillingAgreement({
             "name": metadata.get("plan", "Subscription"),
             "description": f"Subscription for {metadata.get('plan')}",
-            "start_date": (datetime.utcnow() + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "start_date": (datetime.now(timezone.utc) + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "plan": {"id": price_id},
             "payer": {"payment_method": "paypal"},
             "override_merchant_preferences": {
@@ -75,8 +76,8 @@ class PayPalGateway(PaymentGatewayInterface):
                     "currency": "USD",
                     "interval": "month"
                 },
-                "current_period_start": datetime.utcnow().timestamp(),
-                "current_period_end": (datetime.utcnow() + timedelta(days=30)).timestamp()
+                "current_period_start": datetime.now(timezone.utc).timestamp(),
+                "current_period_end": (datetime.now(timezone.utc) + timedelta(days=30)).timestamp()
             }
         else:
             logger.error(f"PayPal subscription failed: {billing_agreement.error}")
@@ -88,7 +89,7 @@ class PayPalGateway(PaymentGatewayInterface):
         cancel_note = {"note": "Canceled by user request"}
         
         if billing_agreement.cancel(cancel_note):
-            return {"status": "canceled", "canceled_at": datetime.utcnow().timestamp()}
+            return {"status": "canceled", "canceled_at": datetime.now(timezone.utc).timestamp()}
         else:
             raise Exception(f"Failed to cancel PayPal subscription: {billing_agreement.error}")
 
@@ -134,7 +135,7 @@ class PayPalGateway(PaymentGatewayInterface):
                 "currency": currency,
                 "status": payment.state, # created, approved, failed
                 "paid": payment.state == "approved",
-                "created": datetime.utcnow().timestamp(),
+                "created": datetime.now(timezone.utc).timestamp(),
                 "approval_url": approval_url
             }
         else:

@@ -13,127 +13,143 @@ import uuid
 scheduler = None
 
 async def simulate_patch_deployment(job_id: str, patch_count: int, asset_count: int):
-    """Simulate patch deployment progress (imported from app.py logic)"""
+    """
+    UI progress animation for patch deployment.
+    Only animates progress — never overwrites status when real agents have been dispatched.
+    Real completion is set by deployment_result_endpoints when agents report back.
+    Falls back to marking Completed only when instructionsQueued == 0 (no real agents).
+    """
     db = get_database()
-    
+
     try:
+        # Determine whether real agent instructions were queued
+        job = await db.patch_deployment_jobs.find_one({"id": job_id}, {"instructionsQueued": 1})
+        has_real_agents = job and job.get("instructionsQueued", 0) > 0
+
         total_operations = patch_count * asset_count
-        
+
         for asset_idx in range(asset_count):
             for patch_idx in range(patch_count):
-                await asyncio.sleep(2)  # Simulate deployment time
-                
+                await asyncio.sleep(2)
+
+                # Stop animation if agents already completed/failed the job
+                current = await db.patch_deployment_jobs.find_one(
+                    {"id": job_id}, {"status": 1}
+                )
+                if current and current.get("status") in ("Completed", "Failed", "Partially Completed"):
+                    return
+
                 completed = (asset_idx * patch_count) + (patch_idx + 1)
-                progress = int((completed / total_operations) * 100)
-                
-                log_entry = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "message": f"Deployed patch {patch_idx + 1}/{patch_count} to asset {asset_idx + 1}/{asset_count}"
-                }
-                
+                progress = int((completed / total_operations) * 99)  # cap at 99 — agents set 100
+
                 await db.patch_deployment_jobs.update_one(
                     {"id": job_id},
                     {
                         "$set": {"progress": progress},
-                        "$push": {"statusLog": log_entry}
-                    }
+                        "$push": {"statusLog": {
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "message": f"Waiting for agent: patch {patch_idx + 1}/{patch_count} on asset {asset_idx + 1}/{asset_count}",
+                            "level": "info",
+                        }},
+                    },
                 )
-        
-        # Mark as completed
-        await db.patch_deployment_jobs.update_one(
-            {"id": job_id},
-            {
-                "$set": {
-                    "status": "Completed",
-                    "progress": 100,
-                    "completedAt": datetime.now(timezone.utc).isoformat()
-                },
-                "$push": {
-                    "statusLog": {
+
+        # Only auto-complete when no real agents were dispatched (demo/no-agent mode)
+        if not has_real_agents:
+            await db.patch_deployment_jobs.update_one(
+                {"id": job_id},
+                {
+                    "$set": {
+                        "status": "Completed",
+                        "progress": 100,
+                        "completedAt": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "$push": {"statusLog": {
                         "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "message": f"All {patch_count} patches successfully deployed to {asset_count} assets"
-                    }
-                }
-            }
-        )
-        
+                        "message": f"[Demo] {patch_count} patches deployed to {asset_count} assets (no agents registered)",
+                        "level": "warn",
+                    }},
+                },
+            )
+
     except Exception as e:
-        # Mark as failed
         await db.patch_deployment_jobs.update_one(
             {"id": job_id},
             {
-                "$set": {
-                    "status": "Failed",
-                    "error": str(e)
-                },
-                "$push": {
-                    "statusLog": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "message": f"Deployment failed: {str(e)}",
-                        "level": "error"
-                    }
-                }
-            }
+                "$set": {"status": "Failed", "error": str(e)},
+                "$push": {"statusLog": {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "message": f"Deployment failed: {e}",
+                    "level": "error",
+                }},
+            },
         )
 
 
 async def simulate_software_deployment(job_id: str, update_count: int):
-    """Simulate software update deployment progress"""
+    """
+    Dispatches software update instructions to target agents and tracks real progress.
+    Only auto-completes when no real agents were dispatched (demo/no-agent mode).
+    """
     db = get_database()
-    
+
     try:
-        for i in range(1, update_count + 1):
-            await asyncio.sleep(3)  # Simulate deployment time
-            
-            progress = int((i / update_count) * 100)
-            
-            log_entry = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": f"Deployed {i}/{update_count} software update(s)"
-            }
-            
+        # Determine whether real agent instructions were queued
+        job = await db.software_deployment_jobs.find_one({"id": job_id})
+        has_real_agents = job and job.get("instructionsQueued", 0) > 0
+
+        total = max(update_count, 1)
+
+        for i in range(1, total + 1):
+            await asyncio.sleep(2)
+
+            # Stop animation if agents already completed/failed the job
+            current = await db.software_deployment_jobs.find_one({"id": job_id}, {"status": 1})
+            if current and current.get("status") in ("Completed", "Failed", "Partially Completed"):
+                return
+
+            progress = int((i / total) * 99)  # cap at 99 — agents set 100
+
             await db.software_deployment_jobs.update_one(
                 {"id": job_id},
                 {
                     "$set": {"progress": progress},
-                    "$push": {"statusLog": log_entry}
+                    "$push": {"statusLog": {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "message": f"Waiting for agent: update {i}/{total}",
+                        "level": "info",
+                    }},
                 }
             )
-        
-        # Mark as completed
-        await db.software_deployment_jobs.update_one(
-            {"id": job_id},
-            {
-                "$set": {
-                    "status": "Completed",
-                    "progress": 100,
-                    "completedAt": datetime.now(timezone.utc).isoformat()
-                },
-                "$push": {
-                    "statusLog": {
+
+        # Only auto-complete when no real agents were dispatched
+        if not has_real_agents:
+            await db.software_deployment_jobs.update_one(
+                {"id": job_id},
+                {
+                    "$set": {
+                        "status": "Completed",
+                        "progress": 100,
+                        "completedAt": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "$push": {"statusLog": {
                         "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "message": f"All {update_count} software updates successfully deployed"
-                    }
+                        "message": f"[Demo] {total} software updates marked complete (no agents registered)",
+                        "level": "warn",
+                    }},
                 }
-            }
-        )
-        
+            )
+
     except Exception as e:
-        # Mark as failed
         await db.software_deployment_jobs.update_one(
             {"id": job_id},
             {
-                "$set": {
-                    "status": "Failed",
-                    "error": str(e)
-                },
-                "$push": {
-                    "statusLog": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "message": f"Deployment failed: {str(e)}",
-                        "level": "error"
-                    }
-                }
+                "$set": {"status": "Failed", "error": str(e)},
+                "$push": {"statusLog": {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "message": f"Deployment failed: {e}",
+                    "level": "error",
+                }},
             }
         )
 
@@ -144,6 +160,9 @@ async def process_scheduled_deployments():
     Runs every minute via scheduler
     """
     try:
+        from tenant_context import set_tenant_id
+        set_tenant_id("platform-admin")
+        
         db = get_database()
         now = datetime.now(timezone.utc)
         

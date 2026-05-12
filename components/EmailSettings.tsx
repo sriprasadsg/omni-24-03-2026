@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { MailIcon, CheckIcon, XCircleIcon, CogIcon } from './icons';
+import { authFetch } from '../services/apiService';
 
 export const EmailSettings: React.FC = () => {
     const { currentUser } = useUser();
@@ -35,7 +36,7 @@ export const EmailSettings: React.FC = () => {
     const loadConfig = async () => {
         if (!currentUser) return;
         try {
-            const response = await fetch(`/api/tenants/${currentUser.tenantId}/email/config`);
+            const response = await authFetch(`/api/tenants/${currentUser.tenantId}/email/config`);
             const data = await response.json();
             if (data.success && data.config) {
                 setConfig({ ...config, ...data.config, smtpPassword: '' });
@@ -49,7 +50,7 @@ export const EmailSettings: React.FC = () => {
     const loadPreferences = async () => {
         if (!currentUser) return;
         try {
-            const response = await fetch(`http://localhost:5001/api/tenants/${currentUser.tenantId}/email/preferences`);
+            const response = await authFetch(`/api/tenants/${currentUser.tenantId}/email/preferences`);
             const data = await response.json();
             if (data.success && data.preferences) {
                 setPreferences(data.preferences);
@@ -64,9 +65,8 @@ export const EmailSettings: React.FC = () => {
         setLoading(true);
         setMessage(null);
         try {
-            const response = await fetch(`http://localhost:5001/api/tenants/${currentUser.tenantId}/email/config`, {
+            const response = await authFetch(`/api/tenants/${currentUser.tenantId}/email/config`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
             });
             const data = await response.json();
@@ -88,9 +88,8 @@ export const EmailSettings: React.FC = () => {
         setLoading(true);
         setMessage(null);
         try {
-            const response = await fetch(`http://localhost:5001/api/tenants/${currentUser.tenantId}/email/test`, {
+            const response = await authFetch(`/api/tenants/${currentUser.tenantId}/email/test`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ testEmail })
             });
             const data = await response.json();
@@ -109,9 +108,8 @@ export const EmailSettings: React.FC = () => {
         setLoading(true);
         setMessage(null);
         try {
-            const response = await fetch(`http://localhost:5001/api/tenants/${currentUser.tenantId}/email/preferences`, {
+            const response = await authFetch(`/api/tenants/${currentUser.tenantId}/email/preferences`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(preferences)
             });
             const data = await response.json();

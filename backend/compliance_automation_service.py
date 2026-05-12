@@ -15,6 +15,32 @@ from reportlab.lib import colors
 
 logger = logging.getLogger(__name__)
 
+
+async def _calc_avg_resolution_hours(db, tenant_id: str, days: int) -> float:
+    """Calculate average alert resolution time in hours from closed alerts."""
+    try:
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        cursor = db.alerts.find(
+            {"tenant_id": tenant_id, "status": {"$in": ["resolved", "closed"]},
+             "timestamp": {"$gte": since}, "resolved_at": {"$exists": True}},
+            {"timestamp": 1, "resolved_at": 1},
+        )
+        total_hours = 0.0
+        count = 0
+        async for doc in cursor:
+            try:
+                opened = datetime.fromisoformat(doc["timestamp"].replace("Z", "+00:00"))
+                closed = datetime.fromisoformat(doc["resolved_at"].replace("Z", "+00:00"))
+                total_hours += (closed - opened).total_seconds() / 3600
+                count += 1
+            except Exception:
+                pass
+        return round(total_hours / count, 2) if count else 0.0
+    except Exception as exc:
+        logger.debug("Could not compute avg resolution time: %s", exc)
+        return 0.0
+
+
 class ComplianceAutomationService:
     """Service for automated compliance evidence collection"""
     
@@ -47,7 +73,7 @@ class ComplianceAutomationService:
             "type": "patch_compliance",
             "framework": framework,
             "tenant_id": tenant_id,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": {
                 "total_agents": total_agents,
                 "patched_agents": patched_agents,
@@ -78,10 +104,30 @@ class ComplianceAutomationService:
         high_vulns = len([v for v in vulns if v.get("severity") == "High"])
         remediated = len([v for v in vulns if v.get("status") == "Resolved"])
         
+        # Derive real scan coverage from agent OSV scans
+        total_agents = await self.db.agents.count_documents({"tenantId": tenant_id})
+        scanned_agents = await self.db.agent_vulnerability_scans.count_documents({"tenantId": tenant_id})
+        scan_coverage_pct = round(scanned_agents / max(total_agents, 1) * 100, 1) if total_agents else 0
+
+        # Last scan timestamp from most recent agent scan
+        last_scan_doc = await self.db.agent_vulnerability_scans.find_one(
+            {"tenantId": tenant_id}, sort=[("scanned_at", -1)]
+        )
+        last_scan_ts = last_scan_doc["scanned_at"] if last_scan_doc else datetime.now(timezone.utc).isoformat()
+
+        # Tally scan sources across all recent agent scans
+        scan_sources: Dict[str, int] = {}
+        async for scan in self.db.agent_vulnerability_scans.find({"tenantId": tenant_id}, {"scan_source": 1}):
+            src = scan.get("scan_source", "unknown")
+            scan_sources[src] = scan_sources.get(src, 0) + 1
+        tool_names = ", ".join(
+            f"{s.capitalize()} ({c})" for s, c in scan_sources.items()
+        ) or "Omni Agent Scanner"
+
         evidence = {
             "type": "vulnerability_scan",
             "tenant_id": tenant_id,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": {
                 "total_vulnerabilities": total_vulns,
                 "critical": critical_vulns,
@@ -90,9 +136,11 @@ class ComplianceAutomationService:
                 "remediation_rate": round((remediated / total_vulns * 100) if total_vulns > 0 else 0, 2)
             },
             "scan_summary": {
-                "last_scan": datetime.utcnow().isoformat(),
-                "scan_coverage": "100%",
-                "scan_tool": "Omni Agent Scanner"
+                "last_scan": last_scan_ts,
+                "scan_coverage": f"{scan_coverage_pct}%",
+                "scanned_agents": scanned_agents,
+                "total_agents": total_agents,
+                "scan_tool": tool_names,
             }
         }
         
@@ -112,7 +160,7 @@ class ComplianceAutomationService:
         evidence = {
             "type": "agent_status",
             "tenant_id": tenant_id,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": {
                 "total_agents": len(agents),
                 "online": online,
@@ -130,7 +178,7 @@ class ComplianceAutomationService:
         await self.init_db()
         
         # Get alerts from last N days
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         
         pipeline = [
             {
@@ -155,13 +203,13 @@ class ComplianceAutomationService:
         evidence = {
             "type": "security_alerts",
             "tenant_id": tenant_id,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "period_days": days,
             "metrics": {
                 "total_alerts": stats["total"],
                 "critical_alerts": stats["critical"],
                 "resolved_alerts": stats["resolved"],
-                "average_resolution_time_hours": 0 # TODO: Calculate if timestamps available
+                "average_resolution_time_hours": await _calc_avg_resolution_hours(self.db, tenant_id, days)
             }
         }
         
@@ -190,7 +238,7 @@ class ComplianceAutomationService:
             "schedule": rule.get("schedule", "weekly"),
             "framework": rule.get("framework", "All"),
             "enabled": True,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "last_run": None
         }
         
@@ -222,7 +270,7 @@ class ComplianceAutomationService:
         # Title
         story.append(Paragraph(f"Compliance Evidence Package - {framework}", styles['Title']))
         story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", styles['Normal']))
+        story.append(Paragraph(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}", styles['Normal']))
         story.append(Spacer(1, 24))
         
         # Generate all evidence types

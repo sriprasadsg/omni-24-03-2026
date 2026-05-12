@@ -101,11 +101,7 @@ class VSSManagerCapability(BaseCapability):
             return {"success": False, "message": "Rollback requires Windows OS"}
 
         volume = params.get("volume", "C:")
-        
-        # In a real enterprise EDR, restoring from VSS involves mounting the shadow 
-        # and copying the affected files over, or using wmic shadowcopy.
-        # Here we simulate the process for the dashboard response.
-        
+
         # 1. Verify VSS exists
         status = self.collect()
         if not status.get("shadow_copies"):
@@ -115,14 +111,47 @@ class VSSManagerCapability(BaseCapability):
             }
             
         latest_vss = sorted(status["shadow_copies"], key=lambda x: x.get("creation_time", ""), reverse=True)[0]
-        logger.warning(f"RANSOMWARE ROLLBACK INITIATED using VSS ID: {latest_vss.get('shadow_id')}")
-        
-        # 2. Simulate restoring files
-        import time
-        time.sleep(3) # Simulate I/O 
-        
+        shadow_id = latest_vss.get("shadow_id", "")
+        logger.warning(f"RANSOMWARE ROLLBACK INITIATED using VSS ID: {shadow_id}")
+
+        # Restore via diskshadow: expose the shadow copy as a drive letter then robocopy files back
+        try:
+            diskshadow_script = (
+                f"expose {shadow_id} X:\r\n"
+                f"unexpose X:\r\n"
+            )
+            script_path = r"C:\Windows\Temp\vss_expose.dsh"
+            with open(script_path, "w") as f:
+                f.write(diskshadow_script)
+
+            expose_result = subprocess.run(
+                ["diskshadow", "/s", script_path],
+                capture_output=True, text=True, timeout=30
+            )
+            exposed = expose_result.returncode == 0
+
+            # Robocopy the volume root back from the exposed shadow
+            if exposed:
+                copy_result = subprocess.run(
+                    ["robocopy", f"X:\\", f"{volume}\\", "/E", "/R:1", "/W:1", "/NFL", "/NDL"],
+                    capture_output=True, text=True, timeout=300
+                )
+                # Robocopy exit codes 0-7 are success/partial success
+                restored = copy_result.returncode <= 7
+            else:
+                restored = False
+        except Exception as exc:
+            logger.error(f"VSS restore subprocess error: {exc}")
+            restored = False
+
+        if restored:
+            return {
+                "success": True,
+                "message": f"Rolled back {volume} from Shadow Copy {shadow_id} (Created: {latest_vss.get('creation_time')})",
+                "metadata": {"shadow_id": shadow_id},
+            }
         return {
-            "success": True,
-            "message": f"Successfully rolled back encrypted files on {volume} using Shadow Copy {latest_vss.get('shadow_id')} (Created: {latest_vss.get('creation_time')})",
-            "metadata": {"shadow_id": latest_vss.get('shadow_id')}
+            "success": False,
+            "message": f"VSS restore attempted for {shadow_id} but could not complete. Check agent logs.",
+            "metadata": {"shadow_id": shadow_id},
         }

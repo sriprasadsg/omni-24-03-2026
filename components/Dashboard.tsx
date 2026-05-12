@@ -24,7 +24,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ metrics, alerts, complianc
       <DashboardHeader userName={currentUser.name} setCurrentView={setCurrentView} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {metrics.map(metric => <MetricCard key={metric.name} metric={metric} />)}
+        {metrics.map(metric => <MetricCard key={metric.id} metric={metric} />)}
       </div>
 
       <AiInsights metrics={metrics} alerts={alerts} />

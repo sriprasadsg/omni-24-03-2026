@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List
+from datetime import datetime, timezone
 from data_quality_service import quality_service
 from data_governance_service import governance_service
+from pii_service import PIIService
 from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api", tags=["Data Governance & Quality"])
@@ -13,17 +15,25 @@ async def scan_data(
     data: Dict[str, Any],
     current_user: dict = Depends(require_permission("view:system"))
 ):
-    """
-    On-demand scan of a data record for PII and classification.
-    """
-    pii_types = governance_service.scan_for_pii(str(data))
-    classification = governance_service.classify_data(data)
-    
+    """On-demand scan of a data record for PII and classification using expanded PIIService."""
+    text = str(data)
+    result = PIIService.scan(text)
+
     return {
-        "pii_detected": pii_types,
-        "classification": classification,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "pii_detected": result["pii_types_found"],
+        "classification": result["overall_classification"].upper(),
+        "detection_count": result["detection_count"],
+        "detections": result["detections"],
+        "max_severity": result["max_severity"],
+        "redacted_preview": result["redacted_text"][:500],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/governance/pii-patterns")
+async def get_pii_patterns(current_user: dict = Depends(require_permission("view:reporting"))):
+    """Return catalog of all PII detection pattern types."""
+    return {"patterns": PIIService.get_pattern_catalog(), "total": len(PIIService.get_pattern_catalog())}
 
 @router.get("/governance/catalog")
 async def get_catalog(
@@ -40,24 +50,44 @@ async def get_catalog(
 async def get_quality_report(
     current_user: dict = Depends(require_permission("view:reporting"))
 ):
-    """
-    Get a simulated data quality report.
-    """
-    # Simulate a dataset check
+    """Get a data quality report based on real record counts from the database."""
+    from database import get_database
+    db = get_database()
+
+    # Count real records across key collections
+    asset_count = await db.assets.count_documents({})
+    agent_count = await db.agents.count_documents({})
+    event_count = await db.security_events.count_documents({})
+    alert_count = await db.alerts.count_documents({})
+    total_records = asset_count + agent_count + event_count + alert_count
+
+    # Sample assets for quality scoring (up to 50)
+    sample_docs = await db.assets.find({}, {"_id": 0, "hostname": 1, "ipAddress": 1, "osType": 1}).to_list(length=50)
     sample_dataset = [
-        {"id": 1, "name": "Valid Record", "email": "test@example.com"},
-        {"id": 2, "name": "Incomplete", "email": ""}, # Missing email
-        {"id": 3, "name": None, "email": "no-name@example.com"} # Missing name
+        {"id": doc.get("hostname", ""), "name": doc.get("hostname"), "ip": doc.get("ipAddress", "")}
+        for doc in sample_docs
     ]
-    
+    if not sample_dataset:
+        sample_dataset = [{"id": "no-data", "name": "No assets ingested", "ip": ""}]
+
     score = quality_service.calculate_quality_score(sample_dataset)
-    quarantined = quality_service.get_quarantined_items()
-    
+    quarantined = await quality_service.get_quarantined_items()
+
+    # Derive common issues from the sample
+    issues = []
+    missing_ip = sum(1 for d in sample_dataset if not d.get("ip"))
+    if missing_ip:
+        issues.append(f"{missing_ip} assets missing IP address")
+    if agent_count == 0:
+        issues.append("No agents registered")
+    if not issues:
+        issues.append("No data quality issues detected")
+
     return {
         "overall_quality_score": round(score, 2),
-        "total_records_scanned": 15420, # Simulated total
+        "total_records_scanned": total_records,
         "quarantined_count": len(quarantined),
-        "common_issues": ["Missing 'email' field", "Invalid timestamp format"],
+        "common_issues": issues,
         "status": "Healthy" if score > 80 else "Needs Attention"
     }
 
@@ -76,7 +106,7 @@ async def validate_record(
     completeness = quality_service.check_completeness(record)
     
     if not is_valid:
-        quality_service.quarantine_data(record, "Missing required fields")
+        await quality_service.quarantine_data(record, "Missing required fields")
         
     return {
         "valid": is_valid,
