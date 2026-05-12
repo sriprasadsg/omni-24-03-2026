@@ -578,6 +578,7 @@ export const fetchIntegrations = async () => {
         return [];
     }
 };
+
 export const fetchAlertRules = async (tenantId?: string): Promise<AlertRule[]> => {
     try {
         const url = tenantId ? `${API_BASE}/alert-rules?tenantId=${tenantId}` : `${API_BASE}/alert-rules`;
