@@ -8,8 +8,8 @@ router = APIRouter(prefix="/api/baa", tags=["BAA Management"])
 
 
 async def _db():
-    from app import db
-    return db
+    from database import get_database
+    return get_database()
 
 
 def _normalize(doc: dict) -> dict:

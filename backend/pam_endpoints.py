@@ -8,8 +8,8 @@ router = APIRouter(prefix="/api/pam", tags=["PAM"])
 
 
 async def _db():
-    from app import db
-    return db
+    from database import get_database
+    return get_database()
 
 
 # ── Privileged Accounts ────────────────────────────────────────────────────────
