@@ -207,7 +207,7 @@ async def generate_signing_keypair(
             db=db,
             event_type="signing_key_generated",
             details={"key_id": key_id, "algorithm": "RSA-2048", "created_by": getattr(current_user, "username", "unknown")},
-            severity="info",
+            severity="Info",
         )
 
         # Return the private key exactly once — caller must store it securely.
@@ -293,7 +293,7 @@ async def verify_agent_integrity(
                     "reported_checksum": data.get("checksum"),
                     "expected_checksum": expected_checksum
                 },
-                severity="critical"
+                severity="Critical"
             )
         
         return result

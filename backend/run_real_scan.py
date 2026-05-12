@@ -3,7 +3,7 @@ import json
 from server_discovery import ServerDiscovery
 from database import connect_to_mongo, close_mongo_connection, get_database
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 async def main():
     print("Starting network discovery scan...")
@@ -67,3 +67,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from database import get_database
 import logging
@@ -46,3 +46,4 @@ class AuditService:
             return False
 
 audit_service = AuditService()
+

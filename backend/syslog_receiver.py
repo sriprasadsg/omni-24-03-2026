@@ -2,7 +2,7 @@ import asyncio
 import logging
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_database
 import uuid
 
@@ -71,3 +71,4 @@ async def start_syslog_server(host="0.0.0.0", port=5140, tenant_id="default"):
         local_addr=(host, port)
     )
     return transport
+

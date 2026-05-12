@@ -1,7 +1,7 @@
 from ai_service import ai_service
 import json
 from database import get_database
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 class AIPlaybookService:

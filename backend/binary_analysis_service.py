@@ -16,7 +16,7 @@ import tempfile
 import subprocess
 import threading
 from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -387,3 +387,4 @@ class BinaryAnalysisService:
 
 # Module-level singleton
 binary_analysis_service = BinaryAnalysisService()
+

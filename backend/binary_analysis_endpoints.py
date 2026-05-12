@@ -5,7 +5,7 @@ File upload for static PE analysis, YARA scanning, and lightweight sandbox.
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -157,3 +157,4 @@ async def check_hash(
         "previous_verdict": (job["report"].get("verdict") if job else None),
         "previous_threat_score": (job["report"].get("threat_score") if job else None),
     }
+

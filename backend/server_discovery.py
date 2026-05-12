@@ -10,7 +10,7 @@ import logging
 import platform
 import subprocess
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 import ipaddress
 import urllib.request
 import json
@@ -581,3 +581,4 @@ class ServerDiscovery:
             return True
         except:
             return False
+

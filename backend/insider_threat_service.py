@@ -1,5 +1,5 @@
 """Insider Threat Detection Service — behavioral scoring, risk ranking."""
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import uuid
 
 
@@ -103,3 +103,4 @@ class InsiderThreatService:
                     "profile_id": profile["_id"],
                 }
                 await self.col_alerts.insert_one(alert)
+

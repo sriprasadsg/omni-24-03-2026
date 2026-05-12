@@ -1,7 +1,7 @@
 import hashlib
 import time
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 class ProvenanceVerifier:
     """
@@ -82,3 +82,4 @@ class ProvenanceVerifier:
 
 # Singleton Instance
 provenance_engine = ProvenanceVerifier()
+

@@ -1,5 +1,5 @@
 """Database Activity Monitoring (DAM) service."""
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import uuid
 
 
@@ -138,3 +138,4 @@ class DAMService:
                 "first_access": first,
                 "hour": hour,
             })
+

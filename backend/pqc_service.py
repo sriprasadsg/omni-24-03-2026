@@ -2,7 +2,7 @@ import hashlib
 import os
 import time
 from typing import Dict, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 class PqcService:
     """
@@ -78,3 +78,4 @@ class PqcService:
 
 # Singleton PQC Service
 pqc_engine = PqcService()
+

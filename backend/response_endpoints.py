@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.background import BackgroundTasks
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -241,3 +241,4 @@ async def list_quarantine(
 async def initialize_response_module():
     """Call this from app.py startup to seed built-in policies."""
     await seed_builtin_policies()
+

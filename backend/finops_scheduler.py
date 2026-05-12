@@ -5,7 +5,7 @@ Includes FinOps cost recalculation for all tenants.
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime
+from datetime import datetime, timezone
 
 scheduler = None
 
@@ -126,3 +126,4 @@ def stop_scheduler():
 # Export scheduler instance for debugging
 def get_scheduler():
     return scheduler
+

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from database import get_database
 
 router = APIRouter(prefix="/api/kpi", tags=["Business KPI"])
@@ -130,3 +130,4 @@ async def get_business_metrics(current_user: TokenData = Depends(rbac_service.ha
         },
         "trends": data
     }
+

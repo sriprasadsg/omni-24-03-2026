@@ -1,3 +1,4 @@
+from datetime import timezone
 
 import asyncio
 import uuid
@@ -138,3 +139,4 @@ if __name__ == "__main__":
         await connect_to_mongo()
         await verify_smart_merge()
     asyncio.run(run())
+

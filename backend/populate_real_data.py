@@ -3,7 +3,7 @@ import json
 import os
 from database import connect_to_mongo, close_mongo_connection, get_database
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 async def main():
     if not os.path.exists("scan_results.json"):
@@ -74,3 +74,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

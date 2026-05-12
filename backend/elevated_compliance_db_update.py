@@ -1,6 +1,6 @@
 import subprocess
 import pymongo
-from datetime import datetime
+from datetime import datetime, timezone
 import socket
 
 print("Running Elevated Compliance Checks...")
@@ -120,3 +120,4 @@ for check in compliance_data['compliance_checks']:
         print(f"Update: {control_id} -> {compliance_status}")
 
 print(f"Direct DB Injection Complete. Pushed {updated_count} evidence items.")
+

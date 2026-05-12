@@ -3,7 +3,7 @@ from database import get_database
 from authentication_service import get_current_user
 from models import User
 import uuid
-import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/remote", tags=["Remote Access"])
 
@@ -60,7 +60,7 @@ async def start_remote_session(payload: dict, current_user: User = Depends(get_c
         "protocol": protocol,
         "type": session_type,
         "status": "pending",
-        "created_at": datetime.datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.remote_sessions.insert_one(session_data)
     
@@ -80,7 +80,7 @@ async def start_remote_session(payload: dict, current_user: User = Depends(get_c
             "url": f"{_agent_ws_base}/api/tunnel/{session_id}/agent",
         },
         "status": "pending",
-        "created_at": datetime.datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.agent_instructions.insert_one(instruction)
 

@@ -1,7 +1,7 @@
 import hashlib
 import uuid
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 class ConfidentialEnclave:
     """
@@ -72,3 +72,4 @@ class EnclaveOrchestrator:
 
 # Singleton Orchestrator
 enclave_manager = EnclaveOrchestrator()
+

@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Header, Back
 from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user, create_access_token
-import datetime
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 import uuid
 import json
 from cache_service import cached, invalidate_cache
@@ -117,13 +116,13 @@ async def register_agent(data: Dict[str, Any] = Body(...), background_tasks: Bac
         "ipAddress": data.get("ipAddress", "0.0.0.0"),
         "deviceId": data.get("device_id") or data.get("deviceId"),
         "status": "Online",
-        "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
-        "registeredAt": existing_agent.get("registeredAt") if existing_agent else datetime.datetime.now(timezone.utc).isoformat()
+        "lastSeen": datetime.now(timezone.utc).isoformat(),
+        "registeredAt": existing_agent.get("registeredAt") if existing_agent else datetime.now(timezone.utc).isoformat()
     }
     
     # Log to file for debugging
     with open("register_debug.log", "a") as f:
-        f.write(f"[{datetime.datetime.now(timezone.utc)}] Registering agent {agent_id} for tenant {tenant['id']}\n")
+        f.write(f"[{datetime.now(timezone.utc)}] Registering agent {agent_id} for tenant {tenant['id']}\n")
         f.write(f"Data: {json.dumps(agent_data)}\n")
 
     result = await db.agents.update_one(
@@ -156,7 +155,7 @@ async def register_agent(data: Dict[str, Any] = Body(...), background_tasks: Bac
         "osExperience": data.get("osExperience") or (existing_asset.get("osExperience") if existing_asset else ""),
         "ipAddress": data.get("ipAddress", "0.0.0.0"),
         "macAddress": data.get("macAddress", "00:00:00:00:00:00"),
-        "lastScanned": datetime.datetime.now(timezone.utc).isoformat(),
+        "lastScanned": datetime.now(timezone.utc).isoformat(),
         # Use comprehensive data from agent if available
         "cpuModel": data.get("cpuModel", "Unknown"),
         "cpuCores": data.get("cpuCores", 0),
@@ -286,7 +285,7 @@ async def get_agents(
     
     # Pagination results
     agents = result.get("items", [])
-    current_time = datetime.datetime.now(datetime.timezone.utc)
+    current_time = datetime.now(timezone.utc)
     
     for agent in agents:
         if "meta" not in agent:
@@ -570,7 +569,7 @@ async def get_agent_instructions(
         ids = [i["_id"] for i in instructions]
         await db.agent_instructions.update_many(
             {"_id": {"$in": ids}},
-            {"$set": {"status": "sent", "sent_at": datetime.datetime.now(timezone.utc).isoformat()}}
+            {"$set": {"status": "sent", "sent_at": datetime.now(timezone.utc).isoformat()}}
         )
         
     return [{"instruction": i.get("type"), "payload": i.get("payload")} for i in instructions]
@@ -666,14 +665,14 @@ async def dispatch_agent_task(
     Dispatch a task to an agent.
     """
     db = get_database()
-    task_id = f"task-{datetime.datetime.now(timezone.utc).timestamp()}"
+    task_id = f"task-{datetime.now(timezone.utc).timestamp()}"
     
     new_task = {
         "id": task_id,
         "description": task.get("description"),
         "agentId": task.get("agentId"),
         "status": "pending",
-        "created_at": datetime.datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": getattr(current_user, "username", None) or (current_user.get("username") if isinstance(current_user, dict) else None)
     }
     
@@ -741,7 +740,7 @@ async def move_agent(
     # Update Agent
     await db.agents.update_one(
         {"id": agent_id},
-        {"$set": {"tenantId": target_tenant_id, "updatedAt": datetime.datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"tenantId": target_tenant_id, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     
     # Update associated Asset if exists
@@ -822,7 +821,7 @@ async def update_agent(
     if not set_data:
         return agent # No changes
 
-    set_data["updatedAt"] = datetime.datetime.now(timezone.utc).isoformat()
+    set_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
     
     await db.agents.update_one({"id": agent_id}, {"$set": set_data})
     
@@ -995,7 +994,7 @@ async def trigger_network_scan(
         "agent_id": agent_id,
         "instruction": instruction,
         "status": "pending",
-        "created_at": datetime.datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": getattr(current_user, "email", "unknown")
     }
     
@@ -1056,7 +1055,7 @@ async def report_network_scan_results(
             "hostname": hostname or device.get("hostname"),
             "type": device.get("device_type", "Unknown"),
             "status": device.get("status", "Up"),
-            "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
+            "lastSeen": datetime.now(timezone.utc).isoformat(),
             "vulnerabilities": device_vulns,
         }
 
@@ -1109,7 +1108,7 @@ async def request_approval(
         "reasoning": request.reasoning,
         "details": request.details,
         "status": "pending",
-        "timestamp": datetime.datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     db = get_database()
@@ -1145,7 +1144,7 @@ async def decide_approval(
         {"id": request_id, "status": "pending"},
         {"$set": {
             "status": decision.decision,
-            "decision_timestamp": datetime.datetime.now(timezone.utc).isoformat(),
+            "decision_timestamp": datetime.now(timezone.utc).isoformat(),
             "decision_reason": decision.reason,
             "decided_by": getattr(current_user, "username", str(current_user)),
         }}
@@ -1234,7 +1233,7 @@ async def report_heartbeat(
     # 1. Update Agent Status
     update_data = {
         "status": "Online",
-        "lastSeen": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "lastSeen": datetime.now(timezone.utc).isoformat(),
         "ipAddress": payload.get("ipAddress"),
         "platform": payload.get("platform"),
         "version": payload.get("version"),
@@ -1263,7 +1262,7 @@ async def report_heartbeat(
     # Update DB with upsert
     result = await db.agents.update_one(
         {"id": agent_id},
-        {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.datetime.now(timezone.utc).isoformat()}},
+        {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
 
@@ -1276,7 +1275,7 @@ async def report_heartbeat(
             "cpu": _meta.get("current_cpu", 0),
             "memory": _meta.get("current_memory", 0),
             "disk": _meta.get("disk_usage", 0),
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         await db.agent_metrics_history.insert_one(_snapshot)
         # Keep only the last 100 snapshots per agent to control collection size
@@ -1298,7 +1297,7 @@ async def report_heartbeat(
         asset_update = {
             "ipAddress": payload.get("ipAddress"),
             "osName": payload.get("platform"),
-            "lastScanned": datetime.datetime.now(timezone.utc).isoformat(),
+            "lastScanned": datetime.now(timezone.utc).isoformat(),
         }
         
         # Add live metrics to asset if available
@@ -1313,7 +1312,7 @@ async def report_heartbeat(
                 "diskTotalGB": meta.get("disk_total_gb", 0),
                 "diskUsedGB": meta.get("disk_used_gb", 0),
                 "diskFreeGB": meta.get("disk_free_gb", 0),
-                "collectedAt": datetime.datetime.now(timezone.utc).isoformat()
+                "collectedAt": datetime.now(timezone.utc).isoformat()
             }
             
             # Update OS version safely
@@ -1378,7 +1377,7 @@ async def report_heartbeat(
 
         # 3. Archive metrics for historical charting (Phase 9 Integration)
         try:
-            timestamp = datetime.datetime.now(timezone.utc).isoformat()
+            timestamp = datetime.now(timezone.utc).isoformat()
             if "meta" in payload:
                 meta = payload["meta"]
                 metric_doc = {
@@ -1432,7 +1431,7 @@ async def report_heartbeat(
                     "service": entry.get("service", "os"),
                     "level": entry.get("level", "INFO"),
                     "message": entry.get("message", ""),
-                    "timestamp": entry.get("timestamp", datetime.datetime.now(timezone.utc).isoformat()),
+                    "timestamp": entry.get("timestamp", datetime.now(timezone.utc).isoformat()),
                     "hostname": payload.get("hostname", "unknown"),
                     "rawData": entry
                 }
@@ -1460,7 +1459,7 @@ async def report_heartbeat(
                 "findings": p_data.get("findings", []),
                 "count": p_data.get("count", 0),
                 "platform": p_data.get("platform"),
-                "timestamp": datetime.datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             await db.persistence_results.insert_one(result_record)
             print(f"DEBUG: Bridged {len(p_data.get('findings', []))} persistence findings for {agent_id}")
@@ -1478,7 +1477,7 @@ async def report_heartbeat(
                     "process": conn.get("process"),
                     "remote_ip": conn.get("remote_ip"),
                     "remote_host": conn.get("remote_host"),
-                    "timestamp": conn.get("timestamp", datetime.datetime.now(timezone.utc).isoformat())
+                    "timestamp": conn.get("timestamp", datetime.now(timezone.utc).isoformat())
                 }
                 await db.shadow_ai_events.insert_one(event)
                 
@@ -1534,7 +1533,7 @@ async def report_heartbeat(
                     "latest_version": sw.get("latest_version"),
                     "pkg_type": sw.get("pkg_type", "unknown"),
                     "is_outdated": sw.get("is_outdated", False),
-                    "last_scanned": datetime.datetime.now(timezone.utc).isoformat()
+                    "last_scanned": datetime.now(timezone.utc).isoformat()
                 }
                 # Upsert by agent + package name
                 await db.software_inventory.update_one(
@@ -1568,7 +1567,7 @@ async def report_heartbeat(
             await db.fim_violations.insert_many([
                 {**v, "agent_id": agent_id,
                  "tenantId": payload.get("tenantId", "default"),
-                 "timestamp": datetime.datetime.now(timezone.utc).isoformat()}
+                 "timestamp": datetime.now(timezone.utc).isoformat()}
                 for v in fim_data["violations"]
             ])
             print(f"DEBUG: Bridged {len(fim_data['violations'])} FIM violations for {agent_id}")
@@ -1595,7 +1594,7 @@ async def report_heartbeat(
                 {"agent_id": agent_id},
                 {"$set": {**pii_data, "agent_id": agent_id,
                           "tenantId": payload.get("tenantId", "default"),
-                          "timestamp": datetime.datetime.now(timezone.utc).isoformat()}},
+                          "timestamp": datetime.now(timezone.utc).isoformat()}},
                 upsert=True,
             )
             print(f"DEBUG: Bridged PII findings ({pii_data.get('findings_count', 0)}) for {agent_id}")
@@ -1691,7 +1690,7 @@ async def report_heartbeat(
                 {"$set": {
                     "status": "completed" if execution_result["success"] else "failed",
                     "result": execution_result,
-                    "completed_at": datetime.datetime.now(timezone.utc).isoformat()
+                    "completed_at": datetime.now(timezone.utc).isoformat()
                 }}
             )
         
@@ -1747,7 +1746,7 @@ async def report_software_inventory(
         {"$set": {
             "meta.software_inventory": sw_list,
             "meta.os_patches": os_p,
-            "lastSeen": datetime.datetime.now(timezone.utc).isoformat()
+            "lastSeen": datetime.now(timezone.utc).isoformat()
         }}
     )
 
@@ -1764,7 +1763,7 @@ async def report_software_inventory(
                 "latest_version": sw.get("latest_version"),
                 "pkg_type": sw.get("pkg_type", "unknown"),
                 "is_outdated": sw.get("is_outdated", False),
-                "last_scanned": datetime.datetime.now(timezone.utc).isoformat()
+                "last_scanned": datetime.now(timezone.utc).isoformat()
             }
             await db.software_inventory.update_one(
                 {"agent_id": agent_id, "name": sw_doc["name"]},
@@ -1793,7 +1792,7 @@ async def get_threat_intel_broadcasts(
     tenant_id = agent.get("tenantId", "default")
 
     # Look back 1 hour
-    threshold = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).isoformat()
+    threshold = (datetime.now(timezone.utc) - datetime.timedelta(hours=1)).isoformat()
     broadcasts = await db.threat_intel_broadcast.find(
         {
             "tenant_id": tenant_id,
@@ -1821,7 +1820,7 @@ async def receive_raw_logs(
     """Receive raw OS logs shipped by the LogShipperCapability and ingest into SIEM."""
     logs = payload.get("logs", [])
     if logs:
-        now = datetime.datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         docs = [
             {
                 "agent_id": agent_id,
@@ -1846,7 +1845,7 @@ async def receive_threat_hunt_results(
     """Store threat hunt results reported by an agent after run_threat_hunt dispatch."""
     await db.threat_hunt_results.insert_one({
         "agent_id": agent_id,
-        "timestamp": payload.get("timestamp", datetime.datetime.now(timezone.utc).isoformat()),
+        "timestamp": payload.get("timestamp", datetime.now(timezone.utc).isoformat()),
         "results": payload.get("results", {}),
     })
     return {"success": True}
@@ -1908,7 +1907,7 @@ async def ack_playbook(
                 "execution_log": {
                     "agent_id":    agent_id,
                     "status":      status,
-                    "acked_at":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "acked_at":    datetime.now(timezone.utc).isoformat(),
                 }
             },
         },
@@ -1955,7 +1954,7 @@ async def update_safety_rules(
     tenant_id = agent.get("tenantId")
     await db.agent_safety_rules.update_one(
         {"tenant_id": tenant_id},
-        {"$set": {**payload, "updated_at": datetime.datetime.now(timezone.utc).isoformat()}},
+        {"$set": {**payload, "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True,
     )
     return {"success": True, "tenant_id": tenant_id}
@@ -1983,7 +1982,7 @@ async def record_agentic_decision(
         "reasoning": payload.get("reasoning", ""),
         "requires_approval": bool(payload.get("requires_approval", False)),
         "status": "pending_approval" if payload.get("requires_approval") else "auto_approved",
-        "created_at": datetime.datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.agentic_decisions.insert_one(doc)
     doc.pop("_id", None)
@@ -2020,7 +2019,7 @@ async def approve_agentic_decision(
             "status": "approved" if approved else "rejected",
             "reviewer_note": payload.get("reviewer_note", ""),
             "reviewed_by": current_user.get("sub"),
-            "reviewed_at": datetime.datetime.now(timezone.utc).isoformat(),
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
         }},
     )
     return {"ok": True, "approved": approved}
@@ -2045,7 +2044,7 @@ async def ingest_fim_event(
         "severity": payload.get("severity", "high"),
         "message": payload.get("message", ""),
         "source": payload.get("source", "FileWatcher"),
-        "received_at": datetime.datetime.now(timezone.utc).isoformat(),
+        "received_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.fim_events.insert_one(doc)
     doc.pop("_id", None)
@@ -2080,7 +2079,7 @@ async def post_shadow_ai_scan(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    scanned_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    scanned_at = datetime.now(timezone.utc).isoformat()
     doc = {
         "agent_id": agent_id,
         "tenantId": tenant_id,
@@ -2156,7 +2155,7 @@ async def post_vulnerability_scan(
     doc = {
         "agent_id": agent_id,
         "tenantId": tenant_id,
-        "scanned_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
         "total_packages": body.get("total_packages", 0),
         "vulnerable_packages": body.get("vulnerable_packages", []),
         "total_cves": body.get("total_cves", 0),
@@ -2223,7 +2222,7 @@ async def post_persistence_findings(
     doc = {
         "agent_id": agent_id,
         "tenantId": tenant_id,
-        "scanned_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
         "total_entries": body.get("total_entries", 0),
         "suspicious_entries": body.get("suspicious_entries", []),
         "critical_count": body.get("critical_count", 0),

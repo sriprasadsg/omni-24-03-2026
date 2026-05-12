@@ -1,3 +1,4 @@
+from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Optional, Dict, Any
 from database import get_database
@@ -257,3 +258,4 @@ async def get_network_topology(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+

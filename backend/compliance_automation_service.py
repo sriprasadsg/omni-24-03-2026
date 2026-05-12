@@ -4,7 +4,7 @@ Automates evidence collection and compliance reporting
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
 from database import get_database
 import io
