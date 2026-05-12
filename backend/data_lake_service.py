@@ -2,7 +2,7 @@ import boto3
 import os
 import json
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from botocore.exceptions import NoCredentialsError, ClientError
 from typing import List, Optional, Dict, Any
 
@@ -99,3 +99,4 @@ class DataLakeService:
 
 # Global Instance
 data_lake_service = DataLakeService()
+

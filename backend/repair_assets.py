@@ -1,7 +1,7 @@
 
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 
 async def repair_assets():
@@ -77,3 +77,4 @@ async def repair_assets():
 
 if __name__ == "__main__":
     asyncio.run(repair_assets())
+

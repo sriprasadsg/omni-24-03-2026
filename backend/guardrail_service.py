@@ -1,7 +1,7 @@
 import re
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_database
 from tenant_context import get_tenant_id
 

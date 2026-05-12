@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Any
 from payment_gateway_service import PaymentGatewayInterface
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -161,3 +161,4 @@ class SquareGateway(PaymentGatewayInterface):
             "type": event.get("type"),
             "data": event.get("data")
         }
+

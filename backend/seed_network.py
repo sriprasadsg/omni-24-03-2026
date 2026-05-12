@@ -2,7 +2,7 @@
 import asyncio
 from database import connect_to_mongo, get_database, close_mongo_connection
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 async def seed_network():
     print("Connecting to database...")
@@ -92,3 +92,4 @@ async def seed_network():
 
 if __name__ == "__main__":
     asyncio.run(seed_network())
+

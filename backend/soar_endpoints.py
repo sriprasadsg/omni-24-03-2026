@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from database import get_database
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from soar_engine import soar_engine
 
@@ -80,3 +80,4 @@ async def get_playbook_runs(tenant_id: str = "default", limit: int = 50):
     for r in runs:
         r["_id"] = str(r["_id"])
     return {"runs": runs}
+

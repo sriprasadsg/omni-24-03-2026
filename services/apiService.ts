@@ -23,7 +23,11 @@ export type {
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings
 };
-// Initial data import removed for strict live telemetry parsing
+// Helper to ensure severity strings are consistent (e.g., "critical" -> "Critical")
+const normalizeSeverity = (severity: any): any => {
+    if (typeof severity !== 'string') return 'Low';
+    return severity.charAt(0).toUpperCase() + severity.slice(1).toLowerCase();
+};
 
 
 // Use relative path so Vite proxy handles it correctly
@@ -338,7 +342,11 @@ export const fetchAlerts = async (tenantId?: string) => {
         const res = await authFetch(`${API_BASE}/alerts`, { tenantId } as any);
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
-        ALERTS = data.items ? data.items : data;
+        const raw: Alert[] = data.items ? data.items : data;
+        ALERTS = raw.map(a => ({
+            ...a,
+            severity: normalizeSeverity(a.severity)
+        }));
         return ALERTS;
     } catch { return []; }
 };
@@ -508,7 +516,7 @@ export const fetchSecurityEvents = async () => {
             id: e.id ?? e._id ?? crypto.randomUUID(),
             tenantId: e.tenantId ?? e.tenant_id ?? '',
             timestamp: e.timestamp ?? e.time ?? e.ingestedAt ?? new Date().toISOString(),
-            severity: e.severity ?? e.severity_id ?? 'Low',
+            severity: normalizeSeverity(e.severity ?? e.severity_id ?? 'Low'),
             description: e.description ?? e.message ?? e.class_name ?? e.category_name ?? 'Security Event',
             type: e.type ?? e.class_name ?? e.category_name ?? 'Unknown',
             source: {

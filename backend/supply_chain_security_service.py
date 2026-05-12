@@ -1,5 +1,5 @@
 """Supply Chain Security Service — SLSA levels, dependency vulnerabilities, provenance."""
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -88,3 +88,4 @@ class SupplyChainSecurityService:
                     "status": status,
                     "detected_at": datetime.now(timezone.utc).isoformat(),
                 })
+

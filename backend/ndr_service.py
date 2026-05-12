@@ -1,5 +1,5 @@
 """Network Detection & Response (NDR) service — behavioral baseline, anomaly detection."""
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 import uuid
 import ipaddress
@@ -224,3 +224,4 @@ class NDRService:
         await self.col_anomalies.delete_many({"tenant_id": tenant_id})
         await self.run_detection(tenant_id)
         await self.run_detection(tenant_id)
+

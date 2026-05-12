@@ -1,5 +1,5 @@
 """API Security Service — inventory, abuse detection, schema enforcement."""
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import uuid
 import hashlib
 
@@ -113,3 +113,4 @@ class APISecurityService:
         open_alerts = await self.col_alerts.count_documents({"tenant_id": tenant_id, "status": "open"})
         return {"total_endpoints": total, "unauthenticated": unauthenticated,
                 "high_risk": high_risk, "open_alerts": open_alerts}
+

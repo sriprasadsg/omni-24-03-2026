@@ -1,7 +1,7 @@
 
 import paypalrestsdk
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from payment_gateway_service import PaymentGatewayInterface, SubscriptionStatus, InvoiceStatus
 import logging
 
@@ -176,3 +176,4 @@ class PayPalGateway(PaymentGatewayInterface):
             "type": event.get("event_type"),
             "data": event.get("resource")
         }
+

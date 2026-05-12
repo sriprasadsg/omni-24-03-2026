@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_database
 import logging
 
@@ -73,3 +73,4 @@ class PromptRegistry:
             return []
 
 prompt_registry = PromptRegistry()
+

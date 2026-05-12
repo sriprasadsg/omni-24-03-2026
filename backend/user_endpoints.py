@@ -1,3 +1,4 @@
+from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional
 from pydantic import BaseModel
@@ -218,3 +219,4 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
 
     await db.users.delete_one({"_id": obj_id})
     return {"message": "User deleted successfully"}
+

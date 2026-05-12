@@ -3,7 +3,7 @@ from typing import Dict
 import logging
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from authentication_service import get_current_user

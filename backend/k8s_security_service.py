@@ -1,5 +1,5 @@
 """Kubernetes Security Service — RBAC audit, pod security, CIS benchmark."""
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import hashlib
 
@@ -110,3 +110,4 @@ class K8sSecurityService:
         high = await self.col_findings.count_documents({"tenant_id": tenant_id, "severity": "high", "status": "fail"})
         total_findings = await self.col_findings.count_documents({"tenant_id": tenant_id})
         return {"clusters": clusters, "critical_findings": critical, "high_findings": high, "total_findings": total_findings}
+

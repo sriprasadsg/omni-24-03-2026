@@ -2,7 +2,7 @@
 import sys
 import os
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Adjust path to find backend modules
 sys.path.append(os.getcwd())
@@ -53,3 +53,4 @@ async def check():
 
 if __name__ == "__main__":
     asyncio.run(check())
+

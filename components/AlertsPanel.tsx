@@ -8,11 +8,17 @@ interface AlertsPanelProps {
   alerts: Alert[];
 }
 
-const severityClasses: Record<AlertSeverity, { bg: string, text: string, icon: string, border: string }> = {
+const severityClasses: Record<string, { bg: string, text: string, icon: string, border: string }> = {
   Critical: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500', border: 'border-red-500/30' },
   High: { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', icon: 'text-orange-500', border: 'border-orange-500/30' },
   Medium: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', icon: 'text-amber-500', border: 'border-amber-500/30' },
   Low: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', icon: 'text-blue-500', border: 'border-blue-500/30' },
+  Info: { bg: 'bg-slate-500/10', text: 'text-slate-600 dark:text-slate-400', icon: 'text-slate-500', border: 'border-slate-500/30' },
+};
+
+const getSeverityClasses = (severity: string) => {
+  const normalized = severity.charAt(0).toUpperCase() + severity.slice(1).toLowerCase();
+  return severityClasses[normalized] || severityClasses.Low;
 };
 
 import { useTimeZone } from '../contexts/TimeZoneContext';
@@ -42,7 +48,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts }) => {
       </div>
       <div className="p-6 space-y-3 flex-grow overflow-y-auto">
         {alerts.map(alert => {
-          const classes = severityClasses[alert.severity];
+          const classes = getSeverityClasses(alert.severity);
           const isExpanded = expandedAlertId === alert.id;
           return (
             <div key={alert.id} className={`rounded-2xl transition-all duration-200 border ${classes.border} ${classes.bg} hover:scale-[1.02] cursor-pointer`}>
