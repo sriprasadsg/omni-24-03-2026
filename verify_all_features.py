@@ -42,7 +42,8 @@ def test_agents(headers):
     try:
         res = requests.get(f"{API_BASE}/agents", headers=headers)
         if res.status_code == 200:
-            agents = res.json()
+            data = res.json()
+            agents = data if isinstance(data, list) else data.get("data", [])
             print_result("List Agents", True, f"Found {len(agents)} agents")
             for agent in agents[:3]:
                 print(f"   - {agent.get('hostname')} ({agent.get('status')}) ID: {agent.get('id')}")
@@ -92,7 +93,7 @@ def test_security(headers):
     endpoints = [
         ("Vulnerabilities", "/vulnerabilities"), 
         ("Patches", "/patches"),
-        ("Compliance Oracle", "/compliance_oracle/compliance-status") # Guessing endpoint
+        ("Compliance Oracle", "/cissp/oracle/domains")
     ]
     
     for name, endpoint in endpoints:
@@ -100,10 +101,9 @@ def test_security(headers):
             res = requests.get(f"{API_BASE}{endpoint}", headers=headers)
             if res.status_code == 200:
                 data = res.json()
-                count = len(data) if isinstance(data, list) else "N/A"
+                count = len(data) if isinstance(data, list) else len(data.get("data", [])) if isinstance(data, dict) else "N/A"
                 print_result(f"Fetch {name}", True, f"Count: {count}")
             else:
-                # 404 is expected if I guessed wrong, but we want to know
                 print_result(f"Fetch {name}", False, f"Status: {res.status_code}")
         except Exception as e:
             print_result(f"Fetch {name}", False, str(e))

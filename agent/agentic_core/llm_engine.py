@@ -2,7 +2,10 @@ import requests
 import json
 import logging
 import os
+import sys
 import time
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from local_ip import ollama_default_url
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +22,7 @@ class AgenticLLM:
         self.provider = self.config.get("provider", "ollama")
 
         # Local Ollama Config
-        self.base_url = self.config.get("base_url", "http://localhost:11434")
+        self.base_url = self.config.get("base_url") or ollama_default_url()
         self.model = self.config.get("model", "llama3.2:3b")
 
         # Backend API Config

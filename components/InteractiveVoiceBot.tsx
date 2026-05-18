@@ -113,7 +113,11 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                 recognition.onerror = (event: any) => {
                     isMainStarting.current = false;
                     console.error('[VoiceBot] Main recognition error:', event.error);
-                    if (event.error === 'aborted') {
+                    if (event.error === 'not-allowed') {
+                        setBotState('idle');
+                        setIsWakeWordEnabled(false);
+                        setDisplayText("Microphone access denied. Please allow microphone permission in your browser settings.");
+                    } else if (event.error === 'aborted') {
                         setDisplayText("Connection lost. Retrying assistant...");
                         setTimeout(() => setBotState('idle'), 1500);
                     } else if (event.error !== 'no-speech') {
@@ -159,8 +163,10 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
 
                 backgroundRec.onerror = (event: any) => {
                     isBackgroundStarting.current = false;
-                    // Silent on aborted/no-speech
-                    if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    if (event.error === 'not-allowed') {
+                        // Stop retrying wake-word detection if mic is denied
+                        setIsWakeWordEnabled(false);
+                    } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
                         console.warn("[VoiceBot] Background recognition error:", event.error);
                     }
                 };

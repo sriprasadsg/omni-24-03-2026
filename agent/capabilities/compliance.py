@@ -1156,7 +1156,9 @@ class ComplianceEnforcementCapability(BaseCapability):
             if "evidence_content" in check and check["evidence_content"]:
                  content_bytes = check["evidence_content"].encode('utf-8')
                  check["content_hash"] = hashlib.sha256(content_bytes).hexdigest()
-        
+
+        return checks
+
     def remediate(self, check_name: str) -> Dict[str, Any]:
         """
         Attempt to fix a specific compliance failure.

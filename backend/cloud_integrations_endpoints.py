@@ -15,6 +15,18 @@ from auth_utils import get_current_user
 router = APIRouter(prefix="/api/cloud-integrations", tags=["Cloud Integrations"])
 logger = logging.getLogger(__name__)
 
+
+def _tid(user) -> str:
+    if isinstance(user, dict):
+        return user.get("tenant_id", "") or user.get("tenantId", "") or "platform-admin"
+    return getattr(user, "tenant_id", "") or "platform-admin"
+
+
+def _role(user) -> str:
+    if isinstance(user, dict):
+        return user.get("role", "") or ""
+    return getattr(user, "role", "") or ""
+
 SUPPORTED_PROVIDERS = {
     "azure_defender": {
         "name": "Azure Defender for Cloud",
@@ -80,8 +92,8 @@ async def list_supported_providers(current_user: dict = Depends(get_current_user
 @router.get("")
 async def list_integrations(current_user: dict = Depends(get_current_user)):
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    role = current_user.get("role", "")
+    tenant_id = _tid(current_user)
+    role = _role(current_user)
 
     query = {} if role == "super_admin" else {"tenant_id": tenant_id}
     integrations = await db.cloud_integrations.find(query).to_list(length=200)
@@ -111,7 +123,7 @@ async def create_integration(
         raise HTTPException(status_code=400, detail=f"Missing required config fields: {missing}")
 
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
+    tenant_id = _tid(current_user)
 
     doc = {
         "id": str(uuid.uuid4()),
@@ -141,8 +153,8 @@ async def update_integration(
     current_user: dict = Depends(get_current_user),
 ):
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    role = current_user.get("role", "")
+    tenant_id = _tid(current_user)
+    role = _role(current_user)
 
     integ = await db.cloud_integrations.find_one({"id": integration_id})
     if not integ:
@@ -174,8 +186,8 @@ async def delete_integration(
     current_user: dict = Depends(get_current_user),
 ):
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    role = current_user.get("role", "")
+    tenant_id = _tid(current_user)
+    role = _role(current_user)
 
     integ = await db.cloud_integrations.find_one({"id": integration_id})
     if not integ:
@@ -194,8 +206,8 @@ async def test_integration(
 ):
     """Trigger an immediate poll to validate credentials and connectivity."""
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    role = current_user.get("role", "")
+    tenant_id = _tid(current_user)
+    role = _role(current_user)
 
     integ = await db.cloud_integrations.find_one({"id": integration_id})
     if not integ:
@@ -246,7 +258,7 @@ async def trigger_cloud_discovery(
     """
     import random, hashlib
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
+    tenant_id = _tid(current_user)
     now = datetime.now(timezone.utc).isoformat()
 
     # Attempt real polls for configured integrations first
@@ -320,8 +332,8 @@ async def trigger_cloud_discovery(
 async def list_discovered_assets(current_user: dict = Depends(get_current_user)):
     """Return the cloud asset inventory built by discovery runs."""
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    role = current_user.get("role", "")
+    tenant_id = _tid(current_user)
+    role = _role(current_user)
     query: Dict[str, Any] = {} if role == "super_admin" else {"tenant_id": tenant_id}
 
     assets = await db.cloud_discovered_assets.find(query, {"_id": 0}).sort("discovered_at", -1).to_list(length=500)
@@ -340,8 +352,8 @@ async def list_discovered_assets(current_user: dict = Depends(get_current_user))
 @router.get("/summary")
 async def cloud_integrations_summary(current_user: dict = Depends(get_current_user)):
     db = get_database()
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    role = current_user.get("role", "")
+    tenant_id = _tid(current_user)
+    role = _role(current_user)
 
     query = {} if role == "super_admin" else {"tenant_id": tenant_id}
     total = await db.cloud_integrations.count_documents(query)

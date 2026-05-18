@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Cloud, 
-    Shield, 
-    Lock, 
-    Server, 
-    Settings, 
-    CheckCircle, 
-    XCircle, 
-    RefreshCw, 
+import {
+    Activity,
+    Cloud,
+    Shield,
+    Lock,
+    Server,
+    Settings,
+    CheckCircle,
+    XCircle,
+    RefreshCw,
     ExternalLink,
     Search,
     Filter,

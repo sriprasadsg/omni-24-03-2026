@@ -1,5 +1,6 @@
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
+from local_ip import ollama_default_url
 
 async def set_ollama():
     client = AsyncIOMotorClient('mongodb://localhost:27017')
@@ -8,7 +9,7 @@ async def set_ollama():
         {'type': 'llm'},
         {'$set': {
             'provider': 'Ollama (Local)',
-            'ollamaUrl': 'http://127.0.0.1:11434',
+            'ollamaUrl': ollama_default_url(),
             'ollamaModel': 'llama3.2:3b'
         }},
         upsert=True

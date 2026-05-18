@@ -42,6 +42,7 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
   const [analysis, setAnalysis] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [limitedMode, setLimitedMode] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   const [history, setHistory] = useState<FeedbackLog[]>([]);
 
@@ -70,6 +71,7 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
     setIsLoading(true);
     setError('');
     setAnalysis('');
+    setLimitedMode(false);
     setFeedback(null);
     try {
       let result;
@@ -81,6 +83,7 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
         throw new Error("Insufficient data for analysis.");
       }
       setAnalysis(result.analysis);
+      setLimitedMode(result.limitedMode ?? false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred.';
       setError(`Failed to generate analysis: ${message}`);
@@ -141,6 +144,16 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
       <div className="p-6 flex-grow min-h-[200px] overflow-y-auto bg-white/30 dark:bg-transparent">
         {isLoading && <LoadingSkeleton />}
         {error && <div className="p-4 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-600 dark:text-rose-400 text-sm font-medium">{error}</div>}
+        {limitedMode && !isLoading && (
+          <div className="mb-4 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl text-amber-700 dark:text-amber-400 text-xs font-medium">
+            <span className="text-base leading-none mt-0.5">⚠️</span>
+            <span>
+              <strong>AI running in limited mode</strong> — no LLM provider is configured.
+              Configure an LLM (Anthropic, Gemini, or Ollama) in{' '}
+              <strong>Settings → AI Configuration</strong> for full analysis capabilities.
+            </span>
+          </div>
+        )}
         {analysis && !isLoading && (
           <div>
             <FormattedMarkdown content={analysis} />

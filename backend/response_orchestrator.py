@@ -40,8 +40,7 @@ class ResponseOrchestrator:
         dry_run=True: policies are matched and tasks are built but NOT written to the DB.
         """
         db = get_database()
-        # Use _db directly to bypass tenant isolation — response policies are global/platform-level
-        policies = await db._db.response_policies.find({"enabled": True}, {"_id": 0}).to_list(length=100)
+        policies = await db.response_policies.find({"enabled": True}, {"_id": 0}).to_list(length=100)
         dispatched = []
 
         for policy in policies:
@@ -119,14 +118,14 @@ class ResponseOrchestrator:
             "executed_at": None,
             "result": None,
         }
-        await db._db.response_tasks.insert_one(task)
+        await db.response_tasks.insert_one(task)
         # Remove non-serializable _id
         task.pop("_id", None)
         return task
 
     async def mark_executed(self, task_id: str, result: Dict) -> bool:
         db = get_database()
-        res = await db._db.response_tasks.update_one(
+        res = await db.response_tasks.update_one(
             {"task_id": task_id},
             {"$set": {
                 "status": "executed",
@@ -157,7 +156,7 @@ class ResponseOrchestrator:
             "reported_by": reported_by,
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         }
-        res = await db._db.response_tasks.update_one(
+        res = await db.response_tasks.update_one(
             {"task_id": task_id},
             {"$set": {"feedback": feedback}}
         )
@@ -165,9 +164,9 @@ class ResponseOrchestrator:
             return False
 
         # Retrieve task to link feedback to the triggering policy/pattern
-        task = await db._db.response_tasks.find_one({"task_id": task_id}, {"_id": 0})
+        task = await db.response_tasks.find_one({"task_id": task_id}, {"_id": 0})
         if task:
-            await db._db.task_feedback_log.insert_one({
+            await db.task_feedback_log.insert_one({
                 "task_id": task_id,
                 "agent_id": task.get("agent_id"),
                 "action": task.get("action"),
@@ -188,7 +187,7 @@ class ResponseOrchestrator:
                 if pattern_id and tenant_id:
                     try:
                         from correlation_engine import CorrelationEngine
-                        engine = CorrelationEngine(db._db)
+                        engine = CorrelationEngine(db)
                         await engine.record_false_positive(
                             tenant_id=tenant_id,
                             pattern_id=pattern_id,
@@ -219,7 +218,7 @@ class ResponseOrchestrator:
         since = (datetime.now(timezone.utc) - timedelta(minutes=dedup_window_minutes)).isoformat()
 
         # Per-agent dedup
-        agent_dup = await db._db.response_tasks.find_one({
+        agent_dup = await db.response_tasks.find_one({
             "agent_id": agent_id,
             "action": action,
             "status": {"$in": ["queued", "executed"]},
@@ -230,8 +229,7 @@ class ResponseOrchestrator:
 
         # Cross-agent dedup: same incident type in the same tenant
         if tenant_id and alert_type:
-            incident_dup = await db._db.response_tasks.find_one({
-                "tenant_id": tenant_id,
+            incident_dup = await db.response_tasks.find_one({
                 "alert_type": alert_type,
                 "action": action,
                 "status": {"$in": ["queued", "executed"]},
@@ -248,7 +246,7 @@ class ResponseOrchestrator:
         The agent will execute them and call /response/task/{task_id}/result.
         """
         db = get_database()
-        tasks = await db._db.response_tasks.find(
+        tasks = await db.response_tasks.find(
             {"agent_id": agent_id, "status": "queued"}, {"_id": 0}
         ).to_list(length=20)
         return tasks

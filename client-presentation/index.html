@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Omni-Agent AI Platform — Portfolio</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<div id="header">
+  <h1>Enterprise <span>Omni-Agent</span> AI Platform &nbsp;&middot;&nbsp; <span>Exafluence Inc.</span> &nbsp;&middot;&nbsp; Edition 2030</h1>
+</div>
+
+<div id="stage">
+  <div id="scene">
+    <div id="book-wrapper">
+      <div id="book">
+
+        <!-- Left static page -->
+        <div class="panel" id="left-panel">
+          <div id="left-content"></div>
+        </div>
+
+        <!-- Spine -->
+        <div id="spine"></div>
+
+        <!-- Right static page -->
+        <div class="panel" id="right-panel">
+          <div id="page-stack"></div>
+          <div id="right-content"></div>
+        </div>
+
+        <!-- Animated page flipper -->
+        <div id="flipper">
+          <div class="fface ffront" id="flipper-front"></div>
+          <div class="fface fback"  id="flipper-back"></div>
+        </div>
+
+        <!-- Click zones (above everything) -->
+        <div class="click-zone" id="zone-right" onclick="handleClick('right')"></div>
+        <div class="click-zone" id="zone-left"  onclick="handleClick('left')"></div>
+
+      </div>
+      <div id="book-shadow"></div>
+    </div>
+  </div>
+</div>
+
+<div id="nav">
+  <button class="nav-btn" id="btn-prev" onclick="turnBackward()">&#8592;</button>
+  <div class="page-dots" id="dots"></div>
+  <button class="nav-btn" id="btn-next" onclick="turnForward()">&#8594;</button>
+</div>
+
+<div id="tip">Click the page to turn &nbsp;&middot;&nbsp; Keyboard &#8592; &#8594; &nbsp;&middot;&nbsp; Swipe</div>
+
+<script src="assets/pages.js"></script>
+<script src="assets/book.js"></script>
+</body>
+</html>

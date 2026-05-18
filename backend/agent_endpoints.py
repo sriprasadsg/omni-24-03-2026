@@ -572,7 +572,7 @@ async def get_agent_instructions(
             {"$set": {"status": "sent", "sent_at": datetime.now(timezone.utc).isoformat()}}
         )
         
-    return [{"instruction": i.get("type"), "payload": i.get("payload")} for i in instructions]
+    return [{"instruction": i.get("instruction") or i.get("type"), "payload": i.get("payload")} for i in instructions]
 
 @router.post("/{hostname}/instructions/result")
 async def report_instruction_result(
@@ -1792,7 +1792,7 @@ async def get_threat_intel_broadcasts(
     tenant_id = agent.get("tenantId", "default")
 
     # Look back 1 hour
-    threshold = (datetime.now(timezone.utc) - datetime.timedelta(hours=1)).isoformat()
+    threshold = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     broadcasts = await db.threat_intel_broadcast.find(
         {
             "tenant_id": tenant_id,

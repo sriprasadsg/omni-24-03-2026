@@ -51,13 +51,13 @@ async def _run_ransomware_playbooks(alert: Dict[str, Any], agent_id: str) -> Non
     try:
         from database import get_database
         db = get_database()
-        playbooks = await db._db.playbooks.find(
+        playbooks = await db.playbooks.find(
             {"trigger_type": "alert", "trigger_conditions.alert_types": alert.get("type"), "enabled": True},
             {"_id": 0}
         ).to_list(length=10)
         if not playbooks:
             # Fall back: find the ransomware XDR seed playbook by id
-            playbooks = await db._db.playbooks.find(
+            playbooks = await db.playbooks.find(
                 {"id": "xdr-ransomware-recovery", "enabled": True},
                 {"_id": 0}
             ).to_list(length=1)
