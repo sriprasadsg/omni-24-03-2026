@@ -14,6 +14,7 @@ Endpoints:
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
+from local_ip import ollama_default_url
 import uuid
 
 router = APIRouter(prefix="/api/cissp", tags=["CISSP Oracle"])
@@ -284,7 +285,7 @@ async def _generate_cissp_response(message: str, context: str, findings: list, d
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
-                "http://localhost:11434/api/generate",
+                f"{ollama_default_url()}/api/generate",
                 json={
                     "model": "llama3",
                     "prompt": f"{system_prompt}\n\nUser question: {message}",

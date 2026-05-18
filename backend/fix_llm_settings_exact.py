@@ -1,4 +1,5 @@
 from database import get_database, connect_to_mongo
+from local_ip import ollama_default_url
 import asyncio
 
 async def fix_llm():
@@ -10,7 +11,7 @@ async def fix_llm():
         {"type": "llm"},
         {"$set": {
             "provider": "Ollama (Local)",
-            "ollamaUrl": "http://localhost:11434",
+            "ollamaUrl": ollama_default_url(),
             "ollamaModel": "llama3.2:3b",
             "model": "llama3.2:3b"
         }},

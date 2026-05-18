@@ -1,8 +1,11 @@
-
 import logging
+import os
+import sys
 import requests
 import json
 import time
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from local_ip import ollama_default_url
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,8 @@ class LLMManager:
     Ensures the service is reachable and the required model is pulled.
     """
     
-    def __init__(self, base_url="http://localhost:11434", model="llama3.2:3b"):
+    def __init__(self, base_url=None, model="llama3.2:3b"):
+        base_url = base_url or ollama_default_url()
         self.base_url = base_url
         self.model = model
 

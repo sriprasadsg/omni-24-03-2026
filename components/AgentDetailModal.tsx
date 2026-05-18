@@ -155,6 +155,12 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const [fetchedComplianceData, setFetchedComplianceData] = useState<ComplianceData | null>(null);
     const [tenantName, setTenantName] = useState<string>('Loading...');
 
+    // Clear compliance data whenever a different agent is opened so stale data
+    // from the previous agent never shows while the new fetch is in flight.
+    React.useEffect(() => {
+        setFetchedComplianceData(null);
+    }, [agent?.id]);
+
     React.useEffect(() => {
         if (isOpen && agent) {
             if (currentUser && agent.tenantId === currentUser.tenantId) {
@@ -253,115 +259,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
         }
     };
 
-    React.useEffect(() => {
-        if (isOpen && activeTab === 'compliance' && (asset?.id || agent?.assetId)) {
-            const id = asset?.id || agent?.assetId;
-            console.log('DEBUG: Fetching compliance for Asset ID:', id);
-
-            if (id) {
-                fetchAssetCompliance(id).then(rawData => {
-                    console.log('DEBUG: Raw Compliance Data:', rawData);
-
-                    // Transform raw API data (List of MongoDB docs) to ComplianceData format expected by Tab
-                    if (Array.isArray(rawData) && rawData.length > 0) {
-                        const rules = rawData.map((item: any) => {
-                            // Extract status
-                            let status: 'passed' | 'failed' | 'warning' = 'warning';
-                            if (item.status === 'Compliant') status = 'passed';
-                            if (item.status === 'Non-Compliant') status = 'failed';
-                            if (item.status === 'Warning') status = 'warning';
-
-                            // Extract Title from first evidence item if possible
-                            const evidenceItem = item.evidence && item.evidence[0];
-                            const title = evidenceItem?.name || item.controlId;
-                            const category = (typeof item.controlId === 'string' ? item.controlId.split('-')[0] : 'General') || 'General';
-
-                            // Determine Remediation
-                            let remediation = undefined;
-                            if (status === 'failed') {
-                                remediation = REMEDIATION_STEPS[item.controlId];
-                                // Heuristic fallback if direct ID match fails but title implies something
-                                if (!remediation && title.includes('Firewall')) remediation = REMEDIATION_STEPS['PCI-1.1.1'];
-                                if (!remediation && title.includes('Defender')) remediation = REMEDIATION_STEPS['PCI-5.1'];
-                                if (!remediation && title.includes('Password')) remediation = REMEDIATION_STEPS['PCI-8.1.1'];
-                            }
-
-                            // Extract Check Name for Auto-Fix
-                            // Priority 1: Direct field from backend (newly added)
-                            // Priority 2: Explicit Mapping from ID
-                            // Priority 3: Parse from Evidence Name "System Check: [Name]"
-                            let checkNameRaw = item.checkName;
-
-                            if (!checkNameRaw && CHECK_NAME_MAPPING[item.controlId]) {
-                                checkNameRaw = CHECK_NAME_MAPPING[item.controlId];
-                            }
-
-                            if (!checkNameRaw && evidenceItem?.name && evidenceItem.name.startsWith("System Check: ")) {
-                                checkNameRaw = evidenceItem.name.replace("System Check: ", "");
-                            }
-
-                            return {
-                                id: item.controlId,
-                                title: title,
-                                checkName: checkNameRaw, // Inject checkName
-                                status: status,
-                                category: category,
-                                evidence: evidenceItem?.content,
-                                description: `Control ID: ${item.controlId}`,
-                                remediation: remediation // Inject Remediation
-                            } as ComplianceRule;
-                        });
-
-                        // Deduplicate Rules: Keep the "worst" status if duplicates exist
-                        const uniqueRulesMap = new Map<string, ComplianceRule>();
-
-                        rules.forEach((rule: any) => {
-                            const existing = uniqueRulesMap.get(rule.id);
-                            if (!existing) {
-                                uniqueRulesMap.set(rule.id, rule);
-                            } else {
-                                // Merge Logic: Prioritize Failed > Warning > Passed
-                                const priority = { 'failed': 3, 'warning': 2, 'passed': 1 };
-                                const currentP = priority[existing.status] || 0;
-                                const newP = priority[rule.status] || 0;
-
-                                if (newP > currentP) {
-                                    uniqueRulesMap.set(rule.id, rule);
-                                }
-                            }
-                        });
-
-                        const uniqueRules = Array.from(uniqueRulesMap.values());
-
-                        const passed = uniqueRules.filter((r: any) => r.status === 'passed').length;
-                        const failed = uniqueRules.filter((r: any) => r.status === 'failed').length;
-                        const warnings = uniqueRules.filter((r: any) => r.status === 'warning').length;
-                        const total = uniqueRules.length;
-                        const score = total > 0 ? Math.round((passed / total) * 100) : 0;
-
-                        console.log('DEBUG: Transformed Rules:', uniqueRules);
-
-                        setFetchedComplianceData({
-                            score,
-                            total_rules: total,
-                            passed,
-                            failed,
-                            warnings,
-                            rules: uniqueRules,
-                            framework: 'Asset Security'
-                        });
-                    } else {
-                        console.warn('DEBUG: No compliance data returned or invalid format');
-                        setFetchedComplianceData(null);
-                    }
-                }).catch(err => {
-                    console.error("Failed to fetch compliance", err);
-                });
-            } else {
-                console.warn('DEBUG: Skipping compliance fetch. Missing ID. Agent:', agent, 'Asset:', asset);
-            }
-        }
-    }, [isOpen, activeTab, asset?.id, agent?.assetId]);
 
     const handleRefreshCompliance = async () => {
         if (!agent?.id) return;
@@ -378,12 +275,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
             const id = asset?.id || agent?.assetId;
             if (id) {
                 console.log('Refreshing compliance data for Asset ID:', id);
-                const rawData = await fetchAssetCompliance(id);
-                // Simple trick to force update if data changed, or we can just update state directly
-                // Re-using the same transformation logic would be cleaner if extracted, but for now:
-                // Actually we need to re-run the whole transform block.
-
-                // Let's just create a 'refreshTrigger' state to force useEffect re-run
+                await fetchAssetCompliance(id);
                 setRefreshTrigger(prev => prev + 1);
             }
 
@@ -395,10 +287,13 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-    // Update useEffect to depend on refreshTrigger
+    // Single compliance-fetch effect. Depends on refreshTrigger so manual refresh works.
+    // Falls back to deriving assetId from hostname (matches backend's "asset-{hostname}" convention)
+    // when agent.assetId is not yet populated (e.g. agent registered but hasn't heartbeated yet).
     React.useEffect(() => {
-        if (isOpen && activeTab === 'compliance' && (asset?.id || agent?.assetId)) {
-            const id = asset?.id || agent?.assetId;
+        const derivedId = asset?.id || agent?.assetId || (agent?.hostname ? `asset-${agent.hostname}` : undefined);
+        if (isOpen && activeTab === 'compliance' && derivedId) {
+            const id = derivedId;
             console.log('DEBUG: Fetching compliance for Asset ID:', id);
 
             if (id) {
@@ -501,10 +396,10 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                     console.error("Failed to fetch compliance", err);
                 });
             } else {
-                console.warn('DEBUG: Skipping compliance fetch. Missing ID. Agent:', agent, 'Asset:', asset);
+                console.warn('DEBUG: Skipping compliance fetch. No assetId or hostname. Agent:', agent?.id);
             }
         }
-    }, [isOpen, activeTab, asset?.id, agent?.assetId, refreshTrigger]);
+    }, [isOpen, activeTab, asset?.id, agent?.assetId, agent?.hostname, refreshTrigger]);
 
 
     const sortedVulnerabilities = React.useMemo(() => {
@@ -819,7 +714,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                                         </tr>
                                                     </thead>
                                                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                                        {softwareList.map((sw, idx) => (
+                                                        {softwareList.map((sw: { name: string; version: string; installDate?: string; updateAvailable?: boolean; latestVersion?: string }, idx: number) => (
                                                             <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                                                 <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-200 font-medium">
                                                                     <div className="flex items-center">

@@ -123,42 +123,8 @@ rm -rf venv
 sudo -u $ACTUAL_USER python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip setuptools wheel
-sed -i 's/^chromadb.*/chromadb>=0.5.0/g' requirements.txt
-# Core deps
-grep -q "^celery" requirements.txt || echo "celery" >> requirements.txt
-grep -q "^chromadb" requirements.txt || echo "chromadb>=0.5.0" >> requirements.txt
-grep -q "^pydantic-settings" requirements.txt || echo "pydantic-settings" >> requirements.txt
-grep -q "^PyYAML" requirements.txt || echo "PyYAML>=6.0.1" >> requirements.txt
-# Phase 1: Real LLM
-grep -q "^google-generativeai" requirements.txt || echo "google-generativeai" >> requirements.txt
-grep -q "^openai" requirements.txt || echo "openai" >> requirements.txt
-# Phase 3: Stripe
-grep -q "^stripe" requirements.txt || echo "stripe" >> requirements.txt
-# Phase 4: MFA & SSO
-grep -q "^pyotp" requirements.txt || echo "pyotp" >> requirements.txt
-grep -q "^qrcode" requirements.txt || echo "qrcode[pil]" >> requirements.txt
-grep -q "^authlib" requirements.txt || echo "authlib" >> requirements.txt
-grep -q "^httpx" requirements.txt || echo "httpx" >> requirements.txt
-# Phase 5: SAST scanning
-grep -q "^bandit" requirements.txt || echo "bandit" >> requirements.txt
-# Phase 7: PDF Invoice Export
-grep -q "^reportlab" requirements.txt || echo "reportlab" >> requirements.txt
-# Phase 8: Voice Bot
-grep -q "^gTTS" requirements.txt || echo "gTTS" >> requirements.txt
-grep -q "^google-cloud-speech" requirements.txt || echo "google-cloud-speech" >> requirements.txt
-grep -q "^google-cloud-texttospeech" requirements.txt || echo "google-cloud-texttospeech" >> requirements.txt
-# Phase 9: Agent Metrics
-grep -q "^psutil" requirements.txt || echo "psutil" >> requirements.txt
-# Security: Backup encryption, HTTP client, ML, SMS
-grep -q "^cryptography" requirements.txt || echo "cryptography" >> requirements.txt
-grep -q "^aiohttp" requirements.txt || echo "aiohttp" >> requirements.txt
-grep -q "^scikit-learn" requirements.txt || echo "scikit-learn" >> requirements.txt
-grep -q "^numpy" requirements.txt || echo "numpy" >> requirements.txt
-grep -q "^joblib" requirements.txt || echo "joblib" >> requirements.txt
-# Twilio SMS
-grep -q "^twilio" requirements.txt || echo "twilio" >> requirements.txt
 pip install -r requirements.txt
-print_success "Backend dependencies installed (Phases 1-10 + Security extensions)"
+print_success "Backend dependencies installed"
 
 # Create .env with correct IP settings (Phases 1-10)
 cat > .env <<EOF
@@ -168,6 +134,8 @@ MONGODB_DB_NAME=omni_platform
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)
 CORS_ORIGINS=http://$SYSTEM_IP:3000,http://$SYSTEM_IP:80,http://$SYSTEM_IP,http://localhost:3000,http://127.0.0.1:3000
+SUPER_ADMIN_PASSWORD=password123
+SYSLOG_UDP_PORT=5140
 
 # === Phase 1: AI/LLM ===
 GEMINI_API_KEY=
@@ -274,13 +242,14 @@ if [ ! -d "venv" ]; then
     sudo -u $ACTUAL_USER python3 -m venv venv
 fi
 venv/bin/pip install --upgrade pip setuptools wheel --quiet
-# Ensure new required packages are present in requirements.txt
-grep -q "^watchdog" requirements.txt || echo "watchdog>=4.0.0" >> requirements.txt
-grep -q "^websockets" requirements.txt || echo "websockets>=12.0" >> requirements.txt
-grep -q "^python-socketio" requirements.txt || echo "python-socketio>=5.10.0" >> requirements.txt
-venv/bin/pip install -r requirements.txt --quiet
+# Install Linux-compatible agent deps (excluding Windows-only pywin32 and build-heavy packages)
+grep -v "pywin32\|PyInstaller\|pyinstaller-hooks" requirements.txt > /tmp/agent_req_linux.txt
+# Enable optional capabilities that have Linux wheels
+sed -i 's/^# scapy/scapy/' /tmp/agent_req_linux.txt
+sed -i 's/^# yara-python/yara-python/' /tmp/agent_req_linux.txt
+venv/bin/pip install -r /tmp/agent_req_linux.txt --quiet
 chown -R $ACTUAL_USER:$ACTUAL_USER venv
-print_success "Agent virtualenv ready (watchdog, websockets, python-socketio included)"
+print_success "Agent virtualenv ready (all capabilities: watchdog, websockets, socketio, scapy, yara, mss, Pillow)"
 
 # Update agent config with correct IP
 if [ -f "config.yaml" ]; then
@@ -411,6 +380,10 @@ python3 ../seed_predictive_health.py
 print_info "Seeding Network Topology..."
 python3 seed_network.py
 
+# Seed XDR playbooks
+print_info "Seeding XDR Playbooks..."
+python3 xdr_playbook_seeds.py || print_warning "XDR playbook seed skipped"
+
 # Pulling Ollama Model
 if ! command -v ollama &> /dev/null; then
     print_info "Ollama not found. Installing..."
@@ -474,9 +447,21 @@ echo -e "${GREEN}[✓] Approval Notifications${NC} - email approvers on IR workf
 echo -e "${GREEN}[✓] SMS Alerts via Twilio${NC} - patch/SLA breach SMS notifications"
 echo -e "${GREEN}[✓] Attack Path Analysis${NC} - live DB-backed with critical CVE derivation fallback"
 echo -e "${GREEN}[✓] ML Patch Failure Prediction${NC} - Random Forest model + heuristic fallback"
-echo -e "${GREEN}[✓] UEBA Risk Scores${NC} - /api/ueba/risk-scores endpoint (prefix fix applied)"
-echo -e "${GREEN}[✓] Agent Full Dependencies${NC} - watchdog, websockets, python-socketio installed via agent venv"
-echo -e "${GREEN}[✓] Distributed Tracing${NC} - TenantIsolatedCollection.create_collection fix applied"
+echo -e "${GREEN}[✓] UEBA Risk Scores${NC} - /api/ueba/risk-scores endpoint"
+echo -e "${GREEN}[✓] Agent Full Dependencies${NC} - watchdog, websockets, socketio, scapy, yara, mss, Pillow"
+echo -e "${GREEN}[✓] Distributed Tracing${NC} - /api/tracing/service-map, /api/tracing/traces"
+echo -e "${GREEN}[✓] Privacy / GDPR / CCPA${NC} - DSR, Breach Notifications, ROPA, Consent Management"
+echo -e "${GREEN}[✓] PAM (Privileged Access)${NC} - accounts, sessions, vault, audit"
+echo -e "${GREEN}[✓] BAA Agreements${NC} - Business Associate Agreement lifecycle"
+echo -e "${GREEN}[✓] Cloud Integrations${NC} - Azure Defender, Sentinel, GCP SCC, AWS GuardDuty"
+echo -e "${GREEN}[✓] Scheduled Reports${NC} - automated report delivery (email/webhook)"
+echo -e "${GREEN}[✓] MDR Dashboard${NC} - Managed Detection & Response"
+echo -e "${GREEN}[✓] XDR Dashboard${NC} - Extended Detection & Response (with playbook seeds)"
+echo -e "${GREEN}[✓] Correlation Engine${NC} - multi-source event correlation patterns"
+echo -e "${GREEN}[✓] AutoML${NC} - /api/automl/studies"
+echo -e "${GREEN}[✓] Chaos Engineering${NC} - /api/chaos/experiments"
+echo -e "${GREEN}[✓] DORA Metrics${NC} - /api/dora/metrics"
+echo -e "${GREEN}[✓] Windows Agent${NC} - omni-agent.exe (PyInstaller, UAC admin, Windows Service)"
 print_info "==========================================================="
 
 # Backend Service (uses socket_app for Socket.IO support)
@@ -545,6 +530,7 @@ print_info "Step 8: Configuring Firewall..."
 ufw allow 80/tcp
 ufw allow 3000/tcp
 ufw allow 5000/tcp
+ufw allow 5140/udp   # Syslog UDP receiver
 ufw --force enable
 print_success "Firewall configured"
 

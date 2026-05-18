@@ -13,8 +13,26 @@ router = APIRouter(prefix="/api/reports/scheduled", tags=["Scheduled Reports"])
 logger = logging.getLogger(__name__)
 
 
+def _tid(user) -> str:
+    if isinstance(user, dict):
+        return user.get("tenant_id", "") or user.get("tenantId", "") or "platform-admin"
+    return getattr(user, "tenant_id", "") or "platform-admin"
+
+
+def _role(user) -> str:
+    if isinstance(user, dict):
+        return user.get("role", "") or ""
+    return getattr(user, "role", "") or ""
+
+
+def _actor(user) -> str:
+    if isinstance(user, dict):
+        return user.get("email", "") or user.get("username", "") or ""
+    return getattr(user, "username", "") or ""
+
+
 @router.get("/types")
-async def list_report_types(current_user: dict = Depends(get_current_user)):
+async def list_report_types(current_user=Depends(get_current_user)):
     return {
         "report_types": [{"id": k, **v} for k, v in svc.REPORT_TYPES.items()],
         "frequencies": svc.SCHEDULE_FREQUENCIES,
@@ -23,22 +41,18 @@ async def list_report_types(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("")
-async def list_schedules(current_user: dict = Depends(get_current_user)):
-    schedules = await svc.list_schedules(
-        current_user.get("tenant_id", ""), current_user.get("role", "")
-    )
+async def list_schedules(current_user=Depends(get_current_user)):
+    schedules = await svc.list_schedules(_tid(current_user), _role(current_user))
     return {"schedules": schedules, "total": len(schedules)}
 
 
 @router.post("")
 async def create_schedule(
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     try:
-        tenant_id = current_user.get("tenant_id", "platform-admin")
-        created_by = current_user.get("email", current_user.get("username", ""))
-        schedule = await svc.create_schedule(tenant_id, created_by, payload)
+        schedule = await svc.create_schedule(_tid(current_user), _actor(current_user), payload)
         schedule.pop("_id", None)
         return {"schedule": schedule, "message": f"Report scheduled — next delivery: {schedule['next_run'][:10]}"}
     except ValueError as exc:
@@ -49,11 +63,9 @@ async def create_schedule(
 async def update_schedule(
     schedule_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
-    success = await svc.update_schedule(
-        schedule_id, current_user.get("tenant_id", ""), current_user.get("role", ""), payload
-    )
+    success = await svc.update_schedule(schedule_id, _tid(current_user), _role(current_user), payload)
     if not success:
         raise HTTPException(status_code=404, detail="Schedule not found")
     return {"message": "Schedule updated"}
@@ -62,22 +74,18 @@ async def update_schedule(
 @router.delete("/{schedule_id}")
 async def delete_schedule(
     schedule_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
-    success = await svc.delete_schedule(
-        schedule_id, current_user.get("tenant_id", ""), current_user.get("role", "")
-    )
+    success = await svc.delete_schedule(schedule_id, _tid(current_user), _role(current_user))
     if not success:
         raise HTTPException(status_code=404, detail="Schedule not found")
     return {"message": "Schedule deleted"}
 
 
 @router.post("/{schedule_id}/run-now")
-async def run_now(schedule_id: str, current_user: dict = Depends(get_current_user)):
+async def run_now(schedule_id: str, current_user=Depends(get_current_user)):
     try:
-        result = await svc.run_report_now(
-            schedule_id, current_user.get("tenant_id", ""), current_user.get("role", "")
-        )
+        result = await svc.run_report_now(schedule_id, _tid(current_user), _role(current_user))
         return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

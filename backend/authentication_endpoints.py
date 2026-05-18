@@ -131,9 +131,7 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     Returns user data with permissions from their role attached.
     """
     db = get_database()
-    
-    # Fetch full user data from database bypassing tenant isolation since tenant context might not be fully established
-    user = await db._db.users.find_one({"email": current_user.username})
+    user = await db.users.find_one({"email": current_user.username})
     
     if not user:
         raise HTTPException(
@@ -307,6 +305,7 @@ async def refresh_access_token(data: dict[str, Any] = Body(...)):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     db = get_database()
+    # Refresh token only contains email (no tenant_id), so bypass isolation for lookup
     user = await db._db.users.find_one({"email": email})
     if not user or user.get("status") != "Active":
         raise HTTPException(status_code=401, detail="User not found or inactive")

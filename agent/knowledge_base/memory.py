@@ -1,8 +1,12 @@
 import json
+import os
+import sys
 import time
 import logging
 from pathlib import Path
 from typing import List, Dict
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from local_ip import ollama_default_url
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +110,7 @@ class AgentMemory:
         for attempt in range(2):
             try:
                 resp = _req.post(
-                    "http://localhost:11434/api/embeddings",
+                    f"{ollama_default_url()}/api/embeddings",
                     json={"model": "mxbai-embed-large", "prompt": text},
                     timeout=3 + attempt * 2,  # 3s then 5s
                 )

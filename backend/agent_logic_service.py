@@ -4,6 +4,7 @@ import json
 import os
 from database import get_database
 from datetime import datetime, timezone
+from local_ip import ollama_default_url
 
 class AgentLogicService:
     def __init__(self):
@@ -18,7 +19,7 @@ class AgentLogicService:
         provider = os.getenv("LLM_PROVIDER", "gemini").lower()
         
         if provider == "ollama":
-            self.ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+            self.ollama_url = os.getenv("OLLAMA_URL") or ollama_default_url()
             self.model_name = os.getenv("LLM_MODEL", "llama3.2:3b")
             self.provider_type = "ollama"
             # Simple connectivity check

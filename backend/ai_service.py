@@ -8,6 +8,7 @@ from typing import Optional
 from database import get_database
 from guardrail_service import guardrail_service
 from ai_guardrails import scan_text
+from local_ip import ollama_default_url
 
 # --- Provider Abstraction ---
 
@@ -59,8 +60,8 @@ class GeminiProvider(AIProvider):
 
 class OllamaProvider(AIProvider):
     def __init__(self):
-        self.base_url = "http://127.0.0.1:11434"
-        self.model_name = "llama3" # Default, can be overridden
+        self.base_url = ollama_default_url()
+        self.model_name = "llama3"
 
     @property
     def name(self) -> str:
@@ -68,7 +69,7 @@ class OllamaProvider(AIProvider):
 
     async def configure(self, settings: dict) -> bool:
         # Settings might contain custom URL or model
-        self.base_url = settings.get("ollamaUrl", "http://127.0.0.1:11434")
+        self.base_url = settings.get("ollamaUrl") or ollama_default_url()
         self.model_name = settings.get("ollamaModel", "llama3.2:3b")
         
         # Check connectivity
@@ -178,7 +179,7 @@ class IncidentAnalyzer:
         if env_provider == "ollama":
             ollama = OllamaProvider()
             settings = {
-                "ollamaUrl": os.getenv("OLLAMA_URL", "http://localhost:11434"),
+                "ollamaUrl": os.getenv("OLLAMA_URL") or ollama_default_url(),
                 "ollamaModel": os.getenv("LLM_MODEL", "llama3.2:3b")
             }
             if await ollama.configure(settings):

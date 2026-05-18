@@ -1,6 +1,6 @@
-
 import asyncio
 from database import get_database, connect_to_mongo
+from local_ip import ollama_default_url
 
 async def seed_ai_settings():
     print("Connecting to database...")
@@ -11,7 +11,7 @@ async def seed_ai_settings():
         "type": "llm",
         "provider": "ollama",
         "model": "llama3.2:3b",
-        "ollamaUrl": "http://localhost:11434",
+        "ollamaUrl": ollama_default_url(),
         "ollamaModel": "llama3.2:3b"
     }
     

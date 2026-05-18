@@ -8,6 +8,7 @@ import logging
 from google import genai
 from database import get_database
 from ai_guardrails import scan_text
+from local_ip import ollama_default_url
 from rbac_utils import require_permission
 from auth_types import TokenData
 from fastapi import Depends
@@ -61,7 +62,7 @@ async def proxy_chat_completion(
     try:
         if provider == "ollama":
             # Forward to local Ollama
-            ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+            ollama_url = os.getenv("OLLAMA_URL") or ollama_default_url()
             async with httpx.AsyncClient(timeout=60.0) as client:
                 ollama_resp = await client.post(
                     f"{ollama_url}/api/chat",
@@ -106,7 +107,7 @@ async def proxy_chat_completion(
             configured_provider = os.getenv("LLM_PROVIDER", "gemini").lower()
             
             if configured_provider == "ollama":
-                ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+                ollama_url = os.getenv("OLLAMA_URL") or ollama_default_url()
                 model_name = prompt.model if "llama" in prompt.model or "mistral" in prompt.model else os.getenv("LLM_MODEL", "llama3.2:3b")
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     ollama_resp = await client.post(
@@ -259,5 +260,5 @@ async def get_ai_config(current_user: TokenData = Depends(require_permission("ma
         "model": os.getenv("LLM_MODEL", "gemini-2.0-flash"),
         "gemini_configured": bool(gemini_key),
         "openai_configured": bool(openai_key),
-        "ollama_url": os.getenv("OLLAMA_URL", "http://localhost:11434"),
+        "ollama_url": os.getenv("OLLAMA_URL") or ollama_default_url(),
     }

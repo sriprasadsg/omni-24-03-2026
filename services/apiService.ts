@@ -9,7 +9,7 @@ import {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    Risk, Vendor, VendorAssessment, TrustProfile, AccessRequest
+    Risk, Vendor, TrustProfile, AccessRequest
 } from '../types';
 
 export type {
@@ -80,6 +80,17 @@ export const uploadSbom = async (file: File): Promise<{ newSbom: Sbom, newCompon
 // Track active refresh request to prevent multiple simultaneous refreshes
 let refreshPromise: Promise<string> | null = null;
 
+// Decode JWT expiry without a library. Returns seconds until expiry (negative = already expired).
+function jwtSecondsUntilExpiry(token: string): number {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (!payload.exp) return Infinity;
+        return payload.exp - Math.floor(Date.now() / 1000);
+    } catch {
+        return Infinity;
+    }
+}
+
 // Helper function to refresh the access token
 async function refreshAccessToken(): Promise<string> {
     // If already refreshing, return existing promise
@@ -135,11 +146,21 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
         return await fetch(url, { ...fetchOptions, headers });
     };
 
-    // First attempt with current token
     let token = localStorage.getItem('token');
+
+    // Proactively refresh if token expires within 5 minutes — avoids the 401 round-trip
+    // that causes noisy console errors when many requests fire simultaneously.
+    if (token && jwtSecondsUntilExpiry(token) < 300) {
+        try {
+            token = await refreshAccessToken();
+        } catch {
+            // Fall through — let the 401 handler below deal with it
+        }
+    }
+
     let response = await makeRequest(token);
 
-    // If 401, try to refresh token and retry
+    // If 401, token may have just expired; try once more with a fresh token
     if (response.status === 401) {
         try {
             const newToken = await refreshAccessToken();
@@ -1895,7 +1916,7 @@ export const runVulnerabilityScan = async (assetId: string) => {
 
 // Redundant mock updateUser removed to use the earlier implementation that supports backend sync.
 
-export const resetPassword = async (userId: string) => {
+export const resetPassword = async (_userId: string) => {
     return true;
 };
 
@@ -2533,6 +2554,19 @@ export const generateAgenticPlan = async function* (agent: Agent): AsyncGenerato
     yield { type: 'observation', content: 'AI backend unavailable — manual review required.', timestamp: new Date().toISOString() } as AgenticStep;
 };
 
+// Strip VoiceBot-only annotations from AI chat responses used in analysis panels.
+// [NAVIGATE:x] and [AUTO_CONTINUE] are chat/voice directives that must not appear in text UI.
+// The degraded notice is extracted as a flag so the UI can render it as a proper banner.
+function sanitizeAnalysisResponse(raw: string): { content: string; limitedMode: boolean } {
+    const limitedMode = raw.includes('AI running in limited mode');
+    const content = raw
+        .replace(/\[?NAVIGATE:[\w-]+\]?/gi, '')
+        .replace(/\[?AUTO_CONTINUE\]?/gi, '')
+        .replace(/\n*⚠️ \*\*AI running in limited mode\*\*[\s\S]*/i, '')
+        .trim();
+    return { content, limitedMode };
+}
+
 export const fetchHealthAnalysis = async (metrics: Metric[], alerts: Alert[]) => {
     const summary = {
         metric_count: metrics.length,
@@ -2550,11 +2584,12 @@ export const fetchHealthAnalysis = async (metrics: Metric[], alerts: Alert[]) =>
         });
         if (res.ok) {
             const data = await res.json();
-            const text: string = data.response || data.message || '';
-            return { analysis: text, recommendations: [] };
+            const raw: string = data.response || data.message || '';
+            const { content, limitedMode } = sanitizeAnalysisResponse(raw);
+            return { analysis: content, recommendations: [], limitedMode };
         }
     } catch (e) { console.error('fetchHealthAnalysis failed:', e); }
-    return { analysis: 'Health analysis unavailable — AI backend unreachable.', recommendations: [] };
+    return { analysis: 'Health analysis unavailable — AI backend unreachable.', recommendations: [], limitedMode: false };
 };
 
 export const fetchSecurityAnalysis = async (events: SecurityEvent[]) => {
@@ -2575,11 +2610,12 @@ export const fetchSecurityAnalysis = async (events: SecurityEvent[]) => {
         });
         if (res.ok) {
             const data = await res.json();
-            const text: string = data.response || data.message || '';
-            return { analysis: text, recommendations: [] };
+            const raw: string = data.response || data.message || '';
+            const { content, limitedMode } = sanitizeAnalysisResponse(raw);
+            return { analysis: content, recommendations: [], limitedMode };
         }
     } catch (e) { console.error('fetchSecurityAnalysis failed:', e); }
-    return { analysis: 'Security analysis unavailable — AI backend unreachable.', recommendations: [] };
+    return { analysis: 'Security analysis unavailable — AI backend unreachable.', recommendations: [], limitedMode: false };
 };
 
 export const generateCSPMRemediation = async (finding: CSPMFinding) => {

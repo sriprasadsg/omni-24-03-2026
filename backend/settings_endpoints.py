@@ -3,6 +3,7 @@ from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
+from local_ip import ollama_default_url
 import asyncio
 import socket
 
@@ -30,10 +31,19 @@ async def save_database_settings(settings: Dict[str, Any], current_user: TokenDa
 
 @router.get("/llm")
 async def get_llm_settings(current_user: TokenData = Depends(get_current_user)):
-    """Get LLM settings"""
+    """Get LLM settings — tenant-specific, with auto-detected defaults for new tenants"""
     db = get_database()
     settings = await db.system_settings.find_one({"type": "llm"}, {"_id": 0})
-    return settings or {}
+    if not settings:
+        # New tenant: return auto-detected defaults so the UI is pre-populated
+        settings = {
+            "type": "llm",
+            "provider": "Ollama (Local)",
+            "ollamaUrl": ollama_default_url(),
+            "ollamaModel": "llama3.2:3b",
+            "model": "llama3.2:3b",
+        }
+    return settings
 
 @router.post("/llm")
 async def save_llm_settings(settings: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
@@ -111,7 +121,7 @@ async def test_llm_connection(
     """Test connectivity to the configured LLM provider (Ollama or Gemini)."""
     provider = settings.get("provider", "").lower()
     if provider in ("local", "ollama"):
-        ollama_url = settings.get("ollamaUrl", "http://localhost:11434").rstrip("/")
+        ollama_url = (settings.get("ollamaUrl") or ollama_default_url()).rstrip("/")
         try:
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:

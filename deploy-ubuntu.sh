@@ -210,6 +210,10 @@ if [ -f "requirements.txt" ]; then
     print_success "Backend dependencies installed"
 fi
 
+# Ensure optional but important packages are present
+grep -q "^mongomock-motor\|mongomock_motor" requirements.txt || pip install mongomock-motor --quiet || true
+grep -q "^py-cpuinfo" requirements.txt || pip install py-cpuinfo --quiet || true
+
 # .env Configuration (Phases 1-10)
 if [ ! -f ".env" ]; then
     cat > .env <<EOF
@@ -219,6 +223,8 @@ MONGODB_DB_NAME=omni_platform
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)
 CORS_ORIGINS=http://\$(hostname -I | awk '{print \$1}'):3000,http://\$(hostname -I | awk '{print \$1}'):80,http://\$(hostname -I | awk '{print \$1}'),http://localhost:3000,http://127.0.0.1:3000
+SUPER_ADMIN_PASSWORD=password123
+SYSLOG_UDP_PORT=5140
 
 # === Phase 1: AI/LLM ===
 GEMINI_API_KEY=
@@ -357,6 +363,10 @@ python3 ../seed_predictive_health.py
 print_info "Seeding Network Topology..."
 python3 seed_network.py
 
+# Seed XDR playbooks
+print_info "Seeding XDR Playbooks..."
+python3 xdr_playbook_seeds.py || print_warning "XDR playbook seed skipped"
+
 # Pulling Ollama Model
 if ! command -v ollama &> /dev/null; then
     print_info "Ollama not found. Installing..."
@@ -408,22 +418,70 @@ cd "$PROJECT_DIR/agent"
 rm -rf venv
 sudo -u $ACTUAL_USER python3 -m venv venv
 venv/bin/pip install --upgrade pip setuptools wheel --quiet
-venv/bin/pip install -r requirements.txt --quiet
+# Install Linux-compatible agent deps (exclude Windows-only and build-heavy packages)
+grep -v "pywin32\|PyInstaller\|pyinstaller-hooks" requirements.txt > /tmp/agent_req_linux.txt
+# Enable optional capabilities available on Linux
+sed -i 's/^# scapy/scapy/' /tmp/agent_req_linux.txt
+sed -i 's/^# yara-python/yara-python/' /tmp/agent_req_linux.txt
+venv/bin/pip install -r /tmp/agent_req_linux.txt --quiet
 chown -R $ACTUAL_USER:$ACTUAL_USER venv
-print_success "Agent virtualenv created and dependencies installed"
+print_success "Agent virtualenv created (capabilities: watchdog, websockets, socketio, scapy, yara, mss, Pillow)"
 
 # Generate default config.yaml if missing
 if [ ! -f "config.yaml" ]; then
     cat > config.yaml <<EOF
 api_base_url: http://$SYSTEM_IP:5000
-tenant_id: platform-admin
-registration_key: reg_platformadmin123
+agent_name: agent-$(hostname)
+agent_token: ""
+tenant_key: ""
 interval_seconds: 5
+heartbeat_interval: 30
 agentic_mode_enabled: true
 swarm:
   enabled: true
 autonomous_actions:
   enabled: true
+enabled_capabilities:
+  - metrics
+  - process_monitor
+  - fim
+  - network_discovery
+  - vulnerability_scanner
+  - runtime_security
+  - compliance
+  - persistence_detection
+  - shadow_ai
+  - software_management
+  - predictive_health
+  - autonomous_response
+  - sbom
+  - edr_realtime
+  - yara_scanner
+  - ueba
+  - patch_installer
+  - log_shipper
+  - remote_access
+fim_paths:
+  - /etc
+  - /bin
+  - /usr/bin
+  - /home
+goals:
+  - name: reduce_attack_surface
+    description: Reduce overall attack surface score by 40%
+    priority: 2
+    target: 40.0
+    unit: "% reduction"
+  - name: patch_critical_cves
+    description: Achieve 100% patching of CVSS 9.0+ vulnerabilities
+    priority: 1
+    target: 100.0
+    unit: "% patched"
+  - name: compliance_coverage
+    description: Achieve 90% passing controls across all compliance frameworks
+    priority: 2
+    target: 90.0
+    unit: "% controls passing"
 EOF
     chown $ACTUAL_USER:$ACTUAL_USER config.yaml
     print_success "Agent config.yaml generated with IP $SYSTEM_IP"
@@ -588,6 +646,9 @@ print_success "Systemd services created"
 print_info "Step 11/11: Configuring firewall..."
 ufw allow 'Nginx Full'
 ufw allow OpenSSH
+ufw allow 5000/tcp   # Backend API direct access
+ufw allow 3000/tcp   # Frontend dev/preview
+ufw allow 5140/udp   # Syslog UDP receiver
 ufw --force enable
 print_success "Firewall configured"
 

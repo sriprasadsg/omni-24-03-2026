@@ -119,27 +119,29 @@ class TenantIsolatedDatabase:
         # We only wrap actual collections, not internal methods
         if name.startswith("_") or name in ["client", "name", "codec_options", "read_preference", "write_concern", "read_concern", "list_collection_names", "create_collection", "drop_collection", "validate_collection", "command", "dereference"]:
             return collection
-        # EXEMPTION: global reference data
+        # EXEMPTION: global reference data (shared across all tenants)
         if name in [
-            "compliance_frameworks", 
-            "compliance_controls", 
-            "ai_governance_frameworks", 
+            "compliance_frameworks",
+            "compliance_controls",
+            "ai_governance_frameworks",
             "system_features",
-            "tenants", 
-            "roles"
+            "tenants",
+            "roles",
+            "response_policies",  # platform-level security policies, seeded globally
         ]:
             return collection
         return TenantIsolatedCollection(collection)
 
     def __getitem__(self, name):
-        # EXEMPTION: global reference data
+        # EXEMPTION: global reference data (shared across all tenants)
         if name in [
-            "compliance_frameworks", 
-            "compliance_controls", 
-            "ai_governance_frameworks", 
+            "compliance_frameworks",
+            "compliance_controls",
+            "ai_governance_frameworks",
             "system_features",
-            "tenants", 
-            "roles"
+            "tenants",
+            "roles",
+            "response_policies",  # platform-level security policies, seeded globally
         ]:
             return self._db[name]
         return TenantIsolatedCollection(self._db[name])
