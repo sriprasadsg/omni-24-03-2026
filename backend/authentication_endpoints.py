@@ -165,6 +165,11 @@ async def signup(data: dict[str, Any] = Body(...)):
     import uuid
     from datetime import datetime, timezone
     from typing import Any
+    from tenant_context import set_tenant_id
+    
+    # Bypass tenant isolation for signup flow to check global existence and insert with correct tenantId
+    set_tenant_id("platform-admin")
+    
     company_name = data.get('companyName', '').strip()
     name = data.get('name', '').strip()
     email = data.get('email', '').strip().lower()
