@@ -25,11 +25,11 @@ class BiAnalyticsService:
             q["tenantId"] = tenant_id
 
         # ── 1. Risk Profile (radar) ───────────────────────────────────────────
-        agents = await db.agents.find(q, {"securityScore": 1}).to_list(length=None)
+        agents = await db.agents.find(q, {"securityScore": 1}).to_list(length=1000)
         scores = [a.get("securityScore", 0) for a in agents if a.get("securityScore")]
         avg_sec = round(sum(scores) / len(scores), 1) if scores else 75.0
 
-        frameworks = await db.compliance_frameworks.find(q, {"controls": 1}).to_list(length=None)
+        frameworks = await db.compliance_frameworks.find(q, {"controls": 1}).to_list(length=1000)
         passed = failed = 0
         for fw in frameworks:
             for ctrl in fw.get("controls", []):

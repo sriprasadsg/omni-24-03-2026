@@ -3,7 +3,7 @@ async def refresh_token(data: dict[str, Any]):
     """
     Refresh access token using refresh token
     """
-    from authentication_service import SECRET_KEY, ALGORITHM, create_access_token
+    from authentication_service import SECRET_KEY, ALGORITHM, create_access_token, create_refresh_token, _revoked_jti_cache
     
     refresh_token = data.get('refresh_token', '')
     
@@ -36,10 +36,22 @@ async def refresh_token(data: dict[str, Any]):
         # Generate new access token
         token_data = {"sub": email, "role": role, "tenant_id": tenant_id}
         new_access_token = create_access_token(data=token_data)
-        
+
+        # Rotate refresh token: revoke the old one, issue a fresh one
+        old_jti = payload.get('jti', '')
+        if old_jti:
+            _revoked_jti_cache.add(old_jti)
+            try:
+                from datetime import datetime
+                await db.revoked_tokens.insert_one({"jti": old_jti, "revokedAt": datetime.utcnow()})
+            except Exception:
+                pass
+        new_refresh_token = create_refresh_token(data=token_data)
+
         return {
             "success": True,
-            "access_token": new_access_token
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token
         }
         
     except jwt.ExpiredSignatureError:

@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from ueba_engine import ueba_engine
 from database import get_database
 from tenant_context import get_tenant_id
 from authentication_service import get_current_user
+from rate_limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ueba", tags=["UEBA"])
 
@@ -69,7 +73,8 @@ async def get_user_risk_history(user_id: str, tenant_id: str = Depends(get_tenan
     return {"history": chart_data}
 
 @router.post("/calculate-all", dependencies=[Depends(get_current_user)])
-async def calculate_all_scores(background_tasks: BackgroundTasks, tenant_id: str = Depends(get_tenant_id)):
+@limiter.limit("2/hour")
+async def calculate_all_scores(request: Request, background_tasks: BackgroundTasks, tenant_id: str = Depends(get_tenant_id)):
     """
     Triggers a manual recalculation of UEBA risk scores for all users in the tenant.
     Runs asynchronously.
@@ -84,7 +89,7 @@ async def calculate_all_scores(background_tasks: BackgroundTasks, tenant_id: str
                 try:
                     await ueba_engine.calculate_risk_score(tenant_id, uid)
                 except Exception as e:
-                    print(f"[UEBA Task] Error calculating risk for user {uid}: {e}")
+                    logger.error("UEBA Task: Error calculating risk for user %s: %s", uid, e)
                     
     background_tasks.add_task(run_calculation)
     return {"success": True, "message": "UEBA Risk computation started in the background."}

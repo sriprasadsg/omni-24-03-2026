@@ -13,7 +13,7 @@ async def find_empty_a8():
     frameworks = await db.compliance_frameworks.find_one({"id": "iso27001"})
     tech_controls = [c['id'] for c in frameworks['controls'] if c['id'].startswith('A.5.') or c['id'].startswith('A.6.') or c['id'].startswith('A.7.') or c['id'].startswith('A.8.')]
     
-    docs = await db.asset_compliance.find({"controlId": {"$in": tech_controls}}).to_list(length=None)
+    docs = await db.asset_compliance.find({"controlId": {"$in": tech_controls}}).to_list(length=1000)
     
     controls_with_evidence = set()
     for doc in docs:

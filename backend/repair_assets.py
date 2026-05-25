@@ -10,7 +10,7 @@ async def repair_assets():
     db = client.omni_platform
     
     # 1. Get all agents
-    agents = await db.agents.find({}).to_list(length=None)
+    agents = await db.agents.find({}).to_list(length=1000)
     print(f"Total agents found: {len(agents)}")
     
     repaired_count = 0

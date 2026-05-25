@@ -61,8 +61,8 @@ export const IncidentImpactDashboard: React.FC<IncidentImpactDashboardProps> = (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <h3 className="text-lg font-bold mb-4 flex items-center"><ShieldCheckIcon className="mr-2 text-green-500" /> Select a Case</h3>
                         <ul className="space-y-2 max-h-96 overflow-y-auto">
-                            {cases.map(c => (
-                                <li key={c.id}
+                            {cases.map((c, idx) => (
+                                <li key={`${c.id}-${idx}`}
                                     onClick={() => onAnalyze && onAnalyze('case', c.id)}
                                     className="p-3 border rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                                 >

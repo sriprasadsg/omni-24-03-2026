@@ -83,14 +83,12 @@ async def upload_package(
 @router.get("/packages")
 async def list_packages(current_user: Any = Depends(get_current_user)):
     """ List all available software packages in the tenant's local repository. """
-    tenant_id = getattr(current_user, "tenantId", "global")
+    caller_role = getattr(current_user, "role", None)
+    caller_tenant = getattr(current_user, "tenant_id", None)
     db = get_database()
-    
-    # Admins see all, otherwise isolate by tenant
-    query = {}
-    if getattr(current_user, "role", None) != "Super Admin" and tenant_id != "global":
-        query["tenantId"] = tenant_id
 
+    _REPO_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    query: dict = {} if caller_role in _REPO_SUPER_ROLES else {"tenantId": caller_tenant}
     packages = await db.local_repo.find(query, {"_id": 0}).sort("uploaded_at", -1).to_list(length=1000)
     return packages
 

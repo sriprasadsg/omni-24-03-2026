@@ -10,7 +10,7 @@ async def list_tenants():
             return
 
         cursor = mongodb.db.tenants.find()
-        tenants = await cursor.to_list(length=None)
+        tenants = await cursor.to_list(length=1000)
         
         output = []
         for t in tenants:

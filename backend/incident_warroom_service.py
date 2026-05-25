@@ -140,7 +140,7 @@ async def add_timeline_event(
         "attachment_url": event.get("attachment_url", ""),
     }
 
-    result = await db.incidents.update_one({"id": incident_id}, {"$push": {"timeline": entry}})
+    result = await db.incidents.update_one(query, {"$push": {"timeline": entry}})
     if result.modified_count == 0:
         return None
     return entry
@@ -166,7 +166,7 @@ async def add_task(
         "completed_at": None,
     }
 
-    result = await db.incidents.update_one({"id": incident_id}, {"$push": {"tasks": new_task}})
+    result = await db.incidents.update_one(query, {"$push": {"tasks": new_task}})
     if result.modified_count == 0:
         return None
     return new_task
@@ -188,7 +188,7 @@ async def add_chat_message(
         "type": "chat",
     }
 
-    result = await db.incidents.update_one({"id": incident_id}, {"$push": {"chat_messages": msg}})
+    result = await db.incidents.update_one(query, {"$push": {"chat_messages": msg}})
     if result.modified_count == 0:
         return None
 

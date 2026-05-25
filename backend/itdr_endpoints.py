@@ -38,21 +38,28 @@ async def acknowledge_itdr_alert(
     return {"status": "acknowledged", "alert_id": alert_id}
 
 
+_ITDR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
 @router.get("/summary")
 async def get_itdr_summary(current_user: TokenData = Depends(get_current_user)):
     """Get ITDR summary stats."""
     db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    caller_role = getattr(current_user, "role", None)
+    base = {} if caller_role in _ITDR_SUPER_ROLES else {"tenantId": tenant_id}
+
     by_type = {}
     pipeline = [
-        {"$match": {}},
+        {"$match": base},
         {"$group": {"_id": "$type", "count": {"$sum": 1}}},
     ]
     async for doc in db.itdr_alerts.aggregate(pipeline):
         by_type[doc["_id"]] = doc["count"]
 
-    total = await db.itdr_alerts.count_documents({})
-    unack = await db.itdr_alerts.count_documents({"acknowledged": False})
-    critical = await db.itdr_alerts.count_documents({"severity": "critical", "acknowledged": False})
+    total = await db.itdr_alerts.count_documents(base)
+    unack = await db.itdr_alerts.count_documents({**base, "acknowledged": False})
+    critical = await db.itdr_alerts.count_documents({**base, "severity": "critical", "acknowledged": False})
     return {
         "total_alerts": total,
         "unacknowledged": unack,
@@ -91,6 +98,6 @@ async def suspend_user_in_idp(
         raise HTTPException(status_code=400, detail="Unsupported IDP provider.")
         
     if not result.get("success"):
-        raise HTTPException(status_code=500, detail=f"Failed to suspend user: {result.get('error', 'Unknown error')}")
+        raise HTTPException(status_code=500, detail="Failed to suspend user")
         
     return {"status": "suspended", "user": user_email, "idp": request.idp_provider}

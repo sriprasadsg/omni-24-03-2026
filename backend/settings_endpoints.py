@@ -1,11 +1,35 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
 from local_ip import ollama_default_url
 import asyncio
+import ipaddress
 import socket
+from urllib.parse import urlparse
+
+_BLOCKED_HOSTS = {
+    "169.254.169.254",       # AWS/Azure/GCP instance metadata
+    "metadata.google.internal",
+    "metadata.internal",
+}
+
+
+def _is_safe_host(host: str) -> bool:
+    """Block cloud metadata endpoints and link-local IPs."""
+    if not host:
+        return False
+    h = host.strip().lower()
+    if h in _BLOCKED_HOSTS:
+        return False
+    try:
+        addr = ipaddress.ip_address(h)
+        if addr.is_link_local:
+            return False
+    except ValueError:
+        pass
+    return True
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
@@ -80,6 +104,9 @@ async def test_db_connection(
     if not host or not port:
         return {"success": False, "message": "Host and port are required"}
 
+    if not _is_safe_host(host):
+        raise HTTPException(status_code=400, detail="Connections to this host are not permitted")
+
     # 1. TCP reachability check (works for all DB types)
     loop = asyncio.get_event_loop()
     try:
@@ -122,6 +149,9 @@ async def test_llm_connection(
     provider = settings.get("provider", "").lower()
     if provider in ("local", "ollama"):
         ollama_url = (settings.get("ollamaUrl") or ollama_default_url()).rstrip("/")
+        parsed = urlparse(ollama_url)
+        if not _is_safe_host(parsed.hostname or ""):
+            raise HTTPException(status_code=400, detail="Connections to this host are not permitted")
         try:
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:

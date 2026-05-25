@@ -41,9 +41,7 @@ class PlaybookService:
         """List all playbooks."""
         try:
             db = get_database()
-            # Use _db directly to return all playbooks including platform-seeded ones
-            # that may have been stored without tenant context
-            cursor = db._db[self.collection_name].find({})
+            cursor = db[self.collection_name].find({})
             playbooks = await cursor.to_list(length=100)
             for p in playbooks:
                 p["id"] = str(p["_id"])

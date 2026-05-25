@@ -20,7 +20,7 @@ async def check_ids():
 
     print("\n📋 Checking Asset Compliance Record IDs (All unique ControlIDs)...")
     pipeline = [{"$group": {"_id": "$controlId", "count": {"$sum": 1}}}]
-    results = await db.asset_compliance.aggregate(pipeline).to_list(length=None)
+    results = await db.asset_compliance.aggregate(pipeline).to_list(length=1000)
     for r in results:
         print(f"  • {r['_id']} (Count: {r['count']})")
         

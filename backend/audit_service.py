@@ -130,9 +130,9 @@ class AuditService:
         
         # Get all logs sorted by timestamp ASCENDING (oldest first) to walk the chain
         logs = await db.audit_logs.find(
-            {"tenantId": tenant_id}, 
+            {"tenantId": tenant_id},
             {"_id": 0}
-        ).sort("timestamp", 1).to_list(length=None)
+        ).sort("timestamp", 1).to_list(length=1000)
         
         if not logs:
             return {"status": "empty", "valid": True}

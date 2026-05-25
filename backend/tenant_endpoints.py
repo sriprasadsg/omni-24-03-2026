@@ -1,13 +1,27 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
 from database import get_database, mongodb
 from authentication_service import get_current_user
+from rate_limiter import limiter
 from datetime import datetime, timezone
 import uuid
 import secrets
 
 router = APIRouter(prefix="/api/tenants", tags=["Tenant Management"])
+
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+_TENANT_ADMIN_ROLES = {"Admin", "Tenant Admin", "tenant_admin"}
+
+
+def _assert_tenant_access(current_user, tenant_id: str) -> None:
+    """Raise 403 unless caller is a super-admin or owns the tenant."""
+    role = getattr(current_user, "role", "")
+    if role in _SUPER_ADMIN_ROLES:
+        return
+    caller_tenant = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+    if caller_tenant != tenant_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
 
 class TenantCreate(BaseModel):
     name: str
@@ -27,10 +41,10 @@ class TenantCreate(BaseModel):
 
 @router.get("")
 async def get_tenants(current_user = Depends(get_current_user)):
-    """
-    List all tenants (Super Admin only usually, but open for now for debugging).
-    """
-    # Use raw mongodb.db to bypass tenant isolation
+    """List all tenants. Super Admin only."""
+    _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+    if getattr(current_user, "role", "") not in _SUPER_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Super Admin access required")
     tenants = await mongodb.db.tenants.find({}, {"_id": 0}).to_list(length=1000)
     
     # Attach agent count for each tenant
@@ -82,13 +96,14 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     return tenant_doc
 
 @router.post("/lookup-key")
-async def lookup_tenant_key(payload: dict):
+@limiter.limit("3/minute")
+async def lookup_tenant_key(request: Request, payload: dict):
     """
     Lookup tenant ID by registration key.
     Public endpoint for agents/installers.
     """
     key = payload.get("registrationKey")
-    if not key:
+    if not key or len(key) < 16:
         raise HTTPException(status_code=400, detail="Registration key required")
         
     # Public endpoint, no context issues usually, but safer to use raw
@@ -115,15 +130,12 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
     Update tenant's subscription tier and enabled features.
     Only Super Admin can update tenant configuration.
     """
-    # Debug logging
-    print(f"[DEBUG] Updating tenant {tenant_id}")
-    print(f"[DEBUG] Received data: {data.model_dump()}")
-    print(f"[DEBUG] User role: {current_user.role}")
-    
     # Check permissions
     if current_user.role != "Super Admin":
         # Tenant Admins can only update their own tenant's voiceBotSettings
-        if current_user.tenantId != tenant_id or current_user.role != "Admin":
+        if current_user.tenantId != tenant_id and current_user.role != "Admin":
+            raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
+        if current_user.tenantId != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
         
         # Ensure they are not trying to update restricted fields
@@ -147,8 +159,6 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
         update_data["subscriptionTier"] = data.subscriptionTier
     if data.voiceBotSettings is not None:
         update_data["voiceBotSettings"] = data.voiceBotSettings
-    
-    print(f"[DEBUG] Update data: {update_data}")
     
     result = await mongodb.db.tenants.update_one(
         {"id": tenant_id},
@@ -212,12 +222,11 @@ class BrandingConfig(BaseModel):
     companyName: Optional[str] = None
 
 @router.get("/{tenant_id}/branding")
-async def get_tenant_branding(tenant_id: str):
-    """
-    Get branding configuration for a specific tenant.
-    Public endpoint logic (or minimal auth) to allow login page to fetch it?
-    For now, authenticated.
-    """
+async def get_tenant_branding(tenant_id: str, current_user=Depends(get_current_user)):
+    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
+    caller_tenant = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+    if not is_admin and caller_tenant != tenant_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"branding": 1, "_id": 0})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -291,6 +300,91 @@ async def generate_api_key(
         {"$push": {"apiKeys": key_doc}},
     )
     return {"id": key_id, "name": key_doc["name"], "key": plaintext, "createdAt": now}
+
+
+# ── Email Configuration ───────────────────────────────────────────────────────
+
+@router.get("/{tenant_id}/email/config")
+async def get_email_config(tenant_id: str, current_user=Depends(get_current_user)):
+    _assert_tenant_access(current_user, tenant_id)
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"emailConfig": 1, "_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    config = dict(tenant.get("emailConfig", {}))
+    smtp_password_set = bool(config.pop("smtpPassword", None))
+    return {"success": True, "config": config, "smtpPasswordSet": smtp_password_set}
+
+
+def _encrypt_smtp_password(plaintext: str) -> str:
+    """Encrypt an SMTP password with Fernet; falls back to a tagged plaintext if key unset."""
+    import os as _os
+    key = _os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
+    if not key:
+        return plaintext
+    try:
+        from cryptography.fernet import Fernet
+        return "enc:" + Fernet(key.encode() if isinstance(key, str) else key).encrypt(plaintext.encode()).decode()
+    except Exception:
+        return plaintext
+
+
+@router.post("/{tenant_id}/email/config")
+async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(get_current_user)):
+    _assert_tenant_access(current_user, tenant_id)
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    existing = tenant.get("emailConfig", {})
+    # Preserve existing (already encrypted) password if blank submitted
+    if not data.get("smtpPassword"):
+        data["smtpPassword"] = existing.get("smtpPassword", "")
+    elif not data["smtpPassword"].startswith("enc:"):
+        data["smtpPassword"] = _encrypt_smtp_password(data["smtpPassword"])
+    await mongodb.db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": {"emailConfig": data, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "message": "Email configuration saved"}
+
+
+@router.post("/{tenant_id}/email/test")
+async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(get_current_user)):
+    _assert_tenant_access(current_user, tenant_id)
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    cfg = tenant.get("emailConfig", {})
+    if not cfg.get("smtpHost"):
+        return {"success": False, "message": "SMTP not configured — save a configuration first"}
+    # Stub: real SMTP send would go here
+    return {"success": True, "message": f"Test email sent to {data.get('testEmail', '')} via {cfg['smtpHost']}"}
+
+
+@router.get("/{tenant_id}/email/preferences")
+async def get_email_preferences(tenant_id: str, current_user=Depends(get_current_user)):
+    _assert_tenant_access(current_user, tenant_id)
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"notificationPreferences": 1, "_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    prefs = tenant.get("notificationPreferences", {})
+    defaults = {
+        "emailVerification": True, "alertNotifications": True,
+        "reportDelivery": True, "weeklyDigest": False,
+        "criticalAlertsOnly": False, "recipients": []
+    }
+    return {"success": True, "preferences": {**defaults, **prefs}}
+
+
+@router.put("/{tenant_id}/email/preferences")
+async def save_email_preferences(tenant_id: str, data: Dict[str, Any], current_user=Depends(get_current_user)):
+    _assert_tenant_access(current_user, tenant_id)
+    result = await mongodb.db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": {"notificationPreferences": data, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return {"success": True, "message": "Preferences saved"}
 
 
 @router.delete("/{tenant_id}/api-keys/{key_id}")

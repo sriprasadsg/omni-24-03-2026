@@ -9,7 +9,7 @@ async def analyze_compliance():
     await connect_to_mongo()
     db = get_database()
     
-    docs = await db.asset_compliance.find({}).to_list(length=None)
+    docs = await db.asset_compliance.find({}).to_list(length=1000)
     print(f"\n📊 Total Compliance Records: {len(docs)}")
     
     legacy_count = 0

@@ -86,9 +86,14 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
 
         if (formData.provider === 'Local') {
             try {
+                if (!formData.host) {
+                    setTestStatus('failed');
+                    setTestMessage('Host is required for local provider. Example: 127.0.0.1:11434');
+                    return;
+                }
                 const result = await testLlmConnection({
                     provider: 'ollama',
-                    ollamaUrl: formData.host ? `http://${formData.host}` : 'http://localhost:11434',
+                    ollamaUrl: `http://${formData.host}`,
                 });
                 if (result.success) {
                     setTestStatus('success');

@@ -15,7 +15,7 @@ async def check_asset_duplicates():
     print("🔍 Checking assets collection for duplicate agent references...")
     
     # Find all assets
-    assets = await db.assets.find({}).to_list(length=None)
+    assets = await db.assets.find({}).to_list(length=1000)
     print(f"📊 Total assets in database: {len(assets)}")
     
     # Check for duplicate agentId references

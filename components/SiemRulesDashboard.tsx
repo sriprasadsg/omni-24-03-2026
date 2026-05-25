@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import {
-    ShieldIcon, PlusIcon, Trash2Icon, PlayIcon, SaveIcon,
-    CheckCircleIcon, XCircleIcon, AlertTriangleIcon
-} from 'lucide-react';
+import { ShieldIcon, PlusIcon, Trash2Icon, SaveIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
 import * as api from '../services/apiService';
 
 export const SiemRulesDashboard: React.FC = () => {
     const [rules, setRules] = useState<any[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [editingRule, setEditingRule] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
+    const [_loading, setLoading] = useState(false);
 
     // Form state
     const [name, setName] = useState('');
@@ -26,10 +23,7 @@ export const SiemRulesDashboard: React.FC = () => {
     const fetchRules = async () => {
         setLoading(true);
         try {
-            // Simplified API call for demo purposes. 
-            // In a real app this would be a proper Axios wrap in api.ts
-            const tenantId = localStorage.getItem('tenantId') || 'platform-admin';
-            const response = await fetch(`/api/siem/rules?tenant_id=${tenantId}`);
+            const response = await api.authFetch('/api/siem/rules');
             if (response.ok) {
                 const data = await response.json();
                 setRules(data);
@@ -42,7 +36,6 @@ export const SiemRulesDashboard: React.FC = () => {
     };
 
     const handleSave = async () => {
-        const tenantId = localStorage.getItem('tenantId') || 'platform-admin';
         const ruleData = {
             name,
             description,
@@ -54,14 +47,11 @@ export const SiemRulesDashboard: React.FC = () => {
 
         try {
             const method = editingRule ? 'PUT' : 'POST';
-            const url = editingRule
-                ? `/api/siem/rules/${editingRule.id}?tenant_id=${tenantId}`
-                : `/api/siem/rules?tenant_id=${tenantId}`;
+            const url = editingRule ? `/api/siem/rules/${editingRule.id}` : '/api/siem/rules';
 
-            await fetch(url, {
+            await api.authFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(ruleData)
+                body: JSON.stringify(ruleData),
             });
             setIsCreating(false);
             setEditingRule(null);
@@ -72,10 +62,7 @@ export const SiemRulesDashboard: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        const tenantId = localStorage.getItem('tenantId') || 'platform-admin';
-        await fetch(`/api/siem/rules/${id}?tenant_id=${tenantId}`, {
-            method: 'DELETE'
-        });
+        await api.authFetch(`/api/siem/rules/${id}`, { method: 'DELETE' });
         fetchRules();
     };
 

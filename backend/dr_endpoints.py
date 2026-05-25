@@ -16,7 +16,7 @@ async def get_dr_status(tenant_id: str = Depends(get_tenant_id)):
         status = await dr_service.get_dr_status(tenant_id)
         return status
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/regions")
 async def get_region_status(tenant_id: str = Depends(get_tenant_id)):
@@ -25,7 +25,7 @@ async def get_region_status(tenant_id: str = Depends(get_tenant_id)):
         status = await dr_service.get_dr_status(tenant_id)
         return status["regions"]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/trigger-failover/{region_id}")
 async def trigger_failover(region_id: str, tenant_id: str = Depends(get_tenant_id)):
@@ -70,4 +70,4 @@ async def trigger_failover(region_id: str, tenant_id: str = Depends(get_tenant_i
         }
     except Exception as e:
         logger.error("DR failover trigger failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

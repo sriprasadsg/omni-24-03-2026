@@ -5,12 +5,14 @@ Calculates the four DORA metrics from real deployment job data in MongoDB.
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
 
 router = APIRouter(prefix="/api/dora", tags=["DORA Metrics"])
+
+_DORA_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 
 def _parse_dt(val) -> Optional[datetime]:
@@ -29,12 +31,18 @@ def _parse_dt(val) -> Optional[datetime]:
 async def get_dora_metrics(
     tenantId: Optional[str] = None,
     days: int = 30,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Calculate DORA metrics from patch_deployment_jobs and deployment_jobs collections.
     Returns one record per tenant (or the requested tenant) for the supplied time window.
     """
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    if tenantId and caller_role not in _DORA_SUPER_ROLES and tenantId != caller_tenant:
+        raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+    effective_tenant = tenantId if (tenantId and caller_role in _DORA_SUPER_ROLES) else caller_tenant
+
     db = get_database()
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(days=days)
@@ -42,8 +50,8 @@ async def get_dora_metrics(
 
     # Collect jobs from both collections
     query = {"createdAt": {"$gte": window_start_iso}}
-    if tenantId:
-        query["tenantId"] = tenantId  # type: ignore[assignment]
+    if effective_tenant:
+        query["tenantId"] = effective_tenant  # type: ignore[assignment]
 
     jobs = await db.patch_deployment_jobs.find(query, {"_id": 0}).to_list(length=2000)
     jobs += await db.deployment_jobs.find(query, {"_id": 0}).to_list(length=2000)

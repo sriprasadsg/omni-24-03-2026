@@ -9,6 +9,7 @@ Runs lightweight HTTP-based security checks against target URLs:
 
 import asyncio
 import ipaddress
+import os as _os
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -19,6 +20,8 @@ from pydantic import BaseModel
 
 from authentication_service import get_current_user
 from auth_types import TokenData
+
+_SSL_VERIFY = not _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes")
 
 router = APIRouter(prefix="/api/dast", tags=["Dynamic Application Security Testing"])
 
@@ -156,7 +159,7 @@ async def _run_scan(scan_id: str, target_url: str) -> None:
             base = "https://" + base
 
         timeout = aiohttp.ClientTimeout(total=10)
-        connector = aiohttp.TCPConnector(ssl=False)
+        connector = aiohttp.TCPConnector(ssl=_SSL_VERIFY)
 
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
 

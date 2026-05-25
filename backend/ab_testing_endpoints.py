@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Dict, Any, List
 from ab_testing_service import ab_service
 from rbac_utils import require_permission
+from rate_limiter import limiter
+from authentication_service import get_current_user
 
 router = APIRouter(prefix="/api/experiments", tags=["A/B Testing & Experimentation"])
 
@@ -34,14 +36,20 @@ async def create_experiment(
     return {"experiment_id": exp_id, "message": "Experiment created"}
 
 @router.get("/{experiment_id}/variant")
+@limiter.limit("20/minute")
 async def get_variant(
+    request: Request,
     experiment_id: str,
     user_id: str,
-    # No permission required, public for client apps
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get assigned variant for a user.
     """
+    if not experiment_id or len(experiment_id) > 100:
+        raise HTTPException(status_code=400, detail="Invalid experiment_id")
+    if not user_id or len(user_id) > 255:
+        raise HTTPException(status_code=400, detail="Invalid user_id")
     try:
         variant = await ab_service.get_variant(experiment_id, user_id)
         return {"variant": variant, "user_id": user_id}
@@ -49,19 +57,23 @@ async def get_variant(
         raise HTTPException(status_code=404, detail="Experiment not found")
 
 @router.post("/{experiment_id}/track")
+@limiter.limit("30/minute")
 async def track_conversion(
+    request: Request,
     experiment_id: str,
-    request: Dict[str, str],
-    # No permission required, public for client apps
+    body: Dict[str, str],
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Track a conversion event.
     Body: { "user_id": "..." }
     """
-    user_id = request.get("user_id")
-    if not user_id:
+    if not experiment_id or len(experiment_id) > 100:
+        raise HTTPException(status_code=400, detail="Invalid experiment_id")
+    user_id = body.get("user_id")
+    if not user_id or len(user_id) > 255:
         raise HTTPException(status_code=400, detail="user_id is required")
-        
+
     try:
         await ab_service.track_conversion(experiment_id, user_id)
         return {"status": "tracked"}

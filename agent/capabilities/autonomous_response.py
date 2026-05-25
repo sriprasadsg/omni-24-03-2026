@@ -221,20 +221,22 @@ class AutonomousResponseCapability:
         rule_name = f"OmniAgent-BLOCK-{ip.replace('.', '-').replace(':', '-')}"
         if platform.system() == "Windows":
             cmds = [
-                f'netsh advfirewall firewall add rule name="{rule_name}-IN" dir=in action=block remoteip={ip}',
-                f'netsh advfirewall firewall add rule name="{rule_name}-OUT" dir=out action=block remoteip={ip}',
+                ["netsh", "advfirewall", "firewall", "add", "rule",
+                 f"name={rule_name}-IN", "dir=in", "action=block", f"remoteip={ip}"],
+                ["netsh", "advfirewall", "firewall", "add", "rule",
+                 f"name={rule_name}-OUT", "dir=out", "action=block", f"remoteip={ip}"],
             ]
         elif platform.system() == "Linux":
             cmds = [
-                f"iptables -I INPUT -s {ip} -j DROP",
-                f"iptables -I OUTPUT -d {ip} -j DROP",
+                ["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"],
+                ["iptables", "-I", "OUTPUT", "-d", ip, "-j", "DROP"],
             ]
         else:
             return self._result("block_ip", False, "IP blocking not supported on this OS")
 
         errors = []
         for cmd in cmds:
-            r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            r = subprocess.run(cmd, shell=False, capture_output=True, text=True)
             if r.returncode != 0:
                 errors.append(r.stderr.strip())
 
@@ -245,22 +247,28 @@ class AutonomousResponseCapability:
 
     def unblock_ip(self, ip: str) -> Dict[str, Any]:
         """Remove a previously blocked IP address from the host firewall."""
+        import ipaddress
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            return self._result("unblock_ip", False, f"Invalid IP address: {ip}")
+
         rule_name = f"OmniAgent-BLOCK-{ip.replace('.', '-').replace(':', '-')}"
         if platform.system() == "Windows":
             cmds = [
-                f'netsh advfirewall firewall delete rule name="{rule_name}-IN"',
-                f'netsh advfirewall firewall delete rule name="{rule_name}-OUT"',
+                ["netsh", "advfirewall", "firewall", "delete", "rule", f"name={rule_name}-IN"],
+                ["netsh", "advfirewall", "firewall", "delete", "rule", f"name={rule_name}-OUT"],
             ]
         elif platform.system() == "Linux":
             cmds = [
-                f"iptables -D INPUT -s {ip} -j DROP",
-                f"iptables -D OUTPUT -d {ip} -j DROP",
+                ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"],
+                ["iptables", "-D", "OUTPUT", "-d", ip, "-j", "DROP"],
             ]
         else:
             return self._result("unblock_ip", False, "IP unblocking not supported on this OS")
 
         for cmd in cmds:
-            subprocess.run(cmd, shell=True, capture_output=True)
+            subprocess.run(cmd, shell=False, capture_output=True)
         return self._result("unblock_ip", True, f"Unblocked IP {ip}", metadata={"ip": ip})
 
     # ------------------------------------------------------------------
@@ -283,18 +291,20 @@ class AutonomousResponseCapability:
 
     def _isolate_windows(self, allow_port: int) -> Dict[str, Any]:
         cmds = [
-            # Block ALL inbound
-            f'netsh advfirewall firewall add rule name="{FW_RULE_NAME}-BLOCK-IN" dir=in action=block',
-            # Block ALL outbound
-            f'netsh advfirewall firewall add rule name="{FW_RULE_NAME}-BLOCK-OUT" dir=out action=block',
-            # Allow C2 inbound
-            f'netsh advfirewall firewall add rule name="{FW_RULE_NAME}-C2-IN" dir=in action=allow protocol=TCP localport={allow_port}',
-            # Allow C2 outbound
-            f'netsh advfirewall firewall add rule name="{FW_RULE_NAME}-C2-OUT" dir=out action=allow protocol=TCP remoteport={allow_port}',
+            ["netsh", "advfirewall", "firewall", "add", "rule",
+             f"name={FW_RULE_NAME}-BLOCK-IN", "dir=in", "action=block"],
+            ["netsh", "advfirewall", "firewall", "add", "rule",
+             f"name={FW_RULE_NAME}-BLOCK-OUT", "dir=out", "action=block"],
+            ["netsh", "advfirewall", "firewall", "add", "rule",
+             f"name={FW_RULE_NAME}-C2-IN", "dir=in", "action=allow",
+             "protocol=TCP", f"localport={allow_port}"],
+            ["netsh", "advfirewall", "firewall", "add", "rule",
+             f"name={FW_RULE_NAME}-C2-OUT", "dir=out", "action=allow",
+             "protocol=TCP", f"remoteport={allow_port}"],
         ]
         errors = []
         for cmd in cmds:
-            r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            r = subprocess.run(cmd, shell=False, capture_output=True, text=True)
             if r.returncode != 0:
                 errors.append(r.stderr.strip())
 
@@ -306,17 +316,17 @@ class AutonomousResponseCapability:
 
     def _isolate_linux(self, allow_port: int) -> Dict[str, Any]:
         cmds = [
-            "iptables -P INPUT DROP",
-            "iptables -P OUTPUT DROP",
-            "iptables -P FORWARD DROP",
-            f"iptables -A INPUT -p tcp --dport {allow_port} -j ACCEPT",
-            f"iptables -A OUTPUT -p tcp --sport {allow_port} -j ACCEPT",
-            "iptables -A INPUT -i lo -j ACCEPT",
-            "iptables -A OUTPUT -o lo -j ACCEPT",
+            ["iptables", "-P", "INPUT", "DROP"],
+            ["iptables", "-P", "OUTPUT", "DROP"],
+            ["iptables", "-P", "FORWARD", "DROP"],
+            ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", str(allow_port), "-j", "ACCEPT"],
+            ["iptables", "-A", "OUTPUT", "-p", "tcp", "--sport", str(allow_port), "-j", "ACCEPT"],
+            ["iptables", "-A", "INPUT", "-i", "lo", "-j", "ACCEPT"],
+            ["iptables", "-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"],
         ]
         errors = []
         for cmd in cmds:
-            r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            r = subprocess.run(cmd, shell=False, capture_output=True, text=True)
             if r.returncode != 0:
                 errors.append(r.stderr.strip())
         if errors:
@@ -332,23 +342,27 @@ class AutonomousResponseCapability:
         """Remove network isolation rules."""
         if platform.system() == "Windows":
             cmds = [
-                f'netsh advfirewall firewall delete rule name="{FW_RULE_NAME}-BLOCK-IN"',
-                f'netsh advfirewall firewall delete rule name="{FW_RULE_NAME}-BLOCK-OUT"',
-                f'netsh advfirewall firewall delete rule name="{FW_RULE_NAME}-C2-IN"',
-                f'netsh advfirewall firewall delete rule name="{FW_RULE_NAME}-C2-OUT"',
+                ["netsh", "advfirewall", "firewall", "delete", "rule",
+                 f"name={FW_RULE_NAME}-BLOCK-IN"],
+                ["netsh", "advfirewall", "firewall", "delete", "rule",
+                 f"name={FW_RULE_NAME}-BLOCK-OUT"],
+                ["netsh", "advfirewall", "firewall", "delete", "rule",
+                 f"name={FW_RULE_NAME}-C2-IN"],
+                ["netsh", "advfirewall", "firewall", "delete", "rule",
+                 f"name={FW_RULE_NAME}-C2-OUT"],
             ]
         elif platform.system() == "Linux":
             cmds = [
-                "iptables -P INPUT ACCEPT",
-                "iptables -P OUTPUT ACCEPT",
-                "iptables -P FORWARD ACCEPT",
-                "iptables -F",
+                ["iptables", "-P", "INPUT", "ACCEPT"],
+                ["iptables", "-P", "OUTPUT", "ACCEPT"],
+                ["iptables", "-P", "FORWARD", "ACCEPT"],
+                ["iptables", "-F"],
             ]
         else:
             return self._result("restore_host", False, "Restore not supported on this OS")
 
         for cmd in cmds:
-            subprocess.run(cmd, shell=True, capture_output=True)
+            subprocess.run(cmd, shell=False, capture_output=True)
         return self._result("restore_host", True, "Host network access restored")
 
     # ------------------------------------------------------------------

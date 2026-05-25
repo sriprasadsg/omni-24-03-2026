@@ -10,7 +10,7 @@ async def dump_all_ids():
     await connect_to_mongo()
     db = get_database()
     
-    frameworks = await db.compliance_frameworks.find({}).to_list(length=None)
+    frameworks = await db.compliance_frameworks.find({}).to_list(length=1000)
     
     valid_ids = {}
     for fw in frameworks:

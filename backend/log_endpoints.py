@@ -22,11 +22,19 @@ class LogEntry(BaseModel):
     tenantId: Optional[str] = None
     metadata: Optional[dict] = {}
 
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+
 @router.get("")
 async def get_logs(current_user: TokenData = Depends(get_current_user)):
-    """Get system logs"""
+    """Get system logs scoped to the caller's tenant."""
     db = get_database()
-    logs = await db.logs.find({}, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(length=100)
+    role = getattr(current_user, "role", "") or ""
+    if role in _SUPER_ADMIN_ROLES:
+        query: dict = {}
+    else:
+        tenant_id = getattr(current_user, "tenant_id", None)
+        query = {"tenantId": tenant_id} if tenant_id else {"tenantId": {"$exists": False}}
+    logs = await db.logs.find(query, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(length=100)
     return logs
 
 @router.post("")

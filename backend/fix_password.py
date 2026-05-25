@@ -1,4 +1,5 @@
 import asyncio
+import os
 from database import get_database, connect_to_mongo
 from auth_utils import verify_password, hash_password
 
@@ -9,7 +10,7 @@ async def test_password():
     
     if user:
         stored_password = user.get('password')
-        test_password = 'admin123'
+        test_password = os.getenv("TEST_PASSWORD", "")
         
         print(f"Testing password for: {user.get('email')}")
         print(f"Stored password hash: {stored_password[:50]}...")

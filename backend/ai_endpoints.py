@@ -14,7 +14,7 @@ from rbac_service import rbac_service
 
 @router.get("")
 @router.get("/")
-async def ai_service_status():
+async def ai_service_status(current_user=Depends(get_current_user)):
     """Get AI automation service status including active provider."""
     provider_name = getattr(getattr(ai_service, "provider", None), "name", None)
     is_mock = provider_name == "Chitti (Mock)" if provider_name else not ai_service.is_configured
@@ -103,13 +103,14 @@ async def analyze_impact(
         match = _re.search(r"\{[\s\S]+\}", cleaned)
         result = _json.loads(match.group(0)) if match else {"impact_summary": cleaned}
     except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).error("AI impact analysis error: %s", exc)
         result = {
             "impact_summary": "AI impact analysis unavailable.",
             "affected_systems": [],
             "risk_score": 50,
             "recommended_actions": ["Manual review required"],
             "urgency": "medium",
-            "error": str(exc),
         }
     return result
 
@@ -132,6 +133,9 @@ async def ai_threat_hunt(
     query_text = payload.get("query", "").strip()
     if not query_text:
         raise HTTPException(status_code=400, detail="Query is required")
+    # Cap length and strip characters that could break prompt structure
+    query_text = query_text[:500]
+    query_text = _re.sub(r'[^\w\s\-\.\,\:\(\)\']', ' ', query_text).strip()
 
     tenant_id = get_tenant_id()
     db = get_database()
@@ -160,7 +164,12 @@ async def ai_threat_hunt(
         m = _re.search(r"\{[\s\S]+\}", cleaned)
         if m:
             ai_filter = _json.loads(m.group(0))
-            # Ensure tenantId is always present
+            # Whitelist known fields only — strips MongoDB operators and unknown keys
+            _SAFE_FIELDS = frozenset({
+                "message", "severity", "time", "category_name",
+                "source", "host", "ip", "user", "action", "tenantId",
+            })
+            ai_filter = {k: v for k, v in ai_filter.items() if k in _SAFE_FIELDS}
             ai_filter["tenantId"] = tenant_id
             match_filter = ai_filter
             generated_pipeline = [{"$match": match_filter}, {"$sort": {"time": -1}}, {"$limit": 200}]
@@ -199,12 +208,9 @@ async def ai_threat_hunt(
                 "fallback": True,
             }
         except Exception as exc2:
-            return {
-                "success": False,
-                "data": [],
-                "generated_pipeline": [],
-                "error": str(exc2),
-            }
+            import logging as _logging
+            _logging.getLogger(__name__).error("Threat hunt fallback query error: %s", exc2)
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/feedback")

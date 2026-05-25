@@ -19,7 +19,7 @@ async def create_maintenance_window(window_data: Dict[str, Any], current_user: T
         window = await service.create_window(window_data)
         return {"success": True, "window": window}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/windows")
 async def list_maintenance_windows(current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")), db=Depends(get_database)):

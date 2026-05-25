@@ -1,4 +1,5 @@
 
+import os
 import paypalrestsdk
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone, timedelta
@@ -54,8 +55,8 @@ class PayPalGateway(PaymentGatewayInterface):
             "plan": {"id": price_id},
             "payer": {"payment_method": "paypal"},
             "override_merchant_preferences": {
-                "return_url": "http://localhost:3000/settings/billing?status=success",
-                "cancel_url": "http://localhost:3000/settings/billing?status=cancel",
+                "return_url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/settings/billing?status=success",
+                "cancel_url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/settings/billing?status=cancel",
                 "auto_bill_amount": "YES",
                 "initial_fail_amount_action": "CONTINUE",
                 "max_fail_attempts": "0"
@@ -105,8 +106,8 @@ class PayPalGateway(PaymentGatewayInterface):
             "intent": "sale",
             "payer": {"payment_method": "paypal"},
             "redirect_urls": {
-                "return_url": "http://localhost:3000/settings/billing/success",
-                "cancel_url": "http://localhost:3000/settings/billing/cancel"
+                "return_url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/settings/billing/success",
+                "cancel_url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/settings/billing/cancel"
             },
             "transactions": [{
                 "item_list": {

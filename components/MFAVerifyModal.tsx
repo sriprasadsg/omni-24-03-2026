@@ -40,7 +40,7 @@ export default function MFAVerifyModal({ mfaSessionToken, onSuccess, onCancel }:
             const d = await r.json();
             if (!r.ok) throw new Error(d.detail || 'Verification failed');
             // Store token and notify parent
-            localStorage.setItem('access_token', d.access_token);
+            sessionStorage.setItem('access_token', d.access_token);
             onSuccess(d.access_token, d.user);
         } catch (e: any) { setError(e.message); }
         finally { setLoading(false); }

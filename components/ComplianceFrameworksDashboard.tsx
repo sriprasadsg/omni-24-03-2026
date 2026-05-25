@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, CheckCircle, XCircle, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, Download } from 'lucide-react';
+import { authFetch } from '../services/apiService';
+import { useUser } from '../contexts/UserContext';
 
 const API = '/api/frameworks';
 
@@ -83,6 +85,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function ComplianceFrameworksDashboard() {
+  const { currentUser } = useUser();
+  const canTriggerScan = currentUser?.role === 'Super Admin' || currentUser?.role === 'Tenant Admin';
+
   const [summary, setSummary] = useState<FrameworkSummary>({});
   const [selected, setSelected] = useState<string>('nist_csf');
   const [detail, setDetail] = useState<FrameworkResult | null>(null);
@@ -90,13 +95,12 @@ export function ComplianceFrameworksDashboard() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<string>('all');
-
-  const token = localStorage.getItem('access_token');
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
 
   const fetchSummary = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/summary`, { headers });
+      const res = await authFetch(`${API}/summary`);
       if (res.ok) setSummary(await res.json());
     } catch (_) {}
     setLoading(false);
@@ -105,11 +109,31 @@ export function ComplianceFrameworksDashboard() {
   const fetchDetail = useCallback(async (fid: string) => {
     setDetailLoading(true);
     try {
-      const res = await fetch(`${API}/${fid}`, { headers });
+      const res = await authFetch(`${API}/${fid}`);
       if (res.ok) setDetail(await res.json());
     } catch (_) {}
     setDetailLoading(false);
   }, []);
+
+  const triggerScan = useCallback(async () => {
+    setIsScanning(true);
+    setScanMessage(null);
+    try {
+      const res = await authFetch(`/api/compliance/${selected}/scan`, { method: 'POST' });
+      const data = res.ok ? await res.json() : null;
+      const count = data?.agent_count ?? 0;
+      setScanMessage(`Scan dispatched to ${count} agent${count !== 1 ? 's' : ''}. Results update in ~60s.`);
+      setTimeout(() => {
+        fetchSummary();
+        fetchDetail(selected);
+        setScanMessage(null);
+      }, 12000);
+    } catch {
+      setScanMessage('Failed to dispatch scan. Check backend connection.');
+    } finally {
+      setIsScanning(false);
+    }
+  }, [selected, fetchSummary, fetchDetail]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchDetail(selected); }, [selected, fetchDetail]);
@@ -128,6 +152,7 @@ export function ComplianceFrameworksDashboard() {
 
   return (
     <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
@@ -135,10 +160,28 @@ export function ComplianceFrameworksDashboard() {
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
           <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Automated control evaluation — NIST CSF · CIS v8 · ISO 27001 · HIPAA · PCI-DSS · SOC 2</p>
         </div>
-        <button onClick={() => { fetchSummary(); fetchDetail(selected); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
-          <RefreshCw size={13} /> Re-evaluate
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          {canTriggerScan ? (
+            <button
+              onClick={triggerScan}
+              disabled={isScanning}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: isScanning ? 'rgba(99,102,241,.08)' : 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: '0.82em', opacity: isScanning ? 0.7 : 1 }}>
+              <RefreshCw size={13} style={{ animation: isScanning ? 'spin 1s linear infinite' : 'none' }} />
+              {isScanning ? 'Dispatching…' : 'Scan All Agents'}
+            </button>
+          ) : (
+            <button
+              onClick={() => { fetchSummary(); fetchDetail(selected); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+              <RefreshCw size={13} /> Re-evaluate
+            </button>
+          )}
+          {scanMessage && (
+            <span style={{ fontSize: '0.75em', color: scanMessage.startsWith('Failed') ? '#fca5a5' : '#6ee7b7' }}>
+              {scanMessage}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Framework score cards */}

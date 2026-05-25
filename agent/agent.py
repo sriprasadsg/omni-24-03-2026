@@ -488,6 +488,18 @@ class AgentCapabilityManager:
             package_id = instruction.split(":", 1)[1].strip()
             cap = self.capability_instances.get('software_management')
             if cap:
+                download_url = payload.get("download_url") if payload else None
+                install_args = payload.get("install_args") if payload else None
+                if download_url:
+                    # Resolve relative URL to absolute using api_base_url
+                    if download_url.startswith("/"):
+                        base_url = self.cfg.get('api_base_url', 'http://localhost:5000').rstrip('/')
+                        download_url = base_url + download_url
+                    return cap.install_from_url(
+                        download_url, package_id,
+                        install_args=install_args,
+                        headers=self._auth_headers(),
+                    )
                 return cap.install_software(package_id)
             return {"status": "error", "error": "Software Management capability not enabled"}
 
@@ -777,17 +789,27 @@ class AgentCapabilityManager:
                         _result.update({"status": "skipped", "note": "tc/netem not available on Windows"})
 
                 elif _chaos_type == "Pod Failure":
+                    import re as _re
                     target = (payload or {}).get("metadata", {}).get("target", "")
                     if not target:
-                        import re as _re
                         m = _re.search(r'pgrep -f ([^\s)]+)', instruction)
                         target = m.group(1) if m else ""
-                    if target and _os != "Windows":
-                        _r = _run(f"kill -9 $(pgrep -f '{target}') 2>/dev/null || true", timeout=10)
+                    # Validate: only allow safe process-name characters (alphanumeric, hyphen, dot, underscore)
+                    if target and not _re.fullmatch(r'[\w\-\.]+', target):
+                        _result.update({"status": "error", "note": f"Rejected unsafe target value: {target!r}"})
+                    elif target and _os != "Windows":
+                        import subprocess as _sp
+                        pgrep = _sp.run(["pgrep", "-f", target], capture_output=True, text=True)
+                        pids = pgrep.stdout.split()
+                        if pids:
+                            _sp.run(["kill", "-9"] + pids, capture_output=True)
+                        _r = {"stdout": pgrep.stdout, "returncode": pgrep.returncode}
                         _result.update({"status": "success", "note": f"SIGKILL sent to processes matching '{target}'", **_r})
                     elif target and _os == "Windows":
-                        _r = _run(f"taskkill /F /IM {target} 2>nul || echo skipped", timeout=10)
-                        _result.update({"status": "success", "note": f"taskkill attempted for '{target}'", **_r})
+                        import subprocess as _sp
+                        _r = _sp.run(["taskkill", "/F", "/IM", target], capture_output=True, text=True)
+                        _result.update({"status": "success", "note": f"taskkill attempted for '{target}'",
+                                        "stdout": _r.stdout, "returncode": _r.returncode})
                     else:
                         _result.update({"status": "skipped", "note": "no target process specified"})
 
@@ -1084,12 +1106,14 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
     logger.info("Sending heartbeat…")
 
     sys_info         = PlatformUtils.get_system_info()
+    device_type_info = PlatformUtils.detect_device_type()
     capability_data  = capability_mgr.collect_all_data()
     cpu_info         = PlatformUtils.get_cpu_info()
     memory_info      = PlatformUtils.get_memory_info()
     disks_info       = PlatformUtils.get_storage_info()
     mac_address      = PlatformUtils.get_mac_address()
     serial_number    = PlatformUtils.get_serial_number()
+    install_date     = PlatformUtils.get_os_install_date()
 
     installed_software = []
     try:
@@ -1108,17 +1132,23 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
     meta = {
         "os":                 sys_info["os"],
         "os_full_name":       sys_info["os_full_name"],
-        "os_release":         sys_info["os_release"],
-        "os_version_detail":  sys_info["os_version_detail"],
-        "service_pack":       sys_info["service_pack"],
-        "os_version":         sys_info["os_version"],
-        "kernel_version":     sys_info["os_version_detail"],
+        "os_release":         sys_info["os_release"],          # e.g. "23H2"
+        "os_version_detail":  sys_info["os_version_detail"],   # e.g. "10.0.26200.2803"
+        "os_version":         sys_info["os_version"],          # same as above
+        "kernel_version":     sys_info["os_version_detail"],   # alias used by backend
+        "os_build_number":    sys_info.get("os_build_number", ""),  # "26200" bare
+        "os_ubr":             sys_info.get("os_ubr", ""),           # "2803"
+        "service_pack":       sys_info.get("service_pack", ""),
         "python_version":     sys_info["python_version"],
         "cpu_model":          cpu_info,
         "memory_gb":          memory_info,
         "disks":              disks_info,
         "mac_address":        mac_address,
         "serial_number":      serial_number,
+        "install_date":       install_date,
+        "device_type":        device_type_info.get("device_type", "unknown"),
+        "chassis_label":      device_type_info.get("chassis_label", "Unknown"),
+        "is_virtual":         device_type_info.get("is_virtual", False),
         "installed_software": installed_software,
         # Phase 11: live patch data reported to backend for /api/patches/outdated + /os
         "software_inventory": software_inventory,
@@ -1407,6 +1437,7 @@ def check_and_execute_instructions(cfg, capability_mgr):
             for item in instructions:
                 instr_type = item.get("instruction")
                 payload    = item.get("payload")
+                task_id    = item.get("task_id")
 
                 if instr_type == "start_remote_session":
                     result = capability_mgr.execute_remote_session(payload)
@@ -1432,6 +1463,19 @@ def check_and_execute_instructions(cfg, capability_mgr):
                     result = {"status": "skipped", "reason": "No instruction text"}
 
                 logger.info(f"Instruction '{instr_type}' result: {result.get('status', result)}")
+
+                # Report result back so backend can update task status for UI polling
+                if task_id and instr_type and instr_type != "skipped":
+                    try:
+                        result_url = cfg.get("api_base_url", "").rstrip("/") + f"/api/agents/{agent_id}/instructions/result"
+                        requests.post(
+                            result_url,
+                            json={**result, "task_id": task_id, "type": instr_type},
+                            headers=capability_mgr._auth_headers(),
+                            timeout=10,
+                        )
+                    except Exception as _re:
+                        logger.warning(f"Failed to report instruction result for task {task_id}: {_re}")
 
                 # Store every instruction outcome so the agent learns what works
                 if instr_type and instr_type != "skipped":

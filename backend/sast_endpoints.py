@@ -4,10 +4,13 @@ SAST API Endpoints
 Provides API for static application security testing.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+logger = logging.getLogger(__name__)
 
 from database import get_database
 from sast_service import get_sast_service
@@ -60,7 +63,8 @@ async def trigger_scan(
         return scan
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to trigger scan: {str(e)}")
+        logger.error("Failed to trigger scan: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/scans/{scan_id}")
@@ -76,10 +80,11 @@ async def get_scan_results(
         results = await sast_service.get_scan_results(scan_id)
         return results
     
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get scan results: {str(e)}")
+        logger.error("Failed to get scan results: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/vulnerabilities")
@@ -112,7 +117,8 @@ async def list_vulnerabilities(
         return vulnerabilities
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list vulnerabilities: {str(e)}")
+        logger.error("Failed to list vulnerabilities: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/vulnerabilities/false-positive")
@@ -134,10 +140,11 @@ async def mark_false_positive(
         
         return result
     
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to mark false positive: {str(e)}")
+        logger.error("Failed to mark false positive: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/quality/{scan_id}")
@@ -153,10 +160,11 @@ async def get_code_quality_metrics(
         metrics = await sast_service.get_code_quality_metrics(scan_id)
         return metrics
     
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get metrics: {str(e)}")
+        logger.error("Failed to get metrics: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history")
@@ -178,7 +186,8 @@ async def get_scan_history(
         return history
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get history: {str(e)}")
+        logger.error("Failed to get scan history: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/projects")
@@ -190,8 +199,10 @@ async def list_projects(
     tenant_id = current_user.tenant_id
     try:
         # Aggregate distinct projects from scan history
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         pipeline = [
-            {"$match": {"tenantId": tenant_id}} if tenant_id else {"$match": {}},
+            {"$match": {"tenantId": tenant_id}},
             {"$group": {
                 "_id": "$project_name",
                 "repositoryUrl": {"$first": "$repository_url"},
@@ -213,7 +224,8 @@ async def list_projects(
         projects = await cursor.to_list(length=200)
         return projects
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list projects: {str(e)}")
+        logger.error("Failed to list projects: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/statistics")
@@ -230,4 +242,5 @@ async def get_statistics(
         return stats
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
+        logger.error("Failed to get statistics: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")

@@ -17,7 +17,7 @@ async def cleanup_duplicate_agents():
     print("🔍 Searching for duplicate agents...")
     
     # Find all agents
-    agents = await db.agents.find({}).to_list(length=None)
+    agents = await db.agents.find({}).to_list(length=1000)
     print(f"📊 Total agents in database: {len(agents)}")
     
     # Group by agent ID

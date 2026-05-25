@@ -1,11 +1,15 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks, Depends, Request
 from typing import List, Optional
+import logging
 import os
 import hashlib
+import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rate_limiter import limiter
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -39,7 +43,9 @@ def _sha256_file(path: str) -> str:
 
 
 @router.post("/api/compliance/artifacts/upload")
+@limiter.limit("10/hour")
 async def upload_manual_artifact(
+    request: Request,
     file: UploadFile = File(...),
     category: str = Form(..., description=f"One of: {', '.join(MANUAL_ARTIFACT_CATEGORIES)}"),
     control_ids: str = Form("", description="Comma-separated control IDs this artifact satisfies"),
@@ -68,7 +74,8 @@ async def upload_manual_artifact(
     if len(file_content) > 50 * 1024 * 1024:   # 50 MB limit
         raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
 
-    file_ext = os.path.splitext(file.filename or "artifact")[1].lower()
+    original_name = os.path.basename(file.filename or "artifact")
+    file_ext = os.path.splitext(original_name)[1].lower()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     uploader = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
     safe_filename = f"artifact_{category}_{timestamp}{file_ext}"
@@ -84,7 +91,7 @@ async def upload_manual_artifact(
         "id": f"artifact-{timestamp}",
         "type": "manual_artifact",
         "category": category,
-        "filename": file.filename,
+        "filename": original_name,
         "stored_as": safe_filename,
         "url": f"/static/evidence/{safe_filename}",
         "sha256": sha256,
@@ -133,7 +140,9 @@ async def list_manual_artifacts(
     user_tenant = getattr(current_user, "tenant_id", None)
     is_super_admin = user_role in ("Super Admin", "superadmin", "super_admin")
     if not is_super_admin:
-        query["asset_id"] = asset_id or user_tenant
+        query["tenantId"] = user_tenant
+        if asset_id:
+            query["asset_id"] = asset_id
     elif asset_id:
         query["asset_id"] = asset_id
 
@@ -153,21 +162,20 @@ async def list_artifact_categories():
 async def upload_compliance_evidence(
     asset_id: str,
     file: UploadFile = File(...),
-    control_id: str = Form(...)
+    control_id: str = Form(...),
+    current_user=Depends(get_current_user),
 ):
     try:
-        # Save file to disk
+        # Save file to disk — use a random UUID to prevent enumeration
         file_ext = os.path.splitext(file.filename)[1]
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        safe_filename = f"{asset_id}_{control_id}_{timestamp}{file_ext}"
+        safe_filename = f"{uuid.uuid4().hex}{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
         file_content = await file.read()
         with open(file_path, "wb") as buffer:
             buffer.write(file_content)
             
-        # File URL (assuming static mount)
-        file_url = f"http://localhost:5000/static/evidence/{safe_filename}"
+        file_url = f"/static/evidence/{safe_filename}"
         
         # Create Evidence Record
         evidence_record = {
@@ -210,17 +218,30 @@ async def upload_compliance_evidence(
         return {"success": True, "evidence": evidence_record}
         
     except Exception as e:
-        print(f"Upload error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Upload error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/api/compliance/evidence")
-async def get_all_compliance_evidence():
+async def get_all_compliance_evidence(current_user=Depends(get_current_user)):
     """
-    Fetch all AssetCompliance records from the database.
-    Used to populate the dashboard with real data.
+    Fetch AssetCompliance records. Super Admins see all; others see only their tenant's assets.
     """
     db = get_database()
-    cursor = db.asset_compliance.find({})
+    user_role = getattr(current_user, "role", "")
+    is_super_admin = user_role in {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+
+    if is_super_admin:
+        query: dict = {}
+    else:
+        tenant_id = getattr(current_user, "tenant_id", None)
+        if not tenant_id:
+            return []
+        tenant_asset_ids = await db.assets.distinct("id", {"tenantId": tenant_id})
+        if not tenant_asset_ids:
+            return []
+        query = {"assetId": {"$in": tenant_asset_ids}}
+
+    cursor = db.asset_compliance.find(query)
     records = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])
@@ -228,7 +249,11 @@ async def get_all_compliance_evidence():
     return records
 
 @router.post("/api/compliance/{framework_id}/scan")
-async def trigger_framework_scan(framework_id: str, background_tasks: BackgroundTasks):
+async def trigger_framework_scan(
+    framework_id: str,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_user),
+):
     """
     Broadcast 'Run Compliance Scan' instruction to all online agents AND
     run the server-side admin evidence collection immediately as a background task.
@@ -259,7 +284,7 @@ async def trigger_framework_scan(framework_id: str, background_tasks: Background
     if new_instructions:
         await db.agent_instructions.insert_many(new_instructions)
     
-    print(f"[BROADCAST] Run Compliance Scan to {count} agents for framework {framework_id}")
+    logger.info("BROADCAST Run Compliance Scan to %s agents for framework %s", count, framework_id)
 
     # 2. ALSO run admin-level evidence collection for every registered asset
     #    as a background task so the UI gets real data immediately.
@@ -276,9 +301,9 @@ async def trigger_framework_scan(framework_id: str, background_tasks: Background
 
         for hostname in set(hostnames):
             background_tasks.add_task(run_evidence_collection_for_asset, hostname, db)
-            print(f"[AdminEvidence] Queued admin evidence collection for: {hostname}")
+            logger.info("AdminEvidence: Queued admin evidence collection for: %s", hostname)
     except Exception as e:
-        print(f"[WARNING] Could not queue admin evidence collection: {e}")
+        logger.warning("Could not queue admin evidence collection: %s", e)
     
     return {
         "success": True, 
@@ -287,7 +312,7 @@ async def trigger_framework_scan(framework_id: str, background_tasks: Background
     }
 
 @router.post("/api/agents/{agent_id}/compliance/scan")
-async def trigger_agent_scan(agent_id: str):
+async def trigger_agent_scan(agent_id: str, current_user=Depends(get_current_user)):
     """
     Send 'Run Compliance Scan' instruction to a single agent.
     """
@@ -307,7 +332,7 @@ async def trigger_agent_scan(agent_id: str):
     
     result = await db.agent_instructions.insert_one(instruction)
     
-    print(f"Sent 'Run Compliance Scan' to agent {agent_id}")
+    logger.info("Sent 'Run Compliance Scan' to agent %s", agent_id)
     
     return {
         "success": True,
@@ -316,7 +341,11 @@ async def trigger_agent_scan(agent_id: str):
     }
 
 @router.post("/api/agents/{agent_id}/compliance/fix")
-async def trigger_compliance_fix(agent_id: str, check_name: str = Form(...)):
+async def trigger_compliance_fix(
+    agent_id: str,
+    check_name: str = Form(...),
+    current_user=Depends(get_current_user),
+):
     """
     Send a 'Fix Compliance' instruction to a specific agent.
     """
@@ -333,21 +362,41 @@ async def trigger_compliance_fix(agent_id: str, check_name: str = Form(...)):
     }
     
     await db.agent_instructions.insert_one(instruction)
-    print(f"🔧 Sent Fix Instruction to {agent_id}: {check_name}")
+    logger.info("Sent Fix Instruction to %s: %s", agent_id, check_name)
     
     return {"success": True, "message": f"Fix instruction sent for {check_name}"}
-
 async def process_automated_evidence(agent_hostname: str, compliance_data: dict, db):
     """
     Called by Agent Heartbeat.
     Maps agent compliance checks to Control IDs and auto-generates evidence.
     """
-    print(f"🤖 Processing Auto-Compliance for {agent_hostname}...")
+    logger.info("Processing Auto-Compliance for %s", agent_hostname)
     
     # 1. Resolve Asset ID (assuming asset-{hostname})
     asset_id = f"asset-{agent_hostname}"
     
-    # 2. Define Mappings: Check Name -> [Control IDs]
+    from tenant_context import set_tenant_id, get_tenant_id
+    old_tenant_id = get_tenant_id()
+    
+    # Resolve Tenant ID globally
+    set_tenant_id("platform-admin")
+    try:
+        asset = await db.assets.find_one({"id": asset_id})
+        tenant_id = asset.get("tenantId") if asset else None
+        if not tenant_id:
+            agent = await db.agents.find_one({"hostname": agent_hostname})
+            tenant_id = agent.get("tenantId") if agent else None
+    except Exception as e:
+        logger.warning("Failed to look up tenant ID for auto-compliance: %s", e)
+        tenant_id = None
+    finally:
+        set_tenant_id(old_tenant_id)
+        
+    if tenant_id:
+        set_tenant_id(tenant_id)
+        
+    # Begin processing checks
+        # 2. Define Mappings: Check Name -> [Control IDs]
     # Check names come from agent/capabilities/compliance.py
     # EXPANDED: Now covers ALL 36 agent checks (28 Windows + 8 Linux)
     MAPPINGS = {
@@ -562,6 +611,7 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                 "uploadedAt": timestamp,
                 "assetId": asset_id,
                 "controlId": control_id,
+                "tenantId": tenant_id,  # Explicitly write tenantId
                 "systemGenerated": True,
                 "content": evidence_content
             }
@@ -578,6 +628,7 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                 {"assetId": asset_id, "controlId": control_id},
                 {
                     "$set": {
+                        "tenantId": tenant_id,  # Explicitly write tenantId
                         "status": compliance_status,
                         "checkName": check_name,  # Store original check name for remediation
                         "lastUpdated": timestamp,
@@ -589,7 +640,9 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                 },
                 upsert=True
             )
-            print(f"✅ Auto-mapped {check_name} -> {control_id} ({compliance_status})")
+            logger.info("Auto-mapped %s -> %s (%s)", check_name, control_id, compliance_status)
+    
+    set_tenant_id(old_tenant_id)
 @router.get("/api/compliance")
 async def get_compliance_frameworks():
     """
@@ -603,23 +656,27 @@ async def get_compliance_frameworks():
     # Frameworks are global/shared across all tenants
     from tenant_context import get_tenant_id
     tid = get_tenant_id()
-    print(f"[DEBUG] get_compliance_frameworks - Tenant ID: {tid}")
+    logger.debug("get_compliance_frameworks - Tenant ID: %s", tid)
     frameworks = await db.compliance_frameworks.find({}, {"_id": 0}).to_list(length=100)
     
     # Sort alphabetically by name
     frameworks.sort(key=lambda x: x.get("name", ""))
     
-    print(f"[DEBUG] GET /api/compliance - returning {len(frameworks)} frameworks for {tid}")
+    logger.debug("GET /api/compliance - returning %s frameworks for %s", len(frameworks), tid)
     
     # If no frameworks exist, return empty list
     # Admin should run seed_compliance.py to populate frameworks
     if not frameworks:
-        print("[WARNING] No compliance frameworks found in database. Run: python backend/seed_compliance.py")
+        logger.warning("No compliance frameworks found in database. Run: python backend/seed_compliance.py")
         
     return frameworks
 
 @router.post("/api/compliance/{framework_id}/controls")
-async def add_compliance_control(framework_id: str, control: dict):
+async def add_compliance_control(
+    framework_id: str,
+    control: dict,
+    current_user=Depends(get_current_user),
+):
     """Add a new control to a framework"""
     db = get_database()
     
@@ -649,7 +706,11 @@ async def add_compliance_control(framework_id: str, control: dict):
     return new_control
 
 @router.post("/api/compliance/{framework_id}/import")
-async def import_compliance_controls_csv(framework_id: str, file: UploadFile = File(...)):
+async def import_compliance_controls_csv(
+    framework_id: str,
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+):
     """Import controls from a CSV file"""
     import csv
     import io
@@ -704,51 +765,53 @@ from tenant_context import get_tenant_id
 
 @router.post("/api/compliance/reports/generate")
 async def generate_compliance_report(
-    framework_id: str = Form(...)
+    framework_id: str = Form(...),
+    current_user=Depends(get_current_user),
 ):
     """Generate CSV compliance report"""
-    tenant_id = get_tenant_id() or "platform-admin"
-    
+    tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id() or "platform-admin"
     try:
         report = await compliance_reporting_service.generate_report(tenant_id, framework_id)
         return {"success": True, "report": report}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/api/compliance/reports/generate/excel")
 async def generate_excel_compliance_report(
-    framework_id: str = Form(...)
+    framework_id: str = Form(...),
+    current_user=Depends(get_current_user),
 ):
     """Generate Excel compliance report with professional formatting"""
-    tenant_id = get_tenant_id() or "platform-admin"
-    
+    tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id() or "platform-admin"
     try:
         report = await compliance_reporting_service.generate_excel_report(tenant_id, framework_id)
         return {"success": True, "report": report}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/api/compliance/reports/generate/pdf")
 async def generate_pdf_compliance_report(
-    framework_id: str = Form(...)
+    framework_id: str = Form(...),
+    current_user=Depends(get_current_user),
 ):
     """Generate PDF compliance report"""
-    tenant_id = get_tenant_id() or "platform-admin"
-    
+    tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id() or "platform-admin"
     try:
         report = await compliance_reporting_service.generate_pdf_report(tenant_id, framework_id)
         return {"success": True, "report": report}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/api/compliance/reports/download/{filename}")
-async def download_compliance_report(filename: str):
+async def download_compliance_report(filename: str, current_user=Depends(get_current_user)):
     """Download compliance report with proper Content-Disposition header"""
     from fastapi.responses import FileResponse
     
     reports_dir = "static/reports"
     file_path = os.path.join(reports_dir, filename)
-    
+
+    if not os.path.abspath(file_path).startswith(os.path.abspath(reports_dir) + os.sep):
+        raise HTTPException(status_code=404, detail="Report not found")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Report not found")
     
@@ -770,7 +833,7 @@ async def download_compliance_report(filename: str):
     )
 
 @router.get("/api/compliance/reports")
-async def list_compliance_reports():
+async def list_compliance_reports(current_user=Depends(get_current_user)):
     """List all compliance reports (CSV, Excel, PDF)"""
     reports_dir = "static/reports"
     if not os.path.exists(reports_dir):
@@ -790,7 +853,10 @@ async def list_compliance_reports():
 
 
 @router.get("/api/compliance/evidence/download/{evidence_id}")
-async def download_compliance_evidence(evidence_id: str):
+async def download_compliance_evidence(
+    evidence_id: str,
+    current_user=Depends(get_current_user),
+):
     """
     Download a specific piece of evidence.
     - If file-based: Serves the file with Content-Disposition.
@@ -798,13 +864,16 @@ async def download_compliance_evidence(evidence_id: str):
     """
     from fastapi.responses import FileResponse, Response
     db = get_database()
-    
+
+    match_filter: dict = {"evidence.id": evidence_id}
+    user_role = getattr(current_user, "role", "user")
+    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+        match_filter["tenantId"] = getattr(current_user, "tenant_id", "default")
+
     # 1. Find the evidence record
-    # Evidence is embedded in asset_compliance documents.
-    # We need to search for the doc containing this evidence ID.
     pipeline = [
         {"$unwind": "$evidence"},
-        {"$match": {"evidence.id": evidence_id}},
+        {"$match": match_filter},
         {"$project": {"evidence": 1, "_id": 0}}
     ]
     
@@ -838,11 +907,18 @@ async def download_compliance_evidence(evidence_id: str):
     # We look in static/evidence/filename.ext
     
     possible_filename = os.path.basename(file_url)
+    # Reject empty or obviously traversal-attempting filenames
+    if not possible_filename or possible_filename.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid evidence file reference")
     file_path = os.path.join(UPLOAD_DIR, possible_filename)
-    
+
     if not os.path.exists(file_path):
-        # Fallback: try using the 'name' field if the URL path doesn't exist
-        fallback_path = os.path.join(UPLOAD_DIR, evidence.get('name'))
+        # Fallback: try using the 'name' field — always strip to basename first
+        raw_name = evidence.get("name") or ""
+        safe_name = os.path.basename(raw_name)
+        if not safe_name or safe_name.startswith("."):
+            raise HTTPException(status_code=404, detail="Evidence file not found on server")
+        fallback_path = os.path.join(UPLOAD_DIR, safe_name)
         if os.path.exists(fallback_path):
             file_path = fallback_path
         else:

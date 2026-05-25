@@ -38,8 +38,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      // API keys must NEVER be inlined into the browser bundle.
+      // Gemini calls are proxied through the backend (/api/ai/... endpoints).
+      // Remove VITE_GEMINI_API_KEY from .env to prevent accidental exposure.
     },
     resolve: {
       alias: {

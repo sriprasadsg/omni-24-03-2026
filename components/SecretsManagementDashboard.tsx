@@ -191,7 +191,7 @@ export const SecretsManagementDashboard: React.FC = () => {
             const response = await fetch('/api/secrets/scan', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${sessionStorage.getItem('token')}`
                 },
                 body: formData
             });

@@ -5,7 +5,7 @@ CRUD for response policies + manual/automated response action dispatch.
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.background import BackgroundTasks
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
@@ -15,26 +15,36 @@ from response_orchestrator import ResponseOrchestrator, BUILTIN_POLICIES, seed_b
 router = APIRouter(prefix="/api/response", tags=["Autonomous Response"])
 orchestrator = ResponseOrchestrator()
 
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+
+
+def _tenant_filter(current_user: TokenData) -> dict:
+    role = getattr(current_user, "role", "") or ""
+    if role in _SUPER_ADMIN_ROLES:
+        return {}
+    tid = getattr(current_user, "tenant_id", None)
+    return {"tenantId": tid} if tid else {"tenantId": {"$exists": False}}
+
 
 # ------------------------------------------------------------------
 # Pydantic Models
 # ------------------------------------------------------------------
 
 class PolicyCondition(BaseModel):
-    field: str
-    operator: str   # eq | ne | in | contains
+    field: str = Field(..., max_length=100)
+    operator: str = Field(..., max_length=20)   # eq | ne | in | contains
     value: Any
 
 
 class PolicyAction(BaseModel):
-    action: str     # kill_process | quarantine_file | isolate_host | restore_host
+    action: str = Field(..., max_length=100)    # kill_process | quarantine_file | isolate_host | restore_host
     params: Dict[str, Any] = {}
 
 
 class ResponsePolicy(BaseModel):
-    policy_id: str
-    name: str
-    description: str = ""
+    policy_id: str = Field(..., max_length=100)
+    name: str = Field(..., max_length=255)
+    description: str = Field("", max_length=2000)
     enabled: bool = True
     conditions: List[PolicyCondition]
     actions: List[PolicyAction]
@@ -42,23 +52,23 @@ class ResponsePolicy(BaseModel):
 
 
 class ManualAction(BaseModel):
-    agent_id: str
-    action: str               # kill_process | quarantine_file | isolate_host | restore_host | unquarantine_file
+    agent_id: str = Field(..., max_length=100)
+    action: str = Field(..., max_length=100)
     params: Dict[str, Any] = {}
-    reason: str = "manual_operator_action"
+    reason: str = Field("manual_operator_action", max_length=500)
 
 
 class TaskResult(BaseModel):
     success: bool
-    message: str
+    message: str = Field(..., max_length=2000)
     metadata: Dict[str, Any] = {}
 
 
 class TaskFeedback(BaseModel):
     success: bool
     false_positive: bool = False
-    message: str = ""
-    reported_by: str = "agent"
+    message: str = Field("", max_length=2000)
+    reported_by: str = Field("agent", max_length=100)
 
 
 # ------------------------------------------------------------------
@@ -67,9 +77,11 @@ class TaskFeedback(BaseModel):
 
 @router.get("/policies")
 async def list_policies(current_user: TokenData = Depends(get_current_user)):
-    """List all response policies."""
+    """List response policies scoped to the caller's tenant."""
     db = get_database()
-    policies = await db.response_policies.find({}, {"_id": 0}).to_list(length=100)
+    policies = await db.response_policies.find(
+        _tenant_filter(current_user), {"_id": 0}
+    ).to_list(length=100)
     return policies
 
 
@@ -80,12 +92,16 @@ async def create_policy(
 ):
     """Create a new response policy."""
     db = get_database()
-    existing = await db.response_policies.find_one({"policy_id": policy.policy_id})
+    tenant_id = getattr(current_user, "tenant_id", None) or ""
+    existing = await db.response_policies.find_one(
+        {"policy_id": policy.policy_id, **_tenant_filter(current_user)}
+    )
     if existing:
         raise HTTPException(status_code=409, detail="Policy ID already exists")
     doc = {
         **policy.dict(),
-        "created_by": current_user.username,
+        "tenantId": tenant_id,
+        "created_by": getattr(current_user, "username", ""),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "builtin": False,
     }
@@ -101,7 +117,9 @@ async def toggle_policy(
 ):
     """Enable or disable a response policy."""
     db = get_database()
-    policy = await db.response_policies.find_one({"policy_id": policy_id})
+    policy = await db.response_policies.find_one(
+        {"policy_id": policy_id, **_tenant_filter(current_user)}
+    )
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
     new_state = not policy.get("enabled", True)
@@ -119,7 +137,9 @@ async def delete_policy(
 ):
     """Delete a custom response policy (cannot delete built-ins)."""
     db = get_database()
-    policy = await db.response_policies.find_one({"policy_id": policy_id})
+    policy = await db.response_policies.find_one(
+        {"policy_id": policy_id, **_tenant_filter(current_user)}
+    )
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
     if policy.get("builtin"):
@@ -138,42 +158,53 @@ async def execute_response_action(
     background_tasks: BackgroundTasks,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """
-    Manually dispatch a response action to an agent.
-    The agent polls /response/tasks/{agent_id} and executes queued tasks.
-    """
+    """Manually dispatch a response action to an agent."""
     db = get_database()
     task = {
         "task_id": f"MAN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
         "agent_id": action.agent_id,
+        "tenantId": getattr(current_user, "tenant_id", None) or "",
         "action": action.action,
         "params": action.params,
         "reason": action.reason,
         "triggered_by_policy": None,
-        "triggered_by_operator": current_user.username,
+        "triggered_by_operator": getattr(current_user, "username", ""),
         "status": "queued",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "executed_at": None,
         "result": None,
     }
-    await db._db.response_tasks.insert_one(task)
+    await db.response_tasks.insert_one(task)
     task.pop("_id", None)
     return {"status": "queued", "task": task}
 
 
 @router.get("/tasks/{agent_id}")
-async def get_pending_tasks(agent_id: str):
-    """
-    Agent polling endpoint — returns queued response tasks.
-    Called by the agent every ~15 seconds.
-    No auth required (agent uses registration key instead).
-    """
-    return await orchestrator.get_pending_tasks(agent_id)
+async def get_pending_tasks(
+    agent_id: str,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Agent polling endpoint — returns queued response tasks for this agent."""
+    tenant_id = getattr(current_user, "tenant_id", None)
+    db = get_database()
+    agent = await db.agents.find_one({"id": agent_id, "tenantId": tenant_id}, {"_id": 1})
+    if not agent:
+        raise HTTPException(status_code=403, detail="Agent not found or not in your tenant")
+    return await orchestrator.get_pending_tasks(agent_id, tenant_id=tenant_id)
 
 
 @router.post("/tasks/{task_id}/result")
-async def submit_task_result(task_id: str, result: TaskResult):
+async def submit_task_result(
+    task_id: str,
+    result: TaskResult,
+    current_user: TokenData = Depends(get_current_user)
+):
     """Agent submits the result of a completed response task."""
+    tenant_id = getattr(current_user, "tenant_id", None)
+    db = get_database()
+    task = await db.response_tasks.find_one({"task_id": task_id, "tenantId": tenant_id}, {"_id": 1})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
     success = await orchestrator.mark_executed(task_id, result.dict())
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -181,13 +212,12 @@ async def submit_task_result(task_id: str, result: TaskResult):
 
 
 @router.post("/tasks/{task_id}/feedback")
-async def submit_task_feedback(task_id: str, feedback: TaskFeedback):
-    """
-    Agent or operator submits execution feedback for a completed task.
-    Feeds the autonomous learning loop — false positives are recorded
-    against the triggering policy/playbook/correlation pattern so thresholds
-    can be tuned over time.
-    """
+async def submit_task_feedback(
+    task_id: str,
+    feedback: TaskFeedback,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Submit execution feedback for a completed task."""
     success = await orchestrator.record_feedback(
         task_id=task_id,
         success=feedback.success,
@@ -210,14 +240,14 @@ async def get_response_history(
     limit: int = 100,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Get response action history."""
+    """Get response action history scoped to the caller's tenant."""
     db = get_database()
-    query: Dict[str, Any] = {"status": "executed"}
+    query: Dict[str, Any] = {"status": "executed", **_tenant_filter(current_user)}
     if agent_id:
         query["agent_id"] = agent_id
     tasks = await db.response_tasks.find(
         query, {"_id": 0}
-    ).sort("executed_at", -1).limit(limit).to_list(length=limit)
+    ).sort("executed_at", -1).limit(min(limit, 500)).to_list(length=min(limit, 500))
     return tasks
 
 
@@ -225,10 +255,10 @@ async def get_response_history(
 async def list_quarantine(
     current_user: TokenData = Depends(get_current_user)
 ):
-    """List all quarantined files across all agents (from DB audit log)."""
+    """List quarantined files scoped to the caller's tenant."""
     db = get_database()
     docs = await db.response_tasks.find(
-        {"action": "quarantine_file", "status": "executed"},
+        {"action": "quarantine_file", "status": "executed", **_tenant_filter(current_user)},
         {"_id": 0}
     ).sort("executed_at", -1).to_list(length=200)
     return docs
@@ -241,4 +271,3 @@ async def list_quarantine(
 async def initialize_response_module():
     """Call this from app.py startup to seed built-in policies."""
     await seed_builtin_policies()
-

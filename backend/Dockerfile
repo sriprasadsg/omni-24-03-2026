@@ -31,6 +31,9 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
+# Create directories for local LLM data and reports
+RUN mkdir -p omni_data/adapter omni_data static/reports logs uploads
+
 # Create non-root user for security
 RUN groupadd -r omni && useradd -r -g omni omni \
     && chown -R omni:omni /app
@@ -43,4 +46,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
 
 EXPOSE 5000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "2"]
+CMD ["uvicorn", "app:socket_app", "--host", "0.0.0.0", "--port", "5000", "--workers", "2"]

@@ -3,9 +3,19 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
+from auth_types import TokenData
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api", tags=["Zero Trust & Quantum Security"])
+
+_ZT_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+def _resolve_tenant(user: TokenData) -> Optional[str]:
+    role = getattr(user, "role", "")
+    if role in _ZT_SUPER_ROLES:
+        return None
+    return getattr(user, "tenant_id", None)
 
 # --- Models ---
 class DeviceTrustFactors(BaseModel):
@@ -117,13 +127,14 @@ async def ensure_collections_exist(db):
 
 # --- Zero Trust Endpoints ---
 @router.get("/zero-trust/device-trust-scores", response_model=List[DeviceTrustScore])
-async def get_device_trust_scores(current_user: dict = Depends(get_current_user)):
+async def get_device_trust_scores(current_user: TokenData = Depends(require_permission("view:security"))):
     """Returns trust scores for fleet devices based on Zero Trust policies using real agents from MongoDB."""
     db = get_database()
     await ensure_collections_exist(db)
-    
+    tenant_id = _resolve_tenant(current_user)
+    agent_filter = {} if tenant_id is None else {"tenantId": tenant_id}
     # Fetch real agents from the agents collection
-    agents = await db.agents.find({}, {"_id": 0}).to_list(length=100)
+    agents = await db.agents.find(agent_filter, {"_id": 0}).to_list(length=100)
     
     # Transform agents to device trust scores
     device_scores = []
@@ -193,23 +204,25 @@ async def get_device_trust_scores(current_user: dict = Depends(get_current_user)
 
 
 @router.get("/zero-trust/session-risks")
-async def get_session_risks(current_user: dict = Depends(get_current_user)):
+async def get_session_risks(current_user: TokenData = Depends(require_permission("view:security"))):
     """Returns real-time risk scoring for active user sessions from MongoDB."""
     db = get_database()
     await ensure_collections_exist(db)
-    
-    sessions = await db.user_sessions.find({}, {"_id": 0}).to_list(length=100)
+    tenant_id = _resolve_tenant(current_user)
+    session_filter = {} if tenant_id is None else {"tenantId": tenant_id}
+    sessions = await db.user_sessions.find(session_filter, {"_id": 0}).to_list(length=100)
     return sessions
 
 # --- Quantum Security Endpoints ---
 @router.get("/quantum-security/cryptographic-inventory")
-async def get_crypto_inventory(current_user: dict = Depends(get_current_user)):
+async def get_crypto_inventory(current_user: TokenData = Depends(require_permission("view:security"))):
     """
     Returns an inventory of cryptographic algorithms used in the environment from MongoDB,
     flagging those vulnerable to Post-Quantum Cryptography (PQC) attacks.
     """
     db = get_database()
     await ensure_collections_exist(db)
-    
-    inventory = await db.crypto_inventory.find({}, {"_id": 0}).to_list(length=100)
+    tenant_id = _resolve_tenant(current_user)
+    crypto_filter = {} if tenant_id is None else {"tenantId": tenant_id}
+    inventory = await db.crypto_inventory.find(crypto_filter, {"_id": 0}).to_list(length=100)
     return inventory

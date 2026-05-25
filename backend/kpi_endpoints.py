@@ -56,7 +56,7 @@ async def get_business_metrics(current_user: TokenData = Depends(rbac_service.ha
     if tenant_id == "platform-admin" or tenant_id is None:
         query = {}
         
-    agents = await db.agents.find(query, {"securityScore": 1}).to_list(length=None)
+    agents = await db.agents.find(query, {"securityScore": 1}).to_list(length=500)
     avg_sec_score = 0
     if agents:
         scores = [a.get('securityScore', 0) for a in agents if a.get('securityScore')]

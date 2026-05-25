@@ -222,10 +222,10 @@ export function EDRDashboard({ token }: { token?: string }) {
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {filteredAlerts.map(alert => {
+                            {filteredAlerts.map((alert, idx) => {
                                 const sev = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.low;
                                 return (
-                                    <div key={alert.alert_id} style={{
+                                    <div key={`${alert.alert_id}-${idx}`} style={{
                                         background: '#fff', border: `1px solid ${sev.color}40`, borderLeft: `4px solid ${sev.color}`,
                                         borderRadius: 10, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                                     }}>

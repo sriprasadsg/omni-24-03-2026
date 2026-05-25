@@ -22,7 +22,9 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error(`Uncaught error in ${this.props.name || 'Component'}:`, error, errorInfo);
+        if (import.meta.env.DEV) {
+            console.error(`Uncaught error in ${this.props.name || 'Component'}:`, error, errorInfo);
+        }
     }
 
     public render() {

@@ -42,7 +42,7 @@ async def get_catalog(
     """
     Get the Data Governance Catalog.
     """
-    return governance_service.get_data_catalog()
+    return await governance_service.get_data_catalog()
 
 # --- Quality Endpoints ---
 
@@ -54,15 +54,26 @@ async def get_quality_report(
     from database import get_database
     db = get_database()
 
+    _DG_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    caller_role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    caller_tenant = (
+        current_user.get("tenant_id") if isinstance(current_user, dict)
+        else getattr(current_user, "tenant_id", None)
+    )
+    base = {} if caller_role in _DG_SUPER_ROLES else {"tenantId": caller_tenant}
+
     # Count real records across key collections
-    asset_count = await db.assets.count_documents({})
-    agent_count = await db.agents.count_documents({})
-    event_count = await db.security_events.count_documents({})
-    alert_count = await db.alerts.count_documents({})
+    asset_count = await db.assets.count_documents(base)
+    agent_count = await db.agents.count_documents(base)
+    event_count = await db.security_events.count_documents(base)
+    alert_count = await db.alerts.count_documents(base)
     total_records = asset_count + agent_count + event_count + alert_count
 
     # Sample assets for quality scoring (up to 50)
-    sample_docs = await db.assets.find({}, {"_id": 0, "hostname": 1, "ipAddress": 1, "osType": 1}).to_list(length=50)
+    sample_docs = await db.assets.find(base, {"_id": 0, "hostname": 1, "ipAddress": 1, "osType": 1}).to_list(length=50)
     sample_dataset = [
         {"id": doc.get("hostname", ""), "name": doc.get("hostname"), "ip": doc.get("ipAddress", "")}
         for doc in sample_docs

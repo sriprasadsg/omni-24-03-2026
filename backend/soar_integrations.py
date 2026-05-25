@@ -13,6 +13,9 @@ Provides integrations with external systems for automated response:
 from typing import Dict, Any, Optional
 import aiohttp
 import logging
+import os as _os
+
+_SSL_VERIFY = not _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes")
 
 
 class IntegrationConnector:
@@ -461,7 +464,7 @@ class EmailGatewayConnector(IntegrationConnector):
                     api_url.rstrip("/") + "/api/v1/health",
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=8),
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 ) as resp:
                     return resp.status < 500
         except Exception as exc:
@@ -492,7 +495,7 @@ class EmailGatewayConnector(IntegrationConnector):
             async with aiohttp.ClientSession() as session:
                 fn = session.post if method == "POST" else session.delete
                 async with fn(url, headers=self._headers(), json=body,
-                              timeout=aiohttp.ClientTimeout(total=10), ssl=False) as resp:
+                              timeout=aiohttp.ClientTimeout(total=10), ssl=_SSL_VERIFY) as resp:
                     try:
                         data = await resp.json()
                     except Exception:

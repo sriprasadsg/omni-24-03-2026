@@ -569,7 +569,7 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                                                     <tr key={user.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 transition-opacity ${user.status === 'Disabled' ? 'opacity-50' : ''}`}>
                                                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                                                             <div className="flex items-center">
-                                                                <img src={user.avatar} alt={user.name} className="h-8 w-8 rounded-full object-cover mr-3" />
+                                                                {user.avatar ? <img src={user.avatar} alt={user.name} className="h-8 w-8 rounded-full object-cover mr-3" /> : <span className="h-8 w-8 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0">{(user.name || '?')[0].toUpperCase()}</span>}
                                                                 <span>{user.name}</span>
                                                             </div>
                                                         </td>

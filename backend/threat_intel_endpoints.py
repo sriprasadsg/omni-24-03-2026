@@ -28,9 +28,8 @@ def _get_tenant(user):
 
 # Request/Response Models
 class ScanRequest(BaseModel):
-    artifact: str = Field(..., description="IP, domain, URL, or file hash to scan")
-    artifact_type: str = Field(..., description="Type: ip, domain, url, or hash")
-    tenant_id: str = Field(..., description="Tenant ID")
+    artifact: str = Field(..., max_length=2048, description="IP, domain, URL, or file hash to scan")
+    artifact_type: str = Field(..., max_length=20, description="Type: ip, domain, url, or hash")
 
 
 class ThreatIntelScan(BaseModel):
@@ -86,9 +85,9 @@ async def scan_artifact(
     elif not scan_date:
         scan_date = datetime.now(timezone.utc).isoformat()
 
-    # Store scan in database
+    # Store scan in database — tenant derived from JWT, never from request body
     scan_doc = {
-        "tenant_id": request.tenant_id,
+        "tenant_id": _get_tenant(current_user),
         "artifact": request.artifact,
         "artifact_type": request.artifact_type,
         "verdict": result.get("verdict", "Unknown"),
@@ -112,20 +111,17 @@ async def scan_artifact(
 
 @router.get("/feed", response_model=List[ThreatIntelScan])
 async def get_threat_feed(
-    tenant_id: Optional[str] = None,
     limit: int = 50,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: TokenData = Depends(require_permission("view:threat_intel"))
 ):
     """
     Get recent threat intelligence scans
-    
+
     Returns feed of recent scans with verdicts
     """
     query = {}
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-    elif _get_role(current_user) != "Super Admin":
+    if _get_role(current_user) != "Super Admin":
         query["tenant_id"] = _get_tenant(current_user)
     
     scans = []
@@ -186,11 +182,12 @@ async def enrich_security_event(
 ):
     """
     Automatically enrich a security event with threat intelligence
-    
+
     Scans all IPs and domains in the event and adds TI context
     """
-    # Get the security event
-    event = await db.security_events.find_one({"_id": event_id})
+    # Get the security event — scope to caller's tenant
+    tenant_filter = {} if _get_role(current_user) == "Super Admin" else {"tenant_id": _get_tenant(current_user)}
+    event = await db.security_events.find_one({"_id": event_id, **tenant_filter})
     if not event:
         raise HTTPException(status_code=404, detail="Security event not found")
     
@@ -249,20 +246,17 @@ async def enrich_security_event(
 
 @router.get("/stats")
 async def get_threat_intel_stats(
-    tenant_id: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: TokenData = Depends(require_permission("view:threat_intel"))
 ):
     """
     Get threat intelligence statistics
-    
+
     Returns aggregated stats on scans and verdicts
     """
     query = {}
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-    elif current_user.role != "Super Admin":
-        query["tenant_id"] = current_user.tenant_id
+    if _get_role(current_user) != "Super Admin":
+        query["tenant_id"] = _get_tenant(current_user)
     
     # Aggregate stats
     pipeline = [

@@ -13,14 +13,17 @@ async def _db():
 
 
 @router.get("/scans")
-async def list_scans(db=Depends(_db)):
-    cursor = db["iac_scans"].find({}, {"_id": 0}).sort("scanned_at", -1).limit(100)
+async def list_scans(db=Depends(_db), current_user=Depends(get_current_user)):
+    tenant_id = getattr(current_user, "tenant_id", None)
+    query = {} if not tenant_id else {"tenantId": tenant_id}
+    cursor = db["iac_scans"].find(query, {"_id": 0}).sort("scanned_at", -1).limit(100)
     items = await cursor.to_list(length=100)
     return items
 
 
 @router.post("/scans")
 async def trigger_scan(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+    tenant_id = getattr(current_user, "tenant_id", None)
     scan = {
         "id": f"iac-{int(time.time())}",
         "repo": payload.get("repo"),
@@ -28,16 +31,20 @@ async def trigger_scan(payload: dict, db=Depends(_db), current_user=Depends(get_
         "tool": payload.get("tool", "checkov"),
         "status": "queued",
         "scanned_at": time.time(),
-        "triggered_by": current_user.get("sub"),
+        "triggered_by": getattr(current_user, "username", None) or current_user.get("sub") if isinstance(current_user, dict) else getattr(current_user, "username", None),
     }
+    if tenant_id:
+        scan["tenantId"] = tenant_id
     await db["iac_scans"].insert_one(scan)
     scan.pop("_id", None)
     return scan
 
 
 @router.get("/violations")
-async def list_violations(db=Depends(_db)):
-    cursor = db["iac_violations"].find({}, {"_id": 0}).sort("detected_at", -1).limit(200)
+async def list_violations(db=Depends(_db), current_user=Depends(get_current_user)):
+    tenant_id = getattr(current_user, "tenant_id", None)
+    query = {} if not tenant_id else {"tenantId": tenant_id}
+    cursor = db["iac_violations"].find(query, {"_id": 0}).sort("detected_at", -1).limit(200)
     items = await cursor.to_list(length=200)
     return items
 
@@ -45,9 +52,14 @@ async def list_violations(db=Depends(_db)):
 @router.post("/violations/{violation_id}/suppress")
 async def suppress_violation(violation_id: str, payload: dict, db=Depends(_db),
                               current_user=Depends(get_current_user)):
+    tenant_id = getattr(current_user, "tenant_id", None)
+    viol_filter: dict = {"id": violation_id}
+    if tenant_id:
+        viol_filter["tenantId"] = tenant_id
     result = await db["iac_violations"].update_one(
-        {"id": violation_id},
-        {"$set": {"suppressed": True, "suppressed_by": current_user.get("sub"),
+        viol_filter,
+        {"$set": {"suppressed": True,
+                  "suppressed_by": getattr(current_user, "username", None),
                   "suppress_reason": payload.get("reason"), "suppressed_at": time.time()}}
     )
     if result.matched_count == 0:
@@ -56,11 +68,13 @@ async def suppress_violation(violation_id: str, payload: dict, db=Depends(_db),
 
 
 @router.get("/stats")
-async def stats(db=Depends(_db)):
-    total_v = await db["iac_violations"].count_documents({})
-    critical = await db["iac_violations"].count_documents({"severity": "critical"})
-    high = await db["iac_violations"].count_documents({"severity": "high"})
-    suppressed = await db["iac_violations"].count_documents({"suppressed": True})
+async def stats(db=Depends(_db), current_user=Depends(get_current_user)):
+    tenant_id = getattr(current_user, "tenant_id", None)
+    base = {} if not tenant_id else {"tenantId": tenant_id}
+    total_v = await db["iac_violations"].count_documents(base)
+    critical = await db["iac_violations"].count_documents({**base, "severity": "critical"})
+    high = await db["iac_violations"].count_documents({**base, "severity": "high"})
+    suppressed = await db["iac_violations"].count_documents({**base, "suppressed": True})
     medium = max(0, total_v - critical - high)
     return {"total_violations": total_v, "critical": critical, "high": high,
             "medium": medium, "suppressed": suppressed,

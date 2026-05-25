@@ -7,11 +7,14 @@ from email import encoders
 from typing import Optional, List, Dict
 import secrets
 import hashlib
+import logging
 from datetime import datetime, timedelta
 from jinja2 import Template
 from cryptography.fernet import Fernet
 import os
 import base64
+
+logger = logging.getLogger(__name__)
 
 # Email service for sending notifications
 class EmailService:
@@ -38,10 +41,14 @@ class EmailService:
         return base64.b64encode(encrypted).decode()
     
     def decrypt_password(self, encrypted_password: str) -> str:
-        """Decrypt SMTP password"""
-        encrypted = base64.b64decode(encrypted_password.encode())
-        decrypted = self.cipher.decrypt(encrypted)
-        return decrypted.decode()
+        """Decrypt SMTP password. Returns empty string on any decryption failure."""
+        try:
+            encrypted = base64.b64decode(encrypted_password.encode())
+            decrypted = self.cipher.decrypt(encrypted)
+            return decrypted.decode()
+        except Exception as exc:
+            logger.error("Failed to decrypt SMTP password: %s", exc)
+            return ""
     
     def send_email(
         self,
@@ -84,7 +91,8 @@ class EmailService:
                     part = MIMEBase('application', 'octet-stream')
                     part.set_payload(attachment['data'])
                     encoders.encode_base64(part)
-                    part.add_header('Content-Disposition', f"attachment; filename= {attachment['filename']}")
+                    safe_fname = attachment['filename'].replace('\r', '').replace('\n', '').replace('"', '').replace(';', '')
+                    part.add_header('Content-Disposition', f'attachment; filename="{safe_fname}"')
                     message.attach(part)
             
             # Decrypt password
@@ -111,11 +119,9 @@ class EmailService:
             }
         
         except Exception as e:
-            return {
-                'success': False,
-                'message': f'Failed to send email: {str(e)}'
-            }
-    
+            logger.error("Email send failed (host=%s): %s", smtp_config.get('smtpHost'), e)
+            return {'success': False, 'message': 'Failed to send email'}
+
     def verify_smtp_config(self, smtp_config: Dict) -> Dict:
         """
         Test SMTP configuration by attempting to connect
@@ -144,10 +150,8 @@ class EmailService:
             }
         
         except Exception as e:
-            return {
-                'success': False,
-                'message': f'SMTP configuration error: {str(e)}'
-            }
+            logger.error("SMTP config verification failed (host=%s): %s", smtp_config.get('smtpHost'), e)
+            return {'success': False, 'message': 'SMTP configuration test failed'}
     
     def generate_verification_token(self) -> str:
         """Generate a secure verification token"""
@@ -432,7 +436,8 @@ th{{background:#667eea;color:#fff;}}
                 attachments=attachments,
             )
         except Exception as exc:
-            return {"success": False, "message": str(exc)}
+            logger.error("Scheduled report email failed: %s", exc)
+            return {"success": False, "message": "Failed to send scheduled report"}
 
 
 # Global email service instance

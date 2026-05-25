@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from playbook_service import playbook_service
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -10,12 +10,11 @@ router = APIRouter(
     tags=["Playbooks"]
 )
 
-print("DEBUG: Loading Playbook Endpoints...")
 
 class PlaybookCreate(BaseModel):
-    name: str
-    description: str
-    trigger: str
+    name: str = Field(..., max_length=255)
+    description: str = Field(..., max_length=2000)
+    trigger: str = Field(..., max_length=500)
     steps: List[Dict[str, Any]]
 
 @router.get("", response_model=List[Dict[str, Any]])
@@ -45,7 +44,8 @@ async def get_playbook(
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
     if not is_admin:
         tenant_id = getattr(current_user, "tenant_id", "default")
-        if playbook.get("tenant_id") not in (tenant_id, "platform"):
+        playbook_tenant = playbook.get("tenant_id") or playbook.get("tenantId", "")
+        if playbook_tenant not in (tenant_id, "platform"):
             raise HTTPException(status_code=404, detail="Playbook not found")
     return playbook
 

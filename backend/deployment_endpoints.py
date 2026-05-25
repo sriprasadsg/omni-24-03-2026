@@ -6,8 +6,11 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Deployments"])
 
@@ -51,8 +54,8 @@ async def create_staged_deployment(data: dict, current_user: TokenData = Depends
             "message": f"Staged deployment {deployment['id']} created. Starting with Test phase."
         }
     except Exception as e:
-        print(f"Error creating staged deployment: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error creating staged deployment: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/deployments/staged/{deployment_id}")
@@ -73,8 +76,8 @@ async def get_staged_deployment(deployment_id: str, current_user: TokenData = De
         
         return deployment
     except Exception as e:
-        print(f"Error getting deployment: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error getting deployment: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/deployments/staged/{deployment_id}/progress")
@@ -106,8 +109,8 @@ async def update_deployment_progress(deployment_id: str, data: dict, current_use
             "stage_data": stage_data
         }
     except Exception as e:
-        print(f"Error updating progress: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error updating progress: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/deployments/approvals/request")
@@ -139,8 +142,8 @@ async def request_stage_approval(data: dict, current_user: TokenData = Depends(r
             "message": f"Approval request created. Notified {len(data.get('approvers', []))} approvers."
         }
     except Exception as e:
-        print(f"Error requesting approval: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error requesting approval: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/deployments/approvals/pending")
@@ -150,34 +153,35 @@ async def get_pending_approvals(current_user: TokenData = Depends(rbac_service.h
         db = get_database()
         tenant_id = get_tenant_id()
         
-        # We need to filter approvals by deployment's tenant_id
-        # This is a bit complex in one query if tenant_id is not in approval doc
-        # Let's assume we added tenantId to approvals or we filter after fetch
-        
-        query = {"status": ApprovalStatus.PENDING}
-        # If we want to filter by specific approver:
-        # query["approvers"] = current_user.username
-        
-        approvals = await db.deployment_approvals.find(query, {"_id": 0}).to_list(length=None)
-        
+        # Scope to tenant: first resolve deployment IDs for this tenant,
+        # then fetch only matching approvals — never load cross-tenant records.
+        tenant_deployment_ids = await db.staged_deployments.distinct(
+            "id",
+            {"$or": [{"tenant_id": tenant_id}, {"tenantId": tenant_id}]}
+        )
+        query = {
+            "status": ApprovalStatus.PENDING,
+            "deployment_id": {"$in": tenant_deployment_ids},
+        }
+        approvals = await db.deployment_approvals.find(query, {"_id": 0}).to_list(length=500)
+
         tenant_approvals = []
-        # Enrich with deployment details and filter by tenant
         for approval in approvals:
             deployment = await db.staged_deployments.find_one(
                 {"id": approval["deployment_id"]},
                 {"_id": 0, "patch_ids": 1, "current_stage": 1, "created_by": 1, "tenant_id": 1, "tenantId": 1}
             )
-            if deployment and (deployment.get("tenant_id") == tenant_id or deployment.get("tenantId") == tenant_id):
+            if deployment:
                 approval["deployment_info"] = deployment
-                tenant_approvals.append(approval)
-        
+            tenant_approvals.append(approval)
+
         return {
             "approvals": tenant_approvals,
             "count": len(tenant_approvals)
         }
     except Exception as e:
-        print(f"Error getting approvals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error getting approvals: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/deployments/approvals/{approval_id}/approve")
@@ -223,8 +227,8 @@ async def approve_deployment_stage(approval_id: str, data: dict, current_user: T
             "message": f"Stage {approval['stage']} approved. Deployment progressing to next stage."
         }
     except Exception as e:
-        print(f"Error approving stage: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error approving stage: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/deployments/approvals/{approval_id}/reject")
@@ -269,8 +273,8 @@ async def reject_deployment_stage(approval_id: str, data: dict, current_user: To
             "message": "Deployment rejected and halted."
         }
     except Exception as e:
-        print(f"Error rejecting stage: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error rejecting stage: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/deployments/{deployment_id}/rollback")
@@ -310,8 +314,8 @@ async def rollback_deployment(deployment_id: str, data: dict, current_user: Toke
             "message": f"Rollback initiated for {len(rollback['asset_ids'])} assets."
         }
     except Exception as e:
-        print(f"Error triggering rollback: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error triggering rollback: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/deployments/staged")
@@ -328,12 +332,12 @@ async def list_staged_deployments(current_user: TokenData = Depends(rbac_service
         deployments = await db.staged_deployments.find(
             query, 
             {"_id": 0}
-        ).sort("created_at", -1).limit(50).to_list(length=None)
+        ).sort("created_at", -1).limit(50).to_list(length=50)
         
         return {
             "deployments": deployments,
             "count": len(deployments)
         }
     except Exception as e:
-        print(f"Error listing deployments: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error listing deployments: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")

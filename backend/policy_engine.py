@@ -108,7 +108,7 @@ class PatchPolicyEngine:
         policies = await self.db.patch_policies.find(
             {"tenant_id": tenant_id, "enabled": True},
             {"_id": 0}
-        ).sort("priority", -1).to_list(length=None)
+        ).sort("priority", -1).to_list(length=1000)
         
         matching_policies = []
         
@@ -170,7 +170,7 @@ class PatchPolicyEngine:
                 assets = await self.db.assets.find(
                     {"group": group, "id": {"$in": list(patch_asset_ids)}},
                     {"_id": 0, "id": 1}
-                ).to_list(length=None)
+                ).to_list(length=1000)
                 
                 if not assets:
                     return False
@@ -284,7 +284,7 @@ class PatchPolicyEngine:
                     "group": {"$in": config["asset_groups"]}
                 },
                 {"_id": 0, "id": 1}
-            ).to_list(length=None)
+            ).to_list(length=1000)
             asset_ids = [a["id"] for a in assets]
         
         # Create deployment job

@@ -16,16 +16,19 @@ from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/correlations", tags=["SIEM Correlation"])
 
-def _get(user, key, default=None):
-    """Get a field from either a dict or Pydantic user object."""
-    if isinstance(user, dict):
-        return user.get(key, default)
-    return getattr(user, key, default)
+_CORR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+def _resolve_tenant(current_user, requested: str = None) -> str:
+    role = getattr(current_user, "role", "") or (current_user.get("role", "") if isinstance(current_user, dict) else "")
+    caller = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    if role in _CORR_SUPER_ROLES:
+        return requested or caller or "default"
+    return caller or "default"
 
 
 # Request/Response Models
 class CorrelateRequest(BaseModel):
-    tenant_id: str
     time_window_minutes: int = 60
 
 
@@ -52,19 +55,19 @@ async def analyze_correlations(
     
     Returns list of detected correlations with confidence scores
     """
+    effective_tenant = _resolve_tenant(current_user)
     engine = get_correlation_engine(db)
-    
+
     correlations = await engine.correlate_events(
-        tenant_id=request.tenant_id,
+        tenant_id=effective_tenant,
         time_window_minutes=request.time_window_minutes
     )
-    
+
     return [Correlation(**c) for c in correlations]
 
 
-@router.get("/", response_model=List[Correlation])
+@router.get("", response_model=List[Correlation])
 async def get_correlations(
-    tenant_id: Optional[str] = None,
     severity: Optional[str] = None,
     limit: int = 50,
     db: AsyncIOMotorDatabase = Depends(get_database),
@@ -72,39 +75,32 @@ async def get_correlations(
 ):
     """
     Get recent correlations
-    
+
     Returns list of correlations filtered by tenant and severity
     """
-    if not tenant_id and _get(current_user, 'role') != "Super Admin":
-        tenant_id = _get(current_user, "tenantId")
-    
     engine = get_correlation_engine(db)
     correlations = await engine.get_correlations(
-        tenant_id=tenant_id or _get(current_user, "tenantId"),
+        tenant_id=_resolve_tenant(current_user),
         limit=limit,
         severity=severity
     )
-    
+
     return [Correlation(**c) for c in correlations]
 
 
 @router.get("/stats")
 async def get_correlation_stats(
-    tenant_id: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("view:security"))
 ):
     """
     Get correlation statistics
-    
+
     Returns aggregated stats on correlations by severity
     """
-    if not tenant_id and _get(current_user, 'role') != "Super Admin":
-        tenant_id = _get(current_user, "tenantId")
-    
     engine = get_correlation_engine(db)
     stats = await engine.get_correlation_stats(
-        tenant_id=tenant_id or _get(current_user, "tenantId")
+        tenant_id=_resolve_tenant(current_user)
     )
     
     return stats
@@ -121,14 +117,15 @@ async def run_correlation(
     Identical to /analyze but explicitly labelled as a forced run so operators
     can use it without confusion with the periodic automatic run.
     """
+    effective_tenant = _resolve_tenant(current_user)
     engine = get_correlation_engine(db)
     correlations = await engine.correlate_events(
-        tenant_id=request.tenant_id,
+        tenant_id=effective_tenant,
         time_window_minutes=request.time_window_minutes,
     )
     return {
         "triggered_by": "manual",
-        "tenant_id": request.tenant_id,
+        "tenant_id": effective_tenant,
         "correlations_found": len(correlations),
         "correlations": [Correlation(**c) for c in correlations],
     }
@@ -142,16 +139,23 @@ async def mark_false_positive(
     current_user: dict = Depends(require_permission("manage:security_cases")),
 ):
     """Mark a correlation as a false positive to auto-tune its detection threshold."""
-    correlation = await db.correlations.find_one({"_id": correlation_id})
+    caller_tenant = (
+        current_user.get("tenant_id") if isinstance(current_user, dict)
+        else getattr(current_user, "tenant_id", None)
+    )
+    corr_filter: dict = {"_id": correlation_id}
+    if caller_tenant:
+        corr_filter["tenant_id"] = caller_tenant
+    correlation = await db.correlations.find_one(corr_filter)
     if not correlation:
         raise HTTPException(status_code=404, detail="Correlation not found")
     pattern_id = correlation.get("pattern_id") or correlation.get("mitre_attack", "")
-    tenant_id = correlation.get("tenant_id", body.get("tenant_id", ""))
+    tenant_id = correlation.get("tenant_id", "")
     if pattern_id and tenant_id:
         engine = get_correlation_engine(db)
         await engine.record_false_positive(tenant_id=tenant_id, pattern_id=pattern_id)
     await db.correlations.update_one(
-        {"_id": correlation_id},
+        corr_filter,
         {"$set": {"false_positive": True, "reviewed_by": getattr(current_user, "email", str(current_user))}},
     )
     return {"correlation_id": correlation_id, "pattern_id": pattern_id, "status": "marked_false_positive"}
@@ -168,17 +172,26 @@ async def get_correlation_details(
     
     Includes all related events and analysis
     """
-    correlation = await db.correlations.find_one({"_id": correlation_id})
-    
+    caller_tenant = (
+        current_user.get("tenant_id") if isinstance(current_user, dict)
+        else getattr(current_user, "tenant_id", None)
+    )
+    corr_filter: dict = {"_id": correlation_id}
+    if caller_tenant:
+        corr_filter["tenant_id"] = caller_tenant
+    correlation = await db.correlations.find_one(corr_filter)
+
     if not correlation:
         raise HTTPException(status_code=404, detail="Correlation not found")
-    
-    # Fetch related events
+
+    # Fetch related events — scope to the same tenant as the correlation
     event_ids = correlation.get("event_ids", [])
     events = []
-    
     if event_ids:
-        cursor = db.security_events.find({"_id": {"$in": event_ids}})
+        event_filter: dict = {"_id": {"$in": event_ids}}
+        if caller_tenant:
+            event_filter["tenantId"] = caller_tenant
+        cursor = db.security_events.find(event_filter)
         async for event in cursor:
             event["id"] = str(event.pop("_id"))
             events.append(event)

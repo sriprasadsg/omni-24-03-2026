@@ -53,7 +53,8 @@ async def _db_stats(db) -> Dict[str, Any]:
             "indexes": stats.get("indexes", 0),
         }
     except Exception as exc:
-        return {"connected": False, "error": str(exc)}
+        import logging as _l; _l.getLogger(__name__).error("DB stats error: %s", exc)
+        return {"connected": False, "error": "Database unavailable"}
 
 
 async def _queue_depths(db) -> Dict[str, int]:
@@ -98,7 +99,8 @@ async def _agent_fleet(db) -> Dict[str, Any]:
             "health_pct": round((online / total * 100) if total else 0, 1),
         }
     except Exception as exc:
-        return {"total": 0, "online": 0, "offline": 0, "stale": 0, "health_pct": 0, "error": str(exc)}
+        import logging as _l; _l.getLogger(__name__).error("Agent fleet stats error: %s", exc)
+        return {"total": 0, "online": 0, "offline": 0, "stale": 0, "health_pct": 0}
 
 
 def _background_tasks() -> List[Dict[str, Any]]:

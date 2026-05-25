@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 import uuid
+import logging
 from typing import List, Dict, Any, Optional
 from database import get_database
 from models import AiModel, AiModelVersion, AiPolicy, AiPolicyRule
+
+logger = logging.getLogger(__name__)
 
 class AiGovernanceService:
     def __init__(self, db):
@@ -10,19 +13,17 @@ class AiGovernanceService:
 
     # --- Model Registry ---
     async def list_models(self, tenant_id: str) -> List[dict]:
-        import logging
-        logging.warning(f"[DEBUG] AiGovernanceService.list_models - Requested Tenant: {tenant_id}")
-        return await self.db.ai_models.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=None)
+        return await self.db.ai_models.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=1000)
 
     async def get_model(self, model_id: str, tenant_id: str) -> Optional[dict]:
         return await self.db.ai_models.find_one({"id": model_id, "tenantId": tenant_id}, {"_id": 0})
 
     async def register_model(self, model_data: AiModel) -> dict:
-        # Check if already exists
-        existing = await self.db.ai_models.find_one({"id": model_data.id})
+        # Check for duplicate within the same tenant only
+        existing = await self.db.ai_models.find_one({"id": model_data.id, "tenantId": model_data.tenantId})
         if existing:
-            raise ValueError(f"Model ID {model_data.id} already exists.")
-        
+            raise ValueError("Unable to register model.")
+
         await self.db.ai_models.insert_one(model_data.dict())
         return model_data.dict()
 
@@ -46,7 +47,7 @@ class AiGovernanceService:
     
     # --- Policy Engine ---
     async def list_policies(self, tenant_id: str) -> List[dict]:
-        return await self.db.ai_policies.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=None)
+        return await self.db.ai_policies.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=1000)
     
     async def create_policy(self, policy: AiPolicy) -> dict:
         await self.db.ai_policies.insert_one(policy.dict())
@@ -59,9 +60,9 @@ class AiGovernanceService:
         """
         model = await self.get_model(model_id, tenant_id)
         if not model:
-            return {"error": "Model not found"}
-            
-        policies = await self.db.ai_policies.find({"tenantId": tenant_id, "isActive": True}, {"_id": 0}).to_list(length=None)
+            return {"error": "Not found"}
+
+        policies = await self.db.ai_policies.find({"tenantId": tenant_id, "isActive": True}, {"_id": 0}).to_list(length=1000)
         
         report = {
             "modelId": model_id,
@@ -97,11 +98,13 @@ class AiGovernanceService:
                     # Simplified: riskLevel in ['Low', 'Medium']
                     if "in" in condition:
                         try:
-                            import ast
+                            import json
+                            _VALID_RISK_LEVELS = {"Low", "Medium", "High", "Critical"}
                             raw_list = condition.split("in")[-1].strip()
-                            allowed_levels = ast.literal_eval(raw_list)
-                            if not isinstance(allowed_levels, (list, tuple)):
-                                raise ValueError("condition must evaluate to a list")
+                            allowed_levels = json.loads(raw_list)
+                            if not isinstance(allowed_levels, list):
+                                raise ValueError("Expected a list")
+                            allowed_levels = [lvl for lvl in allowed_levels if lvl in _VALID_RISK_LEVELS]
                             if model.get('riskLevel') not in allowed_levels:
                                 violation_msg = f"Risk level '{model.get('riskLevel')}' is not in allowed list: {allowed_levels}."
                         except Exception:
@@ -208,7 +211,7 @@ class AiGovernanceService:
 
         snapshots = await self.db.ai_compliance_snapshots.find(
             {"tenantId": tenant_id}, {"_id": 0}
-        ).to_list(length=None)
+        ).to_list(length=1000)
 
         snap_map = {s["modelId"]: s for s in snapshots}
 
@@ -294,20 +297,18 @@ class AiGovernanceService:
             # Note: We assume Ollama is config'd to use SecurityExpert if it exists, 
             # or we can pass a 'model' hint if the provider supports it.
             # For this implementation, we'll use the generic generate_text which uses the default (which should be llama3.2:3b/SecurityExpert)
-            print(f"[DEBUG] Triggering AI Expert Evaluation for model: {model_id}")
+            logger.debug("AI Expert Evaluation started for model: %s", model_id)
             raw_response = await ai_service.generate_text(prompt)
-            print(f"[DEBUG] Raw AI Response: {raw_response[:200]}...") # Log first 200 chars
-            
+
             # More robust extraction
             cleaned_text = raw_response.strip()
             if "```json" in cleaned_text:
                 cleaned_text = cleaned_text.split("```json")[1].split("```")[0].strip()
             elif "```" in cleaned_text:
                 cleaned_text = cleaned_text.split("```")[1].split("```")[0].strip()
-                
-            print(f"[DEBUG] Cleaned JSON Text: {cleaned_text}")
+
             result = json.loads(cleaned_text)
-            
+
             # Save to Database as an 'Expert Scan'
             scan_id = str(uuid.uuid4())
             scan_record = {
@@ -319,11 +320,11 @@ class AiGovernanceService:
                 "result": result
             }
             await self.db.ai_governance_scans.insert_one(scan_record)
-            
+
             return scan_record
         except Exception as e:
-            print(f"Expert Evaluation Failed: {e}")
-            return {"error": f"AI Expert evaluation failed: {str(e)}"}
+            logger.error("AI Expert evaluation failed for model %s", model_id, exc_info=True)
+            return {"error": "AI Expert evaluation failed"}
 
     async def compute_bias_metrics(self, model_id: str, tenant_id: str) -> dict:
         """

@@ -13,15 +13,21 @@ async def _db():
 
 
 @router.get("/checkpoints")
-async def list_checkpoints(db=Depends(_db)):
-    """Return all checkpoints across all agents, newest first."""
-    cursor = db["rollback_checkpoints"].find({}, {"_id": 0}).sort("timestamp", -1).limit(100)
+async def list_checkpoints(db=Depends(_db), current_user=Depends(get_current_user)):
+    """Return checkpoints for the caller's tenant, newest first."""
+    tenant_id = getattr(current_user, "tenant_id", None)
+    query = {} if not tenant_id else {"tenantId": tenant_id}
+    cursor = db["rollback_checkpoints"].find(query, {"_id": 0}).sort("timestamp", -1).limit(100)
     return await cursor.to_list(length=100)
 
 
 @router.get("/checkpoints/{checkpoint_id}")
-async def get_checkpoint(checkpoint_id: str, db=Depends(_db)):
-    doc = await db["rollback_checkpoints"].find_one({"id": checkpoint_id}, {"_id": 0})
+async def get_checkpoint(checkpoint_id: str, db=Depends(_db), current_user=Depends(get_current_user)):
+    tenant_id = getattr(current_user, "tenant_id", None)
+    ckpt_filter: dict = {"id": checkpoint_id}
+    if tenant_id:
+        ckpt_filter["tenantId"] = tenant_id
+    doc = await db["rollback_checkpoints"].find_one(ckpt_filter, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
     return doc
@@ -56,9 +62,13 @@ async def restore_checkpoint(
 
 
 @router.get("/checkpoints/{checkpoint_id}/status")
-async def get_restore_status(checkpoint_id: str, db=Depends(_db)):
+async def get_restore_status(checkpoint_id: str, db=Depends(_db), current_user=Depends(get_current_user)):
     """Poll the current status of a checkpoint (available / restore_requested / restoring / restored / failed)."""
-    doc = await db["rollback_checkpoints"].find_one({"id": checkpoint_id}, {"_id": 0})
+    tenant_id = getattr(current_user, "tenant_id", None)
+    ckpt_filter: dict = {"id": checkpoint_id}
+    if tenant_id:
+        ckpt_filter["tenantId"] = tenant_id
+    doc = await db["rollback_checkpoints"].find_one(ckpt_filter, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
     return {
@@ -71,12 +81,18 @@ async def get_restore_status(checkpoint_id: str, db=Depends(_db)):
 
 
 @router.post("/checkpoints/{checkpoint_id}/status")
-async def update_restore_status(checkpoint_id: str, payload: dict, db=Depends(_db)):
+async def update_restore_status(checkpoint_id: str, payload: dict, db=Depends(_db),
+                                current_user=Depends(get_current_user)):
     """Called by the agent to update restore progress (restoring / restored / failed)."""
     allowed = {"restoring", "restored", "failed", "available"}
     status = payload.get("status", "")
     if status not in allowed:
         raise HTTPException(status_code=400, detail=f"Invalid status. Use: {allowed}")
+
+    tenant_id = getattr(current_user, "tenant_id", None)
+    ckpt_filter: dict = {"id": checkpoint_id}
+    if tenant_id:
+        ckpt_filter["tenantId"] = tenant_id
 
     update: dict = {"status": status}
     if status == "restored":
@@ -84,19 +100,20 @@ async def update_restore_status(checkpoint_id: str, payload: dict, db=Depends(_d
     if "error" in payload:
         update["restore_error"] = payload["error"]
 
-    result = await db["rollback_checkpoints"].update_one(
-        {"id": checkpoint_id}, {"$set": update}
-    )
+    result = await db["rollback_checkpoints"].update_one(ckpt_filter, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
     return {"ok": True, "checkpoint_id": checkpoint_id, "status": status}
 
 
 @router.post("/checkpoints")
-async def register_checkpoint(payload: dict, db=Depends(_db)):
+async def register_checkpoint(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
     """Called by the agent after creating a checkpoint to register it."""
+    tenant_id = getattr(current_user, "tenant_id", None)
     payload.setdefault("status", "available")
     payload.setdefault("timestamp", time.time())
+    if tenant_id:
+        payload["tenantId"] = tenant_id
     await db["rollback_checkpoints"].replace_one(
         {"id": payload["id"]}, payload, upsert=True
     )

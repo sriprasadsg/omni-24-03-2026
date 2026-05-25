@@ -12,6 +12,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from database import get_database
 from ml_monitoring_service import get_ml_monitoring_service
 from rbac_utils import require_permission
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ml-monitoring", tags=["ML Monitoring"])
 
@@ -130,7 +133,7 @@ async def get_all_models_drift_status(
     except Exception as exc:
         import logging
         logging.getLogger(__name__).error("ML drift status check failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Drift status check failed: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     return status
 
@@ -160,7 +163,7 @@ async def analyze_all_models(
                     tenant_id=tenant_id
                 )
             except Exception as e:
-                print(f"Error analyzing model {system.get('id')}: {e}")
+                logger.error("Error analyzing model %s: %s", system.get("id"), e)
     
     background_tasks.add_task(run_analysis)
     

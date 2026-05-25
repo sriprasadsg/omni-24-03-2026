@@ -1,19 +1,90 @@
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
-from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM, oauth2_scheme
 from database import get_database
 from auth_utils import verify_password, hash_password
 from rate_limiter import limiter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import timedelta, timezone
 import uuid
 import datetime
+import re
 import jwt
+import logging
+
+logger = logging.getLogger(__name__)
+
+_MAX_LOGIN_ATTEMPTS = 5
+_LOCKOUT_MINUTES = 30
+_ATTEMPT_WINDOW_MINUTES = 15
+
+
+async def _check_login_lockout(db, identifier: str) -> None:
+    """Raise 429 if the identifier is currently locked out."""
+    record = await db._db.login_attempts.find_one({"identifier": identifier})
+    if not record:
+        return
+    locked_until = record.get("locked_until")
+    if not locked_until:
+        return
+    now = datetime.datetime.now(timezone.utc)
+    locked_dt = datetime.datetime.fromisoformat(locked_until)
+    if locked_dt.tzinfo is None:
+        locked_dt = locked_dt.replace(tzinfo=timezone.utc)
+    if now < locked_dt:
+        retry_after = int((locked_dt - now).total_seconds())
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed attempts — try again later",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+async def _record_login_failure(db, identifier: str) -> None:
+    """Atomically increment failure counter; lock the account if threshold is reached."""
+    now = datetime.datetime.now(timezone.utc)
+    window_start = (now - timedelta(minutes=_ATTEMPT_WINDOW_MINUTES)).isoformat()
+    # Atomic push + set — avoids TOCTOU race between concurrent requests
+    await db._db.login_attempts.update_one(
+        {"identifier": identifier},
+        {"$push": {"attempts": now.isoformat()}, "$set": {"last_attempt": now.isoformat()}},
+        upsert=True,
+    )
+    # Read back the (now-updated) record to evaluate lockout — single authoritative check
+    record = await db._db.login_attempts.find_one({"identifier": identifier})
+    if record:
+        recent = [a for a in record.get("attempts", []) if a >= window_start]
+        if len(recent) >= _MAX_LOGIN_ATTEMPTS:
+            locked_until = (now + timedelta(minutes=_LOCKOUT_MINUTES)).isoformat()
+            await db._db.login_attempts.update_one(
+                {"identifier": identifier},
+                {"$set": {"locked_until": locked_until}},
+            )
+            logger.warning("Login lockout triggered for identifier (redacted)")
+
+
+async def _clear_login_failures(db, identifier: str) -> None:
+    await db._db.login_attempts.delete_one({"identifier": identifier})
+
+
+def _validate_password_complexity(password: str) -> str | None:
+    """Return an error message if the password fails complexity requirements, else None."""
+    if len(password) < 8:
+        return "Password must be at least 8 characters"
+    if not re.search(r"[A-Z]", password):
+        return "Password must contain at least one uppercase letter"
+    if not re.search(r"[a-z]", password):
+        return "Password must contain at least one lowercase letter"
+    if not re.search(r"\d", password):
+        return "Password must contain at least one digit"
+    if not re.search(r"[^A-Za-z0-9]", password):
+        return "Password must contain at least one special character"
+    return None
 
 class LoginRequest(BaseModel):
-    username: str | None = None
-    email: str | None = None
-    password: str
+    username: str | None = Field(None, max_length=254)
+    email: str | None = Field(None, max_length=254)
+    password: str = Field(..., max_length=1024)
     
     def get_identifier(self):
         """Get the username or email field"""
@@ -53,6 +124,8 @@ async def login_for_access_token(request: Request, login_request: LoginRequest):
 
     # Check username OR email
     # Bypass tenant isolation for initial auth lookup since tenant might not be known yet
+    await _check_login_lockout(db, identifier)
+
     user = await db._db.users.find_one({
         "$or": [
             {"username": identifier},
@@ -60,13 +133,15 @@ async def login_for_access_token(request: Request, login_request: LoginRequest):
         ]
     })
 
-    # 1 & 2. Validate credentials — use a single generic message to prevent user enumeration
+    # Validate credentials — use a single generic message to prevent user enumeration
     if not user or not verify_password(login_request.password, user['password']):
+        await _record_login_failure(db, identifier)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    await _clear_login_failures(db, identifier)
 
     # 3. If MFA is enabled — return short-lived session token instead of full JWT
     mfa = user.get("mfa", {})
@@ -160,7 +235,8 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     return user_data
 
 @router.post("/signup")
-async def signup(data: dict[str, Any] = Body(...)):
+@limiter.limit("3/hour")
+async def signup(request: Request, data: dict[str, Any] = Body(...)):
     from auth_utils import hash_password
     import uuid
     from datetime import datetime, timezone
@@ -176,6 +252,9 @@ async def signup(data: dict[str, Any] = Body(...)):
     password = data.get('password', '')
     if not all([company_name, name, email, password]):
         raise HTTPException(status_code=400, detail="All fields are required")
+    complexity_error = _validate_password_complexity(password)
+    if complexity_error:
+        raise HTTPException(status_code=400, detail=complexity_error)
     db = get_database()
     existing_user = await db.users.find_one({"email": email})
     if existing_user:
@@ -289,8 +368,9 @@ async def signup(data: dict[str, Any] = Body(...)):
 
 
 @router.post("/refresh")
-async def refresh_access_token(data: dict[str, Any] = Body(...)):
-    """Exchange a valid refresh token for a new access token."""
+@limiter.limit("20/minute")
+async def refresh_access_token(request: Request, data: dict[str, Any] = Body(...)):
+    """Exchange a valid refresh token for a new access token and a rotated refresh token."""
     refresh_token = data.get("refresh_token", "")
     if not refresh_token:
         raise HTTPException(status_code=400, detail="Refresh token is required")
@@ -309,11 +389,30 @@ async def refresh_access_token(data: dict[str, Any] = Body(...)):
     if not email:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
+    jti = payload.get("jti")
     db = get_database()
+
+    # Check if this refresh token's jti has been revoked (e.g. after logout)
+    if jti:
+        revoked = await db._db.revoked_tokens.find_one({"jti": jti}, {"_id": 1})
+        if revoked:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    # Enforce account lockout — prevent refresh even if the token is technically valid
+    await _check_login_lockout(db, email)
+
     # Refresh token only contains email (no tenant_id), so bypass isolation for lookup
     user = await db._db.users.find_one({"email": email})
     if not user or user.get("status") != "Active":
-        raise HTTPException(status_code=401, detail="User not found or inactive")
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    # Rotate: revoke the consumed refresh token immediately so it cannot be reused
+    if jti:
+        await db._db.revoked_tokens.insert_one({
+            "jti": jti,
+            "type": "refresh",
+            "revoked_at": datetime.now(timezone.utc).isoformat(),
+        })
 
     token_data = {
         "sub": email,
@@ -321,25 +420,37 @@ async def refresh_access_token(data: dict[str, Any] = Body(...)):
         "tenant_id": user.get("tenantId", "default"),
     }
     new_access_token = create_access_token(data=token_data)
-    return {"success": True, "access_token": new_access_token}
+    new_refresh_token = create_refresh_token(data={"sub": email})
+    return {"success": True, "access_token": new_access_token, "refresh_token": new_refresh_token}
 
 
 @router.post("/logout")
-async def logout(_current_user=Depends(get_current_user)):
-    """
-    Logout endpoint. Tokens are stateless JWTs; the client must discard them.
-    A token blocklist can be introduced here when needed.
-    """
+async def logout(
+    _current_user=Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+):
+    """Revoke the current access token by storing its jti in the blocklist."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        if jti:
+            db = get_database()
+            exp = payload.get("exp")
+            await db.revoked_tokens.insert_one({"jti": jti, "exp": exp})
+            from authentication_service import _revoked_jti_cache
+            _revoked_jti_cache.add(jti)
+    except Exception:
+        pass
     return {"success": True, "message": "Logged out successfully"}
 
 
 class PasswordResetRequest(BaseModel):
-    email: str
+    email: str = Field(..., max_length=254)
 
 
 class PasswordResetConfirm(BaseModel):
-    token: str
-    new_password: str
+    token: str = Field(..., max_length=512)
+    new_password: str = Field(..., max_length=1024)
 
 
 # In-memory reset token store — replace with DB collection in production
@@ -347,7 +458,8 @@ _reset_tokens: dict[str, dict] = {}
 
 
 @router.post("/reset-password/request")
-async def request_password_reset(body: PasswordResetRequest):
+@limiter.limit("3/minute")
+async def request_password_reset(request: Request, body: PasswordResetRequest):
     """Issue a password-reset token (returned in response for demo; send via email in production)."""
     db = get_database()
     user = await db._db.users.find_one({"email": body.email})
@@ -380,7 +492,8 @@ async def request_password_reset(body: PasswordResetRequest):
 
 
 @router.post("/reset-password/confirm")
-async def confirm_password_reset(body: PasswordResetConfirm):
+@limiter.limit("5/minute")
+async def confirm_password_reset(request: Request, body: PasswordResetConfirm):
     """Apply a new password using a valid reset token."""
     now = datetime.datetime.now(timezone.utc)
     entry = _reset_tokens.get(body.token)
@@ -405,8 +518,9 @@ async def confirm_password_reset(body: PasswordResetConfirm):
         _reset_tokens.pop(body.token, None)
         raise HTTPException(status_code=400, detail="Reset token has expired")
 
-    if len(body.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    complexity_error = _validate_password_complexity(body.new_password)
+    if complexity_error:
+        raise HTTPException(status_code=400, detail=complexity_error)
 
     hashed = hash_password(body.new_password)
     await db._db.users.update_one(

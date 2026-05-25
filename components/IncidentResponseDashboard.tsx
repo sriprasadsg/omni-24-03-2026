@@ -116,7 +116,7 @@ export const IncidentResponseDashboard: React.FC = () => {
   const loadIncidents = async () => {
     setLoading(true);
     try {
-      const res = await authFetch(`${API_BASE}/security/cases`);
+      const res = await authFetch(`${API_BASE}/security-cases`);
       if (res.ok) {
         const data = await res.json();
         const raw: any[] = Array.isArray(data) ? data : (data.cases || data.items || []);
@@ -148,7 +148,7 @@ export const IncidentResponseDashboard: React.FC = () => {
     if (!form.title.trim()) return;
     setSaving(true);
     try {
-      const res = await authFetch(`${API_BASE}/security/cases`, {
+      const res = await authFetch(`${API_BASE}/security-cases`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: form.title, severity: form.severity, description: form.description, status: 'Open' }),
@@ -167,8 +167,8 @@ export const IncidentResponseDashboard: React.FC = () => {
 
   const handleStatusChange = async (incident: Incident, newStatus: IncidentStatus) => {
     try {
-      await authFetch(`${API_BASE}/security/cases/${incident.id}`, {
-        method: 'PATCH',
+      await authFetch(`${API_BASE}/security-cases/${incident.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -256,9 +256,9 @@ export const IncidentResponseDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filtered.map(incident => (
+              {filtered.map((incident, idx) => (
                 <div
-                  key={incident.id}
+                  key={`${incident.id}-${idx}`}
                   onClick={() => openIncident(incident)}
                   className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${selected?.id === incident.id ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-500' : ''}`}
                 >

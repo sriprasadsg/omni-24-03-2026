@@ -228,6 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'doraMetrics', label: 'DORA Metrics', icon: <GaugeIcon size={20} />, permission: 'view:dora_metrics' },
                 { view: 'sbom', label: 'SBOM', icon: <FileCodeIcon size={20} />, permission: 'view:sbom' },
                 { view: 'sast', label: 'SAST', icon: <SearchIcon size={20} />, permission: 'view:security' },
+                { view: 'codeReviewGraph', label: 'Code Review Graph', icon: <GitPullRequestDraftIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'pipelineSecurity', label: 'Pipeline Security', icon: <ShieldCheckIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'iacSecurity', label: 'IaC Security', icon: <FileCodeIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'containerScan', label: 'Container Scanning', icon: <BoxIcon size={20} />, permission: 'view:devsecops' },

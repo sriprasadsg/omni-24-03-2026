@@ -6,7 +6,7 @@ async def check_all_frameworks():
     await connect_to_mongo()
     db = get_database()
     
-    frameworks = await db.compliance_frameworks.find({}, {'_id': 0, 'id': 1, 'name': 1, 'controls': 1}).to_list(length=None)
+    frameworks = await db.compliance_frameworks.find({}, {'_id': 0, 'id': 1, 'name': 1, 'controls': 1}).to_list(length=1000)
     
     print("\n" + "="*60)
     print("COMPLIANCE FRAMEWORK CONTROL COUNTS")

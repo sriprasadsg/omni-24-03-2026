@@ -425,19 +425,21 @@ class SecretsManagementService:
         
         return secrets
     
-    async def check_rotation_needed(self) -> List[Dict[str, Any]]:
+    async def check_rotation_needed(self, tenant_id: str = None) -> List[Dict[str, Any]]:
         """
         Check which secrets need rotation
-        
+
         Returns list of secrets that need rotation
         """
         now = datetime.now(timezone.utc).isoformat()
-        
-        cursor = self.db.secrets.find({
+        query: dict = {
             "status": SecretStatus.ACTIVE,
             "rotation_enabled": True,
-            "next_rotation": {"$lte": now}
-        })
+            "next_rotation": {"$lte": now},
+        }
+        if tenant_id:
+            query["tenant_id"] = tenant_id
+        cursor = self.db.secrets.find(query)
         
         secrets_to_rotate = []
         async for secret in cursor:
@@ -624,14 +626,22 @@ class SecretsManagementService:
 
     def _get_or_create_master_key(self) -> bytes:
         """Get or create master encryption key"""
-        # In production, load from secure key management service
-        # For now, generate or load from environment
         key = os.getenv("SECRETS_MASTER_KEY")
         if key:
             return base64.urlsafe_b64decode(key)
-        else:
-            # Generate new key (in production, store securely)
-            return Fernet.generate_key()
+        env = os.getenv("ENVIRONMENT", "development").lower()
+        if env == "production":
+            raise RuntimeError(
+                "SECRETS_MASTER_KEY is not set. "
+                "Refusing to start in production without a stable master key. "
+                "Generate one with: python -c \"from cryptography.fernet import Fernet; import base64; print(base64.urlsafe_b64encode(Fernet.generate_key()).decode())\""
+            )
+        self.logger.warning(
+            "SECRETS_MASTER_KEY is not set — using ephemeral key (dev only). "
+            "All managed secrets will be unrecoverable after restart. "
+            "Set SECRETS_MASTER_KEY before going to production."
+        )
+        return Fernet.generate_key()
     
     def _generate_random_secret(self, length: int = 32) -> str:
         """Generate a random secret"""

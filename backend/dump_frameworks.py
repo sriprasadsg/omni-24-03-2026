@@ -9,7 +9,7 @@ async def dump_frameworks():
     await connect_to_mongo()
     db = get_database()
     
-    frameworks = await db.compliance_frameworks.find({}).to_list(length=None)
+    frameworks = await db.compliance_frameworks.find({}).to_list(length=1000)
     with open('frameworks_dump.txt', 'w', encoding='utf-8') as f:
         f.write(f"Total Frameworks: {len(frameworks)}\n\n")
         

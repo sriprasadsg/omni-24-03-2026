@@ -3,6 +3,8 @@ Cloud Integrations Management Endpoints
 CRUD for Azure Defender, Microsoft Sentinel, GCP SCC, and GCP Chronicle integrations.
 """
 
+import os
+import base64
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
@@ -12,14 +14,72 @@ import logging
 from database import get_database
 from auth_utils import get_current_user
 
+# ── Secret field encryption (Fernet) ─────────────────────────────────────────
+# INTEGRATION_ENCRYPTION_KEY must be a URL-safe base64-encoded 32-byte key.
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+_SECRET_FIELDS = frozenset({"client_secret", "service_account_json", "aws_secret_key"})
+_ENC_PREFIX = "enc:"
+
+_logger = logging.getLogger(__name__)
+
+def _get_cipher():
+    key = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    if not key:
+        if env == "production":
+            raise RuntimeError(
+                "INTEGRATION_ENCRYPTION_KEY is not set. "
+                "Cloud integration secrets cannot be stored without encryption in production."
+            )
+        _logger.warning(
+            "INTEGRATION_ENCRYPTION_KEY is not set — cloud integration secrets will be stored unencrypted. "
+            "Set this variable before going to production."
+        )
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(key.encode() if isinstance(key, str) else key)
+    except Exception as exc:
+        if env == "production":
+            raise RuntimeError(f"Invalid INTEGRATION_ENCRYPTION_KEY: {exc}") from exc
+        _logger.error("Invalid INTEGRATION_ENCRYPTION_KEY: %s", exc)
+        return None
+
+def _encrypt_secrets(config: Dict[str, Any]) -> Dict[str, Any]:
+    cipher = _get_cipher()
+    if not cipher:
+        return config
+    result = {}
+    for k, v in config.items():
+        if k in _SECRET_FIELDS and v and isinstance(v, str) and not v.startswith(_ENC_PREFIX):
+            result[k] = _ENC_PREFIX + cipher.encrypt(v.encode()).decode()
+        else:
+            result[k] = v
+    return result
+
+def _decrypt_secrets(config: Dict[str, Any]) -> Dict[str, Any]:
+    cipher = _get_cipher()
+    if not cipher:
+        return config
+    result = {}
+    for k, v in config.items():
+        if k in _SECRET_FIELDS and isinstance(v, str) and v.startswith(_ENC_PREFIX):
+            try:
+                result[k] = cipher.decrypt(v[len(_ENC_PREFIX):].encode()).decode()
+            except Exception:
+                result[k] = v
+        else:
+            result[k] = v
+    return result
+
 router = APIRouter(prefix="/api/cloud-integrations", tags=["Cloud Integrations"])
 logger = logging.getLogger(__name__)
 
 
-def _tid(user) -> str:
+def _tid(user):
     if isinstance(user, dict):
-        return user.get("tenant_id", "") or user.get("tenantId", "") or "platform-admin"
-    return getattr(user, "tenant_id", "") or "platform-admin"
+        return user.get("tenant_id") or user.get("tenantId") or None
+    return getattr(user, "tenant_id", None) or None
 
 
 def _role(user) -> str:
@@ -130,7 +190,7 @@ async def create_integration(
         "tenant_id": tenant_id,
         "provider": provider,
         "name": payload.get("name", SUPPORTED_PROVIDERS[provider]["name"]),
-        "config": config,
+        "config": _encrypt_secrets(config),
         "enabled": payload.get("enabled", True),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -170,11 +230,11 @@ async def update_integration(
     if "config" in payload:
         existing_config = integ.get("config", {})
         new_config = payload["config"]
-        # Preserve existing secrets if placeholder was sent
+        # Preserve existing (possibly encrypted) secrets if placeholder was sent
         for k, v in new_config.items():
             if v != "***CONFIGURED***":
                 existing_config[k] = v
-        update["config"] = existing_config
+        update["config"] = _encrypt_secrets(existing_config)
 
     await db.cloud_integrations.update_one({"id": integration_id}, {"$set": update})
     return {"message": "Integration updated successfully"}
@@ -216,7 +276,7 @@ async def test_integration(
         raise HTTPException(status_code=403, detail="Access denied")
 
     provider = integ.get("provider", "")
-    config = integ.get("config", {})
+    config = _decrypt_secrets(integ.get("config", {}))
     count = 0
 
     try:
@@ -243,7 +303,7 @@ async def test_integration(
 
     except Exception as exc:
         logger.error("[CloudIntegrations] Test poll failed for %s: %s", integration_id, exc)
-        return {"success": False, "error": str(exc), "events_ingested": 0}
+        return {"success": False, "error": "Integration poll failed", "events_ingested": 0}
 
 
 @router.post("/discover")
@@ -256,7 +316,8 @@ async def trigger_cloud_discovery(
     When real credentials are absent, generates a realistic simulated asset inventory
     so the CloudIntegrationsDashboard always shows useful data.
     """
-    import random, hashlib
+    import random
+    import secrets as _secrets
     db = get_database()
     tenant_id = _tid(current_user)
     now = datetime.now(timezone.utc).isoformat()
@@ -279,9 +340,8 @@ async def trigger_cloud_discovery(
         except Exception:
             pass
 
-    # Seed simulated discovered assets so the dashboard is never empty
-    seed = int(hashlib.md5(tenant_id.encode()).hexdigest(), 16) % 10000
-    rng = random.Random(seed)
+    # Generate simulated discovered assets so the dashboard is never empty
+    rng = random.Random()
     regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]
     asset_types = [
         ("EC2 Instance", "compute", "aws"),
@@ -297,7 +357,7 @@ async def trigger_cloud_discovery(
     ]
     discovered = 0
     for atype, category, provider in rng.choices(asset_types, k=rng.randint(8, 18)):
-        asset_id = f"disc-{hashlib.md5(f'{tenant_id}{atype}{rng.random()}'.encode()).hexdigest()[:10]}"
+        asset_id = f"disc-{_secrets.token_hex(10)}"
         existing = await db.cloud_discovered_assets.find_one({"id": asset_id, "tenant_id": tenant_id})
         if not existing:
             await db.cloud_discovered_assets.insert_one({

@@ -165,9 +165,10 @@ class AutoMLService:
         best   = max(trials, key=lambda t: t["value"]) if trials else None
         return {**study, "best_trial": best}
 
-    async def get_all_studies(self) -> List[Dict[str, Any]]:
+    async def get_all_studies(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         db = get_database()
-        cursor = db.automl_studies.find({}, {"_id": 0}).sort("created_at", -1)
+        query = {} if tenant_id is None else {"tenantId": tenant_id}
+        cursor = db.automl_studies.find(query, {"_id": 0}).sort("created_at", -1)
         studies = await cursor.to_list(length=200)
         result = []
         for s in studies:

@@ -134,7 +134,8 @@ export type AppView =
   | 'iacSecurity'
   | 'containerScan'
   | 'pam'
-  | 'baaManagement';
+  | 'baaManagement'
+  | 'codeReviewGraph';
 
 
 export type Permission =
@@ -597,9 +598,11 @@ export interface Asset {
   };
   vulnerabilities: Vulnerability[];
   osType?: string;
+  osFullName?: string;
   criticality?: 'critical' | 'high' | 'medium' | 'low';
   agentStatus?: AgentStatus;
   agentVersion?: string;
+  agentId?: string;
   agentCapabilities?: AgentCapability[];
 }
 

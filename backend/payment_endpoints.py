@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from rate_limiter import limiter
 from pydantic import BaseModel, EmailStr
 from typing import Dict, List, Optional, Any
 from authentication_service import get_current_user
@@ -17,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 class PaymentGatewaySetup(BaseModel):
     gateway: PaymentGatewayType
-    credentials: Dict[str, str]  # e.g., {"secret_key": "sk_...", "publishable_key": "pk_..."}
+    credentials: Dict[str, str]
+    gateway_name: Optional[str] = None   # Display name for custom gateways
+    webhook_url: Optional[str] = None    # Optional webhook endpoint for custom gateways
 
 
 class SubscriptionCreate(BaseModel):
@@ -84,29 +87,35 @@ async def setup_payment_gateway(
     for key, value in setup.credentials.items():
         encrypted_credentials[key] = encryption.encrypt(value)
     
-    # Deactivate existing gateways
-    await db.payment_gateways.update_many(
-        {"tenantId": tenant_id},
-        {"$set": {"isActive": False}}
-    )
-    
-    # Insert new gateway configuration
-    gateway_doc = {
-        "tenantId": tenant_id,
-        "gateway": setup.gateway.value,
-        "isActive": True,
-        "credentials": encrypted_credentials,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "createdBy": current_user.username
-    }
-    
-    result = await db.payment_gateways.insert_one(gateway_doc)
-    
+    # Check if this gateway type already exists — update in place if so
+    existing = await db.payment_gateways.find_one({"tenantId": tenant_id, "gateway": setup.gateway.value})
+    if existing:
+        await db.payment_gateways.update_one(
+            {"tenantId": tenant_id, "gateway": setup.gateway.value},
+            {"$set": {"credentials": encrypted_credentials, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        )
+        result_id = str(existing["_id"])
+    else:
+        # New gateway — mark active only if it's the first one
+        existing_count = await db.payment_gateways.count_documents({"tenantId": tenant_id})
+        gateway_doc = {
+            "tenantId": tenant_id,
+            "gateway": setup.gateway.value,
+            "gatewayName": setup.gateway_name or setup.gateway.value.capitalize(),
+            "isActive": existing_count == 0,
+            "isCustom": setup.gateway == PaymentGatewayType.CUSTOM,
+            "webhookUrl": setup.webhook_url,
+            "credentials": encrypted_credentials,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdBy": current_user.username,
+        }
+        result = await db.payment_gateways.insert_one(gateway_doc)
+        result_id = str(result.inserted_id)
 
     return {
         "success": True,
         "message": f"{setup.gateway.value.capitalize()} gateway configured successfully",
-        "gatewayId": str(result.inserted_id)
+        "gatewayId": result_id,
     }
 
 
@@ -114,26 +123,61 @@ async def setup_payment_gateway(
 async def get_configured_gateways(
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Get list of configured and active payment gateways"""
+    """Get all configured payment gateways for this tenant."""
     db = get_database()
     tenant_id = current_user.tenant_id
-    
-    cursor = db.payment_gateways.find({
-        "tenantId": tenant_id,
-        "isActive": True
-    })
-    
+
+    cursor = db.payment_gateways.find({"tenantId": tenant_id}, {"_id": 0, "credentials": 0})
     gateways = []
     async for doc in cursor:
         gateways.append({
-            "gateway": doc["gateway"],
-            "createdAt": doc["createdAt"]
+            "gateway":     doc.get("gateway"),
+            "gatewayName": doc.get("gatewayName") or doc.get("gateway", "").capitalize(),
+            "isActive":    doc.get("isActive", False),
+            "isCustom":    doc.get("isCustom", False),
+            "webhookUrl":  doc.get("webhookUrl"),
+            "createdAt":   doc.get("createdAt"),
+            "createdBy":   doc.get("createdBy"),
         })
-        
-    return {
-        "success": True,
-        "gateways": gateways
-    }
+
+    return {"success": True, "gateways": gateways}
+
+
+@router.post("/gateways/{gateway_type}/activate")
+async def activate_gateway(
+    gateway_type: str,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Set a specific gateway as the active one."""
+    db = get_database()
+    tenant_id = current_user.tenant_id
+
+    existing = await db.payment_gateways.find_one({"tenantId": tenant_id, "gateway": gateway_type})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Gateway not found")
+
+    await db.payment_gateways.update_many({"tenantId": tenant_id}, {"$set": {"isActive": False}})
+    await db.payment_gateways.update_one(
+        {"tenantId": tenant_id, "gateway": gateway_type},
+        {"$set": {"isActive": True}}
+    )
+    return {"success": True, "message": f"{gateway_type.capitalize()} set as active gateway"}
+
+
+@router.delete("/gateways/{gateway_type}")
+async def delete_gateway(
+    gateway_type: str,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Remove a payment gateway configuration."""
+    db = get_database()
+    tenant_id = current_user.tenant_id
+
+    result = await db.payment_gateways.delete_one({"tenantId": tenant_id, "gateway": gateway_type})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Gateway not found")
+
+    return {"success": True, "message": f"{gateway_type.capitalize()} gateway removed"}
 
 
 @router.get("/methods")
@@ -450,6 +494,7 @@ async def cancel_subscription(
 
 
 @router.post("/webhook/stripe")
+@limiter.limit("60/minute")
 async def stripe_webhook(
     request: Request,
     stripe_signature: str = Header(None, alias="Stripe-Signature")

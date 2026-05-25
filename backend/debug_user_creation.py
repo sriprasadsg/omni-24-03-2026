@@ -8,8 +8,11 @@ async def debug_user():
     await connect_to_mongo()
     db = get_database()
     
+    import os
     email = "super@omni.ai"
-    password = "superpassword"
+    password = os.environ.get("PLATFORM_ADMIN_INIT_PASSWORD", "")
+    if not password:
+        raise SystemExit("Set PLATFORM_ADMIN_INIT_PASSWORD env var before running this script")
     
     print(f"Creating user {email}...")
     

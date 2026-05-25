@@ -97,7 +97,8 @@ async def list_honeytokens(tenant_id: str, role: str) -> List[Dict[str, Any]]:
 async def record_trigger(token_id: str, source_ip: str, user_agent: str = "", extra: Dict = None) -> bool:
     """Called when a honeytoken is triggered (e.g. via webhook or API check)."""
     db = get_database()
-    token = await db.honeytokens.find_one({"id": token_id})
+    # Only accept triggers for tokens that exist AND are currently active
+    token = await db.honeytokens.find_one({"id": token_id, "status": "Active"})
     if not token:
         return False
 

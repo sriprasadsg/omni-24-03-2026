@@ -3,6 +3,8 @@ from typing import Dict, Any, List
 from finops_service import finops_service
 from rbac_utils import require_permission
 
+_FINOPS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
 router = APIRouter(prefix="/api/finops", tags=["FinOps & Cost Optimization"])
 
 @router.get("/costs")
@@ -57,6 +59,10 @@ async def recalculate_costs(
     """
     Recalculate costs for a specific tenant.
     """
+    caller_role = current_user.get("role", "") if isinstance(current_user, dict) else getattr(current_user, "role", "")
+    caller_tenant = current_user.get("tenantId") or current_user.get("tenant_id") if isinstance(current_user, dict) else getattr(current_user, "tenant_id", None)
+    if caller_role not in _FINOPS_SUPER_ROLES and caller_tenant != tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     return finops_service.recalculate_tenant_costs(tenant_id)
 
 @router.get("/pricing")
@@ -72,6 +78,17 @@ async def update_pricing_bulk(
     current_user: dict = Depends(require_permission("manage:settings"))
 ):
     """Bulk update service pricing."""
+    pricing = pricing[:500]
+    _REQUIRED = {"id", "name", "price", "unit", "category"}
+    for entry in pricing:
+        if not _REQUIRED.issubset(entry.keys()):
+            raise HTTPException(status_code=400, detail=f"Each pricing entry must contain: {_REQUIRED}")
+        try:
+            price = float(entry["price"])
+            if price < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="price must be a non-negative number")
     finops_service.service_pricing = pricing
     return pricing
 

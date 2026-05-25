@@ -4,8 +4,19 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from database import get_database
 from integration_service import get_integration_service
+from authentication_service import get_current_user
 
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
+
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+
+def _resolve_tenant(current_user, requested_tenant_id: Optional[str] = None) -> str:
+    """Return the tenant ID the caller is authorised to act on."""
+    role = getattr(current_user, "role", "") or ""
+    if role in _SUPER_ADMIN_ROLES and requested_tenant_id:
+        return requested_tenant_id
+    return getattr(current_user, "tenant_id", None) or "default"
+
 
 # --- Models ---
 class IntegrationConfig(BaseModel):
@@ -20,7 +31,7 @@ class IntegrationConfig(BaseModel):
     instance_url: Optional[str] = None
     api_key: Optional[str] = None
     project_key: Optional[str] = None
-    
+
 class TestIntegrationRequest(BaseModel):
     type: str
     platform: str
@@ -30,27 +41,32 @@ class TestIntegrationRequest(BaseModel):
 
 @router.get("/configs")
 async def get_integration_configs(
-    tenant_id: Optional[str] = "default",  # MVP default
+    tenant_id: Optional[str] = None,
+    current_user=Depends(get_current_user),
     db=Depends(get_database)
 ):
     """Get all integration configs for tenant"""
+    resolved = _resolve_tenant(current_user, tenant_id)
     service = get_integration_service(db)
-    return await service.get_all_configs(tenant_id)
+    return await service.get_all_configs(resolved)
 
 @router.post("/config")
 async def save_integration_config(
     config: IntegrationConfig,
-    tenant_id: Optional[str] = "default",
+    tenant_id: Optional[str] = None,
+    current_user=Depends(get_current_user),
     db=Depends(get_database)
 ):
     """Save integration config"""
+    resolved = _resolve_tenant(current_user, tenant_id)
     service = get_integration_service(db)
-    result = await service.save_config(tenant_id, config.dict())
+    result = await service.save_config(resolved, config.dict())
     return result
 
 @router.post("/test")
 async def test_integration(
     request: TestIntegrationRequest,
+    current_user=Depends(get_current_user),
     db=Depends(get_database)
 ):
     """Test integration connection"""
@@ -106,14 +122,19 @@ class ConnectorExecuteRequest(BaseModel):
 async def test_connector(
     connector_name: str,
     config: Optional[Dict[str, Any]] = None,
+    current_user=Depends(get_current_user),
     db=Depends(get_database),
 ):
     """Test connectivity for a named SOAR connector (slack, jira, edr, firewall, etc.)"""
-    # Load saved config from DB and merge with any supplied override
     saved = await db.soar_connector_configs.find_one(
         {"connector": connector_name.lower()}, {"_id": 0}
     ) or {}
-    merged = {**saved.get("config", {}), **(config or {})}
+    _SENSITIVE_CONFIG_FIELDS = {"api_key", "token", "api_token", "secret_key", "password", "credentials_json", "auth_token", "secret"}
+    merged = {**saved.get("config", {})}
+    if config:
+        for k, v in config.items():
+            if k not in _SENSITIVE_CONFIG_FIELDS:
+                merged[k] = v
 
     try:
         connector = _build_connector(connector_name, merged)
@@ -122,13 +143,14 @@ async def test_connector(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/connectors/{connector_name}/execute")
 async def execute_connector_action(
     connector_name: str,
     body: ConnectorExecuteRequest,
+    current_user=Depends(get_current_user),
     db=Depends(get_database),
 ):
     """Execute an action on a named SOAR connector."""
@@ -140,27 +162,29 @@ async def execute_connector_action(
     try:
         connector = _build_connector(connector_name, merged)
         result = await connector.execute(body.action, body.params)
-        # Audit log the execution
         await db.soar_execution_log.insert_one({
             "connector": connector_name,
             "action": body.action,
             "params": body.params,
             "result": result,
+            "executed_by": getattr(current_user, "username", None),
+            "tenant_id": getattr(current_user, "tenant_id", None),
             "executed_at": __import__("datetime").datetime.now(timezone.utc).isoformat(),
         })
         return result
     except HTTPException:
         raise
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail="Bad request")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/connectors/{connector_name}/config")
 async def save_connector_config(
     connector_name: str,
     config: Dict[str, Any],
+    current_user=Depends(get_current_user),
     db=Depends(get_database),
 ):
     """Persist a connector's configuration in the database."""
@@ -174,14 +198,17 @@ async def save_connector_config(
 
 
 @router.get("/connectors/{connector_name}/config")
-async def get_connector_config(connector_name: str, db=Depends(get_database)):
+async def get_connector_config(
+    connector_name: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database),
+):
     """Get saved config for a connector (secrets are redacted)."""
     doc = await db.soar_connector_configs.find_one(
         {"connector": connector_name.lower()}, {"_id": 0}
     )
     if not doc:
         return {"connector": connector_name, "config": {}}
-    # Redact sensitive fields
     cfg = dict(doc.get("config", {}))
     for sensitive in ("api_key", "token", "api_token", "secret_key", "password", "credentials_json"):
         if sensitive in cfg:
@@ -190,7 +217,7 @@ async def get_connector_config(connector_name: str, db=Depends(get_database)):
 
 
 @router.get("/connectors")
-async def list_connectors():
+async def list_connectors(current_user=Depends(get_current_user)):
     """List all available SOAR connector names and their supported actions."""
     return {
         "connectors": [
@@ -204,4 +231,3 @@ async def list_connectors():
             {"name": "cloud",         "actions": ["quarantine_instance", "snapshot_instance", "revoke_credentials"]},
         ]
     }
-

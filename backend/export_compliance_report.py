@@ -14,10 +14,10 @@ async def export_compliance_report():
     print("📂 Exporting Compliance Evidence Report...")
     
     # Fetch all compliance records
-    docs = await db.asset_compliance.find({}).to_list(length=None)
-    
+    docs = await db.asset_compliance.find({}).to_list(length=1000)
+
     # Fetch frameworks to map control names if not in doc
-    frameworks = await db.compliance_frameworks.find({}).to_list(length=None)
+    frameworks = await db.compliance_frameworks.find({}).to_list(length=1000)
     control_map = {}
     for f in frameworks:
         fid = f.get("id", "unknown")

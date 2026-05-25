@@ -1,23 +1,34 @@
+import logging
 import os
 from cryptography.fernet import Fernet
+
+_logger = logging.getLogger(__name__)
 
 
 class EncryptionService:
     """Service for encrypting and decrypting sensitive data like API keys"""
-    
+
     def __init__(self):
-        # Get encryption key from environment variable
-        key = os.getenv('PAYMENT_ENCRYPTION_KEY')
-        
+        key = os.getenv("PAYMENT_ENCRYPTION_KEY")
+
         if not key:
-            # Generate a new key if not set (for development only)
+            env = os.getenv("ENVIRONMENT", "development").lower()
+            if env == "production":
+                raise RuntimeError(
+                    "PAYMENT_ENCRYPTION_KEY is not set. "
+                    "Refusing to start in production without a stable encryption key. "
+                    "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+                )
+            _logger.warning(
+                "PAYMENT_ENCRYPTION_KEY is not set — using ephemeral key (dev only). "
+                "All encrypted payment data will be lost on restart. "
+                "Set PAYMENT_ENCRYPTION_KEY before going to production."
+            )
             key = Fernet.generate_key().decode()
-            print(f"WARNING: No PAYMENT_ENCRYPTION_KEY found. Generated temporary key: {key}")
-            print("Please set this in your .env file for production use!")
-        
+
         if isinstance(key, str):
             key = key.encode()
-        
+
         self.cipher = Fernet(key)
     
     def encrypt(self, plaintext: str) -> str:

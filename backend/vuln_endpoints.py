@@ -3,7 +3,10 @@ from typing import List, Dict, Any, Optional
 from vuln_service import vuln_service
 from datetime import datetime, timezone
 import asyncio
+import re
 from database import get_database
+
+_ID_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
 
 router = APIRouter(
     prefix="/api/vulnerabilities",
@@ -33,23 +36,21 @@ async def get_vulnerability_stats(current_user: TokenData = Depends(rbac_service
 
 @router.post("/scan")
 async def schedule_scan(
-    scan_type: str = Body(..., embed=True),
-    assets: List[str] = Body(..., embed=True),
-    tenantId: Optional[str] = Body(None, embed=True) # Optional manual tenantId
+    scan_type: str = Body(..., embed=True, max_length=100),
+    assets: List[str] = Body(..., embed=True, max_items=500),
+    current_user: TokenData = Depends(rbac_service.has_permission("view:security")),
 ):
     """
     Schedule a vulnerability scan.
     """
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
     try:
         db = get_database()
-        # Use tenant_id from context if available, else from body (for testing/scripts)
-        try:
-            tenant_id = get_tenant_id()
-        except:
-            tenant_id = tenantId or "default"
+        tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id()
 
         job_id = f"scan-{int(datetime.now(timezone.utc).timestamp())}"
-        
+
         job = {
             "id": job_id,
             "tenantId": tenant_id,
@@ -60,17 +61,16 @@ async def schedule_scan(
             "type": scan_type,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
-        
+
         await db.vulnerability_scans.insert_one(job.copy())
 
-        # Remove _id
         if "_id" in job:
             del job["_id"]
 
         return job
     except Exception as e:
-        print(f"Error scheduling scan: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        _log.error("Error scheduling scan: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{vuln_id}/apply-patch")
@@ -80,6 +80,8 @@ async def apply_patch(
     current_user: TokenData = Depends(rbac_service.has_permission("manage:patches")),
 ):
     """Queue a patch deployment job for a specific vulnerability."""
+    if not _ID_RE.match(vuln_id):
+        raise HTTPException(status_code=400, detail="Invalid vulnerability ID format")
     import uuid
     db = get_database()
     tenant_id = get_tenant_id()

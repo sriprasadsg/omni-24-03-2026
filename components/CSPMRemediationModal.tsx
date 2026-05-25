@@ -22,10 +22,15 @@ const LoadingSkeleton: React.FC = () => (
 );
 
 const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
+    const escaped = content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     return (
         <div className="prose prose-sm dark:prose-invert max-w-none"
             dangerouslySetInnerHTML={{
-                __html: content
+                __html: escaped
                     .replace(/### (.*)/g, '<h3 class="text-sm font-semibold mt-4 mb-2">$1</h3>')
                     .replace(/```bash\n([\s\S]*?)\n```/g, '<pre class="bg-gray-900 text-white p-2 rounded-md text-xs"><code>$1</code></pre>')
                     .replace(/`([^`]+)`/g, '<code class="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-xs">$1</code>')

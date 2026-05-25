@@ -221,6 +221,54 @@ def get_startup_items() -> str:
 
 
 @registry.register
+def scan_ip_virustotal(ip_address: str) -> str:
+    """Query VirusTotal for the reputation of an IP address. Returns verdict, detection ratio, and malicious/suspicious counts."""
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "capabilities"))
+        from threat_intel import lookup_ip
+        return json.dumps(lookup_ip(ip_address))
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@registry.register
+def scan_domain_virustotal(domain: str) -> str:
+    """Query VirusTotal for the reputation of a domain name. Returns verdict, detection ratio, and malicious/suspicious counts."""
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "capabilities"))
+        from threat_intel import lookup_domain
+        return json.dumps(lookup_domain(domain))
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@registry.register
+def scan_url_virustotal(url: str) -> str:
+    """Query VirusTotal for the reputation of a URL. Returns verdict, detection ratio, and malicious/suspicious counts."""
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "capabilities"))
+        from threat_intel import lookup_url
+        return json.dumps(lookup_url(url))
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@registry.register
+def scan_file_hash_virustotal(file_hash: str) -> str:
+    """Query VirusTotal for the reputation of a file hash (MD5, SHA1, or SHA256). Returns verdict, detection ratio, and antivirus detections."""
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "capabilities"))
+        from threat_intel import lookup_hash
+        return json.dumps(lookup_hash(file_hash))
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@registry.register
 def check_user_accounts() -> str:
     """List local user accounts with enabled/admin status (read-only, no passwords)."""
     try:

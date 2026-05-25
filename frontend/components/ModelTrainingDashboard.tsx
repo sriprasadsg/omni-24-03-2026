@@ -8,7 +8,7 @@ const ModelTrainingDashboard = () => {
 
     const fetchStatus = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const resp = await fetch('http://localhost:5000/api/ai/train/status', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -23,7 +23,7 @@ const ModelTrainingDashboard = () => {
     const startTraining = async () => {
         setIsStarting(true);
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             await fetch('http://localhost:5000/api/ai/train/start', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }

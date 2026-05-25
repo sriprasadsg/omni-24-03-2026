@@ -1,10 +1,13 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+import logging
 from typing import Dict, Any, List
 from streaming_service import broker, processor
 import asyncio
 import json
 from database import get_database
 from siem_engine import get_siem_engine
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stream", tags=["Streaming Analytics"])
 
@@ -31,7 +34,7 @@ async def publish_event(topic: str, event: Dict[str, Any]):
             if logs:
                 await siem.ingest_logs(logs, tenant_id, agent_id)
         except Exception as e:
-            print(f"[Streaming] Failed to process raw logs in SIEM engine: {e}")
+            logger.error("Streaming: Failed to process raw logs in SIEM engine: %s", e)
             
     return {"status": "published", "topic": topic}
 
@@ -71,6 +74,6 @@ async def websocket_endpoint(websocket: WebSocket):
         for topic in topics:
             broker.unsubscribe(topic, client_callback)
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        logger.error("WebSocket error: %s", e)
         for topic in topics:
             broker.unsubscribe(topic, client_callback)

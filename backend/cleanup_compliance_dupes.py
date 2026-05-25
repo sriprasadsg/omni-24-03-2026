@@ -24,7 +24,7 @@ async def cleanup_compliance():
     
     print("🧹 Starting Compliance Evidence Cleanup...")
     
-    docs = await db.asset_compliance.find({}).to_list(length=None)
+    docs = await db.asset_compliance.find({}).to_list(length=1000)
     print(f"📊 Processing {len(docs)} compliance records...")
     
     migrated_count = 0

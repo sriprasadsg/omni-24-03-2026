@@ -17,7 +17,7 @@ class SocketService {
             return;
         }
 
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         // Use Vite proxy (same-origin, no CORS issues) so socket.io goes through
         // http://host:3000/socket.io → proxy → http://127.0.0.1:5000/socket.io.
         // VITE_API_BASE_URL overrides this for production deployments.
@@ -64,6 +64,19 @@ class SocketService {
 
         this.socket.on('reconnect_failed', () => {
             console.warn('[WebSocket] All reconnection attempts failed. Real-time updates disabled. Is the backend running with socket_app?');
+        });
+
+        this.socket.on('reconnect_attempt', () => {
+            const freshToken = sessionStorage.getItem('token');
+            if (!freshToken || this._isTokenExpired(freshToken)) {
+                sessionStorage.removeItem('token');
+                this.socket?.disconnect();
+                window.location.href = '/login';
+                return;
+            }
+            if (this.socket) {
+                this.socket.auth = { tenant_id: tenantId, token: freshToken };
+            }
         });
 
         // Application events
@@ -141,6 +154,22 @@ class SocketService {
                     console.error(`[WebSocket] Error in listener for ${event}:`, error);
                 }
             });
+        }
+    }
+
+    /**
+     * Returns true only if the JWT exp claim is definitively in the past.
+     * Returns false on any parse failure (fail open — don't kick user on WS errors).
+     */
+    private _isTokenExpired(token: string): boolean {
+        try {
+            // JWT uses base64url encoding; convert to standard base64 before atob
+            const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(atob(base64));
+            if (!payload.exp) return false;
+            return Date.now() > payload.exp * 1000;
+        } catch {
+            return false;
         }
     }
 

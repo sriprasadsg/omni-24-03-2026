@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from database import get_database
 from auth_utils import get_current_user
 
@@ -18,6 +18,15 @@ router = APIRouter(prefix="/api/goals", tags=["Goal System"])
 
 import logging as _logging
 _log = _logging.getLogger(__name__)
+
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+
+def _tenant_filter(current_user: Any) -> Dict[str, Any]:
+    role = getattr(current_user, "role", "") or ""
+    if role in _SUPER_ADMIN_ROLES:
+        return {}
+    tid = getattr(current_user, "tenant_id", None)
+    return {"tenantId": tid} if tid else {"tenantId": {"$exists": False}}
 
 
 async def _dispatch_goal_tasks(db, goal: Dict[str, Any], goal_id: str) -> None:
@@ -53,16 +62,16 @@ async def _dispatch_goal_tasks(db, goal: Dict[str, Any], goal_id: str) -> None:
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
 class GoalCreate(BaseModel):
-    objective: str
+    objective: str = Field(..., max_length=2000)
     priority: int = 5          # 1 (critical) – 10 (low)
     deadline_hours: Optional[int] = None
-    category: str = "security"  # security | compliance | infrastructure | cost | custom
+    category: str = Field("security", max_length=100)
     auto_approve: bool = False
 
 
 class GoalApprove(BaseModel):
     approved: bool
-    reviewer_note: str = ""
+    reviewer_note: str = Field("", max_length=2000)
 
 
 # ── Predefined goal templates ──────────────────────────────────────────────────
@@ -201,7 +210,7 @@ def _map_capability(task_desc: str) -> str:
     return "general"
 
 
-def _goal_doc(goal_id: str, data: GoalCreate, tasks: List[Dict]) -> Dict[str, Any]:
+def _goal_doc(goal_id: str, data: GoalCreate, tasks: List[Dict], tenant_id: str = "") -> Dict[str, Any]:
     deadline = None
     if data.deadline_hours:
         from datetime import timedelta
@@ -209,6 +218,7 @@ def _goal_doc(goal_id: str, data: GoalCreate, tasks: List[Dict]) -> Dict[str, An
 
     return {
         "id": goal_id,
+        "tenantId": tenant_id,
         "objective": data.objective,
         "priority": data.priority,
         "category": data.category,
@@ -240,7 +250,7 @@ def _compute_progress(goal: Dict[str, Any]) -> float:
 async def list_goals(status: Optional[str] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
     """List all goals, optionally filtered by status."""
     db = get_database()
-    query: Dict[str, Any] = {}
+    query: Dict[str, Any] = {**_tenant_filter(current_user)}
     if status:
         query["status"] = status
     try:
@@ -250,7 +260,8 @@ async def list_goals(status: Optional[str] = None, current_user: Dict[str, Any] 
             g["progress_pct"] = _compute_progress(g)
         return {"goals": goals, "total": len(goals)}
     except Exception as exc:
-        return {"goals": [], "total": 0, "error": str(exc)}
+        _log.error("Failed to list goals: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("")
@@ -258,7 +269,8 @@ async def create_goal(data: GoalCreate, current_user: Dict[str, Any] = Depends(g
     """Create a new goal and decompose it into tasks."""
     tasks = _decompose_goal(data.objective, data.category)
     goal_id = str(uuid.uuid4())
-    doc = _goal_doc(goal_id, data, tasks)
+    tenant_id = getattr(current_user, "tenant_id", "") or ""
+    doc = _goal_doc(goal_id, data, tasks, tenant_id=tenant_id)
 
     db = get_database()
     try:
@@ -266,7 +278,7 @@ async def create_goal(data: GoalCreate, current_user: Dict[str, Any] = Depends(g
     except Exception as e:
         import logging
         logging.getLogger(__name__).error("Failed to persist goal %s: %s", goal_id, e)
-        raise HTTPException(status_code=500, detail=f"Failed to save goal: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     return doc
 
@@ -281,7 +293,7 @@ async def list_templates(current_user: Dict[str, Any] = Depends(get_current_user
 async def get_goal(goal_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Get a single goal with current progress."""
     db = get_database()
-    goal = await db.agent_goals.find_one({"id": goal_id})
+    goal = await db.agent_goals.find_one({"id": goal_id, **_tenant_filter(current_user)})
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     goal.pop("_id", None)
@@ -293,7 +305,7 @@ async def get_goal(goal_id: str, current_user: Dict[str, Any] = Depends(get_curr
 async def approve_goal(goal_id: str, body: GoalApprove, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Approve or reject the decomposed task plan for a goal."""
     db = get_database()
-    goal = await db.agent_goals.find_one({"id": goal_id})
+    goal = await db.agent_goals.find_one({"id": goal_id, **_tenant_filter(current_user)})
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -317,7 +329,7 @@ async def approve_goal(goal_id: str, body: GoalApprove, current_user: Dict[str, 
 async def complete_task(goal_id: str, task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Mark a specific task within a goal as completed."""
     db = get_database()
-    goal = await db.agent_goals.find_one({"id": goal_id})
+    goal = await db.agent_goals.find_one({"id": goal_id, **_tenant_filter(current_user)})
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -353,7 +365,7 @@ async def complete_task(goal_id: str, task_id: str, current_user: Dict[str, Any]
 async def delete_goal(goal_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Delete a goal."""
     db = get_database()
-    result = await db.agent_goals.delete_one({"id": goal_id})
+    result = await db.agent_goals.delete_one({"id": goal_id, **_tenant_filter(current_user)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Goal not found")
     return {"deleted": True, "goal_id": goal_id}

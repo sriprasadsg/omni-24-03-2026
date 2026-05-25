@@ -242,18 +242,33 @@ async def process_saml_response(saml_response_b64: str, tenant_id: str) -> dict:
     except ImportError:
         pass
 
-    # Lightweight XML parsing fallback (for demo purposes)
-    import re
-    email_match = re.search(r'<(?:saml|saml2):NameID[^>]*>([^<]+@[^<]+)</', xml)
-    name_match = re.search(r'<Attribute Name="[^"]*[Nn]ame[^"]*"[^>]*>\s*<AttributeValue>([^<]+)</AttributeValue>', xml)
-    
-    if email_match:
-        return {
-            "success": True,
-            "email": email_match.group(1).strip(),
-            "name": name_match.group(1).strip() if name_match else None,
+    # Safe XML parsing via defusedxml (prevents XXE)
+    try:
+        from defusedxml import ElementTree as _ET
+        _NS = {
+            "saml2": "urn:oasis:names:tc:SAML:2.0:assertion",
+            "saml":  "urn:oasis:names:tc:SAML:1.0:assertion",
         }
-    return {"success": False, "error": "Could not extract email from SAML assertion"}
+        root = _ET.fromstring(xml)
+        email = None
+        for _prefix in ("saml2", "saml"):
+            _node = root.find(f".//{{{_NS[_prefix]}}}NameID")
+            if _node is not None and _node.text and "@" in _node.text:
+                email = _node.text.strip()
+                break
+        if not email:
+            return {"success": False, "error": "Could not extract email from SAML assertion"}
+        name = None
+        for _attr in root.iter(f"{{{_NS['saml2']}}}Attribute"):
+            _attr_name = _attr.get("Name", "")
+            if "name" in _attr_name.lower() and "email" not in _attr_name.lower():
+                _val = _attr.find(f"{{{_NS['saml2']}}}AttributeValue")
+                if _val is not None and _val.text:
+                    name = _val.text.strip()
+                    break
+        return {"success": True, "email": email, "name": name}
+    except Exception:
+        return {"success": False, "error": "Could not parse SAML assertion"}
 
 
 # ─── User Provisioning ────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { AppView, SastFinding } from "../types";
 
 export const getCommandFromQuery = async (query: string): Promise<Command[]> => {
     try {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         const response = await fetch('/api/ai-proxy/chat/completions', {
             method: 'POST',
             headers: {
@@ -55,7 +55,7 @@ export const getCommandFromQuery = async (query: string): Promise<Command[]> => 
 
 export const generateSastFix = async (finding: SastFinding): Promise<{ fixedCode: string }> => {
     try {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         const prompt = `
             The following code snippet has a "${finding.type}" vulnerability.
             Vulnerable code:

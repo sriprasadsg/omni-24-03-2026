@@ -158,7 +158,11 @@ async def collect_auto_evidence(
     mod = _REGISTRY[framework_id]
     results = await mod.evaluate_controls(db)
     now = datetime.now(timezone.utc).isoformat()
-    tenant_id = current_user.get("tenant_id", current_user.get("tenantId", "global"))
+    tenant_id = (
+        (current_user.get("tenant_id") or current_user.get("tenantId"))
+        if isinstance(current_user, dict)
+        else getattr(current_user, "tenant_id", None)
+    )
     import uuid as _uuid
 
     created = 0
@@ -202,7 +206,7 @@ async def collect_auto_evidence(
 
 
 @router.get("/{framework_id}/gaps")
-async def framework_gaps(framework_id: str):
+async def framework_gaps(framework_id: str, current_user: dict = Depends(get_current_user)):
     """Return only failing or partial controls — the actionable gap list."""
     if framework_id not in _REGISTRY:
         from fastapi import HTTPException

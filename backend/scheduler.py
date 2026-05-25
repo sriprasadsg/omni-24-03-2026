@@ -3,11 +3,15 @@ Deployment Scheduler
 Processes scheduled deployments automatically at their designated times
 """
 import asyncio
+import logging
 from datetime import datetime, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from database import get_database
 import uuid
+
+logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler = None
@@ -166,7 +170,7 @@ async def process_scheduled_deployments():
         db = get_database()
         now = datetime.now(timezone.utc)
         
-        print(f"[Scheduler] Checking for scheduled deployments at {now.isoformat()}")
+        logger.info("[Scheduler] Checking for scheduled deployments at %s", now.isoformat())
         
         # Find patch deployment jobs ready to execute
         patch_jobs = await db.patch_deployment_jobs.find({
@@ -175,7 +179,7 @@ async def process_scheduled_deployments():
         }).to_list(length=100)
         
         for job in patch_jobs:
-            print(f"[Scheduler] Executing scheduled patch deployment: {job['id']}")
+            logger.info("[Scheduler] Executing scheduled patch deployment: %s", job["id"])
             
             # Update status to In Progress
             await db.patch_deployment_jobs.update_one(
@@ -206,7 +210,7 @@ async def process_scheduled_deployments():
         }).to_list(length=100)
         
         for job in software_jobs:
-            print(f"[Scheduler] Executing scheduled software deployment: {job['id']}")
+            logger.info("[Scheduler] Executing scheduled software deployment: %s", job["id"])
             
             # Update status to In Progress
             await db.software_deployment_jobs.update_one(
@@ -231,22 +235,67 @@ async def process_scheduled_deployments():
         
         total_executed = len(patch_jobs) + len(software_jobs)
         if total_executed > 0:
-            print(f"[Scheduler] Started {total_executed} scheduled deployments")
+            logger.info("[Scheduler] Started %d scheduled deployments", total_executed)
         
     except Exception as e:
-        print(f"[Scheduler] Error processing scheduled deployments: {e}")
+        logger.error("[Scheduler] Error processing scheduled deployments: %s", e)
+
+
+async def process_pentest_schedules():
+    """Trigger any pentest recurring scans that are due to run."""
+    try:
+        from pentest_integration_service import get_pentest_service
+        db = get_database()
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+
+        cursor = db.pentest_schedules.find({"enabled": True})
+        async for schedule in cursor:
+            next_run = schedule.get("next_run")
+            # Run if never run yet, or next_run has passed
+            if next_run and next_run > now_iso:
+                continue
+
+            schedule_id = schedule["_id"]
+            try:
+                service = get_pentest_service(db)
+                job = await service.create_scan_job(
+                    target=schedule["target"],
+                    scan_type=schedule["scan_type"],
+                    tenant_id=schedule.get("tenant_id", ""),
+                    created_by=f"scheduler:{schedule.get('created_by', 'system')}",
+                )
+                asyncio.create_task(service.execute_scan(job["id"]))
+
+                # Calculate next_run from cron expression
+                try:
+                    trigger = CronTrigger.from_crontab(schedule["schedule"])
+                    next_fire = trigger.get_next_fire_time(None, now)
+                    next_run_iso = next_fire.isoformat() if next_fire else None
+                except Exception:
+                    next_run_iso = None
+
+                await db.pentest_schedules.update_one(
+                    {"_id": schedule_id},
+                    {"$set": {"last_run": now_iso, "next_run": next_run_iso}},
+                )
+                logger.info("[PentestScheduler] Triggered scan for target %s (job %s)", schedule["target"], job["id"])
+            except Exception as exc:
+                logger.warning("[PentestScheduler] Failed to trigger scan for schedule %s: %s", schedule_id, exc)
+    except Exception as exc:
+        logger.error("[PentestScheduler] Error processing pentest schedules: %s", exc)
 
 
 def start_scheduler():
     """Initialize and start the deployment scheduler"""
     global scheduler
-    
+
     if scheduler is not None:
-        print("[Scheduler] Scheduler already running")
+        logger.info("[Scheduler] Scheduler already running")
         return
-    
+
     scheduler = AsyncIOScheduler()
-    
+
     # Add job to check for scheduled deployments every minute
     scheduler.add_job(
         process_scheduled_deployments,
@@ -255,9 +304,18 @@ def start_scheduler():
         name='Process Scheduled Deployments',
         replace_existing=True
     )
-    
+
+    # Add job to check for due pentest recurring scans every minute
+    scheduler.add_job(
+        process_pentest_schedules,
+        trigger=IntervalTrigger(minutes=1),
+        id='process_pentest_schedules',
+        name='Process Pentest Schedules',
+        replace_existing=True
+    )
+
     scheduler.start()
-    print("[Scheduler] Scheduler started - checking for scheduled deployments every minute")
+    logger.info("[Scheduler] Scheduler started - deployment + pentest schedule checks every minute")
 
 
 def stop_scheduler():
@@ -267,4 +325,4 @@ def stop_scheduler():
     if scheduler is not None:
         scheduler.shutdown()
         scheduler = None
-        print("[Scheduler] Scheduler stopped")
+        logger.info("[Scheduler] Scheduler stopped")

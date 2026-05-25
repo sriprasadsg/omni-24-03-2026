@@ -98,7 +98,7 @@ async function refreshAccessToken(): Promise<string> {
 
     refreshPromise = (async () => {
         try {
-            const refreshToken = localStorage.getItem('refresh_token');
+            const refreshToken = sessionStorage.getItem('refresh_token');
 
             if (!refreshToken) {
                 throw new Error('No refresh token available');
@@ -117,7 +117,11 @@ async function refreshAccessToken(): Promise<string> {
             const data = await response.json();
 
             if (data.success && data.access_token) {
-                localStorage.setItem('token', data.access_token);
+                sessionStorage.setItem('token', data.access_token);
+                // Store the rotated refresh token so the next refresh cycle works
+                if (data.refresh_token) {
+                    sessionStorage.setItem('refresh_token', data.refresh_token);
+                }
                 return data.access_token;
             }
 
@@ -131,13 +135,52 @@ async function refreshAccessToken(): Promise<string> {
     return refreshPromise;
 }
 
+// Background refresh timer handle — cleared on logout
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Schedule a proactive token refresh ~5 minutes before the current token expires.
+ * Call this after login and after each successful refresh so the cycle self-perpetuates.
+ * Prevents 401 console noise from expired tokens hitting the backend.
+ */
+export function startTokenRefreshCycle(): void {
+    if (_refreshTimer !== null) {
+        clearTimeout(_refreshTimer);
+        _refreshTimer = null;
+    }
+    const token = sessionStorage.getItem('token');
+    if (!token || !sessionStorage.getItem('refresh_token')) return;
+
+    const secondsUntilExpiry = jwtSecondsUntilExpiry(token);
+    // Refresh 5 minutes before expiry; if already past that, refresh in 5 seconds
+    const delayMs = Math.max((secondsUntilExpiry - 300) * 1000, 5000);
+
+    _refreshTimer = setTimeout(async () => {
+        _refreshTimer = null;
+        try {
+            await refreshAccessToken();
+            startTokenRefreshCycle(); // reschedule for the new token
+        } catch {
+            // Refresh failed (e.g. refresh token also expired) — let authFetch handle it on next request
+        }
+    }, delayMs);
+}
+
+export function stopTokenRefreshCycle(): void {
+    if (_refreshTimer !== null) {
+        clearTimeout(_refreshTimer);
+        _refreshTimer = null;
+    }
+}
+
 // Helper for Authenticated Requests
 export async function authFetch(url: string, options: RequestInit & { tenantId?: string } = {}): Promise<Response> {
     const { tenantId, ...fetchOptions } = options;
 
     const makeRequest = async (token: string | null) => {
+        const isFormData = fetchOptions.body instanceof FormData;
         const headers = {
-            'Content-Type': 'application/json',
+            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             ...(fetchOptions.headers || {}),
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
@@ -146,7 +189,7 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
         return await fetch(url, { ...fetchOptions, headers });
     };
 
-    let token = localStorage.getItem('token');
+    let token = sessionStorage.getItem('token');
 
     // Proactively refresh if token expires within 5 minutes — avoids the 401 round-trip
     // that causes noisy console errors when many requests fire simultaneously.
@@ -167,8 +210,8 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
             response = await makeRequest(newToken);
         } catch (error) {
             // Refresh failed - clear storage and redirect to login
-            localStorage.removeItem('token');
-            localStorage.removeItem('refresh_token');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('refresh_token');
             window.location.href = '/login';
             throw new Error('Session expired');
         }
@@ -310,14 +353,14 @@ export const login = async (username: string, password: string): Promise<any> =>
 
     const data = await res.json();
     if (data.access_token) {
-        localStorage.setItem('token', data.access_token);
+        sessionStorage.setItem('token', data.access_token);
     }
     return data;
 };
 
 export const fetchCurrentUser = async (): Promise<any> => {
     try {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (!token) return null;
 
         const res = await fetch(`${API_BASE}/auth/me`, {
@@ -330,7 +373,7 @@ export const fetchCurrentUser = async (): Promise<any> => {
         if (!res.ok) {
             // Token invalid or expired - just return null, don't redirect/reload
             if (res.status === 401) {
-                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
             }
             return null;
         }
@@ -481,6 +524,17 @@ export const fetchAiSystems = async () => {
 export const fetchAssets = async (tenantId?: string) => {
     return fetchWithCache('assets', `/assets${tenantId ? `?tenantId=${tenantId}` : ''}`, ASSETS, (data) => { ASSETS = data; });
 };
+
+export const fetchAssetById = async (assetId: string): Promise<Asset | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/assets/${assetId}`);
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+};
+
 export const fetchLogs = async () => {
     // fetchLogs: Get all system logs
     try {
@@ -1588,8 +1642,8 @@ export const registerNewTenant = async (payload: NewTenantPayload) => {
     }
     // Store the JWT so the new session is authenticated immediately
     if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+        sessionStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
     }
     const newTenant: Tenant = { ...data.tenant, apiKeys: [] };
     const newUser: User = { ...data.user, password: '' };
@@ -2918,6 +2972,15 @@ export const generatePDFComplianceReport = async (frameworkId: string) => {
     return await res.json();
 };
 
+export const generateAllComplianceReport = async (format: 'csv' | 'excel') => {
+    const res = await authFetch(`${API_BASE}/compliance/reports/generate/all/${format}`, { method: 'POST' });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'All-frameworks report generation failed' }));
+        throw new Error(err.detail || 'All-frameworks report generation failed');
+    }
+    return await res.json();
+};
+
 export const fetchComplianceReports = async (frameworkId?: string) => {
     try {
         const url = frameworkId
@@ -3165,7 +3228,7 @@ export const remediateRoute = async (route: string, error: string) => {
 };
 export const fetchPendingApprovals = async (userEmail: string) => {
     try {
-        const res = await fetch(`${API_BASE}/approvals/pending?user_email=${userEmail}`);
+        const res = await authFetch(`${API_BASE}/approvals/pending?user_email=${encodeURIComponent(userEmail)}`);
         if (res.ok) return await res.json();
         return [];
     } catch (e) {
@@ -3176,7 +3239,7 @@ export const fetchPendingApprovals = async (userEmail: string) => {
 
 export const fetchApprovalHistory = async () => {
     try {
-        const res = await fetch(`${API_BASE}/approvals/history`);
+        const res = await authFetch(`${API_BASE}/approvals/history`);
         if (res.ok) return await res.json();
         return [];
     } catch (e) {
@@ -3187,9 +3250,8 @@ export const fetchApprovalHistory = async () => {
 
 export const submitApprovalDecision = async (requestId: string, userEmail: string, decision: 'approve' | 'reject', comments: string) => {
     try {
-        const res = await fetch(`${API_BASE}/approvals/${requestId}/decide`, {
+        const res = await authFetch(`${API_BASE}/approvals/${requestId}/decide`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_email: userEmail, decision, comments })
         });
         return await res.json();
@@ -3268,8 +3330,10 @@ export const updateNotificationConfig = async (config: any) => {
 // --- Maintenance Windows ---
 export const getMaintenanceWindows = async (tenantId: string = "default") => {
     try {
-        const response = await fetch(`${API_BASE}/maintenance/windows?tenant_id=${tenantId}`);
-        return await response.json();
+        const response = await authFetch(`${API_BASE}/maintenance/windows?tenant_id=${tenantId}`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
     } catch (err) {
         console.error("Error fetching maintenance windows:", err);
         return [];
@@ -3278,9 +3342,8 @@ export const getMaintenanceWindows = async (tenantId: string = "default") => {
 
 export const createMaintenanceWindow = async (windowData: any) => {
     try {
-        const response = await fetch(`${API_BASE}/maintenance/windows`, {
+        const response = await authFetch(`${API_BASE}/maintenance/windows`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(windowData)
         });
         return await response.json();
@@ -3292,7 +3355,7 @@ export const createMaintenanceWindow = async (windowData: any) => {
 
 export const deleteMaintenanceWindow = async (windowId: string) => {
     try {
-        const response = await fetch(`${API_BASE}/maintenance/windows/${windowId}`, {
+        const response = await authFetch(`${API_BASE}/maintenance/windows/${windowId}`, {
             method: 'DELETE'
         });
         return await response.json();
@@ -3304,7 +3367,8 @@ export const deleteMaintenanceWindow = async (windowId: string) => {
 
 export const checkMaintenanceStatus = async (tenantId: string = "default") => {
     try {
-        const response = await fetch(`${API_BASE}/maintenance/check?tenant_id=${tenantId}`);
+        const response = await authFetch(`${API_BASE}/maintenance/check?tenant_id=${tenantId}`);
+        if (!response.ok) return { is_in_window: false };
         return await response.json();
     } catch (err) {
         console.error("Error checking maintenance status:", err);

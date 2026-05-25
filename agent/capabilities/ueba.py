@@ -5,9 +5,13 @@ Monitors user and entity behavior for anomalies
 from .base import BaseCapability
 import platform
 import subprocess
+import re
+import logging
 from typing import Dict, Any, List
 from datetime import datetime
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 class UEBACapability(BaseCapability):
     
@@ -64,15 +68,27 @@ class UEBACapability(BaseCapability):
                 
                 for log in logs:
                     event_type = "Login Success" if log.get("EventID") == 4624 else "Login Failed"
+                    message = log.get("Message", "") or ""
+                    # For 4624: extract the "New Logon" Account Name (second occurrence)
+                    # For 4625: extract "Account For Which Logon Failed" Account Name
+                    account_names = re.findall(r"Account Name:\s+(\S+)", message)
+                    if event_type == "Login Success":
+                        # Second Account Name entry is the actual logged-on user
+                        user = account_names[1] if len(account_names) >= 2 else (account_names[0] if account_names else "Unknown")
+                    else:
+                        # Last Account Name is the failed target account
+                        user = account_names[-1] if account_names else "Unknown"
+                    # Filter out machine accounts and system entries
+                    if user.endswith("$") or user in ("-", "SYSTEM", "Unknown"):
+                        user = "Unknown"
                     events.append({
                         "timestamp": log.get("TimeGenerated", ""),
                         "type": event_type,
-                        "user": "Unknown",  # Would parse from Message
+                        "user": user,
                         "source": "Windows Security Log"
                     })
-                    
                     if event_type == "Login Failed":
-                        self.failed_attempts["Unknown"] += 1
+                        self.failed_attempts[user] += 1
         except:
             pass
         

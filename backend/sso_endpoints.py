@@ -3,7 +3,9 @@ SSO Endpoints — Google OAuth2 + SAML / OIDC
 Phase 4: Real SSO integration using authlib
 """
 import os
+import hmac
 import logging
+import secrets
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -13,6 +15,9 @@ from datetime import timedelta, timezone
 import httpx
 import uuid
 
+# Short-lived in-process state store for CSRF protection {state: expires_at_epoch}
+_oauth_states: dict = {}
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sso", tags=["SSO"])
 
@@ -20,9 +25,29 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv("SSO_REDIRECT_URI", "http://localhost:5000/api/sso/google/callback")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# Reject plain-HTTP redirect URIs outside local development to prevent auth-code interception
+_env = os.getenv("ENVIRONMENT", "development").lower()
+if _env != "development" and GOOGLE_REDIRECT_URI.startswith("http://"):
+    raise RuntimeError(
+        f"SSO_REDIRECT_URI is set to a plain HTTP URL ({GOOGLE_REDIRECT_URI!r}). "
+        "OAuth authorisation codes must be delivered over HTTPS in non-development environments. "
+        "Set SSO_REDIRECT_URI to an https:// URL."
+    )
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+# Allowlist of trusted redirect origins derived from FRONTEND_URL and SSO_REDIRECT_URI
+def _safe_frontend_url(path: str) -> str:
+    """Return FRONTEND_URL + path, validated to prevent open redirect."""
+    from urllib.parse import urlparse
+    parsed = urlparse(FRONTEND_URL)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"FRONTEND_URL is invalid: {FRONTEND_URL!r}")
+    # Reconstruct to drop any query/fragment that could smuggle a redirect
+    safe_base = f"{parsed.scheme}://{parsed.netloc}"
+    return f"{safe_base}{path}"
 
 
 @router.get("/google/login")
@@ -34,23 +59,38 @@ async def google_login():
             detail="Google SSO not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env"
         )
 
+    import time
+    # Generate and store CSRF state token (60-second TTL)
+    state = secrets.token_urlsafe(32)
+    _oauth_states[state] = time.time() + 60
+    # Purge expired states
+    now = time.time()
+    for k in [k for k, v in _oauth_states.items() if v < now]:
+        del _oauth_states[k]
+
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": GOOGLE_REDIRECT_URI,
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
-        "state": str(uuid.uuid4()),
+        "state": state,
     }
     auth_url = GOOGLE_AUTH_URL + "?" + "&".join(f"{k}={v}" for k, v in params.items())
     return RedirectResponse(url=auth_url)
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, state: str = None):
+async def google_callback(code: str, state: str = ""):
     """Handle Google OAuth2 callback, exchange code for tokens, create session."""
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(status_code=503, detail="Google SSO not configured")
+
+    import time
+    # Validate CSRF state
+    expected_expiry = _oauth_states.pop(state, None)
+    if not expected_expiry or time.time() > expected_expiry:
+        return RedirectResponse(url=_safe_frontend_url("/login?error=invalid_state"))
 
     try:
         # Exchange code for access token
@@ -78,33 +118,26 @@ async def google_callback(code: str, state: str = None):
             userinfo = userinfo_resp.json()
 
     except Exception as e:
-        logger.error(f"Google OAuth callback error: {e}")
-        return RedirectResponse(url=f"{FRONTEND_URL}/login?error=sso_failed")
+        logger.error("Google OAuth callback error: %s", e)
+        return RedirectResponse(url=_safe_frontend_url("/login?error=sso_failed"))
 
     email = userinfo.get("email")
     name = userinfo.get("name", email)
 
     if not email:
-        return RedirectResponse(url=f"{FRONTEND_URL}/login?error=no_email")
+        return RedirectResponse(url=_safe_frontend_url("/login?error=no_email"))
 
     # Find or create user in DB
     db = get_database()
     user = await db.users.find_one({"email": email})
 
     if not user:
-        # Auto-provision user (assign to default tenant or based on email domain)
-        new_user = {
-            "id": str(uuid.uuid4()),
-            "email": email,
-            "name": name,
-            "role": "Viewer",
-            "tenantId": "default",
-            "sso_provider": "google",
-            "google_sub": userinfo.get("sub"),
-            "created_at": __import__("datetime").datetime.now(timezone.utc).isoformat(),
-        }
-        await db.users.insert_one(new_user)
-        user = new_user
+        # Do not auto-provision unknown users — they must register first via the
+        # signup flow which creates a properly isolated tenant for their organisation.
+        logger.warning("SSO login rejected for unregistered email: %s", email)
+        return RedirectResponse(
+            url=_safe_frontend_url("/login?error=sso_not_registered")
+        )
 
     # Issue JWT
     jwt_token = create_access_token(
@@ -112,8 +145,22 @@ async def google_callback(code: str, state: str = None):
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    # Redirect to frontend with token
-    return RedirectResponse(url=f"{FRONTEND_URL}/sso-callback?token={jwt_token}&provider=google")
+    # Pass token via short-lived exchange code (not in URL) to avoid token in browser history/logs
+    exchange_code = secrets.token_urlsafe(32)
+    _oauth_states[f"tok:{exchange_code}"] = (jwt_token, __import__("time").time() + 30)
+    return RedirectResponse(url=_safe_frontend_url(f"/sso-callback?code={exchange_code}&provider=google"))
+
+
+@router.post("/exchange")
+async def exchange_sso_code(body: dict):
+    """Redeem a one-time SSO exchange code for a JWT access token."""
+    import time
+    code = body.get("code", "")
+    key = f"tok:{code}"
+    entry = _oauth_states.pop(key, None)
+    if not entry or time.time() > entry[1]:
+        raise HTTPException(status_code=401, detail="Invalid or expired SSO exchange code")
+    return {"access_token": entry[0], "token_type": "bearer"}
 
 
 @router.get("/status")

@@ -3,32 +3,41 @@ Incident War Room Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel
 import logging
 
-from auth_utils import get_current_user
+from authentication_service import get_current_user
+from auth_types import TokenData
 import incident_warroom_service as svc
+
+
+class CreateIncidentRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
+    severity: Optional[str] = None
+    incident_type: Optional[str] = None
+    affected_assets: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
 
 router = APIRouter(prefix="/api/incidents", tags=["Incident War Room"])
 logger = logging.getLogger(__name__)
 
 
 @router.get("/summary")
-async def get_summary(current_user: dict = Depends(get_current_user)):
-    return await svc.get_incident_summary(
-        current_user.get("tenant_id", ""), current_user.get("role", "")
-    )
+async def get_summary(current_user: TokenData = Depends(get_current_user)):
+    return await svc.get_incident_summary(current_user.tenant_id or "", current_user.role or "")
 
 
 @router.get("")
 async def list_incidents(
     status: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     incidents = await svc.list_incidents(
-        current_user.get("tenant_id", ""),
-        current_user.get("role", ""),
+        current_user.tenant_id or "",
+        current_user.role or "",
         status=status,
         limit=limit,
     )
@@ -37,26 +46,26 @@ async def list_incidents(
 
 @router.post("")
 async def create_incident(
-    payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    payload: CreateIncidentRequest,
+    current_user: TokenData = Depends(get_current_user),
 ):
-    if not payload.get("title"):
-        raise HTTPException(status_code=400, detail="Incident title is required")
-    if payload.get("severity") and payload["severity"] not in svc.INCIDENT_SEVERITIES:
+    if payload.severity and payload.severity not in svc.INCIDENT_SEVERITIES:
         raise HTTPException(status_code=400, detail=f"Invalid severity. Choose from: {svc.INCIDENT_SEVERITIES}")
 
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    actor = current_user.get("email", current_user.get("username", ""))
-    incident = await svc.create_incident(tenant_id, actor, payload)
+    if not current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    incident = await svc.create_incident(
+        current_user.tenant_id,
+        current_user.username or "",
+        payload.dict(exclude_none=True),
+    )
     incident.pop("_id", None)
     return {"incident": incident, "message": "Incident created — war room is now active"}
 
 
 @router.get("/{incident_id}")
-async def get_incident(incident_id: str, current_user: dict = Depends(get_current_user)):
-    inc = await svc.get_incident(
-        incident_id, current_user.get("tenant_id", ""), current_user.get("role", "")
-    )
+async def get_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
+    inc = await svc.get_incident(incident_id, current_user.tenant_id or "", current_user.role or "")
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found")
     return {"incident": inc}
@@ -66,7 +75,7 @@ async def get_incident(incident_id: str, current_user: dict = Depends(get_curren
 async def update_status(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     new_status = payload.get("status", "")
     if new_status not in svc.INCIDENT_STATUSES:
@@ -74,10 +83,10 @@ async def update_status(
 
     success = await svc.update_incident_status(
         incident_id=incident_id,
-        actor=current_user.get("email", current_user.get("username", "")),
+        actor=current_user.username or "",
         new_status=new_status,
-        tenant_id=current_user.get("tenant_id", ""),
-        role=current_user.get("role", ""),
+        tenant_id=current_user.tenant_id or "",
+        role=current_user.role or "",
         note=payload.get("note", ""),
     )
     if not success:
@@ -89,11 +98,10 @@ async def update_status(
 async def add_timeline_event(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    actor = current_user.get("email", current_user.get("username", ""))
     entry = await svc.add_timeline_event(
-        incident_id, actor, current_user.get("tenant_id", ""), current_user.get("role", ""), payload
+        incident_id, current_user.username or "", current_user.tenant_id or "", current_user.role or "", payload
     )
     if not entry:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -104,11 +112,10 @@ async def add_timeline_event(
 async def add_task(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    actor = current_user.get("email", current_user.get("username", ""))
     task = await svc.add_task(
-        incident_id, actor, current_user.get("tenant_id", ""), current_user.get("role", ""), payload
+        incident_id, current_user.username or "", current_user.tenant_id or "", current_user.role or "", payload
     )
     if not task:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -119,15 +126,14 @@ async def add_task(
 async def post_chat(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     message = payload.get("message", "").strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    actor = current_user.get("email", current_user.get("username", ""))
     msg = await svc.add_chat_message(
-        incident_id, actor, current_user.get("tenant_id", ""), current_user.get("role", ""), message
+        incident_id, current_user.username or "", current_user.tenant_id or "", current_user.role or "", message
     )
     if not msg:
         raise HTTPException(status_code=404, detail="Incident not found")

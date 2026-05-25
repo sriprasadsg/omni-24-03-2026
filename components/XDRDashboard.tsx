@@ -74,7 +74,7 @@ export const XDRDashboard: React.FC = () => {
         setLoading(true);
         try {
             const [corrRes, huntsRes] = await Promise.all([
-                authFetch(`${API}/correlations/`),
+                authFetch(`${API}/correlations`),
                 authFetch(`${API}/xdr/automated-hunts`),
             ]);
             if (corrRes.ok) setCorrelations(await corrRes.json());

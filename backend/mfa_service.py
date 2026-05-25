@@ -195,12 +195,21 @@ async def get_mfa_status(email: str) -> dict:
 
 # ─── MFA Session Tokens (two-factor login flow) ───────────────────────────────
 
+def _purge_expired_mfa_sessions() -> None:
+    """Remove all expired entries from _mfa_sessions to prevent unbounded growth."""
+    now = datetime.now(timezone.utc)
+    expired = [k for k, v in _mfa_sessions.items() if v["expires"] < now]
+    for k in expired:
+        del _mfa_sessions[k]
+
+
 def create_mfa_session(email: str) -> str:
     """
     Create a short-lived session token (5 min) returned after password check
     when the account has MFA enabled.  The frontend then submits this + TOTP
     to /mfa/verify to receive the full JWT.
     """
+    _purge_expired_mfa_sessions()
     token = str(uuid.uuid4())
     _mfa_sessions[token] = {
         "email": email,

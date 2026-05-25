@@ -5,16 +5,28 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from rbac_utils import require_permission
 from datetime import datetime, timezone
+import logging
 import uuid
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
+
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+
+def _tenant_filter(user: TokenData) -> dict:
+    role = getattr(user, "role", "") or ""
+    if role in _SUPER_ADMIN_ROLES:
+        return {}
+    tid = getattr(user, "tenant_id", None)
+    return {"tenantId": tid} if tid else {"tenantId": {"$exists": False}}
 
 
 @router.get("")
 async def get_alerts(_current_user: TokenData = Depends(get_current_user)):
-    """Get all alerts"""
+    """Get alerts scoped to the caller's tenant."""
     db = get_database()
-    alerts = await db.alerts.find({}, {"_id": 0}).to_list(length=100)
+    alerts = await db.alerts.find(_tenant_filter(_current_user), {"_id": 0}).to_list(length=100)
     return alerts
 
 
@@ -26,24 +38,28 @@ async def search_alerts(
     _current_user: TokenData = Depends(get_current_user),
 ):
     """Full-text search across alert description, type, and source fields."""
+    q = q[:200]
     db = get_database()
+    tf = _tenant_filter(_current_user)
     alerts: list = []
     try:
-        filt: dict[str, Any] = {"$text": {"$search": q}}
+        filt: dict[str, Any] = {"$text": {"$search": q}, **tf}
         if severity:
             filt["severity"] = severity
         alerts = await db.alerts.find(filt, {"_id": 0}).to_list(length=limit)
-    except Exception:
-        pass  # No text index — fall through to regex
+    except Exception as _e:
+        logger.debug("Text index search unavailable, falling back to regex: %s", _e)
 
     if not alerts:
-        regex = {"$regex": q, "$options": "i"}
+        import re as _re
+        regex = {"$regex": _re.escape(q), "$options": "i"}
         filt_regex: dict[str, Any] = {
-            "$or": [{"description": regex}, {"type": regex}, {"source.hostname": regex}]
+            "$or": [{"description": regex}, {"type": regex}, {"source.hostname": regex}],
+            **tf,
         }
         if severity:
             filt_regex["severity"] = severity
-        alerts = await db.alerts.find(filt_regex, {"_id": 0}).to_list(length=limit)
+        alerts = await db.alerts.find(filt_regex, {"_id": 0}).limit(1000).to_list(length=limit)
     return alerts
 
 
@@ -58,16 +74,21 @@ async def create_alert(
     alert.setdefault("id", str(uuid.uuid4()))
     alert.setdefault("timestamp", now)
     alert.setdefault("status", "open")
+    # Prevent tenantId injection — enforce from authenticated user
+    user_tenant = getattr(_current_user, "tenant_id", None)
+    if user_tenant:
+        alert["tenantId"] = user_tenant
     await db.alerts.insert_one({**alert, "_id": alert["id"]})
     alert.pop("_id", None)
 
     # Broadcast to SSE/WebSocket subscribers so the UI updates in real time
     try:
         from streaming_service import broker
-        tenant_id = alert.get("tenantId") or alert.get("tenant_id", "default")
-        await broker.publish(f"alerts:{tenant_id}", alert)
-    except Exception:
-        pass  # Streaming service unavailable — alert is still persisted
+        tenant_id = alert.get("tenantId") or alert.get("tenant_id") or None
+        if tenant_id:
+            await broker.publish(f"alerts:{tenant_id}", alert)
+    except Exception as _e:
+        logger.warning("Failed to broadcast alert to streaming service: %s", _e)
 
     return alert
 
@@ -76,16 +97,16 @@ async def create_alert(
 async def assign_alert(
     alert_id: str,
     body: dict = Body(..., example={"assigned_to": "analyst@corp.com"}),
-    _current_user: dict = Depends(require_permission("manage:security_cases")),
+    _current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
-    """Assign an alert to a specific user."""
+    """Assign an alert to a specific user (tenant-scoped)."""
     assigned_to = body.get("assigned_to")
     if not assigned_to:
         raise HTTPException(status_code=400, detail="assigned_to is required")
     db = get_database()
     now = datetime.now(timezone.utc).isoformat()
     result = await db.alerts.update_one(
-        {"id": alert_id},
+        {"id": alert_id, **_tenant_filter(_current_user)},
         {"$set": {"assigned_to": assigned_to, "assigned_at": now, "status": "assigned"}},
     )
     if result.matched_count == 0:
@@ -95,28 +116,33 @@ async def assign_alert(
 
 @router.delete("/bulk")
 async def bulk_delete_alerts(
-    ids: List[str] = Body(..., description="List of alert IDs to delete"),
-    _current_user: dict = Depends(require_permission("manage:security_cases")),
+    ids: List[str] = Body(..., description="List of alert IDs to delete (max 500)"),
+    _current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
-    """Delete multiple alerts by ID."""
+    """Delete multiple alerts by ID (tenant-scoped)."""
+    ids = ids[:500]
     if not ids:
         raise HTTPException(status_code=400, detail="No IDs provided")
     db = get_database()
-    result = await db.alerts.delete_many({"id": {"$in": ids}})
+    result = await db.alerts.delete_many({"id": {"$in": ids}, **_tenant_filter(_current_user)})
     return {"deleted": result.deleted_count}
 
 
 @router.patch("/bulk")
 async def bulk_update_alerts(
     updates: dict[str, Any] = Body(..., description='{"ids": [...], "patch": {...}}'),
-    _current_user: dict = Depends(require_permission("manage:security_cases")),
+    _current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
-    """Apply the same patch to multiple alerts."""
-    ids = updates.get("ids", [])
+    """Apply the same patch to multiple alerts (tenant-scoped)."""
+    ids = updates.get("ids", [])[:500]
     patch = updates.get("patch", {})
     if not ids or not patch:
         raise HTTPException(status_code=400, detail="ids and patch are required")
-    patch.pop("id", None)  # prevent overwriting primary key
+    patch.pop("id", None)   # prevent overwriting primary key
+    patch.pop("tenantId", None)  # prevent tenant hopping
     db = get_database()
-    result = await db.alerts.update_many({"id": {"$in": ids}}, {"$set": patch})
+    result = await db.alerts.update_many(
+        {"id": {"$in": ids}, **_tenant_filter(_current_user)},
+        {"$set": patch},
+    )
     return {"matched": result.matched_count, "modified": result.modified_count}

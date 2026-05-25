@@ -41,10 +41,11 @@ class NotificationManager:
                 print("[NotificationManager] No SMTP settings found. Skipping email.")
                 return
 
-            # Get Recipients (Admins of the tenant)
-            # Find users with role 'Admin' or 'Super Admin' in this tenant
-            # In a real app, we'd check permissions or notification preferences
-            users = await db.users.find({"tenantId": tenant_id}).to_list(length=100)
+            # Get Recipients — admin roles only to prevent security alerts leaking to all users
+            _ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "Super Admin", "super_admin", "platform-admin"}
+            users = await db.users.find(
+                {"tenantId": tenant_id, "role": {"$in": list(_ADMIN_ROLES)}}
+            ).to_list(length=100)
             recipients = [u['email'] for u in users if u.get('email')]
             
             if not recipients:

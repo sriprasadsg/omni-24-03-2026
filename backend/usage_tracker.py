@@ -128,7 +128,7 @@ async def start_usage_tracking_loop() -> None:
     while True:
         try:
             db = get_database()
-            await _aggregate_period(db._db if hasattr(db, "_db") else db)
+            await _aggregate_period(db._db)  # platform-admin aggregation across all tenants
         except Exception as exc:
             logger.error("[UsageTracker] Loop error: %s", exc)
         await asyncio.sleep(300)

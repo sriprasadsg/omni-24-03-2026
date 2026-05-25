@@ -1,12 +1,16 @@
+import os
+import logging
 import socketio
 from typing import Dict, Set
 from datetime import datetime, timezone
 import asyncio
 
+logger = logging.getLogger(__name__)
+
 # Create Socket.IO server with CORS support
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins='*',  # Configure for production
+    cors_allowed_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(","),
     logger=True,
     engineio_logger=False
 )
@@ -26,29 +30,46 @@ async def connect(sid, environ, auth):
     - tenant_id: The tenant this client belongs to
     - token: JWT token for authentication (optional for now)
     """
-    print(f"[WebSocket] Connection attempt from {sid}")
+    logger.debug("WebSocket connection attempt from %s", sid)
     
     if not auth or 'tenant_id' not in auth:
-        print(f"[WebSocket] Rejected {sid} - missing tenant_id in auth")
+        logger.warning("WebSocket rejected %s - missing tenant_id in auth", sid)
         await sio.disconnect(sid)
         return False
-    
-    tenant_id = auth.get('tenant_id')
+
+    # Validate JWT and derive tenant_id from the token, not from the client-supplied dict
+    token = auth.get('token')
+    if token:
+        try:
+            from authentication_service import verify_token
+            token_data = verify_token(token)
+            tenant_id = token_data.tenant_id
+            if not tenant_id:
+                logger.warning("WebSocket rejected %s - token has no tenant_id", sid)
+                await sio.disconnect(sid)
+                return False
+        except Exception:
+            logger.warning("WebSocket rejected %s - invalid JWT", sid)
+            await sio.disconnect(sid)
+            return False
+    else:
+        # No token supplied — still accept for backward-compat but use client-provided tenant
+        tenant_id = auth.get('tenant_id')
     
     # Add to tenant's connected clients
     if tenant_id not in connected_clients:
         connected_clients[tenant_id] = set()
     connected_clients[tenant_id].add(sid)
     
-    print(f"[WebSocket] Client {sid} connected for tenant {tenant_id}")
-    print(f"[WebSocket] Total clients for {tenant_id}: {len(connected_clients[tenant_id])}")
+    logger.info("WebSocket client %s connected for tenant %s", sid, tenant_id)
+    logger.debug("WebSocket total clients for %s: %d", tenant_id, len(connected_clients[tenant_id]))
     
     # Handle Agent Registration
     if auth.get('type') == 'agent':
         agent_id = auth.get('agent_id')
         if agent_id:
             agent_sessions[agent_id] = sid
-            print(f"[WebSocket] REGISTERED AGENT: {agent_id} -> {sid}")
+            logger.info("WebSocket registered agent %s -> %s", agent_id, sid)
     
     # Send welcome message
     await sio.emit('connected', {
@@ -62,13 +83,13 @@ async def connect(sid, environ, auth):
 @sio.event
 async def disconnect(sid):
     """Client disconnected - remove from all tenant rooms"""
-    print(f"[WebSocket] Client {sid} disconnected")
+    logger.debug("WebSocket client %s disconnected", sid)
     
     # Remove from all tenant sets
     for tenant_id, clients in list(connected_clients.items()):
         if sid in clients:
             clients.remove(sid)
-            print(f"[WebSocket] Removed {sid} from tenant {tenant_id}")
+            logger.debug("WebSocket removed %s from tenant %s", sid, tenant_id)
             if not clients:
                 # No more clients for this tenant
                 del connected_clients[tenant_id]
@@ -78,7 +99,7 @@ async def disconnect(sid):
     for agent_id, agent_sid in list(agent_sessions.items()):
         if agent_sid == sid:
             del agent_sessions[agent_id]
-            print(f"[WebSocket] Unregistered Agent {agent_id}")
+            logger.info("WebSocket unregistered agent %s", agent_id)
             break
 
 @sio.event
@@ -97,7 +118,7 @@ async def broadcast_notification(tenant_id: str, notification: dict):
         notification: Notification data with keys: type, title, message, severity
     """
     if tenant_id not in connected_clients:
-        print(f"[WebSocket] No clients connected for tenant {tenant_id}")
+        logger.debug("WebSocket no clients for tenant %s", tenant_id)
         return
     
     notification['timestamp'] = datetime.now(timezone.utc).isoformat()
@@ -106,7 +127,7 @@ async def broadcast_notification(tenant_id: str, notification: dict):
     for sid in connected_clients[tenant_id]:
         await sio.emit('notification', notification, room=sid)
     
-    print(f"[WebSocket] Broadcast notification to {len(connected_clients[tenant_id])} clients")
+    logger.debug("WebSocket broadcast notification to %d clients", len(connected_clients[tenant_id]))
 
 async def broadcast_agent_status_change(tenant_id: str, agent_id: str, status: str, details: dict = None):
     """Broadcast agent status change"""
@@ -124,7 +145,7 @@ async def broadcast_agent_status_change(tenant_id: str, agent_id: str, status: s
     for sid in connected_clients[tenant_id]:
         await sio.emit('agent_status_change', payload, room=sid)
     
-    print(f"[WebSocket] Agent status change: {agent_id} → {status} for tenant {tenant_id}")
+    logger.debug("WebSocket agent status change: %s -> %s for tenant %s", agent_id, status, tenant_id)
 
 async def broadcast_security_event(tenant_id: str, event: dict):
     """Broadcast new security event"""
@@ -136,7 +157,7 @@ async def broadcast_security_event(tenant_id: str, event: dict):
     for sid in connected_clients[tenant_id]:
         await sio.emit('security_event', event, room=sid)
     
-    print(f"[WebSocket] Security event broadcast to tenant {tenant_id}")
+    logger.debug("WebSocket security event broadcast to tenant %s", tenant_id)
 
 async def broadcast_compliance_alert(tenant_id: str, alert: dict):
     """Broadcast compliance-related alert"""
@@ -172,14 +193,14 @@ async def send_to_agent(agent_id: str, payload: dict) -> bool:
     """Send a direct message/command to an agent"""
     sid = agent_sessions.get(agent_id)
     if not sid:
-        print(f"[WebSocket] Agent {agent_id} not connected, cannot send message")
+        logger.warning("WebSocket agent %s not connected, cannot send message", agent_id)
         return False
         
     try:
         await sio.emit('command', payload, room=sid)
         return True
     except Exception as e:
-        print(f"[WebSocket] Error sending to agent {agent_id}: {e}")
+        logger.error("WebSocket error sending to agent %s: %s", agent_id, e)
         return False
 
 async def get_connected_agents() -> list:

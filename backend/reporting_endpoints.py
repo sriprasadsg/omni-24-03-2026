@@ -3,7 +3,7 @@ Reporting & Notification Endpoints
 SLA compliance reports, vulnerability exposure, change management, and multi-channel notifications.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime, timezone
 
 from database import get_database
@@ -24,6 +24,22 @@ def _elevate_if_admin(user: TokenData) -> None:
         set_tenant_id("platform-admin")
 
 
+def _resolve_tenant_id(user: TokenData, requested_tenant_id: str | None) -> str | None:
+    """Return the effective tenant_id for a report query.
+
+    Super-admins may pass any tenant_id (or None for all-tenants).
+    Non-admins are always scoped to their own tenant regardless of what was requested.
+    """
+    caller_tenant = getattr(user, "tenant_id", None)
+    if getattr(user, "role", "") in _ADMIN_ROLES:
+        return requested_tenant_id
+    return caller_tenant
+
+
+_NOTIFICATION_CONFIG_FIELDS = {"type", "enabled", "webhook_url", "smtp_host", "smtp_port",
+                                "smtp_user", "phone_number", "channel", "routing_key"}
+
+
 # ── Reports ──────────────────────────────────────────────────────────────────
 
 @router.get("/api/reports/sla-compliance")
@@ -42,13 +58,13 @@ async def get_sla_compliance_report(
         start = datetime.fromisoformat(start_date) if start_date else None
         end = datetime.fromisoformat(end_date) if end_date else None
         return await reporting_service.generate_sla_compliance_report(
-            tenant_id=tenant_id or getattr(current_user, "tenant_id", None),
+            tenant_id=_resolve_tenant_id(current_user, tenant_id),
             framework=framework,
             start_date=start,
             end_date=end,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/reports/vulnerability-exposure")
@@ -62,10 +78,10 @@ async def get_vulnerability_exposure_report(
         db = get_database()
         reporting_service = get_reporting_service(db)
         return await reporting_service.generate_vulnerability_exposure_report(
-            tenant_id=tenant_id
+            tenant_id=_resolve_tenant_id(current_user, tenant_id)
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/reports/change-management")
@@ -73,7 +89,7 @@ async def get_change_management_log(
     tenant_id: str = None,
     start_date: str = None,
     end_date: str = None,
-    limit: int = 100,
+    limit: int = Query(100, ge=1, le=500),
     current_user: TokenData = Depends(get_current_user),
 ):
     """Generate ITIL-compliant change management log for audit/compliance."""
@@ -84,13 +100,13 @@ async def get_change_management_log(
         start = datetime.fromisoformat(start_date) if start_date else None
         end = datetime.fromisoformat(end_date) if end_date else None
         return await reporting_service.generate_change_management_log(
-            tenant_id=tenant_id or getattr(current_user, "tenant_id", None),
+            tenant_id=_resolve_tenant_id(current_user, tenant_id),
             start_date=start,
             end_date=end,
             limit=limit,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/reports/executive-summary")
@@ -104,10 +120,10 @@ async def get_executive_summary(
         db = get_database()
         reporting_service = get_reporting_service(db)
         return await reporting_service.generate_executive_summary(
-            tenant_id=tenant_id
+            tenant_id=_resolve_tenant_id(current_user, tenant_id)
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/reports/schedule")
@@ -133,7 +149,7 @@ async def schedule_report(
         schedule["id"] = str(result.inserted_id)
         return schedule
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/reports/schedules")
@@ -149,7 +165,7 @@ async def get_report_schedules(
             s["id"] = str(s.pop("_id"))
         return schedules
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # ── Notifications ─────────────────────────────────────────────────────────────
 
@@ -174,7 +190,7 @@ async def send_notification(
             metadata=data.get("metadata"),
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/notifications/config")
@@ -188,20 +204,24 @@ async def configure_notifications(
     """
     try:
         db = get_database()
+        tenant_id = getattr(_current_user, "tenant_id", None)
+        raw_cfg = data.get("config", {})
+        safe_cfg = {k: v for k, v in raw_cfg.items() if k in _NOTIFICATION_CONFIG_FIELDS}
         config = {
             "type": data.get("type"),
             "enabled": data.get("enabled", True),
-            **data.get("config", {}),
+            **safe_cfg,
+            "tenant_id": tenant_id,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.notification_config.update_one(
-            {"type": data.get("type")},
+            {"type": data.get("type"), "tenant_id": tenant_id},
             {"$set": config},
             upsert=True,
         )
         return {"success": True, "message": f"{data.get('type')} notifications configured"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/notifications/config")
@@ -209,7 +229,9 @@ async def get_notification_configs(_current_user: TokenData = Depends(get_curren
     """Get all notification channel configurations (sensitive fields redacted)."""
     try:
         db = get_database()
-        configs = await db.notification_config.find({}, {"_id": 0}).to_list(length=None)
+        tenant_id = getattr(_current_user, "tenant_id", None)
+        query = {} if getattr(_current_user, "role", "") in _ADMIN_ROLES else {"tenant_id": tenant_id}
+        configs = await db.notification_config.find(query, {"_id": 0}).to_list(length=500)
         for config in configs:
             if len(config.get("webhook_url", "")) > 30:
                 config["webhook_url"] = config["webhook_url"][:30] + "..."
@@ -217,22 +239,25 @@ async def get_notification_configs(_current_user: TokenData = Depends(get_curren
                 config["smtp_password"] = "***"
         return {"configs": configs}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/notifications/history")
 async def get_notification_history(
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=500),
     severity: str = None,
     _current_user: TokenData = Depends(get_current_user),
 ):
     """Get notification history, optionally filtered by severity."""
     try:
         db = get_database()
-        query = {}
+        _NOTIF_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+        user_role = getattr(_current_user, "role", "")
+        tenant_id = getattr(_current_user, "tenant_id", None) or getattr(_current_user, "tenantId", None)
+        query: dict = {} if user_role in _NOTIF_SUPER_ROLES else {"tenant_id": tenant_id}
         if severity:
             query["severity"] = severity
-        notifications = await db.notifications.find(query, {"_id": 0}).sort("sent_at", -1).limit(limit).to_list(length=None)
+        notifications = await db.notifications.find(query, {"_id": 0}).sort("sent_at", -1).limit(limit).to_list(length=limit)
         return {"notifications": notifications, "count": len(notifications)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

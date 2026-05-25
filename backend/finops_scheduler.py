@@ -84,8 +84,7 @@ async def recalculate_all_finops_costs():
             
     except Exception as e:
         print(f"[Scheduler] Critical error in finOps recalculation task: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Unhandled exception")
 
 def start_scheduler():
     """Initialize and start the background scheduler"""

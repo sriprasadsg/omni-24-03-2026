@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertTriangle, Check, X, Loader } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Check, X, Loader, CreditCard, ShieldCheck, Settings } from 'lucide-react';
 import * as api from '../services/apiService';
 import { PaymentMethodModal } from './PaymentMethodModal';
 
@@ -46,6 +46,7 @@ interface PaymentMethod {
 export default function SubscriptionManagement() {
     const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+    const [configuredGateways, setConfiguredGateways] = useState<{ gateway: string; gatewayName: string; isActive: boolean }[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
 
@@ -60,8 +61,18 @@ export default function SubscriptionManagement() {
 
     const loadData = async () => {
         setLoading(true);
-        await Promise.all([loadSubscriptionInfo(), loadPaymentMethods()]);
+        await Promise.all([loadSubscriptionInfo(), loadPaymentMethods(), loadConfiguredGateways()]);
         setLoading(false);
+    };
+
+    const loadConfiguredGateways = async () => {
+        try {
+            const res = await api.authFetch('/api/payments/configured-gateways');
+            if (res.ok) {
+                const data = await res.json();
+                setConfiguredGateways(data.gateways || []);
+            }
+        } catch { /* silent */ }
     };
 
     const loadSubscriptionInfo = async () => {
@@ -241,39 +252,77 @@ export default function SubscriptionManagement() {
             {/* Payment Methods */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Payment Methods</h2>
+                    <div>
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Payment Methods</h2>
+                        {configuredGateways.length > 0 && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+                                <ShieldCheck className="w-3 h-3 text-green-500" />
+                                Active gateway:&nbsp;
+                                <span className="font-medium text-gray-700 dark:text-gray-300">
+                                    {configuredGateways.find(g => g.isActive)?.gatewayName
+                                        || configuredGateways[0]?.gatewayName
+                                        || configuredGateways[0]?.gateway}
+                                </span>
+                            </p>
+                        )}
+                    </div>
                     <button
                         onClick={handleAddPaymentMethod}
-                        className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
+                        disabled={configuredGateways.length === 0}
+                        title={configuredGateways.length === 0 ? 'Configure a payment gateway first' : 'Add a payment method'}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                        <span className="text-lg">+</span> Add Method
+                        <CreditCard className="w-4 h-4" />
+                        Add Method
                     </button>
                 </div>
 
-                {paymentMethods.length === 0 ? (
-                    <div className="text-gray-500 dark:text-gray-400 text-sm italic">
-                        No payment methods saved.
+                {/* No gateway configured */}
+                {configuredGateways.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 px-4 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                        <Settings className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No payment gateway configured</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            Set up a payment gateway in Payment Settings before adding card details.
+                        </p>
+                        <a href="#payment-settings"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors">
+                            <Settings className="w-3.5 h-3.5" /> Go to Payment Settings
+                        </a>
+                    </div>
+                ) : paymentMethods.length === 0 ? (
+                    /* Gateway configured but no saved cards yet */
+                    <div className="flex flex-col items-center justify-center py-10 px-4 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                        <CreditCard className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No payment methods saved</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            Add a card or bank account to enable automatic billing and plan upgrades.
+                        </p>
+                        <button onClick={handleAddPaymentMethod}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors">
+                            <CreditCard className="w-3.5 h-3.5" /> Add Payment Method
+                        </button>
                     </div>
                 ) : (
                     <div className="space-y-3">
                         {paymentMethods.map(method => (
                             <div key={method.id} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-6 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300 capitalize">
+                                    <div className="w-12 h-8 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300 uppercase border border-gray-200 dark:border-gray-600">
                                         {method.brand}
                                     </div>
                                     <div>
                                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                            •••• {method.last4}
+                                            •••• •••• •••• {method.last4}
                                         </div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            Expires {method.exp_month}/{method.exp_year}
+                                            Expires {String(method.exp_month).padStart(2, '0')}/{method.exp_year}
                                         </div>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => handleDeletePaymentMethod(method.id)}
-                                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                                    className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
                                     title="Remove payment method"
                                 >
                                     <X className="w-4 h-4" />

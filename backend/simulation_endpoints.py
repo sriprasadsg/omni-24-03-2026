@@ -1,22 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 import uuid
 from database import get_database
 from tasks import run_agent_task_async
+from authentication_service import get_current_user
+from auth_types import TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["Simulation"])
 
 @router.post("/process-injection")
-async def trigger_process_injection(data: Dict[str, Any]):
+async def trigger_process_injection(
+    data: Dict[str, Any] = Body(...),
+    current_user: TokenData = Depends(get_current_user),
+):
     """
     Trigger a process injection simulation on an agent.
-    Payload: {"agentId": "agent-1", "technique": "memory_write", "target": "notepad.exe", "tenantId": "default"}
+    Payload: {"agentId": "agent-1", "technique": "memory_write", "target": "notepad.exe"}
     """
     agent_id = data.get("agentId")
     technique = data.get("technique", "memory_write")
     target = data.get("target", "notepad.exe")
-    tenant_id = data.get("tenantId", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or "default"
     
     if not agent_id:
         raise HTTPException(status_code=400, detail="agentId is required")
@@ -70,8 +75,9 @@ async def trigger_process_injection(data: Dict[str, Any]):
     }
 
 @router.get("/history")
-async def get_simulation_history(tenant_id: str = "default"):
+async def get_simulation_history(current_user: TokenData = Depends(get_current_user)):
     """Get history of simulations"""
+    tenant_id = getattr(current_user, "tenant_id", None) or "default"
     db = get_database()
     history = await db.simulations.find({"tenantId": tenant_id}, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
     return history

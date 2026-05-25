@@ -278,7 +278,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
       'At Risk': 0,
       'Not Implemented': 0
     };
-    framework.controls.forEach(control => {
+    (framework.controls ?? []).forEach(control => {
       if (summary[control.status] !== undefined) {
         summary[control.status]++;
       }
@@ -287,7 +287,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
   }, [framework.controls]);
 
   const filteredControls = useMemo(() => {
-    return framework.controls.filter(control => {
+    return (framework.controls ?? []).filter(control => {
       const statusMatch = statusFilter === 'All' || control.status === statusFilter;
       const searchMatch = (
         control.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

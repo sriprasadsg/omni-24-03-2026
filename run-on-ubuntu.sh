@@ -140,6 +140,17 @@ SYSLOG_UDP_PORT=5140
 # === Phase 1: AI/LLM ===
 GEMINI_API_KEY=
 OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+
+# === Local Fine-tuned LLM (Omni-Local) ===
+OMNI_LOCAL_ENABLED=false
+OMNI_BASE_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+OMNI_ADAPTER_PATH=omni_data/adapter
+OMNI_DATASET_PATH=omni_data/dataset.jsonl
+OMNI_CONFIDENCE_THRESHOLD=0.35
+
+# === Threat Intelligence ===
+VIRUSTOTAL_API_KEY=
 
 # === Phase 2: Email (SMTP) ===
 SMTP_HOST=smtp.gmail.com
@@ -211,8 +222,8 @@ chown $ACTUAL_USER:$ACTUAL_USER .env
 print_success "Backend .env created with IP $SYSTEM_IP (Phases 1-10 + Security extensions)"
 
 # Create required backend directories (including report export path)
-mkdir -p logs backups uploads data_lake_storage static/reports
-chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports
+mkdir -p logs backups uploads data_lake_storage static/reports omni_data
+chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports omni_data
 
 # Update agent install script with the correct IP
 sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" static/omni-agent-install.py
@@ -475,6 +486,7 @@ Requires=mongod.service
 Type=simple
 User=$ACTUAL_USER
 WorkingDirectory=$PROJECT_DIR/backend
+EnvironmentFile=$PROJECT_DIR/backend/.env
 Environment="PATH=$PROJECT_DIR/backend/venv/bin"
 Environment="PLATFORM_URL=http://$SYSTEM_IP:5000"
 Environment="PYTHONPATH=$PROJECT_DIR/backend"

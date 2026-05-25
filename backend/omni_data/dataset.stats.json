@@ -1,0 +1,16 @@
+{
+  "total": 561,
+  "by_source": {
+    "alerts": 6,
+    "compliance": 542,
+    "playbooks": 5,
+    "incidents": 0,
+    "threat_intel": 0,
+    "edr_alerts": 7,
+    "vulnerabilities": 0,
+    "sboms": 1,
+    "response_tasks": 0
+  },
+  "path": "omni_data\\dataset.jsonl",
+  "built_at": "2026-05-20T08:21:04.587157"
+}

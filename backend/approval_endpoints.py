@@ -10,10 +10,10 @@ _log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/approvals", tags=["Approvals"])
 
 
-def _tid(user) -> str:
+def _tid(user):
     if isinstance(user, dict):
-        return user.get("tenantId") or user.get("tenant_id") or "default"
-    return getattr(user, "tenantId", None) or getattr(user, "tenant_id", None) or "default"
+        return user.get("tenant_id") or user.get("tenantId") or None
+    return getattr(user, "tenant_id", None) or getattr(user, "tenantId", None) or None
 
 
 @router.get("/pending")
@@ -34,7 +34,7 @@ async def get_pending_approvals(
         return await cursor.to_list(length=100)
     except Exception as exc:
         _log.error("Failed to fetch pending approvals: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch pending approvals: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history")
@@ -60,25 +60,30 @@ async def submit_approval_decision(
     """
     db = get_database()
     service = get_approval_service(db)
+    tenant_id = _tid(current_user)
 
-    # Use authenticated user's email; fall back to explicit payload field
+    # Always derive email from the verified JWT — never accept it from the request body
     user_email = (
         current_user.get("email") if isinstance(current_user, dict)
         else getattr(current_user, "email", None)
-    ) or data.get("user_email")
+    )
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Could not determine caller identity")
+
     decision = data.get("decision")
+    if not decision:
+        raise HTTPException(status_code=400, detail="decision is required")
     comments = data.get("comments")
 
-    if not user_email or not decision:
-        raise HTTPException(status_code=400, detail="user_email and decision are required")
-
     try:
-        updated_request = await service.submit_decision(request_id, user_email, decision, comments)
+        updated_request = await service.submit_decision(
+            request_id, user_email, decision, comments, tenant_id=tenant_id
+        )
         return {"success": True, "request": updated_request}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Bad request")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{request_id}")
@@ -89,7 +94,8 @@ async def get_approval_request(
     """Get details of a specific approval request."""
     db = get_database()
     service = get_approval_service(db)
-    request = await service.get_request(request_id)
+    tenant_id = _tid(current_user)
+    request = await service.get_request(request_id, tenant_id=tenant_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
     return request

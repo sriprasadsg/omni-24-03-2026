@@ -113,19 +113,19 @@ export const APMDashboard: React.FC<APMDashboardProps> = ({ tenantId }) => {
             // Load all metrics in parallel
             const [healthRes, endpointsRes, slowestRes, errorsRes, dbRes] = await Promise.all([
                 fetch('/api/apm/health', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
                 }),
                 fetch(`/api/apm/endpoints?time_window_minutes=${timeWindow}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
                 }),
                 fetch(`/api/apm/endpoints/slowest?limit=5&time_window_minutes=${timeWindow}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
                 }),
                 fetch(`/api/apm/endpoints/errors?limit=5&time_window_minutes=${timeWindow}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
                 }),
                 fetch(`/api/apm/database?time_window_minutes=${timeWindow}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
                 })
             ]);
 

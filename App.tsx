@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+
+// Suppress console.log in production builds
+if (!import.meta.env.DEV) {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  console.log = () => {};
+}
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -68,17 +74,17 @@ const VendorManagement = lazy(() => import('./components/VendorManagement'));
 const TrustCenter = lazy(() => import('./components/TrustCenter'));
 const SecureFileShare = lazy(() => import('./components/SecureFileShare'));
 const SecurityTraining = lazy(() => import('./components/SecurityTraining'));
-import LLMOpsDashboard from './components/LLMOpsDashboard';
-import { JobsDashboard } from './components/JobsDashboard';
-import { SoftwareDeployment } from './components/SoftwareDeployment';
-import PlaybookBuilder from './components/PlaybookBuilder';
-import { SecuritySimulation } from './components/SecuritySimulation';
-import { PersistenceDashboard } from './components/PersistenceDashboard';
-import { MultiStepApprovalDashboard } from './components/MultiStepApprovalDashboard';
-import SwarmDashboard from './components/SwarmDashboard';
-import SimulationDashboard from './components/SimulationDashboard';
-import ComplianceOracleDashboard from './components/ComplianceOracleDashboard';
-import CISSPOracle from './components/CISSPOracle';
+const LLMOpsDashboard = lazy(() => import('./components/LLMOpsDashboard'));
+const JobsDashboard = lazy(() => import('./components/JobsDashboard').then(m => ({ default: m.JobsDashboard })));
+const SoftwareDeployment = lazy(() => import('./components/SoftwareDeployment').then(m => ({ default: m.SoftwareDeployment })));
+const PlaybookBuilder = lazy(() => import('./components/PlaybookBuilder'));
+const SecuritySimulation = lazy(() => import('./components/SecuritySimulation').then(m => ({ default: m.SecuritySimulation })));
+const PersistenceDashboard = lazy(() => import('./components/PersistenceDashboard').then(m => ({ default: m.PersistenceDashboard })));
+const MultiStepApprovalDashboard = lazy(() => import('./components/MultiStepApprovalDashboard').then(m => ({ default: m.MultiStepApprovalDashboard })));
+const SwarmDashboard = lazy(() => import('./components/SwarmDashboard'));
+const SimulationDashboard = lazy(() => import('./components/SimulationDashboard'));
+const ComplianceOracleDashboard = lazy(() => import('./components/ComplianceOracleDashboard'));
+const CISSPOracle = lazy(() => import('./components/CISSPOracle'));
 
 import { AdvancedBiDashboard } from './components/AdvancedBiDashboard';
 import { ApiStatusDashboard } from './components/ApiStatusDashboard';
@@ -124,6 +130,7 @@ import EmailSecurityDashboard from './components/EmailSecurityDashboard';
 import SupplyChainDashboard from './components/SupplyChainDashboard';
 import { HADRDashboard } from './components/HADRDashboard';
 import { CorrelationDashboard } from './components/CorrelationDashboard';
+import { CodeReviewGraphDashboard } from './components/CodeReviewGraphDashboard';
 
 import { PentestDashboard } from './components/PentestDashboard';
 import FutureTechDashboard from './components/FutureTechDashboard';
@@ -293,6 +300,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   containerScan: 'view:devsecops',
   pam: 'manage:settings',
   baaManagement: 'view:compliance',
+  codeReviewGraph: 'view:devsecops',
 };
 
 
@@ -335,6 +343,9 @@ const App: React.FC = () => {
   */
   useEffect(() => {
     console.log("[App] App component mounted and useEffect running");
+    // Start proactive token refresh if a session already exists (e.g. page reload)
+    api.startTokenRefreshCycle();
+    return () => api.stopTokenRefreshCycle();
   }, []);
 
 
@@ -451,7 +462,7 @@ const App: React.FC = () => {
   // Data Loading Function
   const loadAllData = useCallback(async () => {
     // Prevent unauthenticated calls which trigger redirect loops
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) {
       console.warn("Skipping loadAllData: No token found");
       return;
@@ -564,13 +575,14 @@ const App: React.FC = () => {
 
       if (data.success && data.user) {
         // Store authentication tokens
-        if (data.access_token) localStorage.setItem('token', data.access_token);
-        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+        if (data.access_token) sessionStorage.setItem('token', data.access_token);
+        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
 
         // Merge subscriptionTier from tenant into user object so badge can read it across all roles
         setCurrentUser({ ...data.user, subscriptionTier: data.tenant?.subscriptionTier || 'Free' });
         setViewingTenantId((data.user.role === 'Super Admin' || data.user.role === 'superadmin' || data.user.role === 'super_admin') ? null : data.user.tenantId);
         setCurrentView('dashboard');
+        api.startTokenRefreshCycle();
 
         // Load all data in background (non-blocking)
         loadAllData().catch(err => console.error('Error loading data:', err));
@@ -602,8 +614,8 @@ const App: React.FC = () => {
 
       if (data.success && data.user) {
         // Store authentication tokens
-        if (data.access_token) localStorage.setItem('token', data.access_token);
-        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+        if (data.access_token) sessionStorage.setItem('token', data.access_token);
+        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
 
         // Merge subscriptionTier from tenant into user object
         setCurrentUser({ 
@@ -613,6 +625,7 @@ const App: React.FC = () => {
 
         // Set viewing tenant id
         setViewingTenantId(data.tenant?.id || data.user?.tenantId || null);
+        api.startTokenRefreshCycle();
 
         // Load all data after successful signup
         await loadAllData();
@@ -629,9 +642,10 @@ const App: React.FC = () => {
 
 
   const handleLogout = () => {
+    api.stopTokenRefreshCycle();
     setCurrentUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refresh_token');
     setCurrentView('patchManagement');
   };
 
@@ -983,10 +997,9 @@ const App: React.FC = () => {
   }, []);
 
   const logout = useCallback(() => {
-    // Clear user state
+    api.stopTokenRefreshCycle();
     setCurrentUser(null);
     setViewingTenantId(null);
-    // Force page reload by assigning to href
     window.location.href = '/';
   }, []);
 
@@ -1487,25 +1500,25 @@ const App: React.FC = () => {
         return <FutureOpsDashboard />;
       case 'futureTech':
         return <FutureTechDashboard />;
-      case 'swarm': return <SwarmDashboard />;
-      case 'digitalTwin': return <SimulationDashboard />;
+      case 'swarm': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Swarm...</div>}><SwarmDashboard /></Suspense>;
+      case 'digitalTwin': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Digital Twin...</div>}><SimulationDashboard /></Suspense>;
       case 'riskRegister': return <RiskRegister />;
       case 'vendorManagement': return <VendorManagement />;
       case 'trustCenter': return <TrustCenter />;
       case 'secureFileShare': return <SecureFileShare />;
       case 'securityTraining': return <SecurityTraining />;
-      case 'complianceOracle': return <ComplianceOracleDashboard />;
-      case 'cissporacle': return <CISSPOracle />;
+      case 'complianceOracle': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ComplianceOracleDashboard /></Suspense>;
+      case 'cissporacle': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><CISSPOracle /></Suspense>;
       case 'complianceFrameworks': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Compliance Frameworks...</div>}><ComplianceFrameworksDashboard /></Suspense>;
-      case 'jobs': return <JobsDashboard />;
-      case 'llmops': return <LLMOpsDashboard />;
-      case 'softwareDeployment': return <SoftwareDeployment />;
-      case 'securitySimulation': return <SecuritySimulation />;
+      case 'jobs': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Jobs...</div>}><JobsDashboard /></Suspense>;
+      case 'llmops': return <Suspense fallback={<div className="p-8 text-slate-400">Loading LLMOps...</div>}><LLMOpsDashboard /></Suspense>;
+      case 'softwareDeployment': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SoftwareDeployment /></Suspense>;
+      case 'securitySimulation': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SecuritySimulation /></Suspense>;
       case 'dast': return <DASTDashboard />;
       case 'serviceMesh': return <ServiceMeshDashboard />;
       case 'persistence':
-      case 'persistenceDetection': return <PersistenceDashboard />;
-      case 'approvalWorkflows': return <MultiStepApprovalDashboard />;
+      case 'persistenceDetection': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><PersistenceDashboard /></Suspense>;
+      case 'approvalWorkflows': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MultiStepApprovalDashboard /></Suspense>;
       case 'advancedBi':
       case 'biDashboard': return <AdvancedBiDashboard tenantId={activeTenantId || undefined} />;
       case 'systemHealth': return <Suspense fallback={<div className="p-8 text-slate-400">Loading System Health...</div>}><SystemHealthDashboard /></Suspense>;
@@ -1521,7 +1534,7 @@ const App: React.FC = () => {
       case 'automl': return <AutoMLDashboard />;
       case 'xai': return <XAIDashboard />;
       case 'abTesting': return <ABTestingDashboard />;
-      case 'edr': return <EDRDashboard token={localStorage.getItem('access_token') || undefined} />;
+      case 'edr': return <EDRDashboard token={sessionStorage.getItem('access_token') || undefined} />;
       case 'mdr': return <MDRDashboard />;
       case 'xdr': return <XDRDashboard />;
       case 'mitreAttack': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading MITRE ATT&CK...</div>}><MitreAttackHeatmap /></Suspense>;
@@ -1563,6 +1576,7 @@ const App: React.FC = () => {
       case 'containerScan': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Container Scan...</div>}><ContainerScanDashboard /></Suspense>;
       case 'pam': return <Suspense fallback={<div className="p-8 text-slate-400">Loading PAM...</div>}><PAMDashboard /></Suspense>;
       case 'baaManagement': return <Suspense fallback={<div className="p-8 text-slate-400">Loading BAA Management...</div>}><BAAManagement /></Suspense>;
+      case 'codeReviewGraph': return <CodeReviewGraphDashboard />;
       default: return <Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} />;
 
     }

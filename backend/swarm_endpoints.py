@@ -48,7 +48,10 @@ def _goal_to_instructions(goal: str) -> list[dict]:
 
 # ── Real swarm lifecycle ────────────────────────────────────────────────────
 
-async def run_swarm_lifecycle(mission_id: str, goal: str):
+_SWARM_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+async def run_swarm_lifecycle(mission_id: str, goal: str, tenant_id: str = None):
     """
     Real swarm execution:
     1. AI coordinator generates a typed instruction plan for the goal.
@@ -91,8 +94,11 @@ Example: [{{"type": "vulnerability_scan", "instruction": "Scan all endpoints for
         _log("Coordinator", "Manager",
              f"AI plan: {len(ai_instructions)} steps — " + ", ".join(i.get("type", "") for i in ai_instructions))
 
-    # Fetch all online agents across tenants (swarm is platform-wide)
-    agents = await db.agents.find({"status": "Online"}, {"id": 1, "hostname": 1, "tenantId": 1}).to_list(length=100)
+    # Scope agents to the mission's tenant (super-admins may pass None to target all)
+    agent_filter: dict = {"status": "Online"}
+    if tenant_id:
+        agent_filter["tenantId"] = tenant_id
+    agents = await db.agents.find(agent_filter, {"id": 1, "hostname": 1, "tenantId": 1}).to_list(length=100)
     agent_count = len(agents)
 
     if agent_count == 0:
@@ -171,7 +177,10 @@ async def start_mission(mission: SwarmMission, background_tasks: BackgroundTasks
         "status": "Running",
         "createdAt": now,
     })
-    background_tasks.add_task(run_swarm_lifecycle, mission_id, mission.goal)
+    caller_tenant = getattr(_current_user, "tenant_id", None)
+    caller_role = getattr(_current_user, "role", "")
+    effective_tenant = None if caller_role in _SWARM_SUPER_ROLES else caller_tenant
+    background_tasks.add_task(run_swarm_lifecycle, mission_id, mission.goal, effective_tenant)
     return {"mission_id": mission_id, "status": "Started"}
 
 @router.get("/status/{mission_id}")

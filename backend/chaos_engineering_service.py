@@ -4,12 +4,15 @@ Creates experiments in MongoDB and dispatches real agent instructions
 to execute chaos injections (CPU stress, latency, process kill).
 """
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+
+_TARGET_RE = re.compile(r'^[\w\-\.]+$')
 
 from database import get_database
 from authentication_service import get_current_user
@@ -59,29 +62,37 @@ class ChaosExperiment(BaseModel):
     result: Optional[str] = None
 
 
+_CHAOS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
 class NewExperiment(BaseModel):
-    tenantId: str
     name: str
     type: str
     target: str
 
 
 @router.get("/experiments", response_model=List[ChaosExperiment])
-async def get_experiments(_current_user: TokenData = Depends(get_current_user)):
+async def get_experiments(current_user: TokenData = Depends(get_current_user)):
     db = get_database()
-    exps = await db.chaos_experiments.find({}, {"_id": 0}).to_list(length=100)
+    user_role = getattr(current_user, "role", "")
+    if user_role in _CHAOS_SUPER_ROLES:
+        query: dict = {}
+    else:
+        tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+        query = {"tenantId": tenant_id}
+    exps = await db.chaos_experiments.find(query, {"_id": 0}).to_list(length=100)
     return [ChaosExperiment(**e) for e in exps] if exps else []
 
 
 @router.post("/experiments", response_model=ChaosExperiment)
 async def create_experiment(
     data: NewExperiment,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
     exp = ChaosExperiment(
         id=f"chaos-{uuid.uuid4().hex[:8]}",
-        tenantId=data.tenantId,
+        tenantId=tenant_id,
         name=data.name,
         type=data.type,
         target=data.target,
@@ -117,12 +128,17 @@ async def run_experiment(
     dispatched = 0
 
     if template:
+        # Validate target before using in regex query or instruction template
+        if target and target.lower() not in ("all", "*", "") and not _TARGET_RE.match(target):
+            raise HTTPException(status_code=400, detail="Invalid target: only alphanumeric, dash, dot allowed")
+
         # Find agents in the tenant that match the target (by name, hostname, or "all")
         query: dict = {"tenantId": tenant_id, "status": "Online"}
         if target.lower() not in ("all", "*", ""):
+            safe_target = re.escape(target)
             query["$or"] = [
-                {"hostname": {"$regex": target, "$options": "i"}},
-                {"name": {"$regex": target, "$options": "i"}},
+                {"hostname": {"$regex": safe_target, "$options": "i"}},
+                {"name": {"$regex": safe_target, "$options": "i"}},
                 {"id": target},
             ]
 

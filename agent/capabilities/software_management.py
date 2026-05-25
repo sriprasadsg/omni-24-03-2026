@@ -352,7 +352,7 @@ class SoftwareManagementCapability(BaseCapability):
 
 
     def install_from_url(self, url: str, filename: str, install_args: str = None,
-                         expected_sha256: str = None) -> Dict[str, Any]:
+                         expected_sha256: str = None, headers: dict = None) -> Dict[str, Any]:
         """
         Download and install software from a URL (e.g., self-hosted repo).
         Pass expected_sha256 (hex digest) to verify download integrity before executing.
@@ -371,7 +371,7 @@ class SoftwareManagementCapability(BaseCapability):
 
             # Download and compute SHA-256 simultaneously
             sha256 = hashlib.sha256()
-            with requests.get(url, stream=True) as r:
+            with requests.get(url, headers=headers or {}, stream=True) as r:
                 r.raise_for_status()
                 with open(file_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=8192):
@@ -395,42 +395,69 @@ class SoftwareManagementCapability(BaseCapability):
                     }
                         
             logger.info(f"Downloaded to {file_path}. Installing...")
-            
+
             # Execute based on extension
+            import sys as _sys
+            import shutil as _shutil
             ext = os.path.splitext(filename)[1].lower()
             system = platform.system()
-            
-            if system == "Windows":
-                # Determine flags
-                if install_args:
-                    flags = shlex.split(install_args)
-                else:
-                    # Default heuristics
-                    if ext == ".exe":
-                        flags = ["/S", "/quiet", "/norestart"]
-                    elif ext == ".msi":
-                        flags = ["/quiet", "/norestart"]
-                    else:
-                        flags = []
-                
+            extra_args = shlex.split(install_args) if install_args else []
+
+            # ── Cross-platform scripts ─────────────────────────────────────
+            if ext == ".py":
+                cmd = [_sys.executable, file_path] + extra_args
+
+            elif ext == ".jar":
+                if not _shutil.which("java"):
+                    return {"status": "error", "error": "Java runtime not found on this system"}
+                cmd = ["java", "-jar", file_path] + extra_args
+
+            # ── Windows ───────────────────────────────────────────────────
+            elif system == "Windows":
                 if ext == ".exe":
+                    flags = extra_args or ["/S", "/quiet", "/norestart"]
                     cmd = [file_path] + flags
                 elif ext == ".msi":
-                     # MSI requires specific structure: msiexec /i <file> <args>
-                     cmd = ["msiexec", "/i", file_path] + flags
+                    flags = extra_args or ["/quiet", "/norestart"]
+                    cmd = ["msiexec", "/i", file_path] + flags
+                elif ext == ".ps1":
+                    # -NonInteractive prevents any credential/confirm prompts
+                    cmd = [
+                        "powershell.exe",
+                        "-ExecutionPolicy", "Bypass",
+                        "-NonInteractive",
+                        "-File", file_path,
+                    ] + extra_args
+                elif ext in (".bat", ".cmd"):
+                    cmd = ["cmd.exe", "/c", file_path] + extra_args
                 else:
-                    return {"status": "error", "error": f"Unsupported Windows extension: {ext}"}
+                    return {
+                        "status": "error",
+                        "error": f"Unsupported file type on Windows: '{ext}'. "
+                                 "Supported: .exe .msi .ps1 .bat .cmd .py .jar"
+                    }
 
-            elif system == "Linux":
-                # Linux usually doesn't need many flags for package managers, but allow if needed
-                if ext == ".deb":
-                     cmd = ["dpkg", "-i", file_path]
+            # ── Linux / macOS ─────────────────────────────────────────────
+            elif system in ("Linux", "Darwin"):
+                if ext == ".sh":
+                    os.chmod(file_path, 0o755)
+                    cmd = ["bash", file_path] + extra_args
+                elif ext == ".deb":
+                    base = ["dpkg", "-i", file_path]
+                    cmd = (["sudo"] + base) if _shutil.which("sudo") else base
                 elif ext == ".rpm":
-                     cmd = ["rpm", "-i", file_path]
+                    base = ["rpm", "-i", file_path]
+                    cmd = (["sudo"] + base) if _shutil.which("sudo") else base
+                elif ext == ".pkg" and system == "Darwin":
+                    cmd = ["sudo", "installer", "-pkg", file_path, "-target", "/"] + extra_args
                 else:
-                     return {"status": "error", "error": f"Unsupported Linux extension: {ext}"}
+                    supported = ".sh .deb .rpm .py .jar" + (" .pkg" if system == "Darwin" else "")
+                    return {
+                        "status": "error",
+                        "error": f"Unsupported file type on {system}: '{ext}'. Supported: {supported}"
+                    }
             else:
-                 return {"status": "error", "error": f"Unsupported platform: {system}"}
+                return {"status": "error", "error": f"Unsupported platform: {system}"}
 
 
             # Run Installer

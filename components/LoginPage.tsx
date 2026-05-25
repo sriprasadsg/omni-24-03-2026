@@ -40,7 +40,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
             const data = await api.login(email, password);
 
             // Store Token
-            localStorage.setItem('token', data.access_token);
+            sessionStorage.setItem('token', data.access_token);
 
             // Notify Context/App (Mocking the user object return for now so App state updates)
             // Ideally we fetch /me here

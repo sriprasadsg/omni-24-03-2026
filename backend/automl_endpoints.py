@@ -1,24 +1,34 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
+import logging
 from typing import Dict, Any, List, Optional
 from automl_service import automl_service
 from rbac_utils import require_permission
+from rate_limiter import limiter
 import uuid
 from datetime import datetime, timezone
 from database import get_database
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/automl", tags=["AutoML & Hyperparameter Optimization"])
+
+_AUTOML_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 @router.get("/studies")
 async def list_studies(
     current_user: dict = Depends(require_permission("view:ai_systems"))
 ):
     """
-    List all optimization studies.
+    List all optimization studies scoped to the caller's tenant.
     """
-    return await automl_service.get_all_studies()
+    role = getattr(current_user, "role", "")
+    tenant_id = None if role in _AUTOML_SUPER_ROLES else getattr(current_user, "tenant_id", None)
+    return await automl_service.get_all_studies(tenant_id=tenant_id)
 
 @router.post("/study")
+@limiter.limit("10/minute")
 async def create_study(
+    http_request: Request,
     request: Dict[str, str],
     current_user: dict = Depends(require_permission("manage:ai_models"))
 ):
@@ -47,7 +57,9 @@ async def get_study_details(
     return study
 
 @router.post("/study/{study_id}/run")
+@limiter.limit("5/minute")
 async def run_trials(
+    http_request: Request,
     study_id: str,
     request: Dict[str, int],
     current_user: dict = Depends(require_permission("manage:ai_models"))
@@ -72,12 +84,17 @@ async def list_training_datasets(
 ):
     """List all registered training datasets."""
     db = get_database()
-    docs = await db.training_datasets.find({}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+    role = getattr(current_user, "role", "") or (current_user.get("role", "") if isinstance(current_user, dict) else "")
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    query = {} if role in _AUTOML_SUPER_ROLES else {"tenantId": tenant_id}
+    docs = await db.training_datasets.find(query, {"_id": 0}).sort("created_at", -1).to_list(length=100)
     return {"datasets": docs}
 
 
 @router.post("/training-datasets")
+@limiter.limit("20/minute")
 async def register_training_dataset(
+    request: Request,
     data: Dict[str, Any],
     current_user: dict = Depends(require_permission("manage:ai_models"))
 ):
@@ -86,6 +103,7 @@ async def register_training_dataset(
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
     db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
     dataset = {
         "id": f"ds-{uuid.uuid4().hex[:10]}",
         "name": name,
@@ -96,25 +114,36 @@ async def register_training_dataset(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": current_user.get("sub", "system"),
     }
+    if tenant_id:
+        dataset["tenantId"] = tenant_id
     await db.training_datasets.insert_one(dataset)
     return dataset
 
 
 @router.delete("/training-datasets/{dataset_id}")
+@limiter.limit("10/minute")
 async def delete_training_dataset(
+    request: Request,
     dataset_id: str,
     current_user: dict = Depends(require_permission("manage:ai_models"))
 ):
     """Remove a training dataset registration."""
     db = get_database()
-    result = await db.training_datasets.delete_one({"id": dataset_id})
+    role = getattr(current_user, "role", "") or (current_user.get("role", "") if isinstance(current_user, dict) else "")
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    ds_filter: dict = {"id": dataset_id}
+    if role not in _AUTOML_SUPER_ROLES and tenant_id:
+        ds_filter["tenantId"] = tenant_id
+    result = await db.training_datasets.delete_one(ds_filter)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Dataset not found")
     return {"success": True}
 
 
 @router.post("/training-datasets/upload")
+@limiter.limit("5/minute")
 async def upload_training_dataset(
+    request: Request,
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(""),
@@ -160,7 +189,8 @@ async def upload_training_dataset(
                 records = 1
                 columns = list(data.keys())
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Failed to parse file: {exc}")
+        logger.warning("Failed to parse uploaded file: %s", exc)
+        raise HTTPException(status_code=422, detail="Failed to parse uploaded file")
 
     db = get_database()
     dataset = {

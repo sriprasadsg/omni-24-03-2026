@@ -5,11 +5,14 @@ Provides comprehensive API for playbook execution, approval workflows,
 template management, and analytics.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from database import get_database
 from enhanced_playbook_engine import get_playbook_engine
@@ -93,10 +96,11 @@ async def execute_playbook(
             "status": result.get("status")
         }
     
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Execution failed: {str(e)}")
+        logger.error("Playbook execution failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test")
@@ -494,7 +498,8 @@ async def test_integration(
             "result": result
         }
     
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Integration test failed: {str(e)}")
+        logger.error("Integration test failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")

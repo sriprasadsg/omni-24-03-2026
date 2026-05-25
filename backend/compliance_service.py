@@ -10,9 +10,9 @@ async def calculate_compliance_status():
     db = get_database()
     
     # 1. Fetch Data
-    frameworks = await db.compliance_frameworks.find({}, {"_id": 0}).to_list(length=None)
-    assets = await db.assets.find({}, {"_id": 0}).to_list(length=None)
-    ai_systems = await db.ai_systems.find({}, {"_id": 0}).to_list(length=None)
+    frameworks = await db.compliance_frameworks.find({}, {"_id": 0}).to_list(length=1000)
+    assets = await db.assets.find({}, {"_id": 0}).to_list(length=1000)
+    ai_systems = await db.ai_systems.find({}, {"_id": 0}).to_list(length=1000)
     
     if not assets or not frameworks:
         return frameworks

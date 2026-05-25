@@ -30,7 +30,7 @@ class CloudRemediationService:
             self.aws_enabled = True
             logger.info("[SUCCESS] AWS SDK initialized")
         except Exception as e:
-            logger.warning(f"[WARN] AWS SDK not available: {e}")
+            logger.warning("[WARN] AWS SDK not available: %s", e)
         
         # Azure
         try:
@@ -41,7 +41,7 @@ class CloudRemediationService:
             self.azure_enabled = True
             logger.info("[SUCCESS] Azure SDK initialized")
         except Exception as e:
-            logger.warning(f"[WARN] Azure SDK not available: {e}")
+            logger.warning("[WARN] Azure SDK not available: %s", e)
         
         # GCP
         try:
@@ -52,7 +52,7 @@ class CloudRemediationService:
             self.gcp_enabled = True
             logger.info("[SUCCESS] GCP SDK initialized")
         except Exception as e:
-            logger.warning(f"[WARN] GCP SDK not available: {e}")
+            logger.warning("[WARN] GCP SDK not available: %s", e)
     
     # ==================== AWS Remediation Actions ====================
     
@@ -86,9 +86,9 @@ class CloudRemediationService:
                 "removed_rules_count": len(removed_rules)
             }
         except Exception as e:
-            logger.error(f"AWS remediation error: {e}")
-            return {"success": False, "error": str(e)}
-    
+            logger.error("AWS close_security_group error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
+
     async def aws_enable_s3_encryption(self, bucket_name: str) -> Dict:
         """Enable S3 bucket encryption"""
         if not self.aws_enabled:
@@ -112,7 +112,8 @@ class CloudRemediationService:
                 "bucket": bucket_name
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
     
     async def aws_enable_cloudtrail(self, trail_name: str, bucket_name: str) -> Dict:
         """Enable CloudTrail logging"""
@@ -128,7 +129,8 @@ class CloudRemediationService:
                 "trail_name": trail_name
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
    
     async def aws_rotate_access_key(self, username: str, access_key_id: str) -> Dict:
         """Rotate IAM access key"""
@@ -154,7 +156,8 @@ class CloudRemediationService:
                 "old_key_deactivated": access_key_id
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
     
     # ==================== Azure Remediation Actions ====================
     
@@ -176,7 +179,8 @@ class CloudRemediationService:
                 "message": "NSG flow logs configuration initiated"
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
     
     async def azure_enable_storage_encryption(self, subscription_id: str, resource_group: str, storage_account: str) -> Dict:
         """Enable Azure Storage encryption"""
@@ -191,7 +195,8 @@ class CloudRemediationService:
                 "message": "Storage encryption enabled"
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
     
     # ==================== GCP Remediation Actions ====================
     
@@ -208,7 +213,8 @@ class CloudRemediationService:
                 "message": "VPC flow logs enabled"
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
     
     async def gcp_enable_bucket_encryption(self, bucket_name: str) -> Dict:
         """Enable GCP bucket encryption"""
@@ -225,7 +231,8 @@ class CloudRemediationService:
                 "message": "Bucket encryption verified/enabled"
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error("Cloud remediation error: %s", e)
+            return {"success": False, "error": "Remediation action failed"}
     
     # ==================== Remediation Execution ====================
     

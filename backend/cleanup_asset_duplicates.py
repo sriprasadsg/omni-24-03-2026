@@ -25,7 +25,7 @@ async def cleanup_duplicates():
         {"$match": {"count": {"$gt": 1}}}
     ]
     
-    duplicates = await db.assets.aggregate(pipeline).to_list(length=None)
+    duplicates = await db.assets.aggregate(pipeline).to_list(length=1000)
     
     if not duplicates:
         print("✅ No duplicate assets found!")

@@ -1,4 +1,5 @@
 
+import os
 from database import get_database, connect_to_mongo
 from auth_utils import hash_password
 import asyncio
@@ -8,7 +9,7 @@ async def create_user():
     db = get_database()
     
     email = "super@omni.ai"
-    password = "superpassword"
+    password = os.getenv("TEST_PASSWORD", "")
     hashed = hash_password(password)
     
     user = {
