@@ -7,7 +7,10 @@ from .base import BaseCapability
 import platform
 import threading
 import time
+import logging
 from typing import Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 try:
     from bcc import BPF
@@ -72,7 +75,7 @@ class eBPFTracingCapability(BaseCapability):
             self._thread = threading.Thread(target=self._poll_perf, daemon=True)
             self._thread.start()
         except Exception as e:
-            print(f"[eBPF] Failed to initialize BPF program: {e}")
+            logger.error("[eBPF] Failed to initialize BPF program: %s", e)
             self.bpf = None
 
     def _print_event(self, cpu, data, size):

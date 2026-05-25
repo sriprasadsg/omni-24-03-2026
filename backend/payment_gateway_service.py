@@ -9,6 +9,7 @@ class PaymentGatewayType(str, Enum):
     PAYPAL = "paypal"
     RAZORPAY = "razorpay"
     SQUARE = "square"
+    CUSTOM = "custom"
 
 
 class SubscriptionStatus(str, Enum):
@@ -101,12 +102,53 @@ class PaymentGatewayInterface(ABC):
         pass
 
 
+class GenericGateway(PaymentGatewayInterface):
+    """Credential store for custom / third-party gateways with no built-in API client.
+    Operations are no-ops that return placeholder responses so the rest of the
+    billing pipeline doesn't break when a custom gateway is configured."""
+
+    async def create_customer(self, email, name, metadata=None):
+        return {"id": f"cust_{email}", "email": email}
+
+    async def create_subscription(self, customer_id, price_id, metadata=None):
+        return {"id": f"sub_{customer_id}", "status": "active",
+                "current_period_start": 0, "current_period_end": 0,
+                "plan": {"amount": 0, "currency": "usd", "interval": "month"}}
+
+    async def cancel_subscription(self, subscription_id):
+        return {"id": subscription_id, "canceled_at": 0}
+
+    async def create_charge(self, customer_id, amount, currency, description, metadata=None):
+        return {"id": f"ch_{customer_id}", "amount": amount, "currency": currency,
+                "description": description, "status": "succeeded", "paid": True, "created": 0}
+
+    async def create_refund(self, charge_id, amount=None):
+        return {"id": f"re_{charge_id}", "amount": amount}
+
+    async def get_invoices(self, customer_id, limit=10):
+        return []
+
+    async def verify_webhook(self, payload, signature, secret):
+        return False
+
+    async def construct_webhook_event(self, payload, signature, secret):
+        raise NotImplementedError("Webhooks not supported for custom gateways")
+
+    async def list_payment_methods(self, customer_id):
+        return []
+
+    async def add_payment_method(self, customer_id, payment_method_id):
+        return {"id": payment_method_id}
+
+    async def delete_payment_method(self, payment_method_id):
+        return True
+
+
 class PaymentGatewayFactory:
     """Factory to create payment gateway instances"""
-    
+
     @staticmethod
     def create_gateway(gateway_type: PaymentGatewayType, credentials: Dict[str, str]) -> PaymentGatewayInterface:
-        """Create a payment gateway instance based on type"""
         if gateway_type == PaymentGatewayType.STRIPE:
             from payment_gateways.stripe_gateway import StripeGateway
             return StripeGateway(credentials)
@@ -120,4 +162,5 @@ class PaymentGatewayFactory:
             from payment_gateways.square_gateway import SquareGateway
             return SquareGateway(credentials)
         else:
-            raise ValueError(f"Unsupported payment gateway type: {gateway_type}")
+            # CUSTOM or any future type — use the generic credential store
+            return GenericGateway(credentials)

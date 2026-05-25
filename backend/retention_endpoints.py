@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from auth_utils import require_auth
+
+_RETENTION_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
 from retention_service import RetentionService
 from database import get_db, get_database
 from datetime import datetime, timezone
@@ -40,6 +42,8 @@ async def get_policies(user=Depends(require_auth)):
 
 @router.post("/run")
 async def run_cleanup(user=Depends(require_auth), svc: RetentionService = Depends(get_svc)):
+    if getattr(user, "role", None) not in _RETENTION_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin role required")
     db = get_database()
     await _ensure_seeded(db)
     policies = {
@@ -54,6 +58,8 @@ async def run_cleanup(user=Depends(require_auth), svc: RetentionService = Depend
 
 @router.post("/policies/{collection}")
 async def update_policy(collection: str, body: dict, user=Depends(require_auth)):
+    if getattr(user, "role", None) not in _RETENTION_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin role required")
     db = get_database()
     await _ensure_seeded(db)
     known = set(_POLICY_DEFAULTS.keys())

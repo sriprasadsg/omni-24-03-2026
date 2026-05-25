@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Plus, CheckCircle, XCircle, Clock, RefreshCw, Shield } from 'lucide-react';
+import { authFetch } from '../services/apiService';
 
 interface BAA {
   id: string;
@@ -51,15 +52,11 @@ export function BAAManagement() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ business_associate: '', contact_email: '', services: '', phi_types: '' });
 
-  const token = localStorage.getItem('access_token');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [b, s] = await Promise.all([
-      fetch('/api/baa', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/baa/stats', { headers }).then(r => r.ok ? r.json() : null),
+      authFetch('/api/baa').then(r => r.ok ? r.json() : []),
+      authFetch('/api/baa/stats').then(r => r.ok ? r.json() : null),
     ]).catch(() => [[], null]);
     setBaas(Array.isArray(b) ? b : []);
     setStats(s);
@@ -70,15 +67,15 @@ export function BAAManagement() {
 
   const sign = useCallback(async (id: string) => {
     setActing(id);
-    await fetch(`/api/baa/${id}/sign`, { method: 'POST', headers }).catch(() => {});
+    await authFetch(`/api/baa/${id}/sign`, { method: 'POST' }).catch(() => {});
     setBaas(prev => prev.map(b => b.id === id ? { ...b, status: 'active' as const, signed_at: Date.now() / 1000 } : b));
     setActing(null);
   }, []);
 
   const terminate = useCallback(async (id: string) => {
     setActing(id);
-    await fetch(`/api/baa/${id}/terminate`, {
-      method: 'POST', headers, body: JSON.stringify({ reason: 'Terminated by administrator' }),
+    await authFetch(`/api/baa/${id}/terminate`, {
+      method: 'POST', body: JSON.stringify({ reason: 'Terminated by administrator' }),
     }).catch(() => {});
     setBaas(prev => prev.map(b => b.id === id ? { ...b, status: 'terminated' as const } : b));
     setActing(null);
@@ -92,7 +89,7 @@ export function BAAManagement() {
       services: form.services.split(',').map(s => s.trim()).filter(Boolean),
       phi_types: form.phi_types.split(',').map(s => s.trim()).filter(Boolean),
     };
-    const res = await fetch('/api/baa', { method: 'POST', headers, body: JSON.stringify(payload) }).catch(() => null);
+    const res = await authFetch('/api/baa', { method: 'POST', body: JSON.stringify(payload) }).catch(() => null);
     if (res?.ok) {
       const newBAA = await res.json();
       setBaas(prev => [newBAA, ...prev]);

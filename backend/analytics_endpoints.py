@@ -84,7 +84,13 @@ async def get_bi_metrics(
     current_user: TokenData = Depends(get_current_user),
 ):
     """Get advanced BI metrics"""
+    is_admin = getattr(current_user, "role", "") in _ADMIN_ROLES
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    if tenant_id and not is_admin and tenant_id != caller_tenant:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+    effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
     db = get_database()
     from bi_analytics_service import get_bi_analytics_service
     service = get_bi_analytics_service(db)
-    return await service.get_bi_metrics(tenant_id)
+    return await service.get_bi_metrics(effective_tenant)

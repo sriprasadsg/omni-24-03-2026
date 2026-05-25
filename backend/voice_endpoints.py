@@ -104,12 +104,10 @@ async def transcribe_audio(
         transcript = transcribe_with_google(audio_bytes, language_code)
         return {"transcript": transcript, "language": language_code, "provider": "google-speech"}
     except Exception as e:
-        logger.warning(f"STT failed: {e}")
-        # Return a helpful message if not configured
+        logger.warning("STT failed: %s", e)
         return {
             "transcript": "",
-            "error": str(e),
-            "message": "Speech-to-text requires GOOGLE_APPLICATION_CREDENTIALS to be configured"
+            "message": "Speech-to-text requires GOOGLE_APPLICATION_CREDENTIALS to be configured",
         }
 
 
@@ -130,7 +128,7 @@ async def synthesize_text(req: TTSRequest, current_user=Depends(get_current_user
             audio_b64 = base64.b64encode(audio_bytes).decode()
             return {"audio_base64": audio_b64, "format": "mp3", "provider": "gtts"}
         except Exception as gtts_err:
-            raise HTTPException(status_code=503, detail=f"TTS unavailable: {str(gtts_err)}")
+            raise HTTPException(status_code=503, detail="TTS service unavailable")
 
 
 @router.get("/status")

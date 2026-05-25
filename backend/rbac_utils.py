@@ -1,8 +1,42 @@
+from enum import Enum
 from typing import List, Optional
 from fastapi import HTTPException, status, Depends
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
+
+
+class Permission(str, Enum):
+    # Dashboard & reporting
+    VIEW_DASHBOARD = "view:dashboard"
+    VIEW_REPORTS = "view:reports"
+    # Assets
+    VIEW_ASSETS = "view:assets"
+    MANAGE_ASSETS = "manage:assets"
+    # Security & alerts
+    VIEW_SECURITY = "view:security"
+    MANAGE_SECURITY = "manage:security"
+    VIEW_ALERTS = "view:alerts"
+    MANAGE_ALERTS = "manage:alerts"
+    # Compliance
+    VIEW_COMPLIANCE = "view:compliance"
+    MANAGE_COMPLIANCE = "manage:compliance"
+    # SBOM
+    VIEW_SBOM = "view:sbom"
+    MANAGE_SBOM = "manage:sbom"
+    # Users & roles
+    MANAGE_USERS = "manage:users"
+    MANAGE_ROLES = "manage:roles"
+    # Agents
+    VIEW_AGENTS = "view:agents"
+    MANAGE_AGENTS = "manage:agents"
+    # Settings & billing
+    MANAGE_SETTINGS = "manage:settings"
+    VIEW_BILLING = "view:billing"
+    MANAGE_BILLING = "manage:billing"
+    # AI / LLM
+    VIEW_AI = "view:ai"
+    MANAGE_AI = "manage:ai"
 
 # Helper function to avoid RBACService class instantiation loops
 async def verify_permission(user: TokenData, required_permission: str) -> bool:

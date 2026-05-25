@@ -5,8 +5,11 @@ Integrates with Stripe for live invoice data and invoice_generator.py for PDFs.
 """
 import os
 import uuid
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -15,6 +18,8 @@ from authentication_service import get_current_user
 from tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
+
+_BILLING_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
 
 
 class InvoiceRequest(BaseModel):
@@ -108,12 +113,15 @@ async def download_invoice_pdf(invoice_id: str, current_user=Depends(get_current
             headers={"Content-Disposition": f"attachment; filename=invoice-{invoice_id}.pdf"}
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+        logger.error("PDF generation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/invoices/{invoice_id}/pay")
 async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_user)):
     """Mark an invoice as paid (admin action)."""
+    if getattr(current_user, "role", None) not in _BILLING_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin role required")
     db = get_database()
     tenant_id = get_tenant_id()
     result = await db.invoices.update_one(
@@ -195,7 +203,9 @@ async def create_paypal_order(
         raise HTTPException(status_code=503, detail="PayPal is not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.")
 
     plan_pricing = {"Starter": 99, "Standard": 299, "Professional": 799, "Enterprise": 1999}
-    amount = plan_pricing.get(plan, 299)
+    if plan not in plan_pricing:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    amount = plan_pricing[plan]
     mode = os.getenv("PAYPAL_MODE", "sandbox")
     base = "https://api-m.sandbox.paypal.com" if mode == "sandbox" else "https://api-m.paypal.com"
 
@@ -209,7 +219,11 @@ async def create_paypal_order(
                 token_data = await tr.json()
                 access_token = token_data.get("access_token", "")
 
+            from urllib.parse import urlparse as _urlparse
             frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+            _parsed = _urlparse(frontend_url)
+            if _parsed.scheme not in ("http", "https") or not _parsed.netloc:
+                frontend_url = "http://localhost:3000"
             # Create order
             async with session.post(f"{base}/v2/checkout/orders",
                                     headers={"Authorization": f"Bearer {access_token}",
@@ -229,7 +243,8 @@ async def create_paypal_order(
                 )
                 return {"order_id": order.get("id"), "approval_url": approval_url, "amount": amount, "plan": plan}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PayPal order creation failed: {exc}")
+        logger.error("PayPal order creation failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Payment order creation failed")
 
 
 @router.post("/stripe/checkout")

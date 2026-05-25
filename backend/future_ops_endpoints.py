@@ -2,11 +2,13 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from database import get_database
+from authentication_service import get_current_user
+from auth_types import TokenData
 
 router = APIRouter(tags=["Future Ops"])
 
 @router.get("/api/aiops/capacity-predictions")
-async def get_capacity_predictions():
+async def get_capacity_predictions(current_user: TokenData = Depends(get_current_user)):
     """
     Generate capacity predictions from live agent metrics.
     Projects CPU, memory, and disk usage 24 h ahead using a simple linear trend
@@ -15,8 +17,13 @@ async def get_capacity_predictions():
     """
     db = get_database()
 
+    _FO_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    tenant_id = getattr(current_user, "tenant_id", None)
+    caller_role = getattr(current_user, "role", None)
+    tenant_filter = {} if caller_role in _FO_SUPER_ROLES else {"tenantId": tenant_id}
+
     agents = await db.agents.find(
-        {"status": "Online"}, {"_id": 0, "hostname": 1, "meta": 1}
+        {**tenant_filter, "status": "Online"}, {"_id": 0, "hostname": 1, "meta": 1}
     ).to_list(length=50)
 
     predictions = []
@@ -76,12 +83,12 @@ async def get_capacity_predictions():
 
     if not predictions:
         # Fall back to any previously persisted predictions
-        predictions = await db.capacity_predictions.find({}, {"_id": 0}).to_list(length=100)
+        predictions = await db.capacity_predictions.find(tenant_filter, {"_id": 0}).to_list(length=100)
 
     return {"predictions": predictions}
 
 @router.get("/api/stream/metrics")
-async def get_stream_metrics():
+async def get_stream_metrics(current_user: TokenData = Depends(get_current_user)):
     """Get StreamBroker aggregate metrics for the Streaming Dashboard."""
     from streaming_service import broker
     broker_metrics = broker.get_metrics()
@@ -95,7 +102,7 @@ async def get_stream_metrics():
 
 
 @router.get("/api/streaming/live-events")
-async def get_live_events():
+async def get_live_events(current_user: TokenData = Depends(get_current_user)):
     """Get live streaming metrics from the StreamBroker singleton and recent DB events."""
     from streaming_service import broker
 
@@ -126,7 +133,7 @@ async def get_live_events():
     }
 
 @router.get("/api/multicloud/cost-optimization")
-async def get_cost_optimization():
+async def get_cost_optimization(current_user: TokenData = Depends(get_current_user)):
     """Get Cost Optimization recommendations from database"""
     db = get_database()
     recommendations = await db.cost_recommendations.find({}, {"_id": 0}).to_list(length=100)
@@ -143,7 +150,7 @@ async def get_cost_optimization():
     return {"recommendations": recommendations}
 
 @router.get("/api/privacy/consent-tracking")
-async def get_consent_tracking():
+async def get_consent_tracking(current_user: TokenData = Depends(get_current_user)):
     """Get Privacy Consent tracking from database"""
     db = get_database()
     
@@ -182,7 +189,7 @@ async def _seed_blockchain_audit(db):
 
 
 @router.get("/api/blockchain/audit-chain")
-async def get_blockchain_audit():
+async def get_blockchain_audit(current_user: TokenData = Depends(get_current_user)):
     """Get Blockchain Audit data from database, seeding genesis block if empty."""
     db = get_database()
     await _seed_blockchain_audit(db)
@@ -290,7 +297,7 @@ async def _seed_xdr_hunts(db):
 
 
 @router.get("/api/xdr/automated-hunts")
-async def get_xdr_hunts():
+async def get_xdr_hunts(current_user: TokenData = Depends(get_current_user)):
     """Get XDR automated hunt statistics from database."""
     db = get_database()
     await _seed_xdr_hunts(db)

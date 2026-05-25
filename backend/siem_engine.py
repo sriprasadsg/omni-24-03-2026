@@ -73,7 +73,7 @@ class SiemEngine:
 
     async def _evaluate_rules(self, events: List[Dict[str, Any]], tenant_id: str):
         """Evaluate events against active correlation rules."""
-        rules = await self.db.siem_rules.find({"tenantId": tenant_id, "enabled": True}).to_list(length=None)
+        rules = await self.db.siem_rules.find({"tenantId": tenant_id, "enabled": True}).to_list(length=1000)
         
         for rule in rules:
             for event in events:

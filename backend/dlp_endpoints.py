@@ -21,22 +21,24 @@ async def scan_file(file: UploadFile = File(...), current_user=Depends(get_curre
     content = await file.read()
     return await dlp_service.scan_file_bytes(
         content, file.filename or "unknown",
-        current_user.username, current_user.tenant_id or "default"
+        current_user.username, current_user.tenant_id or None
     )
 
 @router.get("/incidents")
 async def list_incidents(status: Optional[str] = None, current_user=Depends(get_current_user)):
-    return await dlp_service.list_incidents(current_user.tenant_id or "default", status)
+    return await dlp_service.list_incidents(current_user.tenant_id or None, status)
 
 @router.get("/policies")
 async def list_policies(current_user=Depends(get_current_user)):
-    return await dlp_service.get_policies(current_user.tenant_id or "default")
+    return await dlp_service.get_policies(current_user.tenant_id or None)
+
+_ADMIN_ROLES = {"Admin", "admin", "Super Admin", "superadmin", "super_admin", "platform-admin"}
 
 @router.post("/policies")
 async def create_policy(req: PolicyRequest, current_user=Depends(get_current_user)):
-    if current_user.role not in ("admin", "super_admin"):
+    if getattr(current_user, "role", "") not in _ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin only")
-    return await dlp_service.create_policy(current_user.tenant_id or "default", req.dict())
+    return await dlp_service.create_policy(current_user.tenant_id or None, req.dict())
 
 @router.patch("/incidents/{scan_id}/resolve")
 async def resolve_incident(scan_id: str, current_user=Depends(get_current_user)):

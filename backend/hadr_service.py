@@ -119,7 +119,7 @@ class HADRService:
                 
                 # Fetch data
                 cursor = self.db[collection_name].find(query)
-                documents = await cursor.to_list(length=None)
+                documents = await cursor.to_list(length=1000)
                 
                 # Convert ObjectId to string
                 for doc in documents:

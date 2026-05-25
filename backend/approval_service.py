@@ -1,7 +1,10 @@
+import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import uuid
 from email_service import email_service
+
+_log = logging.getLogger(__name__)
 
 class ApprovalService:
     def __init__(self, db):
@@ -57,8 +60,11 @@ class ApprovalService:
 
         return request
 
-    async def get_request(self, request_id: str) -> Optional[Dict[str, Any]]:
-        return await self.db.approval_requests.find_one({"id": request_id}, {"_id": 0})
+    async def get_request(self, request_id: str, tenant_id: str = None) -> Optional[Dict[str, Any]]:
+        query: dict = {"id": request_id}
+        if tenant_id:
+            query["tenantId"] = tenant_id
+        return await self.db.approval_requests.find_one(query, {"_id": 0})
 
     async def get_pending_for_user(self, user_email: str, tenant_id: str) -> List[Dict[str, Any]]:
         """Fetch requests where the user is an approver for the current pending step."""
@@ -79,9 +85,10 @@ class ApprovalService:
         request_id: str,
         user_email: str,
         decision: str, # "approve" or "reject"
-        comments: Optional[str] = None
+        comments: Optional[str] = None,
+        tenant_id: str = None,
     ) -> Dict[str, Any]:
-        request = await self.get_request(request_id)
+        request = await self.get_request(request_id, tenant_id)
         if not request:
             raise ValueError("Request not found")
         
@@ -154,7 +161,7 @@ class ApprovalService:
                              alert=alert_data
                          )
             except Exception as e:
-                print(f"[ApprovalService] Failed to send notification email: {e}")
+                _log.error("[ApprovalService] Failed to send notification email: %s", e)
 
         # Always push to in-app notifications regardless of SMTP
         try:
@@ -200,7 +207,7 @@ class ApprovalService:
                     body_text=body_text,
                 )
         except Exception as exc:
-            print(f"[ApprovalService] Failed to notify approvers: {exc}")
+            _log.error("[ApprovalService] Failed to notify approvers: %s", exc)
 
 
 def get_approval_service(db):

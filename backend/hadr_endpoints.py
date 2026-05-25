@@ -4,11 +4,14 @@ High Availability & Disaster Recovery API Endpoints
 Provides API for backup management, disaster recovery, and HA monitoring.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from database import get_database
 from hadr_service import get_hadr_service, BackupType
@@ -16,12 +19,21 @@ from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/hadr", tags=["HA/DR"])
 
+_HADR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+def _resolve_tenant(current_user, requested: str = None) -> str:
+    role = getattr(current_user, "role", "") or (current_user.get("role", "") if isinstance(current_user, dict) else "")
+    caller = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    if role in _HADR_SUPER_ROLES:
+        return requested or caller or "default"
+    return caller or "default"
+
 
 # Request/Response Models
 class BackupRequest(BaseModel):
     backup_type: str = BackupType.FULL
     collections: Optional[List[str]] = None
-    tenant_id: Optional[str] = None
 
 
 class RestoreRequest(BaseModel):
@@ -57,15 +69,16 @@ async def create_backup(
     - incremental: Only changes since last backup
     - differential: Changes since last full backup
     """
+    tenant_id = _resolve_tenant(current_user)
     hadr_service = get_hadr_service(db)
-    
+
     try:
         # Create backup in background
         background_tasks.add_task(
             hadr_service.create_backup,
             backup_type=request.backup_type,
             collections=request.collections,
-            tenant_id=request.tenant_id
+            tenant_id=tenant_id
         )
         
         return {
@@ -74,7 +87,8 @@ async def create_backup(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to initiate backup: {str(e)}")
+        logger.error("Failed to initiate backup: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/backups")
@@ -143,9 +157,10 @@ async def verify_backup(
         return result
     
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+        logger.error("Backup verification failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/restore")
@@ -172,9 +187,10 @@ async def restore_from_backup(
         return result
     
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Restoration failed: {str(e)}")
+        logger.error("Restoration failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/status")
@@ -199,7 +215,8 @@ async def get_backup_status(
         return status
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+        logger.error("Failed to get HADR status: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-dr")
@@ -224,7 +241,8 @@ async def test_disaster_recovery(
         return result
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DR test failed: {str(e)}")
+        logger.error("DR test failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/test-history")
@@ -267,7 +285,8 @@ async def cleanup_old_backups(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+        logger.error("Cleanup failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")
@@ -294,7 +313,8 @@ async def health_check(
         database_connected = True
     except Exception as e:
         database_connected = False
-        issues.append(f"Database connection failed: {str(e)}")
+        logger.error("Database connectivity check failed: %s", e)
+        issues.append("Database connection failed")
     
     # Check backup system
     try:
@@ -309,7 +329,8 @@ async def health_check(
         backup_system_healthy = False
         rpo_compliant = False
         last_backup = None
-        issues.append(f"Backup system check failed: {str(e)}")
+        logger.error("Backup system check failed: %s", e)
+        issues.append("Backup system check failed")
     
     # Check RTO achievability (based on last DR test)
     try:
@@ -382,7 +403,8 @@ async def setup_backup_schedule(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to configure schedule: {str(e)}")
+        logger.error("Failed to configure schedule: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/restoration-log")

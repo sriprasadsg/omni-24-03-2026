@@ -197,8 +197,8 @@ print_success "Old database cleared"
 cd "$PROJECT_DIR/backend"
 
 # Create/Update required directories
-mkdir -p logs backups uploads data_lake_storage static/reports
-chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports
+mkdir -p logs backups uploads data_lake_storage static/reports omni_data
+chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports omni_data
 
 # Virtual Env
 rm -rf venv
@@ -229,6 +229,17 @@ SYSLOG_UDP_PORT=5140
 # === Phase 1: AI/LLM ===
 GEMINI_API_KEY=
 OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+
+# === Local Fine-tuned LLM (Omni-Local) ===
+OMNI_LOCAL_ENABLED=false
+OMNI_BASE_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+OMNI_ADAPTER_PATH=omni_data/adapter
+OMNI_DATASET_PATH=omni_data/dataset.jsonl
+OMNI_CONFIDENCE_THRESHOLD=0.35
+
+# === Threat Intelligence ===
+VIRUSTOTAL_API_KEY=
 
 # === Phase 2: Email (SMTP) ===
 SMTP_HOST=smtp.gmail.com
@@ -442,25 +453,49 @@ swarm:
 autonomous_actions:
   enabled: true
 enabled_capabilities:
-  - metrics
+  # Core collection
+  - metrics_collection
+  - log_collection
   - process_monitor
-  - fim
-  - network_discovery
-  - vulnerability_scanner
-  - runtime_security
-  - compliance
-  - persistence_detection
-  - shadow_ai
-  - software_management
-  - predictive_health
-  - autonomous_response
-  - sbom
-  - edr_realtime
-  - yara_scanner
-  - ueba
-  - patch_installer
   - log_shipper
+  # Security scanning
+  - fim
+  - real_time_fim
+  - vulnerability_scanning
+  - runtime_security
+  - edr_realtime
+  - persistence_detection
+  - pii_scanner
+  - sbom_analysis
+  - shadow_ai
+  # Compliance & evidence
+  - compliance_enforcement
+  - compliance_evidence_collector
+  # Threat intelligence (requires VIRUSTOTAL_API_KEY)
+  - threat_intel
+  # Network & discovery
+  - network_discovery
+  - web_monitor
+  # Asset & software management
+  - software_management
+  - system_patching
+  - patch_installer
+  - agent_update
+  # Response & remediation
+  - autonomous_response
+  - remediation_executor
+  # Analytics & health
+  - predictive_health
+  - ueba
+  # Risk management
+  - vendor_risk
+  - backup_verifier
+  - deception_monitor
+  # Advanced / optional (comment out if not needed)
+  - cloud_metadata
+  - vss_manager
   - remote_access
+  - ebpf_tracing
 fim_paths:
   - /etc
   - /bin
@@ -564,6 +599,7 @@ Requires=mongod.service
 Type=simple
 User=$ACTUAL_USER
 WorkingDirectory=$PROJECT_DIR/backend
+EnvironmentFile=$PROJECT_DIR/backend/.env
 Environment="PATH=$PROJECT_DIR/backend/venv/bin"
 Environment="PLATFORM_URL=http://$SYSTEM_IP:5000"
 Environment="PYTHONPATH=$PROJECT_DIR/backend"
@@ -703,10 +739,13 @@ print_success "Access the platform at: http://$(hostname -I | awk '{print $1}')"
 echo ""
 print_warning "Next Steps:"
 echo "1. Edit .env: $PROJECT_DIR/backend/.env"
-echo "2. Add your GEMINI_API_KEY / OPENAI_API_KEY for AI features"
-echo "3. (Optional) Set SONARQUBE_URL+TOKEN for real SAST scanning"
-echo "4. (Optional) Set TWILIO_* vars for SMS alerts"
-echo "5. (Optional) Set GVM_* vars for OpenVAS vulnerability scanning"
-echo "6. (Optional) Set CROWDSTRIKE_*/SENTINELONE_*/DEFENDER_* for EDR"
-echo "7. Restart backend: sudo systemctl restart omni-backend"
+echo "2. Add your GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY for AI features"
+echo "3. Set VIRUSTOTAL_API_KEY for threat intelligence (agent threat_intel capability)"
+echo "4. (Optional) Set OMNI_LOCAL_ENABLED=true after running fine-tuning to use local LLM"
+echo "   Install fine-tuning deps first: pip install peft trl bitsandbytes"
+echo "5. (Optional) Set SONARQUBE_URL+TOKEN for real SAST scanning"
+echo "6. (Optional) Set TWILIO_* vars for SMS alerts"
+echo "7. (Optional) Set GVM_* vars for OpenVAS vulnerability scanning"
+echo "8. (Optional) Set CROWDSTRIKE_*/SENTINELONE_*/DEFENDER_* for EDR"
+echo "9. Restart backend: sudo systemctl restart omni-backend"
 echo ""

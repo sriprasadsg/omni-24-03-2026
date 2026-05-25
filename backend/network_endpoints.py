@@ -1,16 +1,18 @@
 from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
+import logging
 from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 import datetime
 import uuid
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/network-devices", tags=["Network"])
 
 @router.get("")
 async def get_network_devices(
-    tenant_id: Optional[str] = None,
     current_user: Any = Depends(get_current_user)
 ):
     """
@@ -24,8 +26,6 @@ async def get_network_devices(
     query = {}
     if user_tenant_id and user_tenant_id != "platform-admin":
         query["tenantId"] = user_tenant_id
-    elif tenant_id:
-        query["tenantId"] = tenant_id
         
     devices = await db.network_devices.find(query, {"_id": 0}).to_list(length=1000)
     return devices
@@ -106,9 +106,9 @@ async def trigger_server_scan(
         tenant_id = getattr(current_user, "tenant_id", "default")
         
         # Run the scan with multi-network support
-        print(f"Starting server scan (scan_all_networks={scan_all_networks}, subnet={subnet})...")
+        logger.info("Starting server scan (scan_all_networks=%s, subnet=%s)", scan_all_networks, subnet)
         results = ServerDiscovery.start_scan(scan_all_networks=scan_all_networks, subnet=subnet)
-        print(f"Scan finished. Found {len(results)} devices.")
+        logger.info("Scan finished. Found %s devices.", len(results))
         
         # Process results and update DB with Smart Merge
         for device in results:
@@ -182,7 +182,7 @@ async def trigger_server_scan(
                 if others_to_delete:
                     other_ids = [m["_id"] for m in others_to_delete]
                     await db.network_devices.delete_many({"_id": {"$in": other_ids}})
-                    print(f"Consolidated and merged {len(others_to_delete)} duplicate(s) for {ip}/{mac}")
+                    logger.info("Consolidated and merged %s duplicate(s) for %s/%s", len(others_to_delete), ip, mac)
             else:
                 # 4. Insert new device
                 new_dev = {
@@ -208,9 +208,8 @@ async def trigger_server_scan(
                 
         return {"status": "success", "devices_found": len(results)}
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Unhandled exception")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/topology-image")
 async def get_network_topology_image(
@@ -232,9 +231,8 @@ async def get_network_topology_image(
         
         return FileResponse(image_path)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Unhandled exception")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/topology")
 async def get_network_topology(
@@ -255,7 +253,6 @@ async def get_network_topology(
         
         return topology_data
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Unhandled exception")
+        raise HTTPException(status_code=500, detail="Internal server error")
 

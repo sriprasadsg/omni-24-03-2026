@@ -4,10 +4,14 @@ Secrets Management API Endpoints
 Provides API for centralized secrets management, rotation, and auditing.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+import logging
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
+from rate_limiter import limiter
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+logger = logging.getLogger(__name__)
 
 from database import get_database
 from secrets_service import get_secrets_service, SecretStatus
@@ -85,9 +89,10 @@ async def create_secret(
         return secret
     
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Bad request")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create secret: {str(e)}")
+        logger.error("Failed to create secret: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/list")
@@ -113,7 +118,74 @@ async def list_secrets(
     except Exception as e:
         import logging as _log
         _log.getLogger(__name__).error("Failed to list secrets: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to list secrets: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/stats")
+async def get_secrets_stats(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("view:secrets"))
+):
+    """
+    Get secrets management statistics
+    """
+    tenant_id = _get(current_user, "tenantId")
+
+    pipeline = [
+        {"$match": {"tenant_id": tenant_id}},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+    ]
+    cursor = db.secrets.aggregate(pipeline)
+    status_counts = {}
+    async for result in cursor:
+        status_counts[result["_id"]] = result["count"]
+
+    pipeline = [
+        {"$match": {"tenant_id": tenant_id, "status": SecretStatus.ACTIVE}},
+        {"$group": {"_id": "$secret_type", "count": {"$sum": 1}}}
+    ]
+    cursor = db.secrets.aggregate(pipeline)
+    type_counts = {}
+    async for result in cursor:
+        type_counts[result["_id"]] = result["count"]
+
+    secrets_service = get_secrets_service(db)
+    _is_super = _get(current_user, "role") in {"Super Admin", "super_admin", "platform-admin"}
+    _t_id = None if _is_super else (_get(current_user, "tenant_id") or _get(current_user, "tenantId"))
+    rotation_needed = await secrets_service.check_rotation_needed(tenant_id=_t_id)
+
+    return {
+        "total_secrets": sum(status_counts.values()),
+        "by_status": status_counts,
+        "by_type": type_counts,
+        "rotation_needed": len(rotation_needed)
+    }
+
+
+@limiter.limit("10/minute")
+@router.get("/audit-log")
+async def get_audit_log(
+    request: Request,
+    secret_name: Optional[str] = None,
+    limit: int = 100,
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("view:secrets"))
+):
+    """
+    Get secret access audit log
+    """
+    secrets_service = get_secrets_service(db)
+    tenant_id = _get(current_user, "tenantId")
+
+    try:
+        logs = await secrets_service.get_secret_access_log(
+            secret_name=secret_name,
+            tenant_id=tenant_id,
+            limit=limit
+        )
+        return logs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{name}")
@@ -126,24 +198,26 @@ async def get_secret_metadata(
     Get secret metadata (without the actual value)
     """
     tenant_id = _get(current_user, "tenantId")
-    
+
     secret = await db.secrets.find_one({
         "name": name,
         "tenant_id": tenant_id
     })
-    
+
     if not secret:
         raise HTTPException(status_code=404, detail="Secret not found")
-    
+
     # Remove encrypted value
     secret.pop("encrypted_value", None)
     secret["id"] = str(secret.pop("_id"))
-    
+
     return secret
 
 
+@limiter.limit("5/minute")
 @router.get("/{name}/value")
 async def get_secret_value(
+    request: Request,
     name: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("read:secrets"))
@@ -164,13 +238,24 @@ async def get_secret_value(
             tenant_id=tenant_id,
             user=user
         )
-        
+
+        from datetime import timezone as _tz
+        await db.audit_logs.insert_one({
+            "action": "secret.read",
+            "actor": user,
+            "target": name,
+            "tenant_id": tenant_id,
+            "timestamp": __import__("datetime").datetime.now(_tz.utc).isoformat(),
+        })
+
         return {"name": name, "value": value}
-    
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get secret: {str(e)}")
+        import logging as _l
+        _l.getLogger(__name__).error("Secret read error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/update")
@@ -199,9 +284,10 @@ async def update_secret(
         return result
     
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update secret: {str(e)}")
+        logger.error("Failed to update secret: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/rotate")
@@ -230,9 +316,10 @@ async def rotate_secret(
         return result
     
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Bad request")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to rotate secret: {str(e)}")
+        logger.error("Failed to rotate secret: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/revoke")
@@ -260,9 +347,10 @@ async def revoke_secret(
         return result
     
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to revoke secret: {str(e)}")
+        logger.error("Failed to revoke secret: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/rotation/check")
@@ -278,15 +366,18 @@ async def check_rotation_needed(
     secrets_service = get_secrets_service(db)
     
     try:
-        secrets_to_rotate = await secrets_service.check_rotation_needed()
-        
+        _is_super_r = _get(_current_user, "role") in {"Super Admin", "super_admin", "platform-admin"}
+        _tenant_r = None if _is_super_r else (_get(_current_user, "tenant_id") or _get(_current_user, "tenantId"))
+        secrets_to_rotate = await secrets_service.check_rotation_needed(tenant_id=_tenant_r)
+
         return {
             "count": len(secrets_to_rotate),
             "secrets": secrets_to_rotate
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to check rotation: {str(e)}")
+        logger.error("Failed to check rotation: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/scan")
@@ -325,88 +416,7 @@ async def scan_code_for_secrets(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to scan file: {str(e)}")
+        logger.error("Failed to scan file: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/audit-log")
-async def get_audit_log(
-    secret_name: Optional[str] = None,
-    limit: int = 100,
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:secrets"))
-):
-    """
-    Get secret access audit log
-    
-    Shows all access, updates, rotations, and revocations.
-    """
-    secrets_service = get_secrets_service(db)
-    tenant_id = _get(current_user, "tenantId")
-
-    try:
-        logs = await secrets_service.get_secret_access_log(
-            secret_name=secret_name,
-            tenant_id=tenant_id,
-            limit=limit
-        )
-        
-        return logs
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get audit log: {str(e)}")
-
-
-@router.get("/stats")
-async def get_secrets_stats(
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:secrets"))
-):
-    """
-    Get secrets management statistics
-    """
-    tenant_id = _get(current_user, "tenantId")
-
-    # Count secrets by status
-    pipeline = [
-        {"$match": {"tenant_id": tenant_id}},
-        {
-            "$group": {
-                "_id": "$status",
-                "count": {"$sum": 1}
-            }
-        }
-    ]
-    
-    cursor = db.secrets.aggregate(pipeline)
-    status_counts = {}
-    
-    async for result in cursor:
-        status_counts[result["_id"]] = result["count"]
-    
-    # Count secrets by type
-    pipeline = [
-        {"$match": {"tenant_id": tenant_id, "status": SecretStatus.ACTIVE}},
-        {
-            "$group": {
-                "_id": "$secret_type",
-                "count": {"$sum": 1}
-            }
-        }
-    ]
-    
-    cursor = db.secrets.aggregate(pipeline)
-    type_counts = {}
-    
-    async for result in cursor:
-        type_counts[result["_id"]] = result["count"]
-    
-    # Check rotation needed
-    secrets_service = get_secrets_service(db)
-    rotation_needed = await secrets_service.check_rotation_needed()
-    
-    return {
-        "total_secrets": sum(status_counts.values()),
-        "by_status": status_counts,
-        "by_type": type_counts,
-        "rotation_needed": len(rotation_needed)
-    }

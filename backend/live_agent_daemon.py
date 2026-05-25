@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import subprocess
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
@@ -27,7 +28,7 @@ try:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from agent.capabilities.compliance import ComplianceEnforcementCapability
 except ImportError as e:
-    print(f"Warning: Could not import ComplianceCapability: {e}")
+    logging.getLogger(__name__).warning("Could not import ComplianceCapability: %s", e)
     ComplianceEnforcementCapability = None
 
 def get_mac_address():
@@ -48,10 +49,12 @@ def get_cpu_model():
     """Get CPU model information using PowerShell WMI"""
     try:
         if platform.system() == "Windows":
-            import subprocess
             # Use PowerShell Get-WmiObject instead of wmic
-            cmd = 'powershell "Get-WmiObject -Class Win32_Processor | Select-Object -ExpandProperty Name"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            result = subprocess.check_output(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-WmiObject -Class Win32_Processor | Select-Object -ExpandProperty Name"],
+                shell=False, timeout=10
+            ).decode(errors='ignore')
             cpu_name = result.strip()
             if cpu_name:
                 return cpu_name
@@ -66,7 +69,7 @@ def get_cpu_model():
             return f"{proc} ({psutil.cpu_count()} cores)"
         return f"{psutil.cpu_count()}-Core Processor"
     except Exception as e:
-        print(f"CPU detection error: {e}")
+        _log.warning("CPU detection error: %s", e)
         return f"{psutil.cpu_count()}-Core Processor"
 
 def get_kernel_version():
@@ -83,49 +86,57 @@ def get_serial_number():
     """Get system serial number using PowerShell WMI"""
     try:
         if platform.system() == "Windows":
-            import subprocess
-            cmd = 'powershell "Get-WmiObject -Class Win32_BIOS | Select-Object -ExpandProperty SerialNumber"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            result = subprocess.check_output(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-WmiObject -Class Win32_BIOS | Select-Object -ExpandProperty SerialNumber"],
+                shell=False, timeout=10
+            ).decode(errors='ignore')
             serial = result.strip()
             if serial:
                 return serial
         elif platform.system() == "Linux":
-            result = subprocess.check_output("dmidecode -s system-serial-number", shell=True, timeout=5).decode(errors='ignore')
+            result = subprocess.check_output(
+                ["dmidecode", "-s", "system-serial-number"],
+                shell=False, timeout=5
+            ).decode(errors='ignore')
             return result.strip()
         return "Not Available"
     except Exception as e:
-        print(f"Serial number detection error: {e}")
+        _log.warning("Serial number detection error: %s", e)
         return "Not Available"
 
 def get_os_caption():
     """Get OS detailed name using PowerShell WMI"""
     try:
         if platform.system() == "Windows":
-            import subprocess
-            cmd = 'powershell "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Caption"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            result = subprocess.check_output(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Caption"],
+                shell=False, timeout=10
+            ).decode(errors='ignore')
             return result.strip()
     except Exception as e:
-        print(f"OS caption detection error: {e}")
+        _log.warning("OS caption detection error: %s", e)
     return platform.system()
 
 def get_os_version_details():
     """Get detailed OS version string using PowerShell WMI"""
     try:
         if platform.system() == "Windows":
-            import subprocess
-            cmd = 'powershell "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Version"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            result = subprocess.check_output(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Version"],
+                shell=False, timeout=10
+            ).decode(errors='ignore')
             return result.strip()
     except Exception as e:
-        print(f"OS version detection error: {e}")
+        _log.warning("OS version detection error: %s", e)
     return platform.version()
 
 def get_windows_specifications():
     """Get detailed Windows specifications matching system settings UI"""
     try:
         if platform.system() == "Windows":
-            import subprocess
             import json
             # Combined PowerShell command for efficiency
             ps_cmd = (
@@ -144,11 +155,14 @@ def get_windows_specifications():
                 "}; "
                 "$spec | ConvertTo-Json"
             )
-            cmd = f'powershell -ExecutionPolicy Bypass -Command "{ps_cmd}"'
-            result = subprocess.check_output(cmd, shell=True, timeout=15).decode(errors='ignore')
+            result = subprocess.check_output(
+                ["powershell", "-NoProfile", "-NonInteractive",
+                 "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+                shell=False, timeout=15
+            ).decode(errors='ignore')
             return json.loads(result)
     except Exception as e:
-        print(f"Windows specifications detection error: {e}")
+        _log.warning("Windows specifications detection error: %s", e)
     return {}
 
 def get_disk_information():
@@ -183,11 +197,10 @@ def get_installed_software():
     try:
         software = []
         if platform.system() == "Windows":
-            import subprocess
             # Get a sample of installed software via wmic
             result = subprocess.check_output(
-                "wmic product get name,version /format:csv", 
-                shell=True, 
+                ["wmic", "product", "get", "name,version", "/format:csv"],
+                shell=False,
                 timeout=10
             ).decode(errors='ignore')
             lines = [line.strip() for line in result.split('\n') if line.strip() and ',' in line]
@@ -319,18 +332,20 @@ def register_agent(agent_config):
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✓ Registered {agent_config['hostname']} - Agent ID: {result.get('agentId')}")
-            print(f"  CPU: {agent_config.get('cpuModel', 'Unknown')}")
-            print(f"  RAM: {agent_config.get('ram', 'Unknown')}")
-            print(f"  Disks: {len(agent_config.get('disks', []))}")
-            print(f"  Software: {len(agent_config.get('installedSoftware', []))} packages")
+            _log.warning("Registered %s - Agent ID: %s", agent_config['hostname'], result.get('agentId'))
+            _log.warning("  CPU: %s | RAM: %s | Disks: %d | Software: %d packages",
+                         agent_config.get('cpuModel', 'Unknown'),
+                         agent_config.get('ram', 'Unknown'),
+                         len(agent_config.get('disks', [])),
+                         len(agent_config.get('installedSoftware', [])))
             return result.get('agentId')
         else:
-            print(f"✗ Failed to register {agent_config['hostname']}: {response.status_code} - {response.text}")
+            _log.error("Failed to register %s: %s - %s",
+                       agent_config['hostname'], response.status_code, response.text)
             return None
-            
+
     except Exception as e:
-        print(f"✗ Error registering {agent_config['hostname']}: {e}")
+        _log.error("Error registering %s: %s", agent_config['hostname'], e)
         return None
 
 def send_heartbeat(agent_id, agent_config):
@@ -359,23 +374,24 @@ def send_heartbeat(agent_id, agent_config):
         )
         
         if response.status_code == 200:
-            print(f"  ♥ Heartbeat sent | CPU: {metrics['current_cpu']}% | Memory: {metrics['current_memory']}% | Disk: {metrics['disk_usage']}%")
+            _log.warning("Heartbeat sent | CPU: %s%% | Memory: %s%% | Disk: %s%%",
+                         metrics['current_cpu'], metrics['current_memory'], metrics['disk_usage'])
             return True
         else:
-            print(f"  ✗ Heartbeat failed: {response.status_code}")
+            _log.error("Heartbeat failed: %s", response.status_code)
             return False
-            
+
     except Exception as e:
-        print(f"  ✗ Heartbeat error: {e}")
+        _log.error("Heartbeat error: %s", e)
         return False
 
 def run_compliance_scan(agent_id, hostname):
     """Run compliance checks and report results"""
     if not ComplianceEnforcementCapability:
-        print("  ⚠️ Compliance capability not available")
+        _log.warning("Compliance capability not available")
         return
 
-    print("  🔍 Starting Compliance Scan...")
+    _log.warning("Starting Compliance Scan...")
     try:
         compliance = ComplianceEnforcementCapability()
         results = compliance.collect()
@@ -404,14 +420,13 @@ def run_compliance_scan(agent_id, hostname):
         )
         
         if response.status_code == 200:
-             print(f"  ✅ Compliance report sent: {results.get('passed')}/{results.get('total_checks')} Passed ({results.get('compliance_score')}%)")
+            _log.warning("Compliance report sent: %s/%s Passed (%s%%)",
+                         results.get('passed'), results.get('total_checks'), results.get('compliance_score'))
         else:
-             print(f"  ❌ Failed to send compliance report: {response.status_code}")
+            _log.error("Failed to send compliance report: %s", response.status_code)
 
     except Exception as e:
-        import traceback
-        print(f"  ❌ Compliance scan error: {e}")
-        traceback.print_exc()
+        _log.error("Compliance scan error: %s", e, exc_info=True)
 
 async def main():
     """Main daemon loop"""

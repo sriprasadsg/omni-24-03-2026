@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/assets", tags=["Assets"])
 async def get_asset_metrics(
     asset_id: str,
     time_range: str = Query("24h", alias="range", description="Time range: 1h, 24h, 7d, 30d"),
-    current_user: dict = Depends(require_permission("view:assets")),
+    _current_user: dict = Depends(require_permission("view:assets")),
 ):
     """
     Get historical metrics for a specific asset
@@ -21,8 +21,12 @@ async def get_asset_metrics(
     try:
         db = get_database()
         
-        # Verify asset exists
-        asset = await db.assets.find_one({"id": asset_id}, {"_id": 0})
+        # Verify asset exists and belongs to caller's tenant
+        _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+        asset_query: dict = {"id": asset_id}
+        if getattr(_current_user, "role", "") not in _SUPER_ADMIN_ROLES:
+            asset_query["tenantId"] = getattr(_current_user, "tenant_id", None)
+        asset = await db.assets.find_one(asset_query, {"_id": 0})
         if not asset:
             raise HTTPException(status_code=404, detail=f"Asset {asset_id} not found")
         
@@ -42,10 +46,14 @@ async def get_asset_metrics(
         
         # Try to fetch real metrics from database
         # In production, this would query a time-series database
-        metrics_data = await db.asset_metrics.find({
+        asset_tenant = asset.get("tenantId")
+        metrics_filter: dict = {
             "asset_id": asset_id,
-            "timestamp": {"$gte": (now - timedelta(hours=range_hours)).isoformat()}
-        }).to_list(length=points)
+            "timestamp": {"$gte": (now - timedelta(hours=range_hours)).isoformat()},
+        }
+        if asset_tenant:
+            metrics_filter["tenant_id"] = asset_tenant
+        metrics_data = await db.asset_metrics.find(metrics_filter).to_list(length=points)
         
         if not metrics_data:
             # No agent telemetry yet — use asset's last-known values as a flat baseline
@@ -101,25 +109,6 @@ async def get_asset_metrics(
         raise
     except Exception as e:
         _log.error("Error fetching asset metrics for %s: %s", asset_id, e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/")
-async def get_assets(current_user: dict = Depends(require_permission("view:assets"))):
-    """Get all assets"""
-    db = get_database()
-    assets = await db.assets.find({}, {"_id": 0}).to_list(length=1000)
-    return assets
-
-
-@router.get("/{asset_id}")
-async def get_asset(
-    asset_id: str,
-    current_user: dict = Depends(require_permission("view:assets")),
-):
-    """Get a specific asset by ID"""
-    db = get_database()
-    asset = await db.assets.find_one({"id": asset_id}, {"_id": 0})
-    if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    return asset

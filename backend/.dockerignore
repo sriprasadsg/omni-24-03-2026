@@ -1,0 +1,47 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Secrets — never in image
+.env
+.env.*
+*.key
+*.pem
+*.p12
+
+# Debug / one-off utility scripts (not needed at runtime)
+check_*.py
+debug_*.py
+fix_*.py
+cleanup_*.py
+create_test*.py
+repair_*.py
+reset_*.py
+verify_*.py
+analyze_*.py
+list_*.py
+
+# Logs and local data
+logs/
+*.log
+omni_data/
+uploads/
+
+# Test artefacts
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp

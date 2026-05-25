@@ -30,7 +30,7 @@ class ABTestingService:
         if not experiment:
             raise ValueError("Experiment not found")
         variants = experiment["variants"]
-        hash_val = int(hashlib.md5(f"{experiment_id}:{user_id}".encode()).hexdigest(), 16)
+        hash_val = int(hashlib.sha256(f"{experiment_id}:{user_id}".encode()).hexdigest(), 16)
         assigned_variant = variants[hash_val % len(variants)]
         await db.ab_experiments.update_one(
             {"id": experiment_id},
@@ -44,7 +44,7 @@ class ABTestingService:
         if not experiment:
             raise ValueError("Experiment not found")
         variants = experiment["variants"]
-        hash_val = int(hashlib.md5(f"{experiment_id}:{user_id}".encode()).hexdigest(), 16)
+        hash_val = int(hashlib.sha256(f"{experiment_id}:{user_id}".encode()).hexdigest(), 16)
         variant = variants[hash_val % len(variants)]
         await db.ab_experiments.update_one(
             {"id": experiment_id},

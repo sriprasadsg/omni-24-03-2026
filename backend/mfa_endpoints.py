@@ -2,10 +2,11 @@
 MFA Endpoints — /api/mfa/*
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from database import get_database
+from rate_limiter import limiter
 from datetime import timedelta
 import mfa_service
 
@@ -72,7 +73,8 @@ async def verify_mfa_setup(req: MFAVerifySetupRequest, current_user=Depends(get_
 
 
 @router.post("/verify")
-async def verify_mfa_at_login(req: MFAVerifyLoginRequest):
+@limiter.limit("5/minute")
+async def verify_mfa_at_login(request: Request, req: MFAVerifyLoginRequest):
     """
     Called during the second step of login (after password succeeds).
     Accepts the MFA session token from /auth/login plus a TOTP code (or backup code).

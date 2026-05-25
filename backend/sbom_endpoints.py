@@ -34,8 +34,9 @@ async def _correlate_vulnerabilities(db, components: list) -> Dict[str, list]:
 
     try:
         # Query patches where affectedSoftware matches any component name
-        name_regexes = [{"affectedSoftware": {"$regex": name, "$options": "i"}} for name in name_to_ids]
-        patch_cursor = db._db.patches.find(
+        import re as _re
+        name_regexes = [{"affectedSoftware": {"$regex": _re.escape(name), "$options": "i"}} for name in name_to_ids]
+        patch_cursor = db.patches.find(
             {"$or": name_regexes},
             {"_id": 0, "cveId": 1, "severity": 1, "affectedSoftware": 1, "description": 1, "cvss_score": 1},
         )
@@ -56,7 +57,7 @@ async def _correlate_vulnerabilities(db, components: list) -> Dict[str, list]:
                         results.setdefault(comp_id, []).append(vuln_entry)
 
         # Also query vulnerabilities collection
-        vuln_cursor = db._db.vulnerabilities.find(
+        vuln_cursor = db.vulnerabilities.find(
             {"$or": [{"affectedSoftware": {"$regex": name, "$options": "i"}} for name in name_to_ids]},
             {"_id": 0, "cveId": 1, "severity": 1, "affectedSoftware": 1, "description": 1},
         )
@@ -91,7 +92,7 @@ async def get_sboms(_current_user: TokenData = Depends(rbac_service.has_permissi
     """
     db = get_database()
     tenant_id = get_tenant_id()
-    sboms = await db.sboms.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=None)
+    sboms = await db.sboms.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=500)
     return sboms
 
 @router.post("/upload")
@@ -104,6 +105,8 @@ async def upload_sbom(
     """
     try:
         content = await file.read()
+        if len(content) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="SBOM file too large (max 50 MB)")
         sbom_data = json.loads(content)
         
         db = get_database()
@@ -166,8 +169,8 @@ async def upload_sbom(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON format")
     except Exception as e:
-        print(f"Error uploading SBOM: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error uploading SBOM: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/components", response_model=List[Dict[str, Any]])
 async def get_software_components(_current_user: TokenData = Depends(rbac_service.has_permission("view:sbom"))):
@@ -176,7 +179,7 @@ async def get_software_components(_current_user: TokenData = Depends(rbac_servic
     """
     db = get_database()
     tenant_id = get_tenant_id()
-    components = await db.software_components.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=None)
+    components = await db.software_components.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=500)
     return components
 
 
@@ -193,7 +196,7 @@ async def get_sbom(
         raise HTTPException(status_code=404, detail="SBOM not found")
     components = await db.software_components.find(
         {"sbomId": sbom_id, "tenantId": tenant_id}, {"_id": 0}
-    ).to_list(length=None)
+    ).to_list(length=500)
     return {**sbom, "components": components}
 
 
@@ -212,7 +215,7 @@ async def scan_sbom_vulnerabilities(
 
     components = await db.software_components.find(
         {"sbomId": sbom_id, "tenantId": tenant_id}, {"_id": 0}
-    ).to_list(length=None)
+    ).to_list(length=500)
 
     if not components:
         return {"sbomId": sbom_id, "vulnerabilityCount": 0, "components": []}
@@ -241,9 +244,26 @@ async def generate_sbom(
     Stores the result and correlates vulnerabilities automatically.
     """
     import subprocess, shutil, tempfile, os, platform
+    from pathlib import Path
 
-    target = request.get("target", ".")
+    raw_target = request.get("target", ".")
     app_name = request.get("app_name", "host-system")
+
+    # Resolve and validate target path to prevent directory traversal and symlink escapes
+    try:
+        target_path = Path(raw_target).resolve(strict=True)
+    except (OSError, Exception):
+        raise HTTPException(status_code=400, detail="Invalid target path")
+
+    # Reject symlinks at any component of the resolved path
+    if os.path.islink(raw_target):
+        raise HTTPException(status_code=400, detail="Symlinked targets are not permitted")
+
+    allowed_root = Path(".").resolve()
+    if not (target_path == allowed_root or str(target_path).startswith(str(allowed_root) + os.sep)):
+        raise HTTPException(status_code=400, detail="Target path must be within the working directory")
+
+    target = str(target_path)
 
     db = get_database()
     tenant_id = get_tenant_id()

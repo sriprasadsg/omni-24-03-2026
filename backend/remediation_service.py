@@ -1,9 +1,32 @@
+import re
 import logging
 from datetime import datetime
 from models import RemediationRequest
 from tasks import execute_remediation_script  # Import Celery task reference
 
 logger = logging.getLogger(__name__)
+
+_DANGEROUS_SCRIPT_PATTERNS = [
+    re.compile(r'curl\s+\S+\s*\|', re.IGNORECASE),        # curl piped to shell
+    re.compile(r'wget\s+\S+\s*\|', re.IGNORECASE),        # wget piped to shell
+    re.compile(r'\$\([^)]+\)', re.IGNORECASE),             # bash command substitution
+    re.compile(r'`[^`]+`'),                                 # backtick substitution
+    re.compile(r'\beval\s*[\(\$]', re.IGNORECASE),         # eval execution
+    re.compile(r'\bIEX\s*[\(\$]', re.IGNORECASE),          # PowerShell Invoke-Expression short form
+    re.compile(r'Invoke-Expression', re.IGNORECASE),        # PowerShell Invoke-Expression full form
+    re.compile(r'Start-Process\s+.*-NoNewWindow', re.IGNORECASE),  # hidden process spawn
+]
+_MAX_SCRIPT_LENGTH = 10_000
+
+
+def _validate_remediation_script(script: str) -> str | None:
+    """Returns an error description if the script contains dangerous patterns, else None."""
+    if len(script) > _MAX_SCRIPT_LENGTH:
+        return "Script exceeds maximum allowed length"
+    for pattern in _DANGEROUS_SCRIPT_PATTERNS:
+        if pattern.search(script):
+            return f"Dangerous pattern detected: {pattern.pattern}"
+    return None
 
 
 class RemediationService:
@@ -29,8 +52,11 @@ class RemediationService:
             script_content = await ai_service.generate_text(prompt, source="remediation")
             if script_content.startswith("BLOCKED:"):
                 raise ValueError(script_content)
+            validation_error = _validate_remediation_script(script_content)
+            if validation_error:
+                raise ValueError(f"Generated script failed security validation: {validation_error}")
             action = f"AI-generated fix for {cve_id}"
-            logger.info("AI remediation script generated for %s", cve_id)
+            logger.info("AI remediation script generated and validated for %s", cve_id)
         except Exception as exc:
             logger.warning("AI fix generation failed for %s: %s — using rule-based fallback", cve_id, exc)
             if "SQL" in cve_id or "Injection" in cve_id:

@@ -41,6 +41,23 @@ async def analyze_file(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail=f"File exceeds max size ({MAX_FILE_SIZE // (1024*1024)} MB)")
 
+    # MIME type validation — reject clearly non-binary content types
+    ALLOWED_MIME_PREFIXES = ("application/octet-stream", "application/x-", "application/vnd.microsoft.portable-executable")
+    EXPLICITLY_DENIED_MIME_PREFIXES = ("text/", "image/", "audio/", "video/")
+    content_type = (file.content_type or "").lower().split(";")[0].strip()
+    if content_type and any(content_type.startswith(denied) for denied in EXPLICITLY_DENIED_MIME_PREFIXES):
+        raise HTTPException(status_code=400, detail="Invalid file type for binary analysis")
+    EXACT_ALLOWED = {
+        "application/octet-stream",
+        "application/x-executable",
+        "application/x-elf",
+        "application/x-dosexec",
+        "application/x-msdownload",
+        "application/vnd.microsoft.portable-executable",
+    }
+    if content_type and content_type not in EXACT_ALLOWED and not content_type.startswith("application/x-"):
+        raise HTTPException(status_code=400, detail="Invalid file type for binary analysis")
+
     job_id = f"ANA-{uuid.uuid4().hex[:12]}"
     job = {
         "job_id": job_id,
@@ -82,15 +99,20 @@ async def _run_analysis(job_id: str, content: bytes, filename: str, run_sandbox:
             }}
         )
     except Exception as e:
+        import logging as _l
+        _l.getLogger(__name__).error("Binary analysis failed for job %s: %s", job_id, e)
         await db.analysis_jobs.update_one(
             {"job_id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
+            {"$set": {"status": "failed", "error": "Analysis failed"}}
         )
 
 
 # ------------------------------------------------------------------
 # Poll / Retrieve Report
 # ------------------------------------------------------------------
+
+_ANALYSIS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
 
 @router.get("/report/{job_id}")
 async def get_report(
@@ -99,7 +121,11 @@ async def get_report(
 ):
     """Get the analysis report for a given job ID."""
     db = get_database()
-    job = await db.analysis_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    user_role = getattr(current_user, "role", "")
+    job_filter: dict = {"job_id": job_id}
+    if user_role not in _ANALYSIS_SUPER_ROLES:
+        job_filter["submitted_by"] = current_user.username
+    job = await db.analysis_jobs.find_one(job_filter, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Analysis job not found")
     return job
@@ -117,7 +143,10 @@ async def get_analysis_history(
 ):
     """List all completed analysis jobs."""
     db = get_database()
-    query = {"status": "completed"}
+    user_role = getattr(current_user, "role", "")
+    query: dict = {"status": "completed"}
+    if user_role not in _ANALYSIS_SUPER_ROLES:
+        query["submitted_by"] = current_user.username
     if verdict:
         query["report.verdict"] = verdict
     jobs = await db.analysis_jobs.find(
@@ -142,12 +171,20 @@ async def check_hash(
     Look up a SHA-256 hash against previously analyzed files and the EDR IOC blocklist.
     """
     db = get_database()
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None)
+    hash_filter: dict = {"report.sha256": sha256}
+    if user_role not in _ANALYSIS_SUPER_ROLES:
+        hash_filter["submitted_by"] = current_user.username
     # Check analysis history
     job = await db.analysis_jobs.find_one(
-        {"report.sha256": sha256}, {"_id": 0, "report": 1, "submitted_at": 1}
+        hash_filter, {"_id": 0, "report": 1, "submitted_at": 1}
     )
-    # Check IOC blocklist
-    ioc = await db.edr_ioc.find_one({"sha256": sha256}, {"_id": 0})
+    # Check IOC blocklist — scoped to caller's tenant for non-super-admins
+    ioc_filter: dict = {"sha256": sha256}
+    if user_role not in _ANALYSIS_SUPER_ROLES and tenant_id:
+        ioc_filter["tenantId"] = tenant_id
+    ioc = await db.edr_ioc.find_one(ioc_filter, {"_id": 0})
 
     return {
         "sha256": sha256,

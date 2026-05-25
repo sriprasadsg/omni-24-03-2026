@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Query
 from database import get_database
+from authentication_service import get_current_user
 
 router = APIRouter(prefix="/api/predictive", tags=["Predictive Health"])
 
@@ -154,6 +155,7 @@ async def _accuracy_metrics() -> Dict[str, Any]:
 async def predict_host_health(
     risk: str = Query(None, description="Filter by risk level: high, medium, low"),
     limit: int = Query(50, ge=1, le=200),
+    current_user=Depends(get_current_user),
 ):
     """Return failure probability scores for all managed hosts."""
     db = get_database()
@@ -173,7 +175,7 @@ async def predict_host_health(
 
 
 @router.get("/hosts/{host_id}")
-async def predict_single_host(host_id: str):
+async def predict_single_host(host_id: str, current_user=Depends(get_current_user)):
     """Detailed prediction for a single host."""
     db = get_database()
     predictions = await _build_host_predictions(db)
@@ -185,7 +187,7 @@ async def predict_single_host(host_id: str):
 
 
 @router.get("/forecast")
-async def failure_forecast():
+async def failure_forecast(current_user=Depends(get_current_user)):
     """Aggregate failure forecast — how many hosts expected to fail in each time window."""
     db = get_database()
     predictions = await _build_host_predictions(db)
@@ -214,7 +216,7 @@ async def failure_forecast():
 
 
 @router.get("/model/accuracy")
-async def model_accuracy():
+async def model_accuracy(current_user=Depends(get_current_user)):
     """Prediction model performance metrics derived from real feedback data."""
     return await _accuracy_metrics()
 

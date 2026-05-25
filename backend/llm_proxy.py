@@ -151,7 +151,7 @@ async def proxy_chat_completion(
             
     except Exception as e:
         background_tasks.add_task(log_audit_event, db, prompt, "error", [str(e)], current_user.username, current_user.tenant_id)
-        raise HTTPException(status_code=502, detail=f"Upstream Provider Error: {str(e)}")
+        raise HTTPException(status_code=502, detail="Upstream Provider Error")
     
     # Construct OpenAI-compatible response
     llm_response = {
@@ -190,9 +190,11 @@ async def log_audit_event(db, prompt, status, findings, user_id, tenant_id, resp
     await db.ai_audit_logs.insert_one(event)
 
 @router.get("/audit-logs")
-async def get_audit_logs():
+async def get_audit_logs(current_user: TokenData = Depends(require_permission("manage:ai_governance"))):
     db = get_database()
-    logs = await db.ai_audit_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
+    filt = {} if getattr(current_user, "role", "") in {"Super Admin", "super_admin", "platform-admin"} \
+        else {"tenant_id": getattr(current_user, "tenant_id", None)}
+    logs = await db.ai_audit_logs.find(filt, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
     return logs
 
 

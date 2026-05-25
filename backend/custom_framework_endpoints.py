@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import logging
 
 from auth_utils import get_current_user
+from auth_types import TokenData
 import custom_framework_service as svc
 
 router = APIRouter(prefix="/api/custom-frameworks", tags=["Custom Frameworks"])
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/templates")
-async def list_templates(current_user: dict = Depends(get_current_user)):
+async def list_templates(current_user: TokenData = Depends(get_current_user)):
     return {"templates": [
         {"id": k, "name": v["name"], "description": v["description"]}
         for k, v in svc.BUILTIN_TEMPLATES.items()
@@ -22,33 +23,33 @@ async def list_templates(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("")
-async def list_frameworks(current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    frameworks = await svc.list_frameworks(tenant_id, role)
+async def list_frameworks(current_user: TokenData = Depends(get_current_user)):
+    frameworks = await svc.list_frameworks(current_user.tenant_id or None, current_user.role or "")
     return {"frameworks": frameworks, "total": len(frameworks)}
 
 
 @router.post("")
 async def create_framework(
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     if not payload.get("name"):
         raise HTTPException(status_code=400, detail="Framework name is required")
 
-    tenant_id = current_user.get("tenant_id", "platform-admin")
-    created_by = current_user.get("email", current_user.get("username", ""))
-    framework = await svc.create_framework(tenant_id, created_by, payload)
+    if not current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    framework = await svc.create_framework(
+        current_user.tenant_id,
+        current_user.username or "",
+        payload,
+    )
     framework.pop("_id", None)
     return {"framework": framework, "message": "Framework created successfully"}
 
 
 @router.get("/{framework_id}")
-async def get_framework(framework_id: str, current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    fw = await svc.get_framework(framework_id, tenant_id, role)
+async def get_framework(framework_id: str, current_user: TokenData = Depends(get_current_user)):
+    fw = await svc.get_framework(framework_id, current_user.tenant_id or None, current_user.role or "")
     if not fw:
         raise HTTPException(status_code=404, detail="Framework not found")
     return {"framework": fw}
@@ -58,11 +59,9 @@ async def get_framework(framework_id: str, current_user: dict = Depends(get_curr
 async def update_framework(
     framework_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    success = await svc.update_framework(framework_id, tenant_id, role, payload)
+    success = await svc.update_framework(framework_id, current_user.tenant_id or None, current_user.role or "", payload)
     if not success:
         raise HTTPException(status_code=404, detail="Framework not found or access denied")
     return {"message": "Framework updated successfully"}
@@ -71,11 +70,9 @@ async def update_framework(
 @router.delete("/{framework_id}")
 async def delete_framework(
     framework_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    success = await svc.delete_framework(framework_id, tenant_id, role)
+    success = await svc.delete_framework(framework_id, current_user.tenant_id or None, current_user.role or "")
     if not success:
         raise HTTPException(status_code=404, detail="Framework not found or access denied")
     return {"message": "Framework deleted"}
@@ -85,11 +82,9 @@ async def delete_framework(
 async def add_domain(
     framework_id: str,
     domain: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    result = await svc.add_domain(framework_id, tenant_id, role, domain)
+    result = await svc.add_domain(framework_id, current_user.tenant_id or None, current_user.role or "", domain)
     if result is None:
         raise HTTPException(status_code=404, detail="Framework not found")
     return {"domain": result, "message": "Domain added"}
@@ -100,11 +95,9 @@ async def add_control(
     framework_id: str,
     domain_id: str,
     control: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    result = await svc.add_control(framework_id, domain_id, tenant_id, role, control)
+    result = await svc.add_control(framework_id, domain_id, current_user.tenant_id or None, current_user.role or "", control)
     if result is None:
         raise HTTPException(status_code=404, detail="Framework or domain not found")
     return {"control": result, "message": "Control added"}
@@ -113,11 +106,9 @@ async def add_control(
 @router.post("/{framework_id}/evaluate")
 async def evaluate_framework(
     framework_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    result = await svc.evaluate_framework_compliance(framework_id, tenant_id, role)
+    result = await svc.evaluate_framework_compliance(framework_id, current_user.tenant_id or None, current_user.role or "")
     if not result:
         raise HTTPException(status_code=404, detail="Framework not found")
     return result
@@ -126,11 +117,9 @@ async def evaluate_framework(
 @router.post("/{framework_id}/publish")
 async def publish_framework(
     framework_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id", "")
-    role = current_user.get("role", "")
-    success = await svc.update_framework(framework_id, tenant_id, role, {"status": "published"})
+    success = await svc.update_framework(framework_id, current_user.tenant_id or None, current_user.role or "", {"status": "published"})
     if not success:
         raise HTTPException(status_code=404, detail="Framework not found")
     return {"message": "Framework published successfully"}

@@ -1,17 +1,24 @@
 
 import os
 import shutil
+import logging
 from pathlib import Path
 from typing import List
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
+from authentication_service import get_current_user
+from rate_limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/software", tags=["Software Repository"])
 
 UPLOAD_DIR = Path("uploads/repo")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
 class SoftwareFile(BaseModel):
     filename: str
@@ -19,37 +26,48 @@ class SoftwareFile(BaseModel):
     upload_date: str
     url: str
 
+
+def _safe_filename(raw: str) -> str:
+    """Strip directory components and reject names with unsafe characters."""
+    name = os.path.basename(raw).strip()
+    if not name or name.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return name
+
+
 @router.post("/upload")
-async def upload_software(file: UploadFile = File(...)):
-    """
-    Upload a software installer to the repository.
-    """
+@limiter.limit("20/hour")
+async def upload_software(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+):
+    """Upload a software installer to the repository."""
     try:
-        file_path = UPLOAD_DIR / file.filename
-        
+        safe_name = _safe_filename(file.filename or "")
+        file_path = UPLOAD_DIR / safe_name
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-            
         return {
-            "success": True, 
-            "filename": file.filename, 
-            "message": f"Successfully uploaded {file.filename}",
-            "url": f"/api/software/download/{file.filename}"
+            "success": True,
+            "filename": safe_name,
+            "message": f"Successfully uploaded {safe_name}",
+            "url": f"/api/software/download/{safe_name}",
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Upload error: {e}")
-        return {"success": False, "error": str(e)}
+        logger.error("Upload error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @router.get("/repository")
-async def list_repository_files():
-    """
-    List all files in the software repository.
-    """
+async def list_repository_files(current_user=Depends(get_current_user)):
+    """List all files in the software repository."""
     files = []
     try:
         if not UPLOAD_DIR.exists():
             return []
-            
         for path in UPLOAD_DIR.iterdir():
             if path.is_file():
                 stat = path.stat()
@@ -57,72 +75,69 @@ async def list_repository_files():
                     "filename": path.name,
                     "size": stat.st_size,
                     "upload_date": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "url": f"/api/software/download/{path.name}"
+                    "url": f"/api/software/download/{path.name}",
                 })
         return files
     except Exception as e:
-        print(f"List repo error: {e}")
+        logger.error("List repo error: %s", e)
         return []
 
+
 @router.get("/download/{filename}")
-async def download_software(filename: str):
-    """
-    Download a file from the repository (Agent usage).
-    """
-    file_path = UPLOAD_DIR / filename
+async def download_software(filename: str, current_user=Depends(get_current_user)):
+    """Download a file from the repository."""
+    safe_name = _safe_filename(filename)
+    file_path = UPLOAD_DIR / safe_name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-        
-    return FileResponse(path=file_path, filename=filename, media_type='application/octet-stream')
+    return FileResponse(path=file_path, filename=safe_name, media_type="application/octet-stream")
+
 
 # ===== SOFTWARE DEPLOY / UNINSTALL ENDPOINT =====
 from datetime import timezone
 import uuid
+import asyncio
 
 
 class DeployRequest(BaseModel):
-    agentIds: List[str]
-    packageId: str
-    action: str = "install"  # install | upgrade | uninstall | install_from_repo
-    installArgs: str = None
+    agentIds: List[str] = Field(..., max_items=500)
+    packageId: str = Field(..., max_length=255)
+    action: str = Field("install", max_length=50)
+    installArgs: str = Field(None, max_length=500)
 
 
 @router.post("/deploy")
-async def deploy_software(payload: DeployRequest):
-    """
-    Dispatch a software action (install / upgrade / uninstall / install_from_repo)
-    to one or more agents via Celery tasks.
-
-    Returns a list of task IDs the frontend can poll at
-    GET /api/tasks/<task_id>
-    """
+async def deploy_software(
+    payload: DeployRequest,
+    current_user=Depends(get_current_user),
+):
+    """Dispatch a software action to one or more agents."""
     valid_actions = {"install", "upgrade", "uninstall", "install_from_repo"}
     if payload.action not in valid_actions:
-        return {"success": False, "error": f"Invalid action '{payload.action}'. Must be one of: {valid_actions}"}
+        raise HTTPException(status_code=400, detail=f"Invalid action. Must be one of: {sorted(valid_actions)}")
 
     if not payload.agentIds:
-        return {"success": False, "error": "No agents specified."}
-
-    if not payload.packageId:
-        return {"success": False, "error": "packageId is required."}
+        raise HTTPException(status_code=400, detail="No agents specified")
 
     try:
         from app import get_database
-        from datetime import datetime, timezone
-        import uuid
         db = get_database()
+        caller_tenant = getattr(current_user, "tenant_id", None)
+        is_super_admin = getattr(current_user, "role", "") in _SUPER_ADMIN_ROLES
 
         task_ids = []
         for agent_id in payload.agentIds:
             tenant_id = "global"
             agent = await db.agents.find_one({"id": agent_id})
             if agent:
-                tenant_id = agent.get("tenantId", "global")
+                agent_tenant = agent.get("tenantId", "global")
+                # Non-super-admins may only deploy to their own tenant's agents
+                if not is_super_admin and caller_tenant and agent_tenant != caller_tenant:
+                    continue
+                tenant_id = agent_tenant
 
             instruction_type = f"{payload.action}_{payload.packageId}"
-            agent_payload = {
-                "package": payload.packageId,
-            }
+            agent_payload: dict = {"package": payload.packageId}
 
             if payload.action == "install":
                 task_description = f"install_software: {payload.packageId}"
@@ -131,142 +146,162 @@ async def deploy_software(payload: DeployRequest):
             elif payload.action == "uninstall":
                 task_description = f"uninstall_software: {payload.packageId}"
             elif payload.action == "install_from_repo":
-                # Check for the local package
-                repo_pkg = await db.local_repo.find_one({
-                    "tenantId": tenant_id, "filename": payload.packageId
-                })
-                # If found, set download url. Ensure the type matches our agent handler 
                 task_description = f"install_software: {payload.packageId}"
+                repo_pkg = await db.local_repo.find_one(
+                    {"tenantId": tenant_id, "filename": payload.packageId}
+                ) or await db.local_repo.find_one(
+                    {"tenantId": "global", "filename": payload.packageId}
+                )
                 if repo_pkg:
+                    effective_tid = repo_pkg.get("tenantId", tenant_id)
                     agent_payload["package"] = repo_pkg["pkg_name"]
                     agent_payload["pkg_type"] = repo_pkg["pkg_type"]
-                    agent_payload["download_url"] = f"/api/repo/download/{repo_pkg['filename']}?tenantId={tenant_id}"
+                    agent_payload["download_url"] = f"/api/repo/download/{repo_pkg['filename']}?tenantId={effective_tid}"
+                else:
+                    disk_path = UPLOAD_DIR / _safe_filename(payload.packageId)
+                    if disk_path.exists():
+                        agent_payload["download_url"] = f"/api/software/download/{payload.packageId}"
                 if payload.installArgs:
                     agent_payload["install_args"] = payload.installArgs
             else:
                 task_description = f"{payload.action}: {payload.packageId}"
-                
+
+            task_id = str(uuid.uuid4().hex)
             instruction = {
+                "id": task_id,
                 "agent_id": agent_id,
+                "tenantId": tenant_id,
                 "instruction": task_description,
                 "status": "pending",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "type": instruction_type,
-                "payload": agent_payload
+                "payload": agent_payload,
             }
-            res = await db.agent_instructions.insert_one(instruction)
-            task_ids.append(str(res.inserted_id))
+            await db.agent_instructions.insert_one(instruction)
+            task_ids.append(task_id)
 
         return {
             "success": True,
-            "message": f"{payload.action.capitalize()} dispatched to {len(payload.agentIds)} agent(s). MSI support enabled.",
-            "taskIds": [str(tid) for tid in task_ids]  # Ensure string format for frontend
+            "message": f"{payload.action.capitalize()} dispatched to {len(task_ids)} agent(s).",
+            "taskIds": task_ids,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[deploy_software] Error: {e}")
-        return {"success": False, "error": str(e)}
+        logger.error("deploy_software error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-import asyncio
 
 @router.post("/updates/deploy")
-async def deploy_software_updates(data: dict):
-    """
-    Schedule deployment of software updates across multiple assets.
-    Payload: {
-        "softwareUpdates": [{"name": "...", "currentVersion": "...", "latestVersion": "...", "assetId": "..."}],
-        "deploymentType": "Immediate"|"Scheduled",
-        "scheduleTime": "ISO datetime" (optional)
-    }
-    """
+async def deploy_software_updates(
+    data: dict,
+    current_user=Depends(get_current_user),
+):
+    """Schedule deployment of software updates across multiple assets."""
     try:
         from app import get_database
-        
+        from tenant_context import set_tenant_id, get_tenant_id
+
         software_updates = data.get("softwareUpdates", [])
         deployment_type = data.get("deploymentType", "Immediate")
         schedule_time = data.get("scheduleTime")
-        
+
         if not software_updates:
-            return {"success": False, "error": "softwareUpdates array is required"}
-        
+            raise HTTPException(status_code=400, detail="softwareUpdates array is required")
+
         db = get_database()
-        job_id = f"sw-update-{uuid.uuid4().hex[:12]}"
-        current_time = datetime.now(timezone.utc).isoformat()
-        
-        # Create deployment job
-        job = {
-            "id": job_id,
-            "scheduledAt": schedule_time or current_time,
-            "startedAt": current_time if deployment_type == "Immediate" else None,
-            "completedAt": None,
-            "softwareUpdates": software_updates,
-            "targetAssetIds": list(set([sw["assetId"] for sw in software_updates])),
-            "status": "In Progress" if deployment_type == "Immediate" else "Scheduled",
-            "progress": 0,
-            "statusLog": [{
-                "timestamp": current_time,
-                "message": f"Deployment job created ({len(software_updates)} update(s) targeting {len(set([sw['assetId'] for sw in software_updates]))} asset(s))"
-            }],
-            "deploymentType": deployment_type,
-            "createdAt": current_time
-        }
-        
-        await db.software_deployment_jobs.insert_one(job)
-        
-        # If immediate, start processing
-        if deployment_type == "Immediate":
-            # Queue instructions for agents
-            for update in software_updates:
-                asset_id = update["assetId"]
-                software_name = update["name"]
-                target_version = update["latestVersion"]
-                
-                # Find corresponding agent
-                agent = await db.agents.find_one({"assetId": asset_id})
-                if agent:
-                    agent_id = agent["id"]
-                    
-                    instruction = {
-                        "agent_id": agent_id,
-                        "instruction": f"upgrade_software: {software_name}",
-                        "status": "pending",
-                        "created_at": current_time,
-                        "type": f"upgrade_software: {software_name}",
-                        "payload": {
-                            "package": software_name,
-                            "target_version": target_version
-                        },
-                        "deployment_job_id": job_id
-                    }
-                    await db.agent_instructions.insert_one(instruction)
-            
-            # Track queued instructions so simulate_software_deployment knows real agents are running
-            instructions_queued = sum(1 for u in software_updates
-                                      if await db.agents.find_one({"assetId": u["assetId"]}))
-            await db.software_deployment_jobs.update_one(
-                {"id": job_id}, {"$set": {"instructionsQueued": instructions_queued}}
-            )
-            asyncio.create_task(simulate_software_deployment(job_id, len(software_updates)))
-        
-        # Remove MongoDB _id
-        if "_id" in job:
-            del job["_id"]
-            
-        return {
-            "success": True,
-            "job": job,
-            "message": f"Software update deployment {deployment_type.lower()} started"
-        }
-        
+        old_tenant_id = get_tenant_id()
+
+        set_tenant_id("platform-admin")
+        try:
+            tenant_id = old_tenant_id
+            if not tenant_id or tenant_id == "platform-admin":
+                if software_updates:
+                    first_asset_id = software_updates[0].get("assetId")
+                    if first_asset_id:
+                        asset = await db.assets.find_one({"id": first_asset_id})
+                        tenant_id = asset.get("tenantId") if asset else None
+            effective_tenant_id = tenant_id if tenant_id else "global"
+        finally:
+            set_tenant_id(old_tenant_id)
+
+        if effective_tenant_id and effective_tenant_id != "global":
+            set_tenant_id(effective_tenant_id)
+
+        try:
+            job_id = f"sw-update-{uuid.uuid4().hex[:12]}"
+            current_time = datetime.now(timezone.utc).isoformat()
+
+            job = {
+                "id": job_id,
+                "tenantId": effective_tenant_id,
+                "scheduledAt": schedule_time or current_time,
+                "startedAt": current_time if deployment_type == "Immediate" else None,
+                "completedAt": None,
+                "softwareUpdates": software_updates,
+                "targetAssetIds": list(set([sw["assetId"] for sw in software_updates])),
+                "status": "In Progress" if deployment_type == "Immediate" else "Scheduled",
+                "progress": 0,
+                "statusLog": [{
+                    "timestamp": current_time,
+                    "message": f"Deployment job created ({len(software_updates)} update(s) targeting {len(set([sw['assetId'] for sw in software_updates]))} asset(s))",
+                }],
+                "deploymentType": deployment_type,
+                "createdAt": current_time,
+            }
+
+            await db.software_deployment_jobs.insert_one(job)
+
+            if deployment_type == "Immediate":
+                for update in software_updates:
+                    asset_id = update["assetId"]
+                    software_name = update["name"]
+                    target_version = update["latestVersion"]
+                    agent = await db.agents.find_one({"assetId": asset_id})
+                    if agent:
+                        instruction = {
+                            "agent_id": agent["id"],
+                            "tenantId": effective_tenant_id,
+                            "instruction": f"upgrade_software: {software_name}",
+                            "status": "pending",
+                            "created_at": current_time,
+                            "type": f"upgrade_software: {software_name}",
+                            "payload": {"package": software_name, "target_version": target_version},
+                            "deployment_job_id": job_id,
+                        }
+                        await db.agent_instructions.insert_one(instruction)
+
+                instructions_queued = 0
+                for u in software_updates:
+                    if await db.agents.find_one({"assetId": u["assetId"]}):
+                        instructions_queued += 1
+
+                await db.software_deployment_jobs.update_one(
+                    {"id": job_id}, {"$set": {"instructionsQueued": instructions_queued}}
+                )
+                asyncio.create_task(simulate_software_deployment(job_id, len(software_updates)))
+
+            if "_id" in job:
+                del job["_id"]
+
+            return {
+                "success": True,
+                "job": job,
+                "message": f"Software update deployment {deployment_type.lower()} started",
+            }
+        finally:
+            set_tenant_id(old_tenant_id)
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error deploying software updates: {e}")
-        return {"success": False, "error": str(e)}
+        logger.error("deploy_software_updates error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 async def simulate_software_deployment(job_id: str, update_count: int):
-    """
-    Animates deployment progress while real agents execute updates.
-    Only auto-completes when no real agent instructions were dispatched.
-    """
+    """Animate deployment progress while real agents execute updates."""
     try:
         db = get_database()
         job = await db.software_deployment_jobs.find_one({"id": job_id}, {"instructionsQueued": 1})
@@ -275,11 +310,9 @@ async def simulate_software_deployment(job_id: str, update_count: int):
 
         for i in range(1, total + 1):
             await asyncio.sleep(2)
-
             current = await db.software_deployment_jobs.find_one({"id": job_id}, {"status": 1})
             if current and current.get("status") in ("Completed", "Failed", "Partially Completed"):
                 return
-
             progress = int((i / total) * 99)
             await db.software_deployment_jobs.update_one(
                 {"id": job_id},
@@ -290,7 +323,7 @@ async def simulate_software_deployment(job_id: str, update_count: int):
                         "message": f"Waiting for agent: update {i}/{total}",
                         "level": "info",
                     }},
-                }
+                },
             )
 
         if not has_real_agents:
@@ -307,20 +340,61 @@ async def simulate_software_deployment(job_id: str, update_count: int):
                         "message": f"[Demo] {total} software updates complete (no agents registered)",
                         "level": "warn",
                     }},
-                }
+                },
             )
-
     except Exception as e:
-        print(f"Error in deployment progress tracker: {e}")
+        logger.error("simulate_software_deployment error: %s", e)
+
+
+def _get_database():
+    from app import get_database as _gd
+    return _gd()
+
 
 @router.get("/deployment-jobs")
-async def get_software_deployment_jobs():
-    """Get all software deployment jobs"""
+async def get_software_deployment_jobs(current_user=Depends(get_current_user)):
+    """Get software deployment jobs scoped to the caller's tenant."""
     try:
-        from app import get_database
-        db = get_database()
-        jobs = await db.software_deployment_jobs.find({}, {"_id": 0}).sort("createdAt", -1).limit(50).to_list(length=50)
+        db = _get_database()
+        role = getattr(current_user, "role", "")
+        query: dict = {}
+        if role not in _SUPER_ADMIN_ROLES:
+            tid = getattr(current_user, "tenant_id", None)
+            query["tenantId"] = tid
+        jobs = await db.software_deployment_jobs.find(query, {"_id": 0}).sort("createdAt", -1).limit(50).to_list(length=50)
         return jobs
     except Exception as e:
-        print(f"Error fetching deployment jobs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error fetching deployment jobs: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/tasks")
+async def get_software_tasks(current_user=Depends(get_current_user)):
+    """Return recent software deployment tasks scoped to the caller's tenant."""
+    try:
+        db = _get_database()
+        role = getattr(current_user, "role", "")
+        base_filter: dict = {
+            "instruction": {"$regex": "install_software|upgrade_software|uninstall_software", "$options": "i"}
+        }
+        if role not in _SUPER_ADMIN_ROLES:
+            tid = getattr(current_user, "tenant_id", None)
+            base_filter["tenantId"] = tid
+
+        instrs = await db.agent_instructions.find(
+            base_filter, {"_id": 0}
+        ).sort("created_at", -1).limit(100).to_list(length=100)
+
+        agent_ids = list({i.get("agent_id") for i in instrs if i.get("agent_id")})
+        agents_map: dict = {}
+        if agent_ids:
+            async for agent in db.agents.find({"id": {"$in": agent_ids}}, {"_id": 0, "id": 1, "hostname": 1}):
+                agents_map[agent["id"]] = agent.get("hostname", agent["id"])
+
+        for instr in instrs:
+            instr["hostname"] = agents_map.get(instr.get("agent_id"), instr.get("agent_id", "Unknown"))
+
+        return instrs
+    except Exception as e:
+        logger.error("Error fetching software tasks: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")

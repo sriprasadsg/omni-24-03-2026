@@ -19,7 +19,7 @@ async def verify_api():
         
     print(f"✅ Framework Found: {f.get('name')}")
     
-    compliance_docs = await db.asset_compliance.find({}).to_list(length=None)
+    compliance_docs = await db.asset_compliance.find({}).to_list(length=1000)
     
     evidence_by_control = {}
     for doc in compliance_docs:

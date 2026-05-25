@@ -6,12 +6,16 @@ Impact score is derived from asset criticality and open vulnerability count.
 Success probability is estimated from patch deployment history.
 """
 import asyncio
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import List
 from database import get_database
+from authentication_service import get_current_user
+from auth_types import TokenData
 
 router = APIRouter(prefix="/api/digital_twin", tags=["Digital Twin"])
+
+_DT_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 
 class SimulationRequest(BaseModel):
@@ -35,9 +39,12 @@ _SUCCESS_DEFAULTS   = {"high": 88.0, "critical": 85.0, "medium": 93.0, "low": 97
 
 
 @router.post("/simulate")
-async def run_simulation(request: SimulationRequest):
+async def run_simulation(request: SimulationRequest, current_user: TokenData = Depends(get_current_user)):
     """Simulates a network change on the Digital Twin using real asset data."""
     await asyncio.sleep(0)  # yield to event loop
+
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
 
     # ── 1. Security policy violation fast path ────────────────────────────────
     if request.action_type == "firewall_rule" and "allow all" in request.details.lower():
@@ -51,20 +58,20 @@ async def run_simulation(request: SimulationRequest):
 
     db = get_database()
 
-    # ── 2. Look up target asset ───────────────────────────────────────────────
-    asset = await db.assets.find_one(
-        {"$or": [{"id": request.target_id}, {"hostname": request.target_id}]},
-        {"_id": 0},
-    )
+    # ── 2. Look up target asset (tenant-scoped) ───────────────────────────────
+    asset_filter: dict = {"$or": [{"id": request.target_id}, {"hostname": request.target_id}]}
+    if user_role not in _DT_SUPER_ROLES and tenant_id:
+        asset_filter["tenantId"] = tenant_id
+    asset = await db.assets.find_one(asset_filter, {"_id": 0})
 
     criticality = (asset.get("criticality") or "medium").lower() if asset else "medium"
     asset_id = asset.get("id") if asset else request.target_id
 
-    # ── 3. Open vulnerability count ───────────────────────────────────────────
-    vuln_count = await db.vulnerabilities.count_documents({
-        "assetId": asset_id,
-        "status": {"$in": ["open", "Open"]},
-    })
+    # ── 3. Open vulnerability count (tenant-scoped) ───────────────────────────
+    vuln_filter: dict = {"assetId": asset_id, "status": {"$in": ["open", "Open"]}}
+    if user_role not in _DT_SUPER_ROLES and tenant_id:
+        vuln_filter["tenantId"] = tenant_id
+    vuln_count = await db.vulnerabilities.count_documents(vuln_filter)
 
     # ── 4. Impact score ───────────────────────────────────────────────────────
     base_impact      = _CRITICALITY_IMPACT.get(criticality, 35)
@@ -111,14 +118,18 @@ async def run_simulation(request: SimulationRequest):
 
 
 @router.get("/state")
-async def get_twin_state():
+async def get_twin_state(current_user: TokenData = Depends(get_current_user)):
     """Returns the current sync status of the digital twin from real asset data."""
     from datetime import datetime, timezone
     db = get_database()
 
-    assets_modeled = await db.assets.count_documents({})
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+    tenant_filter: dict = {} if user_role in _DT_SUPER_ROLES else ({"tenantId": tenant_id} if tenant_id else {"tenantId": None})
 
-    pipeline = [{"$group": {"_id": "$subnet"}}, {"$count": "total"}]
+    assets_modeled = await db.assets.count_documents(tenant_filter)
+
+    pipeline = [{"$match": tenant_filter}, {"$group": {"_id": "$subnet"}}, {"$count": "total"}]
     seg_result = await db.assets.aggregate(pipeline).to_list(length=1)
     segments = seg_result[0]["total"] if seg_result else max(1, assets_modeled // 50)
 

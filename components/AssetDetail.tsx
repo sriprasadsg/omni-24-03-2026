@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Asset, Patch, Vulnerability, VulnerabilitySeverity, VulnerabilityStatus } from '../types';
 // FIX: Replaced non-existent BoxIcon with BotIcon and added BoxIcon to icons.tsx.
 import { CpuIcon, MemoryStickIcon, HardDriveIcon, BoxIcon, ShieldAlertIcon, FileShieldIcon, CheckIcon, AlertTriangleIcon, CogIcon, BarChart3Icon, XCircleIcon, TerminalIcon, ShieldLockIcon, UsbIcon } from './icons';
@@ -8,7 +8,7 @@ import { MetricsChartsTab } from './MetricsChartsTab';
 import { RemoteTerminal } from './RemoteTerminal';
 import { FimAlertsPanel } from './FimAlertsPanel';
 import { RemoteDesktop } from './RemoteDesktop';
-import { startRemoteSession, fetchAgents, linkAssetToAgent } from '../services/apiService';
+import { startRemoteSession, fetchAgents, linkAssetToAgent, authFetch, fetchAssetById } from '../services/apiService';
 import { MonitorIcon } from './icons';
 
 interface AssetDetailProps {
@@ -47,6 +47,14 @@ const vulnerabilityStatusClasses: Record<VulnerabilityStatus, string> = {
 export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunScan, onDelete }) => {
     const [activeTab, setActiveTab] = useState<DetailTab>('overview');
     const [isScanning, setIsScanning] = useState(false);
+    const [enrichedAsset, setEnrichedAsset] = useState<Asset | null>(null);
+
+    useEffect(() => {
+        if (!asset?.id) return;
+        fetchAssetById(asset.id).then(data => { if (data) setEnrichedAsset(data); });
+    }, [asset?.id]);
+
+    const displayAsset = enrichedAsset || asset;
 
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
     const [desktopSessionId, setDesktopSessionId] = useState<string | null>(null);
@@ -117,7 +125,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
             return;
         }
         try {
-            const response = await fetch('/api/agent/deploy', {
+            const response = await authFetch('/api/agent/deploy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -144,7 +152,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
         }
 
         try {
-            const response = await fetch(`/api/vulnerabilities/${vuln.id}/apply-patch`, {
+            const response = await authFetch(`/api/vulnerabilities/${vuln.id}/apply-patch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -226,13 +234,13 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                 {activeTab === 'overview' && (
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <DetailCard icon={<CpuIcon size={20} />} label="CPU Model" value={asset.cpuModel} />
-                            <DetailCard icon={<MemoryStickIcon size={20} />} label="RAM" value={asset.ram} />
+                            <DetailCard icon={<CpuIcon size={20} />} label="CPU Model" value={displayAsset.cpuModel} />
+                            <DetailCard icon={<MemoryStickIcon size={20} />} label="RAM" value={displayAsset.ram} />
                         </div>
                         <div>
                             <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Storage Devices</h4>
                             <div className="space-y-3">
-                                {(asset.disks || []).map(disk => (
+                                {(displayAsset.disks || []).map(disk => (
                                     <div key={disk.device}>
                                         <div className="flex justify-between items-center mb-1 text-sm">
                                             <span className="font-mono text-xs text-gray-800 dark:text-gray-200 flex items-center">
@@ -257,47 +265,83 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                         <table className="w-full text-sm text-left">
                             <tbody>
                                 <tr className="border-b dark:border-gray-700">
-                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Edition</td>
-                                    <td className="py-2 text-gray-800 dark:text-gray-200">{asset.osEdition || asset.osName}</td>
+                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">OS</td>
+                                    <td className="py-2 text-gray-800 dark:text-gray-200">
+                                        {(displayAsset as any).osFullName || displayAsset.osEdition
+                                            ? `${(displayAsset as any).osFullName || displayAsset.osEdition}`
+                                            : displayAsset.osName || '—'}
+                                    </td>
                                 </tr>
                                 <tr className="border-b dark:border-gray-700">
                                     <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Version</td>
-                                    <td className="py-2 text-gray-800 dark:text-gray-200">{asset.osDisplayVersion || asset.osVersion}</td>
+                                    <td className="py-2 text-gray-800 dark:text-gray-200">
+                                        {displayAsset.osDisplayVersion || displayAsset.osVersion || '—'}
+                                    </td>
+                                </tr>
+                                <tr className="border-b dark:border-gray-700">
+                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">OS Build</td>
+                                    <td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">
+                                        {displayAsset.osBuild || displayAsset.kernel || '—'}
+                                    </td>
                                 </tr>
                                 <tr className="border-b dark:border-gray-700">
                                     <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Installed on</td>
-                                    <td className="py-2 text-gray-800 dark:text-gray-200">{asset.osInstalledOn || 'Unknown'}</td>
+                                    <td className="py-2 text-gray-800 dark:text-gray-200">{displayAsset.osInstalledOn || '—'}</td>
                                 </tr>
-                                <tr className="border-b dark:border-gray-700">
-                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">OS build</td>
-                                    <td className="py-2 text-gray-800 dark:text-gray-200">{asset.osBuild || asset.kernel}</td>
-                                </tr>
-                                <tr className="border-b dark:border-gray-700">
-                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Serial number</td>
-                                    <td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">{asset.serialNumber}</td>
-                                </tr>
-                                {asset.osExperience && (
+                                {displayAsset.osExperience && (
                                     <tr className="border-b dark:border-gray-700">
                                         <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Experience</td>
-                                        <td className="py-2 text-gray-800 dark:text-gray-200">{asset.osExperience}</td>
+                                        <td className="py-2 text-gray-800 dark:text-gray-200">{displayAsset.osExperience}</td>
                                     </tr>
                                 )}
-                                <tr className="border-b dark:border-gray-700"><td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Kernel</td><td className="py-2 text-gray-800 dark:text-gray-200">{asset.kernel}</td></tr>
-                                <tr className="border-b dark:border-gray-700"><td className="py-2 pr-2 text-gray-500 dark:text-gray-400">MAC Address</td><td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">{asset.macAddress}</td></tr>
-                                <tr><td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Last Scanned</td><td className="py-2 text-gray-800 dark:text-gray-200">{new Date(asset.lastScanned).toLocaleString()}</td></tr>
+                                <tr className="border-b dark:border-gray-700">
+                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Kernel</td>
+                                    <td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">
+                                        {displayAsset.kernel || displayAsset.osBuild || '—'}
+                                    </td>
+                                </tr>
+                                <tr className="border-b dark:border-gray-700">
+                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Serial Number</td>
+                                    <td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">
+                                        {displayAsset.serialNumber && displayAsset.serialNumber !== 'Not Available' ? displayAsset.serialNumber : '—'}
+                                    </td>
+                                </tr>
+                                <tr className="border-b dark:border-gray-700">
+                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">MAC Address</td>
+                                    <td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">
+                                        {displayAsset.macAddress && displayAsset.macAddress !== '00:00:00:00:00:00' ? displayAsset.macAddress : '—'}
+                                    </td>
+                                </tr>
+                                <tr className="border-b dark:border-gray-700">
+                                    <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">IP Address</td>
+                                    <td className="py-2 font-mono text-xs text-gray-800 dark:text-gray-200">{displayAsset.ipAddress || '—'}</td>
+                                </tr>
+                                <tr><td className="py-2 pr-2 text-gray-500 dark:text-gray-400">Last Scanned</td><td className="py-2 text-gray-800 dark:text-gray-200">{new Date(displayAsset.lastScanned).toLocaleString()}</td></tr>
                                 <tr className="border-t dark:border-gray-700">
                                     <td className="py-3 pr-2 font-medium text-gray-700 dark:text-gray-300">Linked Agent</td>
                                     <td className="py-3">
                                         <div className="flex flex-col space-y-2">
-                                            <div className="flex items-center space-x-2">
-                                                <span className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                    {asset.agentStatus ? `Agent Status: ${asset.agentStatus}` : 'No Agent Linked'}
-                                                </span>
+                                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                                {displayAsset.agentStatus ? (
+                                                    <>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${displayAsset.agentStatus === 'Online' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'}`}>
+                                                            {displayAsset.agentStatus}
+                                                        </span>
+                                                        {(displayAsset as any).agentId && (
+                                                            <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{(displayAsset as any).agentId}</span>
+                                                        )}
+                                                        {displayAsset.agentVersion && (
+                                                            <span className="text-xs text-gray-400">v{displayAsset.agentVersion}</span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-sm text-gray-500 dark:text-gray-400">No Agent Linked</span>
+                                                )}
                                                 <button
                                                     onClick={handleOpenLinkModal}
                                                     className="text-xs px-2 py-1 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded dark:text-primary-400 dark:bg-gray-700 dark:hover:bg-gray-600 font-medium"
                                                 >
-                                                    {asset.agentStatus ? 'Change Link' : 'Link Agent'}
+                                                    {displayAsset.agentStatus ? 'Change Link' : 'Link Agent'}
                                                 </button>
                                             </div>
                                             {isLinkingAgent && (
@@ -397,7 +441,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                                                                 onClick={async () => {
                                                                     if (confirm(`Mark ${vuln.cveId || vuln.id} as resolved?\n\nThis will update the status to 'Patched'.`)) {
                                                                         try {
-                                                                            const response = await fetch(`/api/vulnerabilities/${vuln.id}/resolve`, {
+                                                                            const response = await authFetch(`/api/vulnerabilities/${vuln.id}/resolve`, {
                                                                                 method: 'POST',
                                                                                 headers: { 'Content-Type': 'application/json' },
                                                                                 body: JSON.stringify({ status: 'Patched' })

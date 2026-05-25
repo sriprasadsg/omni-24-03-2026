@@ -1,32 +1,50 @@
 from fastapi import APIRouter, HTTPException, Depends
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from models import User
 import uuid
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/remote", tags=["Remote Access"])
 
+_REMOTE_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+def _remote_tenant(current_user) -> dict:
+    role = current_user.get("role", "") if isinstance(current_user, dict) else getattr(current_user, "role", "")
+    if role in _REMOTE_SUPER_ROLES:
+        return {}
+    tid = (current_user.get("tenantId") or current_user.get("tenant_id")) if isinstance(current_user, dict) \
+        else (getattr(current_user, "tenantId", None) or getattr(current_user, "tenant_id", None))
+    return {"tenantId": tid} if tid else {}
+
+
 @router.get("")
 @router.get("/")
-async def list_remote_sessions(tenant_id: str = "default", limit: int = 50):
-    """List recent remote access sessions."""
+async def list_remote_sessions(
+    limit: int = 50,
+    current_user=Depends(require_permission("view:remote_access"))
+):
+    """List recent remote access sessions for the caller's tenant."""
     db = get_database()
     try:
         sessions = await db.remote_sessions.find(
-            {}, {"_id": 0}
+            _remote_tenant(current_user), {"_id": 0}
         ).sort("created_at", -1).limit(limit).to_list(length=limit)
     except Exception:
         sessions = []
     return sessions
 
 @router.get("/sessions")
-async def get_active_sessions():
-    """Get active remote sessions."""
+async def get_active_sessions(
+    current_user=Depends(require_permission("view:remote_access"))
+):
+    """Get active remote sessions for the caller's tenant."""
     db = get_database()
     try:
         sessions = await db.remote_sessions.find(
-            {"status": "active"}, {"_id": 0}
+            {"status": "active", **_remote_tenant(current_user)}, {"_id": 0}
         ).sort("created_at", -1).limit(20).to_list(length=20)
     except Exception:
         sessions = []

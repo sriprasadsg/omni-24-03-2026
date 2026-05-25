@@ -12,10 +12,10 @@ from database import get_database
 router = APIRouter(prefix="/api/cloud/remediation", tags=["Cloud Remediation"])
 
 
-def _tenant_id(user) -> str:
+def _tenant_id(user):
     if isinstance(user, dict):
-        return user.get("tenant_id") or user.get("tenantId", "")
-    return getattr(user, "tenant_id", "") or ""
+        return user.get("tenant_id") or user.get("tenantId") or None
+    return getattr(user, "tenant_id", None) or None
 
 
 @router.get("/capabilities")

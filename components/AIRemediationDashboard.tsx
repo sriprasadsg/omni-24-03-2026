@@ -137,6 +137,8 @@ export function AIRemediationDashboard() {
   const [risks, setRisks] = useState<RiskOption[]>([]);
   const [selectedSystemId, setSelectedSystemId] = useState('');
   const [selectedRiskId, setSelectedRiskId] = useState('');
+  const [loadingSystems, setLoadingSystems] = useState(true);
+  const [loadingRisks, setLoadingRisks] = useState(false);
   const [runState, setRunState] = useState<RunState>({
     status: 'idle',
     steps: [],
@@ -145,27 +147,33 @@ export function AIRemediationDashboard() {
   });
 
   useEffect(() => {
+    setLoadingSystems(true);
     authFetch(`${API_BASE}/ai-systems`)
       .then(r => r.ok ? r.json() : [])
       .then((data: any[]) => {
-        const opts = data.map(s => ({ id: s.id, name: s.name, type: s.status || 'system' }));
+        const arr = Array.isArray(data) ? data : [];
+        const opts = arr.map(s => ({ id: s.id, name: s.name || s.id, type: s.type || s.status || 'system' }));
         setSystems(opts);
         if (opts.length > 0) setSelectedSystemId(opts[0].id);
       })
-      .catch(() => {});
+      .catch(() => setSystems([]))
+      .finally(() => setLoadingSystems(false));
   }, []);
 
   useEffect(() => {
     if (!selectedSystemId) return;
+    setLoadingRisks(true);
+    setRisks([]);
     authFetch(`${API_BASE}/ai-systems/${selectedSystemId}/risks`)
       .then(r => r.ok ? r.json() : [])
       .then((data: any[]) => {
-        if (!Array.isArray(data)) return;
-        const opts = data.map(r => ({ id: r.id, title: r.title, severity: (r.severity || 'medium').toLowerCase() as RiskOption['severity'] }));
+        const arr = Array.isArray(data) ? data : [];
+        const opts = arr.map(r => ({ id: r.id, title: r.title || r.name || 'Unnamed Risk', severity: (r.severity || 'medium').toLowerCase() as RiskOption['severity'] }));
         setRisks(opts);
         if (opts.length > 0) setSelectedRiskId(opts[0].id);
       })
-      .catch(() => {});
+      .catch(() => setRisks([]))
+      .finally(() => setLoadingRisks(false));
   }, [selectedSystemId]);
 
   const selectedSystem = systems.find(s => s.id === selectedSystemId);
@@ -261,7 +269,8 @@ export function AIRemediationDashboard() {
               <div style={{ position: 'relative' }}>
                 <select value={selectedSystemId} onChange={e => setSelectedSystemId(e.target.value)}
                   style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', color: '#f1f5f9', borderRadius: 8, padding: '10px 36px 10px 12px', appearance: 'none', fontSize: '0.88em', cursor: 'pointer' }}>
-                  {systems.length === 0 && <option value="">Loading systems…</option>}
+                  {loadingSystems && <option value="">Loading systems…</option>}
+                  {!loadingSystems && systems.length === 0 && <option value="">No AI systems found</option>}
                   {systems.map(s => <option key={s.id} value={s.id} style={{ background: '#1e293b' }}>{s.name}</option>)}
                 </select>
                 <ChevronDown size={14} color="#94a3b8" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
@@ -273,7 +282,8 @@ export function AIRemediationDashboard() {
               <div style={{ position: 'relative' }}>
                 <select value={selectedRiskId} onChange={e => setSelectedRiskId(e.target.value)}
                   style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', color: '#f1f5f9', borderRadius: 8, padding: '10px 36px 10px 12px', appearance: 'none', fontSize: '0.88em', cursor: 'pointer' }}>
-                  {risks.length === 0 && <option value="">No risks found</option>}
+                  {loadingRisks && <option value="">Loading risks…</option>}
+                  {!loadingRisks && risks.length === 0 && <option value="">No risks found for this system</option>}
                   {risks.map(r => <option key={r.id} value={r.id} style={{ background: '#1e293b' }}>{r.title}</option>)}
                 </select>
                 <ChevronDown size={14} color="#94a3b8" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />

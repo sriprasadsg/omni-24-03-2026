@@ -38,24 +38,22 @@ class SecurityService:
     def generate_patch_checksum(self, patch_file_path: str) -> Dict[str, str]:
         """
         Generate checksums for a patch file
-        Returns dict with SHA-256, SHA-512, and MD5 (for legacy)
+        Returns dict with SHA-256 and SHA-512
         """
         checksums = {
             "sha256": hashlib.sha256(),
             "sha512": hashlib.sha512(),
-            "md5": hashlib.md5()
         }
-        
+
         try:
             with open(patch_file_path, 'rb') as f:
                 while chunk := f.read(8192):
                     for hash_obj in checksums.values():
                         hash_obj.update(chunk)
-            
+
             return {
                 "sha256": checksums["sha256"].hexdigest(),
                 "sha512": checksums["sha512"].hexdigest(),
-                "md5": checksums["md5"].hexdigest(),
                 "algorithm": "SHA-256 (primary)",
                 "generated_at": datetime.now(timezone.utc).isoformat()
             }
@@ -83,7 +81,7 @@ class SecurityService:
         verified = []
         failed = []
         
-        for algo in ["sha256", "sha512", "md5"]:
+        for algo in ["sha256", "sha512"]:
             if algo in expected_checksums:
                 if hmac.compare_digest(calculated[algo], expected_checksums[algo]):
                     verified.append(algo.upper())

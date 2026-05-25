@@ -7,8 +7,8 @@ import json
 def get_cpu_model():
     try:
         if platform.system() == "Windows":
-            cmd = 'powershell "Get-WmiObject -Class Win32_Processor | Select-Object -ExpandProperty Name"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            ps_cmd = "Get-WmiObject -Class Win32_Processor | Select-Object -ExpandProperty Name"
+            result = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd], shell=False, timeout=10).decode(errors='ignore')
             return result.strip()
     except Exception as e:
         return f"Error: {e}"
@@ -17,8 +17,8 @@ def get_cpu_model():
 def get_os_version_details():
     try:
         if platform.system() == "Windows":
-            cmd = 'powershell "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Version"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            ps_cmd = "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Version"
+            result = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd], shell=False, timeout=10).decode(errors='ignore')
             return result.strip()
     except Exception as e:
         return f"Error: {e}"
@@ -27,8 +27,8 @@ def get_os_version_details():
 def get_os_caption():
     try:
         if platform.system() == "Windows":
-            cmd = 'powershell "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Caption"'
-            result = subprocess.check_output(cmd, shell=True, timeout=10).decode(errors='ignore')
+            ps_cmd = "Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Caption"
+            result = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd], shell=False, timeout=10).decode(errors='ignore')
             return result.strip()
     except Exception as e:
         return f"Error: {e}"

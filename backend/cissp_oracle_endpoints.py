@@ -11,11 +11,15 @@ Endpoints:
   GET  /api/cissp/oracle/knowledge   — Get CISSP knowledge reference cards
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+import logging
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 from local_ip import ollama_default_url
+from authentication_service import get_current_user
 import uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cissp", tags=["CISSP Oracle"])
 
@@ -130,7 +134,7 @@ Current context:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/oracle/domains")
-async def get_cissp_domains():
+async def get_cissp_domains(current_user=Depends(get_current_user)):
     """Return all 8 CISSP domains with descriptions, key concepts, and agent check mappings."""
     return {
         "success": True,
@@ -141,7 +145,7 @@ async def get_cissp_domains():
 
 
 @router.get("/oracle/knowledge")
-async def get_cissp_knowledge():
+async def get_cissp_knowledge(current_user=Depends(get_current_user)):
     """Return CISSP knowledge reference cards for each domain."""
     knowledge_cards = []
     for domain in CISSP_DOMAINS:
@@ -186,7 +190,7 @@ def get_domain_quick_ref(domain_id: int) -> dict:
 
 
 @router.post("/oracle/chat")
-async def cissp_oracle_chat(request: Dict[str, Any]):
+async def cissp_oracle_chat(request: Dict[str, Any], current_user=Depends(get_current_user)):
     """
     CISSP Oracle AI chat endpoint.
     Accepts a user message and optionally recent compliance findings.
@@ -451,7 +455,7 @@ def _rule_based_cissp_response(message: str, findings: list, domain_filter: Opti
 
 
 @router.post("/oracle/assess")
-async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: BackgroundTasks):
+async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: BackgroundTasks, current_user=Depends(get_current_user)):
     """
     Trigger a CISSP 8-domain assessment for a specific hostname/asset.
     The assessment runs as a background task and results are stored in the DB.
@@ -464,9 +468,10 @@ async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: Ba
         agent = await db.agents.find_one({"status": "Online"}, {"hostname": 1})
         hostname = agent.get("hostname", "localhost") if agent else "localhost"
 
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
     assessment_id = f"cissp-{uuid.uuid4().hex[:8]}"
 
-    async def _run_and_store(assessment_id: str, hostname: str):
+    async def _run_and_store(assessment_id: str, hostname: str, tenant_id: str):
         """Run CISSP assessment and store results in DB."""
         try:
             import asyncio
@@ -485,6 +490,7 @@ async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: Ba
                 {"id": assessment_id},
                 {"$set": {
                     "id": assessment_id,
+                    "tenantId": tenant_id,
                     "hostname": hostname,
                     "status": "completed",
                     "result": result,
@@ -492,11 +498,11 @@ async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: Ba
                 }},
                 upsert=True
             )
-            print(f"[CISSP Oracle] Assessment {assessment_id} completed for {hostname}")
+            logger.info("CISSP Oracle: Assessment %s completed for %s", assessment_id, hostname)
         except Exception as e:
-            print(f"[CISSP Oracle] Assessment failed: {e}")
+            logger.error("CISSP Oracle: Assessment failed: %s", e)
 
-    background_tasks.add_task(_run_and_store, assessment_id, hostname)
+    background_tasks.add_task(_run_and_store, assessment_id, hostname, tenant_id)
 
     return {
         "success": True,
@@ -508,21 +514,23 @@ async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: Ba
 
 
 @router.get("/oracle/assess/{assessment_id}")
-async def get_cissp_assessment(assessment_id: str):
+async def get_cissp_assessment(assessment_id: str, current_user=Depends(get_current_user)):
     """Retrieve a stored CISSP assessment report by ID."""
     from database import get_database
     db = get_database()
-    record = await db.cissp_assessments.find_one({"id": assessment_id}, {"_id": 0})
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    record = await db.cissp_assessments.find_one({"id": assessment_id, "tenantId": tenant_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return {"success": True, "assessment": record}
 
 
 @router.get("/oracle/assessments")
-async def list_cissp_assessments():
+async def list_cissp_assessments(current_user=Depends(get_current_user)):
     """List all stored CISSP assessments."""
     from database import get_database
     db = get_database()
-    cursor = db.cissp_assessments.find({}, {"_id": 0, "result.domains": 0}).sort("completedAt", -1).limit(20)
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    cursor = db.cissp_assessments.find({"tenantId": tenant_id}, {"_id": 0, "result.domains": 0}).sort("completedAt", -1).limit(20)
     records = await cursor.to_list(length=20)
     return {"success": True, "assessments": records, "count": len(records)}

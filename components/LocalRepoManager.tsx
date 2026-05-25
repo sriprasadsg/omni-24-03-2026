@@ -50,7 +50,7 @@ export const LocalRepoManager: React.FC = () => {
         formData.append('file', file);
 
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const res = await fetch(`/api/repo/upload?pkg_type=${pkgType}`, {
                 method: 'POST',
                 headers: {

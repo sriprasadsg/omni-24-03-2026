@@ -56,7 +56,7 @@ async def create_schedule(
         schedule.pop("_id", None)
         return {"schedule": schedule, "message": f"Report scheduled — next delivery: {schedule['next_run'][:10]}"}
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail="Bad request")
 
 
 @router.put("/{schedule_id}")
@@ -88,4 +88,4 @@ async def run_now(schedule_id: str, current_user=Depends(get_current_user)):
         result = await svc.run_report_now(schedule_id, _tid(current_user), _role(current_user))
         return result
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail="Not found")

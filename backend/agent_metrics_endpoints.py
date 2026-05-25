@@ -43,9 +43,13 @@ async def record_agent_metrics(
     Called by the agent every 30 seconds.
     """
     db = get_database()
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
 
-    # Verify agent exists and belongs to this tenant
-    agent = await db.agents.find_one({"id": agent_id})
+    agent_filter: dict = {"id": agent_id}
+    if user_role not in _METRICS_SUPER_ROLES and tenant_id:
+        agent_filter["tenantId"] = tenant_id
+    agent = await db.agents.find_one(agent_filter)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -84,10 +88,13 @@ async def record_agent_metrics(
                 "resource": resource,
                 "value": value,
             },
-            agent.get("tenantId", "platform-admin")
+            agent.get("tenantId") or None
         )
 
     return {"success": True, "timestamp": timestamp}
+
+
+_METRICS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 
 @router.get("/{agent_id}/metrics/history")
@@ -101,10 +108,22 @@ async def get_agent_metrics_history(
     Returns time-series data suitable for charting.
     """
     db = get_database()
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+
+    agent_filter: dict = {"id": agent_id}
+    if user_role not in _METRICS_SUPER_ROLES and tenant_id:
+        agent_filter["tenantId"] = tenant_id
+    agent = await db.agents.find_one(agent_filter, {"_id": 0, "tenantId": 1})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    metrics_filter: dict = {"agent_id": agent_id, "timestamp": {"$gte": since}}
+    if user_role not in _METRICS_SUPER_ROLES and tenant_id:
+        metrics_filter["tenant_id"] = tenant_id
     metrics = await db.agent_metrics.find(
-        {"agent_id": agent_id, "timestamp": {"$gte": since}},
+        metrics_filter,
         {"_id": 0}
     ).sort("timestamp", 1).to_list(length=2880)  # max 48h at 1-min intervals
 
@@ -133,7 +152,12 @@ async def get_agent_metrics_history(
 async def get_current_agent_metrics(agent_id: str, current_user=Depends(get_current_user)):
     """Get the most recent metrics snapshot for an agent."""
     db = get_database()
-    agent = await db.agents.find_one({"id": agent_id}, {"_id": 0})
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+    agent_filter: dict = {"id": agent_id}
+    if user_role not in _METRICS_SUPER_ROLES and tenant_id:
+        agent_filter["tenantId"] = tenant_id
+    agent = await db.agents.find_one(agent_filter, {"_id": 0})
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -185,6 +209,8 @@ def collect_local_metrics() -> Dict[str, Any]:
             "top_processes": top_procs,
         }
     except ImportError:
-        return {"error": "psutil not installed. Run: pip install psutil"}
+        raise HTTPException(status_code=503, detail="System metrics unavailable")
     except Exception as e:
-        return {"error": str(e)}
+        import logging as _logging
+        _logging.getLogger(__name__).error("Agent metrics error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")

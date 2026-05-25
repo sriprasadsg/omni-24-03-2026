@@ -183,7 +183,7 @@ async def configure_agent_capabilities(
     # Validate capability IDs
     invalid_caps = [cap for cap in enabled_capabilities if cap not in CAPABILITY_DEFINITIONS]
     if invalid_caps:
-        raise HTTPException(status_code=400, detail=f"Invalid capabilities: {invalid_caps}")
+        raise HTTPException(status_code=400, detail="Invalid capability IDs provided")
     
     # Update agent configuration
     await db.agents.update_one(
@@ -195,7 +195,7 @@ async def configure_agent_capabilities(
         }}
     )
     
-    logger.info(f"Updated capabilities for agent {agent_id}: {len(enabled_capabilities)} enabled")
+    logger.info("Updated capabilities for agent %s: %s enabled", agent_id, len(enabled_capabilities))
     
     return {
         "success": True,
@@ -205,15 +205,20 @@ async def configure_agent_capabilities(
     }
 
 @router.get("/{agent_id}/capabilities/configuration")
-async def get_agent_configuration(agent_id: str):
-    """
-    Get agent capability configuration (called by agent at startup).
-    This endpoint is public (no auth) as agents use API keys.
-    """
+async def get_agent_configuration(
+    agent_id: str,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Get agent capability configuration (called by agent at startup using Bearer JWT)."""
     db = get_database()
-    
-    # Find agent by ID (no tenant check as this is agent-initiated)
-    agent = await db.agents.find_one({"id": agent_id})
+    _CAP_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    agent_filter: dict = {"id": agent_id}
+    if caller_role not in _CAP_SUPER_ROLES and caller_tenant:
+        agent_filter["tenantId"] = caller_tenant
+
+    agent = await db.agents.find_one(agent_filter)
     if not agent:
         # Return default configuration if agent not found
         return {
@@ -245,19 +250,23 @@ async def get_agent_configuration(agent_id: str):
 async def ingest_capability_data(
     agent_id: str,
     capability_id: str,
-    data: Dict[str, Any] = Body(...)
+    data: Dict[str, Any] = Body(...),
+    current_user: TokenData = Depends(get_current_user)
 ):
-    """
-    Ingest data from a specific capability.
-    This endpoint is public (no auth) as agents use API keys.
-    """
+    """Ingest data from a specific capability (agent uses Bearer JWT)."""
     db = get_database()
-    
-    # Verify agent exists
-    agent = await db.agents.find_one({"id": agent_id})
+
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    _CAP_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    agent_filter: dict = {"id": agent_id}
+    if caller_role not in _CAP_SUPER_ROLES and caller_tenant:
+        agent_filter["tenantId"] = caller_tenant
+
+    agent = await db.agents.find_one(agent_filter)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     tenant_id = agent.get("tenantId")
     
     # Store capability data
@@ -274,7 +283,7 @@ async def ingest_capability_data(
     # Insert into capability_data collection
     await db.capability_data.insert_one(capability_record)
     
-    logger.info(f"Ingested {capability_id} data from agent {agent_id}")
+    logger.info("Ingested %s data from agent %s", capability_id, agent_id)
     
     return {"success": True, "message": "Data ingested successfully"}
 

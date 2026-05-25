@@ -2,6 +2,7 @@ import os
 import secrets
 import shutil
 import tempfile
+import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request
@@ -10,6 +11,8 @@ from database import mongodb
 from authentication_service import get_current_user, get_optional_user
 import yaml
 from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agent", tags=["Agent Management"])
 
@@ -63,9 +66,9 @@ def cleanup_temp_dir(dir_path: str):
     """Background task to securely remove the temporary directory and zip archive."""
     try:
         shutil.rmtree(dir_path, ignore_errors=True)
-        print(f"[DEBUG] Cleaned up temporary directory: {dir_path}")
+        logger.debug("Cleaned up temporary directory: %s", dir_path)
     except Exception as e:
-        print(f"[ERROR] Failed to clean up temp dir {dir_path}: {e}")
+        logger.error("Failed to clean up temp dir %s: %s", dir_path, e)
 
 @router.get("/download/{tenant_id}")
 async def download_tenant_agent(
@@ -102,6 +105,19 @@ async def download_tenant_agent(
 
     # 2. Resolve the API Base URL to embed in config.yaml
     if api_url:
+        from urllib.parse import urlparse as _urlparse
+        from ipaddress import ip_address as _ip_address
+        _parsed = _urlparse(api_url)
+        _allowed_schemes = {"http", "https"}
+        if _parsed.scheme not in _allowed_schemes or not _parsed.netloc:
+            raise HTTPException(status_code=400, detail="Invalid api_url: must be an absolute http/https URL")
+        _hostname = _parsed.hostname or ""
+        try:
+            _addr = _ip_address(_hostname)
+            if _addr.is_private or _addr.is_loopback or _addr.is_link_local or _addr.is_reserved:
+                raise HTTPException(status_code=400, detail="Invalid api_url: private/internal addresses are not permitted")
+        except ValueError:
+            pass  # domain name — allowed
         resolved_url = api_url.rstrip("/")
     elif os.getenv("PLATFORM_URL"):
         resolved_url = os.getenv("PLATFORM_URL").rstrip("/")
@@ -112,7 +128,21 @@ async def download_tenant_agent(
         hostname = host.split(":")[0]
         resolved_url = f"http://{hostname}:5000"
 
-    print(f"[INFO] Generating agent zip for tenant {tenant_id} with api_base_url={resolved_url}")
+    logger.info("Generating agent zip for tenant %s with api_base_url=%s", tenant_id, resolved_url)
+    # Audit log
+    try:
+        _adb = get_database()
+        from datetime import datetime, timezone as _tz
+        await _adb.audit_logs.insert_one({
+            "action": "agent.downloaded",
+            "actor": user_role,
+            "target": tenant_id,
+            "tenant_id": user_tenant or tenant_id,
+            "ip": request.client.host if request.client else "unknown",
+            "timestamp": datetime.now(_tz.utc).isoformat(),
+        })
+    except Exception:
+        pass
 
     # 3. Fetch Tenant Data
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
@@ -183,11 +213,10 @@ Pre-configured agent package for tenant: **{tenant_name}**
    python agent.py
    ```
 
-The agent is pre-configured with:
-- **API Base URL**: `{resolved_url}`  
-- **Registration Key**: `{registration_key}`
+The agent is pre-configured and will automatically register with the platform on its first run.
+- **API Base URL**: `{resolved_url}`
 
-The agent will automatically register with the platform on its first run.
+⚠️  Keep this ZIP secure — it contains pre-configured credentials for your tenant.
 """
         readme_path = agent_dest_dir / "README.md"
         with open(readme_path, "w") as f:
@@ -226,9 +255,9 @@ The agent will automatically register with the platform on its first run.
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Failed to package agent zip: {str(e)}")
+        logger.error("Failed to package agent zip: %s", e)
         background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
-        raise HTTPException(status_code=500, detail=f"Internal server error packaging the agent: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Agent Command Dispatch ─────────────────────────────────────────────────────
@@ -246,7 +275,7 @@ async def agent_deploy_command(
     from database import get_database
     import uuid
 
-    agent_ids = payload.get("agentIds") or payload.get("agent_ids") or []
+    agent_ids = (payload.get("agentIds") or payload.get("agent_ids") or [])[:500]
     action = payload.get("action", "")
     package_id = payload.get("packageId") or payload.get("package_id", "")
 
@@ -254,10 +283,21 @@ async def agent_deploy_command(
         raise HTTPException(status_code=400, detail="agentIds and action are required")
 
     db = get_database()
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    _DEPLOY_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
     task_id = f"deploy-{uuid.uuid4().hex[:10]}"
     now = datetime.now(timezone.utc).isoformat()
     instructions = []
     for agent_id in agent_ids:
+        # Verify the agent belongs to the caller's tenant before dispatching
+        agent_filter: dict = {"id": agent_id}
+        if caller_role not in _DEPLOY_SUPER_ROLES and caller_tenant:
+            agent_filter["tenantId"] = caller_tenant
+        agent_doc = await db.agents.find_one(agent_filter, {"id": 1})
+        if not agent_doc:
+            continue  # skip agents not in caller's tenant
         instructions.append({
             "id": f"instr-{uuid.uuid4().hex[:10]}",
             "task_id": task_id,

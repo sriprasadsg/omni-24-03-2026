@@ -1,18 +1,46 @@
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends, Body, Query
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from database import get_database
 from notification_service import get_notification_service
+import logging
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
+logger = logging.getLogger(__name__)
 
 from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
 
+
+def _validate_webhook_url(url: str) -> bool:
+    """Reject private/loopback IPs and non-HTTP(S) schemes to block SSRF."""
+    if not url:
+        return False
+    try:
+        from urllib.parse import urlparse as _urlparse
+        from ipaddress import ip_address as _ip_address
+        parsed = _urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return False
+        hostname = parsed.hostname or ""
+        try:
+            ip = _ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass  # hostname is a domain name — allow
+        return True
+    except Exception:
+        return False
+
+
 @router.get("")
-async def get_notifications(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")), limit: int = 50):
+async def get_notifications(
+    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    limit: int = Query(50, ge=1, le=100),
+):
     """Get recent notifications for a tenant"""
     db = get_database()
     tenant_id = get_tenant_id()
@@ -66,6 +94,8 @@ async def delete_notification(notification_id: str, current_user: TokenData = De
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"success": True}
 
+_REDACTED_FIELDS = {"webhook_url", "auth_token", "routing_key", "account_sid", "secret"}
+
 @router.get("/config")
 async def get_notification_config(current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
     """Get notification configuration (Slack, etc.)"""
@@ -75,6 +105,11 @@ async def get_notification_config(current_user: TokenData = Depends(rbac_service
         {"tenantId": tenant_id},
         {"_id": 0}
     ).to_list(length=100)
+    # Redact sensitive credential fields — they are write-only
+    for cfg in configs:
+        for field in _REDACTED_FIELDS:
+            if field in cfg:
+                cfg[field] = "***"
     return configs
 
 @router.post("/config")
@@ -123,6 +158,8 @@ async def test_notification_channel(
             webhook_url = cfg.get("webhook_url", "")
             if not webhook_url:
                 return {"success": False, "message": "Slack webhook_url not configured"}
+            if not _validate_webhook_url(webhook_url):
+                return {"success": False, "message": "Invalid or unsafe Slack webhook URL"}
             async with _aiohttp.ClientSession() as s:
                 async with s.post(webhook_url, json={"text": test_msg},
                                   timeout=_aiohttp.ClientTimeout(total=8)) as r:
@@ -134,6 +171,8 @@ async def test_notification_channel(
             webhook_url = cfg.get("webhook_url", "")
             if not webhook_url:
                 return {"success": False, "message": "Teams webhook_url not configured"}
+            if not _validate_webhook_url(webhook_url):
+                return {"success": False, "message": "Invalid or unsafe Teams webhook URL"}
             async with _aiohttp.ClientSession() as s:
                 payload_body = {"@type": "MessageCard", "@context": "http://schema.org/extensions",
                                 "summary": "OmniAgent Test", "themeColor": "0078D4",
@@ -185,6 +224,8 @@ async def test_notification_channel(
             url = cfg.get("url", "") or cfg.get("webhook_url", "")
             if not url:
                 return {"success": False, "message": "webhook url not configured"}
+            if not _validate_webhook_url(url):
+                return {"success": False, "message": "Invalid or unsafe webhook URL"}
             headers = {"Content-Type": "application/json"}
             if cfg.get("secret"):
                 headers["X-OmniAgent-Secret"] = cfg["secret"]
@@ -218,4 +259,5 @@ async def test_notification_channel(
             return {"success": False, "message": f"Unknown channel '{channel}'. Use: slack, teams, pagerduty, email, webhook, sms"}
 
     except Exception as exc:
-        return {"success": False, "message": str(exc)}
+        import logging as _l; _l.getLogger(__name__).error("Notification send error: %s", exc)
+        return {"success": False, "message": "Notification delivery failed"}

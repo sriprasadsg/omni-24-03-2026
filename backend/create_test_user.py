@@ -1,4 +1,5 @@
 import asyncio
+import os
 from database import connect_to_mongo, get_database
 import uuid
 
@@ -7,7 +8,7 @@ async def create_user():
     db = get_database()
     
     email = "testadmin@example.com"
-    password = "TestPass123!" 
+    password = os.getenv("TEST_PASSWORD", "")
     
     # 1. Ensure Tenant
     tenant_id = "tenant_test_123"

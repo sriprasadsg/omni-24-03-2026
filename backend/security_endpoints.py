@@ -1,10 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
+import logging
 from datetime import datetime, timezone
 from database import get_database
 from security_service import get_security_service
 from authentication_service import get_current_user
 from auth_types import TokenData
 import uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -225,8 +228,8 @@ async def generate_signing_keypair(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error generating keypair: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error generating keypair: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 
@@ -298,8 +301,8 @@ async def verify_agent_integrity(
         
         return result
     except Exception as e:
-        print(f"Error verifying agent integrity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error verifying agent integrity: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/security/encrypt")
@@ -331,8 +334,8 @@ async def encrypt_data(
             "algorithm": "AES-256-GCM"
         }
     except Exception as e:
-        print(f"Error encrypting: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error encrypting: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/security/audit-log")
@@ -358,15 +361,15 @@ async def get_security_audit_log(
         events = await db.security_audit_log.find(
             query,
             {"_id": 0}
-        ).sort("timestamp", -1).limit(limit).to_list(length=None)
+        ).sort("timestamp", -1).limit(limit).to_list(length=limit)
 
         return {
             "events": events,
             "count": len(events)
         }
     except Exception as e:
-        print(f"Error getting audit log: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error getting audit log: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 
@@ -426,7 +429,10 @@ async def get_security_audit_log(
 #     }
 
 @router.post("/vulnerability-scans/schedule")
-async def schedule_vulnerability_scan(data: dict):
+async def schedule_vulnerability_scan(
+    data: dict,
+    current_user: TokenData = Depends(get_current_user),
+):
     """
     Schedule a vulnerability scan
     body: {
@@ -437,7 +443,7 @@ async def schedule_vulnerability_scan(data: dict):
     """
     try:
         db = get_database()
-        
+
         job = {
             "id": f"job-{uuid.uuid4()}",
             "type": "Vulnerability Scan",
@@ -447,6 +453,8 @@ async def schedule_vulnerability_scan(data: dict):
             "scanType": data.get("scanType", "Immediate"),
             "scheduleTime": data.get("scheduleTime") or datetime.now(timezone.utc).isoformat(),
             "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdBy": getattr(current_user, "username", "unknown"),
+            "tenantId": getattr(current_user, "tenant_id", None),
             "log": ["Job created"]
         }
         
@@ -458,8 +466,8 @@ async def schedule_vulnerability_scan(data: dict):
             
         return job
     except Exception as e:
-        print(f"Error scheduling scan: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error scheduling scan: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/assets/{asset_id}/scan")
 async def trigger_asset_scan(asset_id: str):
@@ -484,8 +492,8 @@ async def trigger_asset_scan(asset_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error triggering scan: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error triggering scan: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/security/attack-paths")
 async def get_attack_paths(
@@ -549,4 +557,4 @@ async def get_attack_paths(
         return derived
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

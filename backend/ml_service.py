@@ -105,8 +105,8 @@ class MLPredictionService:
         deployments = await self.db.patch_deployment_jobs.find(
             query,
             {"_id": 0}
-        ).limit(100).to_list(length=None)
-        
+        ).limit(100).to_list(length=100)
+
         return deployments
     
     def _extract_features(
@@ -444,7 +444,7 @@ class MLPredictionService:
         deployments = await self.db.patch_deployment_jobs.find(
             query,
             {"_id": 0}
-        ).to_list(length=None)
+        ).to_list(length=1000)
         
         total = len(deployments)
         failed = len([d for d in deployments if d.get("status") == "failed"])

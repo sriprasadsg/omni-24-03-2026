@@ -7,6 +7,12 @@ import {
     fetchSlaReport,
     fetchVulnerabilityExposureReport,
     fetchChangeManagementReport,
+    fetchComplianceFrameworks,
+    generateComplianceReport,
+    generateExcelComplianceReport,
+    generatePDFComplianceReport,
+    generateAllComplianceReport,
+    downloadComplianceReport,
 } from '../services/apiService';
 import { BarChart3Icon, DownloadIcon, ActivityIcon, ShieldCheckIcon, TrendingUpIcon } from './icons';
 import { Asset, HistoricalData } from '../types';
@@ -114,6 +120,90 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
             </div>
         </div>
     );
+
+    const FrameworkExportCard: React.FC = () => {
+        const ALL_ID = '__all__';
+        const [frameworks, setFrameworks] = useState<{ id: string; name: string }[]>([]);
+        const [selectedId, setSelectedId] = useState(ALL_ID);
+        const [busy, setBusy] = useState<string | null>(null);
+        const [error, setError] = useState<string | null>(null);
+
+        useEffect(() => {
+            fetchComplianceFrameworks().then((list: any[]) => {
+                const items = list.map((f: any) => ({ id: f.id || f._id || '', name: f.name || f.id || '' }))
+                    .filter((f: { id: string; name: string }) => f.id);
+                setFrameworks(items);
+            });
+        }, []);
+
+        const isAll = selectedId === ALL_ID;
+
+        const handleGenerate = async (format: 'csv' | 'excel' | 'pdf') => {
+            if (!canExport) { alert("Permission Denied: You do not have 'export:reports' scope."); return; }
+            setBusy(format);
+            setError(null);
+            try {
+                let result: any;
+                if (isAll) {
+                    if (format === 'pdf') { setError('PDF is not supported for all-frameworks export. Use CSV or Excel.'); setBusy(null); return; }
+                    result = await generateAllComplianceReport(format as 'csv' | 'excel');
+                } else {
+                    if (!selectedId) { alert('Please select a framework first.'); setBusy(null); return; }
+                    if (format === 'csv')        result = await generateComplianceReport(selectedId);
+                    else if (format === 'excel') result = await generateExcelComplianceReport(selectedId);
+                    else                         result = await generatePDFComplianceReport(selectedId);
+                }
+                const filename = result?.filename ?? result?.report?.filename;
+                if (!filename) throw new Error('No filename returned from server');
+                await downloadComplianceReport(filename);
+            } catch (e: any) {
+                setError(e?.message || 'Export failed');
+            } finally {
+                setBusy(null);
+            }
+        };
+
+        return (
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md col-span-1 md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-800 dark:text-white whitespace-nowrap">Compliance Framework Report</h4>
+                        <select
+                            value={selectedId}
+                            onChange={e => setSelectedId(e.target.value)}
+                            className="flex-1 min-w-0 text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                        >
+                            <option value={ALL_ID}>All Frameworks</option>
+                            {frameworks.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                        {(['csv', 'excel', 'pdf'] as const).map(fmt => {
+                            const disabledAll = isAll && fmt === 'pdf';
+                            return (
+                                <button key={fmt} onClick={() => handleGenerate(fmt)}
+                                    disabled={!canExport || !!busy || disabledAll}
+                                    title={disabledAll ? 'PDF not available for all-frameworks export' : undefined}
+                                    className={`px-3 py-1 text-xs font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center
+                                        ${fmt === 'pdf' ? 'text-red-700 bg-red-100 dark:bg-red-900/50 dark:text-red-300 hover:bg-red-200'
+                                        : fmt === 'excel' ? 'text-green-700 bg-green-100 dark:bg-green-900/50 dark:text-green-300 hover:bg-green-200'
+                                        : 'text-gray-700 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-300'}`}>
+                                    {busy === fmt ? <ActivityIcon size={14} className="animate-spin mr-1" /> : null}
+                                    {fmt.toUpperCase()}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+                {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {isAll
+                        ? 'Exports all frameworks in one file — Overview sheet + Asset Summary & Control Details per framework (CSV/Excel only)'
+                        : 'Includes all controls with asset scores, compliance verdicts, and collected evidence artifacts'}
+                </p>
+            </div>
+        );
+    };
 
     const kpis = executiveSummary?.kpis;
 
@@ -394,12 +484,38 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
 
             {/* ── Data Export Center ── */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-                <SectionHeader icon={<DownloadIcon className="text-primary-500" size={20} />} title="Data Export Center" subtitle="Download raw data as CSV or PDF" />
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ExportCard title="Asset Inventory" onExport={f => handleExport('Asset Inventory', f)} />
-                    <ExportCard title="Patch Management Report" onExport={f => handleExport('Patch Management', f)} />
-                    <ExportCard title="AI Risk Register" onExport={f => handleExport('AI Risk Register', f)} />
-                    <ExportCard title="Security Events (Last 30 days)" onExport={f => handleExport('Security Events', f)} />
+                <SectionHeader icon={<DownloadIcon className="text-primary-500" size={20} />} title="Data Export Center" subtitle="Download raw data as CSV or PDF for any module" />
+                <div className="p-4 space-y-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Asset & Patch</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ExportCard title="Asset Inventory" onExport={f => handleExport('Asset Inventory', f)} />
+                        <ExportCard title="Patch Management" onExport={f => handleExport('Patch Management', f)} />
+                    </div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Security Operations</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ExportCard title="Security Events" onExport={f => handleExport('Security Events', f)} />
+                        <ExportCard title="EDR Alerts" onExport={f => handleExport('EDR Alerts', f)} />
+                        <ExportCard title="Incident Response" onExport={f => handleExport('Incident Response', f)} />
+                        <ExportCard title="Threat Intelligence" onExport={f => handleExport('Threat Intelligence', f)} />
+                    </div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Vulnerability & Supply Chain</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ExportCard title="Vulnerability" onExport={f => handleExport('Vulnerability', f)} />
+                        <ExportCard title="SBOM" onExport={f => handleExport('SBOM', f)} />
+                    </div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Governance & Risk</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ExportCard title="AI Risk Register" onExport={f => handleExport('AI Risk Register', f)} />
+                        <ExportCard title="Secrets Management" onExport={f => handleExport('Secrets Management', f)} />
+                    </div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Compliance Framework Reports</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FrameworkExportCard />
+                    </div>
                 </div>
             </div>
         </div>

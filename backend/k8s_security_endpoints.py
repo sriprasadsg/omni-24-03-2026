@@ -12,7 +12,7 @@ def get_svc(db=Depends(get_db)):
 
 @router.get("/clusters")
 async def list_clusters(user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     clusters = await svc.get_clusters(tenant_id)
     for c in clusters:
         c["id"] = c.pop("_id", c.get("id"))
@@ -21,7 +21,7 @@ async def list_clusters(user=Depends(require_auth), svc: K8sSecurityService = De
 
 @router.post("/clusters")
 async def register_cluster(body: dict, user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     cluster = await svc.register_cluster(tenant_id, body)
     cluster["id"] = cluster.pop("_id", cluster.get("id"))
     return cluster
@@ -29,7 +29,7 @@ async def register_cluster(body: dict, user=Depends(require_auth), svc: K8sSecur
 
 @router.post("/clusters/{cluster_id}/scan")
 async def scan_cluster(cluster_id: str, user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     result = await svc.scan_cluster(cluster_id, tenant_id)
     if not result:
         from fastapi import HTTPException
@@ -41,7 +41,7 @@ async def scan_cluster(cluster_id: str, user=Depends(require_auth), svc: K8sSecu
 async def get_findings(cluster_id: str = Query(None), severity: str = Query(None),
                        limit: int = Query(100), user=Depends(require_auth),
                        svc: K8sSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     findings = await svc.get_findings(tenant_id, cluster_id, severity, limit)
     for f in findings:
         f["id"] = f.pop("_id", f.get("id"))
@@ -50,5 +50,5 @@ async def get_findings(cluster_id: str = Query(None), severity: str = Query(None
 
 @router.get("/summary")
 async def get_summary(user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     return await svc.get_summary(tenant_id)

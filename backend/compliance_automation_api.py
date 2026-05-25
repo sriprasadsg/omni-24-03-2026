@@ -4,7 +4,8 @@ Compliance Automation API Endpoints
 Provides automated evidence collection and continuous compliance monitoring.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+import logging
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
 from pydantic import BaseModel
 from datetime import datetime, timezone
 import uuid
@@ -15,22 +16,31 @@ from database import get_database
 from evidence_automation_service import get_evidence_service
 from continuous_compliance_service import get_continuous_compliance_service
 from rbac_utils import require_permission
+from auth_types import TokenData
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/compliance-automation", tags=["Compliance Automation"])
+
+_COMPLIANCE_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+def _resolve_tenant(current_user, requested: str = None) -> str:
+    role = getattr(current_user, "role", "") or (current_user.get("role", "") if isinstance(current_user, dict) else "")
+    caller = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    if role in _COMPLIANCE_SUPER_ROLES:
+        return requested or caller or "default"
+    return caller or "default"
 
 
 # Request/Response Models
 class EvidenceCollectionRequest(BaseModel):
     framework_id: str
-    tenant_id: str
 
 
 class ComplianceEvaluationRequest(BaseModel):
-    tenant_id: str
     framework_id: Optional[str] = None
 
 
-# Endpoints
 # Endpoints
 @router.post("/collect-evidence")
 async def collect_evidence(
@@ -40,16 +50,14 @@ async def collect_evidence(
     current_user: dict = Depends(require_permission("manage:compliance"))
 ):
     """
-    Collect compliance evidence for a framework
-    
-    Triggers evidence collection on all agents via instructions
+    Collect compliance evidence for a framework.
+    Triggers evidence collection on all agents in the caller's tenant.
     """
-    # 1. Get all online agents (or all agents)
-    agents = await db.agents.find({}).to_list(length=1000)
-    
+    tenant_id = _resolve_tenant(current_user)
+    agents = await db.agents.find({"tenantId": tenant_id}).to_list(length=1000)
+
     count = 0
     for agent in agents:
-        # Create instruction for agent
         instruction = {
             "id": f"instr-{uuid.uuid4().hex[:8]}",
             "agent_id": agent["id"],
@@ -59,7 +67,7 @@ async def collect_evidence(
             "created_at": datetime.now(timezone.utc).isoformat(),
             "payload": {
                 "framework_id": request.framework_id,
-                "tenant_id": request.tenant_id
+                "tenant_id": tenant_id,
             }
         }
         await db.agent_instructions.insert_one(instruction)
@@ -81,20 +89,21 @@ class AgentComplianceResult(BaseModel):
 @router.post("/submit-agent-results")
 async def submit_agent_results(
     result: AgentComplianceResult,
-    db: AsyncIOMotorDatabase = Depends(get_database)
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("submit:compliance"))
 ):
     """
     Receive compliance results from agents
     """
-    print(f"Received compliance results from {result.agent_id} for {result.framework_id}")
-    
-    # Get agent to get hostname/asset_id
+    logger.info("Compliance results from %s for %s", result.agent_id, result.framework_id)
+
+    # Get agent to resolve asset_id and tenant
     agent = await db.agents.find_one({"id": result.agent_id})
     if not agent:
-        # fallback if agent_id is hostname
         agent = await db.agents.find_one({"hostname": result.agent_id})
-        
+
     asset_id = agent["id"] if agent else result.agent_id
+    tenant_id = (agent.get("tenantId") if agent else None) or _resolve_tenant(current_user)
     
     for control in result.controls:
         control_id = control.get("id")
@@ -113,7 +122,7 @@ async def submit_agent_results(
              ev_id = f"ev-{uuid.uuid4().hex[:8]}"
              evidence_doc = {
                 "id": ev_id,
-                "tenant_id": "default", # Should come from agent/token
+                "tenant_id": tenant_id,
                 "framework_id": result.framework_id,
                 "control_id": control_id,
                 "asset_id": asset_id,
@@ -169,38 +178,38 @@ async def evaluate_compliance(
     
     Returns compliance score and violations
     """
+    tenant_id = _resolve_tenant(current_user)
     service = get_continuous_compliance_service(db)
-    
+
     if request.framework_id in service.framework_modules:
         result = await service.evaluate_framework_v2(
-            tenant_id=request.tenant_id,
+            tenant_id=tenant_id,
             framework_id=request.framework_id
         )
     else:
         result = await service.evaluate_compliance(
-            tenant_id=request.tenant_id,
+            tenant_id=tenant_id,
             framework_id=request.framework_id
         )
-    
+
     return result
 
 
 @router.get("/compliance-trend")
 async def get_compliance_trend(
-    tenant_id: str,
-    days: int = 30,
+    days: int = Query(default=30, ge=1, le=365),
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("view:compliance"))
 ):
     """
     Get compliance score trend over time
-    
+
     Returns historical compliance scores
     """
     service = get_continuous_compliance_service(db)
-    
+
     trend = await service.get_compliance_trend(
-        tenant_id=tenant_id,
+        tenant_id=_resolve_tenant(current_user),
         days=days
     )
     
@@ -210,18 +219,17 @@ async def get_compliance_trend(
 @router.get("/evidence/{framework_id}")
 async def get_framework_evidence(
     framework_id: str,
-    tenant_id: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("view:compliance"))
 ):
     """
     Get all evidence for a compliance framework
-    
+
     Returns collected evidence with validation status
     """
     cursor = db.compliance_evidence.find({
         "framework_id": framework_id,
-        "tenant_id": tenant_id
+        "tenant_id": _resolve_tenant(current_user)
     }).sort("collected_at", -1)
     
     evidence_list = []
@@ -235,20 +243,19 @@ async def get_framework_evidence(
 @router.post("/validate-evidence/{evidence_id}")
 async def validate_evidence(
     evidence_id: str,
-    tenant_id: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("manage:compliance"))
 ):
     """
     Validate evidence integrity and freshness
-    
+
     Returns validation result
     """
     service = get_evidence_service(db)
-    
+
     result = await service.validate_evidence(
         evidence_id=evidence_id,
-        tenant_id=tenant_id
+        tenant_id=_resolve_tenant(current_user)
     )
     
     return result
@@ -257,20 +264,19 @@ async def validate_evidence(
 @router.post("/create-remediation-task")
 async def create_remediation_task(
     violation: Dict[str, Any],
-    tenant_id: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("manage:compliance"))
 ):
     """
     Create remediation task for a compliance violation
-    
+
     Returns created task
     """
     service = get_continuous_compliance_service(db)
-    
+
     task = await service.create_remediation_task(
         violation=violation,
-        tenant_id=tenant_id
+        tenant_id=_resolve_tenant(current_user)
     )
     
     return task

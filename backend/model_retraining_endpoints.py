@@ -40,8 +40,9 @@ async def promote_model(
     model_id = request.get("model_id")
     if not model_id:
         raise HTTPException(status_code=400, detail="model_id is required")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
     try:
-        updated_model = await mlops_service.promote_model(model_id)
+        updated_model = await mlops_service.promote_model(model_id, tenant_id)
         return {"status": "success", "model": updated_model}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")

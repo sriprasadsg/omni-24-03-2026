@@ -91,7 +91,7 @@ class PatchDeploymentService:
         assets = await self.db.assets.find(
             {"id": {"$in": asset_ids}},
             {"_id": 0}
-        ).to_list(length=None)
+        ).to_list(length=1000)
         
         # Separate test environment assets
         test_assets = [a for a in assets if a.get("environment") == "test"]

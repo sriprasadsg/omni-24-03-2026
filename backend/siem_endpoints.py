@@ -19,7 +19,7 @@ async def ingest_log(source: str, payload: Dict[str, Any], tenant_id: str = Depe
         event_id = await ingest_service.ingest_raw_log(tenant_id, source, payload)
         return {"status": "Success", "event_id": event_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/events")
 async def get_events(
@@ -34,7 +34,7 @@ async def get_events(
         events = await ingest_service.get_security_events(tenant_id, limit, skip)
         return {"events": events}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # ── SIEM Integration Config Management ───────────────────────────────────────
 
@@ -51,8 +51,14 @@ async def list_siem_configs(
         ).to_list(length=100)
         return {"configs": configs}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
+
+_SIEM_CONFIG_FIELDS = {
+    "aws_cloudtrail": {"account_id", "region", "bucket_name", "role_arn", "aws_access_key_id", "aws_secret_key"},
+    "okta":           {"api_url", "api_key", "api_token"},
+    "syslog":         {"host", "port", "protocol"},
+}
 
 @router.put("/configs/{provider}")
 async def upsert_siem_config(
@@ -71,7 +77,9 @@ async def upsert_siem_config(
         raise HTTPException(status_code=400, detail=f"Unknown provider. Must be one of: {allowed}")
     try:
         db = get_database()
-        update = {**data, "provider": provider, "tenant_id": tenant_id,
+        allowed_fields = _SIEM_CONFIG_FIELDS.get(provider, set())
+        safe_data = {k: v for k, v in data.items() if k in allowed_fields}
+        update = {**safe_data, "provider": provider, "tenant_id": tenant_id,
                   "updated_at": datetime.now(timezone.utc).isoformat(),
                   "updated_by": getattr(current_user, "username", str(current_user))}
         await db.siem_configs.update_one(
@@ -82,7 +90,7 @@ async def upsert_siem_config(
         safe = {k: v for k, v in update.items() if k not in ("aws_secret_key", "api_token")}
         return {"success": True, "config": safe}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/configs/{provider}")
@@ -101,7 +109,7 @@ async def delete_siem_config(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Log Explorer endpoints ─────────────────────────────────────────────────────
@@ -146,7 +154,7 @@ async def search_logs(
         ]
         return {"logs": logs, "total": len(logs)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/aggregations")
@@ -207,7 +215,7 @@ async def get_log_aggregations(
             "total": total,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -235,33 +243,30 @@ async def get_siem_summary(tenant_id: str = Depends(get_tenant_id)):
             
         return summary
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── SIEM Correlation Rules ─────────────────────────────────────────────────────
 
 @router.get("/rules")
 async def list_siem_rules(
-    tenant_id_param: Optional[str] = Query(None, alias="tenant_id"),
     _current_user: TokenData = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List SIEM correlation rules for the current tenant."""
     try:
         db = get_database()
-        effective_tenant = tenant_id_param or tenant_id
         rules = await db.siem_rules.find(
-            {"tenant_id": effective_tenant}, {"_id": 0}
+            {"tenant_id": tenant_id}, {"_id": 0}
         ).sort("created_at", -1).to_list(length=500)
         return rules
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/rules")
 async def create_siem_rule(
     data: Dict[str, Any],
-    tenant_id_param: Optional[str] = Query(None, alias="tenant_id"),
     current_user: TokenData = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
@@ -269,7 +274,6 @@ async def create_siem_rule(
     try:
         import uuid
         db = get_database()
-        effective_tenant = tenant_id_param or tenant_id
         rule = {
             "id": f"rule-{uuid.uuid4().hex[:10]}",
             "name": data.get("name", ""),
@@ -278,7 +282,7 @@ async def create_siem_rule(
             "enabled": data.get("enabled", True),
             "conditions": data.get("conditions", {}),
             "remediation": data.get("remediation", ""),
-            "tenant_id": effective_tenant,
+            "tenant_id": tenant_id,
             "created_by": getattr(current_user, "username", "system"),
             "created_at": datetime.now(timezone.utc).isoformat(),
             "match_count": 0,
@@ -287,26 +291,24 @@ async def create_siem_rule(
         rule.pop("_id", None)
         return rule
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/rules/{rule_id}")
 async def update_siem_rule(
     rule_id: str,
     data: Dict[str, Any],
-    tenant_id_param: Optional[str] = Query(None, alias="tenant_id"),
     current_user: TokenData = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Update an existing SIEM correlation rule."""
     try:
         db = get_database()
-        effective_tenant = tenant_id_param or tenant_id
         allowed = {"name", "description", "severity", "enabled", "conditions", "remediation"}
         update = {k: v for k, v in data.items() if k in allowed}
         update["updated_at"] = datetime.now(timezone.utc).isoformat()
         result = await db.siem_rules.update_one(
-            {"id": rule_id, "tenant_id": effective_tenant},
+            {"id": rule_id, "tenant_id": tenant_id},
             {"$set": update},
         )
         if result.matched_count == 0:
@@ -315,25 +317,23 @@ async def update_siem_rule(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/rules/{rule_id}")
 async def delete_siem_rule(
     rule_id: str,
-    tenant_id_param: Optional[str] = Query(None, alias="tenant_id"),
     current_user: TokenData = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Delete a SIEM correlation rule."""
     try:
         db = get_database()
-        effective_tenant = tenant_id_param or tenant_id
-        result = await db.siem_rules.delete_one({"id": rule_id, "tenant_id": effective_tenant})
+        result = await db.siem_rules.delete_one({"id": rule_id, "tenant_id": tenant_id})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Rule not found")
         return {"success": True}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

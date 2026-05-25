@@ -6,6 +6,8 @@ from database import get_database
 from rbac_utils import require_permission
 from ai_auditor_service import get_auditor
 
+_AUDITOR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
 logger = logging.getLogger("ai_auditor_api")
 router = APIRouter()
 
@@ -23,8 +25,19 @@ async def audit_framework_evidence(
     """
     logger.info("[AI AUDITOR] Starting audit for framework: %s", framework_id)
 
-    # 1. Fetch Framework Controls
-    framework = await db.compliance_frameworks.find_one({"id": framework_id})
+    # 1. Fetch Framework Controls — scope to caller's tenant unless super admin
+    caller_tenant = (
+        current_user.get("tenant_id") if isinstance(current_user, dict)
+        else getattr(current_user, "tenant_id", None)
+    )
+    caller_role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    fw_filter: dict = {"id": framework_id}
+    if caller_role not in _AUDITOR_SUPER_ROLES and caller_tenant:
+        fw_filter["tenantId"] = caller_tenant
+    framework = await db.compliance_frameworks.find_one(fw_filter)
     if not framework:
         logger.error("[AI AUDITOR] Framework not found: %s", framework_id)
         raise HTTPException(status_code=404, detail="Framework not found")

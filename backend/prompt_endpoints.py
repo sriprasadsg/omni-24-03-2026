@@ -25,7 +25,7 @@ async def create_prompt(
     try:
         return await prompt_service.create_prompt(prompt)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Bad request")
 
 @router.get("/{name}", response_model=Dict[str, Any])
 async def get_prompt(

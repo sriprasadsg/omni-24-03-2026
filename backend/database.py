@@ -128,6 +128,7 @@ class TenantIsolatedDatabase:
             "tenants",
             "roles",
             "response_policies",  # platform-level security policies, seeded globally
+            "playbooks",          # platform-seeded playbooks shared across tenants
         ]:
             return collection
         return TenantIsolatedCollection(collection)
@@ -142,6 +143,7 @@ class TenantIsolatedDatabase:
             "tenants",
             "roles",
             "response_policies",  # platform-level security policies, seeded globally
+            "playbooks",          # platform-seeded playbooks shared across tenants
         ]:
             return self._db[name]
         return TenantIsolatedCollection(self._db[name])
@@ -156,37 +158,50 @@ mongodb = MongoDB()
 db = None # Global compatibility reference
 
 async def connect_to_mongo():
-    """Connect to MongoDB"""
+    """Connect to MongoDB with exponential-backoff retry (3 attempts)."""
+    import logging as _logging
+    import asyncio as _asyncio
+
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     mongodb_db_name = os.getenv("MONGODB_DB_NAME", "omni_platform")
-    
-    print(f"Connecting to MongoDB at {mongodb_url}")
-    try:
-        # Try real connection first
-        client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=2000)
-        # Force a connection check
-        await client.server_info()
-        mongodb.client = client
-        print(f"Connected to REAL MongoDB at {mongodb_url}")
-    except Exception as e:
-        import logging as _logging
-        _logging.critical(
-            "[DATABASE] MongoDB connection FAILED: %s\n"
-            "  URL attempted: %s\n"
-            "  All data written during this session will be LOST on restart.\n"
-            "  Set MONGODB_URL to a reachable MongoDB instance to persist data.",
-            e, mongodb_url,
+    max_attempts = 3
+    base_delay = 0.5  # seconds
+
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=3000)
+            await client.server_info()
+            mongodb.client = client
+            _logging.getLogger(__name__).info(
+                "[DATABASE] Connected to MongoDB at %s (attempt %d/%d)", mongodb_url, attempt, max_attempts
+            )
+            last_exc = None
+            break
+        except Exception as exc:
+            last_exc = exc
+            _logging.getLogger(__name__).warning(
+                "[DATABASE] MongoDB connection attempt %d/%d failed: %s", attempt, max_attempts, exc
+            )
+            if attempt < max_attempts:
+                await _asyncio.sleep(base_delay * (2 ** (attempt - 1)))
+
+    if last_exc is not None:
+        _logging.getLogger(__name__).critical(
+            "[DATABASE] MongoDB unreachable after %d attempts (%s). "
+            "All data written this session will be LOST on restart.",
+            max_attempts, mongodb_url,
         )
         if os.getenv("ALLOW_MOCK_DB", "true").lower() in ("1", "true", "yes"):
             if AsyncMongoMockClient:
-                _logging.warning("[DATABASE] Starting with in-memory mock database (ALLOW_MOCK_DB=true). NO DATA PERSISTED.")
+                _logging.getLogger(__name__).warning(
+                    "[DATABASE] Falling back to in-memory mock (ALLOW_MOCK_DB=true). NO DATA PERSISTED."
+                )
                 mongodb.client = AsyncMongoMockClient()
             else:
-                _logging.critical("[DATABASE] mongomock-motor not installed and MongoDB unreachable. Cannot start.")
-                raise e
+                raise last_exc
         else:
-            _logging.critical("[DATABASE] ALLOW_MOCK_DB is not set — refusing to start without real MongoDB.")
-            raise e
+            raise last_exc
 
     mongodb.db = mongodb.client[mongodb_db_name]
     global db
@@ -220,16 +235,38 @@ async def connect_to_mongo():
         await mongodb.db.usage_records.create_index("timestamp")
         await mongodb.db.compliance_evidence.create_index("tenantId")
         await mongodb.db.compliance_evidence.create_index("controlId")
+        # Metrics time-series collections
+        await mongodb.db.asset_metrics.create_index([("asset_id", 1), ("timestamp", -1)])
+        await mongodb.db.agent_metrics_history.create_index([("agent_id", 1), ("timestamp", -1)])
+
+        # Compound indexes for high-traffic event/alert collections
+        await mongodb.db.security_events.create_index([("tenantId", 1), ("timestamp", -1)])
+        await mongodb.db.audit_logs.create_index([("tenantId", 1), ("timestamp", -1)])
+        await mongodb.db.fim_events.create_index([("tenantId", 1), ("timestamp", -1)])
+        await mongodb.db.edr_telemetry.create_index([("tenantId", 1), ("timestamp", -1)])
+        await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("timestamp", -1)])
+        await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("severity", 1)])
+        await mongodb.db.correlation_rules.create_index([("tenantId", 1), ("enabled", 1)])
+        await mongodb.db.pentest_jobs.create_index([("tenant_id", 1), ("status", 1)])
+        await mongodb.db.pentest_jobs.create_index([("tenant_id", 1), ("created_at", -1)])
+        await mongodb.db.patches.create_index([("tenantId", 1), ("status", 1)])
+        await mongodb.db.vulnerabilities.create_index([("tenantId", 1), ("severity", 1)])
+        await mongodb.db.compliance_evidence.create_index([("tenantId", 1), ("controlId", 1)])
     except Exception as index_error:
-         print(f"Warning: Index creation failed (expected if using mock): {index_error}")
-    
-    print(f"Connected to database: {mongodb_db_name}")
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "[DATABASE] Index creation failed (expected with mock DB): %s", index_error
+        )
+
+    import logging as _logging
+    _logging.getLogger(__name__).info("[DATABASE] Ready — using database: %s", mongodb_db_name)
 
 async def close_mongo_connection():
     """Close MongoDB connection"""
     if mongodb.client:
         mongodb.client.close()
-        print("Closed MongoDB connection")
+        import logging as _logging
+        _logging.getLogger(__name__).info("[DATABASE] MongoDB connection closed")
 
 def get_database():
     """Get database instance with tenant isolation"""

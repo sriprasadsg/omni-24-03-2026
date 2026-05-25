@@ -103,9 +103,13 @@ async def create_ticket(req: ManualTicketRequest, current_user=Depends(get_curre
     """Manually create a ticket from an alert ID."""
     from database import get_database
     db = get_database()
-    alert = await db.edr_alerts.find_one({"alert_id": req.alert_id})
+    tenant_id = getattr(current_user, "tenant_id", None)
+    alert_filter: dict = {"alert_id": req.alert_id}
+    if tenant_id:
+        alert_filter["tenantId"] = tenant_id
+    alert = await db.edr_alerts.find_one(alert_filter)
     if not alert:
-        alert = await db.security_alerts.find_one({"alert_id": req.alert_id})
+        alert = await db.security_alerts.find_one(alert_filter)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 

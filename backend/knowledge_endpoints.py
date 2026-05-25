@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 import uuid
+import re
 
 from database import get_database
 from authentication_service import get_current_user
@@ -232,7 +233,7 @@ async def query_knowledge(
         results = await db.knowledge_docs.find(
             {
                 "$or": [{"tenantId": tenant_id}, {"tenantId": "global"}],
-                "content": {"$regex": query, "$options": "i"},
+                "content": {"$regex": re.escape(query), "$options": "i"},
             },
             {"_id": 0},
         ).limit(limit).to_list(length=limit)

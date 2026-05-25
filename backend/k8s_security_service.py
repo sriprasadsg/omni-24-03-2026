@@ -62,7 +62,7 @@ class K8sSecurityService:
         for ctrl in CIS_CONTROLS:
             # Deterministic outcome: same cluster+control always yields the same result.
             # Hash inputs → 0-99 bucket → thresholds tuned to realistic failure rates.
-            seed = hashlib.md5(f"{cluster_id}:{ctrl['id']}:{k8s_version}".encode()).hexdigest()
+            seed = hashlib.sha256(f"{cluster_id}:{ctrl['id']}:{k8s_version}".encode()).hexdigest()
             bucket = int(seed[:2], 16)  # 0-255 → scale to 0-99
             bucket_pct = bucket * 100 // 255
 

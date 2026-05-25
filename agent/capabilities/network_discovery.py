@@ -43,8 +43,8 @@ def _import_scapy():
     finally:
         sys.stderr = _old_stderr
 
-# Initial attempt to import, but handle failure gracefully
-# _import_scapy() # Commented out to avoid backend crash on some systems
+# Attempt import at module load; failures are handled gracefully inside the function
+_import_scapy()
 
 class NetworkDiscoveryCapability(BaseCapability):
     

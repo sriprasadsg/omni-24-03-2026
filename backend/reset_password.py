@@ -1,3 +1,4 @@
+import os
 from database import get_database, connect_to_mongo
 from auth_utils import hash_password
 import asyncio
@@ -6,7 +7,7 @@ async def reset_password():
     await connect_to_mongo()
     db = get_database()
     email = "super@omni.ai"
-    new_password = "admin"
+    new_password = os.getenv("NEW_PASSWORD", "")
     hashed_password = hash_password(new_password)
     print(f"Hashed password: {hashed_password}")
     

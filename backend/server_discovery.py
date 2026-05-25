@@ -283,6 +283,13 @@ class ServerDiscovery:
         args = "-sn -PR" 
         # On Windows, -PR (ARP) works well for local subnets.
         
+        # Validate subnet is a well-formed CIDR before passing to nmap
+        if not re.fullmatch(r'(\d{1,3}\.){3}\d{1,3}/\d{1,2}', subnet or ""):
+            raise ValueError(f"Invalid subnet format: {subnet!r}. Expected CIDR notation e.g. 192.168.1.0/24")
+        try:
+            ipaddress.ip_network(subnet, strict=False)  # also validates numeric ranges
+        except ValueError:
+            raise ValueError(f"Invalid subnet: {subnet!r}")
         try:
             nm.scan(hosts=subnet, arguments=args)
         except nmap.PortScannerError as e:

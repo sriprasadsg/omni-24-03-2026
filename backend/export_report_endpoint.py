@@ -25,4 +25,4 @@ async def export_report_endpoint(type: str, format: str, user: TokenData = Depen
         )
     except Exception as e:
         print(f"Export error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

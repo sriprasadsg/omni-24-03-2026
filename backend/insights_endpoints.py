@@ -29,8 +29,13 @@ async def get_proactive_insights(
     Derive proactive security insights from live operational data.
     Each insight has: id, category, severity, title, description, count, action.
     """
-    if getattr(current_user, "role", "") in _ADMIN_ROLES:
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    if caller_role in _ADMIN_ROLES:
         set_tenant_id("platform-admin")
+        effective_tenant = tenantId  # admins may scope to a specific tenant or None for all
+    else:
+        effective_tenant = caller_tenant  # non-admins always use their own JWT tenant
 
     db = get_database()
     now = datetime.now(timezone.utc)
@@ -38,7 +43,7 @@ async def get_proactive_insights(
     week_ago = (now - timedelta(days=7)).isoformat()
 
     insights = []
-    base_query = {"tenantId": tenantId} if tenantId else {}
+    base_query = {"tenantId": effective_tenant} if effective_tenant else {}
 
     # 1. Unacknowledged critical/high alerts older than 24h
     try:

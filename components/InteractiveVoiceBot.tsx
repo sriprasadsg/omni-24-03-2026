@@ -314,7 +314,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                 };
 
                 const target = targetView.toLowerCase();
-                const finalView = navigationMap[target] || (target as AppView);
+                const finalView = navigationMap[target];
 
                 if (finalView) {
                     setTimeout(() => { setCurrentView(finalView); }, 500);

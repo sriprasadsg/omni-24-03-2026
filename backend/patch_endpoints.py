@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+import logging
 from datetime import datetime, timezone
 import asyncio
 from database import get_database
@@ -8,7 +9,11 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 import base64
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/patches", tags=["Patch Management"])
+
+_PATCH_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
 @router.get("")
 async def list_patches(
@@ -17,13 +22,12 @@ async def list_patches(
 ):
     """List all patches"""
     db = get_database()
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
-    query = {}
-    if tenant_id:
-        query["tenantId"] = tenant_id
-    elif not is_admin:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
-    patches = await db.patches.find(query, {"_id": 0}).to_list(length=100)
+    is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+    caller_tenant = getattr(current_user, "tenant_id", "default")
+    if tenant_id and not is_admin and tenant_id != caller_tenant:
+        raise HTTPException(status_code=403, detail="Not authorized to view patches for this tenant")
+    effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
+    patches = await db.patches.find({"tenantId": effective_tenant}, {"_id": 0}).to_list(length=100)
     return patches
 
 from pydantic import BaseModel
@@ -168,8 +172,8 @@ async def create_deployment_job(
 
         return job
     except Exception as e:
-        print(f"Error creating deployment job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error creating deployment job: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/deployment-jobs")
 async def list_deployment_jobs(
@@ -213,7 +217,7 @@ async def apply_software_update(
             "pkg_type": request.pkg_type
         }
         if repo_pkg:
-            payload["download_url"] = f"/api/repo/download/{repo_pkg['filename']}?tenantId={tenant_id}"
+            payload["download_url"] = f"/api/repo/download/{repo_pkg['filename']}"
 
         instruction = {
             "agent_id": request.agent_id,
@@ -227,8 +231,8 @@ async def apply_software_update(
         await db.agent_instructions.insert_one(instruction)
         return {"success": True, "message": f"Upgrade instruction queued for {request.package_name}"}
     except Exception as e:
-        print(f"Error applying software update: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error applying software update: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/bulk-apply-software-update")
 async def apply_bulk_software_update(
@@ -270,8 +274,8 @@ async def apply_bulk_software_update(
             
         return {"success": True, "count": len(instructions), "message": f"Queued {len(instructions)} upgrade instructions"}
     except Exception as e:
-        print(f"Error applying bulk software update: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error applying bulk software update: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/apply-os-patches")
 async def apply_os_patches(
@@ -311,8 +315,8 @@ async def apply_os_patches(
         await db.agent_instructions.insert_one(instruction)
         return {"success": True, "job_id": job_id, "message": "OS patch installation queued"}
     except Exception as e:
-        print(f"Error applying OS patches: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error applying OS patches: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/cve/{cve_id}")
 async def get_cve_info(
@@ -364,14 +368,14 @@ async def enrich_patch(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error enriching patch: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error enriching patch: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/enrich-all")
 async def enrich_all_patches(
     tenant_id: str = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Batch enrich all pending patches with CVE intelligence
@@ -379,11 +383,14 @@ async def enrich_all_patches(
     """
     try:
         db = get_database()
-        query = {"status": "Pending"}
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", "default")
+        if tenant_id and not is_admin and tenant_id != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+        effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
+        query = {"status": "Pending", "tenantId": effective_tenant}
         
-        patches = await db.patches.find(query, {"_id": 0}).to_list(length=None)
+        patches = await db.patches.find(query, {"_id": 0}).to_list(length=500)
         
         patch_service = get_patch_service()
         enriched_count = 0
@@ -410,7 +417,7 @@ async def enrich_all_patches(
                 await asyncio.sleep(0.6)  # NVD allows ~1.67 requests/second with API key
                 
             except Exception as e:
-                print(f"Error enriching patch {patch['id']}: {e}")
+                logger.error("Error enriching patch %s: %s", patch['id'], e)
                 continue
         
         return {
@@ -420,14 +427,14 @@ async def enrich_all_patches(
             "message": f"Enriched {enriched_count} patches with CVE intelligence"
         }
     except Exception as e:
-        print(f"Error in batch enrichment: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error in batch enrichment: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/prioritized")
 async def get_prioritized_patches(
     tenant_id: str = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Get patches sorted by intelligent priority score
@@ -435,11 +442,14 @@ async def get_prioritized_patches(
     """
     try:
         db = get_database()
-        query = {"status": "Pending"}
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", "default")
+        if tenant_id and not is_admin and tenant_id != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+        effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
+        query = {"status": "Pending", "tenantId": effective_tenant}
         
-        patches = await db.patches.find(query, {"_id": 0}).to_list(length=None)
+        patches = await db.patches.find(query, {"_id": 0}).to_list(length=500)
         
         # Sort by priority score (descending)
         prioritized = sorted(
@@ -453,15 +463,15 @@ async def get_prioritized_patches(
             "total": len(prioritized)
         }
     except Exception as e:
-        print(f"Error getting prioritized patches: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error getting prioritized patches: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/compliance-status")
 async def get_compliance_status(
     tenant_id: str = None,
     framework: str = "SOC2",
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Get patch compliance status against regulatory framework
@@ -469,11 +479,14 @@ async def get_compliance_status(
     """
     try:
         db = get_database()
-        query = {"status": "Pending"}
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", "default")
+        if tenant_id and not is_admin and tenant_id != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+        effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
+        query = {"status": "Pending", "tenantId": effective_tenant}
         
-        patches = await db.patches.find(query, {"_id": 0}).to_list(length=None)
+        patches = await db.patches.find(query, {"_id": 0}).to_list(length=500)
         
         now = datetime.now(timezone.utc).timestamp()
         
@@ -522,8 +535,8 @@ async def get_compliance_status(
             }
         }
     except Exception as e:
-        print(f"Error calculating compliance: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error calculating compliance: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -535,7 +548,7 @@ from software_version_service import get_version_service
 @router.post("/scan")
 async def trigger_live_software_scan(
     tenant_id: str = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Trigger a live software inventory scan on all online agents for a tenant.
@@ -544,9 +557,12 @@ async def trigger_live_software_scan(
     """
     try:
         db = get_database()
-        query = {"status": "Online"}
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", "default")
+        if tenant_id and not is_admin and tenant_id != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+        effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
+        query = {"status": "Online", "tenantId": effective_tenant}
 
         agents = await db.agents.find(query, {"_id": 0, "id": 1, "hostname": 1}).to_list(length=200)
 
@@ -576,32 +592,35 @@ async def trigger_live_software_scan(
         }
 
     except Exception as e:
-        print(f"[/patches/scan] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("/patches/scan error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/outdated")
 async def get_outdated_software(
     tenant_id: str = None,
     pkg_type: str = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Returns all software packages where a newer version is available.
     Queries PyPI / npm / Ubuntu Packages API for latest versions.
     Results are cached in MongoDB for 24 hours.
-    
+
     Query params:
     - tenant_id: filter by tenant
     - pkg_type: filter by 'pip', 'npm', 'apt' (optional)
     """
     try:
         db = get_database()
+        is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", "default")
+        if tenant_id and not is_admin and tenant_id != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+        effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
 
         # Fetch software inventory reported by agents
-        query = {}
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        query: dict = {"tenantId": effective_tenant}
         if pkg_type:
             query["pkg_type"] = pkg_type
 
@@ -609,9 +628,7 @@ async def get_outdated_software(
 
         if not packages:
             # Fallback: read from agent heartbeat data (meta.installed_software)
-            agent_query = {}
-            if tenant_id:
-                agent_query["tenantId"] = tenant_id
+            agent_query = {"tenantId": effective_tenant}
             
             # Important: installed_software lives in meta object
             agents = await db.agents.find(
@@ -650,14 +667,14 @@ async def get_outdated_software(
         }
 
     except Exception as e:
-        print(f"[/patches/outdated] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("/patches/outdated error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/os")
 async def get_os_patches(
     tenant_id: str = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
     Returns OS-level pending patches grouped by asset.
@@ -668,9 +685,12 @@ async def get_os_patches(
     """
     try:
         db = get_database()
-        query = {}
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", "default")
+        if tenant_id and not is_admin and tenant_id != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+        effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
+        query = {"tenantId": effective_tenant}
 
         agents = await db.agents.find(query, {"_id": 0}).to_list(length=200)
 
@@ -710,8 +730,8 @@ async def get_os_patches(
         }
 
     except Exception as e:
-        print(f"[/patches/os] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("/patches/os error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{patch_id}/verify-integrity")
 async def verify_patch_integrity(
@@ -743,8 +763,8 @@ async def verify_patch_integrity(
         )
         return result
     except Exception as e:
-        print(f"Error verifying patch integrity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error verifying patch integrity: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{patch_id}/generate-checksums")
 async def generate_patch_checksums(
@@ -772,8 +792,8 @@ async def generate_patch_checksums(
             "checksums": checksums
         }
     except Exception as e:
-        print(f"Error generating checksums: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error generating checksums: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{patch_id}/verify-signature")
 async def verify_patch_signature(
@@ -818,5 +838,5 @@ async def verify_patch_signature(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error verifying signature: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error verifying signature: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")

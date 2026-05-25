@@ -7,7 +7,7 @@ import { RuntimeSecurityTab } from './RuntimeSecurityTab';
 import { AgentComplianceTab, ComplianceData, ComplianceRule } from './AgentComplianceTab';
 import { PredictiveHealthTab } from './PredictiveHealthTab';
 import { ConfirmationModal } from './ConfirmationModal';
-import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, linkAgentToAsset, fetchAssets } from '../services/apiService';
+import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, linkAgentToAsset, fetchAssets, authFetch } from '../services/apiService';
 
 
 interface AgentDetailModalProps {
@@ -148,6 +148,7 @@ const CHECK_NAME_MAPPING: Record<string, string> = {
 export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent, asset, onManageCapabilities, onViewRemediationLogs, onViewLogs, onRunDiagnostics, onDeleteAgent }) => {
     const { hasPermission, currentUser } = useUser();
     const canRemediate = hasPermission('remediate:agents');
+    const canTriggerScan = currentUser?.role === 'Super Admin' || currentUser?.role === 'Tenant Admin';
     const { timeZone } = useTimeZone();
 
     const canViewLogs = hasPermission('view:agent_logs');
@@ -287,6 +288,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    // Live metrics state
+    interface MetricSnapshot { cpu: number; memory: number; disk: number; timestamp: string; }
+    const [liveMetrics, setLiveMetrics] = useState<MetricSnapshot[]>([]);
+    const [latestMetrics, setLatestMetrics] = useState<MetricSnapshot | null>(null);
+
     // Single compliance-fetch effect. Depends on refreshTrigger so manual refresh works.
     // Falls back to deriving assetId from hostname (matches backend's "asset-{hostname}" convention)
     // when agent.assetId is not yet populated (e.g. agent registered but hasn't heartbeated yet).
@@ -298,8 +304,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
             if (id) {
                 fetchAssetCompliance(id).then(rawData => {
-                    console.log('DEBUG: Raw Compliance Data:', rawData);
-
                     // Transform raw API data (List of MongoDB docs) to ComplianceData format expected by Tab
                     if (Array.isArray(rawData) && rawData.length > 0) {
                         const rules = rawData.map((item: any) => {
@@ -377,8 +381,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                         const total = uniqueRules.length;
                         const score = total > 0 ? Math.round((passed / total) * 100) : 0;
 
-                        console.log('DEBUG: Transformed Rules:', uniqueRules);
-
                         setFetchedComplianceData({
                             score,
                             total_rules: total,
@@ -388,10 +390,14 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             rules: uniqueRules,
                             framework: 'Asset Security'
                         });
-                    } else {
-                        console.warn('DEBUG: No compliance data returned or invalid format');
+                    } else if (Array.isArray(rawData) && rawData.length === 0) {
+                        // No scan data yet — leave fetchedComplianceData null so tab shows "No compliance data available"
+                        setFetchedComplianceData(null);
+                    } else if (rawData !== null) {
+                        console.warn('Compliance fetch returned unexpected format:', typeof rawData);
                         setFetchedComplianceData(null);
                     }
+                    // rawData === null means the API call itself failed (already logged in apiService)
                 }).catch(err => {
                     console.error("Failed to fetch compliance", err);
                 });
@@ -401,6 +407,27 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
         }
     }, [isOpen, activeTab, asset?.id, agent?.assetId, agent?.hostname, refreshTrigger]);
 
+
+    // Live metrics polling — runs while the modal is open on overview tab
+    React.useEffect(() => {
+        if (!isOpen || !agent?.id) return;
+
+        const fetchMetrics = async () => {
+            try {
+                const res = await authFetch(`/api/agents/${agent.id}/metrics?limit=60`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const snaps: MetricSnapshot[] = data.snapshots || [];
+                    setLiveMetrics(snaps);
+                    if (snaps.length > 0) setLatestMetrics(snaps[snaps.length - 1]);
+                }
+            } catch (_) {}
+        };
+
+        fetchMetrics();
+        const interval = setInterval(fetchMetrics, 15000);
+        return () => clearInterval(interval);
+    }, [isOpen, agent?.id]);
 
     const sortedVulnerabilities = React.useMemo(() => {
         const effectiveAsset = liveAsset || asset;
@@ -533,7 +560,27 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                     </div>
                                 </DetailRow>
                                 <DetailRow label="OS Version">
-                                    {asset?.osVersion || agent.meta?.os_version || 'Unknown'}
+                                    {asset?.osVersion || agent.meta?.os_full_name || agent.meta?.os_version || 'Unknown'}
+                                </DetailRow>
+                                <DetailRow label="Device Type">
+                                    <span className="capitalize">
+                                        {agent.meta?.device_type || 'Unknown'}
+                                        {agent.meta?.chassis_label && agent.meta.chassis_label !== 'Unknown' && (
+                                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({agent.meta.chassis_label})</span>
+                                        )}
+                                        {agent.meta?.is_virtual && (
+                                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">Virtual</span>
+                                        )}
+                                    </span>
+                                </DetailRow>
+                                <DetailRow label="CPU">
+                                    {asset?.cpuModel || agent.meta?.cpu_model || agent.meta?.metrics_collection?.cpu?.model || 'Unknown'}
+                                </DetailRow>
+                                <DetailRow label="Memory">
+                                    {agent.meta?.memory_gb || (agent.meta?.total_memory_gb ? `${agent.meta.total_memory_gb} GB` : null) || 'Unknown'}
+                                </DetailRow>
+                                <DetailRow label="Serial Number">
+                                    <span className="font-mono text-xs">{agent.meta?.serial_number || asset?.serialNumber || 'Unknown'}</span>
                                 </DetailRow>
                                 <DetailRow label="Agent Version">{agent.version}</DetailRow>
                                 <DetailRow label="Network Interfaces">
@@ -597,6 +644,57 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                     </div>
                                 </DetailRow>
                             </dl>
+
+                            {/* Live Performance Metrics */}
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 flex items-center justify-between">
+                                    <span className="flex items-center">
+                                        <ActivityIcon size={16} className="mr-2" />
+                                        Performance Metrics
+                                    </span>
+                                    <span className="flex items-center gap-2">
+                                        {latestMetrics && (
+                                            <span className="text-xs text-gray-400">
+                                                {new Date(latestMetrics.timestamp).toLocaleTimeString(undefined, { timeZone })}
+                                            </span>
+                                        )}
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                            Live
+                                        </span>
+                                    </span>
+                                </h3>
+                                {(() => {
+                                    const cpu = latestMetrics?.cpu ?? agent.meta?.current_cpu ?? null;
+                                    const mem = latestMetrics?.memory ?? agent.meta?.current_memory ?? null;
+                                    const disk = latestMetrics?.disk ?? agent.meta?.disk_usage ?? null;
+                                    const metrics = [
+                                        { label: 'CPU', value: cpu, color: cpu !== null && cpu > 80 ? 'bg-red-500' : cpu !== null && cpu > 60 ? 'bg-amber-500' : 'bg-primary-500' },
+                                        { label: 'Memory', value: mem, color: mem !== null && mem > 85 ? 'bg-red-500' : mem !== null && mem > 70 ? 'bg-amber-500' : 'bg-blue-500' },
+                                        { label: 'Disk', value: disk, color: disk !== null && disk > 90 ? 'bg-red-500' : disk !== null && disk > 75 ? 'bg-amber-500' : 'bg-teal-500' },
+                                    ];
+                                    return (
+                                        <div className="space-y-3">
+                                            {metrics.map(({ label, value, color }) => (
+                                                <div key={label}>
+                                                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                        <span>{label}</span>
+                                                        <span className="font-mono font-semibold">
+                                                            {value !== null ? `${Math.round(value)}%` : '—'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                                                        <div
+                                                            className={`h-2 rounded-full transition-all duration-700 ${color}`}
+                                                            style={{ width: value !== null ? `${Math.min(100, Math.round(value))}%` : '0%' }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
 
                             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Enabled Capabilities</h3>
@@ -688,7 +786,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                         <AgentComplianceTab
                             data={fetchedComplianceData || complianceData}
                             agentId={agent.id}
-                            onRefresh={handleRefreshCompliance}
+                            onRefresh={canTriggerScan ? handleRefreshCompliance : undefined}
                         />
                     ) : activeTab === 'software' ? (
                         <div className="space-y-4">

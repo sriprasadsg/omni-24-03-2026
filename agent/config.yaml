@@ -1,6 +1,6 @@
-agent_id: agent-b3b3b3eb
-agent_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ2VudC1iM2IzYjNlYiIsInJvbGUiOiJhZ2VudCIsInRlbmFudF9pZCI6InRlbmFudF9lZTJmYzczNDU0Y2QiLCJqdGkiOiIxMDc5MTJhNi1jM2U5LTRkM2UtOGNiZi02NzYyZjdhYzk5MDYiLCJleHAiOjIwOTM0NDY3OTJ9.bX7Fd9d2VCTvrcWDqrNchpvI0-AH14st1toHF66SLMQ
-api_base_url: http://127.0.0.1:5000
+agent_id: ${AGENT_ID:-agent-default}
+agent_token: ${AGENT_TOKEN}
+api_base_url: ${API_BASE_URL:-http://127.0.0.1:5000}
 goals:
 - description: Reduce overall attack surface score by 40%
   name: reduce_attack_surface
@@ -39,4 +39,5 @@ integrations:
     source_allowlist: []
     udp_port: 5140
 interval_seconds: 5
-registration_key: reg_f69eb9f052e34141
+registration_key: ${REGISTRATION_KEY}
+tenant_id: ${TENANT_ID}

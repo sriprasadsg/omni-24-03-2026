@@ -9,7 +9,7 @@ async def check_frameworks():
     await connect_to_mongo()
     db = get_database()
     
-    frameworks = await db.compliance_frameworks.find({}).to_list(length=None)
+    frameworks = await db.compliance_frameworks.find({}).to_list(length=1000)
     print(f"Total Frameworks: {len(frameworks)}\n")
     
     for f in frameworks:

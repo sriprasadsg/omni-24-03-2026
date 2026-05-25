@@ -4,6 +4,7 @@ Covers: CSPM findings, Alert Rules, Data Sources, Agent Upgrade Jobs,
         Service Catalog (templates + provisioned), Developer Hub API list.
 All previously stub-only features now backed by MongoDB.
 """
+import os as _os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -14,6 +15,8 @@ from pydantic import BaseModel
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
+
+_SSL_VERIFY = not _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes")
 
 router = APIRouter(prefix="/api", tags=["Platform"])
 
@@ -194,7 +197,7 @@ async def test_data_source(
             url = host if host.startswith("http") else f"https://{host}"
             timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.head(url, ssl=False) as resp:
+                async with session.head(url, ssl=_SSL_VERIFY) as resp:
                     success = resp.status < 500
                     message = f"HTTP {resp.status} from {url}"
         except Exception as exc:

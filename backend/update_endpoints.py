@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException
+import logging
 from fastapi.responses import FileResponse
 import os
 import glob
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/agent-updates",
@@ -43,7 +46,7 @@ async def get_latest_version(platform: str = "windows"):
                     "release_date": os.path.getmtime(agent_script_path)
                 }
         except Exception as e:
-            print(f"Error reading agent version: {e}")
+            logger.error("Error reading agent version: %s", e)
 
     # If platform is 'python' or 'script', return script info immediately
     if platform.lower() in ["python", "script"]:

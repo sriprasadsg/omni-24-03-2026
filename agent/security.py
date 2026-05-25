@@ -111,32 +111,55 @@ class SecurityManager:
         except Exception as e:
             logger.error(f"Failed to save encrypted config: {e}")
 
+    @staticmethod
+    def _expand_env_vars(obj):
+        """Recursively expand ${VAR} and ${VAR:-default} placeholders using os.environ."""
+        import re
+        pattern = re.compile(r'\$\{([^}]+)\}')
+
+        def _expand(value):
+            if not isinstance(value, str):
+                return value
+            def _replace(match):
+                spec = match.group(1)
+                if ':-' in spec:
+                    var, default = spec.split(':-', 1)
+                    return os.environ.get(var.strip(), default)
+                return os.environ.get(spec.strip(), match.group(0))
+            return pattern.sub(_replace, value)
+
+        if isinstance(obj, dict):
+            return {k: SecurityManager._expand_env_vars(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [SecurityManager._expand_env_vars(i) for i in obj]
+        return _expand(obj)
+
     def load_encrypted_config(self, path: Path) -> dict:
-        """Load encrypted configuration"""
+        """Load encrypted configuration, expanding ${ENV_VAR} placeholders."""
         try:
             if not path.exists():
                 return {}
-            
+
             content = path.read_text(encoding="utf-8")
-            
-            # Check if it's legacy plaintext YAML first
-            if content.strip().startswith("{") or "api_base_url:" in content: 
-                # Very rough heuristic for YAML/JSON vs Encrypted
-                # Attempt to parse as YAML/JSON directly
+
+            # Plaintext YAML heuristic
+            if content.strip().startswith("{") or "api_base_url:" in content or "${" in content:
                 import yaml
                 try:
-                    return yaml.safe_load(content)
-                except:
-                    pass # Failed, assume it's encrypted
-            
+                    raw = yaml.safe_load(content)
+                    return self._expand_env_vars(raw) if isinstance(raw, dict) else {}
+                except Exception:
+                    pass  # not valid YAML — fall through to encrypted path
+
             decrypted = self.decrypt_data(content)
-            return json.loads(decrypted)
+            raw = json.loads(decrypted)
+            return self._expand_env_vars(raw)
         except Exception as e:
-            logger.error(f"Failed to load config: {e}")
-            # Fallback try plaintext if decryption failed (migration scenario?)
+            logger.error("Failed to load config: %s", e)
             try:
                 import yaml
-                return yaml.safe_load(path.read_text(encoding="utf-8"))
-            except:
+                raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+                return self._expand_env_vars(raw) if isinstance(raw, dict) else {}
+            except Exception:
                 return {}
 

@@ -4,9 +4,18 @@ SIEM, CMDB, Ticketing, EDR/XDR integrations
 """
 
 import logging
+import os as _os
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import aiohttp
+
+_SSL_VERIFY = True  # SSL verification is always enforced; never disable globally
+if _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes"):
+    import logging as _warn_log
+    _warn_log.getLogger(__name__).warning(
+        "DISABLE_SSL_VERIFY is set but ignored — SSL certificate validation is enforced. "
+        "Use per-integration verify_ssl config for self-signed cert environments."
+    )
 
 _log = logging.getLogger(__name__)
 
@@ -73,7 +82,7 @@ class IntegrationService:
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, headers=headers, ssl=False) as response:
+                async with session.post(url, json=payload, headers=headers, ssl=_SSL_VERIFY) as response:
                     if response.status == 200:
                         return {"success": True, "details": await response.json()}
                     else:
@@ -138,7 +147,7 @@ class IntegrationService:
                 auth_resp = await session.post(
                     f"{base}/security/user/authenticate",
                     auth=aiohttp.BasicAuth(username, password),
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 if auth_resp.status != 200:
                     return {"success": False, "platform": "wazuh", "error": f"Auth failed: {auth_resp.status}"}
@@ -159,7 +168,7 @@ class IntegrationService:
                     f"{base}/events",
                     json=payload,
                     headers={"Authorization": f"Bearer {token}"},
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 body = await resp.json()
                 return {
@@ -205,14 +214,14 @@ class IntegrationService:
                     f"{base}/api/reference_data/sets",
                     params={"name": set_name, "element_type": "ALN"},
                     headers=headers,
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 # Add the event entry
                 resp = await session.post(
                     f"{base}/api/reference_data/sets/{set_name}",
                     params={"value": str(payload)},
                     headers=headers,
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 return {
                     "success": resp.status in (200, 201),
@@ -243,8 +252,8 @@ class IntegrationService:
         if tenant_id:
             query["tenantId"] = tenant_id
         
-        assets = await self.db.assets.find(query, {"_id": 0}).to_list(length=None)
-        
+        assets = await self.db.assets.find(query, {"_id": 0}).to_list(length=1000)
+
         if platform == "servicenow":
             return await self._sync_to_servicenow(assets, config)
         else:
@@ -468,7 +477,7 @@ class IntegrationService:
                     f"{base}/oauth2/token",
                     data={"client_id": client_id, "client_secret": client_secret},
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 if token_resp.status != 201:
                     return {"success": False, "platform": "crowdstrike",
@@ -481,7 +490,7 @@ class IntegrationService:
                     params={"action_name": cs_action},
                     json={"ids": [asset_id]},
                     headers={"Authorization": f"Bearer {token}"},
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 body = await resp.json()
                 return {"success": resp.status in (200, 202), "platform": "crowdstrike",
@@ -507,7 +516,7 @@ class IntegrationService:
                     json={"filter": {"ids": [asset_id]}},
                     headers={"Authorization": f"ApiToken {api_token}",
                              "Content-Type": "application/json"},
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 body = await resp.json()
                 return {"success": resp.status == 200, "platform": "sentinelone",
@@ -579,7 +588,7 @@ class IntegrationService:
         configs = await self.db.integration_configs.find(
             {"tenantId": tenant_id},
             {"_id": 0}
-        ).to_list(length=None)
+        ).to_list(length=1000)
         return configs
 
     async def save_config(self, tenant_id: str, config_data: Dict[str, Any]) -> Dict[str, Any]:

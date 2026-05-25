@@ -13,11 +13,11 @@ router = APIRouter(prefix="/api/privacy", tags=["Privacy & Compliance"])
 logger = logging.getLogger(__name__)
 
 
-def _tid(user) -> str:
+def _tid(user):
     """Extract tenant_id from TokenData or dict."""
     if isinstance(user, dict):
-        return user.get("tenant_id", "") or user.get("tenantId", "") or "platform-admin"
-    return getattr(user, "tenant_id", "") or "platform-admin"
+        return user.get("tenant_id") or user.get("tenantId") or None
+    return getattr(user, "tenant_id", None) or None
 
 
 def _role(user) -> str:
@@ -66,7 +66,7 @@ async def create_dsr(
         dsr.pop("_id", None)
         return {"dsr": dsr, "message": f"DSR {dsr['reference_number']} created — due by {dsr['due_date'][:10]}"}
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail="Bad request")
 
 
 @router.put("/dsr/{dsr_id}/status")

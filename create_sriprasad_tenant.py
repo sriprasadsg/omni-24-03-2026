@@ -55,9 +55,13 @@ try:
         result = response.json()
         if result.get('success'):
             print("✅ sriprasad tenant created successfully!\n")
+            # Fetch registration key from database directly
+            tenant_doc = db.tenants.find_one({"id": result['tenant']['id']})
+            reg_key = tenant_doc.get("registrationKey") if tenant_doc else "unknown"
+            
             print(f"Tenant ID: {result['tenant']['id']}")
             print(f"Tenant Name: {result['tenant']['name']}")
-            print(f"Registration Key: {result['tenant']['registrationKey']}\n")
+            print(f"Registration Key: {reg_key}\n")
             print(f"Admin Email: {result['user']['email']}")
             print(f"Admin Name: {result['user']['name']}")
             print(f"Admin Role: {result['user']['role']}\n")
@@ -65,7 +69,11 @@ try:
             # Save tenant ID for agent configuration
             with open('sriprasad_tenant_id.txt', 'w') as f:
                 f.write(result['tenant']['id'])
-            print(f"📝 Tenant ID saved to: sriprasad_tenant_id.txt\n")
+            # Save registration key
+            with open('sriprasad_reg_key.txt', 'w') as f:
+                f.write(reg_key)
+            print(f"📝 Tenant ID saved to: sriprasad_tenant_id.txt")
+            print(f"📝 Registration Key saved to: sriprasad_reg_key.txt\n")
             
             print("="*60)
             print("LOGIN CREDENTIALS:")

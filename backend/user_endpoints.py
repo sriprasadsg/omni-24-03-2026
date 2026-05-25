@@ -1,3 +1,4 @@
+import logging
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional
@@ -9,6 +10,20 @@ from tenant_context import get_tenant_id
 import datetime
 import uuid
 from pymongo.errors import DuplicateKeyError
+
+logger = logging.getLogger(__name__)
+
+async def _audit(db, action: str, actor: str, target: str, tenant_id: str):
+    try:
+        await db.audit_logs.insert_one({
+            "action": action,
+            "actor": actor,
+            "target": target,
+            "tenant_id": tenant_id,
+            "timestamp": datetime.datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logger.error("Audit log write failed: %s", e)
 
 router = APIRouter(prefix="/api/users", tags=["User Management"])
 
@@ -60,7 +75,7 @@ async def list_users(current_user: dict = Depends(get_current_user)):
             "role": u.get("role", "user"),
             "status": "Active" if u.get("is_active", True) or u.get("status") == "Active" else "Disabled",
             "avatar": u.get("avatar", f"https://ui-avatars.com/api/?name={u.get('full_name', u.get('name', 'User'))}&background=random"),
-            "tenantId": u.get("tenantId", "platform-admin"), # Default to platform if missing
+            "tenantId": u.get("tenantId"),
             "created_at": u.get("created_at", u.get("createdAt", ""))
         }
         for u in users
@@ -86,7 +101,12 @@ async def create_user(user: UserCreate, current_user: dict = Depends(get_current
     existing = await db.users.find_one({"email": user.email, "tenantId": target_tenant_id})
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
-    
+
+    from authentication_endpoints import _validate_password_complexity
+    pwd_error = _validate_password_complexity(user.password)
+    if pwd_error:
+        raise HTTPException(status_code=400, detail=pwd_error)
+
     new_user = {
         "email": user.email,
         "hashed_password": get_password_hash(user.password),
@@ -100,7 +120,8 @@ async def create_user(user: UserCreate, current_user: dict = Depends(get_current
     try:
         result = await db.users.insert_one(new_user)
         new_user["id"] = str(result.inserted_id)
-        
+        await _audit(db, "user.created", getattr(current_user, "username", "unknown"),
+                     user.email, target_tenant_id)
         return {
             "id": new_user["id"],
             "email": new_user["email"],
@@ -128,7 +149,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
     try:
         from bson import ObjectId
         obj_id = ObjectId(user_id)
-    except:
+    except (ValueError, Exception):
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     # Find the user to update
@@ -147,9 +168,13 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
     if updates.full_name is not None:
         update_data["full_name"] = updates.full_name
     if updates.role is not None:
-        # Only Super Admins can assign Super Admin role
-        if updates.role in ["super_admin", "superadmin", "Super Admin"] and not is_super_admin:
-            raise HTTPException(status_code=403, detail="Not authorized to assign Super Admin role")
+        _SUPER_ADMIN_ROLES = {"super_admin", "superadmin", "Super Admin", "platform-admin"}
+        _ELEVATED_ROLES = {"admin", "Tenant Admin"} | _SUPER_ADMIN_ROLES
+        _VALID_ROLES = {"user", "viewer"} | _ELEVATED_ROLES
+        if updates.role not in _VALID_ROLES:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        if updates.role in _ELEVATED_ROLES and not is_super_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to assign this role")
         update_data["role"] = updates.role
     if updates.password is not None:
         update_data["hashed_password"] = get_password_hash(updates.password)
@@ -169,7 +194,8 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
         }
 
     await db.users.update_one({"_id": obj_id}, {"$set": update_data})
-    
+    await _audit(db, "user.updated", getattr(current_user, "username", "unknown"),
+                 target_user.get("email", user_id), target_user.get("tenantId", ""))
     # Reload and return
     updated_user = await db.users.find_one({"_id": obj_id})
     updated_user["id"] = user_id
@@ -199,7 +225,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     try:
         from bson import ObjectId
         obj_id = ObjectId(user_id)
-    except:
+    except (ValueError, Exception):
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     # Find the user
@@ -218,5 +244,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
          raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     await db.users.delete_one({"_id": obj_id})
+    await _audit(db, "user.deleted", getattr(current_user, "username", "unknown"),
+                 target_user.get("email", user_id), target_user.get("tenantId", ""))
     return {"message": "User deleted successfully"}
 

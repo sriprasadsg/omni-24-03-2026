@@ -20,10 +20,8 @@ def test_ps():
             "}; "
             "$spec | ConvertTo-Json"
         )
-        cmd = f'powershell -ExecutionPolicy Bypass -Command "{ps_cmd}"'
         try:
-            print(f"Running command: {cmd}")
-            result = subprocess.check_output(cmd, shell=True, timeout=15).decode(errors='ignore')
+            result = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd], shell=False, timeout=15).decode(errors='ignore')
             print(f"Result: {result}")
             data = json.loads(result)
             print(f"Parsed Data: {data}")

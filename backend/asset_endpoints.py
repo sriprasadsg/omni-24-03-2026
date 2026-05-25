@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 import datetime
+import re
 from cache_service import cached, invalidate_cache
 from pagination_utils import paginate_mongo_query, PaginationParams
 
@@ -33,7 +34,7 @@ async def get_assets(
         query["tenantId"] = current_user.tenant_id
 
     if os:
-        query["osName"] = {"$regex": os, "$options": "i"}
+        query["osName"] = {"$regex": re.escape(os), "$options": "i"}
     
     pagination = PaginationParams(page=page, page_size=page_size)
     
@@ -56,7 +57,9 @@ async def search_assets(
     current_user=Depends(get_current_user),
 ):
     """Full-text search across asset name, hostname, IP, and type fields."""
-    regex = {"$regex": q, "$options": "i"}
+    q = q[:200]
+    import re as _re
+    regex = {"$regex": _re.escape(q), "$options": "i"}
     query: Dict[str, Any] = {
         "$or": [
             {"name": regex},
@@ -97,18 +100,70 @@ async def get_asset_details(
     db=Depends(get_database),
     current_user=Depends(get_current_user)
 ):
-    """Get details for a specific asset"""
+    """Get details for a specific asset, enriched with agent meta for missing fields."""
     query = {"id": asset_id}
-    
-    # RBAC check
+
     is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
     if not is_admin:
         query["tenantId"] = current_user.tenant_id
-        
+
     asset = await db.assets.find_one(query, {"_id": 0})
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
-        
+
+    # ── Enrich from agent meta so detail view shows real hardware fields ──
+    hostname = asset.get("hostname")
+    agent = None
+    if hostname:
+        agent = await db.agents.find_one(
+            {"hostname": hostname},
+            {"_id": 0, "id": 1, "status": 1, "version": 1, "meta": 1}
+        )
+
+    if agent:
+        meta = agent.get("meta") or {}
+
+        def _missing(field, *bad):
+            v = asset.get(field)
+            return not v or v in ("Unknown", "Not Available", "00:00:00:00:00:00", *bad)
+
+        if _missing("serialNumber"):
+            asset["serialNumber"] = meta.get("serial_number") or asset.get("serialNumber", "")
+        if _missing("macAddress"):
+            asset["macAddress"] = meta.get("mac_address") or asset.get("macAddress", "")
+        if not asset.get("macAddresses") and meta.get("mac_addresses"):
+            asset["macAddresses"] = meta["mac_addresses"]
+        if _missing("kernel"):
+            asset["kernel"] = meta.get("kernel_version") or meta.get("os_version_detail") or asset.get("kernel", "")
+        if _missing("osBuild"):
+            asset["osBuild"] = meta.get("os_version_detail") or meta.get("kernel_version") or asset.get("osBuild", "")
+        if _missing("osDisplayVersion"):
+            asset["osDisplayVersion"] = meta.get("os_release") or asset.get("osDisplayVersion", "")
+        if _missing("osVersion"):
+            asset["osVersion"] = (
+                meta.get("os_version") or meta.get("os_version_detail") or asset.get("osVersion", "")
+            )
+        if _missing("osFullName"):
+            asset["osFullName"] = meta.get("os_full_name") or asset.get("osFullName", "")
+        if _missing("osEdition"):
+            os_full = asset.get("osFullName") or meta.get("os_full_name", "")
+            m = re.search(r'\b(Home|Pro|Enterprise|Education|Standard|Datacenter|Server)\b', os_full, re.IGNORECASE)
+            if m:
+                asset["osEdition"] = m.group(1)
+        if _missing("cpuModel"):
+            asset["cpuModel"] = meta.get("cpu_model") or asset.get("cpuModel", "")
+        if _missing("ram"):
+            asset["ram"] = meta.get("memory_gb") or asset.get("ram", "")
+        if not asset.get("disks") and meta.get("disks"):
+            asset["disks"] = meta["disks"]
+        if _missing("osInstalledOn"):
+            asset["osInstalledOn"] = meta.get("install_date") or asset.get("osInstalledOn", "")
+
+        # Agent link fields
+        asset["agentStatus"] = agent.get("status", "Unknown")
+        asset["agentVersion"] = agent.get("version", "")
+        asset["agentId"] = agent["id"]
+
     return asset
 
 @router.get("/{asset_id}/metrics")
@@ -119,40 +174,76 @@ async def get_asset_metrics(
     current_user=Depends(get_current_user)
 ):
     """Get metrics history for an asset"""
-    # Verify access to asset first
     asset_query = {"id": asset_id}
     is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
     if not is_admin:
         asset_query["tenantId"] = current_user.tenant_id
-        
+
     asset = await db.assets.find_one(asset_query)
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    # In a real system, we'd fetch from a time-series collection like 'asset_metrics'
-    # For this implementation, we simulate/fetch the most recent metrics if they aren't historicized yet
-    # or return the telemetry stored on the asset if history is missing.
-    
-    # Try to find historical metrics
-    metrics_cursor = db.asset_metrics.find({"assetId": asset_id}, {"_id": 0}).sort("timestamp", -1).limit(100)
-    metrics = await metrics_cursor.to_list(length=100)
-    
-    if not metrics:
-        # No recorded history — seed a single snapshot from the asset's last-known telemetry
-        # so charts have at least one real data point rather than random numbers.
-        asset = await db.assets.find_one({"id": asset_id}, {"_id": 0})
-        telemetry = (asset or {}).get("telemetry") or {}
-        now = datetime.datetime.now(datetime.timezone.utc)
-        metrics.append({
+    range_hours = {"1h": 1, "24h": 24, "7d": 168, "30d": 720}.get(time_range, 24)
+    since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=range_hours)).isoformat()
+
+    # Heartbeat handler writes asset_metrics with snake_case "asset_id" key
+    raw = await db.asset_metrics.find(
+        {"asset_id": asset_id, "timestamp": {"$gte": since}}, {"_id": 0}
+    ).sort("timestamp", -1).limit(100).to_list(length=100)
+
+    if raw:
+        # Normalise field names — heartbeat stores cpu_percent/memory_percent/disk_percent
+        metrics = [
+            {
+                "timestamp": m.get("timestamp"),
+                "cpu":    float(m.get("cpu_percent") or m.get("cpu") or 0),
+                "memory": float(m.get("memory_percent") or m.get("memory") or 0),
+                "disk":   float(m.get("disk_percent") or m.get("disk") or 0),
+                "network": float(
+                    (m.get("network_bytes_sent") or 0) + (m.get("network_bytes_recv") or 0)
+                ) / (1024 * 1024),
+            }
+            for m in reversed(raw)  # chronological order for charts
+        ]
+        return {"assetId": asset_id, "metrics": metrics}
+
+    # Fallback 1 — pull from agent_metrics_history via the agent linked to this asset
+    agent = await db.agents.find_one({"assetId": asset_id}, {"_id": 0, "id": 1})
+    if not agent:
+        # Try matching by hostname (asset_id is "asset-{hostname}")
+        hostname = asset_id.replace("asset-", "", 1)
+        agent = await db.agents.find_one({"hostname": hostname}, {"_id": 0, "id": 1})
+
+    if agent:
+        history = await db.agent_metrics_history.find(
+            {"agent_id": agent["id"]}, {"_id": 0}
+        ).sort("timestamp", -1).limit(100).to_list(length=100)
+        if history:
+            metrics = [
+                {
+                    "timestamp": m.get("timestamp"),
+                    "cpu":    float(m.get("cpu") or m.get("cpu_percent") or 0),
+                    "memory": float(m.get("memory") or m.get("memory_percent") or 0),
+                    "disk":   float(m.get("disk") or m.get("disk_percent") or 0),
+                    "network": 0.0,
+                }
+                for m in reversed(history)
+            ]
+            return {"assetId": asset_id, "metrics": metrics}
+
+    # Fallback 2 — single snapshot from asset's last-known telemetry
+    telemetry = (asset or {}).get("telemetry") or {}
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return {
+        "assetId": asset_id,
+        "metrics": [{
             "timestamp": now.isoformat(),
-            "cpu": float(telemetry.get("cpu_percent", 0)),
-            "ram": float(telemetry.get("memory_percent", 0)),
-            "disk": float(telemetry.get("disk_percent", 0)),
-            "network_in": float(telemetry.get("network_bytes_recv", 0)),
-            "network_out": float(telemetry.get("network_bytes_sent", 0)),
-        })
-            
-    return {"assetId": asset_id, "metrics": metrics}
+            "cpu":    float(telemetry.get("cpu_percent", 0)),
+            "memory": float(telemetry.get("memory_percent", 0)),
+            "disk":   float(telemetry.get("disk_percent", 0)),
+            "network": 0.0,
+        }],
+    }
 
 
 @router.delete("/{asset_id}")
@@ -177,16 +268,21 @@ async def delete_asset(
     if user_role not in ["Super Admin", "superadmin", "super_admin", "admin"] and asset["tenantId"] != tenant_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this asset")
 
-    # Delete asset
-    result = await db.assets.delete_one({"id": asset_id})
+    # Delete asset — include tenantId in delete query for defense-in-depth
+    delete_query: dict = {"id": asset_id}
+    if user_role not in ["Super Admin", "superadmin", "super_admin", "admin"]:
+        delete_query["tenantId"] = tenant_id
+    result = await db.assets.delete_one(delete_query)
     
     if result.deleted_count == 0:
          raise HTTPException(status_code=500, detail="Failed to delete asset")
     
-    # Cascade Delete: If there's an agent linked to this asset, delete it.
-    # Note: assets track their links through `agentId` or `agentStatus` depending on how it's linked.
-    # We'll search for any agent asserting `assetId == asset_id` and delete it.
-    await db.agents.delete_one({"assetId": asset_id})
+    # Cascade Delete: remove any agent linked to this asset, scoped to the asset's tenant
+    asset_tenant = asset.get("tenantId")
+    cascade_filter: dict = {"assetId": asset_id}
+    if asset_tenant:
+        cascade_filter["tenantId"] = asset_tenant
+    await db.agents.delete_one(cascade_filter)
     
     # Invalidate cache
     invalidate_cache("assets:*")
@@ -230,19 +326,25 @@ async def link_asset_to_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Update Asset record to reflect the linked agent
+    # Update Asset record — include tenantId in filter to prevent cross-tenant writes
+    asset_update_filter = {"id": asset_id}
+    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+        asset_update_filter["tenantId"] = current_user.tenant_id
     await db.assets.update_one(
-        {"id": asset_id},
+        asset_update_filter,
         {"$set": {
             "agentStatus": agent.get("status", "Online"),
             "agentVersion": agent.get("version", "1.0.0"),
             "agentCapabilities": agent.get("capabilities", [])
         }}
     )
-    
-    # Update Agent record
+
+    # Update Agent record — include tenantId in filter to prevent cross-tenant writes
+    agent_update_filter = {"id": agent_id}
+    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+        agent_update_filter["tenantId"] = current_user.tenant_id
     await db.agents.update_one(
-        {"id": agent_id},
+        agent_update_filter,
         {"$set": {"assetId": asset_id}}
     )
     
@@ -275,10 +377,18 @@ async def bulk_update_assets(
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
         query["tenantId"] = tenant_id
         
+    _BULK_UPDATE_ALLOWLIST = {
+        "status", "criticality", "tags", "location", "owner",
+        "notes", "maintenanceWindow", "environment", "category",
+    }
+    safe_updates = {k: v for k, v in request.updates.items() if k in _BULK_UPDATE_ALLOWLIST}
+    if not safe_updates:
+        raise HTTPException(status_code=400, detail="No valid update fields provided")
+
     result = await db.assets.update_many(
         query,
         {"$set": {
-            **request.updates, 
+            **safe_updates,
             "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }}
     )
@@ -309,8 +419,13 @@ async def set_asset_criticality(
     if level not in ("critical", "high", "medium", "low"):
         raise HTTPException(status_code=400, detail="criticality must be critical|high|medium|low")
 
+    asset_query: dict = {"id": asset_id}
+    user_role = getattr(current_user, "role", "")
+    if user_role not in ("Super Admin", "superadmin", "super_admin", "platform-admin"):
+        asset_query["tenantId"] = getattr(current_user, "tenant_id", None)
+
     result = await db.assets.update_one(
-        {"id": asset_id},
+        asset_query,
         {"$set": {
             "criticality": level,
             "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),

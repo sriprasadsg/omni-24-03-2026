@@ -139,8 +139,9 @@ class SOAREngine:
                 if operator == '==': return val == right_val
         except Exception as e:
             logger.error(f"Failed to evaluate condition '{condition}': {e}")
-            
-        return True # Default to pass if eval fails in demo
+            return False  # Fail closed — unknown/malformed conditions must not pass
+
+        return False  # Unrecognised operator also fails closed
 
     # --- PLUGINS (Real Integrations) ---
 

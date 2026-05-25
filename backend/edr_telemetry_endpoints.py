@@ -207,8 +207,13 @@ async def get_edr_alerts(
 ):
     """Get EDR alerts with optional filters."""
     db = get_database()
-    query: Dict[str, Any] = {}
+    tenant_id = getattr(current_user, "tenant_id", None)
+    query: Dict[str, Any] = {"tenantId": tenant_id}
     if agent_id:
+        # Verify agent belongs to this tenant before accepting the filter
+        agent = await db.agents.find_one({"id": agent_id, "tenantId": tenant_id}, {"_id": 1})
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
         query["agent_id"] = agent_id
     if severity:
         query["severity"] = severity
@@ -228,8 +233,9 @@ async def acknowledge_alert(
 ):
     """Mark an EDR alert as acknowledged."""
     db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None)
     result = await db.edr_alerts.update_one(
-        {"alert_id": alert_id},
+        {"alert_id": alert_id, "tenantId": tenant_id},
         {"$set": {"acknowledged": True, "acknowledged_by": current_user.username,
                   "acknowledged_at": datetime.now(timezone.utc).isoformat()}}
     )
@@ -249,10 +255,13 @@ async def get_process_tree(
 ):
     """Get the most recent process snapshot for an agent."""
     db = get_database()
-    snapshot = await db.edr_telemetry.find_one(
-        {"agent_id": agent_id}, {"_id": 0},
-        sort=[("ingested_at", -1)]
-    )
+    _EDR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    snap_filter: dict = {"agent_id": agent_id}
+    if caller_role not in _EDR_SUPER_ROLES and caller_tenant:
+        snap_filter["tenantId"] = caller_tenant
+    snapshot = await db.edr_telemetry.find_one(snap_filter, {"_id": 0}, sort=[("ingested_at", -1)])
     if not snapshot:
         raise HTTPException(status_code=404, detail="No telemetry found for this agent")
     return snapshot
@@ -264,17 +273,20 @@ async def get_telemetry_summary(
 ):
     """Get aggregated EDR health summary across all agents."""
     db = get_database()
-    # Last 24h alerts by severity
+    _EDR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    base: dict = {} if caller_role in _EDR_SUPER_ROLES else ({"tenantId": caller_tenant} if caller_tenant else {"tenantId": None})
     since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     pipeline = [
-        {"$match": {"ingested_at": {"$gte": since}}},
+        {"$match": {"ingested_at": {"$gte": since}, **base}},
         {"$group": {"_id": "$severity", "count": {"$sum": 1}}},
     ]
     severity_counts = await db.edr_alerts.aggregate(pipeline).to_list(length=20)
-    total_alerts = await db.edr_alerts.count_documents({"ingested_at": {"$gte": since}})
-    unack = await db.edr_alerts.count_documents({"acknowledged": False})
+    total_alerts = await db.edr_alerts.count_documents({"ingested_at": {"$gte": since}, **base})
+    unack = await db.edr_alerts.count_documents({"acknowledged": False, **base})
     critical = await db.edr_alerts.count_documents({
-        "severity": "critical", "acknowledged": False
+        "severity": "critical", "acknowledged": False, **base
     })
 
     return {
@@ -296,8 +308,11 @@ async def add_ioc(
 ):
     """Add a new Indicator of Compromise to the blocklist."""
     db = get_database()
+    caller_tenant = getattr(current_user, "tenant_id", None)
     doc = {**ioc.dict(), "added_by": current_user.username,
            "added_at": datetime.now(timezone.utc).isoformat()}
+    if caller_tenant:
+        doc["tenantId"] = caller_tenant
     await db.edr_ioc.insert_one(doc)
     return {"status": "IOC added", "ioc": ioc.dict()}
 
@@ -306,5 +321,9 @@ async def add_ioc(
 async def list_ioc(current_user: TokenData = Depends(get_current_user)):
     """List all IOCs in the blocklist."""
     db = get_database()
-    iocs = await db.edr_ioc.find({}, {"_id": 0}).to_list(length=1000)
+    _EDR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    ioc_filter: dict = {} if caller_role in _EDR_SUPER_ROLES else ({"tenantId": caller_tenant} if caller_tenant else {"tenantId": None})
+    iocs = await db.edr_ioc.find(ioc_filter, {"_id": 0}).to_list(length=1000)
     return iocs

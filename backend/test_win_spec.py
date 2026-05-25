@@ -22,8 +22,7 @@ def get_windows_specifications():
                 "}; "
                 "$spec | ConvertTo-Json"
             )
-            cmd = f'powershell -ExecutionPolicy Bypass -Command "{ps_cmd}"'
-            result = subprocess.check_output(cmd, shell=True, timeout=15).decode(errors='ignore')
+            result = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd], shell=False, timeout=15).decode(errors='ignore')
             return json.loads(result)
         return {}
     except Exception as e:

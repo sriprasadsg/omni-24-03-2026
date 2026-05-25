@@ -19,6 +19,9 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 import hashlib
+import os as _os
+
+_SSL_VERIFY = not _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes")
 
 
 class VulnerabilitySeverity:
@@ -344,7 +347,7 @@ class SASTService:
                     f"{base}/api/issues/search",
                     params={"projectKeys": project_key, "types": "VULNERABILITY,BUG",
                             "statuses": "OPEN,CONFIRMED,REOPENED", "ps": 100},
-                    ssl=False,
+                    ssl=_SSL_VERIFY,
                 )
                 if resp.status != 200:
                     self.logger.warning("SonarQube returned %s — falling back to pattern scan", resp.status)

@@ -57,10 +57,10 @@ class ComplianceAutomationService:
         await self.init_db()
         
         # Get all agents for tenant
-        agents = await self.db.agents.find({"tenantId": tenant_id}).to_list(length=None)
-        
+        agents = await self.db.agents.find({"tenantId": tenant_id}).to_list(length=1000)
+
         # Get patch data
-        patches = await self.db.patches.find({"tenantId": tenant_id}).to_list(length=None)
+        patches = await self.db.patches.find({"tenantId": tenant_id}).to_list(length=1000)
         
         # Calculate metrics
         total_agents = len(agents)
@@ -96,7 +96,7 @@ class ComplianceAutomationService:
         await self.init_db()
         
         # Get vulnerabilities
-        vulns = await self.db.vulnerabilities.find({"tenantId": tenant_id}).to_list(length=None)
+        vulns = await self.db.vulnerabilities.find({"tenantId": tenant_id}).to_list(length=1000)
         
         # Calculate metrics
         total_vulns = len(vulns)
@@ -151,8 +151,8 @@ class ComplianceAutomationService:
         """Generate agent status report evidence"""
         await self.init_db()
         
-        agents = await self.db.agents.find({"tenantId": tenant_id}).to_list(length=None)
-        
+        agents = await self.db.agents.find({"tenantId": tenant_id}).to_list(length=1000)
+
         online = len([a for a in agents if a.get("status") == "Online"])
         offline = len([a for a in agents if a.get("status") == "Offline"])
         error = len([a for a in agents if a.get("status") == "Error"])
@@ -253,7 +253,7 @@ class ComplianceAutomationService:
         
         rules = await self.db.compliance_automation_rules.find({
             "tenant_id": tenant_id
-        }).to_list(length=None)
+        }).to_list(length=1000)
         
         return rules
     

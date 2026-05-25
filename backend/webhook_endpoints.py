@@ -5,19 +5,48 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from datetime import datetime, timezone
 import uuid
+import hmac
+import hashlib
 import httpx
 from intent_parser_service import intent_parser_service
 from integration_service import get_integration_service
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
+_WEBHOOK_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+async def _verify_inbound_signature(request: Request, provider: str, db) -> bool:
+    """Validate HMAC-SHA256 signature on inbound webhook. Fail-closed when secret is configured."""
+    cfg = await db.integration_config.find_one({"type": provider}, {"_id": 0}) or {}
+    secret = cfg.get("webhook_secret") or cfg.get("webhookSecret", "")
+    if not secret:
+        import logging as _l
+        _l.getLogger(__name__).warning(
+            "No webhook_secret configured for %s inbound webhooks — accepting unauthenticated", provider
+        )
+        return True
+    body = await request.body()
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    sig_header = (
+        request.headers.get("X-Hub-Signature-256")
+        or request.headers.get("X-Hub-Signature")
+        or request.headers.get("X-Zoho-Signature")
+        or ""
+    )
+    if not sig_header:
+        return False
+    return hmac.compare_digest(expected, sig_header)
+
 @router.post("/jira/inbound")
-async def handle_jira_webhook(payload: Dict[str, Any]):
+async def handle_jira_webhook(request: Request, payload: Dict[str, Any]):
     """
     Handle inbound Jira webhook events.
     Parses 'issue_created' or 'issue_updated' and dispatches tasks.
     """
     db = get_database()
+    if not await _verify_inbound_signature(request, "jira", db):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
     integration_svc = get_integration_service(db)
     
     result = await intent_parser_service.parse_and_dispatch(payload, "jira")
@@ -31,11 +60,13 @@ async def handle_jira_webhook(payload: Dict[str, Any]):
     return result
 
 @router.post("/zoho/inbound")
-async def handle_zoho_webhook(payload: Dict[str, Any]):
+async def handle_zoho_webhook(request: Request, payload: Dict[str, Any]):
     """
     Handle inbound Zoho Desk webhook events.
     """
     db = get_database()
+    if not await _verify_inbound_signature(request, "zohodesk", db):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
     integration_svc = get_integration_service(db)
     
     result = await intent_parser_service.parse_and_dispatch(payload, "zohodesk")
@@ -51,12 +82,9 @@ async def handle_zoho_webhook(payload: Dict[str, Any]):
 async def get_webhooks(current_user: TokenData = Depends(get_current_user)):
     """Get all configured webhooks"""
     db = get_database()
-    # Filter by user's permission ideally, for now return all active/inactive
-    # In a real app, strict tenant filtering is needed
-    query = {}
-    if current_user.tenant_id and current_user.tenant_id != "platform-admin":
-         query["tenantId"] = current_user.tenant_id
-
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    query = {} if caller_role in _WEBHOOK_SUPER_ROLES else {"tenantId": caller_tenant}
     cursor = db.webhooks.find(query, {"_id": 0})
     return await cursor.to_list(length=100)
 
@@ -91,7 +119,10 @@ async def create_webhook(
 async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user)):
     """Delete a webhook"""
     db = get_database()
-    result = await db.webhooks.delete_one({"id": webhook_id})
+    query: dict = {"id": webhook_id}
+    if current_user.tenant_id and current_user.tenant_id != "platform-admin":
+        query["tenantId"] = current_user.tenant_id
+    result = await db.webhooks.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Webhook not found")
     return {"success": True}
@@ -118,15 +149,14 @@ async def update_webhook(
     if not update_fields:
         return {"success": False, "message": "No fields to update"}
 
-    result = await db.webhooks.update_one(
-        {"id": webhook_id},
-        {"$set": update_fields}
-    )
-    
+    query: dict = {"id": webhook_id}
+    if current_user.tenant_id and current_user.tenant_id != "platform-admin":
+        query["tenantId"] = current_user.tenant_id
+    result = await db.webhooks.update_one(query, {"$set": update_fields})
+
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Webhook not found")
-        
-    # Return updated document
+
     updated_webhook = await db.webhooks.find_one({"id": webhook_id}, {"_id": 0})
     return updated_webhook
 
@@ -138,6 +168,13 @@ async def get_webhook_deliveries(
 ):
     """Get real delivery history for a webhook from the webhook_deliveries collection."""
     db = get_database()
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    wh_filter: dict = {"id": webhook_id}
+    if caller_role not in _WEBHOOK_SUPER_ROLES:
+        wh_filter["tenantId"] = caller_tenant
+    if not await db.webhooks.find_one(wh_filter, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Webhook not found")
     cursor = db.webhook_deliveries.find(
         {"webhook_id": webhook_id}, {"_id": 0}
     ).sort("delivered_at", -1).limit(limit)
@@ -175,7 +212,12 @@ async def _record_delivery(db, webhook_id: str, event: str, payload: dict,
 async def test_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user)):
     """Test a webhook by sending a ping event and recording the delivery."""
     db = get_database()
-    webhook = await db.webhooks.find_one({"id": webhook_id})
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    wh_filter: dict = {"id": webhook_id}
+    if caller_role not in _WEBHOOK_SUPER_ROLES:
+        wh_filter["tenantId"] = caller_tenant
+    webhook = await db.webhooks.find_one(wh_filter)
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
@@ -200,17 +242,17 @@ async def test_webhook(webhook_id: str, current_user: TokenData = Depends(get_cu
         success = 200 <= response.status_code < 300
         await _record_delivery(db, webhook_id, "ping", payload, success, response.status_code)
 
-        # Update webhook last-result
         await db.webhooks.update_one(
-            {"id": webhook_id},
+            wh_filter,
             {"$set": {"lastResult": "success" if success else "failure",
                       "lastTestedAt": datetime.now(timezone.utc).isoformat()}},
         )
         return {"success": success, "status": response.status_code, "response": response.text[:200]}
     except Exception as e:
-        await _record_delivery(db, webhook_id, "ping", payload, False, 0, str(e))
+        import logging as _l; _l.getLogger(__name__).error("Webhook test error: %s", e)
+        await _record_delivery(db, webhook_id, "ping", payload, False, 0, "connection error")
         await db.webhooks.update_one(
-            {"id": webhook_id},
+            wh_filter,
             {"$set": {"lastResult": "failure", "failureCount": 1}},
         )
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Webhook delivery failed"}

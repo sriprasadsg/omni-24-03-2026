@@ -27,20 +27,23 @@ BACKEND_URL=""
 AGENT_TOKEN=""
 TENANT_ID=""
 REGISTRATION_KEY=""
+VIRUSTOTAL_API_KEY=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --backend-url)      BACKEND_URL="$2";      shift 2 ;;
-        --token)            AGENT_TOKEN="$2";      shift 2 ;;
-        --tenant-id)        TENANT_ID="$2";        shift 2 ;;
-        --registration-key) REGISTRATION_KEY="$2"; shift 2 ;;
-        --install-path)     INSTALL_PATH="$2";     shift 2 ;;
-        --as-service)       AS_SERVICE=true;       shift   ;;
+        --backend-url)      BACKEND_URL="$2";        shift 2 ;;
+        --token)            AGENT_TOKEN="$2";        shift 2 ;;
+        --tenant-id)        TENANT_ID="$2";          shift 2 ;;
+        --registration-key) REGISTRATION_KEY="$2";   shift 2 ;;
+        --install-path)     INSTALL_PATH="$2";       shift 2 ;;
+        --virustotal-key)   VIRUSTOTAL_API_KEY="$2"; shift 2 ;;
+        --as-service)       AS_SERVICE=true;         shift   ;;
         *)
             print_error "Unknown option: $1"
             echo "Usage: sudo $0 --backend-url URL [--token TOKEN] [--tenant-id ID]"
-            echo "                       [--registration-key KEY] [--install-path PATH] [--as-service]"
+            echo "                       [--registration-key KEY] [--virustotal-key KEY]"
+            echo "                       [--install-path PATH] [--as-service]"
             exit 1
             ;;
     esac
@@ -158,6 +161,41 @@ swarm:
   enabled: true
 autonomous_actions:
   enabled: true
+enabled_capabilities:
+  - metrics_collection
+  - log_collection
+  - fim
+  - real_time_fim
+  - vulnerability_scanning
+  - compliance_enforcement
+  - compliance_evidence_collector
+  - runtime_security
+  - predictive_health
+  - ueba
+  - sbom_analysis
+  - ebpf_tracing
+  - system_patching
+  - software_management
+  - remote_access
+  - network_discovery
+  - agent_update
+  - patch_installer
+  - process_injection_simulation
+  - persistence_detection
+  - remediation_executor
+  - shadow_ai
+  - pii_scanner
+  - cloud_metadata
+  - web_monitor
+  - vss_manager
+  - autonomous_response
+  - edr_realtime
+  - process_monitor
+  - log_shipper
+  - vendor_risk
+  - backup_verifier
+  - deception_monitor
+  - threat_intel
 EOF
 print_success "config.yaml written"
 
@@ -193,6 +231,7 @@ User=root
 WorkingDirectory=$INSTALL_PATH
 Environment="PATH=$INSTALL_PATH/venv/bin:/usr/bin:/bin"
 Environment="PYTHONPATH=$INSTALL_PATH"
+Environment="VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}"
 ExecStart=$INSTALL_PATH/venv/bin/python agent.py
 Restart=always
 RestartSec=10

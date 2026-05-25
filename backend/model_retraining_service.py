@@ -151,9 +151,12 @@ class ModelRetrainingService:
                 merged.append(job)
         return merged
 
-    async def promote_model(self, model_id: str) -> dict:
+    async def promote_model(self, model_id: str, tenant_id: str = None) -> dict:
         db = self._db()
-        target = await db.ml_models.find_one({"id": model_id}, {"_id": 0})
+        model_filter: dict = {"id": model_id}
+        if tenant_id:
+            model_filter["tenant_id"] = tenant_id
+        target = await db.ml_models.find_one(model_filter, {"_id": 0})
         if not target:
             raise ValueError("Model not found")
         await db.ml_models.update_many(

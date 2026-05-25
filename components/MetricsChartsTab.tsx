@@ -34,7 +34,7 @@ export const MetricsChartsTab: React.FC<MetricsChartsTabProps> = ({ assetId }) =
                 const metrics = await fetchAssetMetrics(assetId, timeRange);
                 if (mounted) {
                     if (metrics && metrics.length > 0) {
-                        // Format timestamps
+                        // Format timestamps — handle multiple field-name conventions from backend
                         const formatted = metrics.map((m: any) => ({
                             timestamp: new Date(m.timestamp).toLocaleTimeString(undefined, {
                                 hour: '2-digit',
@@ -42,10 +42,11 @@ export const MetricsChartsTab: React.FC<MetricsChartsTabProps> = ({ assetId }) =
                                 hour12: false,
                                 timeZone: timeZone
                             }),
-                            cpu: m.cpu_percent || 0,
-                            memory: m.memory_percent || 0,
-                            disk: m.disk_percent || 0,
-                            network: m.network_bytes_sent_mb || 0
+                            cpu: m.cpu ?? m.cpu_percent ?? 0,
+                            memory: m.memory ?? m.ram ?? m.memory_percent ?? 0,
+                            disk: m.disk ?? m.disk_percent ?? 0,
+                            network: m.network ?? m.network_bytes_sent_mb
+                                ?? (((m.network_in ?? 0) + (m.network_out ?? 0)) / (1024 * 1024))
                         }));
                         setData(formatted);
                     } else {

@@ -240,15 +240,16 @@ class ResponseOrchestrator:
 
         return False
 
-    async def get_pending_tasks(self, agent_id: str) -> List[Dict]:
+    async def get_pending_tasks(self, agent_id: str, tenant_id: str = None) -> List[Dict]:
         """
         Called by agent polling. Returns queued response tasks for this agent.
         The agent will execute them and call /response/task/{task_id}/result.
         """
         db = get_database()
-        tasks = await db.response_tasks.find(
-            {"agent_id": agent_id, "status": "queued"}, {"_id": 0}
-        ).to_list(length=20)
+        query: Dict = {"agent_id": agent_id, "status": "queued"}
+        if tenant_id:
+            query["tenantId"] = tenant_id
+        tasks = await db.response_tasks.find(query, {"_id": 0}).to_list(length=20)
         return tasks
 
 

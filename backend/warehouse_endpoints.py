@@ -18,13 +18,15 @@ async def query_warehouse(
     Execute a query against the analytics warehouse.
     """
     service = get_data_warehouse_service(db)
-    tenant_id = current_user.tenant_id
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context not found")
     
     try:
         results = await service.query_analytics(tenant_id, table_name, query_params)
         return results
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Bad request")
 
 @router.get("/stats")
 async def get_warehouse_stats(
@@ -35,7 +37,9 @@ async def get_warehouse_stats(
     Get high-level warehouse statistics.
     """
     service = get_data_warehouse_service(db)
-    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context not found")
 
     # Auto-seed ETL on first call so the dashboard is never empty
     stats = await service.get_aggregated_stats(tenant_id)
@@ -55,6 +59,8 @@ async def trigger_etl(
 ):
     """Manually trigger a full ETL run for the current tenant."""
     service = get_data_warehouse_service(db)
-    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context not found")
     result = await service.run_etl(tenant_id)
     return {"status": "complete", **result}

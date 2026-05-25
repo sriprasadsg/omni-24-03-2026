@@ -36,9 +36,17 @@ export const EvidenceMarkdownViewer: React.FC<EvidenceMarkdownViewerProps> = ({ 
 
     // Simple markdown-to-HTML converter for basic formatting
     const renderMarkdown = (md: string) => {
-        // Replace code blocks
-        let html = md.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
-            return `<pre class="bg-gray-900 text-gray-100 dark:bg-gray-950 p-3 rounded-md overflow-x-auto mt-2 mb-2"><code class="text-sm">${escapeHtml(code.trim())}</code></pre>`;
+        // Escape all HTML first to prevent XSS — markdown syntax chars are not HTML-special
+        const safe = md
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+
+        // Replace code blocks (content already HTML-escaped above)
+        let html = safe.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, _lang, code) => {
+            return `<pre class="bg-gray-900 text-gray-100 dark:bg-gray-950 p-3 rounded-md overflow-x-auto mt-2 mb-2"><code class="text-sm">${code.trim()}</code></pre>`;
         });
 
         // Replace inline code

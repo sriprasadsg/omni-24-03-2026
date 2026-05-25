@@ -65,7 +65,7 @@ def _make_record(asset_id: str, hostname: str, control_id: str,
 **SHA-256:** `{content_hash}`
 """
     return {
-        "id": f"ev-{hostname}-{control_id}-{hashlib.md5(check_name.encode()).hexdigest()[:8]}",
+        "id": f"ev-{hostname}-{control_id}-{hashlib.sha256(check_name.encode()).hexdigest()[:8]}",
         "name": f"Admin Check: {check_name}",
         "url": "#",
         "type": "text/markdown",
@@ -236,72 +236,100 @@ async def run_evidence_collection_for_asset(hostname: str, db: AsyncIOMotorDatab
     asset_id = f"asset-{hostname}"
     logger.info(f"[AdminEvidence] Starting collection for {hostname} ({asset_id})")
 
-    # Run synchronous PowerShell in a threadpool so we don't block the event loop
-    loop = asyncio.get_event_loop()
-    checks = await loop.run_in_executor(None, collect_evidence_for_host, hostname)
+    from tenant_context import set_tenant_id, get_tenant_id
+    old_tenant_id = get_tenant_id()
+    
+    # 1. Resolve Tenant ID globally first
+    set_tenant_id("platform-admin")
+    try:
+        asset = await db.assets.find_one({"id": asset_id})
+        tenant_id = asset.get("tenantId") if asset else None
+        if not tenant_id:
+            # Fall back to resolving from agent using hostname (assuming asset-hostname)
+            agent = await db.agents.find_one({"hostname": hostname})
+            tenant_id = agent.get("tenantId") if agent else None
+    except Exception as e:
+        logger.error(f"[AdminEvidence] Failed to resolve tenant ID: {e}")
+        tenant_id = None
+    finally:
+        set_tenant_id(old_tenant_id)
+        
+    if tenant_id:
+        set_tenant_id(tenant_id)
+        
+    try:
+        # Run synchronous PowerShell in a threadpool so we don't block the event loop
+        loop = asyncio.get_event_loop()
+        checks = await loop.run_in_executor(None, collect_evidence_for_host, hostname)
 
-    logger.info(f"[AdminEvidence] Collected {len(checks)} checks. Persisting to DB...")
+        logger.info(f"[AdminEvidence] Collected {len(checks)} checks. Persisting to DB...")
 
-    ts = datetime.datetime.now(timezone.utc).isoformat()
-    ctrl_status_map: dict[str, str] = {}
+        ts = datetime.datetime.now(timezone.utc).isoformat()
+        ctrl_status_map: dict[str, str] = {}
 
-    for ctrl_id, check_name, status, details, raw_output in checks:
-        ev = _make_record(asset_id, hostname, ctrl_id, check_name, status, details, raw_output)
+        for ctrl_id, check_name, status, details, raw_output in checks:
+            ev = _make_record(asset_id, hostname, ctrl_id, check_name, status, details, raw_output)
+            
+            # Explicitly set tenantId on the evidence record
+            ev["tenantId"] = tenant_id
 
-        await db.asset_compliance.update_one(
-            {"assetId": asset_id, "controlId": ctrl_id},
-            {
-                "$set": {
-                    "assetId": asset_id,
-                    "controlId": ctrl_id,
-                    "status": ev["status"],
-                    "lastUpdated": ts,
-                    "evidence": [ev]
-                }
-            },
-            upsert=True
-        )
+            await db.asset_compliance.update_one(
+                {"assetId": asset_id, "controlId": ctrl_id},
+                {
+                    "$set": {
+                        "assetId": asset_id,
+                        "controlId": ctrl_id,
+                        "tenantId": tenant_id,  # Explicitly write tenantId
+                        "status": ev["status"],
+                        "lastUpdated": ts,
+                        "evidence": [ev]
+                    }
+                },
+                upsert=True
+            )
 
-        # Track best status per control for framework update
-        mapped = ev["status"]
-        priority = {"Compliant": 3, "Warning": 2, "Non-Compliant": 1}
-        current_priority = priority.get(ctrl_status_map.get(ctrl_id, ""), 0)
-        new_priority = priority.get(mapped, 0)
-        if new_priority > current_priority:
-            ctrl_status_map[ctrl_id] = mapped
+            # Track best status per control for framework update
+            mapped = ev["status"]
+            priority = {"Compliant": 3, "Warning": 2, "Non-Compliant": 1}
+            current_priority = priority.get(ctrl_status_map.get(ctrl_id, ""), 0)
+            new_priority = priority.get(mapped, 0)
+            if new_priority > current_priority:
+                ctrl_status_map[ctrl_id] = mapped
 
-    # --- Update compliance_frameworks control statuses ---
-    def fw_status(s: str) -> str:
-        if s == "Compliant":
-            return "Implemented"
-        elif s == "Warning":
-            return "In Progress"
-        return "At Risk"
+        # --- Update compliance_frameworks control statuses ---
+        def fw_status(s: str) -> str:
+            if s == "Compliant":
+                return "Implemented"
+            elif s == "Warning":
+                return "In Progress"
+            return "At Risk"
 
-    today = datetime.datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    for ctrl_id, status in ctrl_status_map.items():
-        await db.compliance_frameworks.update_one(
-            {"controls.id": ctrl_id},
-            {"$set": {
-                "controls.$.status": fw_status(status),
-                "controls.$.lastReviewed": today,
-            }}
-        )
+        today = datetime.datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        for ctrl_id, status in ctrl_status_map.items():
+            await db.compliance_frameworks.update_one(
+                {"controls.id": ctrl_id},
+                {"$set": {
+                    "controls.$.status": fw_status(status),
+                    "controls.$.lastReviewed": today,
+                }}
+            )
 
-    # --- Recalculate progress for all frameworks ---
-    async for fw in db.compliance_frameworks.find({}, {"id": 1, "controls": 1}):
-        controls = fw.get("controls", [])
-        total = len(controls)
-        if total == 0:
-            continue
-        implemented = sum(1 for c in controls if c.get("status") == "Implemented")
-        in_progress = sum(1 for c in controls if c.get("status") == "In Progress")
-        progress = round(((implemented + in_progress * 0.5) / total) * 100)
-        fw_overall = "Compliant" if implemented == total else ("In Progress" if (implemented + in_progress) > 0 else "Not Started")
-        await db.compliance_frameworks.update_one(
-            {"id": fw["id"]},
-            {"$set": {"progress": progress, "status": fw_overall}}
-        )
+        # --- Recalculate progress for all frameworks ---
+        async for fw in db.compliance_frameworks.find({}, {"id": 1, "controls": 1}):
+            controls = fw.get("controls", [])
+            total = len(controls)
+            if total == 0:
+                continue
+            implemented = sum(1 for c in controls if c.get("status") == "Implemented")
+            in_progress = sum(1 for c in controls if c.get("status") == "In Progress")
+            progress = round(((implemented + in_progress * 0.5) / total) * 100)
+            fw_overall = "Compliant" if implemented == total else ("In Progress" if (implemented + in_progress) > 0 else "Not Started")
+            await db.compliance_frameworks.update_one(
+                {"id": fw["id"]},
+                {"$set": {"progress": progress, "status": fw_overall}}
+            )
 
-    logger.info(f"[AdminEvidence] ✅ Done. {len(ctrl_status_map)} controls updated for {hostname}.")
+        logger.info(f"[AdminEvidence] ✅ Done. {len(ctrl_status_map)} controls updated for {hostname}.")
+    finally:
+        set_tenant_id(old_tenant_id)
 

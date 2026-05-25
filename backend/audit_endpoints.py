@@ -40,14 +40,9 @@ async def rollback_action(
             tenant_id=tenant_id
         )
         return {"success": True, "restored_state": result}
-        
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result.get("error", "Rollback failed"))
-        
-    return result
+        raise HTTPException(status_code=400, detail="Bad request")
 
 @router.post("/integrity-check")
 async def verify_integrity(

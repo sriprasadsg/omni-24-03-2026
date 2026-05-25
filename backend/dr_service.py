@@ -19,7 +19,7 @@ class DRService:
         db = get_database()
 
         # ── 1. Asset backup coverage ──────────────────────────────────────────
-        assets = await db.assets.find({}, {"_id": 0}).to_list(length=None)
+        assets = await db.assets.find({}, {"_id": 0}).to_list(length=1000)
         total_assets = len(assets)
         backup_tools = ["veeam", "commvault", "backup", "rubrik", "aws-backup"]
         assets_with_backup = [

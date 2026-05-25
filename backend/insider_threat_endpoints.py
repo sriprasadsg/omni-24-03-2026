@@ -13,7 +13,7 @@ def get_svc(db=Depends(get_db)):
 @router.get("/profiles")
 async def get_profiles(risk_level: str = Query(None), limit: int = Query(50),
                        user=Depends(require_auth), svc: InsiderThreatService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     profiles = await svc.get_profiles(tenant_id, risk_level, limit)
     for p in profiles:
         p["id"] = p.pop("_id", p.get("id"))
@@ -23,7 +23,7 @@ async def get_profiles(risk_level: str = Query(None), limit: int = Query(50),
 @router.get("/alerts")
 async def get_alerts(limit: int = Query(50), user=Depends(require_auth),
                      svc: InsiderThreatService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     alerts = await svc.get_alerts(tenant_id, limit)
     for a in alerts:
         a["id"] = a.pop("_id", a.get("id"))
@@ -32,7 +32,7 @@ async def get_alerts(limit: int = Query(50), user=Depends(require_auth),
 
 @router.get("/summary")
 async def get_summary(user=Depends(require_auth), svc: InsiderThreatService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     return await svc.get_summary(tenant_id)
 
 
@@ -45,6 +45,6 @@ async def update_alert(alert_id: str, body: dict, user=Depends(require_auth),
 
 @router.post("/seed")
 async def seed(user=Depends(require_auth), svc: InsiderThreatService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo_data(tenant_id)
     return {"message": "Insider threat demo data seeded"}

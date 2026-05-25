@@ -220,8 +220,8 @@ export const MDRDashboard: React.FC = () => {
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
                         <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Active Response Policies</h2>
                         <div className="space-y-3">
-                            {policies.filter(p => p.enabled).slice(0, 6).map(pol => (
-                                <div key={pol.policy_id} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            {policies.filter(p => p.enabled).slice(0, 6).map((pol, idx) => (
+                                <div key={`${pol.policy_id}-${idx}`} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                     <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-green-500" />
                                     <div>
                                         <div className="text-sm font-medium text-gray-900 dark:text-white">{pol.name}</div>

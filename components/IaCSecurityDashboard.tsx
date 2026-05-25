@@ -38,7 +38,7 @@ export function IaCSecurityDashboard() {
   const [filter, setFilter] = useState<string>('all');
   const [suppressing, setSuppressing] = useState<string | null>(null);
 
-  const token = localStorage.getItem('access_token');
+  const token = sessionStorage.getItem('access_token');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 

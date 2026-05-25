@@ -1,40 +1,58 @@
-from datetime import timezone
 """
 Agent Instruction Endpoints
-Manages deployment instructions sent to agents
+Manages deployment instructions sent to agents and receives deployment results.
 """
 
-# Add these endpoints to app.py
+from datetime import datetime, timezone
+from typing import Any, Dict
+import logging
 
-@app.get("/api/agents/{agent_id}/instructions")
-async def get_agent_instructions(agent_id: str):
+from fastapi import APIRouter, HTTPException, Depends
+from database import get_database
+from authentication_service import get_current_user
+from rbac_utils import require_permission
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["Agent Instructions"])
+
+_INSTR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+@router.get("/api/agents/{agent_id}/instructions")
+async def get_agent_instructions(
+    agent_id: str,
+    current_user=Depends(get_current_user)
+):
     """
-    Agent polls this endpoint to get pending instructions
-    Returns list of instructions to execute
+    Agent polls this endpoint to get pending instructions.
+    Returns list of instructions to execute.
     """
     db = get_database()
-    
-    # Find pending instructions for this agent
-    # Try by ID first, then by hostname
-    agent = await db.agents.find_one({"$or": [{"id": agent_id}, {"hostname": agent_id}]})
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+
+    agent_filter: dict = {"$or": [{"id": agent_id}, {"hostname": agent_id}]}
+    if user_role not in _INSTR_SUPER_ROLES and tenant_id:
+        agent_filter["tenantId"] = tenant_id
+
+    agent = await db.agents.find_one(agent_filter)
     if agent:
         actual_agent_id = agent["id"]
     else:
-        actual_agent_id = agent_id
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     instructions = await db.agent_instructions.find({
         "agent_id": actual_agent_id,
         "status": "pending"
     }).to_list(length=100)
-    
-    # Mark as delivered
+
     for instruction in instructions:
         await db.agent_instructions.update_one(
             {"_id": instruction["_id"]},
             {"$set": {"status": "delivered", "delivered_at": datetime.now(timezone.utc).isoformat()}}
         )
-    
-    # Return instructions without MongoDB _id
+
     return [
         {
             "id": instr.get("id"),
@@ -47,74 +65,69 @@ async def get_agent_instructions(agent_id: str):
     ]
 
 
-@app.post("/api/deployments/{job_id}/result")
-async def receive_deployment_result(job_id: str, data: dict[str, Any]):
+@router.post("/api/deployments/{job_id}/result")
+async def receive_deployment_result(
+    job_id: str,
+    data: Dict[str, Any],
+    current_user=Depends(require_permission("manage:deployments"))
+):
     """
-    Agent reports deployment result back
-    Updates job status based on actual installation outcomes
+    Agent reports deployment result back.
+    Updates job status based on actual installation outcomes.
     """
     db = get_database()
-    
-    print(f"[Deployment] Received result for job {job_id}: {data.get('status')}")
-    
-    # Extract result data
-    status = data.get("status", "failed")  # completed, partial, failed
+
+    logger.info("Deployment: Received result for job %s: %s", job_id, data.get("status"))
+
+    _INSTR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    job_filter: dict = {"id": job_id}
+    if caller_role not in _INSTR_SUPER_ROLES and caller_tenant:
+        job_filter["tenantId"] = caller_tenant
+
+    status = data.get("status", "failed")
     results = data.get("results", [])
     successful = data.get("successful", 0)
     failed = data.get("failed", 0)
     total = data.get("total", 0)
-    
-    # Map agent status to job status
+
     if status == "completed":
         job_status = "Completed"
     elif status == "partial":
         job_status = "Partially Completed"
     else:
         job_status = "Failed"
-    
-    # Build status log from individual patch results
+
     status_log = []
     for result in results:
-        log_entry = {
+        status_log.append({
             "timestamp": result.get("timestamp", datetime.now(timezone.utc).isoformat()),
             "message": f"{result.get('patch_id')}: {result.get('message')}",
             "level": "error" if result.get("status") == "failed" else "info"
-        }
-        status_log.append(log_entry)
-    
-    # Add summary log
-    summary_log = {
+        })
+
+    status_log.append({
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "message": f"Deployment complete: {successful}/{total} successful, {failed}/{total} failed"
-    }
-    status_log.append(summary_log)
-    
-    # Update job in database
+    })
+
     update_data = {
         "status": job_status,
         "progress": 100,
         "completedAt": datetime.now(timezone.utc).isoformat(),
-        "actualResults": data,  # Store full agent response
+        "actualResults": data,
     }
-    
-    # Try patch deployment jobs first
+
     result = await db.patch_deployment_jobs.update_one(
-        {"id": job_id},
-        {
-            "$set": update_data,
-            "$push": {"statusLog": {"$each": status_log}}
-        }
+        job_filter,
+        {"$set": update_data, "$push": {"statusLog": {"$each": status_log}}}
     )
-    
-    # If not found in patch jobs, try software deployment jobs
+
     if result.matched_count == 0:
         await db.software_deployment_jobs.update_one(
-            {"id": job_id},
-            {
-                "$set": update_data,
-                "$push": {"statusLog": {"$each": status_log}}
-            }
+            job_filter,
+            {"$set": update_data, "$push": {"statusLog": {"$each": status_log}}}
         )
-    
-    return {"status": "success", "message": "Result recorded"}
 
+    return {"status": "success", "message": "Result recorded"}

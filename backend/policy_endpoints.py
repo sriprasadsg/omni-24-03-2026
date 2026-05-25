@@ -17,18 +17,20 @@ from rbac_service import rbac_service
 router = APIRouter(prefix="/api/policies", tags=["Automation Policies"])
 
 
+_POLICY_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
 @router.get("")
 async def list_policies(
-    tenant_id_filter: Optional[str] = Query(None, alias="tenant_id"),
     _current_user: TokenData = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """List all automation policies for the current tenant."""
     db = get_database()
-    effective_tenant = tenant_id_filter or tenant_id
-    cursor = db.automation_policies.find(
-        {"tenant_id": effective_tenant}, {"_id": 0}
-    ).sort("priority", 1).limit(200)
+    user_role = getattr(_current_user, "role", "")
+    effective_tenant = None if user_role in _POLICY_SUPER_ROLES else tenant_id
+    query: dict = {} if effective_tenant is None else {"tenant_id": effective_tenant}
+    cursor = db.automation_policies.find(query, {"_id": 0}).sort("priority", 1).limit(200)
     policies = await cursor.to_list(length=200)
     return {"policies": policies, "count": len(policies)}
 

@@ -48,10 +48,10 @@ class ReportingService:
         if tenant_id:
             query["tenantId"] = tenant_id
         
-        patches = await self.db.patches.find(query, {"_id": 0}).to_list(length=None)
-        
+        patches = await self.db.patches.find(query, {"_id": 0}).to_list(length=1000)
+
         patch_service = get_patch_service()
-        
+
         compliant = []
         at_risk = []
         breached = []
@@ -149,13 +149,13 @@ class ReportingService:
         if tenant_id:
             query["tenantId"] = tenant_id
         
-        patches = await self.db.patches.find(query, {"_id": 0}).to_list(length=None)
-        
+        patches = await self.db.patches.find(query, {"_id": 0}).to_list(length=1000)
+
         # Get all assets
         asset_query = {}
         if tenant_id:
             asset_query["tenantId"] = tenant_id
-        assets = await self.db.assets.find(asset_query, {"_id": 0}).to_list(length=None)
+        assets = await self.db.assets.find(asset_query, {"_id": 0}).to_list(length=1000)
         
         # Calculate exposure
         exposed_assets = set()
@@ -247,19 +247,19 @@ class ReportingService:
         deployments = await self.db.patch_deployment_jobs.find(
             query,
             {"_id": 0}
-        ).sort("created_at", -1).limit(limit).to_list(length=None)
-        
+        ).sort("created_at", -1).limit(limit).to_list(length=limit)
+
         # Get staged deployments
         staged_deployments = await self.db.staged_deployments.find(
             query,
             {"_id": 0}
-        ).sort("created_at", -1).limit(limit).to_list(length=None)
-        
+        ).sort("created_at", -1).limit(limit).to_list(length=limit)
+
         # Get rollbacks
         rollbacks = await self.db.rollback_jobs.find(
             query,
             {"_id": 0}
-        ).sort("created_at", -1).limit(limit).to_list(length=None)
+        ).sort("created_at", -1).limit(limit).to_list(length=limit)
         
         # Combine and categorize
         change_records = []
@@ -342,7 +342,7 @@ class ReportingService:
         if tenant_id:
             query["tenantId"] = tenant_id
         
-        deployed_patches = await self.db.patches.find(query, {"_id": 0}).to_list(length=None)
+        deployed_patches = await self.db.patches.find(query, {"_id": 0}).to_list(length=1000)
         patches_per_week = len(deployed_patches) / 4.3  # Average weeks in a month
         
         # Calculate MTTR (Mean Time To Remediate)

@@ -13,7 +13,7 @@ def get_svc(db=Depends(get_db)):
 @router.get("/artifacts")
 async def get_artifacts(limit: int = Query(100), user=Depends(require_auth),
                         svc: SupplyChainSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     items = await svc.get_artifacts(tenant_id, limit)
     for i in items:
         i["id"] = i.pop("_id", i.get("id"))
@@ -23,7 +23,7 @@ async def get_artifacts(limit: int = Query(100), user=Depends(require_auth),
 @router.get("/vulnerabilities")
 async def get_vulnerabilities(severity: str = Query(None), limit: int = Query(100),
                               user=Depends(require_auth), svc: SupplyChainSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     vulns = await svc.get_vulnerabilities(tenant_id, severity, limit)
     for v in vulns:
         v["id"] = v.pop("_id", v.get("id"))
@@ -32,12 +32,12 @@ async def get_vulnerabilities(severity: str = Query(None), limit: int = Query(10
 
 @router.get("/summary")
 async def get_summary(user=Depends(require_auth), svc: SupplyChainSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     return await svc.get_summary(tenant_id)
 
 
 @router.post("/seed")
 async def seed(user=Depends(require_auth), svc: SupplyChainSecurityService = Depends(get_svc)):
-    tenant_id = getattr(user, "tenant_id", "platform")
+    tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo(tenant_id)
     return {"message": "Supply chain demo data seeded"}

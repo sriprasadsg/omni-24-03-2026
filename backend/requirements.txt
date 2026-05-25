@@ -24,6 +24,7 @@ pyotp>=2.9.0                   # TOTP/HOTP for MFA (RFC 6238)
 qrcode[pil]>=7.4.2             # QR code generation for MFA enrollment
 Pillow>=10.0.0                 # Required by qrcode[pil]
 authlib>=1.3.0                 # OIDC / OAuth2 / SAML SSO flows
+defusedxml>=0.7.1              # Safe XML/SAML parsing (prevents XXE)
 
 # ── Database ─────────────────────────────────────────────────────────────────
 motor>=3.3.0                   # Async MongoDB driver (used throughout)
@@ -55,6 +56,10 @@ kombu>=5.3.0                   # Messaging library (Celery backend)
 torch>=2.2.0                   # PyTorch — Omni-LLM Transformer architecture
 transformers>=4.38.0           # HuggingFace tokenizers + model utilities
 accelerate>=0.27.0             # Mixed-precision / device placement for torch
+peft>=0.10.0                   # LoRA / QLoRA adapters for fine-tuning
+trl>=0.8.0                     # SFTTrainer for instruction fine-tuning
+datasets>=2.18.0               # HuggingFace datasets (JSONL → Dataset)
+bitsandbytes>=0.43.0           # NF4 4-bit quantization for QLoRA
 scikit-learn>=1.4.0            # ML utilities (UEBA, anomaly detection)
 numpy>=1.26.0                  # Numerical operations
 pandas>=2.2.0                  # Data analysis and manipulation
@@ -93,7 +98,7 @@ pywin32>=306; sys_platform=="win32"  # Windows ETW/EventLog (EDR)
 #                              #   Linux:   apt install libyara-dev && pip install yara-python
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
-slowapi==0.1.9                 # FastAPI rate limiter
+slowapi>=0.1.9                 # FastAPI rate limiter
 
 # ── Ticketing & Integrations ─────────────────────────────────────────────────
 # atlassian-python-api>=3.41.0  # Optional: Jira client
@@ -102,3 +107,6 @@ slowapi==0.1.9                 # FastAPI rate limiter
 # ── Cloud Security Integrations ───────────────────────────────────────────────
 google-cloud-securitycenter>=1.23.0   # GCP Security Command Center ingest
 azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Analytics
+
+# ── Code Review Graph ─────────────────────────────────────────────────────────
+code-review-graph>=2.3.0             # Persistent incremental code knowledge graph (MCP + API)

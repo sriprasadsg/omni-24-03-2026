@@ -77,8 +77,9 @@ const ThreatDashboard: React.FC = () => {
   };
 
   const filteredEvents = events.filter(e => {
-    const matchesSearch = e.message.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         e.metadata.product.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = (e.message ?? '').toLowerCase().includes(term) ||
+                         (e.metadata?.product ?? '').toLowerCase().includes(term);
     const matchesSeverity = filterSeverity === "All" || e.severity === filterSeverity;
     return matchesSearch && matchesSeverity;
   });
@@ -180,17 +181,17 @@ const ThreatDashboard: React.FC = () => {
                           {new Date(event.time).toLocaleTimeString()}
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono uppercase">
-                          {event.metadata.product}
+                          {event.metadata?.product ?? ''}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4max-w-xs">
+                    <td className="px-6 py-4 max-w-xs">
                       <p className="text-sm font-semibold text-slate-300 truncate">{event.class_name}</p>
-                      <p className="text-xs text-slate-500 truncate mt-0.5">{event.message}</p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{event.message ?? ''}</p>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getSeverityColor(event.severity)}`}>
-                        {event.severity.toUpperCase()}
+                        {(event.severity ?? '').toUpperCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4">

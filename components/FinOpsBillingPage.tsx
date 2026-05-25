@@ -84,7 +84,7 @@ export const FinOpsBillingPage: React.FC<FinOpsBillingPageProps> = ({ tenants, i
                 fetchFinOpsCosts(),
                 // fetchFinOpsRecommendations lives at /api/finops/recommendations
                 fetch('/api/finops/recommendations', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` },
                 }).then(r => r.ok ? r.json() : []),
             ]);
 

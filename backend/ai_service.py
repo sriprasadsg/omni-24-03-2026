@@ -9,6 +9,7 @@ from database import get_database
 from guardrail_service import guardrail_service
 from ai_guardrails import scan_text
 from local_ip import ollama_default_url
+from ai_services.omni_local_provider import OmniLocalProvider, OmniLowConfidenceError
 
 # --- Provider Abstraction ---
 
@@ -174,6 +175,18 @@ class IncidentAnalyzer:
         """
         Initialize the AI Provider.
         """
+        # 0. Priority: Omni-Local fine-tuned model (if trained and enabled)
+        if os.getenv("OMNI_LOCAL_ENABLED", "true").lower() in ("1", "true", "yes"):
+            omni_local = OmniLocalProvider()
+            if await omni_local.configure({}):
+                self.provider = omni_local
+                self.is_configured = True
+                import logging as _logging
+                _logging.getLogger(__name__).info(
+                    "[AI] Using Omni-Local fine-tuned model (TinyLlama + LoRA adapter)."
+                )
+                return
+
         # 1. Try environment variables first
         env_provider = os.getenv("LLM_PROVIDER", "").lower()
         if env_provider == "ollama":
@@ -296,6 +309,35 @@ class IncidentAnalyzer:
             for attempt in range(_retries):
                 try:
                     response = await self.provider.generate(prompt)
+                    break
+                except OmniLowConfidenceError as low_conf:
+                    # Local model not confident - reinitialise with next provider
+                    import logging as _logging
+                    _logging.getLogger(__name__).info(
+                        "[AI] Omni-Local confidence %.3f below threshold - falling back to external LLM.",
+                        low_conf.confidence,
+                    )
+                    old_provider = self.provider
+                    self.provider = None
+                    self.is_configured = False
+                    # Temporarily disable local model so initialize() skips it
+                    _prev_env = os.environ.get("OMNI_LOCAL_ENABLED")
+                    os.environ["OMNI_LOCAL_ENABLED"] = "false"
+                    try:
+                        await self.initialize()
+                    finally:
+                        if _prev_env is None:
+                            os.environ.pop("OMNI_LOCAL_ENABLED", None)
+                        else:
+                            os.environ["OMNI_LOCAL_ENABLED"] = _prev_env
+                    if self.provider and self.provider is not old_provider:
+                        try:
+                            response = await self.provider.generate(prompt)
+                            break
+                        except Exception as e2:
+                            last_err = e2
+                    else:
+                        last_err = low_conf
                     break
                 except Exception as e:
                     last_err = e

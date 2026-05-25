@@ -12,7 +12,7 @@ export function RemoteAccessDashboard() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [mode, setMode] = useState<AccessMode>('terminal');
 
-  const token = localStorage.getItem('access_token');
+  const token = sessionStorage.getItem('access_token');
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchAgents = useCallback(async () => {

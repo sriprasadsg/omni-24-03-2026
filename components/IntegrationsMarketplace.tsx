@@ -100,13 +100,12 @@ export const IntegrationsMarketplace: React.FC<IntegrationsMarketplaceProps> = (
                 )}
             </div>
 
-            {sortedCategories.map(category => (
-                groupedIntegrations[category] && groupedIntegrations[category].length > 0 && (
+            {sortedCategories.filter(category => groupedIntegrations[category]?.length > 0).map(category => (
                     <div key={category}>
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">{category}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {groupedIntegrations[category]?.map(integration => (
-                                <div key={integration.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col transition-all hover:shadow-lg">
+                                <div key={`${category}-${integration.id ?? integration.name}`} className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col transition-all hover:shadow-lg">
                                     <div className="flex-grow">
                                         <div className="flex items-center space-x-4">
                                             <div className={`flex-shrink-0 p-2 rounded-lg bg-gray-100 dark:bg-gray-700 ${integration.isEnabled ? 'text-primary-500' : 'text-gray-400'}`}>
@@ -152,7 +151,6 @@ export const IntegrationsMarketplace: React.FC<IntegrationsMarketplaceProps> = (
                             ))}
                         </div>
                     </div>
-                )
             ))}
 
             <AddIntegrationModal

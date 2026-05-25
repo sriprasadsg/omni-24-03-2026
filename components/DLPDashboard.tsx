@@ -34,7 +34,7 @@ export default function DLPDashboard() {
         const file = e.target.files?.[0]; if (!file) return;
         setScanning(true); setScanResult(null);
         const form = new FormData(); form.append('file', file);
-        const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
+        const token = sessionStorage.getItem('access_token') || sessionStorage.getItem('token') || '';
         const r = await fetch(`${API}/dlp/scan`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
         const d = await r.json();
         setScanResult(d); setScanning(false);

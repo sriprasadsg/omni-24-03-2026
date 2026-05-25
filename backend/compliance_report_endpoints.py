@@ -33,15 +33,15 @@ async def generate_csv_report(
 ):
     """Generate a CSV compliance report for the given framework."""
     _ensure_reports_dir()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None)
     try:
         result = await compliance_reporting_service.generate_report(tenant_id, framework_id)
         await _persist_report_meta(result, framework_id, tenant_id, "csv", current_user)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/generate/excel")
@@ -51,15 +51,15 @@ async def generate_excel_report(
 ):
     """Generate an Excel compliance report for the given framework."""
     _ensure_reports_dir()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None)
     try:
         result = await compliance_reporting_service.generate_excel_report(tenant_id, framework_id)
         await _persist_report_meta(result, framework_id, tenant_id, "excel", current_user)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Excel report generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/generate/pdf")
@@ -69,15 +69,51 @@ async def generate_pdf_report(
 ):
     """Generate a PDF compliance report for the given framework."""
     _ensure_reports_dir()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None)
     try:
         result = await compliance_reporting_service.generate_pdf_report(tenant_id, framework_id)
         await _persist_report_meta(result, framework_id, tenant_id, "pdf", current_user)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF report generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ── Generate All ──────────────────────────────────────────────────────────────
+
+@router.post("/generate/all/csv")
+async def generate_all_csv_report(
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Generate a combined CSV report covering all compliance frameworks."""
+    _ensure_reports_dir()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    try:
+        result = await compliance_reporting_service.generate_all_csv_report(tenant_id)
+        await _persist_report_meta(result, "all", tenant_id, "csv", current_user)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/generate/all/excel")
+async def generate_all_excel_report(
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Generate a combined Excel report covering all compliance frameworks."""
+    _ensure_reports_dir()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    try:
+        result = await compliance_reporting_service.generate_all_excel_report(tenant_id)
+        await _persist_report_meta(result, "all", tenant_id, "excel", current_user)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Download ──────────────────────────────────────────────────────────────────
@@ -96,6 +132,16 @@ async def download_report(
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Report file not found")
 
+    # Verify the report belongs to the caller's tenant
+    db = get_database()
+    caller_tenant = getattr(_current_user, "tenant_id", None)
+    caller_role = getattr(_current_user, "role", "")
+    _SUPER_ADMIN_ROLES = {"Super Admin", "super_admin", "superadmin", "platform-admin"}
+    if caller_role not in _SUPER_ADMIN_ROLES:
+        report_meta = await db.compliance_reports.find_one({"filename": filename})
+        if not report_meta or report_meta.get("tenantId") != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this report")
+
     ext = filename.rsplit(".", 1)[-1].lower()
     media_types = {
         "csv": "text/csv",
@@ -106,6 +152,7 @@ async def download_report(
         path=file_path,
         media_type=media_types.get(ext, "application/octet-stream"),
         filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -118,7 +165,7 @@ async def list_reports(
 ):
     """Return metadata for all previously generated compliance reports."""
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None)
     query = {"tenantId": tenant_id}
     if framework_id:
         query["frameworkId"] = framework_id

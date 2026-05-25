@@ -20,7 +20,7 @@ export default function AgentRemoteControl({ agent, onClose }: AgentRemoteContro
 
     useEffect(() => {
         // Get current user ID from localStorage
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (!token) {
             setOutput([{ type: 'error', text: 'Not authenticated' }]);
             return;

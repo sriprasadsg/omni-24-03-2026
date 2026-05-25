@@ -47,7 +47,7 @@ const MaintenanceWindowConfig: React.FC = () => {
             getMaintenanceWindows(),
             checkMaintenanceStatus()
         ]);
-        setWindows(data);
+        setWindows(Array.isArray(data) ? data : []);
         setIsInWindow(status.is_in_window);
         setLoading(false);
     };
