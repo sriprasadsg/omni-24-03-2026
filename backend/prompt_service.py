@@ -166,8 +166,9 @@ async def query_knowledge(query: str) -> List[Dict[str, Any]]:
         ]
     except Exception:
         # Fallback: regex search when text index not yet built
+        import re as _re
         docs = await db.knowledge_docs.find(
-            {"content": {"$regex": query, "$options": "i"}},
+            {"content": {"$regex": _re.escape(query), "$options": "i"}},
             {"_id": 0, "content": 1, "source": 1},
         ).limit(_MAX_RESULTS).to_list(length=_MAX_RESULTS)
         return [

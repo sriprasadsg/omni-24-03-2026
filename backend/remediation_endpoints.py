@@ -52,7 +52,7 @@ async def execute_remediation(
     try:
         updated_request = await RemediationService.approve_and_execute(proposal)
         await db.remediation_requests.update_one(
-            {"id": request_id},
+            {"id": request_id, "tenantId": tenant_id},
             {"$set": updated_request.dict()}
         )
         return updated_request

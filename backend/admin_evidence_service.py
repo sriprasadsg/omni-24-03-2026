@@ -90,21 +90,24 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
     out, err, rc = _run_ps("manage-bde -status C: 2>&1")
     status = "Pass" if "Protection On" in out else ("Fail" if "Protection Off" in out else "Warning")
     details = "BitLocker: Protection On" if status == "Pass" else "BitLocker: Off or insufficient privileges"
-    for ctrl in ["A.8.1", "A.8.24", "PCI-3.4", "CISSP-3.2", "CISSP-3.3"]:
+    for ctrl in ["A.8.1", "A.8.24", "PCI-3.4", "CISSP-3.2", "CISSP-3.3",
+                 "SC-28", "3.13.8", "CIS-3", "SWIFT-2.1", "SOX-SA-3", "NIS2-21.8"]:
         checks.append((ctrl, "BitLocker Encryption", status, details, out or err))
 
     # 2. Windows Firewall
     out, err, rc = _run_ps("Get-NetFirewallProfile | Select-Object Name, Enabled | ConvertTo-Json")
     status = "Pass" if out and "true" in out.lower() else "Warning"
     details = "Firewall profiles queried"
-    for ctrl in ["A.8.22", "PCI-1.1", "CC6.6", "CISSP-4.2"]:
+    for ctrl in ["A.8.22", "PCI-1.1", "CC6.6", "CISSP-4.2",
+                 "AC-17", "3.13.1", "CIS-12", "SWIFT-1.1", "NIS2-21.5"]:
         checks.append((ctrl, "Windows Firewall Profiles", status, details, out or err))
 
     # 3. Windows Defender
     out, err, rc = _run_ps("Get-MpComputerStatus | Select-Object AMServiceEnabled, RealTimeProtectionEnabled, AntivirusSignatureAge | ConvertTo-Json")
     status = "Pass" if out and "true" in out.lower() else "Warning"
     details = "Defender status queried"
-    for ctrl in ["A.8.7", "PCI-5.1", "CC6.8", "DE.CM-4", "CISSP-7.5"]:
+    for ctrl in ["A.8.7", "PCI-5.1", "CC6.8", "DE.CM-4", "CISSP-7.5",
+                 "SI-3", "3.14.1", "CIS-10", "SWIFT-6.1"]:
         checks.append((ctrl, "Windows Defender Antivirus", status, details, out or err))
 
     # 4. Password Policy
@@ -118,19 +121,20 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
             min_len = 0
     status = "Pass" if min_len >= 8 else ("Warning" if min_len > 0 else "Fail")
     details = f"Min password length: {min_len}"
-    for ctrl in ["A.5.15", "A.8.5", "PCI-8.1.1", "CC6.1", "CISSP-5.2"]:
+    for ctrl in ["A.5.15", "A.8.5", "PCI-8.1.1", "CC6.1", "CISSP-5.2",
+                 "IA-5", "3.5.1", "CIS-5", "SWIFT-4.1", "SOX-LA-6", "NIS2-21.10"]:
         checks.append((ctrl, "Password Policy (Min Length)", status, details, out or err))
 
     # 5. NTP / Clock Sync
     out, err, rc = _run_ps("w32tm /query /status 2>&1")
     status = "Pass" if rc == 0 and "ReferenceId" in out else "Warning"
-    for ctrl in ["A.8.17", "PCI-10.2"]:
+    for ctrl in ["A.8.17", "PCI-10.2", "AU-2", "3.3.1", "CIS-8"]:
         checks.append((ctrl, "Clock Synchronization Simulation", status, "Windows Time Service", out or err))
 
     # 6. TLS Cipher Suites
     out, err, rc = _run_ps("Get-TlsCipherSuite | Select-Object -First 8 Name | ConvertTo-Json 2>&1")
     status = "Pass" if rc == 0 and out else "Warning"
-    for ctrl in ["A.8.24", "PR.DS-2"]:
+    for ctrl in ["A.8.24", "PR.DS-2", "SC-8", "3.13.8", "NIS2-21.8", "SWIFT-2.6"]:
         checks.append((ctrl, "Cryptographic Controls Extension Simulation", status, "TLS cipher suites", out or err))
 
     # 7. Disk Capacity
@@ -140,7 +144,7 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
         '@{N="TotalGB";E={[math]::Round($_.Size/1GB,2)}} | ConvertTo-Json'
     )
     status = "Pass" if rc == 0 and out else "Warning"
-    for ctrl in ["A.8.6", "CC7.2"]:
+    for ctrl in ["A.8.6", "CC7.2", "CP-9", "3.8.9", "CIS-11"]:
         checks.append((ctrl, "Capacity Management Simulation", status, "Disk capacity", out or err))
 
     # 8. Volume Shadow Copies / Backup
@@ -148,14 +152,16 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
     has_backups = out and out.strip() not in ["", "null", "[]"]
     status = "Pass" if has_backups else "Warning"
     details = "Volume Shadow Copies found" if has_backups else "No shadow copies found"
-    for ctrl in ["A.8.13", "PR.IP-4", "RC.CO-2"]:
+    for ctrl in ["A.8.13", "PR.IP-4", "RC.CO-2",
+                 "CP-9", "3.8.9", "DORA-21.3", "CIS-11", "SOX-BR-1", "NIS2-21.3"]:
         checks.append((ctrl, "Data Backup & Recovery Simulation", status, details, out or err))
 
     # 9. Audit Policy
     out, err, rc = _run_ps("auditpol /get /category:* 2>&1")
     has_audit = "Success" in out or "Failure" in out
     status = "Pass" if has_audit else "Warning"
-    for ctrl in ["A.8.15", "A.5.33", "DE.AE-3", "CISSP-6.4"]:
+    for ctrl in ["A.8.15", "A.5.33", "DE.AE-3", "CISSP-6.4",
+                 "AU-2", "3.3.1", "CIS-8", "SOX-SA-4", "SWIFT-7.1"]:
         checks.append((ctrl, "Audit Logging Extension Simulation", status, "Audit policy", out[:2000] or err))
 
     # 10. PowerShell Script Block Logging
@@ -165,13 +171,15 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
     )
     enabled = out.strip() == "1"
     status = "Pass" if enabled else "Warning"
-    checks.append(("A.8.16", "PowerShell Script Block Logging", status,
-                   f"Script block logging: {'Enabled' if enabled else 'Not configured'}", out or err))
+    for ctrl in ["A.8.16", "AU-2", "3.3.2", "CIS-8"]:
+        checks.append((ctrl, "PowerShell Script Block Logging", status,
+                       f"Script block logging: {'Enabled' if enabled else 'Not configured'}", out or err))
 
     # 11. Patch Status
     out, err, rc = _run_ps("Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10 HotFixID, InstalledOn | ConvertTo-Json 2>&1")
     status = "Pass" if rc == 0 and out else "Warning"
-    for ctrl in ["A.8.8", "PCI-6.3.3", "PR.IP-12", "CISSP-7.3"]:
+    for ctrl in ["A.8.8", "PCI-6.3.3", "PR.IP-12", "CISSP-7.3",
+                 "SI-2", "3.14.1", "CIS-7", "SWIFT-2.2", "NIS2-21.1"]:
         checks.append((ctrl, "Security Patch Status", status, "Recent hotfixes", out or err))
 
     # 12. SMBv1 Disabled
@@ -179,13 +187,14 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
     disabled = "false" in out.lower()
     status = "Pass" if disabled else "Warning"
     details = "SMBv1: Disabled ✓" if disabled else "SMBv1: Enabled (security risk)"
-    checks.append(("A.8.22", "SMBv1 Protocol Disabled", status, details, out or err))
+    for ctrl in ["A.8.22", "CIS-4", "3.4.2"]:
+        checks.append((ctrl, "SMBv1 Protocol Disabled", status, details, out or err))
 
     # 13. Risky Ports
     out, err, rc = _run_ps("Get-NetTCPConnection -State Listen | Where-Object LocalPort -in @(23,21,445) | Select-Object LocalPort, State | ConvertTo-Json 2>&1")
     risky_count = out.count('"LocalPort"') if out else 0
     status = "Pass" if risky_count == 0 else "Warning"
-    for ctrl in ["A.8.20", "PCI-1.2"]:
+    for ctrl in ["A.8.20", "PCI-1.2", "SC-7", "3.13.1", "CIS-12"]:
         checks.append((ctrl, "Risky Network Ports", status, f"{risky_count} high-risk ports open", out or "No risky ports"))
 
     # 14. RDP NLA
@@ -195,14 +204,14 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
     )
     nla_on = out.strip() == "1"
     status = "Pass" if nla_on else "Warning"
-    for ctrl in ["A.8.22", "PCI-2.2"]:
+    for ctrl in ["A.8.22", "PCI-2.2", "AC-17", "3.1.12", "CIS-4", "SWIFT-5.4"]:
         checks.append((ctrl, "RDP NLA Required", status, f"NLA: {'Enabled' if nla_on else 'Disabled'}", out or err))
 
     # 15. Guest Account
     out, err, rc = _run_ps("Get-LocalUser -Name 'Guest' | Select-Object Name, Enabled | ConvertTo-Json 2>&1")
     guest_disabled = "false" in out.lower()
     status = "Pass" if guest_disabled else "Warning"
-    for ctrl in ["A.8.2", "A.5.15"]:
+    for ctrl in ["A.8.2", "A.5.15", "AC-2", "3.1.1", "CIS-5"]:
         checks.append((ctrl, "Guest Account Disabled", status, f"Guest: {'Disabled ✓' if guest_disabled else 'Enabled'}", out or err))
 
     # 16. Security Software

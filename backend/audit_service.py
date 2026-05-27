@@ -116,7 +116,7 @@ class AuditService:
             resource_id=log_entry['resourceId'],
             details=f"Rolled back change from {log_entry['timestamp']}",
             previous_state=None, 
-            tenant_id=log_entry.get('tenantId', 'default-tenant')
+            tenant_id=log_entry.get('tenantId') or None
         )
         
         return log_entry["previousState"]

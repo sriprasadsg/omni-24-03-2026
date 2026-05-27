@@ -15,7 +15,9 @@ async def list_persistence_scans(
     current_user: TokenData = Depends(get_current_user),
 ):
     """List recent persistence scan results for the tenant"""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     db = get_database()
     try:
         results = await db.persistence_results.find(
@@ -36,7 +38,9 @@ async def trigger_persistence_scan(
     Payload: {"agentId": "agent-1"}
     """
     agent_id = data.get("agentId")
-    tenant_id = getattr(current_user, "tenant_id", None) or "default"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     
     if not agent_id:
         raise HTTPException(status_code=400, detail="agentId is required")
@@ -70,7 +74,9 @@ async def get_persistence_results(
     current_user: TokenData = Depends(get_current_user),
 ):
     """Get latest persistence scan results for an agent"""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     db = get_database()
 
     results = await db.persistence_results.find(
@@ -88,7 +94,9 @@ async def report_persistence_results(
     current_user: TokenData = Depends(get_current_user),
 ):
     """Endpoint for agents to report persistence scan results"""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     db = get_database()
 
     result_record = {

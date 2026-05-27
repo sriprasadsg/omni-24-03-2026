@@ -1,0 +1,111 @@
+- generic [ref=e2]:
+  - generic [ref=e38]:
+    - complementary [ref=e39]:
+      - generic [ref=e40]:
+        - img [ref=e42]
+        - generic [ref=e45]:
+          - generic [ref=e46]: Genesis
+          - generic [ref=e47]: AI PLATFORM
+      - navigation [ref=e48]
+    - generic [ref=e50]:
+      - banner [ref=e51]:
+        - generic [ref=e53]:
+          - generic [ref=e55]:
+            - img [ref=e56]
+            - heading "Omni-Agent AI" [level=1] [ref=e59]
+          - generic [ref=e60]:
+            - combobox "Select Timezone" [ref=e62]:
+              - option "UTC" [selected]
+              - option "America/New York"
+              - option "America/Chicago"
+              - option "America/Denver"
+              - option "America/Los Angeles"
+              - option "Europe/London"
+              - option "Europe/Paris"
+              - option "Asia/Tokyo"
+              - option "Asia/Kolkata"
+              - option "Australia/Sydney"
+            - button "Toggle dark mode" [ref=e63] [cursor=pointer]:
+              - img [ref=e64]
+            - button "Start guided tour" [ref=e66] [cursor=pointer]:
+              - img [ref=e67]
+            - button "Open AI Command Bar" [ref=e70] [cursor=pointer]:
+              - generic [ref=e71]: AI Command
+              - generic [ref=e72]: ⌘K
+            - button [ref=e74] [cursor=pointer]:
+              - img [ref=e75]
+            - button "A Acme Admin admin" [ref=e80] [cursor=pointer]:
+              - generic [ref=e81]: A
+              - generic [ref=e82]:
+                - generic [ref=e83]: Acme Admin
+                - generic [ref=e84]: admin
+              - img [ref=e85]
+      - main [ref=e87]:
+        - generic [ref=e88]:
+          - generic [ref=e90]:
+            - generic [ref=e91]:
+              - heading "Welcome back, Acme" [level=2] [ref=e92]
+              - paragraph [ref=e93]:
+                - img [ref=e94]
+                - text: Tuesday, May 26, 2026
+            - generic [ref=e96]:
+              - button "Last 24 Hours" [ref=e97] [cursor=pointer]:
+                - img [ref=e98]
+                - text: Last 24 Hours
+              - button [ref=e100] [cursor=pointer]:
+                - img [ref=e101]
+              - button "Generate Report" [ref=e106] [cursor=pointer]:
+                - img [ref=e107]
+                - text: Generate Report
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - heading "AI-Driven Health Analysis" [level=3] [ref=e112]:
+                - img [ref=e114]
+                - text: AI-Driven Health Analysis
+              - button "Generate Analysis" [ref=e117] [cursor=pointer]
+            - paragraph [ref=e120]: AI analysis is running automatically. Results will appear here shortly.
+            - generic [ref=e121]:
+              - heading "Feedback History" [level=4] [ref=e122]:
+                - img [ref=e123]
+                - text: Feedback History
+              - paragraph [ref=e126]: No feedback has been recorded yet.
+          - generic [ref=e127]:
+            - generic [ref=e129]: Loading chart data...
+            - generic [ref=e131]:
+              - heading "AI System Health" [level=3] [ref=e133]:
+                - img [ref=e134]
+                - text: AI System Health
+              - generic [ref=e137]:
+                - generic [ref=e138]:
+                  - generic [ref=e139]:
+                    - img [ref=e140]
+                    - generic [ref=e142]: Active Systems
+                  - generic [ref=e143]: "0"
+                - generic [ref=e144]:
+                  - generic [ref=e145]:
+                    - img [ref=e146]
+                    - generic [ref=e150]: Inactive Systems
+                  - generic [ref=e151]: "0"
+                - generic [ref=e152]:
+                  - generic [ref=e153]:
+                    - img [ref=e154]
+                    - generic [ref=e156]: At-Risk Systems
+                  - generic [ref=e157]: "0"
+          - generic [ref=e160]:
+            - heading "Recent Signals" [level=3] [ref=e162]:
+              - img [ref=e164]
+              - text: Recent Signals
+            - generic [ref=e167]:
+              - img [ref=e168]
+              - paragraph [ref=e170]: No Recent Alerts
+              - paragraph [ref=e171]: All systems operational.
+          - heading "Compliance & Governance Posture" [level=3] [ref=e175]:
+            - img [ref=e176]
+            - text: Compliance & Governance Posture
+  - generic:
+    - paragraph [ref=e181] [cursor=pointer]: Hey Acme! I'm Chitti. Say "Hey Chitti" or click me to start!
+    - button "Say \"Hey Chitti\"..." [ref=e182] [cursor=pointer]:
+      - img [ref=e183]
+      - img [ref=e187]
+  - button "Open AI Assistant" [ref=e190] [cursor=pointer]:
+    - img [ref=e191]

@@ -189,7 +189,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
             "role": target_user.get("role", "user"),
             "status": "Active" if target_user.get("is_active", True) else "Disabled",
             "avatar": target_user.get("avatar", f"https://ui-avatars.com/api/?name={target_user.get('full_name', 'User')}&background=random"),
-            "tenantId": target_user.get("tenantId", "platform-admin"),
+            "tenantId": target_user.get("tenantId") or None,
             "created_at": target_user.get("created_at", "")
         }
 
@@ -206,7 +206,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
         "role": updated_user.get("role", "user"),
         "status": "Active" if updated_user.get("is_active", True) or updated_user.get("status") == "Active" else "Disabled",
         "avatar": updated_user.get("avatar", f"https://ui-avatars.com/api/?name={updated_user.get('full_name', 'User')}&background=random"),
-        "tenantId": updated_user.get("tenantId", "platform-admin"),
+        "tenantId": updated_user.get("tenantId") or None,
         "created_at": updated_user.get("created_at", "")
     }
 

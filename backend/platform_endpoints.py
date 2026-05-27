@@ -26,6 +26,14 @@ router = APIRouter(prefix="/api", tags=["Platform"])
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+_PLATFORM_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
+def _plat_tenant(current_user) -> str:
+    tid = getattr(current_user, "tenant_id", None) or None
+    if not tid:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tid
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CSPM Findings
@@ -34,13 +42,16 @@ def _now() -> str:
 @router.get("/cspm/findings")
 async def get_cspm_findings(
     tenantId: Optional[str] = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """Return CSPM findings from cloud account scans."""
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
     query: Dict[str, Any] = {}
-    if tenantId:
+    if is_admin and tenantId:
         query["tenantId"] = tenantId
+    elif not is_admin:
+        query["tenantId"] = _plat_tenant(current_user)
     findings = await db.cspm_findings.find(query, {"_id": 0}).to_list(length=200)
     return findings
 
@@ -52,12 +63,15 @@ async def get_cspm_findings(
 @router.get("/alert-rules")
 async def list_alert_rules(
     tenantId: Optional[str] = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
     query: Dict[str, Any] = {}
-    if tenantId:
+    if is_admin and tenantId:
         query["tenantId"] = tenantId
+    elif not is_admin:
+        query["tenantId"] = _plat_tenant(current_user)
     rules = await db.alert_rules.find(query, {"_id": 0}).to_list(length=500)
     return rules
 
@@ -68,9 +82,9 @@ async def create_alert_rule(
     current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
-    rule.setdefault("id", str(uuid.uuid4()))
-    rule.setdefault("createdAt", _now())
-    rule.setdefault("tenantId", getattr(current_user, "tenant_id", "default"))
+    rule["id"] = rule.get("id") or str(uuid.uuid4())
+    rule["createdAt"] = rule.get("createdAt") or _now()
+    rule["tenantId"] = _plat_tenant(current_user)
     await db.alert_rules.insert_one({**rule})
     rule.pop("_id", None)
     return rule
@@ -80,13 +94,18 @@ async def create_alert_rule(
 async def update_alert_rule(
     rule_id: str,
     rule: Dict[str, Any] = Body(...),
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
+    caller_tenant = _plat_tenant(current_user)
+    rule_filter: dict = {"id": rule_id}
+    if not is_admin:
+        rule_filter["tenantId"] = caller_tenant
     rule["id"] = rule_id
     rule["updatedAt"] = _now()
-    result = await db.alert_rules.update_one({"id": rule_id}, {"$set": rule}, upsert=True)
-    if result.matched_count == 0 and result.upserted_id is None:
+    result = await db.alert_rules.update_one(rule_filter, {"$set": rule}, upsert=False)
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Alert rule not found")
     rule.pop("_id", None)
     return rule
@@ -95,10 +114,15 @@ async def update_alert_rule(
 @router.delete("/alert-rules/{rule_id}")
 async def delete_alert_rule(
     rule_id: str,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
-    await db.alert_rules.delete_one({"id": rule_id})
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
+    caller_tenant = _plat_tenant(current_user)
+    rule_filter: dict = {"id": rule_id}
+    if not is_admin:
+        rule_filter["tenantId"] = caller_tenant
+    await db.alert_rules.delete_one(rule_filter)
     return {"success": True}
 
 
@@ -109,12 +133,15 @@ async def delete_alert_rule(
 @router.get("/data-sources")
 async def list_data_sources(
     tenantId: Optional[str] = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
     query: Dict[str, Any] = {}
-    if tenantId:
+    if is_admin and tenantId:
         query["tenantId"] = tenantId
+    elif not is_admin:
+        query["tenantId"] = _plat_tenant(current_user)
     sources = await db.data_sources.find(query, {"_id": 0}).to_list(length=200)
     return sources
 
@@ -125,10 +152,10 @@ async def create_data_source(
     current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
-    source.setdefault("id", str(uuid.uuid4()))
-    source.setdefault("createdAt", _now())
-    source.setdefault("tenantId", getattr(current_user, "tenant_id", "default"))
-    source.setdefault("status", "active")
+    source["id"] = source.get("id") or str(uuid.uuid4())
+    source["createdAt"] = source.get("createdAt") or _now()
+    source["tenantId"] = _plat_tenant(current_user)
+    source["status"] = source.get("status") or "active"
     await db.data_sources.insert_one({**source})
     source.pop("_id", None)
     return source
@@ -138,12 +165,19 @@ async def create_data_source(
 async def update_data_source(
     source_id: str,
     source: Dict[str, Any] = Body(...),
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
+    caller_tenant = _plat_tenant(current_user)
+    src_filter: dict = {"id": source_id}
+    if not is_admin:
+        src_filter["tenantId"] = caller_tenant
     source["id"] = source_id
     source["updatedAt"] = _now()
-    await db.data_sources.update_one({"id": source_id}, {"$set": source}, upsert=True)
+    result = await db.data_sources.update_one(src_filter, {"$set": source}, upsert=False)
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Data source not found")
     source.pop("_id", None)
     return source
 
@@ -151,10 +185,15 @@ async def update_data_source(
 @router.delete("/data-sources/{source_id}")
 async def delete_data_source(
     source_id: str,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
-    await db.data_sources.delete_one({"id": source_id})
+    is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
+    caller_tenant = _plat_tenant(current_user)
+    src_filter: dict = {"id": source_id}
+    if not is_admin:
+        src_filter["tenantId"] = caller_tenant
+    await db.data_sources.delete_one(src_filter)
     return {"success": True}
 
 
@@ -282,7 +321,7 @@ async def provision_service(
     payload.setdefault("id", str(uuid.uuid4()))
     payload.setdefault("provisionedAt", _now())
     payload.setdefault("status", "Provisioning")
-    payload.setdefault("tenantId", getattr(current_user, "tenant_id", "default"))
+    payload["tenantId"] = _plat_tenant(current_user)
     await db.provisioned_services.insert_one({**payload})
     payload.pop("_id", None)
     return payload

@@ -57,8 +57,9 @@ async def _correlate_vulnerabilities(db, components: list) -> Dict[str, list]:
                         results.setdefault(comp_id, []).append(vuln_entry)
 
         # Also query vulnerabilities collection
+        import re as _re
         vuln_cursor = db.vulnerabilities.find(
-            {"$or": [{"affectedSoftware": {"$regex": name, "$options": "i"}} for name in name_to_ids]},
+            {"$or": [{"affectedSoftware": {"$regex": _re.escape(name), "$options": "i"}} for name in name_to_ids]},
             {"_id": 0, "cveId": 1, "severity": 1, "affectedSoftware": 1, "description": 1},
         )
         vulns = await vuln_cursor.to_list(length=500)
@@ -119,7 +120,7 @@ async def upload_sbom(
         component = metadata.get("component", {})
         app_name = component.get("name", file.filename)
         
-        components = sbom_data.get("components", [])
+        components = sbom_data.get("components", [])[:2000]
         
         new_sbom = {
             "id": sbom_id,

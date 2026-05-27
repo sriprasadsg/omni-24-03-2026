@@ -25,8 +25,12 @@ async def report_heartbeat(
     Updates status, lastSeen, and processes all capability data pipelines.
     """
     db = get_database()
+    _hb_tenant_id = (_tenant.get("id") if _tenant else None) or payload.get("tenantId") or None
+    _hb_agent_filter: dict = {"id": agent_id}
+    if _hb_tenant_id:
+        _hb_agent_filter["tenantId"] = _hb_tenant_id
 
-    existing_agent = await db.agents.find_one({"id": agent_id})
+    existing_agent = await db.agents.find_one(_hb_agent_filter)
     if existing_agent:
         stored_device_id = existing_agent.get("deviceId")
         incoming_device_id = payload.get("device_id") or payload.get("deviceId")
@@ -35,7 +39,7 @@ async def report_heartbeat(
                          agent_id, stored_device_id, incoming_device_id)
             raise HTTPException(status_code=403, detail="Hardware ID mismatch. This session has been blocked.")
         if not stored_device_id and incoming_device_id:
-            await db.agents.update_one({"id": agent_id}, {"$set": {"deviceId": incoming_device_id}})
+            await db.agents.update_one(_hb_agent_filter, {"$set": {"deviceId": incoming_device_id}})
 
     update_data: Dict[str, Any] = {
         "status": "Online",
@@ -60,11 +64,10 @@ async def report_heartbeat(
         update_data["deviceId"] = payload["device_id"]
 
     await db.agents.update_one(
-        {"id": agent_id},
+        _hb_agent_filter,
         {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
-
     _meta = payload.get("meta", {})
     if _meta.get("current_cpu") is not None or _meta.get("current_memory") is not None:
         _snapshot = {
@@ -146,13 +149,16 @@ async def report_heartbeat(
             if install_date and install_date not in ("Unknown", "", None):
                 asset_update["osInstalledOn"] = install_date
 
+        _hb_asset_filter: dict = {"id": asset_id}
+        if _hb_tenant_id:
+            _hb_asset_filter["tenantId"] = _hb_tenant_id
         try:
             await db.assets.update_one(
-                {"id": asset_id},
+                _hb_asset_filter,
                 {
                     "$set": asset_update,
                     "$setOnInsert": {
-                        "tenantId": payload.get("tenantId") or (_tenant["id"] if _tenant else None),
+                        "tenantId": _hb_tenant_id,
                         "status": "active", "type": "server", "hostname": hostname
                     }
                 },
@@ -160,7 +166,7 @@ async def report_heartbeat(
             )
         except Exception as e:
             if "E11000 duplicate key error" in str(e):
-                await db.assets.update_one({"id": asset_id}, {"$set": asset_update})
+                await db.assets.update_one(_hb_asset_filter, {"$set": asset_update})
             else:
                 logger.error("ERROR updating asset: %s", e)
 
@@ -194,10 +200,10 @@ async def report_heartbeat(
             logger.error("ERROR processing compliance evidence: %s", e)
 
     if "log_collection" in meta:
-        log_data = meta["log_collection"]
+        log_data = meta["log_collection"][:200] if isinstance(meta["log_collection"], list) else []
         if isinstance(log_data, list):
             db_logs = [{
-                "tenantId": payload.get("tenantId", "default"), "agentId": agent_id,
+                "tenantId": _hb_tenant_id, "agentId": agent_id,
                 "service": e.get("service", "os"), "level": e.get("level", "INFO"),
                 "message": e.get("message", ""), "timestamp": e.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 "hostname": payload.get("hostname", "unknown"), "rawData": e
@@ -207,7 +213,7 @@ async def report_heartbeat(
                 try:
                     from streaming_service import broker
                     for log in db_logs:
-                        background_tasks.add_task(broker.publish, f"logs:{payload.get('tenantId', 'default')}", log)
+                        background_tasks.add_task(broker.publish, f"logs:{_hb_tenant_id}", log)
                 except ImportError:
                     pass
 
@@ -216,7 +222,7 @@ async def report_heartbeat(
         if isinstance(p_data, dict) and p_data.get("findings"):
             import uuid as _uuid
             await db.persistence_results.insert_one({
-                "id": _uuid.uuid4().hex, "tenantId": payload.get("tenantId", "default"),
+                "id": _uuid.uuid4().hex, "tenantId": _hb_tenant_id,
                 "agentId": agent_id, "findings": p_data.get("findings", []),
                 "count": p_data.get("count", 0), "platform": p_data.get("platform"),
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -228,7 +234,7 @@ async def report_heartbeat(
             import uuid as _uuid
             for conn in s_data["ai_connections"]:
                 event = {
-                    "id": _uuid.uuid4().hex, "tenantId": payload.get("tenantId", "default"),
+                    "id": _uuid.uuid4().hex, "tenantId": _hb_tenant_id,
                     "agent_id": agent_id, "process": conn.get("process"),
                     "remote_ip": conn.get("remote_ip"), "remote_host": conn.get("remote_host"),
                     "timestamp": conn.get("timestamp", datetime.now(timezone.utc).isoformat())
@@ -256,7 +262,7 @@ async def report_heartbeat(
                         severity=anomaly.get("severity", "medium").lower(),
                         title=f"UEBA Anomaly: {anomaly.get('type')}",
                         description=f"{anomaly.get('type')} detected for user {anomaly.get('user')}.",
-                        metadata={**anomaly, "agent_id": agent_id, "tenantId": payload.get("tenantId", "default")}
+                        metadata={**anomaly, "agent_id": agent_id, "tenantId": _hb_tenant_id}
                     )
                 except ImportError:
                     pass
@@ -269,7 +275,7 @@ async def report_heartbeat(
                     {"agent_id": agent_id, "name": sw.get("name")},
                     {"$set": {
                         "agent_id": agent_id, "agent_name": payload.get("hostname", agent_id),
-                        "tenant_id": payload.get("tenantId", "default"),
+                        "tenant_id": _hb_tenant_id,
                         "name": sw.get("name"), "current_version": sw.get("current_version"),
                         "latest_version": sw.get("latest_version"), "pkg_type": sw.get("pkg_type", "unknown"),
                         "is_outdated": sw.get("is_outdated", False),
@@ -281,14 +287,14 @@ async def report_heartbeat(
     if "fim" in meta:
         fim_data = meta["fim"]
         if isinstance(fim_data, dict) and fim_data.get("violations"):
-            for v in fim_data["violations"]:
+            for v in fim_data["violations"][:200]:
                 try:
                     from ueba_service import persist_security_alert
                     background_tasks.add_task(
                         persist_security_alert, db, alert_type="fim_violation", severity="high",
                         title=f"File Integrity Violation: {v.get('path')}",
                         description=f"Critical file modified on agent {agent_id}: {v.get('path')}.",
-                        metadata={**v, "agent_id": agent_id, "tenantId": payload.get("tenantId", "default")},
+                        metadata={**v, "agent_id": agent_id, "tenantId": _hb_tenant_id},
                     )
                 except ImportError:
                     pass
@@ -296,10 +302,10 @@ async def report_heartbeat(
             await db.fim_violations.insert_many([
                 {k: v_item[k] for k in _allowed_fim if k in v_item} | {
                     "agent_id": agent_id,
-                    "tenantId": payload.get("tenantId", "default"),
+                    "tenantId": _hb_tenant_id,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
-                for v_item in fim_data["violations"]
+                for v_item in fim_data["violations"][:200]
             ])
 
     if "pii_scanner" in meta:
@@ -311,7 +317,7 @@ async def report_heartbeat(
                     persist_security_alert, db, alert_type="pii_detected", severity="high",
                     title=f"PII Detected on Agent {agent_id}",
                     description=f"{pii_data.get('findings_count', 0)} file(s) contain PII patterns.",
-                    metadata={**pii_data, "agent_id": agent_id, "tenantId": payload.get("tenantId", "default")},
+                    metadata={**pii_data, "agent_id": agent_id, "tenantId": _hb_tenant_id},
                 )
             except ImportError:
                 pass
@@ -320,7 +326,7 @@ async def report_heartbeat(
                 {"agent_id": agent_id},
                 {"$set": {k: pii_data[k] for k in _allowed_pii if k in pii_data} | {
                     "agent_id": agent_id,
-                    "tenantId": payload.get("tenantId", "default"),
+                    "tenantId": _hb_tenant_id,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }},
                 upsert=True,
@@ -339,7 +345,7 @@ async def report_heartbeat(
                         description=item.get("description", "Suspicious runtime activity detected"),
                         metadata={"type": item.get("type"), "severity": item.get("severity"),
                                   "description": item.get("description"), "agent_id": agent_id,
-                                  "tenantId": payload.get("tenantId", "default")},
+                                  "tenantId": _hb_tenant_id},
                     )
                 except ImportError:
                     pass

@@ -1,0 +1,652 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - complementary [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e7]
+          - generic [ref=e10]:
+            - generic [ref=e11]: Genesis
+            - generic [ref=e12]: AI PLATFORM
+        - navigation [ref=e13]:
+          - generic [ref=e434]:
+            - button "Dashboards & Insights" [ref=e435] [cursor=pointer]:
+              - generic [ref=e436]: Dashboards & Insights
+              - img [ref=e437]
+            - generic [ref=e440]:
+              - button "Overview" [ref=e441] [cursor=pointer]:
+                - img [ref=e443]
+                - generic [ref=e448]: Overview
+              - button "CXO Insights" [ref=e450] [cursor=pointer]:
+                - img [ref=e452]
+                - generic [ref=e454]: CXO Insights
+              - button "Unified Future Ops" [ref=e455] [cursor=pointer]:
+                - img [ref=e457]
+                - generic [ref=e462]: Unified Future Ops
+              - button "Proactive Insights" [ref=e463] [cursor=pointer]:
+                - img [ref=e465]
+                - generic [ref=e467]: Proactive Insights
+              - button "Reporting" [ref=e468] [cursor=pointer]:
+                - img [ref=e470]
+                - generic [ref=e472]: Reporting
+              - button "Advanced BI" [ref=e473] [cursor=pointer]:
+                - img [ref=e475]
+                - generic [ref=e477]: Advanced BI
+              - button "Digital Twin" [ref=e478] [cursor=pointer]:
+                - img [ref=e480]
+                - generic [ref=e483]: Digital Twin
+              - button "2027 Horizon" [ref=e484] [cursor=pointer]:
+                - img [ref=e486]
+                - generic [ref=e488]: 2027 Horizon
+              - button "Sustainability" [ref=e489] [cursor=pointer]:
+                - img [ref=e491]
+                - generic [ref=e497]: Sustainability
+              - button "Predictive Health" [ref=e498] [cursor=pointer]:
+                - img [ref=e500]
+                - generic [ref=e502]: Predictive Health
+              - button "Goal System" [ref=e503] [cursor=pointer]:
+                - img [ref=e505]
+                - generic [ref=e509]: Goal System
+              - button "Integrations Hub" [ref=e510] [cursor=pointer]:
+                - img [ref=e512]
+                - generic [ref=e516]: Integrations Hub
+          - generic [ref=e517]:
+            - button "Observability" [ref=e518] [cursor=pointer]:
+              - generic [ref=e519]: Observability
+              - img [ref=e520]
+            - generic [ref=e522]:
+              - button "Distributed Tracing" [ref=e523] [cursor=pointer]:
+                - img [ref=e525]
+                - generic [ref=e529]: Distributed Tracing
+              - button "APM" [ref=e530] [cursor=pointer]:
+                - img [ref=e532]
+                - generic [ref=e536]: APM
+              - button "Log Explorer" [ref=e537] [cursor=pointer]:
+                - img [ref=e539]
+                - generic [ref=e542]: Log Explorer
+              - button "Network" [ref=e543] [cursor=pointer]:
+                - img [ref=e545]
+                - generic [ref=e550]: Network
+              - button "Network Topology Map" [ref=e551] [cursor=pointer]:
+                - img [ref=e553]
+                - generic [ref=e558]: Network Topology Map
+              - button "Data Utilization" [ref=e559] [cursor=pointer]:
+                - img [ref=e561]
+                - generic [ref=e563]: Data Utilization
+              - button "Web Monitoring" [ref=e564] [cursor=pointer]:
+                - img [ref=e566]
+                - generic [ref=e569]: Web Monitoring
+              - button "Service Mesh" [ref=e570] [cursor=pointer]:
+                - img [ref=e572]
+                - generic [ref=e577]: Service Mesh
+              - button "Streaming Analytics" [ref=e578] [cursor=pointer]:
+                - img [ref=e580]
+                - generic [ref=e582]: Streaming Analytics
+          - generic [ref=e583]:
+            - button "Infrastructure & Assets" [active] [ref=e584] [cursor=pointer]:
+              - generic [ref=e585]: Infrastructure & Assets
+              - img [ref=e586]
+            - generic [ref=e588]:
+              - button "Agents" [ref=e589] [cursor=pointer]:
+                - img [ref=e591]
+                - generic [ref=e594]: Agents
+              - button "Agent Capabilities" [ref=e595] [cursor=pointer]:
+                - img [ref=e597]
+                - generic [ref=e600]: Agent Capabilities
+              - button "Assets" [ref=e601] [cursor=pointer]:
+                - img [ref=e603]
+                - generic [ref=e607]: Assets
+              - button "Patching" [ref=e608] [cursor=pointer]:
+                - img [ref=e610]
+                - generic [ref=e612]: Patching
+              - button "Software Updates" [ref=e613] [cursor=pointer]:
+                - img [ref=e615]
+                - generic [ref=e617]: Software Updates
+              - button "Software Deployment" [ref=e618] [cursor=pointer]:
+                - img [ref=e620]
+                - generic [ref=e623]: Software Deployment
+              - button "Service Catalog (IDP)" [ref=e624] [cursor=pointer]:
+                - img [ref=e626]
+                - generic [ref=e630]: Service Catalog (IDP)
+              - button "Jobs" [ref=e631] [cursor=pointer]:
+                - img [ref=e633]
+                - generic [ref=e636]: Jobs
+              - button "Remote Access" [ref=e637] [cursor=pointer]:
+                - img [ref=e639]
+                - generic [ref=e641]: Remote Access
+          - generic [ref=e642]:
+            - button "Security (SecOps)" [ref=e643] [cursor=pointer]:
+              - generic [ref=e644]: Security (SecOps)
+              - img [ref=e645]
+            - generic [ref=e647]:
+              - button "Security Overview" [ref=e648] [cursor=pointer]:
+                - img [ref=e650]
+                - generic [ref=e652]: Security Overview
+              - button "EDR (Real-Time)" [ref=e653] [cursor=pointer]:
+                - img [ref=e655]
+                - generic [ref=e657]: EDR (Real-Time)
+              - button "MDR Intelligence" [ref=e658] [cursor=pointer]:
+                - img [ref=e660]
+                - generic [ref=e662]: MDR Intelligence
+              - button "XDR Intelligence" [ref=e663] [cursor=pointer]:
+                - img [ref=e665]
+                - generic [ref=e670]: XDR Intelligence
+              - button "MITRE ATT&CK" [ref=e671] [cursor=pointer]:
+                - img [ref=e673]
+                - generic [ref=e678]: MITRE ATT&CK
+              - button "Data Loss Prevention" [ref=e679] [cursor=pointer]:
+                - img [ref=e681]
+                - generic [ref=e685]: Data Loss Prevention
+              - button "Cloud Security" [ref=e686] [cursor=pointer]:
+                - img [ref=e688]
+                - generic [ref=e691]: Cloud Security
+              - button "Threat Hunting" [ref=e692] [cursor=pointer]:
+                - img [ref=e694]
+                - generic [ref=e697]: Threat Hunting
+              - button "SIEM Dashboard (OCSF)" [ref=e698] [cursor=pointer]:
+                - img [ref=e700]
+                - generic [ref=e702]: SIEM Dashboard (OCSF)
+              - button "Threat Intelligence" [ref=e703] [cursor=pointer]:
+                - img [ref=e705]
+                - generic [ref=e709]: Threat Intelligence
+              - button "SIEM Correlation Rules" [ref=e710] [cursor=pointer]:
+                - img [ref=e712]
+                - generic [ref=e714]: SIEM Correlation Rules
+              - button "Incident Response" [ref=e715] [cursor=pointer]:
+                - img [ref=e717]
+                - generic [ref=e719]: Incident Response
+              - button "Incident War Room" [ref=e720] [cursor=pointer]:
+                - img [ref=e722]
+                - generic [ref=e724]: Incident War Room
+              - button "Deception Technology" [ref=e725] [cursor=pointer]:
+                - img [ref=e727]
+                - generic [ref=e729]: Deception Technology
+              - button "UEBA (Insider Threats)" [ref=e730] [cursor=pointer]:
+                - img [ref=e732]
+                - generic [ref=e735]: UEBA (Insider Threats)
+              - button "Shadow AI Detection" [ref=e736] [cursor=pointer]:
+                - img [ref=e738]
+                - generic [ref=e741]: Shadow AI Detection
+              - button "Insider Threat" [ref=e742] [cursor=pointer]:
+                - img [ref=e744]
+                - generic [ref=e747]: Insider Threat
+              - button "Network Detection (NDR)" [ref=e748] [cursor=pointer]:
+                - img [ref=e750]
+                - generic [ref=e755]: Network Detection (NDR)
+              - button "Event Correlations" [ref=e756] [cursor=pointer]:
+                - img [ref=e758]
+                - generic [ref=e760]: Event Correlations
+              - button "Email Security" [ref=e761] [cursor=pointer]:
+                - img [ref=e763]
+                - generic [ref=e767]: Email Security
+              - button "Incident Impact" [ref=e768] [cursor=pointer]:
+                - img [ref=e770]
+                - generic [ref=e772]: Incident Impact
+              - button "Data Security (DSPM)" [ref=e773] [cursor=pointer]:
+                - img [ref=e775]
+                - generic [ref=e782]: Data Security (DSPM)
+              - button "Attack Path" [ref=e783] [cursor=pointer]:
+                - img [ref=e785]
+                - generic [ref=e790]: Attack Path
+              - button "Pentesting" [ref=e791] [cursor=pointer]:
+                - img [ref=e793]
+                - generic [ref=e795]: Pentesting
+              - button "DAST" [ref=e796] [cursor=pointer]:
+                - img [ref=e798]
+                - generic [ref=e800]: DAST
+              - button "Zero Trust & Quantum" [ref=e801] [cursor=pointer]:
+                - img [ref=e803]
+                - generic [ref=e807]: Zero Trust & Quantum
+              - button "Vulnerabilities" [ref=e808] [cursor=pointer]:
+                - img [ref=e810]
+                - generic [ref=e812]: Vulnerabilities
+              - button "Persistence Detection" [ref=e813] [cursor=pointer]:
+                - img [ref=e815]
+                - generic [ref=e818]: Persistence Detection
+              - button "Simulation" [ref=e819] [cursor=pointer]:
+                - img [ref=e821]
+                - generic [ref=e825]: Simulation
+              - button "Security Audit" [ref=e826] [cursor=pointer]:
+                - img [ref=e828]
+                - generic [ref=e831]: Security Audit
+              - button "File Integrity Monitor" [ref=e832] [cursor=pointer]:
+                - img [ref=e834]
+                - generic [ref=e837]: File Integrity Monitor
+              - button "Runtime Security" [ref=e838] [cursor=pointer]:
+                - img [ref=e840]
+                - generic [ref=e842]: Runtime Security
+              - button "Privileged Access (PAM)" [ref=e843] [cursor=pointer]:
+                - img [ref=e845]
+                - generic [ref=e848]: Privileged Access (PAM)
+          - generic [ref=e849]:
+            - button "DevSecOps & Engineering" [ref=e850] [cursor=pointer]:
+              - generic [ref=e851]: DevSecOps & Engineering
+              - img [ref=e852]
+            - generic [ref=e854]:
+              - button "Kubernetes Security" [ref=e855] [cursor=pointer]:
+                - img [ref=e857]
+                - generic [ref=e860]: Kubernetes Security
+              - button "API Security" [ref=e861] [cursor=pointer]:
+                - img [ref=e863]
+                - generic [ref=e868]: API Security
+              - button "Database Monitor (DAM)" [ref=e869] [cursor=pointer]:
+                - img [ref=e871]
+                - generic [ref=e875]: Database Monitor (DAM)
+              - button "Supply Chain Security" [ref=e876] [cursor=pointer]:
+                - img [ref=e878]
+                - generic [ref=e881]: Supply Chain Security
+              - button "DevSecOps" [ref=e882] [cursor=pointer]:
+                - img [ref=e884]
+                - generic [ref=e887]: DevSecOps
+              - button "DORA Metrics" [ref=e888] [cursor=pointer]:
+                - img [ref=e890]
+                - generic [ref=e894]: DORA Metrics
+              - button "SBOM" [ref=e895] [cursor=pointer]:
+                - img [ref=e897]
+                - generic [ref=e902]: SBOM
+              - button "SAST" [ref=e903] [cursor=pointer]:
+                - img [ref=e905]
+                - generic [ref=e908]: SAST
+              - button "Code Review Graph" [ref=e909] [cursor=pointer]:
+                - img [ref=e911]
+                - generic [ref=e914]: Code Review Graph
+              - button "Pipeline Security" [ref=e915] [cursor=pointer]:
+                - img [ref=e917]
+                - generic [ref=e920]: Pipeline Security
+              - button "IaC Security" [ref=e921] [cursor=pointer]:
+                - img [ref=e923]
+                - generic [ref=e928]: IaC Security
+              - button "Container Scanning" [ref=e929] [cursor=pointer]:
+                - img [ref=e931]
+                - generic [ref=e934]: Container Scanning
+              - button "Chaos Engineering" [ref=e935] [cursor=pointer]:
+                - img [ref=e937]
+                - generic [ref=e941]: Chaos Engineering
+              - button "Developer Hub" [ref=e942] [cursor=pointer]:
+                - img [ref=e944]
+                - generic [ref=e950]: Developer Hub
+              - button "MLOps" [ref=e951] [cursor=pointer]:
+                - img [ref=e953]
+                - generic [ref=e957]: MLOps
+              - button "LLMOps" [ref=e958] [cursor=pointer]:
+                - img [ref=e960]
+                - generic [ref=e963]: LLMOps
+              - button "AutoML" [ref=e964] [cursor=pointer]:
+                - img [ref=e966]
+                - generic [ref=e968]: AutoML
+              - button "A/B Testing" [ref=e969] [cursor=pointer]:
+                - img [ref=e971]
+                - generic [ref=e975]: A/B Testing
+              - button "AI Explainability" [ref=e976] [cursor=pointer]:
+                - img [ref=e978]
+                - generic [ref=e985]: AI Explainability
+          - generic [ref=e986]:
+            - button "Governance & Compliance" [ref=e987] [cursor=pointer]:
+              - generic [ref=e988]: Governance & Compliance
+              - img [ref=e989]
+            - generic [ref=e991]:
+              - button "Compliance" [ref=e992] [cursor=pointer]:
+                - img [ref=e994]
+                - generic [ref=e997]: Compliance
+              - button "Framework Evaluator" [ref=e998] [cursor=pointer]:
+                - img [ref=e1000]
+                - generic [ref=e1003]: Framework Evaluator
+              - button "Custom Frameworks" [ref=e1004] [cursor=pointer]:
+                - img [ref=e1006]
+                - generic [ref=e1009]: Custom Frameworks
+              - button "Compliance Oracle" [ref=e1010] [cursor=pointer]:
+                - img [ref=e1012]
+                - generic [ref=e1015]: Compliance Oracle
+              - button "CISSP Oracle" [ref=e1016] [cursor=pointer]:
+                - img [ref=e1018]
+                - generic [ref=e1021]: CISSP Oracle
+              - button "Privacy (GDPR/CCPA)" [ref=e1022] [cursor=pointer]:
+                - img [ref=e1024]
+                - generic [ref=e1028]: Privacy (GDPR/CCPA)
+              - button "Risk Register" [ref=e1029] [cursor=pointer]:
+                - img [ref=e1031]
+                - generic [ref=e1033]: Risk Register
+              - button "Vendor Mgmt" [ref=e1034] [cursor=pointer]:
+                - img [ref=e1036]
+                - generic [ref=e1041]: Vendor Mgmt
+              - button "Trust Center" [ref=e1042] [cursor=pointer]:
+                - img [ref=e1044]
+                - generic [ref=e1047]: Trust Center
+              - button "Secure Share" [ref=e1048] [cursor=pointer]:
+                - img [ref=e1050]
+                - generic [ref=e1053]: Secure Share
+              - button "Training" [ref=e1054] [cursor=pointer]:
+                - img [ref=e1056]
+                - generic [ref=e1062]: Training
+              - button "AI Governance" [ref=e1063] [cursor=pointer]:
+                - img [ref=e1065]
+                - generic [ref=e1068]: AI Governance
+              - button "Data Governance" [ref=e1069] [cursor=pointer]:
+                - img [ref=e1071]
+                - generic [ref=e1074]: Data Governance
+              - button "Audit Log" [ref=e1075] [cursor=pointer]:
+                - img [ref=e1077]
+                - generic [ref=e1080]: Audit Log
+              - button "Approvals" [ref=e1081] [cursor=pointer]:
+                - img [ref=e1083]
+                - generic [ref=e1086]: Approvals
+              - button "BAA Management" [ref=e1087] [cursor=pointer]:
+                - img [ref=e1089]
+                - generic [ref=e1092]: BAA Management
+          - generic [ref=e1093]:
+            - button "Automation & Intelligence" [ref=e1094] [cursor=pointer]:
+              - generic [ref=e1095]: Automation & Intelligence
+              - img [ref=e1096]
+            - generic [ref=e1098]:
+              - button "Automation" [ref=e1099] [cursor=pointer]:
+                - img [ref=e1101]
+                - generic [ref=e1105]: Automation
+              - button "Playbooks" [ref=e1106] [cursor=pointer]:
+                - img [ref=e1108]
+                - generic [ref=e1114]: Playbooks
+              - button "JIT Privileged Access" [ref=e1115] [cursor=pointer]:
+                - img [ref=e1117]
+                - generic [ref=e1120]: JIT Privileged Access
+              - button "Scheduled Reports" [ref=e1121] [cursor=pointer]:
+                - img [ref=e1123]
+                - generic [ref=e1126]: Scheduled Reports
+              - button "Autonomous Swarms" [ref=e1127] [cursor=pointer]:
+                - img [ref=e1129]
+                - generic [ref=e1133]: Autonomous Swarms
+              - button "Agent Approvals" [ref=e1134] [cursor=pointer]:
+                - img [ref=e1136]
+                - generic [ref=e1139]: Agent Approvals
+              - button "AI Remediation" [ref=e1140] [cursor=pointer]:
+                - img [ref=e1142]
+                - generic [ref=e1144]: AI Remediation
+              - button "Rollback & Checkpoints" [ref=e1145] [cursor=pointer]:
+                - img [ref=e1147]
+                - generic [ref=e1149]: Rollback & Checkpoints
+              - button "My Tasks" [ref=e1150] [cursor=pointer]:
+                - img [ref=e1152]
+                - generic [ref=e1155]: My Tasks
+      - generic [ref=e15]:
+        - banner [ref=e16]:
+          - generic [ref=e18]:
+            - generic [ref=e20]:
+              - img [ref=e21]
+              - heading "Omni-Agent AI" [level=1] [ref=e24]
+            - generic [ref=e25]:
+              - combobox "Select Timezone" [ref=e27]:
+                - option "UTC" [selected]
+                - option "America/New York"
+                - option "America/Chicago"
+                - option "America/Denver"
+                - option "America/Los Angeles"
+                - option "Europe/London"
+                - option "Europe/Paris"
+                - option "Asia/Tokyo"
+                - option "Asia/Kolkata"
+                - option "Australia/Sydney"
+              - button "Toggle dark mode" [ref=e28] [cursor=pointer]:
+                - img [ref=e29]
+              - button "Start guided tour" [ref=e31] [cursor=pointer]:
+                - img [ref=e32]
+              - button "Open AI Command Bar" [ref=e35] [cursor=pointer]:
+                - generic [ref=e36]: AI Command
+                - generic [ref=e37]: ⌘K
+              - button [ref=e39] [cursor=pointer]:
+                - img [ref=e40]
+              - button "A Acme Admin admin" [ref=e45] [cursor=pointer]:
+                - generic [ref=e46]: A
+                - generic [ref=e47]:
+                  - generic [ref=e48]: Acme Admin
+                  - generic [ref=e49]: admin
+                - img [ref=e50]
+        - main [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e55]:
+              - generic [ref=e56]:
+                - heading "Welcome back, Acme" [level=2] [ref=e57]
+                - paragraph [ref=e58]:
+                  - img [ref=e59]
+                  - text: Tuesday, May 26, 2026
+              - generic [ref=e61]:
+                - button "Last 24 Hours" [ref=e62] [cursor=pointer]:
+                  - img [ref=e63]
+                  - text: Last 24 Hours
+                - button [ref=e65] [cursor=pointer]:
+                  - img [ref=e66]
+                - button "Generate Report" [ref=e71] [cursor=pointer]:
+                  - img [ref=e72]
+                  - text: Generate Report
+            - generic [ref=e75]:
+              - generic [ref=e76] [cursor=pointer]:
+                - generic [ref=e79]:
+                  - paragraph
+                  - paragraph [ref=e80]: "13.8"
+                - img [ref=e83]
+              - generic [ref=e86] [cursor=pointer]:
+                - generic [ref=e89]:
+                  - paragraph
+                  - paragraph [ref=e90]: "63.8"
+                - img [ref=e93]
+              - generic [ref=e96] [cursor=pointer]:
+                - generic [ref=e99]:
+                  - paragraph
+                  - paragraph [ref=e100]: "95"
+                - img [ref=e103]
+            - generic [ref=e106]:
+              - generic [ref=e107]:
+                - heading "AI-Driven Health Analysis" [level=3] [ref=e108]:
+                  - img [ref=e110]
+                  - text: AI-Driven Health Analysis
+                - button "Generate Analysis" [ref=e113] [cursor=pointer]
+              - paragraph [ref=e116]: AI analysis is running automatically. Results will appear here shortly.
+              - generic [ref=e117]:
+                - heading "Feedback History" [level=4] [ref=e118]:
+                  - img [ref=e119]
+                  - text: Feedback History
+                - paragraph [ref=e122]: No feedback has been recorded yet.
+            - generic [ref=e123]:
+              - generic [ref=e125]:
+                - heading "Business KPI Correlation" [level=3] [ref=e126]
+                - generic [ref=e129]:
+                  - list [ref=e131]:
+                    - listitem [ref=e132]:
+                      - img "Compliance Score legend icon" [ref=e133]
+                      - text: Compliance Score
+                    - listitem [ref=e135]:
+                      - img "Efficiency Score legend icon" [ref=e136]
+                      - text: Efficiency Score
+                    - listitem [ref=e138]:
+                      - img "Security Incidents legend icon" [ref=e139]
+                      - text: Security Incidents
+                  - application [ref=e141]
+              - generic [ref=e148]:
+                - heading "AI System Health" [level=3] [ref=e150]:
+                  - img [ref=e151]
+                  - text: AI System Health
+                - generic [ref=e154]:
+                  - generic [ref=e155]:
+                    - generic [ref=e156]:
+                      - img [ref=e157]
+                      - generic [ref=e159]: Active Systems
+                    - generic [ref=e160]: "0"
+                  - generic [ref=e161]:
+                    - generic [ref=e162]:
+                      - img [ref=e163]
+                      - generic [ref=e167]: Inactive Systems
+                    - generic [ref=e168]: "2"
+                  - generic [ref=e169]:
+                    - generic [ref=e170]:
+                      - img [ref=e171]
+                      - generic [ref=e173]: At-Risk Systems
+                    - generic [ref=e174]: "0"
+            - generic [ref=e177]:
+              - heading "Recent Signals" [level=3] [ref=e179]:
+                - img [ref=e181]
+                - text: Recent Signals
+              - generic [ref=e184]:
+                - img [ref=e185]
+                - paragraph [ref=e187]: No Recent Alerts
+                - paragraph [ref=e188]: All systems operational.
+            - generic [ref=e190]:
+              - heading "Compliance & Governance Posture" [level=3] [ref=e192]:
+                - img [ref=e193]
+                - text: Compliance & Governance Posture
+              - generic [ref=e196]:
+                - generic [ref=e197] [cursor=pointer]:
+                  - generic [ref=e198]:
+                    - heading "CMMC" [level=4] [ref=e199]
+                    - generic [ref=e200]: In Progress
+                  - paragraph [ref=e201]: CMMC 2.0 Level 2
+                  - generic [ref=e203]:
+                    - generic [ref=e204]: Progress
+                    - generic [ref=e205]: 81%
+                - generic [ref=e208] [cursor=pointer]:
+                  - generic [ref=e209]:
+                    - heading "COBIT" [level=4] [ref=e210]
+                    - generic [ref=e211]: In Progress
+                  - paragraph [ref=e212]: COBIT 2019
+                  - generic [ref=e214]:
+                    - generic [ref=e215]: Progress
+                    - generic [ref=e216]: 50%
+                - generic [ref=e219] [cursor=pointer]:
+                  - generic [ref=e220]:
+                    - heading "CSA STAR" [level=4] [ref=e221]
+                    - generic [ref=e222]: In Progress
+                  - paragraph [ref=e223]: CSA STAR (CCM v4)
+                  - generic [ref=e225]:
+                    - generic [ref=e226]: Progress
+                    - generic [ref=e227]: 72%
+                - generic [ref=e230] [cursor=pointer]:
+                  - generic [ref=e231]:
+                    - heading "CCPA" [level=4] [ref=e232]
+                    - generic [ref=e233]: In Progress
+                  - paragraph [ref=e234]: California Consumer Privacy Act (CCPA/CPRA)
+                  - generic [ref=e236]:
+                    - generic [ref=e237]: Progress
+                    - generic [ref=e238]: 35%
+                - generic [ref=e241] [cursor=pointer]:
+                  - generic [ref=e242]:
+                    - heading "DORA" [level=4] [ref=e243]
+                    - generic [ref=e244]: In Progress
+                  - paragraph [ref=e245]: DORA (EU)
+                  - generic [ref=e247]:
+                    - generic [ref=e248]: Progress
+                    - generic [ref=e249]: 68%
+                - generic [ref=e252] [cursor=pointer]:
+                  - generic [ref=e253]:
+                    - heading "DPDP" [level=4] [ref=e254]
+                    - generic [ref=e255]: In Progress
+                  - paragraph [ref=e256]: Digital Personal Data Protection Act (DPDP)
+                  - generic [ref=e258]:
+                    - generic [ref=e259]: Progress
+                    - generic [ref=e260]: 64%
+                - generic [ref=e263] [cursor=pointer]:
+                  - generic [ref=e264]:
+                    - heading "FedRAMP" [level=4] [ref=e265]
+                    - generic [ref=e266]: In Progress
+                  - paragraph [ref=e267]: FedRAMP Moderate
+                  - generic [ref=e269]:
+                    - generic [ref=e270]: Progress
+                    - generic [ref=e271]: 79%
+                - generic [ref=e274] [cursor=pointer]:
+                  - generic [ref=e275]:
+                    - heading "GDPR" [level=4] [ref=e276]
+                    - generic [ref=e277]: In Progress
+                  - paragraph [ref=e278]: General Data Protection Regulation (GDPR)
+                  - generic [ref=e280]:
+                    - generic [ref=e281]: Progress
+                    - generic [ref=e282]: 57%
+                - generic [ref=e285] [cursor=pointer]:
+                  - generic [ref=e286]:
+                    - heading "HIPAA" [level=4] [ref=e287]
+                    - generic [ref=e288]: In Progress
+                  - paragraph [ref=e289]: HIPAA Security Rule
+                  - generic [ref=e291]:
+                    - generic [ref=e292]: Progress
+                    - generic [ref=e293]: 86%
+                - generic [ref=e296] [cursor=pointer]:
+                  - generic [ref=e297]:
+                    - heading "HITRUST" [level=4] [ref=e298]
+                    - generic [ref=e299]: In Progress
+                  - paragraph [ref=e300]: HITRUST CSF v11
+                  - generic [ref=e302]:
+                    - generic [ref=e303]: Progress
+                    - generic [ref=e304]: 80%
+                - generic [ref=e307] [cursor=pointer]:
+                  - generic [ref=e308]:
+                    - heading "ISO 31000" [level=4] [ref=e309]
+                    - generic [ref=e310]: In Progress
+                  - paragraph [ref=e311]: ISO 31000:2018
+                  - generic [ref=e313]:
+                    - generic [ref=e314]: Progress
+                    - generic [ref=e315]: 68%
+                - generic [ref=e318] [cursor=pointer]:
+                  - generic [ref=e319]:
+                    - heading "ISO 9001" [level=4] [ref=e320]
+                    - generic [ref=e321]: In Progress
+                  - paragraph [ref=e322]: ISO 9001:2015
+                  - generic [ref=e324]:
+                    - generic [ref=e325]: Progress
+                    - generic [ref=e326]: 82%
+                - generic [ref=e329] [cursor=pointer]:
+                  - generic [ref=e330]:
+                    - heading "ISO 27001" [level=4] [ref=e331]
+                    - generic [ref=e332]: In Progress
+                  - paragraph [ref=e333]: ISO/IEC 27001:2022
+                  - generic [ref=e335]:
+                    - generic [ref=e336]: Progress
+                    - generic [ref=e337]: 74%
+                - generic [ref=e340] [cursor=pointer]:
+                  - generic [ref=e341]:
+                    - heading "ISO 42001" [level=4] [ref=e342]
+                    - generic [ref=e343]: In Progress
+                  - paragraph [ref=e344]: ISO/IEC 42001:2023
+                  - generic [ref=e346]:
+                    - generic [ref=e347]: Progress
+                    - generic [ref=e348]: 35%
+                - generic [ref=e351] [cursor=pointer]:
+                  - generic [ref=e352]:
+                    - heading "PCI DSS" [level=4] [ref=e353]
+                    - generic [ref=e354]: In Progress
+                  - paragraph [ref=e355]: Payment Card Industry Data Security Standard v4.0
+                  - generic [ref=e357]:
+                    - generic [ref=e358]: Progress
+                    - generic [ref=e359]: 86%
+                - generic [ref=e362] [cursor=pointer]:
+                  - generic [ref=e363]:
+                    - heading "SOC 2" [level=4] [ref=e364]
+                    - generic [ref=e365]: In Progress
+                  - paragraph [ref=e366]: SOC 2 Type II
+                  - generic [ref=e368]:
+                    - generic [ref=e369]: Progress
+                    - generic [ref=e370]: 84%
+              - generic [ref=e374]:
+                - heading "NIST Cybersecurity Framework v2.0" [level=4] [ref=e375]:
+                  - img [ref=e376]
+                  - text: NIST Cybersecurity Framework v2.0
+                - paragraph [ref=e380]: US NIST Framework – Govern, Identify, Protect, Detect, Respond, Recover
+                - generic [ref=e381]:
+                  - generic [ref=e383]:
+                    - generic [ref=e384]: Govern
+                    - generic [ref=e385]: 90%
+                  - generic [ref=e389]:
+                    - generic [ref=e390]: Identify
+                    - generic [ref=e391]: 95%
+                  - generic [ref=e395]:
+                    - generic [ref=e396]: Protect
+                    - generic [ref=e397]: 88%
+                  - generic [ref=e401]:
+                    - generic [ref=e402]: Detect
+                    - generic [ref=e403]: 90%
+                  - generic [ref=e407]:
+                    - generic [ref=e408]: Respond
+                    - generic [ref=e409]: 80%
+                  - generic [ref=e413]:
+                    - generic [ref=e414]: Recover
+                    - generic [ref=e415]: 70%
+    - generic:
+      - paragraph [ref=e419] [cursor=pointer]: Hey Acme! I'm Chitti. Say "Hey Chitti" or click me to start!
+      - button "Say \"Hey Chitti\"..." [ref=e420] [cursor=pointer]:
+        - img [ref=e421]
+        - img [ref=e425]
+    - button "Open AI Assistant" [ref=e428] [cursor=pointer]:
+      - img [ref=e429]
+  - generic [ref=e433]: "0"

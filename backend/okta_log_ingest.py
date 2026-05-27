@@ -119,8 +119,12 @@ async def start_okta_polling():
             db = get_database()
             configs = await db.siem_configs.find({"provider": "okta", "enabled": True}).to_list(length=100)
             for config in configs:
+                _okta_tid = config.get("tenant_id") or None
+                if not _okta_tid:
+                    logger.warning("[Okta] Skipping config %s — no tenant_id configured", config.get("id", "?"))
+                    continue
                 await fetch_okta_logs(
-                    tenant_id=config.get("tenant_id", "default"),
+                    tenant_id=_okta_tid,
                     domain=config.get("domain", ""),
                     api_token=config.get("api_token", ""),
                     since=datetime.now(timezone.utc) - timedelta(minutes=1),

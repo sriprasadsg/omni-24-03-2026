@@ -1,97 +1,243 @@
 @echo off
-REM Enterprise Omni-Agent Platform - Service Launcher (Windows Batch)
-REM Alternative batch file version for systems where PowerShell execution is restricted
+setlocal EnableDelayedExpansion
 
-echo =============================================
-echo Enterprise Omni-Agent Platform - Launcher
-echo =============================================
+:: ============================================================
+::  Enterprise Omni-Agent AI Platform — Windows Service Launcher
+::  Run from project root: start-all-services.bat
+::  Auto-installs missing dependencies before starting.
+:: ============================================================
+
+set "ROOT=%~dp0"
+set "ROOT=%ROOT:~0,-1%"
+set "BACKEND_DIR=%ROOT%\backend"
+set "AGENT_DIR=%ROOT%\agent"
+set "BACKEND_PYTHON=%BACKEND_DIR%\venv\Scripts\python.exe"
+set "AGENT_PYTHON=%AGENT_DIR%\venv\Scripts\python.exe"
+
+set "BACKEND_PORT=5000"
+set "FRONTEND_PORT=3000"
+set "MONGO_PORT=27017"
+
+set "MONGODB_URL=mongodb://127.0.0.1:%MONGO_PORT%"
+set "DATABASE_NAME=omni_agent_platform"
+set "CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
+set "VITE_PROXY_TARGET=http://127.0.0.1:%BACKEND_PORT%"
+
+set "API_BASE_URL=http://127.0.0.1:%BACKEND_PORT%"
+set "REGISTRATION_KEY=reg_platformadmin123"
+set "TENANT_ID=platform-admin"
+
+cls
+echo.
+echo   ===================================================
+echo    Enterprise Omni-Agent AI Platform
+echo    Windows Service Launcher
+echo   ===================================================
 echo.
 
-set PROJECT_ROOT=d:\Downloads\enterprise-omni-agent-ai-platform
+:: ── Check Python ──────────────────────────────────────────────────────────────
+echo [0] Checking prerequisites...
 
-if not exist "%PROJECT_ROOT%" (
-    echo ERROR: Project directory not found at %PROJECT_ROOT%
-    echo Please update the PROJECT_ROOT variable in this script.
-    pause
-    exit /b 1
+python --version >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo   ERR Python not found in PATH.
+    echo       Install Python 3.10+ from https://python.org and tick "Add to PATH".
+    goto :error
+)
+echo   OK  Python found
+
+node --version >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo   ERR Node.js not found in PATH.
+    echo       Install Node.js from https://nodejs.org/
+    goto :error
+)
+echo   OK  Node.js found
+
+if not exist "%BACKEND_DIR%" (
+    echo   ERR Backend directory not found: %BACKEND_DIR%
+    goto :error
 )
 
-echo Checking for existing processes on ports 3000 and 5000...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000') do (
-    if "%%a" neq "0" (
-        echo Killing process %%a on port 3000...
-        taskkill /F /PID %%a 2>nul
+:: ── Backend venv ──────────────────────────────────────────────────────────────
+if not exist "%BACKEND_PYTHON%" (
+    echo   ... Backend venv missing - creating it now, first time takes ~60s...
+    cd /d "%BACKEND_DIR%"
+    python -m venv venv
+    if %ERRORLEVEL% neq 0 (
+        echo   ERR Failed to create backend venv.
+        goto :error
     )
-)
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5000') do (
-    if "%%a" neq "0" (
-        echo Killing process %%a on port 5000...
-        taskkill /F /PID %%a 2>nul
+    echo   ... Installing backend dependencies...
+    call "%BACKEND_DIR%\venv\Scripts\pip.exe" install --upgrade pip --quiet
+    call "%BACKEND_DIR%\venv\Scripts\pip.exe" install -r "%BACKEND_DIR%\requirements.txt" --quiet
+    if %ERRORLEVEL% neq 0 (
+        echo   ERR pip install failed. Check requirements.txt and try again.
+        goto :error
     )
-)
-echo.
-
-echo Starting services...
-echo.
-
-REM 1. Launch Backend
-echo [1/3] Starting Backend (Port 5000)...
-start "Backend Server" /D "%PROJECT_ROOT%\backend" cmd /k "venv\Scripts\python.exe -m uvicorn app:socket_app --port 5000 --host 0.0.0.0"
-echo   Backend launched in new window
-timeout /t 2 /nobreak >nul
-
-REM 2. Launch Frontend
-echo [2/3] Starting Frontend (Port 3000)...
-start "Frontend Server" /D "%PROJECT_ROOT%" cmd /k "npm run dev"
-echo   Frontend launched in new window
-timeout /t 2 /nobreak >nul
-
-REM 3. Launch Agent
-echo [3/3] Starting Agent...
-start "Agent" /D "%PROJECT_ROOT%\agent" cmd /k "%PROJECT_ROOT%\agent\venv\Scripts\python.exe agent.py"
-echo   Agent launched in new window
-timeout /t 1 /nobreak >nul
-
-echo.
-echo =============================================
-echo All services started!
-echo =============================================
-echo.
-echo Service URLs:
-echo   Frontend:  http://127.0.0.1:3000
-echo   Backend:   http://127.0.0.1:5000
-echo   Health:    http://127.0.0.1:5000/health
-echo.
-echo IMPORTANT: Wait 60-90 seconds for:
-echo   1. Backend to fully initialize
-echo   2. Frontend to compile and start
-echo   3. Agent to complete first compliance scan
-echo.
-echo To test Phase 1 compliance features:
-echo   1. Wait 90 seconds
-echo   2. Open http://localhost:3000 in your browser
-echo   3. Navigate to: Agents - EILT0197 - Compliance Tab
-echo   4. Verify you see 28-36 compliance checks
-echo.
-echo To stop all services:
-echo   - Close all 3 command windows that were opened
-echo.
-
-set /p OPEN_BROWSER="Open browser automatically after 90 seconds? (Y/N): "
-
-if /i "%OPEN_BROWSER%"=="Y" (
-    echo.
-    echo Waiting 90 seconds for services to initialize...
-    timeout /t 90 /nobreak
-    echo.
-    echo Opening browser...
-    start http://127.0.0.1:3000
-    echo.
-    echo Browser opened! You should now be able to test the compliance features.
+    echo   OK  Backend venv ready
 ) else (
-    echo.
-    echo Remember to wait 90 seconds before opening http://127.0.0.1:3000
+    echo   OK  Backend venv found
 )
 
+:: ── Frontend node_modules ─────────────────────────────────────────────────────
+if not exist "%ROOT%\node_modules" (
+    echo   ... node_modules missing - running npm install, first time takes ~30s...
+    cd /d "%ROOT%"
+    call npm install
+    if %ERRORLEVEL% neq 0 (
+        echo   ERR npm install failed.
+        goto :error
+    )
+    echo   OK  node_modules ready
+) else (
+    echo   OK  node_modules found
+)
+
+:: ── Agent venv ────────────────────────────────────────────────────────────────
+set "START_AGENT=0"
+if exist "%AGENT_DIR%\agent.py" (
+    if not exist "%AGENT_PYTHON%" (
+        echo   ... Agent venv missing - creating it now...
+        cd /d "%AGENT_DIR%"
+        python -m venv venv
+        if %ERRORLEVEL%==0 (
+            call "%AGENT_DIR%\venv\Scripts\pip.exe" install --upgrade pip --quiet
+            if exist "%AGENT_DIR%\requirements.txt" (
+                call "%AGENT_DIR%\venv\Scripts\pip.exe" install -r "%AGENT_DIR%\requirements.txt" --quiet
+            )
+            echo   OK  Agent venv ready
+            set "START_AGENT=1"
+        ) else (
+            echo   !!  Agent venv creation failed - agent will not be started
+        )
+    ) else (
+        echo   OK  Agent venv found
+        set "START_AGENT=1"
+    )
+) else (
+    echo   !!  Agent directory missing - agent will not be started
+)
+
+echo   OK  All prerequisites satisfied
+echo.
+
+:: ── Clear stale processes ─────────────────────────────────────────────────────
+echo [1] Clearing ports %BACKEND_PORT% and %FRONTEND_PORT%...
+for /f "tokens=5" %%P in ('netstat -ano 2^>nul ^| findstr /R ":%BACKEND_PORT% " ^| findstr LISTENING') do (
+    if "%%P" neq "0" taskkill /F /PID %%P >nul 2>&1
+)
+for /f "tokens=5" %%P in ('netstat -ano 2^>nul ^| findstr /R ":%FRONTEND_PORT% " ^| findstr LISTENING') do (
+    if "%%P" neq "0" taskkill /F /PID %%P >nul 2>&1
+)
+echo   OK  Ports cleared
+echo.
+
+:: ── MongoDB ───────────────────────────────────────────────────────────────────
+echo [2] Checking MongoDB on port %MONGO_PORT%...
+netstat -ano 2>nul | findstr /R ":%MONGO_PORT% " | findstr LISTENING >nul 2>&1
+if %ERRORLEVEL%==0 (
+    echo   OK  MongoDB already running
+) else (
+    echo   ... Trying Windows MongoDB service...
+    net start MongoDB >nul 2>&1
+    timeout /t 3 /nobreak >nul
+    netstat -ano 2>nul | findstr /R ":%MONGO_PORT% " | findstr LISTENING >nul 2>&1
+    if %ERRORLEVEL%==0 (
+        echo   OK  MongoDB service started
+    ) else (
+        echo   ... Service not available - trying mongod directly...
+        if not exist "C:\data\db" mkdir "C:\data\db"
+        start /min "mongod" mongod --dbpath "C:\data\db" --port %MONGO_PORT%
+        timeout /t 5 /nobreak >nul
+        netstat -ano 2>nul | findstr /R ":%MONGO_PORT% " | findstr LISTENING >nul 2>&1
+        if %ERRORLEVEL% neq 0 (
+            echo   ERR MongoDB could not be started.
+            echo       Install MongoDB from https://www.mongodb.com/try/download/community
+            echo       or start it manually, then re-run this script.
+            goto :error
+        )
+        echo   OK  MongoDB started via mongod
+    )
+)
+echo.
+
+:: ── Backend ───────────────────────────────────────────────────────────────────
+echo [3] Starting Backend ^(FastAPI on port %BACKEND_PORT%^)...
+start "Omni-Backend :5000" /D "%BACKEND_DIR%" cmd /k ^
+    "set MONGODB_URL=%MONGODB_URL%& set DATABASE_NAME=%DATABASE_NAME%& set CORS_ORIGINS=%CORS_ORIGINS%& set SUPER_ADMIN_PASSWORD=Admin@2030& echo.& echo   Omni-Agent Backend  http://127.0.0.1:%BACKEND_PORT%& echo.& %BACKEND_PYTHON% -m uvicorn app:app --host 0.0.0.0 --port %BACKEND_PORT% --log-level info"
+
+echo   ... Waiting for backend to be ready (up to 90s)...
+set /a TRIES=0
+:wait_backend
+    timeout /t 3 /nobreak >nul
+    netstat -ano 2>nul | findstr /R ":%BACKEND_PORT% " | findstr LISTENING >nul 2>&1
+    if %ERRORLEVEL%==0 goto :backend_up
+    set /a TRIES+=1
+    if %TRIES% lss 30 goto :wait_backend
+    echo   ERR Backend did not start after 90s. Check the Backend terminal window.
+    goto :error
+:backend_up
+echo   OK  Backend is up at http://127.0.0.1:%BACKEND_PORT%
+echo.
+
+:: ── Frontend ──────────────────────────────────────────────────────────────────
+echo [4] Starting Frontend ^(Vite/React on port %FRONTEND_PORT%^)...
+start "Omni-Frontend :3000" /D "%ROOT%" cmd /k ^
+    "set VITE_PROXY_TARGET=%VITE_PROXY_TARGET% & echo. & echo   Omni-Agent Frontend  http://localhost:%FRONTEND_PORT% & echo. & npm run dev -- --port %FRONTEND_PORT%"
+
+echo   ... Waiting for frontend to compile (up to 60s)...
+set /a TRIES=0
+:wait_frontend
+    timeout /t 3 /nobreak >nul
+    netstat -ano 2>nul | findstr /R ":%FRONTEND_PORT% " | findstr LISTENING >nul 2>&1
+    if %ERRORLEVEL%==0 goto :frontend_up
+    set /a TRIES+=1
+    if %TRIES% lss 20 goto :wait_frontend
+    echo   !!  Frontend did not respond - check the Frontend terminal window.
+    goto :summary
+:frontend_up
+echo   OK  Frontend is up at http://localhost:%FRONTEND_PORT%
+echo.
+
+:: ── Agent ─────────────────────────────────────────────────────────────────────
+if "%START_AGENT%"=="1" (
+    echo [5] Starting Agent...
+    start "Omni-Agent" /D "%AGENT_DIR%" cmd /k ^
+        "set API_BASE_URL=%API_BASE_URL%& set REGISTRATION_KEY=%REGISTRATION_KEY%& set TENANT_ID=%TENANT_ID%& echo.& echo   Agent connecting to %API_BASE_URL%& echo.& %AGENT_PYTHON% agent.py --url %API_BASE_URL% --key %REGISTRATION_KEY%"
+    echo   OK  Agent launched
+    echo.
+)
+
+:: ── Summary ───────────────────────────────────────────────────────────────────
+:summary
+echo.
+echo   ===================================================
+echo    All services started!
+echo   ===================================================
+echo.
+echo   Service URLs:
+echo     Frontend   http://localhost:%FRONTEND_PORT%
+echo     Backend    http://127.0.0.1:%BACKEND_PORT%
+echo     API Docs   http://127.0.0.1:%BACKEND_PORT%/docs
+echo     Health     http://127.0.0.1:%BACKEND_PORT%/health
+echo.
+echo   Default login:  super@omni.ai  /  Admin@2030
+echo.
+echo   To stop all services:
+echo     taskkill /F /IM python.exe /IM node.exe
+echo.
+
+set /p OPEN_BROWSER="  Open browser now? (Y/N): "
+if /i "%OPEN_BROWSER%"=="Y" (
+    start http://localhost:%FRONTEND_PORT%
+)
+
+goto :eof
+
+:error
+echo.
+echo   Script aborted. Fix the issue above and re-run.
 echo.
 pause
+exit /b 1

@@ -9,19 +9,49 @@ sys.path.insert(0, os.path.dirname(__file__))
 from fastapi import APIRouter, Query, Depends
 from database import get_database
 from auth_utils import get_current_user
-from frameworks import nist_rmf, cis_controls, iso27001, hipaa, pci_dss, soc2
+from frameworks import (
+    nist_rmf, cis_controls, iso27001, hipaa, pci_dss, soc2,
+    soc1, soc1_type1, soc2_type1, soc3, soc_cybersecurity,
+    gdpr, fedramp, hitrust, cmmc, csa_star, iso42001, ccpa,
+    cobit, dora, dpdp, iso9001, iso31000, nist_800_53, nist_800_171,
+    sox_itgc, nis2, iso27701, swift_csp, nist_ai_rmf,
+)
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 router = APIRouter(prefix="/api/frameworks", tags=["Compliance Frameworks"])
 
 _REGISTRY = {
-    "nist_csf":       nist_rmf,
-    "cis_v8":         cis_controls,
-    "iso27001_2022":  iso27001,
-    "hipaa":          hipaa,
-    "pci_dss":        pci_dss,
-    "soc2":           soc2,
+    "nistcsf":          nist_rmf,
+    "cis_v8":           cis_controls,
+    "iso27001":         iso27001,
+    "hipaa":            hipaa,
+    "pci-dss":          pci_dss,
+    "soc2":             soc2,
+    "soc1_type1":       soc1_type1,
+    "soc1_type2":       soc1,
+    "soc2_type1":       soc2_type1,
+    "soc3":             soc3,
+    "soc_cybersecurity": soc_cybersecurity,
+    "gdpr":             gdpr,
+    "fedramp_moderate": fedramp,
+    "hitrust_csf":      hitrust,
+    "cmmc_l2":          cmmc,
+    "csa_star":         csa_star,
+    "iso42001":         iso42001,
+    "ccpa":             ccpa,
+    "cobit_2019":       cobit,
+    "dora":             dora,
+    "dpdp":             dpdp,
+    "iso9001_2015":     iso9001,
+    "iso31000_2018":    iso31000,
+    "nist_800_53":      nist_800_53,
+    "nist_800_171":     nist_800_171,
+    "sox_itgc":         sox_itgc,
+    "nis2":             nis2,
+    "iso27701":         iso27701,
+    "swift_csp":        swift_csp,
+    "nist_ai_rmf":      nist_ai_rmf,
 }
 
 
@@ -46,52 +76,23 @@ def _score(results: List[Dict[str, Any]]) -> Dict[str, Any]:
 @router.get("")
 async def list_frameworks(current_user: dict = Depends(get_current_user)):
     """List all available compliance frameworks with metadata."""
-    return {
-        "frameworks": [
-            {
-                "id": "nist_csf",
-                "name": nist_rmf.FRAMEWORK_NAME,
-                "version": nist_rmf.FRAMEWORK_VERSION,
-                "control_count": len(nist_rmf.CONTROLS),
-                "description": "NIST Cybersecurity Framework 2.0 — Govern, Identify, Protect, Detect, Respond, Recover",
-            },
-            {
-                "id": "cis_v8",
-                "name": cis_controls.FRAMEWORK_NAME,
-                "version": cis_controls.FRAMEWORK_VERSION,
-                "control_count": len(cis_controls.CONTROLS),
-                "description": "Center for Internet Security Controls v8 — 18 control groups",
-            },
-            {
-                "id": "iso27001_2022",
-                "name": iso27001.FRAMEWORK_NAME,
-                "version": iso27001.FRAMEWORK_VERSION,
-                "control_count": len(iso27001.CONTROLS),
-                "description": "ISO/IEC 27001:2022 — Annex A controls across 4 themes",
-            },
-            {
-                "id": "hipaa",
-                "name": hipaa.FRAMEWORK_NAME,
-                "version": hipaa.FRAMEWORK_VERSION,
-                "control_count": len(hipaa.CONTROLS),
-                "description": "HIPAA / HITECH — Administrative, Physical, and Technical Safeguards + Breach Notification",
-            },
-            {
-                "id": "pci_dss",
-                "name": pci_dss.FRAMEWORK_NAME,
-                "version": pci_dss.FRAMEWORK_VERSION,
-                "control_count": len(pci_dss.CONTROLS),
-                "description": "PCI-DSS v4.0 — 12 requirements for cardholder data protection",
-            },
-            {
-                "id": "soc2",
-                "name": soc2.FRAMEWORK_NAME,
-                "version": soc2.FRAMEWORK_VERSION,
-                "control_count": len(soc2.CONTROLS),
-                "description": "SOC 2 Type II — AICPA Trust Services Criteria (CC1–CC9, Availability)",
-            },
-        ]
-    }
+    db = get_database()
+    frameworks = []
+    async for fw in db.compliance_frameworks.find({}, {"_id": 0}):
+        mod = _REGISTRY.get(fw["id"])
+        ctrl_count = fw.get("controlCount") or len(fw.get("controls", []))
+        frameworks.append({
+            "id": fw["id"],
+            "name": fw["name"],
+            "shortName": fw.get("shortName", fw["name"]),
+            "version": getattr(mod, "FRAMEWORK_VERSION", ""),
+            "control_count": ctrl_count,
+            "description": fw.get("description", ""),
+            "status": fw.get("status", ""),
+            "progress": fw.get("progress", 0),
+            "has_automated_checks": mod is not None,
+        })
+    return {"frameworks": frameworks}
 
 
 @router.get("/summary")

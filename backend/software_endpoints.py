@@ -126,15 +126,16 @@ async def deploy_software(
         is_super_admin = getattr(current_user, "role", "") in _SUPER_ADMIN_ROLES
 
         task_ids = []
-        for agent_id in payload.agentIds:
-            tenant_id = "global"
-            agent = await db.agents.find_one({"id": agent_id})
-            if agent:
-                agent_tenant = agent.get("tenantId", "global")
-                # Non-super-admins may only deploy to their own tenant's agents
-                if not is_super_admin and caller_tenant and agent_tenant != caller_tenant:
-                    continue
-                tenant_id = agent_tenant
+        for agent_id in payload.agentIds[:100]:
+            _agent_q: dict = {"id": agent_id}
+            if not is_super_admin and caller_tenant:
+                _agent_q["tenantId"] = caller_tenant
+            agent = await db.agents.find_one(_agent_q)
+            if not agent:
+                continue
+            tenant_id = agent.get("tenantId") or None
+            if not tenant_id:
+                continue
 
             instruction_type = f"{payload.action}_{payload.packageId}"
             agent_payload: dict = {"package": payload.packageId}
@@ -388,7 +389,10 @@ async def get_software_tasks(current_user=Depends(get_current_user)):
         agent_ids = list({i.get("agent_id") for i in instrs if i.get("agent_id")})
         agents_map: dict = {}
         if agent_ids:
-            async for agent in db.agents.find({"id": {"$in": agent_ids}}, {"_id": 0, "id": 1, "hostname": 1}):
+            agent_lookup: dict = {"id": {"$in": agent_ids}}
+            if role not in _SUPER_ADMIN_ROLES:
+                agent_lookup["tenantId"] = getattr(current_user, "tenant_id", None)
+            async for agent in db.agents.find(agent_lookup, {"_id": 0, "id": 1, "hostname": 1}):
                 agents_map[agent["id"]] = agent.get("hostname", agent["id"])
 
         for instr in instrs:

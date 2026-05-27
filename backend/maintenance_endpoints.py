@@ -30,9 +30,9 @@ async def list_maintenance_windows(current_user: TokenData = Depends(rbac_servic
 
 @router.delete("/windows/{window_id}")
 async def delete_maintenance_window(window_id: str, current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")), db=Depends(get_database)):
-    # Note: Service should ideally check tenant ownership of window_id too
+    tenant_id = get_tenant_id()
     service = get_maintenance_service(db)
-    await service.delete_window(window_id)
+    await service.delete_window(window_id, tenant_id=tenant_id)
     return {"success": True}
 
 @router.get("/check")

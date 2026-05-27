@@ -1,0 +1,32 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - img [ref=e6]
+    - heading "Enterprise Omni-Agent" [level=1] [ref=e9]
+    - paragraph [ref=e10]: Future-Ready AI Platform
+  - generic [ref=e11]:
+    - heading "Sign In" [level=2] [ref=e12]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Email Address
+        - generic [ref=e16]:
+          - generic:
+            - img
+          - textbox "Email Address" [ref=e17]:
+            - /placeholder: Enter your email
+      - generic [ref=e18]:
+        - generic [ref=e19]: Password
+        - generic [ref=e20]:
+          - generic:
+            - img
+          - textbox "Password" [ref=e21]:
+            - /placeholder: Enter your password
+      - button "Sign In" [ref=e22] [cursor=pointer]
+    - generic [ref=e27]: Don't have an account?
+    - button "Create New Account" [ref=e28] [cursor=pointer]
+  - generic [ref=e29]:
+    - paragraph [ref=e30]: "Demo Credentials:"
+    - generic [ref=e31]:
+      - paragraph [ref=e32]: "• Super Admin: super@omni.ai"
+      - paragraph [ref=e33]: "• Tenant Admin: admin@acmecorp.com"
+      - paragraph [ref=e34]: "• Security Analyst: analyst@acmecorp.com"
+      - paragraph [ref=e35]: "Password: Check user data or use signup"

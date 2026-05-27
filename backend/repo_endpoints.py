@@ -10,6 +10,8 @@ import hashlib
 from database import get_database
 from authentication_service import get_current_user
 
+_REPO_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
 # ── Local Repository Configuration ──────────────────────────────────────────
 REPO_DIR = os.path.join(os.getcwd(), "data", "local_repo")
 os.makedirs(REPO_DIR, exist_ok=True)
@@ -30,8 +32,11 @@ async def upload_package(
     if role not in ("Super Admin", "Tenant Admin"):
         raise HTTPException(status_code=403, detail="Unauthorised. Admins only.")
 
-    tenant_id = getattr(current_user, "tenantId", "global")
-    
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None
+    if not tenant_id and role not in _REPO_SUPER_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    tenant_id = tenant_id or "global"
+
     # Secure filename
     filename = os.path.basename(file.filename)
     if not filename:
@@ -100,7 +105,10 @@ async def delete_package(filename: str, current_user: Any = Depends(get_current_
     if role not in ("Super Admin", "Tenant Admin"):
         raise HTTPException(status_code=403, detail="Unauthorised. Admins only.")
 
-    tenant_id = getattr(current_user, "tenantId", "global")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None
+    if not tenant_id and role not in _REPO_SUPER_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    tenant_id = tenant_id or "global"
     db = get_database()
     
     pkg = await db.local_repo.find_one({"tenantId": tenant_id, "filename": filename})

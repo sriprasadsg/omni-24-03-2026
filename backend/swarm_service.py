@@ -2,7 +2,7 @@
 Supplementary swarm routes not covered by swarm_endpoints.py.
 The main swarm lifecycle (start/status/list/topology/peers/report) lives in swarm_endpoints.py.
 """
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from typing import Dict, Any
 import uuid
 from datetime import datetime, timezone
@@ -21,7 +21,9 @@ async def propagate_antibody(
     Digital Immune System: Dispatches a block rule (antibody) to all online agents
     in the tenant via the instructions collection.
     """
-    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     antibody_id = f"antibody-{uuid.uuid4().hex[:8]}"
     threat_type = threat_data.get("threat_type", "Unknown")
     indicator = threat_data.get("indicator") or threat_data.get("ip") or threat_data.get("hash", "")

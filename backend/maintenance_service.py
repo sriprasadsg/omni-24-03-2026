@@ -35,8 +35,11 @@ class MaintenanceService:
             {"_id": 0}
         ).to_list(length=100)
 
-    async def delete_window(self, window_id: str):
-        await self.db.maintenance_windows.delete_one({"id": window_id})
+    async def delete_window(self, window_id: str, tenant_id: str = None):
+        filt = {"id": window_id}
+        if tenant_id:
+            filt["tenantId"] = tenant_id
+        await self.db.maintenance_windows.delete_one(filt)
 
     async def is_in_maintenance_window(self, tenant_id: str) -> bool:
         """Check if current time is within any active maintenance window for the tenant"""

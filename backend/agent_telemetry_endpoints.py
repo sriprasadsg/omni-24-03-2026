@@ -59,7 +59,7 @@ async def report_software_inventory(
     db = get_database()
     sw_list = payload.get("software_inventory", [])
     hostname = payload.get("hostname", agent_id)
-    tenant_id = payload.get("tenantId", _tenant["id"] if _tenant else "default")
+    tenant_id = (_tenant.get("id") if _tenant else None) or payload.get("tenantId") or None
 
     await db.agents.update_one(
         {"id": agent_id},
@@ -101,7 +101,7 @@ async def get_threat_intel_broadcasts(
     agent = await db.agents.find_one({"id": agent_id}, {"tenantId": 1})
     if not agent:
         return []
-    tenant_id = agent.get("tenantId", "default")
+    tenant_id = agent.get("tenantId") or None
     threshold = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     broadcasts = await db.threat_intel_broadcast.find(
         {"tenant_id": tenant_id, "timestamp": {"$gte": threshold}, "seen_agents": {"$ne": agent_id}},

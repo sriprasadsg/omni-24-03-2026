@@ -769,7 +769,9 @@ async def generate_compliance_report(
     current_user=Depends(get_current_user),
 ):
     """Generate CSV compliance report"""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id() or "platform-admin"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     try:
         report = await compliance_reporting_service.generate_report(tenant_id, framework_id)
         return {"success": True, "report": report}
@@ -782,7 +784,9 @@ async def generate_excel_compliance_report(
     current_user=Depends(get_current_user),
 ):
     """Generate Excel compliance report with professional formatting"""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id() or "platform-admin"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     try:
         report = await compliance_reporting_service.generate_excel_report(tenant_id, framework_id)
         return {"success": True, "report": report}
@@ -795,7 +799,9 @@ async def generate_pdf_compliance_report(
     current_user=Depends(get_current_user),
 ):
     """Generate PDF compliance report"""
-    tenant_id = getattr(current_user, "tenant_id", None) or get_tenant_id() or "platform-admin"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     try:
         report = await compliance_reporting_service.generate_pdf_report(tenant_id, framework_id)
         return {"success": True, "report": report}
@@ -868,7 +874,10 @@ async def download_compliance_evidence(
     match_filter: dict = {"evidence.id": evidence_id}
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        match_filter["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _cev_tid = getattr(current_user, "tenant_id", None) or None
+        if not _cev_tid:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        match_filter["tenantId"] = _cev_tid
 
     # 1. Find the evidence record
     pipeline = [

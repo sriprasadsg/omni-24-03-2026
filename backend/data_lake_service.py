@@ -22,13 +22,21 @@ class DataLakeService:
             self.s3 = boto3.client('s3', region_name=self.region)
             print(f"[DataLake] Initialized AWS S3 storage bucket={self.bucket_name}")
 
+    @staticmethod
+    def _safe_segment(s: str) -> str:
+        """Strip path separators and traversal sequences from a single path segment."""
+        return os.path.basename(s.replace("..", "").replace("/", "_").replace("\\", "_")) or "unknown"
+
     async def ingest_data(self, data: Dict[str, Any], zone: str, category: str, filename: str) -> bool:
         """
         Save data to the Data Lake.
         path: {zone}/{category}/{YYYY}/{MM}/{DD}/{filename}
         """
         now = datetime.now(timezone.utc)
-        path = f"{zone}/{category}/{now.year}/{now.month:02d}/{now.day:02d}/{filename}"
+        safe_zone = self._safe_segment(zone)
+        safe_cat = self._safe_segment(category)
+        safe_file = self._safe_segment(filename)
+        path = f"{safe_zone}/{safe_cat}/{now.year}/{now.month:02d}/{now.day:02d}/{safe_file}"
         
         content = json.dumps(data, indent=2)
         
@@ -39,7 +47,9 @@ class DataLakeService:
 
     def _save_local(self, path: str, content: str) -> bool:
         try:
-            full_path = os.path.join(self.local_storage_root, path)
+            full_path = os.path.realpath(os.path.join(self.local_storage_root, path))
+            if not full_path.startswith(os.path.realpath(self.local_storage_root)):
+                raise ValueError(f"Path traversal detected: {path}")
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             with open(full_path, "w") as f:
                 f.write(content)

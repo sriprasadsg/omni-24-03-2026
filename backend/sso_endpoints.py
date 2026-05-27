@@ -141,7 +141,7 @@ async def google_callback(code: str, state: str = ""):
 
     # Issue JWT
     jwt_token = create_access_token(
-        data={"sub": email, "role": user.get("role", "Viewer"), "tenant_id": user.get("tenantId", "default")},
+        data={"sub": email, "role": user.get("role", "Viewer"), "tenant_id": user.get("tenantId") or None},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 

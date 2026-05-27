@@ -26,8 +26,13 @@ def _resolve_tenant(current_user, requested: str = None) -> str:
     role = getattr(current_user, "role", "") or (current_user.get("role", "") if isinstance(current_user, dict) else "")
     caller = getattr(current_user, "tenant_id", None) or (current_user.get("tenant_id") if isinstance(current_user, dict) else None)
     if role in _HADR_SUPER_ROLES:
-        return requested or caller or "default"
-    return caller or "default"
+        tid = requested or caller
+    else:
+        tid = caller
+    if not tid:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tid
 
 
 # Request/Response Models

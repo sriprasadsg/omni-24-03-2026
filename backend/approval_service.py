@@ -172,7 +172,7 @@ class ApprovalService:
                 "message": f"Approval request '{request.get('description', request_id)}' was {new_status} by {user_email}.",
                 "severity": "info",
                 "read": False,
-                "tenantId": request.get("tenantId", "global"),
+                "tenantId": request.get("tenantId") or None,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             })
         except Exception:

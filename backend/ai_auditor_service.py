@@ -6,9 +6,13 @@ import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
-# We will load torch and transformers only when needed to save memory
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+try:
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+    _ML_AVAILABLE = True
+except ImportError:
+    torch = None
+    _ML_AVAILABLE = False
 
 logger = logging.getLogger("ai_auditor")
 logging.basicConfig(level=logging.INFO)
@@ -26,9 +30,11 @@ class LocalAIAuditor:
         self._load_model()
 
     def _load_model(self):
+        if not _ML_AVAILABLE:
+            logger.warning("torch/transformers not installed — AI auditor disabled. Run: pip install -r requirements-ml.txt")
+            return
         logger.info(f"Loading local model weights for {self.model_id}...")
         try:
-            # Determine best device
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(f"Using device: {device}")
 

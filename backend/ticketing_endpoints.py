@@ -41,7 +41,7 @@ class TestConnectionRequest(BaseModel):
 
 @router.get("/config")
 async def get_config(current_user=Depends(get_current_user)):
-    config = await ticketing_service.get_ticketing_config(current_user.tenant_id or "default")
+    config = await ticketing_service.get_ticketing_config(current_user.tenant_id or None)
     if not config:
         return {}
     # Mask credentials
@@ -67,13 +67,13 @@ async def save_config(req: TicketingConfigRequest, current_user=Depends(get_curr
     if current_user.role not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
     return await ticketing_service.save_ticketing_config(
-        current_user.tenant_id or "default", req.dict()
+        current_user.tenant_id or None, req.dict()
     )
 
 
 @router.post("/test")
 async def test_connection(req: TestConnectionRequest, current_user=Depends(get_current_user)):
-    config = await ticketing_service.get_ticketing_config(current_user.tenant_id or "default")
+    config = await ticketing_service.get_ticketing_config(current_user.tenant_id or None)
     if not config:
         return {"success": False, "error": "No ticketing config found"}
 
@@ -114,7 +114,7 @@ async def create_ticket(req: ManualTicketRequest, current_user=Depends(get_curre
         raise HTTPException(status_code=404, detail="Alert not found")
 
     alert["_id"] = str(alert.get("_id", ""))
-    config = await ticketing_service.get_ticketing_config(current_user.tenant_id or "default")
+    config = await ticketing_service.get_ticketing_config(current_user.tenant_id or None)
     if not config:
         raise HTTPException(status_code=400, detail="Ticketing not configured")
 
@@ -132,4 +132,4 @@ async def create_ticket(req: ManualTicketRequest, current_user=Depends(get_curre
 
 @router.get("/tickets")
 async def list_tickets(current_user=Depends(get_current_user)):
-    return await ticketing_service.list_tickets(current_user.tenant_id or "default")
+    return await ticketing_service.list_tickets(current_user.tenant_id or None)

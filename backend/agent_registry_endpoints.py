@@ -157,9 +157,9 @@ async def link_agent_to_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    await db.agents.update_one({"id": agent_id}, {"$set": {"assetId": asset_id}})
+    await db.agents.update_one(agent_query, {"$set": {"assetId": asset_id}})
     await db.assets.update_one(
-        {"id": asset_id},
+        asset_query,
         {"$set": {
             "agentStatus": agent.get("status", "Online"),
             "agentVersion": agent.get("version", "1.0.0"),
@@ -189,7 +189,10 @@ async def delete_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     if agent.get("assetId"):
-        await db.assets.delete_one({"id": agent["assetId"]})
+        asset_del_filter: dict = {"id": agent["assetId"]}
+        if not is_admin:
+            asset_del_filter["tenantId"] = tenant_id
+        await db.assets.delete_one(asset_del_filter)
 
     del_result = await db.agents.delete_one(query)
     if del_result.deleted_count == 0:
@@ -236,11 +239,14 @@ async def move_agent(
         return {"success": True, "message": "Agent is already in this tenant"}
 
     await db.agents.update_one(
-        {"id": agent_id},
+        {"id": agent_id, "tenantId": agent["tenantId"]},
         {"$set": {"tenantId": target_tenant_id, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     if agent.get("assetId"):
-        await db.assets.update_one({"id": agent["assetId"]}, {"$set": {"tenantId": target_tenant_id}})
+        await db.assets.update_one(
+            {"id": agent["assetId"], "tenantId": agent["tenantId"]},
+            {"$set": {"tenantId": target_tenant_id}}
+        )
 
     invalidate_cache("agents:*")
     invalidate_cache("assets:*")
@@ -280,28 +286,34 @@ async def update_agent(
             if (isinstance(c, str) and c) or (isinstance(c, dict) and c.get("id"))
         ]
 
-    allowed_fields = ["capabilities", "agentCapabilities", "status", "alias", "tags", "remediationAttempts"]
+    # Resolve capabilities: 'capabilities' takes precedence over 'agentCapabilities'.
+    # Both are mirrors; process once to avoid the second field overwriting the first.
     set_data: Dict[str, Any] = {}
-    for field in allowed_fields:
+    if "capabilities" in update_data:
+        cap_value = _normalise_caps(update_data["capabilities"])
+        set_data["capabilities"] = cap_value
+        set_data["agentCapabilities"] = cap_value
+    elif "agentCapabilities" in update_data:
+        cap_value = _normalise_caps(update_data["agentCapabilities"])
+        set_data["capabilities"] = cap_value
+        set_data["agentCapabilities"] = cap_value
+
+    for field in ["status", "alias", "tags", "remediationAttempts"]:
         if field in update_data:
-            value = update_data[field]
-            if field in ("capabilities", "agentCapabilities"):
-                value = _normalise_caps(value)
-            set_data[field] = value
-            if field == "agentCapabilities":
-                set_data["capabilities"] = value
-            if field == "capabilities":
-                set_data["agentCapabilities"] = value
+            set_data[field] = update_data[field]
 
     if not set_data:
         return agent
 
     set_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    await db.agents.update_one({"id": agent_id}, {"$set": set_data})
+    await db.agents.update_one(query, {"$set": set_data})
 
     if agent.get("assetId"):
+        asset_update_filter: dict = {"id": agent["assetId"]}
+        if not is_admin:
+            asset_update_filter["tenantId"] = tenant_id
         await db.assets.update_one(
-            {"id": agent["assetId"]},
+            asset_update_filter,
             {"$set": {"agentCapabilities": set_data.get("capabilities", [])}}
         )
 

@@ -162,7 +162,7 @@ async def update_framework(framework_id: str, tenant_id: str, role: str, data: D
     if data.get("status") == "published" and not fw.get("published_at"):
         update["published_at"] = datetime.now(timezone.utc).isoformat()
 
-    await db.custom_frameworks.update_one({"id": framework_id}, {"$set": update})
+    await db.custom_frameworks.update_one(query, {"$set": update})
     return True
 
 

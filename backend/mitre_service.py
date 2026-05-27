@@ -121,8 +121,9 @@ async def get_coverage_heatmap(tenant_id: str) -> list:
     db = get_database()
 
     # Gather all alert types for the tenant
-    alerts = await db.edr_alerts.find({"acknowledged": False}).to_list(1000)
-    security_alerts = await db.security_alerts.find({}).to_list(500)
+    tenant_filter = {"tenantId": tenant_id} if tenant_id else {}
+    alerts = await db.edr_alerts.find({**tenant_filter, "acknowledged": False}).to_list(1000)
+    security_alerts = await db.security_alerts.find(tenant_filter).to_list(500)
     all_alerts = alerts + security_alerts
 
     # Build technique → alert count map

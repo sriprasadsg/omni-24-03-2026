@@ -11,6 +11,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
+_SEC_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
+def _sec_caller_tenant(current_user) -> str:
+    tid = getattr(current_user, "tenant_id", None) or None
+    if not tid:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tid
+
+
 @router.get("/security-cases")
 async def list_security_cases(
     tenant_id: str = None,
@@ -24,7 +33,7 @@ async def list_security_cases(
         if tenant_id:
             query["tenantId"] = tenant_id
     else:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        query["tenantId"] = _sec_caller_tenant(current_user)
     cases = await db.security_cases.find(query, {"_id": 0}).to_list(length=100)
     return cases
 
@@ -37,7 +46,7 @@ async def create_security_case(
     db = get_database()
     now = datetime.now(timezone.utc).isoformat()
     case.setdefault("id", f"case-{uuid.uuid4()}")
-    case.setdefault("tenantId", getattr(current_user, "tenant_id", "default"))
+    case.setdefault("tenantId", _sec_caller_tenant(current_user))
     case.setdefault("createdAt", now)
     case["updatedAt"] = now
     await db.security_cases.insert_one({**case, "_id": case["id"]})
@@ -56,7 +65,7 @@ async def update_security_case(
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
     query: dict = {"id": case_id}
     if not is_admin:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        query["tenantId"] = _sec_caller_tenant(current_user)
     case["updatedAt"] = datetime.now(timezone.utc).isoformat()
     result = await db.security_cases.update_one(query, {"$set": case}, upsert=False)
     if result.matched_count == 0:
@@ -77,7 +86,7 @@ async def list_security_events(
         if tenant_id:
             query["tenantId"] = tenant_id
     else:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        query["tenantId"] = _sec_caller_tenant(current_user)
     events = await db.security_events.find(query, {"_id": 0}).to_list(length=100)
     return events
 
@@ -90,7 +99,7 @@ async def create_security_event(
     db = get_database()
     now = datetime.now(timezone.utc).isoformat()
     event.setdefault("id", f"evt-{uuid.uuid4()}")
-    event.setdefault("tenantId", getattr(current_user, "tenant_id", "default"))
+    event.setdefault("tenantId", _sec_caller_tenant(current_user))
     event.setdefault("createdAt", now)
     await db.security_events.insert_one({**event, "_id": event["id"]})
     event.pop("_id", None)
@@ -109,7 +118,7 @@ async def list_vulnerability_scans(
         if tenant_id:
             query["tenantId"] = tenant_id
     else:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        query["tenantId"] = _sec_caller_tenant(current_user)
     scans = await db.vulnerability_scans.find(query, {"_id": 0}).to_list(length=100)
     return scans
 
@@ -125,7 +134,7 @@ async def get_incident_impact(
     # Verify the caller has access to this incident
     incident_query: dict = {"id": incident_id}
     if not is_admin:
-        incident_query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        incident_query["tenantId"] = _sec_caller_tenant(current_user)
 
     incident = await db.security_cases.find_one(incident_query, {"_id": 0})
     if not incident:
@@ -352,7 +361,7 @@ async def get_security_audit_log(
 
         query: dict = {}
         if not is_admin:
-            query["tenantId"] = getattr(current_user, "tenant_id", "default")
+            query["tenantId"] = _sec_caller_tenant(current_user)
         if severity:
             query["severity"] = severity
         if event_type:
@@ -470,18 +479,26 @@ async def schedule_vulnerability_scan(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/assets/{asset_id}/scan")
-async def trigger_asset_scan(asset_id: str):
+async def trigger_asset_scan(
+    asset_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
     """
     Trigger an immediate scan for a single asset
     """
     try:
         db = get_database()
-        
+        is_admin = getattr(current_user, "role", "") in _SEC_SUPER_ROLES
+        caller_tenant = _sec_caller_tenant(current_user)
+        asset_filter: dict = {"id": asset_id}
+        if not is_admin:
+            asset_filter["tenantId"] = caller_tenant
+
         timestamp = datetime.now(timezone.utc).isoformat()
-        
+
         # Update asset lastScanned
         result = await db.assets.update_one(
-            {"id": asset_id},
+            asset_filter,
             {"$set": {"lastScanned": timestamp}}
         )
         
@@ -506,7 +523,7 @@ async def get_attack_paths(
         is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
         query: dict = {}
         if not is_admin:
-            query["tenantId"] = getattr(current_user, "tenant_id", tenant_id or "default")
+            query["tenantId"] = _sec_caller_tenant(current_user)
         elif tenant_id:
             query["tenantId"] = tenant_id
 

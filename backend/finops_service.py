@@ -262,7 +262,9 @@ class FinOpsService:
 
         current_cost = data.get('currentMonthCost', 0)
         forecast = data.get('forecastedCost', 0)
-        tenant_id = data.get('tenantId', 'platform')
+        tenant_id = data.get('tenantId') or None
+        if not tenant_id:
+            return
 
         if forecast > current_cost * 1.2:
             analysis_points.append("Projected spend is trending 20% higher than current run rate.")

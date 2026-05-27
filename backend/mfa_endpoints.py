@@ -101,7 +101,7 @@ async def verify_mfa_at_login(request: Request, req: MFAVerifyLoginRequest):
         raise HTTPException(status_code=404, detail="User not found")
 
     role = user.get("role", "user")
-    tenant_id = user.get("tenantId", "default")
+    tenant_id = user.get("tenantId") or None
     access_token = create_access_token(
         data={"sub": email, "role": role, "tenant_id": tenant_id},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),

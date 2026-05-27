@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Backend ────────────────────────────────────────────────────────────────
   backend:
@@ -21,7 +24,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
           cache: pip
 
       - name: Install dependencies
@@ -35,7 +38,7 @@ jobs:
       - name: Type check (pyright)
         run: |
           pip install pyright
-          pyright --pythonversion 3.11 || true   # non-blocking until baseline is set
+          pyright --pythonversion 3.14 || true
 
       - name: Run tests
         env:
@@ -47,7 +50,7 @@ jobs:
 
     services:
       mongodb:
-        image: mongo:7
+        image: mongo:8
         ports:
           - 27017:27017
 
@@ -62,7 +65,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies

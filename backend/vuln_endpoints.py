@@ -106,7 +106,7 @@ async def apply_patch(
     }
     await db.patch_jobs.insert_one(job)
     await db.vulnerabilities.update_one(
-        {"id": vuln_id},
+        {"id": vuln_id, "tenantId": tenant_id},
         {"$set": {"patch_status": "scheduled", "patch_job_id": job_id, "updated_at": now}},
     )
     return {"task_id": job_id, "status": "scheduled", "message": "Patch queued for next maintenance window"}

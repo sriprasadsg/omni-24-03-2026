@@ -269,7 +269,7 @@ async def create_goal(data: GoalCreate, current_user: Dict[str, Any] = Depends(g
     """Create a new goal and decompose it into tasks."""
     tasks = _decompose_goal(data.objective, data.category)
     goal_id = str(uuid.uuid4())
-    tenant_id = getattr(current_user, "tenant_id", "") or ""
+    tenant_id = getattr(current_user, "tenant_id", None) or None
     doc = _goal_doc(goal_id, data, tasks, tenant_id=tenant_id)
 
     db = get_database()
@@ -315,7 +315,7 @@ async def approve_goal(goal_id: str, body: GoalApprove, current_user: Dict[str, 
         "reviewer_note": body.reviewer_note,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.agent_goals.update_one({"id": goal_id}, {"$set": update})
+    await db.agent_goals.update_one({"id": goal_id, **_tenant_filter(current_user)}, {"$set": update})
 
     # Auto-dispatch tasks to online agents when approved
     if body.approved:

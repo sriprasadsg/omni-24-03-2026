@@ -28,14 +28,26 @@ class AssessmentCreate(BaseModel):
     questionnaire_responses: Dict[str, Any]
     findings: List[str]
 
+def _v_ctx(current_user: TokenData):
+    """Return (tenant_id, role) from the current user token."""
+    return (
+        getattr(current_user, "tenant_id", None) or None,
+        getattr(current_user, "role", "") or "",
+    )
+
+
 @router.get("")
 async def get_vendors(current_user: TokenData = Depends(get_current_user)):
-    return await vendor_service.get_all_vendors()
+    tid, role = _v_ctx(current_user)
+    if not tid and role not in _VENDOR_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return await vendor_service.get_all_vendors(tenant_id=tid, role=role)
 
 
 @router.get("/{vendor_id}")
 async def get_vendor(vendor_id: str, current_user: TokenData = Depends(get_current_user)):
-    vendor = await vendor_service.get_vendor(vendor_id)
+    tid, role = _v_ctx(current_user)
+    vendor = await vendor_service.get_vendor(vendor_id, tenant_id=tid, role=role)
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return vendor
@@ -44,7 +56,8 @@ async def get_vendor(vendor_id: str, current_user: TokenData = Depends(get_curre
 async def create_vendor(vendor: VendorCreate, current_user: TokenData = Depends(get_current_user)):
     if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
-    return await vendor_service.create_vendor(vendor.dict())
+    tid, _ = _v_ctx(current_user)
+    return await vendor_service.create_vendor(vendor.dict(), tenant_id=tid)
 
 @router.post("/{vendor_id}/assessments")
 async def add_assessment(
@@ -54,19 +67,22 @@ async def add_assessment(
 ):
     if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
-    result = await vendor_service.add_assessment(vendor_id, assessment.dict())
+    tid, role = _v_ctx(current_user)
+    result = await vendor_service.add_assessment(vendor_id, assessment.dict(), tenant_id=tid, role=role)
     if not result:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return result
 
 @router.get("/{vendor_id}/risk-score")
 async def get_vendor_risk_score(vendor_id: str, current_user: TokenData = Depends(get_current_user)):
-    score = await vendor_service.calculate_risk_score(vendor_id)
+    tid, role = _v_ctx(current_user)
+    score = await vendor_service.calculate_risk_score(vendor_id, tenant_id=tid, role=role)
     return {"vendor_id": vendor_id, "risk_score": score}
 
 @router.get("/dashboard/summary")
 async def get_vendor_dashboard(current_user: TokenData = Depends(get_current_user)):
-    return await vendor_service.get_portfolio_summary()
+    tid, role = _v_ctx(current_user)
+    return await vendor_service.get_portfolio_summary(tenant_id=tid, role=role)
 
 @router.post("/{vendor_id}/documents")
 async def upload_vendor_document(
@@ -77,7 +93,8 @@ async def upload_vendor_document(
 ):
     if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
-    success = await vendor_service.add_document(vendor_id, {"name": doc_name, "type": doc_type})
+    tid, role = _v_ctx(current_user)
+    success = await vendor_service.add_document(vendor_id, {"name": doc_name, "type": doc_type}, tenant_id=tid, role=role)
     if not success:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return {"message": "Document uploaded successfully"}
@@ -152,7 +169,8 @@ async def schedule_review(
     """Schedule a periodic vendor review."""
     if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
-    vendor = await vendor_service.get_vendor(vendor_id)
+    tid, role = _v_ctx(current_user)
+    vendor = await vendor_service.get_vendor(vendor_id, tenant_id=tid, role=role)
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return {
@@ -168,7 +186,8 @@ async def schedule_review(
 async def delete_vendor(vendor_id: str, current_user: TokenData = Depends(get_current_user)):
     if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
-    success = await vendor_service.delete_vendor(vendor_id)
+    tid, role = _v_ctx(current_user)
+    success = await vendor_service.delete_vendor(vendor_id, tenant_id=tid, role=role)
     if not success:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return {"message": "Vendor deleted successfully"}

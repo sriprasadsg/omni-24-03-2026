@@ -15,7 +15,10 @@ async def run_ai_remediation(body: dict, current_user=Depends(get_current_user))
     """
     system_id = body.get("system_id", "")
     risk_id = body.get("risk_id", "")
-    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Tenant context required")
 
     db = get_database()
 
@@ -89,7 +92,7 @@ Generate a concise step-by-step remediation plan. Return as JSON list of action 
 
     # Optionally mark risk as mitigated
     await db.ai_systems.update_one(
-        {"id": system_id, "risks.id": risk_id},
+        {"id": system_id, "risks.id": risk_id, "tenantId": tenant_id},
         {"$set": {"risks.$.mitigationStatus": "In Progress", "risks.$.status": "Mitigated"}}
     )
 

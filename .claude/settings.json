@@ -1,0 +1,5 @@
+{
+  "enabledPlugins": {
+    "togetherai-skills@claude-plugins-official": true
+  }
+}

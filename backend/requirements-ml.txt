@@ -1,0 +1,11 @@
+# ── Heavy ML packages — install separately after core requirements ────────────
+# pip install -r requirements-ml.txt
+# These are only needed for the model retraining / fine-tuning endpoints.
+torch>=2.0.0                   # PyTorch (CPU build ~250MB, GPU ~2GB)
+transformers>=4.35.0           # HuggingFace tokenizers + model utilities
+accelerate>=0.27.0             # Mixed-precision / device placement
+peft>=0.10.0                   # LoRA / QLoRA adapters
+trl>=0.8.0                     # SFTTrainer for instruction fine-tuning
+datasets>=2.14.0               # HuggingFace datasets
+bitsandbytes>=0.41.0           # 4-bit quantization (Linux/Windows with CUDA)
+sentencepiece>=0.2.0           # Tokenizer for transformer models

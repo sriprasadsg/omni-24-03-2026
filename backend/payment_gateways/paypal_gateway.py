@@ -160,13 +160,66 @@ class PayPalGateway(PaymentGatewayInterface):
             raise Exception(f"PayPal refund failed: {refund.error}")
 
     async def get_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        # PayPal Invoicing API is separate. For now, returning empty list or mocking.
-        return []
+        try:
+            import requests as _req
+            mode = self.credentials.get("mode", "sandbox")
+            base_url = "https://api-m.sandbox.paypal.com" if mode == "sandbox" else "https://api-m.paypal.com"
+            token_resp = _req.post(
+                f"{base_url}/v1/oauth2/token",
+                auth=(self.credentials.get("client_id"), self.credentials.get("client_secret")),
+                data={"grant_type": "client_credentials"},
+                headers={"Accept": "application/json"},
+                timeout=10,
+            )
+            token_resp.raise_for_status()
+            token = token_resp.json()["access_token"]
+            resp = _req.get(
+                f"{base_url}/v2/invoicing/invoices",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                params={"page_size": min(limit, 25)},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return resp.json().get("items", [])
+        except Exception as e:
+            logger.error(f"PayPal get_invoices failed: {e}")
+            return []
 
     async def verify_webhook(self, payload: bytes, signature: str, secret: str) -> bool:
-        # PayPal webhook verification requires API calls to verify signature certificate
-        # Simplified for now (always True if secret matches - weak verification)
-        return True 
+        try:
+            import json
+            import requests as _req
+            mode = self.credentials.get("mode", "sandbox")
+            base_url = "https://api-m.sandbox.paypal.com" if mode == "sandbox" else "https://api-m.paypal.com"
+            token_resp = _req.post(
+                f"{base_url}/v1/oauth2/token",
+                auth=(self.credentials.get("client_id"), self.credentials.get("client_secret")),
+                data={"grant_type": "client_credentials"},
+                headers={"Accept": "application/json"},
+                timeout=10,
+            )
+            token_resp.raise_for_status()
+            token = token_resp.json()["access_token"]
+            event_body = json.loads(payload)
+            verify_resp = _req.post(
+                f"{base_url}/v1/notifications/verify-webhook-signature",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={
+                    "transmission_id": signature.split(".")[0] if "." in signature else signature,
+                    "transmission_time": event_body.get("create_time", ""),
+                    "cert_url": event_body.get("cert_url", ""),
+                    "auth_algo": "SHA256withRSA",
+                    "transmission_sig": signature,
+                    "webhook_id": secret,
+                    "webhook_event": event_body,
+                },
+                timeout=10,
+            )
+            verify_resp.raise_for_status()
+            return verify_resp.json().get("verification_status") == "SUCCESS"
+        except Exception as e:
+            logger.error(f"PayPal webhook verification failed: {e}")
+            return False
 
     async def construct_webhook_event(self, payload: bytes, signature: str, secret: str) -> Dict[str, Any]:
         # Parse PayPal webhook JSON

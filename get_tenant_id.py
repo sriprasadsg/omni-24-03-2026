@@ -1,7 +1,7 @@
 import requests
 
 try:
-    response = requests.get("http://localhost:8000/api/tenants")
+    response = requests.get("http://localhost:5000/api/tenants")
     tenants = response.json()
     acme = next((t for t in tenants if t['name'] == 'Acme Corp'), None)
     if acme:

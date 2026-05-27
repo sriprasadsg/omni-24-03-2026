@@ -1,11 +1,10 @@
 from pymongo import MongoClient
-from urllib.parse import quote_plus
+import os
 
-# Connect to MongoDB with URL-encoded credentials
-username = quote_plus('omni_app')
-password = quote_plus('SecureApp#2025!MongoDB')
-client = MongoClient(f'mongodb://{username}:{password}@localhost:27017/omni_agent_db')
-db = client['omni_agent_db']
+_mongo_url = os.environ.get("MONGODB_URL", "mongodb://localhost:27017")
+_mongo_db = os.environ.get("MONGODB_DB_NAME", "omni_platform")
+client = MongoClient(_mongo_url)
+db = client[_mongo_db]
 
 # Get all assets
 assets = list(db.assets.find({}))

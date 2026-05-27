@@ -71,7 +71,10 @@ async def search_assets(
     }
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = caller_tenant
     assets = await db.assets.find(query, {"_id": 0}).to_list(length=limit)
     return assets
 
@@ -83,12 +86,16 @@ async def bulk_delete_assets_route(
     current_user=Depends(get_current_user),
 ):
     """Delete multiple assets by ID."""
+    ids = ids[:500]
     if not ids:
         raise HTTPException(status_code=400, detail="No IDs provided")
     query: Dict[str, Any] = {"id": {"$in": ids}}
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = caller_tenant
     result = await db.assets.delete_many(query)
     invalidate_cache("assets:*")
     return {"success": True, "deleted": result.deleted_count}
@@ -259,14 +266,17 @@ async def delete_asset(
     
     # Check permissions
     user_role = getattr(current_user, "role", None)
-    tenant_id = getattr(current_user, "tenant_id", None)
-    
-    asset = await db.assets.find_one({"id": asset_id})
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    _ASSET_SUPER_ROLES = {"Super Admin", "superadmin", "super_admin", "admin"}
+    _asset_read_q: dict = {"id": asset_id}
+    if user_role not in _ASSET_SUPER_ROLES:
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        _asset_read_q["tenantId"] = tenant_id
+
+    asset = await db.assets.find_one(_asset_read_q)
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
-        
-    if user_role not in ["Super Admin", "superadmin", "super_admin", "admin"] and asset["tenantId"] != tenant_id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this asset")
 
     # Delete asset — include tenantId in delete query for defense-in-depth
     delete_query: dict = {"id": asset_id}
@@ -372,9 +382,11 @@ async def bulk_update_assets(
     
     # RBAC logic
     user_role = getattr(current_user, "role", "user")
-    tenant_id = getattr(current_user, "tenant_id", "default")
-    
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         query["tenantId"] = tenant_id
         
     _BULK_UPDATE_ALLOWLIST = {

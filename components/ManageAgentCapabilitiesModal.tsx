@@ -111,7 +111,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
             const ids = Array.from(enabledCapabilities).map(
                 (c: any) => (typeof c === 'string' ? c : c.id) as AgentCapability
             );
-            onSave({ ...agent, capabilities: ids });
+            onSave({ ...agent, capabilities: ids, agentCapabilities: ids });
         }
     };
 

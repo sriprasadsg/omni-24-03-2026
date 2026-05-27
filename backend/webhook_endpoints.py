@@ -120,8 +120,8 @@ async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_
     """Delete a webhook"""
     db = get_database()
     query: dict = {"id": webhook_id}
-    if current_user.tenant_id and current_user.tenant_id != "platform-admin":
-        query["tenantId"] = current_user.tenant_id
+    if getattr(current_user, "role", "") not in _WEBHOOK_SUPER_ROLES:
+        query["tenantId"] = getattr(current_user, "tenant_id", None)
     result = await db.webhooks.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Webhook not found")
@@ -150,14 +150,14 @@ async def update_webhook(
         return {"success": False, "message": "No fields to update"}
 
     query: dict = {"id": webhook_id}
-    if current_user.tenant_id and current_user.tenant_id != "platform-admin":
-        query["tenantId"] = current_user.tenant_id
+    if getattr(current_user, "role", "") not in _WEBHOOK_SUPER_ROLES:
+        query["tenantId"] = getattr(current_user, "tenant_id", None)
     result = await db.webhooks.update_one(query, {"$set": update_fields})
 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
-    updated_webhook = await db.webhooks.find_one({"id": webhook_id}, {"_id": 0})
+    updated_webhook = await db.webhooks.find_one(query, {"_id": 0})
     return updated_webhook
 
 @router.get("/{webhook_id}/deliveries")

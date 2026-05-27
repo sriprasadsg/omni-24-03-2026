@@ -233,7 +233,10 @@ async def start_gcp_polling():
             ).to_list(length=100)
 
             for integ in integrations:
-                tenant_id = integ.get("tenant_id", "platform-admin")
+                tenant_id = integ.get("tenant_id") or None
+                if not tenant_id:
+                    logger.warning("[GCPSCC] Skipping integration %s — no tenant_id configured", integ.get("id", "?"))
+                    continue
                 provider = integ.get("provider", "")
                 cfg = integ.get("config", {})
 

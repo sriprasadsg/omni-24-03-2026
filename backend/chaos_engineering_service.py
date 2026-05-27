@@ -77,7 +77,9 @@ async def get_experiments(current_user: TokenData = Depends(get_current_user)):
     if user_role in _CHAOS_SUPER_ROLES:
         query: dict = {}
     else:
-        tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+        tenant_id = getattr(current_user, "tenant_id", None) or None
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         query = {"tenantId": tenant_id}
     exps = await db.chaos_experiments.find(query, {"_id": 0}).to_list(length=100)
     return [ChaosExperiment(**e) for e in exps] if exps else []
@@ -89,7 +91,9 @@ async def create_experiment(
     current_user: TokenData = Depends(get_current_user),
 ):
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     exp = ChaosExperiment(
         id=f"chaos-{uuid.uuid4().hex[:8]}",
         tenantId=tenant_id,
@@ -122,7 +126,7 @@ async def run_experiment(
     template = _CHAOS_INSTRUCTIONS.get(exp_type)
 
     now = datetime.now(timezone.utc).isoformat()
-    tenant_id = experiment.get("tenantId", getattr(current_user, "tenant_id", "default"))
+    tenant_id = experiment.get("tenantId") or getattr(current_user, "tenant_id", None) or None
     target = experiment.get("target", "")
 
     dispatched = 0

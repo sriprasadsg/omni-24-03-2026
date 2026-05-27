@@ -145,6 +145,7 @@ export function AIRemediationDashboard() {
     targetSystem: null,
     targetRisk: null,
   });
+  const [remediationError, setRemediationError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoadingSystems(true);
@@ -189,11 +190,17 @@ export function AIRemediationDashboard() {
       targetRisk: { id: selectedRisk.id, title: selectedRisk.title, severity: selectedRisk.severity } as unknown as AiRisk,
     });
 
+    setRemediationError(null);
     try {
       const res = await authFetch(`${API_BASE}/ai-remediation/run`, {
         method: 'POST',
         body: JSON.stringify({ system_id: selectedSystem.id, risk_id: selectedRisk.id }),
       });
+      if (res.status === 403) {
+        setRemediationError('Tenant context required. Please re-authenticate.');
+        setRunState({ status: 'idle', steps: [], targetSystem: null, targetRisk: null });
+        return;
+      }
       const data = res.ok ? await res.json() : {};
       const steps: AgenticStep[] = (data.steps || []).map((s: any) => ({
         type: s.type || 'action',
@@ -261,6 +268,12 @@ export function AIRemediationDashboard() {
         <DecisionHistory />
       ) : (
         <>
+          {remediationError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.85em', color: '#f87171' }}>
+              <span style={{ fontWeight: 700 }}>⚠</span> {remediationError}
+              <button onClick={() => setRemediationError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', opacity: 0.6, fontSize: '1em' }}>✕</button>
+            </div>
+          )}
           <p style={{ color: '#94a3b8', fontSize: '0.85em', marginBottom: 24 }}>Select a system and risk, then let the AI engine remediate autonomously with full auditability</p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 800, marginBottom: 32 }}>

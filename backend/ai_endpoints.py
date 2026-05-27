@@ -55,8 +55,8 @@ async def chat_assistant(
     """Chat with AI Assistant"""
     message = payload.get("message")
     context = payload.get("context", {})
-    # Inject tenant_id into context for scoped chat if needed
     context["tenantId"] = get_tenant_id()
+    context["role"] = getattr(current_user, "role", "") or ""
     return {"response": await ai_service.chat(message, context)}
 
 @router.post("/generate-playbook")
@@ -211,6 +211,13 @@ async def ai_threat_hunt(
             import logging as _logging
             _logging.getLogger(__name__).error("Threat hunt fallback query error: %s", exc2)
             raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/skills")
+async def list_skills(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
+    """Return all registered /slash-command skills available in the chat assistant."""
+    from skill_registry import SKILLS
+    return [s.to_dict() for s in SKILLS]
 
 
 @router.post("/feedback")

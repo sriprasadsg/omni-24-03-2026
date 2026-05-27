@@ -162,7 +162,10 @@ async def search_agents_route(
         query["status"] = status
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _ac_tenant = getattr(current_user, "tenant_id", None) or None
+        if not _ac_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = _ac_tenant
     return await db.agents.find(query, {"_id": 0}).to_list(length=limit)
 
 
@@ -182,7 +185,10 @@ async def bulk_delete_agents_route(
     user_role = getattr(current_user, "role", "user")
     query: Dict[str, Any] = {"id": {"$in": ids}}
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _ac_tenant = getattr(current_user, "tenant_id", None) or None
+        if not _ac_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = _ac_tenant
     result = await db.agents.delete_many(query)
     return {"success": True, "deleted": result.deleted_count}
 
@@ -202,7 +208,10 @@ async def bulk_update_agents_route(
     user_role = getattr(current_user, "role", "user")
     query: Dict[str, Any] = {"id": {"$in": ids}}
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _ac_tenant = getattr(current_user, "tenant_id", None) or None
+        if not _ac_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = _ac_tenant
     result = await db.agents.update_many(query, {"$set": patch})
     return {"matched": result.matched_count, "modified": result.modified_count}
 
@@ -239,7 +248,11 @@ async def get_network_utilization(current_user=Depends(get_current_user), db=Dep
 async def get_agent_configuration(agent_id: str, _tenant: Dict[str, Any] = Depends(verify_agent_key)):
     """Get the effective configuration for an agent. Used by the Agent to pull its config."""
     db = get_database()
-    agent = await db.agents.find_one({"id": agent_id}) or await db.agents.find_one({"hostname": agent_id})
+    _cfg_tenant = (_tenant.get("id") if _tenant else None) or None
+    _cfg_filter: dict = {"id": agent_id}
+    if _cfg_tenant:
+        _cfg_filter["tenantId"] = _cfg_tenant
+    agent = await db.agents.find_one(_cfg_filter) or await db.agents.find_one({"hostname": agent_id, **(_cfg_filter if _cfg_tenant else {})})
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 

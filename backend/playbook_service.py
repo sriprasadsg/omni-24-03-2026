@@ -108,7 +108,7 @@ class PlaybookService:
             result = await engine.execute_playbook(
                 playbook_id=playbook_id,
                 trigger_data=context,
-                tenant_id=context.get("tenant_id", "platform"),
+                tenant_id=context.get("tenant_id"),
                 executed_by=context.get("executed_by", "manual"),
             )
             return result
@@ -116,7 +116,7 @@ class PlaybookService:
             self.logger.error(
                 "Playbook execution failed [id=%s tenant=%s trigger=%s]: %s",
                 playbook_id,
-                context.get("tenant_id", "platform"),
+                context.get("tenant_id"),
                 context.get("trigger_type", "manual"),
                 e,
                 exc_info=True,

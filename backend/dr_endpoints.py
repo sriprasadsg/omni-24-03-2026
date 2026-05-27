@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from dr_service import dr_service
 from tenant_context import get_tenant_id
+from authentication_service import get_current_user
 from database import get_database
 from datetime import datetime, timezone
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dr", tags=["Disaster Recovery"])
 
 @router.get("/status")
-async def get_dr_status(tenant_id: str = Depends(get_tenant_id)):
+async def get_dr_status(tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):
     """Provides real-time Disaster Recovery health and RPO/RTO metrics."""
     try:
         status = await dr_service.get_dr_status(tenant_id)
@@ -19,7 +20,7 @@ async def get_dr_status(tenant_id: str = Depends(get_tenant_id)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/regions")
-async def get_region_status(tenant_id: str = Depends(get_tenant_id)):
+async def get_region_status(tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):
     """Provides detailed status of cloud regions and replication latency."""
     try:
         status = await dr_service.get_dr_status(tenant_id)
@@ -28,7 +29,7 @@ async def get_region_status(tenant_id: str = Depends(get_tenant_id)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/trigger-failover/{region_id}")
-async def trigger_failover(region_id: str, tenant_id: str = Depends(get_tenant_id)):
+async def trigger_failover(region_id: str, tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):
     """Initiates a Disaster Recovery failover to the target region."""
     try:
         db = get_database()

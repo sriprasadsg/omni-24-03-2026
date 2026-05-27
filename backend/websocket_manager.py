@@ -10,7 +10,11 @@ logger = logging.getLogger(__name__)
 # Create Socket.IO server with CORS support
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(","),
+    cors_allowed_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+    ],
     logger=True,
     engineio_logger=False
 )

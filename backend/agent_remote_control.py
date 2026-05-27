@@ -9,7 +9,9 @@ import json
 from authentication_service import get_current_user
 from database import get_database
 from auth_types import TokenData
-import websocket_manager 
+import websocket_manager
+
+_RC_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
 router = APIRouter(prefix="/api/agents/remote", tags=["agent-remote-control"])
 logger = logging.getLogger(__name__)
@@ -29,15 +31,16 @@ async def execute_command(
     
     # Verify agent exists and belongs to user's tenant
     db = get_database()
-    agent = await db.agents.find_one({"id": agent_id})
-    
+    _caller_role = getattr(current_user, "role", "")
+    _caller_tenant = getattr(current_user, "tenant_id", None)
+    _agent_filter: dict = {"id": agent_id}
+    if _caller_role not in _RC_SUPER_ROLES:
+        _agent_filter["tenantId"] = _caller_tenant
+    agent = await db.agents.find_one(_agent_filter)
+
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    # For non-super admins, verify tenant access
-    if current_user.role != "Super Admin" and agent.get("tenantId") != current_user.tenant_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
+
     command_id = str(uuid.uuid4())
     command_payload = {
         "type": "execute",
@@ -94,14 +97,16 @@ async def restart_agent(
         raise HTTPException(status_code=503, detail="Agent is not connected via WebSocket")
     
     db = get_database()
-    agent = await db.agents.find_one({"id": agent_id})
-    
+    _caller_role = getattr(current_user, "role", "")
+    _caller_tenant = getattr(current_user, "tenant_id", None)
+    _agent_filter: dict = {"id": agent_id}
+    if _caller_role not in _RC_SUPER_ROLES:
+        _agent_filter["tenantId"] = _caller_tenant
+    agent = await db.agents.find_one(_agent_filter)
+
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    if current_user.role != "Super Admin" and agent.get("tenantId") != current_user.tenant_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
+
     command_id = str(uuid.uuid4())
     command_payload = {
         "type": "restart",

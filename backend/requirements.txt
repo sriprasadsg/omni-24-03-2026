@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Enterprise Omni-Agent AI Platform — Backend Requirements
-# Fully audited: 2026-03-19
-# Recommended Python: 3.11.x – 3.13.x  (3.14 requires build tools for C extensions)
+# Fully audited: 2026-05-25
+# Recommended Python: 3.12.x – 3.13.x
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Build prerequisites (install these first on any Python version) ───────────
@@ -10,16 +10,16 @@ setuptools>=70.0.0
 wheel>=0.43.0
 
 # ── Core Web Framework ──────────────────────────────────────────────────────
-fastapi>=0.100.0
-uvicorn[standard]>=0.24.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
 python-multipart>=0.0.9        # File upload parsing (multipart/form-data)
-starlette>=0.27.0              # FastAPI dependency
+starlette>=0.37.0              # FastAPI dependency
 urllib3>=2.0.0,<2.4.0          # Pinned: kubernetes client requires <2.4.0
 
 # ── Authentication & Security ────────────────────────────────────────────────
 PyJWT>=2.8.0                   # JWT token creation and verification
-bcrypt>=4.0.1                  # Password hashing
-cryptography>=41.0.0           # Fernet encryption, TLS helpers
+bcrypt>=4.0.0                  # Password hashing
+cryptography>=42.0.0           # Fernet encryption, TLS helpers
 pyotp>=2.9.0                   # TOTP/HOTP for MFA (RFC 6238)
 qrcode[pil]>=7.4.2             # QR code generation for MFA enrollment
 Pillow>=10.0.0                 # Required by qrcode[pil]
@@ -29,17 +29,17 @@ defusedxml>=0.7.1              # Safe XML/SAML parsing (prevents XXE)
 # ── Database ─────────────────────────────────────────────────────────────────
 motor>=3.3.0                   # Async MongoDB driver (used throughout)
 pymongo>=4.6.0                 # Sync fallback + types for motor
-redis>=5.0.1                   # Caching, rate-limiting, sessions
+redis>=5.0.0                   # Caching, rate-limiting, sessions
 
 # ── Data Validation & Settings ───────────────────────────────────────────────
-pydantic[email]>=2.0.0         # Data validation + email validation
-pydantic-settings>=2.0.0       # Settings management from env files
+pydantic[email]>=2.5.0         # Data validation + email validation
+pydantic-settings>=2.2.0       # Settings management from env files
 python-dotenv>=1.0.0           # .env file loading
 email-validator>=2.1.0         # Used by pydantic email validation
 
 # ── HTTP & Async Clients ─────────────────────────────────────────────────────
-requests>=2.31.0               # Sync HTTP (LLM engine, webhook calls)
-httpx>=0.26.0                  # Async HTTP client
+requests>=2.28.0               # Sync HTTP (LLM engine, webhook calls)
+httpx>=0.27.0                  # Async HTTP client
 aiohttp>=3.9.0                 # Async HTTP sessions
 
 # ── WebSocket & Real-time ─────────────────────────────────────────────────────
@@ -53,26 +53,21 @@ celery>=5.3.0                  # Distributed task queue
 kombu>=5.3.0                   # Messaging library (Celery backend)
 
 # ── AI & Machine Learning ────────────────────────────────────────────────────
-torch>=2.2.0                   # PyTorch — Omni-LLM Transformer architecture
-transformers>=4.38.0           # HuggingFace tokenizers + model utilities
-accelerate>=0.27.0             # Mixed-precision / device placement for torch
-peft>=0.10.0                   # LoRA / QLoRA adapters for fine-tuning
-trl>=0.8.0                     # SFTTrainer for instruction fine-tuning
-datasets>=2.18.0               # HuggingFace datasets (JSONL → Dataset)
-bitsandbytes>=0.43.0           # NF4 4-bit quantization for QLoRA
-scikit-learn>=1.4.0            # ML utilities (UEBA, anomaly detection)
-numpy>=1.26.0                  # Numerical operations
-pandas>=2.2.0                  # Data analysis and manipulation
+# Heavy ML packages (torch etc.) are in requirements-ml.txt
+# Install with: pip install -r requirements-ml.txt
+scikit-learn>=1.3.0            # ML utilities (UEBA, anomaly detection)
+numpy>=1.24.0                  # Numerical operations
+pandas>=2.1.0                  # Data analysis and manipulation
 joblib>=1.3.0                  # Model persistence and parallel jobs
 chromadb>=0.5.0                # Vector DB for RAG / knowledge base
-google-genai>=1.0.0            # Gemini AI / Google GenAI SDK (new SDK)
-sentencepiece>=0.2.0           # Tokenizer for transformer models
+google-genai>=0.3.0            # Gemini AI / Google GenAI SDK (new SDK)
+anthropic>=0.28.0              # Anthropic Claude SDK
 
 # ── Payment Gateways ─────────────────────────────────────────────────────────
-stripe>=7.0.0                  # Stripe payment processing
+stripe>=9.0.0                  # Stripe payment processing
 paypalrestsdk>=1.13.1          # PayPal REST SDK
 razorpay>=1.4.1                # Razorpay (India) payments
-squareup>=30.0.0               # Square payment processing
+squareup>=27.0.0               # Square payment processing
 
 # ── Reports & Documents ──────────────────────────────────────────────────────
 reportlab>=4.0.0               # PDF invoice generation
@@ -89,7 +84,7 @@ google-cloud-storage>=2.14.0   # GCP Cloud Storage
 
 # ── Network & Security Analysis ──────────────────────────────────────────────
 python-nmap>=0.7.1             # Nmap network scanning wrapper
-psutil>=7.0.0                  # System metrics: CPU, RAM, Disk, Network
+psutil>=5.9.0                  # System metrics: CPU, RAM, Disk, Network
 pefile>=2023.2.7               # PE header parsing (binary analysis)
 pywin32>=306; sys_platform=="win32"  # Windows ETW/EventLog (EDR)
 # scapy>=2.5.0                 # Packet capture (uncomment if needed, requires Npcap on Windows)
@@ -109,4 +104,4 @@ google-cloud-securitycenter>=1.23.0   # GCP Security Command Center ingest
 azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Analytics
 
 # ── Code Review Graph ─────────────────────────────────────────────────────────
-code-review-graph>=2.3.0             # Persistent incremental code knowledge graph (MCP + API)
+# code-review-graph>=2.3.0           # Optional: code knowledge graph (install separately if needed)
