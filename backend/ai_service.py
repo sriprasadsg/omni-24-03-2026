@@ -439,11 +439,19 @@ class IncidentAnalyzer:
         except Exception:
             return ""
 
+    async def _dispatch_skill(self, message: str, context: dict) -> str:
+        from skill_handlers import dispatch_skill
+        return await dispatch_skill(message, context, self)
+
     async def chat(self, message: str, context: dict):
         """Chat with the AI assistant"""
         if not self.is_configured:
             await self.initialize()
-        
+
+        # Skill dispatch — intercept /command messages before everything else
+        if message.startswith("/"):
+            return await self._dispatch_skill(message, context)
+
         user_id = context.get("userId", "default_user")
         session = self.demo_sessions.get(user_id)
 

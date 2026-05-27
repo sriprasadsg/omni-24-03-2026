@@ -1,110 +1,285 @@
-# Enterprise Omni-Agent Platform - Service Launcher
-# This script launches all required services in separate terminal windows
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Enterprise Omni-Agent AI Platform - Windows Service Launcher
+.DESCRIPTION
+    Auto-installs missing dependencies, then starts MongoDB, Backend (FastAPI on :5000),
+    Frontend (Vite/React on :3000), and the Agent.
+    Run from the project root: .\start-all-services.ps1
+#>
 
-Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "Enterprise Omni-Agent Platform - Launcher"
-Write-Host "============================================="
-Write-Host ""
+Set-StrictMode -Version Latest
 
-$projectRoot = "d:\Downloads\enterprise-omni-agent-ai-platform"
+# ── Configuration ──────────────────────────────────────────────────────────────
+$ROOT           = $PSScriptRoot
+$BACKEND_DIR    = Join-Path $ROOT "backend"
+$AGENT_DIR      = Join-Path $ROOT "agent"
+$BACKEND_PYTHON = Join-Path $BACKEND_DIR "venv\Scripts\python.exe"
+$AGENT_PYTHON   = Join-Path $AGENT_DIR   "venv\Scripts\python.exe"
 
-# Check if project directory exists
-if (-not (Test-Path $projectRoot)) {
-    Write-Host "ERROR: Project directory not found at $projectRoot" -ForegroundColor Red
-    Write-Host "Please update the `$projectRoot variable in this script." -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
-    exit 1
+$BACKEND_PORT  = 5000
+$FRONTEND_PORT = 3000
+$MONGO_PORT    = 27017
+
+$MONGODB_URL   = "mongodb://127.0.0.1:$MONGO_PORT"
+$DATABASE_NAME = "omni_agent_platform"
+$CORS_ORIGINS  = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
+
+$API_BASE_URL     = "http://127.0.0.1:$BACKEND_PORT"
+$REGISTRATION_KEY = "reg_platformadmin123"
+$TENANT_ID        = "platform-admin"
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+function Write-Step { param($n, $msg) Write-Host "[$n] $msg" -ForegroundColor Cyan }
+function Write-OK   { param($msg)     Write-Host "    OK  $msg" -ForegroundColor Green }
+function Write-Warn { param($msg)     Write-Host "    !!  $msg" -ForegroundColor Yellow }
+function Write-Fail { param($msg)     Write-Host "    ERR $msg" -ForegroundColor Red }
+
+function Test-Port {
+    param([int]$Port)
+    $tcp = New-Object System.Net.Sockets.TcpClient
+    try { $tcp.Connect("127.0.0.1", $Port); $tcp.Close(); return $true }
+    catch { return $false }
 }
 
-Write-Host "Checking for existing processes on ports 3000 and 5000..." -ForegroundColor Yellow
-$ports = @(3000, 5000)
-foreach ($p in $ports) {
-    $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+function Stop-Port {
+    param([int]$Port)
+    $conns = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
     if ($conns) {
         foreach ($c in $conns) {
-            Write-Host "Killing PID $($c.OwningProcess) on port $p..." -ForegroundColor Red
             Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
         }
     }
 }
-Write-Host ""
 
-Write-Host "Starting services..." -ForegroundColor Green
-Write-Host ""
-
-# 1. Launch Backend (uvicorn)
-Write-Host "[1/3] Starting Backend (Port 5000)..." -ForegroundColor Yellow
-$backendCmd = "cd '$projectRoot\backend'; Write-Host 'Backend Server Starting...' -ForegroundColor Green; & 'venv\Scripts\python.exe' -m uvicorn app:socket_app --port 5000 --host 0.0.0.0"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
-Write-Host "  ✓ Backend launched in new window" -ForegroundColor Green
-Start-Sleep -Seconds 2
-
-# 2. Launch Frontend (npm)
-Write-Host "[2/3] Starting Frontend (Port 3000)..." -ForegroundColor Yellow
-$frontendCmd = "cd '$projectRoot'; Write-Host 'Frontend Server Starting...' -ForegroundColor Green; npm run dev"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
-Write-Host "  ✓ Frontend launched in new window" -ForegroundColor Green
-Start-Sleep -Seconds 2
-
-# 3. Launch Agent
-Write-Host "[3/3] Starting Agent..." -ForegroundColor Yellow
-$agentCmd = "cd '$projectRoot\agent'; Write-Host 'Agent Starting...' -ForegroundColor Green; & 'venv\Scripts\python.exe' agent.py"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $agentCmd
-Write-Host "  ✓ Agent launched in new window" -ForegroundColor Green
-Start-Sleep -Seconds 1
-
-Write-Host ""
-Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "All services started!" -ForegroundColor Green
-Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Service URLs:" -ForegroundColor White
-Write-Host "  Frontend:  http://127.0.0.1:3000" -ForegroundColor Cyan
-Write-Host "  Backend:   http://127.0.0.1:5000" -ForegroundColor Cyan
-Write-Host "  Health:    http://127.0.0.1:5000/health" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "IMPORTANT: Wait 60-90 seconds for:" -ForegroundColor Yellow
-Write-Host "  1. Backend to fully initialize" -ForegroundColor White
-Write-Host "  2. Frontend to compile and start" -ForegroundColor White
-Write-Host "  3. Agent to complete first compliance scan" -ForegroundColor White
-Write-Host ""
-Write-Host "To test Phase 1 compliance features:" -ForegroundColor Yellow
-Write-Host "  1. Wait 90 seconds (timing is important!)" -ForegroundColor White
-Write-Host "  2. Open http://127.0.0.1:3000 in your browser" -ForegroundColor White
-Write-Host "  3. Navigate to: Agents → EILT0197 → Compliance Tab" -ForegroundColor White
-Write-Host "  4. Verify you see 28-36 compliance checks" -ForegroundColor White
-Write-Host ""
-
-# Ask if user wants to auto-open browser after waiting
-$openBrowser = Read-Host "Open browser automatically after 90 seconds? (Y/N)"
-
-if ($openBrowser -eq "Y" -or $openBrowser -eq "y") {
-    Write-Host ""
-    Write-Host "Waiting 90 seconds for services to initialize..." -ForegroundColor Yellow
-    
-    for ($i = 90; $i -gt 0; $i--) {
-        Write-Progress -Activity "Waiting for services to start" -Status "$i seconds remaining..." -PercentComplete ((90 - $i) / 90 * 100)
-        Start-Sleep -Seconds 1
+function Wait-Port {
+    param([int]$Port, [string]$Name, [int]$TimeoutSec = 60)
+    $elapsed = 0
+    while (-not (Test-Port $Port)) {
+        if ($elapsed -ge $TimeoutSec) { return $false }
+        Write-Host "`r    ... waiting for $Name (:$Port) ${elapsed}s   " -NoNewline
+        Start-Sleep 3
+        $elapsed += 3
     }
-    
-    Write-Progress -Activity "Waiting for services to start" -Completed
-    
     Write-Host ""
-    Write-Host "Opening browser..." -ForegroundColor Green
-    Start-Process "http://127.0.0.1:3000"
-    
-    Write-Host ""
-    Write-Host "Browser opened! You should now be able to test the compliance features." -ForegroundColor Green
-}
-else {
-    Write-Host ""
-    Write-Host "Remember to wait 90 seconds before opening http://127.0.0.1:3000" -ForegroundColor Yellow
+    return $true
 }
 
+function Start-WindowedProcess {
+    param([string]$Title, [string]$WorkDir, [string]$Command)
+    Start-Process powershell.exe `
+        -ArgumentList "-NoExit", "-Command", $Command `
+        -WorkingDirectory $WorkDir `
+        -WindowStyle Normal
+}
+
+# ── Banner ─────────────────────────────────────────────────────────────────────
+Clear-Host
 Write-Host ""
-Write-Host "To stop all services:" -ForegroundColor Yellow
-Write-Host "  - Close all 3 terminal windows that were opened" -ForegroundColor White
-Write-Host "  - OR press Ctrl+C in each window" -ForegroundColor White
+Write-Host "  ====================================================" -ForegroundColor Cyan
+Write-Host "   Enterprise Omni-Agent AI Platform" -ForegroundColor Cyan
+Write-Host "   Windows Service Launcher" -ForegroundColor Cyan
+Write-Host "  ====================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Press Enter to exit this launcher..." -ForegroundColor Cyan
-Read-Host
+
+# ── Prerequisites ──────────────────────────────────────────────────────────────
+Write-Step "0" "Checking prerequisites"
+
+# Python
+try { $null = & python --version 2>$null; Write-OK "Python found" }
+catch { Write-Fail "Python not found. Install from https://python.org (tick Add to PATH)"; exit 1 }
+
+# Node
+try { $null = & node --version 2>$null; Write-OK "Node.js found" }
+catch { Write-Fail "Node.js not found. Install from https://nodejs.org/"; exit 1 }
+
+# Backend dir
+if (-not (Test-Path $BACKEND_DIR)) {
+    Write-Fail "Backend directory not found: $BACKEND_DIR"; exit 1
+}
+
+# Backend venv — auto-create if missing
+if (-not (Test-Path $BACKEND_PYTHON)) {
+    Write-Warn "Backend venv missing - creating it (this takes ~60s the first time)..."
+    Push-Location $BACKEND_DIR
+    & python -m venv venv
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Failed to create backend venv"; exit 1 }
+    Write-Host "    ... Installing backend dependencies..." -ForegroundColor Gray
+    & "$BACKEND_DIR\venv\Scripts\pip.exe" install --upgrade pip --quiet
+    & "$BACKEND_DIR\venv\Scripts\pip.exe" install -r "$BACKEND_DIR\requirements.txt" --quiet
+    if ($LASTEXITCODE -ne 0) { Write-Fail "pip install failed — check requirements.txt"; exit 1 }
+    Pop-Location
+    Write-OK "Backend venv ready"
+} else {
+    Write-OK "Backend venv found"
+}
+
+# node_modules — auto-install if missing
+if (-not (Test-Path (Join-Path $ROOT "node_modules"))) {
+    Write-Warn "node_modules missing - running npm install (this takes ~30s the first time)..."
+    Push-Location $ROOT
+    & npm install
+    if ($LASTEXITCODE -ne 0) { Write-Fail "npm install failed"; exit 1 }
+    Pop-Location
+    Write-OK "node_modules ready"
+} else {
+    Write-OK "node_modules found"
+}
+
+# Agent venv — auto-create if agent exists but venv is missing
+$startAgent = $false
+if (Test-Path (Join-Path $AGENT_DIR "agent.py")) {
+    if (-not (Test-Path $AGENT_PYTHON)) {
+        Write-Warn "Agent venv missing - creating it..."
+        Push-Location $AGENT_DIR
+        & python -m venv venv
+        if ($LASTEXITCODE -eq 0) {
+            & "$AGENT_DIR\venv\Scripts\pip.exe" install --upgrade pip --quiet
+            $agentReqs = Join-Path $AGENT_DIR "requirements.txt"
+            if (Test-Path $agentReqs) {
+                & "$AGENT_DIR\venv\Scripts\pip.exe" install -r $agentReqs --quiet
+            }
+            Write-OK "Agent venv ready"
+            $startAgent = $true
+        } else {
+            Write-Warn "Agent venv creation failed - agent will not be started"
+        }
+        Pop-Location
+    } else {
+        Write-OK "Agent venv found"
+        $startAgent = $true
+    }
+} else {
+    Write-Warn "Agent directory missing - agent will not be started"
+}
+
+Write-OK "All prerequisites satisfied"
+Write-Host ""
+
+# ── Clear stale processes ──────────────────────────────────────────────────────
+Write-Step "1" "Clearing ports $BACKEND_PORT and $FRONTEND_PORT"
+Stop-Port $BACKEND_PORT
+Stop-Port $FRONTEND_PORT
+Start-Sleep 1
+Write-OK "Ports cleared"
+Write-Host ""
+
+# ── MongoDB ────────────────────────────────────────────────────────────────────
+Write-Step "2" "Checking MongoDB on port $MONGO_PORT"
+if (Test-Port $MONGO_PORT) {
+    Write-OK "MongoDB already running"
+} else {
+    Write-Warn "MongoDB not running - attempting to start..."
+    $svc = Get-Service -Name "MongoDB" -ErrorAction SilentlyContinue
+    if ($svc) {
+        Start-Service "MongoDB" -ErrorAction SilentlyContinue
+        Start-Sleep 4
+    } else {
+        $dbPath = "C:\data\db"
+        New-Item -ItemType Directory -Path $dbPath -Force | Out-Null
+        Start-Process "mongod" -ArgumentList "--dbpath", $dbPath, "--port", $MONGO_PORT -WindowStyle Minimized -ErrorAction SilentlyContinue
+        Start-Sleep 5
+    }
+    if (Test-Port $MONGO_PORT) {
+        Write-OK "MongoDB started"
+    } else {
+        Write-Fail "MongoDB failed to start."
+        Write-Fail "Install from https://www.mongodb.com/try/download/community or start it manually."
+        exit 1
+    }
+}
+Write-Host ""
+
+# ── Backend ────────────────────────────────────────────────────────────────────
+Write-Step "3" "Starting Backend (FastAPI/uvicorn on :$BACKEND_PORT)"
+
+$backendScript = @"
+`$env:MONGODB_URL   = '$MONGODB_URL'
+`$env:DATABASE_NAME = '$DATABASE_NAME'
+`$env:CORS_ORIGINS  = '$CORS_ORIGINS'
+Set-Location '$BACKEND_DIR'
+Write-Host ''
+Write-Host '  Omni-Agent Backend' -ForegroundColor Cyan
+Write-Host '  http://127.0.0.1:$BACKEND_PORT/health' -ForegroundColor Green
+Write-Host ''
+& '$BACKEND_PYTHON' -m uvicorn app:app --host 0.0.0.0 --port $BACKEND_PORT --log-level info
+"@
+
+Start-WindowedProcess "Omni-Backend :$BACKEND_PORT" $BACKEND_DIR $backendScript
+
+Write-Host "    Waiting for backend to be ready (up to 90s)..." -ForegroundColor Gray
+if (Wait-Port $BACKEND_PORT "Backend" 90) {
+    Write-OK "Backend is up -> http://127.0.0.1:$BACKEND_PORT"
+} else {
+    Write-Fail "Backend did not start. Check the backend terminal window."
+    exit 1
+}
+Write-Host ""
+
+# ── Frontend ───────────────────────────────────────────────────────────────────
+Write-Step "4" "Starting Frontend (Vite/React on :$FRONTEND_PORT)"
+
+$frontendScript = @"
+`$env:VITE_PROXY_TARGET = 'http://127.0.0.1:$BACKEND_PORT'
+Set-Location '$ROOT'
+Write-Host ''
+Write-Host '  Omni-Agent Frontend' -ForegroundColor Cyan
+Write-Host '  http://localhost:$FRONTEND_PORT' -ForegroundColor Green
+Write-Host ''
+npm run dev -- --port $FRONTEND_PORT
+"@
+
+Start-WindowedProcess "Omni-Frontend :$FRONTEND_PORT" $ROOT $frontendScript
+
+Write-Host "    Waiting for frontend to compile (up to 60s)..." -ForegroundColor Gray
+if (Wait-Port $FRONTEND_PORT "Frontend" 60) {
+    Write-OK "Frontend is up -> http://localhost:$FRONTEND_PORT"
+} else {
+    Write-Warn "Frontend not responding - check the frontend terminal window."
+}
+Write-Host ""
+
+# ── Agent ──────────────────────────────────────────────────────────────────────
+if ($startAgent) {
+    Write-Step "5" "Starting Agent"
+
+    $agentScript = @"
+`$env:API_BASE_URL     = '$API_BASE_URL'
+`$env:REGISTRATION_KEY = '$REGISTRATION_KEY'
+`$env:TENANT_ID        = '$TENANT_ID'
+Set-Location '$AGENT_DIR'
+Write-Host ''
+Write-Host '  Omni-Agent Client' -ForegroundColor Cyan
+Write-Host '  Connecting to $API_BASE_URL' -ForegroundColor Green
+Write-Host ''
+& '$AGENT_PYTHON' agent.py --url $API_BASE_URL --key $REGISTRATION_KEY
+"@
+
+    Start-WindowedProcess "Omni-Agent" $AGENT_DIR $agentScript
+    Write-OK "Agent launched"
+    Write-Host ""
+}
+
+# ── Summary ────────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "  ====================================================" -ForegroundColor Green
+Write-Host "   All services started!" -ForegroundColor Green
+Write-Host "  ====================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Service URLs:" -ForegroundColor White
+Write-Host "    Frontend   http://localhost:$FRONTEND_PORT" -ForegroundColor Cyan
+Write-Host "    Backend    http://127.0.0.1:$BACKEND_PORT" -ForegroundColor Cyan
+Write-Host "    API Docs   http://127.0.0.1:$BACKEND_PORT/docs" -ForegroundColor Cyan
+Write-Host "    Health     http://127.0.0.1:$BACKEND_PORT/health" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Default login:  super@omni.ai  /  Admin@2030!" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  To stop all services:" -ForegroundColor Yellow
+Write-Host "    Stop-Process -Name python,node -Force" -ForegroundColor Gray
+Write-Host "  Or just close the terminal windows." -ForegroundColor Gray
+Write-Host ""
+
+$open = Read-Host "  Open browser now? (Y/N)"
+if ($open -match "^[Yy]") {
+    Start-Process "http://localhost:$FRONTEND_PORT"
+}

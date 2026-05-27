@@ -138,7 +138,7 @@ async def schedule_report(
             "report_type": data.get("report_type"),
             "frequency": data.get("frequency", "weekly"), # daily, weekly, monthly
             "recipients": data.get("recipients", []),
-            "tenant_id": getattr(current_user, "tenant_id", "platform-admin"),
+            "tenant_id": getattr(current_user, "tenant_id", None) or None,
             "created_by": current_user.email,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "last_run": None,
@@ -159,8 +159,12 @@ async def get_report_schedules(
     """Get all active report schedules for the tenant."""
     try:
         db = get_database()
-        tenant_id = getattr(current_user, "tenant_id", "platform-admin")
-        schedules = await db.report_schedules.find({"tenant_id": tenant_id}).to_list(length=100)
+        _rep_role = getattr(current_user, "role", None)
+        tenant_id = getattr(current_user, "tenant_id", None) or None
+        if not tenant_id and _rep_role not in _ADMIN_ROLES:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        _rep_query: dict = {} if _rep_role in _ADMIN_ROLES else {"tenant_id": tenant_id}
+        schedules = await db.report_schedules.find(_rep_query).to_list(length=100)
         for s in schedules:
             s["id"] = str(s.pop("_id"))
         return schedules

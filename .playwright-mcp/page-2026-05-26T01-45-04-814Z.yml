@@ -1,0 +1,556 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - complementary [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e7]
+          - generic [ref=e10]:
+            - generic [ref=e11]: Genesis
+            - generic [ref=e12]: AI PLATFORM
+        - navigation [ref=e13]:
+          - generic [ref=e434]:
+            - button "Dashboards & Insights" [ref=e435] [cursor=pointer]:
+              - generic [ref=e436]: Dashboards & Insights
+              - img [ref=e437]
+            - generic [ref=e440]:
+              - button "Overview" [ref=e441] [cursor=pointer]:
+                - img [ref=e443]
+                - generic [ref=e448]: Overview
+              - button "CXO Insights" [ref=e450] [cursor=pointer]:
+                - img [ref=e452]
+                - generic [ref=e454]: CXO Insights
+              - button "Unified Future Ops" [ref=e455] [cursor=pointer]:
+                - img [ref=e457]
+                - generic [ref=e462]: Unified Future Ops
+              - button "Proactive Insights" [ref=e463] [cursor=pointer]:
+                - img [ref=e465]
+                - generic [ref=e467]: Proactive Insights
+              - button "Reporting" [ref=e468] [cursor=pointer]:
+                - img [ref=e470]
+                - generic [ref=e472]: Reporting
+              - button "Advanced BI" [ref=e473] [cursor=pointer]:
+                - img [ref=e475]
+                - generic [ref=e477]: Advanced BI
+              - button "Digital Twin" [ref=e478] [cursor=pointer]:
+                - img [ref=e480]
+                - generic [ref=e483]: Digital Twin
+              - button "2027 Horizon" [ref=e484] [cursor=pointer]:
+                - img [ref=e486]
+                - generic [ref=e488]: 2027 Horizon
+              - button "Sustainability" [ref=e489] [cursor=pointer]:
+                - img [ref=e491]
+                - generic [ref=e497]: Sustainability
+              - button "Predictive Health" [ref=e498] [cursor=pointer]:
+                - img [ref=e500]
+                - generic [ref=e502]: Predictive Health
+              - button "Goal System" [ref=e503] [cursor=pointer]:
+                - img [ref=e505]
+                - generic [ref=e509]: Goal System
+              - button "Integrations Hub" [ref=e510] [cursor=pointer]:
+                - img [ref=e512]
+                - generic [ref=e516]: Integrations Hub
+          - generic [ref=e517]:
+            - button "Observability" [ref=e518] [cursor=pointer]:
+              - generic [ref=e519]: Observability
+              - img [ref=e520]
+            - generic [ref=e522]:
+              - button "Distributed Tracing" [ref=e523] [cursor=pointer]:
+                - img [ref=e525]
+                - generic [ref=e529]: Distributed Tracing
+              - button "APM" [ref=e530] [cursor=pointer]:
+                - img [ref=e532]
+                - generic [ref=e536]: APM
+              - button "Log Explorer" [ref=e537] [cursor=pointer]:
+                - img [ref=e539]
+                - generic [ref=e542]: Log Explorer
+              - button "Network" [ref=e543] [cursor=pointer]:
+                - img [ref=e545]
+                - generic [ref=e550]: Network
+              - button "Network Topology Map" [ref=e551] [cursor=pointer]:
+                - img [ref=e553]
+                - generic [ref=e558]: Network Topology Map
+              - button "Data Utilization" [ref=e559] [cursor=pointer]:
+                - img [ref=e561]
+                - generic [ref=e563]: Data Utilization
+              - button "Web Monitoring" [ref=e564] [cursor=pointer]:
+                - img [ref=e566]
+                - generic [ref=e569]: Web Monitoring
+              - button "Service Mesh" [ref=e570] [cursor=pointer]:
+                - img [ref=e572]
+                - generic [ref=e577]: Service Mesh
+              - button "Streaming Analytics" [ref=e578] [cursor=pointer]:
+                - img [ref=e580]
+                - generic [ref=e582]: Streaming Analytics
+          - generic [ref=e583]:
+            - button "Infrastructure & Assets" [ref=e584] [cursor=pointer]:
+              - generic [ref=e585]: Infrastructure & Assets
+              - img [ref=e586]
+            - generic [ref=e588]:
+              - button "Agents" [active] [ref=e589] [cursor=pointer]:
+                - img [ref=e591]
+                - generic [ref=e594]: Agents
+              - button "Agent Capabilities" [ref=e595] [cursor=pointer]:
+                - img [ref=e597]
+                - generic [ref=e600]: Agent Capabilities
+              - button "Assets" [ref=e601] [cursor=pointer]:
+                - img [ref=e603]
+                - generic [ref=e607]: Assets
+              - button "Patching" [ref=e608] [cursor=pointer]:
+                - img [ref=e610]
+                - generic [ref=e612]: Patching
+              - button "Software Updates" [ref=e613] [cursor=pointer]:
+                - img [ref=e615]
+                - generic [ref=e617]: Software Updates
+              - button "Software Deployment" [ref=e618] [cursor=pointer]:
+                - img [ref=e620]
+                - generic [ref=e623]: Software Deployment
+              - button "Service Catalog (IDP)" [ref=e624] [cursor=pointer]:
+                - img [ref=e626]
+                - generic [ref=e630]: Service Catalog (IDP)
+              - button "Jobs" [ref=e631] [cursor=pointer]:
+                - img [ref=e633]
+                - generic [ref=e636]: Jobs
+              - button "Remote Access" [ref=e637] [cursor=pointer]:
+                - img [ref=e639]
+                - generic [ref=e641]: Remote Access
+          - generic [ref=e642]:
+            - button "Security (SecOps)" [ref=e643] [cursor=pointer]:
+              - generic [ref=e644]: Security (SecOps)
+              - img [ref=e645]
+            - generic [ref=e647]:
+              - button "Security Overview" [ref=e648] [cursor=pointer]:
+                - img [ref=e650]
+                - generic [ref=e652]: Security Overview
+              - button "EDR (Real-Time)" [ref=e653] [cursor=pointer]:
+                - img [ref=e655]
+                - generic [ref=e657]: EDR (Real-Time)
+              - button "MDR Intelligence" [ref=e658] [cursor=pointer]:
+                - img [ref=e660]
+                - generic [ref=e662]: MDR Intelligence
+              - button "XDR Intelligence" [ref=e663] [cursor=pointer]:
+                - img [ref=e665]
+                - generic [ref=e670]: XDR Intelligence
+              - button "MITRE ATT&CK" [ref=e671] [cursor=pointer]:
+                - img [ref=e673]
+                - generic [ref=e678]: MITRE ATT&CK
+              - button "Data Loss Prevention" [ref=e679] [cursor=pointer]:
+                - img [ref=e681]
+                - generic [ref=e685]: Data Loss Prevention
+              - button "Cloud Security" [ref=e686] [cursor=pointer]:
+                - img [ref=e688]
+                - generic [ref=e691]: Cloud Security
+              - button "Threat Hunting" [ref=e692] [cursor=pointer]:
+                - img [ref=e694]
+                - generic [ref=e697]: Threat Hunting
+              - button "SIEM Dashboard (OCSF)" [ref=e698] [cursor=pointer]:
+                - img [ref=e700]
+                - generic [ref=e702]: SIEM Dashboard (OCSF)
+              - button "Threat Intelligence" [ref=e703] [cursor=pointer]:
+                - img [ref=e705]
+                - generic [ref=e709]: Threat Intelligence
+              - button "SIEM Correlation Rules" [ref=e710] [cursor=pointer]:
+                - img [ref=e712]
+                - generic [ref=e714]: SIEM Correlation Rules
+              - button "Incident Response" [ref=e715] [cursor=pointer]:
+                - img [ref=e717]
+                - generic [ref=e719]: Incident Response
+              - button "Incident War Room" [ref=e720] [cursor=pointer]:
+                - img [ref=e722]
+                - generic [ref=e724]: Incident War Room
+              - button "Deception Technology" [ref=e725] [cursor=pointer]:
+                - img [ref=e727]
+                - generic [ref=e729]: Deception Technology
+              - button "UEBA (Insider Threats)" [ref=e730] [cursor=pointer]:
+                - img [ref=e732]
+                - generic [ref=e735]: UEBA (Insider Threats)
+              - button "Shadow AI Detection" [ref=e736] [cursor=pointer]:
+                - img [ref=e738]
+                - generic [ref=e741]: Shadow AI Detection
+              - button "Insider Threat" [ref=e742] [cursor=pointer]:
+                - img [ref=e744]
+                - generic [ref=e747]: Insider Threat
+              - button "Network Detection (NDR)" [ref=e748] [cursor=pointer]:
+                - img [ref=e750]
+                - generic [ref=e755]: Network Detection (NDR)
+              - button "Event Correlations" [ref=e756] [cursor=pointer]:
+                - img [ref=e758]
+                - generic [ref=e760]: Event Correlations
+              - button "Email Security" [ref=e761] [cursor=pointer]:
+                - img [ref=e763]
+                - generic [ref=e767]: Email Security
+              - button "Incident Impact" [ref=e768] [cursor=pointer]:
+                - img [ref=e770]
+                - generic [ref=e772]: Incident Impact
+              - button "Data Security (DSPM)" [ref=e773] [cursor=pointer]:
+                - img [ref=e775]
+                - generic [ref=e782]: Data Security (DSPM)
+              - button "Attack Path" [ref=e783] [cursor=pointer]:
+                - img [ref=e785]
+                - generic [ref=e790]: Attack Path
+              - button "Pentesting" [ref=e791] [cursor=pointer]:
+                - img [ref=e793]
+                - generic [ref=e795]: Pentesting
+              - button "DAST" [ref=e796] [cursor=pointer]:
+                - img [ref=e798]
+                - generic [ref=e800]: DAST
+              - button "Zero Trust & Quantum" [ref=e801] [cursor=pointer]:
+                - img [ref=e803]
+                - generic [ref=e807]: Zero Trust & Quantum
+              - button "Vulnerabilities" [ref=e808] [cursor=pointer]:
+                - img [ref=e810]
+                - generic [ref=e812]: Vulnerabilities
+              - button "Persistence Detection" [ref=e813] [cursor=pointer]:
+                - img [ref=e815]
+                - generic [ref=e818]: Persistence Detection
+              - button "Simulation" [ref=e819] [cursor=pointer]:
+                - img [ref=e821]
+                - generic [ref=e825]: Simulation
+              - button "Security Audit" [ref=e826] [cursor=pointer]:
+                - img [ref=e828]
+                - generic [ref=e831]: Security Audit
+              - button "File Integrity Monitor" [ref=e832] [cursor=pointer]:
+                - img [ref=e834]
+                - generic [ref=e837]: File Integrity Monitor
+              - button "Runtime Security" [ref=e838] [cursor=pointer]:
+                - img [ref=e840]
+                - generic [ref=e842]: Runtime Security
+              - button "Privileged Access (PAM)" [ref=e843] [cursor=pointer]:
+                - img [ref=e845]
+                - generic [ref=e848]: Privileged Access (PAM)
+          - generic [ref=e849]:
+            - button "DevSecOps & Engineering" [ref=e850] [cursor=pointer]:
+              - generic [ref=e851]: DevSecOps & Engineering
+              - img [ref=e852]
+            - generic [ref=e854]:
+              - button "Kubernetes Security" [ref=e855] [cursor=pointer]:
+                - img [ref=e857]
+                - generic [ref=e860]: Kubernetes Security
+              - button "API Security" [ref=e861] [cursor=pointer]:
+                - img [ref=e863]
+                - generic [ref=e868]: API Security
+              - button "Database Monitor (DAM)" [ref=e869] [cursor=pointer]:
+                - img [ref=e871]
+                - generic [ref=e875]: Database Monitor (DAM)
+              - button "Supply Chain Security" [ref=e876] [cursor=pointer]:
+                - img [ref=e878]
+                - generic [ref=e881]: Supply Chain Security
+              - button "DevSecOps" [ref=e882] [cursor=pointer]:
+                - img [ref=e884]
+                - generic [ref=e887]: DevSecOps
+              - button "DORA Metrics" [ref=e888] [cursor=pointer]:
+                - img [ref=e890]
+                - generic [ref=e894]: DORA Metrics
+              - button "SBOM" [ref=e895] [cursor=pointer]:
+                - img [ref=e897]
+                - generic [ref=e902]: SBOM
+              - button "SAST" [ref=e903] [cursor=pointer]:
+                - img [ref=e905]
+                - generic [ref=e908]: SAST
+              - button "Code Review Graph" [ref=e909] [cursor=pointer]:
+                - img [ref=e911]
+                - generic [ref=e914]: Code Review Graph
+              - button "Pipeline Security" [ref=e915] [cursor=pointer]:
+                - img [ref=e917]
+                - generic [ref=e920]: Pipeline Security
+              - button "IaC Security" [ref=e921] [cursor=pointer]:
+                - img [ref=e923]
+                - generic [ref=e928]: IaC Security
+              - button "Container Scanning" [ref=e929] [cursor=pointer]:
+                - img [ref=e931]
+                - generic [ref=e934]: Container Scanning
+              - button "Chaos Engineering" [ref=e935] [cursor=pointer]:
+                - img [ref=e937]
+                - generic [ref=e941]: Chaos Engineering
+              - button "Developer Hub" [ref=e942] [cursor=pointer]:
+                - img [ref=e944]
+                - generic [ref=e950]: Developer Hub
+              - button "MLOps" [ref=e951] [cursor=pointer]:
+                - img [ref=e953]
+                - generic [ref=e957]: MLOps
+              - button "LLMOps" [ref=e958] [cursor=pointer]:
+                - img [ref=e960]
+                - generic [ref=e963]: LLMOps
+              - button "AutoML" [ref=e964] [cursor=pointer]:
+                - img [ref=e966]
+                - generic [ref=e968]: AutoML
+              - button "A/B Testing" [ref=e969] [cursor=pointer]:
+                - img [ref=e971]
+                - generic [ref=e975]: A/B Testing
+              - button "AI Explainability" [ref=e976] [cursor=pointer]:
+                - img [ref=e978]
+                - generic [ref=e985]: AI Explainability
+          - generic [ref=e986]:
+            - button "Governance & Compliance" [ref=e987] [cursor=pointer]:
+              - generic [ref=e988]: Governance & Compliance
+              - img [ref=e989]
+            - generic [ref=e991]:
+              - button "Compliance" [ref=e992] [cursor=pointer]:
+                - img [ref=e994]
+                - generic [ref=e997]: Compliance
+              - button "Framework Evaluator" [ref=e998] [cursor=pointer]:
+                - img [ref=e1000]
+                - generic [ref=e1003]: Framework Evaluator
+              - button "Custom Frameworks" [ref=e1004] [cursor=pointer]:
+                - img [ref=e1006]
+                - generic [ref=e1009]: Custom Frameworks
+              - button "Compliance Oracle" [ref=e1010] [cursor=pointer]:
+                - img [ref=e1012]
+                - generic [ref=e1015]: Compliance Oracle
+              - button "CISSP Oracle" [ref=e1016] [cursor=pointer]:
+                - img [ref=e1018]
+                - generic [ref=e1021]: CISSP Oracle
+              - button "Privacy (GDPR/CCPA)" [ref=e1022] [cursor=pointer]:
+                - img [ref=e1024]
+                - generic [ref=e1028]: Privacy (GDPR/CCPA)
+              - button "Risk Register" [ref=e1029] [cursor=pointer]:
+                - img [ref=e1031]
+                - generic [ref=e1033]: Risk Register
+              - button "Vendor Mgmt" [ref=e1034] [cursor=pointer]:
+                - img [ref=e1036]
+                - generic [ref=e1041]: Vendor Mgmt
+              - button "Trust Center" [ref=e1042] [cursor=pointer]:
+                - img [ref=e1044]
+                - generic [ref=e1047]: Trust Center
+              - button "Secure Share" [ref=e1048] [cursor=pointer]:
+                - img [ref=e1050]
+                - generic [ref=e1053]: Secure Share
+              - button "Training" [ref=e1054] [cursor=pointer]:
+                - img [ref=e1056]
+                - generic [ref=e1062]: Training
+              - button "AI Governance" [ref=e1063] [cursor=pointer]:
+                - img [ref=e1065]
+                - generic [ref=e1068]: AI Governance
+              - button "Data Governance" [ref=e1069] [cursor=pointer]:
+                - img [ref=e1071]
+                - generic [ref=e1074]: Data Governance
+              - button "Audit Log" [ref=e1075] [cursor=pointer]:
+                - img [ref=e1077]
+                - generic [ref=e1080]: Audit Log
+              - button "Approvals" [ref=e1081] [cursor=pointer]:
+                - img [ref=e1083]
+                - generic [ref=e1086]: Approvals
+              - button "BAA Management" [ref=e1087] [cursor=pointer]:
+                - img [ref=e1089]
+                - generic [ref=e1092]: BAA Management
+          - generic [ref=e1093]:
+            - button "Automation & Intelligence" [ref=e1094] [cursor=pointer]:
+              - generic [ref=e1095]: Automation & Intelligence
+              - img [ref=e1096]
+            - generic [ref=e1098]:
+              - button "Automation" [ref=e1099] [cursor=pointer]:
+                - img [ref=e1101]
+                - generic [ref=e1105]: Automation
+              - button "Playbooks" [ref=e1106] [cursor=pointer]:
+                - img [ref=e1108]
+                - generic [ref=e1114]: Playbooks
+              - button "JIT Privileged Access" [ref=e1115] [cursor=pointer]:
+                - img [ref=e1117]
+                - generic [ref=e1120]: JIT Privileged Access
+              - button "Scheduled Reports" [ref=e1121] [cursor=pointer]:
+                - img [ref=e1123]
+                - generic [ref=e1126]: Scheduled Reports
+              - button "Autonomous Swarms" [ref=e1127] [cursor=pointer]:
+                - img [ref=e1129]
+                - generic [ref=e1133]: Autonomous Swarms
+              - button "Agent Approvals" [ref=e1134] [cursor=pointer]:
+                - img [ref=e1136]
+                - generic [ref=e1139]: Agent Approvals
+              - button "AI Remediation" [ref=e1140] [cursor=pointer]:
+                - img [ref=e1142]
+                - generic [ref=e1144]: AI Remediation
+              - button "Rollback & Checkpoints" [ref=e1145] [cursor=pointer]:
+                - img [ref=e1147]
+                - generic [ref=e1149]: Rollback & Checkpoints
+              - button "My Tasks" [ref=e1150] [cursor=pointer]:
+                - img [ref=e1152]
+                - generic [ref=e1155]: My Tasks
+      - generic [ref=e15]:
+        - banner [ref=e16]:
+          - generic [ref=e18]:
+            - generic [ref=e20]:
+              - img [ref=e21]
+              - heading "Omni-Agent AI" [level=1] [ref=e24]
+            - generic [ref=e25]:
+              - combobox "Select Timezone" [ref=e27]:
+                - option "UTC" [selected]
+                - option "America/New York"
+                - option "America/Chicago"
+                - option "America/Denver"
+                - option "America/Los Angeles"
+                - option "Europe/London"
+                - option "Europe/Paris"
+                - option "Asia/Tokyo"
+                - option "Asia/Kolkata"
+                - option "Australia/Sydney"
+              - button "Toggle dark mode" [ref=e28] [cursor=pointer]:
+                - img [ref=e29]
+              - button "Start guided tour" [ref=e31] [cursor=pointer]:
+                - img [ref=e32]
+              - button "Open AI Command Bar" [ref=e35] [cursor=pointer]:
+                - generic [ref=e36]: AI Command
+                - generic [ref=e37]: ⌘K
+              - button [ref=e39] [cursor=pointer]:
+                - img [ref=e40]
+              - button "A Acme Admin admin" [ref=e45] [cursor=pointer]:
+                - generic [ref=e46]: A
+                - generic [ref=e47]:
+                  - generic [ref=e48]: Acme Admin
+                  - generic [ref=e49]: admin
+                - img [ref=e50]
+        - main [ref=e52]:
+          - generic [ref=e1158]:
+            - heading "Agent Fleet Management" [level=2] [ref=e1159]
+            - paragraph [ref=e1160]: Monitor the status and health of all deployed Omni-Agents.
+            - generic [ref=e1161]:
+              - generic [ref=e1163] [cursor=pointer]:
+                - img [ref=e1165]
+                - generic [ref=e1168]:
+                  - paragraph [ref=e1169]: Total Agents
+                  - paragraph [ref=e1170]: "2"
+              - generic [ref=e1172] [cursor=pointer]:
+                - img [ref=e1174]
+                - generic [ref=e1176]:
+                  - paragraph [ref=e1177]: Online
+                  - paragraph [ref=e1178]: "0"
+              - generic [ref=e1180] [cursor=pointer]:
+                - img [ref=e1182]
+                - generic [ref=e1186]:
+                  - paragraph [ref=e1187]: Offline
+                  - paragraph [ref=e1188]: "2"
+              - generic [ref=e1190] [cursor=pointer]:
+                - img [ref=e1192]
+                - generic [ref=e1194]:
+                  - paragraph [ref=e1195]: Errors
+                  - paragraph [ref=e1196]: "0"
+              - generic [ref=e1198] [cursor=pointer]:
+                - img [ref=e1200]
+                - generic [ref=e1202]:
+                  - paragraph [ref=e1203]: Avg Uptime
+                  - paragraph [ref=e1204]: 99.8%
+            - generic [ref=e1205]:
+              - img [ref=e1206]
+              - paragraph [ref=e1208]: Installation Unavailable. Please select a tenant to view agent installation commands. Super Admins must select 'View Tenant' from the Tenant Management dashboard.
+            - generic [ref=e1210]:
+              - button "Agent Installation" [expanded] [ref=e1211] [cursor=pointer]:
+                - heading "Agent Installation" [level=3] [ref=e1212]
+                - img [ref=e1213]
+              - generic [ref=e1216]:
+                - img [ref=e1217]
+                - generic [ref=e1219]: Installation Unavailable. Please select a tenant to view agent installation commands. Super Admins must select 'View Tenant' from the Tenant Management dashboard.
+            - generic [ref=e1220]:
+              - generic [ref=e1221]:
+                - heading "Registered Agents 2 / 5 agents · Free" [level=3] [ref=e1222]:
+                  - img [ref=e1223]
+                  - text: Registered Agents
+                  - generic [ref=e1226]: 2 / 5 agents · Free
+                - button "Register Agent" [ref=e1227] [cursor=pointer]:
+                  - img [ref=e1228]
+                  - text: Register Agent
+              - generic [ref=e1230]:
+                - generic [ref=e1231]:
+                  - generic [ref=e1232]:
+                    - img [ref=e1233]
+                    - combobox [ref=e1235]:
+                      - option "All Statuses" [selected]
+                      - option "Online"
+                      - option "Offline"
+                      - option "Error"
+                  - generic [ref=e1236]:
+                    - img [ref=e1237]
+                    - combobox [ref=e1239]:
+                      - option "All Platforms" [selected]
+                      - option "Windows"
+                      - option "Linux"
+                  - generic [ref=e1240]:
+                    - generic [ref=e1241]: Sort
+                    - button "Hostname" [ref=e1243] [cursor=pointer]
+                    - button "Version" [ref=e1244] [cursor=pointer]
+                    - button "Last Seen" [ref=e1245] [cursor=pointer]:
+                      - text: Last Seen
+                      - img [ref=e1246]
+                - generic [ref=e1248]:
+                  - generic [ref=e1249]:
+                    - checkbox "Select all (2)" [ref=e1250]
+                    - generic [ref=e1251] [cursor=pointer]: Select all (2)
+                  - generic [ref=e1252]:
+                    - generic [ref=e1253]:
+                      - checkbox "Select agent web-server-01" [ref=e1255]
+                      - button "web-server-01 10.0.2.5 Offline OS Windows Version 2.1.0 Last Seen 5/26/2026, 6:57:58 AM" [ref=e1256] [cursor=pointer]:
+                        - generic [ref=e1257]:
+                          - generic [ref=e1258]:
+                            - generic [ref=e1259]:
+                              - heading "web-server-01" [level=4] [ref=e1260]
+                              - paragraph [ref=e1261]: 10.0.2.5
+                            - generic [ref=e1263]:
+                              - img [ref=e1264]
+                              - generic [ref=e1268]: Offline
+                          - generic [ref=e1269]:
+                            - generic [ref=e1270]:
+                              - generic [ref=e1271]: OS
+                              - generic [ref=e1272]:
+                                - img [ref=e1273]
+                                - generic [ref=e1275]: Windows
+                            - generic [ref=e1276]:
+                              - generic [ref=e1277]: Version
+                              - generic [ref=e1278]: 2.1.0
+                            - generic [ref=e1279]:
+                              - generic [ref=e1280]: Last Seen
+                              - generic [ref=e1281]: 5/26/2026, 6:57:58 AM
+                      - generic [ref=e1283]:
+                        - button "View Logs" [ref=e1284] [cursor=pointer]:
+                          - img [ref=e1285]
+                        - button "Remote Control Terminal" [disabled] [ref=e1288]:
+                          - img [ref=e1289]
+                        - button "Restart Agent" [ref=e1292] [cursor=pointer]:
+                          - img [ref=e1293]
+                        - button "Run Diagnostics" [ref=e1298] [cursor=pointer]:
+                          - img [ref=e1299]
+                        - button "Delete Agent" [ref=e1302] [cursor=pointer]:
+                          - img [ref=e1303]
+                    - generic [ref=e1305]:
+                      - checkbox "Select agent db-prod-01" [ref=e1307]
+                      - button "db-prod-01 10.0.1.10 Offline OS Linux Version 2.1.0 Last Seen 5/26/2026, 6:57:58 AM" [ref=e1308] [cursor=pointer]:
+                        - generic [ref=e1309]:
+                          - generic [ref=e1310]:
+                            - generic [ref=e1311]:
+                              - heading "db-prod-01" [level=4] [ref=e1312]
+                              - paragraph [ref=e1313]: 10.0.1.10
+                            - generic [ref=e1315]:
+                              - img [ref=e1316]
+                              - generic [ref=e1320]: Offline
+                          - generic [ref=e1321]:
+                            - generic [ref=e1322]:
+                              - generic [ref=e1323]: OS
+                              - generic [ref=e1324]:
+                                - img [ref=e1325]
+                                - generic [ref=e1327]: Linux
+                            - generic [ref=e1328]:
+                              - generic [ref=e1329]: Version
+                              - generic [ref=e1330]: 2.1.0
+                            - generic [ref=e1331]:
+                              - generic [ref=e1332]: Last Seen
+                              - generic [ref=e1333]: 5/26/2026, 6:57:58 AM
+                      - generic [ref=e1335]:
+                        - button "View Logs" [ref=e1336] [cursor=pointer]:
+                          - img [ref=e1337]
+                        - button "Remote Control Terminal" [disabled] [ref=e1340]:
+                          - img [ref=e1341]
+                        - button "Restart Agent" [ref=e1344] [cursor=pointer]:
+                          - img [ref=e1345]
+                        - button "Run Diagnostics" [ref=e1350] [cursor=pointer]:
+                          - img [ref=e1351]
+                        - button "Delete Agent" [ref=e1354] [cursor=pointer]:
+                          - img [ref=e1355]
+            - button "Agent Upgrade Manager" [ref=e1359] [cursor=pointer]:
+              - heading "Agent Upgrade Manager" [level=3] [ref=e1360]:
+                - img [ref=e1361]
+                - text: Agent Upgrade Manager
+              - img [ref=e1365]
+    - generic:
+      - paragraph [ref=e419] [cursor=pointer]: Hey Acme! I'm Chitti. Say "Hey Chitti" or click me to start!
+      - button "Say \"Hey Chitti\"..." [ref=e420] [cursor=pointer]:
+        - img [ref=e421]
+        - img [ref=e425]
+    - button "Open AI Assistant" [ref=e428] [cursor=pointer]:
+      - img [ref=e429]
+  - generic [ref=e433]: "0"

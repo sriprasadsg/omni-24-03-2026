@@ -162,7 +162,7 @@ async def connect_to_mongo():
     import logging as _logging
     import asyncio as _asyncio
 
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017").strip()
     mongodb_db_name = os.getenv("MONGODB_DB_NAME", "omni_platform")
     max_attempts = 3
     base_delay = 0.5  # seconds

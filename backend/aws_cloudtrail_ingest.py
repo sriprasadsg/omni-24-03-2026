@@ -126,8 +126,12 @@ async def start_aws_polling():
             db = get_database()
             configs = await db.siem_configs.find({"provider": "aws_cloudtrail", "enabled": True}).to_list(length=100)
             for config in configs:
+                _ct_tid = config.get("tenant_id") or None
+                if not _ct_tid:
+                    logger.warning("[CloudTrail] Skipping config %s — no tenant_id configured", config.get("id", "?"))
+                    continue
                 await fetch_cloudtrail_logs(
-                    tenant_id=config.get("tenant_id", "default"),
+                    tenant_id=_ct_tid,
                     s3_bucket=config.get("s3_bucket", ""),
                     aws_access_key=config.get("aws_access_key", ""),
                     aws_secret_key=config.get("aws_secret_key", ""),

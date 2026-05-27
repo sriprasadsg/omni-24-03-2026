@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from playbook_service import playbook_service
 from authentication_service import get_current_user
@@ -21,10 +21,12 @@ class PlaybookCreate(BaseModel):
 async def get_playbooks(current_user: TokenData = Depends(get_current_user)):
     """List playbooks visible to the caller (own tenant + platform-level)."""
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
     all_playbooks = await playbook_service.get_playbooks()
     if is_admin:
         return all_playbooks
+    if not tenant_id:
+        return []
     return [p for p in all_playbooks if p.get("tenant_id", p.get("tenantId", "")) in (tenant_id, "platform")]
 
 @router.get("/test", response_model=Dict[str, str])
@@ -43,7 +45,9 @@ async def get_playbook(
     # Non-admins can only view their own tenant's playbooks
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
     if not is_admin:
-        tenant_id = getattr(current_user, "tenant_id", "default")
+        tenant_id = getattr(current_user, "tenant_id", None) or None
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         playbook_tenant = playbook.get("tenant_id") or playbook.get("tenantId", "")
         if playbook_tenant not in (tenant_id, "platform"):
             raise HTTPException(status_code=404, detail="Playbook not found")
@@ -55,7 +59,9 @@ async def create_playbook(
     current_user: TokenData = Depends(get_current_user),
 ):
     """Create a new playbook scoped to the caller's tenant."""
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     playbook_id = await playbook_service.create_playbook(
         name=playbook.name,
         description=playbook.description,
@@ -77,9 +83,12 @@ async def delete_playbook(
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
-    caller_tenant = getattr(current_user, "tenant_id", "default")
-    if not is_admin and playbook.get("tenant_id", playbook.get("tenantId", "")) not in (caller_tenant, "platform"):
-        raise HTTPException(status_code=403, detail="Not authorized to delete this playbook")
+    caller_tenant = getattr(current_user, "tenant_id", None) or None
+    if not is_admin:
+        if not caller_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        if playbook.get("tenant_id", playbook.get("tenantId", "")) not in (caller_tenant, "platform"):
+            raise HTTPException(status_code=403, detail="Not authorized to delete this playbook")
     success = await playbook_service.delete_playbook(playbook_id)
     if not success:
         raise HTTPException(status_code=500, detail="Delete failed")
@@ -96,7 +105,9 @@ async def toggle_playbook(
     if not existing:
         raise HTTPException(status_code=404, detail="Playbook not found")
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
-    caller_tenant = getattr(current_user, "tenant_id", "default")
+    caller_tenant = getattr(current_user, "tenant_id", None) or None
+    if not is_admin and not caller_tenant:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     if not is_admin and existing.get("tenant_id", existing.get("tenantId", "")) not in (caller_tenant, "platform"):
         raise HTTPException(status_code=403, detail="Not authorized to modify this playbook")
     playbook = await playbook_service.toggle_playbook(playbook_id)
@@ -122,7 +133,9 @@ async def execute_playbook(
         raise HTTPException(status_code=404, detail="Playbook not found")
 
     is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
-    caller_tenant = getattr(current_user, "tenant_id", "default")
+    caller_tenant = getattr(current_user, "tenant_id", None) or None
+    if not is_admin and not caller_tenant:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     playbook_tenant = playbook.get("tenant_id", playbook.get("tenantId", ""))
 
     if not is_admin and playbook_tenant not in (caller_tenant, "platform"):

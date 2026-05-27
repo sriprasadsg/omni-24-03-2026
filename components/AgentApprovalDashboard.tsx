@@ -25,6 +25,8 @@ const AgentApprovalDashboard: React.FC = () => {
     const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([]);
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [tenantError, setTenantError] = useState(false);
+    const [decisionError, setDecisionError] = useState<string | null>(null);
 
     // Poll for updates
     useEffect(() => {
@@ -36,9 +38,14 @@ const AgentApprovalDashboard: React.FC = () => {
     const fetchApprovals = async () => {
         try {
             const res = await authFetch('/api/agents/approvals/pending');
+            if (res.status === 403) {
+                setTenantError(true);
+                return;
+            }
             if (res.ok) {
                 const data = await res.json();
                 setPendingApprovals(data);
+                setTenantError(false);
             }
         } catch (err) {
             console.error("Failed to fetch approvals:", err);
@@ -48,16 +55,20 @@ const AgentApprovalDashboard: React.FC = () => {
     };
 
     const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
+        setDecisionError(null);
         try {
             const res = await authFetch(`/api/agents/approvals/${id}/decide`, {
                 method: 'POST',
                 body: JSON.stringify({ decision, reason: "User manual decision via UI" })
             });
 
+            if (res.status === 403) {
+                setDecisionError('Tenant context required. Decision could not be submitted.');
+                return;
+            }
             if (res.ok) {
-                // Optimistic update
                 setPendingApprovals(prev => prev.filter(p => p.id !== id));
-                fetchApprovals(); // Sync
+                fetchApprovals();
             }
         } catch (err) {
             console.error("Decision failed:", err);
@@ -72,6 +83,20 @@ const AgentApprovalDashboard: React.FC = () => {
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-8">
+
+            {tenantError && (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium">
+                    <AlertTriangleIcon size={16} className="shrink-0" />
+                    Tenant context required. Please log in again with a valid tenant account.
+                </div>
+            )}
+            {decisionError && (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium">
+                    <AlertTriangleIcon size={16} className="shrink-0" />
+                    {decisionError}
+                    <button onClick={() => setDecisionError(null)} className="ml-auto opacity-60 hover:opacity-100">✕</button>
+                </div>
+            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">

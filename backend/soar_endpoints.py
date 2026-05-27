@@ -88,7 +88,7 @@ async def run_and_save(playbook: dict, trigger_context: dict):
     run_doc = {
         "run_id": result["run_id"],
         "playbook_id": playbook["id"],
-        "tenant_id": playbook.get("tenant_id", "default"),
+        "tenant_id": playbook.get("tenant_id") or None,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": result["status"],
         "log": result["log"],

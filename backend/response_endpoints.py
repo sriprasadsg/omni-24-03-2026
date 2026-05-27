@@ -92,7 +92,10 @@ async def create_policy(
 ):
     """Create a new response policy."""
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None) or ""
+    _role = getattr(current_user, "role", "") or ""
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id and _role not in _SUPER_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     existing = await db.response_policies.find_one(
         {"policy_id": policy.policy_id, **_tenant_filter(current_user)}
     )
@@ -124,7 +127,7 @@ async def toggle_policy(
         raise HTTPException(status_code=404, detail="Policy not found")
     new_state = not policy.get("enabled", True)
     await db.response_policies.update_one(
-        {"policy_id": policy_id},
+        {"policy_id": policy_id, **_tenant_filter(current_user)},
         {"$set": {"enabled": new_state, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     return {"policy_id": policy_id, "enabled": new_state}
@@ -144,7 +147,7 @@ async def delete_policy(
         raise HTTPException(status_code=404, detail="Policy not found")
     if policy.get("builtin"):
         raise HTTPException(status_code=403, detail="Cannot delete built-in policies")
-    await db.response_policies.delete_one({"policy_id": policy_id})
+    await db.response_policies.delete_one({"policy_id": policy_id, **_tenant_filter(current_user)})
     return {"status": "deleted", "policy_id": policy_id}
 
 
@@ -160,10 +163,14 @@ async def execute_response_action(
 ):
     """Manually dispatch a response action to an agent."""
     db = get_database()
+    _exec_role = getattr(current_user, "role", "") or ""
+    _exec_tid = getattr(current_user, "tenant_id", None) or None
+    if not _exec_tid and _exec_role not in _SUPER_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     task = {
         "task_id": f"MAN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
         "agent_id": action.agent_id,
-        "tenantId": getattr(current_user, "tenant_id", None) or "",
+        "tenantId": _exec_tid,
         "action": action.action,
         "params": action.params,
         "reason": action.reason,

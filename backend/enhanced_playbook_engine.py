@@ -16,6 +16,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 import asyncio
 import json
 import logging
+import re as _re
 from enum import Enum
 from backend_safety import evaluate_action, log_safety_decision, APPROVAL_REQUIRED_ACTIONS
 
@@ -590,7 +591,7 @@ class PlaybookExecutionEngine:
         if agent:
             hostname = agent.get("hostname", "")
         count = await self.db.assets.count_documents({
-            "dependencies": {"$elemMatch": {"$regex": hostname, "$options": "i"}}
+            "dependencies": {"$elemMatch": {"$regex": _re.escape(hostname), "$options": "i"}}
         })
         return int(count)
 

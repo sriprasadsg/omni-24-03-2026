@@ -40,7 +40,11 @@ async def restore_checkpoint(
     current_user=Depends(get_current_user),
 ):
     """Queue a restore command for the owning agent."""
-    ckpt = await db["rollback_checkpoints"].find_one({"id": checkpoint_id})
+    _restore_tid = getattr(current_user, "tenant_id", None) or None
+    _ckpt_filter: dict = {"id": checkpoint_id}
+    if _restore_tid:
+        _ckpt_filter["tenantId"] = _restore_tid
+    ckpt = await db["rollback_checkpoints"].find_one(_ckpt_filter)
     if not ckpt:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
     if ckpt.get("status") != "available":
@@ -55,7 +59,7 @@ async def restore_checkpoint(
     }
     await db["agent_commands"].insert_one({"agent_id": agent_id, **command})
     await db["rollback_checkpoints"].update_one(
-        {"id": checkpoint_id},
+        _ckpt_filter,
         {"$set": {"status": "restore_requested"}},
     )
     return {"status": "queued", "agent_id": agent_id, "checkpoint_id": checkpoint_id}

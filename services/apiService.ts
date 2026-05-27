@@ -347,6 +347,9 @@ export const login = async (username: string, password: string): Promise<any> =>
         body: JSON.stringify({ email: username, password }),
     });
 
+    if (res.status === 429) {
+        throw new Error('Too many login attempts. Please wait a moment and try again.');
+    }
     if (!res.ok) {
         throw new Error('Invalid credentials');
     }
@@ -980,6 +983,50 @@ export const fetchChaosExperiments = async (): Promise<ChaosExperiment[]> => {
     } catch (e) {
         console.error("Error fetching chaos experiments", e);
         return [];
+    }
+};
+
+export const createChaosExperiment = async (data: { name: string; type: string; target: string }): Promise<{ ok: boolean; status: number; data?: ChaosExperiment }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/chaos/experiments`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        if (res.status === 403) return { ok: false, status: 403 };
+        const json = await res.json();
+        return { ok: res.ok, status: res.status, data: json };
+    } catch (e) {
+        console.error("Error creating chaos experiment", e);
+        return { ok: false, status: 500 };
+    }
+};
+
+export const runChaosExperiment = async (id: string): Promise<{ ok: boolean; status: number; data?: any }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/chaos/experiments/${encodeURIComponent(id)}/run`, {
+            method: 'POST',
+        });
+        if (res.status === 403) return { ok: false, status: 403 };
+        const json = await res.json().catch(() => ({}));
+        return { ok: res.ok, status: res.status, data: json };
+    } catch (e) {
+        console.error("Error running chaos experiment", e);
+        return { ok: false, status: 500 };
+    }
+};
+
+export const propagateAntibody = async (threatData: { threat_type: string; indicator: string }): Promise<{ ok: boolean; status: number; data?: any }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/swarm/propagate-antibody`, {
+            method: 'POST',
+            body: JSON.stringify(threatData),
+        });
+        if (res.status === 403) return { ok: false, status: 403 };
+        const json = await res.json().catch(() => ({}));
+        return { ok: res.ok, status: res.status, data: json };
+    } catch (e) {
+        console.error("Error propagating antibody", e);
+        return { ok: false, status: 500 };
     }
 };
 export const fetchDastScans = async (): Promise<DastScan[]> => {

@@ -102,7 +102,15 @@ class RazorpayGateway(PaymentGatewayInterface):
             raise
 
     async def get_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        return []
+        try:
+            result = self.client.invoice.all({"type": "invoice", "count": limit})
+            items = result.get("items", [])
+            if customer_id:
+                items = [inv for inv in items if inv.get("customer_id") == customer_id]
+            return items
+        except Exception as e:
+            logger.error(f"Razorpay get_invoices failed: {e}")
+            return []
 
     async def verify_webhook(self, payload: bytes, signature: str, secret: str) -> bool:
         try:

@@ -166,7 +166,7 @@ async def login_for_access_token(request: Request, login_request: LoginRequest):
     # 4. Create full JWT (MFA not enabled or MFA service unavailable)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     role = user.get("role", "user")
-    tenant_id = user.get("tenantId", "default")
+    tenant_id = user.get("tenantId") or None
     
     token_payload = {"sub": user["email"], "role": role, "tenant_id": tenant_id}
     access_token = create_access_token(data=token_payload, expires_delta=access_token_expires)
@@ -417,7 +417,7 @@ async def refresh_access_token(request: Request, data: dict[str, Any] = Body(...
     token_data = {
         "sub": email,
         "role": user.get("role", "user"),
-        "tenant_id": user.get("tenantId", "default"),
+        "tenant_id": user.get("tenantId") or None,
     }
     new_access_token = create_access_token(data=token_data)
     new_refresh_token = create_refresh_token(data={"sub": email})

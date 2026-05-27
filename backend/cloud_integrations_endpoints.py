@@ -236,7 +236,10 @@ async def update_integration(
                 existing_config[k] = v
         update["config"] = _encrypt_secrets(existing_config)
 
-    await db.cloud_integrations.update_one({"id": integration_id}, {"$set": update})
+    write_filter: dict = {"id": integration_id}
+    if role != "super_admin":
+        write_filter["tenant_id"] = tenant_id
+    await db.cloud_integrations.update_one(write_filter, {"$set": update})
     return {"message": "Integration updated successfully"}
 
 
@@ -255,7 +258,10 @@ async def delete_integration(
     if role != "super_admin" and integ.get("tenant_id") != tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    await db.cloud_integrations.delete_one({"id": integration_id})
+    del_filter: dict = {"id": integration_id}
+    if role != "super_admin":
+        del_filter["tenant_id"] = tenant_id
+    await db.cloud_integrations.delete_one(del_filter)
     return {"message": "Integration deleted"}
 
 

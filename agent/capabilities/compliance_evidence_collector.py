@@ -3,14 +3,26 @@ Compliance Evidence Collector
 
 Fills the gap between infrastructure checks (ComplianceEnforcementCapability)
 and the full evidence set required for:
-  - SOC 2 Type II  (CC6.x, CC7.x, CC9.2)
-  - ISO 27001:2022  (A.8.2, A.8.5, A.8.15, A.8.16, A.5.10, A.5.33)
-  - PCI DSS 4.0     (7.x, 8.x, 10.x)
-  - HIPAA           (164.312(a)(1), 164.312(b), 164.308(a)(1))
-  - NIST 800-53     (AC-2, AC-3, AU-9, AU-11, CM-3, CM-6, CP-9)
-  - GDPR            (Art.5(1)(b)/(e), Art.25, Art.32)
-  - FedRAMP         (AC-2, AU-11, CM-6, CP-9)
-  - DORA            (Art.9, Art.12)
+  - SOC 2 Type II       (CC6.x, CC7.x, CC9.2)
+  - SOC 2 Type I        (CC6.x)
+  - SOC 1 Type I / II   (SOC1-LA.x, SOC1-BR.x, SOC1-CM.x, SOC1-CO.x)
+  - SOC 3               (SOC3-CC6)
+  - SOC Cybersecurity   (SOCC-CC.x, SOCC-IR.x)
+  - ISO 27001:2022      (A.8.2, A.8.5, A.8.15, A.8.16, A.5.10, A.5.33)
+  - ISO 27701           (27701-7.3.2)
+  - PCI DSS 4.0         (7.x, 8.x, 10.x)
+  - HIPAA               (164.312(a)(1), 164.312(b), 164.308(a)(1))
+  - NIST 800-53         (AC-2, AC-6, AC-7, AC-17, AU-2, AU-11, CM-3, CP-9, IA-2, IA-5, RA-5, SC-7, SC-28, SI-2, SI-3, IR-4)
+  - NIST 800-171        (3.1.1, 3.1.5, 3.3.1, 3.3.2, 3.4.1, 3.4.2, 3.5.1, 3.5.3, 3.8.9, 3.11.2, 3.13.1, 3.13.8, 3.14.1)
+  - NIST AI RMF         (MANAGE-2.4)
+  - GDPR                (Art.5(1)(b)/(e), Art.25, Art.32)
+  - FedRAMP             (AC-2, AC-6, AC-17, AU-2, AU-11, CM-3, CP-9, IA-2, RA-5)
+  - DORA                (Art.12)
+  - CMMC Level 2        (3.1.1, 3.5.3, 3.11.2)
+  - SWIFT CSP           (SWIFT-1.1, SWIFT-2.1, SWIFT-2.3, SWIFT-2.7, SWIFT-4.2, SWIFT-5.1, SWIFT-7.1)
+  - NIS2                (NIS2-21.1 through NIS2-21.10, NIS2-23)
+  - SOX ITGC            (SOX-LA-x, SOX-BR-x, SOX-CM-x, SOX-SA-x)
+  - CIS Controls v8     (CIS-3 through CIS-17)
 
 Evidence gaps addressed (not covered elsewhere in the agent):
   1. User access logs (logon/logoff/failed auth, account changes)
@@ -20,6 +32,10 @@ Evidence gaps addressed (not covered elsewhere in the agent):
   5. Configuration change management
   6. Account lifecycle hygiene (dormant/orphaned/locked)
   7. Network firewall rules enumeration
+  8. Vulnerability scanning evidence
+  9. MFA status verification
+  10. Encryption status verification
+  11. Incident response evidence
 """
 
 from .base import BaseCapability
@@ -36,15 +52,89 @@ logger = logging.getLogger(__name__)
 
 # Compliance framework control mapping for evidence types
 CONTROL_MAPPINGS = {
-    "access_logs":          ["SOC2:CC6.2", "ISO27001:A.8.15", "PCI-DSS:10.2", "HIPAA:164.312(b)", "NIST:AU-2", "FedRAMP:AU-2"],
-    "failed_logins":        ["SOC2:CC6.1", "ISO27001:A.8.5",  "PCI-DSS:10.2.4", "HIPAA:164.312(b)", "NIST:AC-7", "GDPR:Art.32"],
-    "privileged_access":    ["SOC2:CC6.3", "ISO27001:A.8.2",  "PCI-DSS:7.1",  "HIPAA:164.312(a)(1)", "NIST:AC-3", "FedRAMP:AC-3"],
-    "account_changes":      ["SOC2:CC6.2", "ISO27001:A.5.18", "PCI-DSS:8.2",  "HIPAA:164.312(a)(2)", "NIST:AC-2"],
-    "log_retention":        ["SOC2:CC7.2", "ISO27001:A.8.15", "PCI-DSS:10.7", "HIPAA:164.312(b)", "NIST:AU-11", "FedRAMP:AU-11"],
-    "backup_status":        ["SOC2:A1.2",  "ISO27001:A.8.13", "PCI-DSS:12.3", "HIPAA:164.308(a)(7)", "NIST:CP-9", "DORA:Art.12"],
-    "config_change_log":    ["SOC2:CC8.1", "ISO27001:A.8.32", "PCI-DSS:6.5",  "HIPAA:164.312(b)", "NIST:CM-3", "FedRAMP:CM-3"],
-    "account_lifecycle":    ["SOC2:CC6.2", "ISO27001:A.5.18", "PCI-DSS:8.2",  "HIPAA:164.312(a)(1)", "NIST:AC-2", "GDPR:Art.5(1)(e)"],
-    "firewall_rules":       ["SOC2:CC6.6", "ISO27001:A.8.20", "PCI-DSS:1.3",  "HIPAA:164.312(e)(1)", "NIST:AC-17", "FedRAMP:AC-17"],
+    "access_logs": [
+        "SOC2:CC6.2", "SOC2_TYPE1:CC6.2", "SOC1_TYPE2:SOC1-LA.1", "SOC3:SOC3-CC6",
+        "ISO27001:A.8.15", "PCI-DSS:10.2", "HIPAA:164.312(b)",
+        "NIST_800_53:AU-2", "NIST_800_171:3.3.1", "FEDRAMP:AU-2",
+        "CIS_V8:CIS-8", "SWIFT_CSP:SWIFT-7.1", "NIS2:NIS2-21.2",
+        "SOX_ITGC:SOX-SA-4", "SOC_CYBER:SOCC-CC.7",
+    ],
+    "failed_logins": [
+        "SOC2:CC6.1", "SOC2_TYPE1:CC6.1", "ISO27001:A.8.5",
+        "PCI-DSS:10.2.4", "HIPAA:164.312(b)",
+        "NIST_800_53:AC-7", "NIST_800_171:3.5.1", "GDPR:Art.32",
+        "CIS_V8:CIS-6", "NIS2:NIS2-21.2", "SOC_CYBER:SOCC-CC.6",
+    ],
+    "privileged_access": [
+        "SOC2:CC6.3", "SOC2_TYPE1:CC6.3", "ISO27001:A.8.2",
+        "PCI-DSS:7.1", "HIPAA:164.312(a)(1)",
+        "NIST_800_53:AC-6", "NIST_800_171:3.1.5", "FEDRAMP:AC-6",
+        "CIS_V8:CIS-5", "SOX_ITGC:SOX-LA-3", "SWIFT_CSP:SWIFT-5.1",
+        "SOC1_TYPE2:SOC1-LA.3", "NIS2:NIS2-21.9",
+    ],
+    "account_changes": [
+        "SOC2:CC6.2", "ISO27001:A.5.18", "PCI-DSS:8.2",
+        "HIPAA:164.312(a)(2)", "NIST_800_53:AC-2", "NIST_800_171:3.1.1",
+        "CIS_V8:CIS-5", "SOX_ITGC:SOX-LA-1", "SOX_ITGC:SOX-LA-5",
+        "SOC1_TYPE2:SOC1-LA.2",
+    ],
+    "log_retention": [
+        "SOC2:CC7.2", "ISO27001:A.8.15", "PCI-DSS:10.7",
+        "HIPAA:164.312(b)", "NIST_800_53:AU-11", "NIST_800_171:3.3.1",
+        "FEDRAMP:AU-11", "CIS_V8:CIS-8", "NIS2:NIS2-21.1",
+        "SOX_ITGC:SOX-SA-4",
+    ],
+    "backup_status": [
+        "SOC2:A1.2", "SOC1_TYPE2:SOC1-BR.2", "ISO27001:A.8.13",
+        "PCI-DSS:12.3", "HIPAA:164.308(a)(7)",
+        "NIST_800_53:CP-9", "NIST_800_171:3.8.9", "DORA:Art.12",
+        "CIS_V8:CIS-11", "NIS2:NIS2-21.3", "SOX_ITGC:SOX-BR-2",
+        "SWIFT_CSP:SWIFT-1.1",
+    ],
+    "config_change_log": [
+        "SOC2:CC8.1", "ISO27001:A.8.32", "PCI-DSS:6.5",
+        "HIPAA:164.312(b)", "NIST_800_53:CM-3", "NIST_800_171:3.4.1",
+        "FEDRAMP:CM-3", "CIS_V8:CIS-4", "SOX_ITGC:SOX-CM-2",
+        "SOC1_TYPE2:SOC1-CM.2", "SWIFT_CSP:SWIFT-2.3",
+    ],
+    "account_lifecycle": [
+        "SOC2:CC6.2", "ISO27001:A.5.18", "PCI-DSS:8.2",
+        "HIPAA:164.312(a)(1)", "NIST_800_53:AC-2", "GDPR:Art.5(1)(e)",
+        "CIS_V8:CIS-5", "SOX_ITGC:SOX-LA-5",
+        "NIST_800_171:3.1.1", "CMMC_L2:3.1.1",
+    ],
+    "firewall_rules": [
+        "SOC2:CC6.6", "ISO27001:A.8.20", "PCI-DSS:1.3",
+        "HIPAA:164.312(e)(1)", "NIST_800_53:AC-17", "NIST_800_171:3.13.1",
+        "FEDRAMP:AC-17", "CIS_V8:CIS-12", "SWIFT_CSP:SWIFT-1.1",
+        "NIS2:NIS2-21.5", "SOC_CYBER:SOCC-CC.6",
+    ],
+    "vulnerability_scan": [
+        "SOC2:CC7.1", "ISO27001:A.8.8", "PCI-DSS:6.3.3",
+        "HIPAA:164.308(a)(1)", "NIST_800_53:RA-5", "NIST_800_171:3.11.2",
+        "CIS_V8:CIS-7", "FEDRAMP:RA-5", "CMMC_L2:3.11.2",
+        "SWIFT_CSP:SWIFT-2.7", "NIS2:NIS2-21.1",
+    ],
+    "mfa_status": [
+        "SOC2:CC6.1", "ISO27001:A.8.5", "PCI-DSS:8.4",
+        "HIPAA:164.308(a)(5)", "NIST_800_53:IA-2", "NIST_800_171:3.5.3",
+        "CIS_V8:CIS-6", "FEDRAMP:IA-2", "CMMC_L2:3.5.3",
+        "SWIFT_CSP:SWIFT-4.2", "NIS2:NIS2-21.10", "SOX_ITGC:SOX-LA-7",
+        "ISO27701:27701-7.3.2",
+    ],
+    "encryption_status": [
+        "SOC2:CC6.7", "ISO27001:A.8.24", "PCI-DSS:3.4",
+        "HIPAA:164.312(a)(2)(iv)", "NIST_800_53:SC-28",
+        "NIST_800_171:3.13.8", "CIS_V8:CIS-3", "SWIFT_CSP:SWIFT-2.1",
+        "NIS2:NIS2-21.8", "GDPR:Art.32",
+    ],
+    "incident_response": [
+        "SOC2:CC7.4", "SOC1_TYPE2:SOC1-CO.2", "ISO27001:A.5.26",
+        "PCI-DSS:12.10", "HIPAA:164.308(a)(6)",
+        "NIST_800_53:IR-4", "NIST_800_171:3.6.1", "DORA:Art.12",
+        "CIS_V8:CIS-17", "NIS2:NIS2-23", "SWIFT_CSP:SWIFT-7.1",
+        "SOC_CYBER:SOCC-IR.1", "NIST_AI_RMF:MANAGE-2.4",
+    ],
 }
 
 

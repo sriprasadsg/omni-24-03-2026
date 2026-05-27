@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/network-devices", tags=["Network"])
 
+_NET_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
 @router.get("")
 async def get_network_devices(
     current_user: Any = Depends(get_current_user)
@@ -20,13 +22,15 @@ async def get_network_devices(
     """
     db = get_database()
     
-    # Filter by user's tenant if not explicitly overridden by an admin (and logic permitted)
-    user_tenant_id = getattr(current_user, "tenant_id", None)
-    
-    query = {}
-    if user_tenant_id and user_tenant_id != "platform-admin":
+    user_role = getattr(current_user, "role", None)
+    user_tenant_id = getattr(current_user, "tenant_id", None) or None
+
+    query: dict = {}
+    if user_role not in _NET_SUPER_ROLES:
+        if not user_tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         query["tenantId"] = user_tenant_id
-        
+
     devices = await db.network_devices.find(query, {"_id": 0}).to_list(length=1000)
     return devices
 
@@ -40,19 +44,24 @@ async def add_network_device(
     """
     db = get_database()
     
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     
     device_id = f"net-dev-{uuid.uuid4().hex[:12]}"
-    
+
+    # Strip fields the caller must not control
+    _safe_data = {k: v for k, v in device_data.items() if k not in ("id", "tenantId", "_id")}
+
     new_device = {
+        **_safe_data,
         "id": device_id,
         "tenantId": tenant_id,
         "status": "Up",
         "lastSeen": datetime.datetime.now(timezone.utc).isoformat(),
-        "interfaces": [], 
-        "configBackups": [], 
+        "interfaces": [],
+        "configBackups": [],
         "vulnerabilities": [],
-        **device_data
     }
     
     
@@ -68,7 +77,9 @@ async def get_network_subnets(
     Get unique subnets from discovered devices.
     """
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     
     # Aggregation to find distinct subnets
     pipeline = [
@@ -103,8 +114,10 @@ async def trigger_server_scan(
         import uuid
         
         db = get_database()
-        tenant_id = getattr(current_user, "tenant_id", "default")
-        
+        tenant_id = getattr(current_user, "tenant_id", None) or None
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+
         # Run the scan with multi-network support
         logger.info("Starting server scan (scan_all_networks=%s, subnet=%s)", scan_all_networks, subnet)
         results = ServerDiscovery.start_scan(scan_all_networks=scan_all_networks, subnet=subnet)
@@ -248,9 +261,11 @@ async def get_network_topology(
         except ImportError:
             from network_topology_service import NetworkTopologyService
             
-        tenant_id = getattr(current_user, "tenant_id", "default")
+        tenant_id = getattr(current_user, "tenant_id", None) or None
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         topology_data = await NetworkTopologyService.get_topology_data(tenant_id)
-        
+
         return topology_data
     except Exception as e:
         logger.exception("Unhandled exception")

@@ -23,7 +23,9 @@ async def list_patches(
     """List all patches"""
     db = get_database()
     is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-    caller_tenant = getattr(current_user, "tenant_id", "default")
+    caller_tenant = getattr(current_user, "tenant_id", None) or None
+    if not caller_tenant and not is_admin:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     if tenant_id and not is_admin and tenant_id != caller_tenant:
         raise HTTPException(status_code=403, detail="Not authorized to view patches for this tenant")
     effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
@@ -78,7 +80,11 @@ async def create_deployment_job(
 
         job_id = f"job-{int(datetime.now(timezone.utc).timestamp())}"
         is_immediate = request.deployment_type != "Scheduled"
-        tenant_id = request.tenantId or getattr(current_user, "tenant_id", "default")
+        is_admin_caller = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        tenant_id = (request.tenantId if is_admin_caller else None) or caller_tenant
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         now = datetime.now(timezone.utc).isoformat()
 
         job = {
@@ -187,7 +193,10 @@ async def list_deployment_jobs(
     if tenant_id:
         query["tenantId"] = tenant_id
     elif not is_admin:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _caller_t = getattr(current_user, "tenant_id", None) or None
+        if not _caller_t:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = _caller_t
     jobs = await db.patch_deployment_jobs.find(query, {"_id": 0}).to_list(length=100)
     return jobs
 
@@ -202,12 +211,17 @@ async def apply_software_update(
     try:
         db = get_database()
         
-        # Verify agent exists and is online
-        agent = await db.agents.find_one({"id": request.agent_id})
+        # Verify agent exists and is online — scope to caller's tenant for non-admins
+        _caller_role = getattr(_current_user, "role", None) if hasattr(_current_user, "role") else None
+        _caller_tid = getattr(_current_user, "tenant_id", None) or None
+        _agent_q: dict = {"id": request.agent_id}
+        if _caller_role not in _PATCH_ADMIN_ROLES and _caller_tid:
+            _agent_q["tenantId"] = _caller_tid
+        agent = await db.agents.find_one(_agent_q)
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
-            
-        tenant_id = agent.get("tenantId", "global")
+
+        tenant_id = agent.get("tenantId") or None
         repo_pkg = await db.local_repo.find_one({
             "tenantId": tenant_id, "pkg_name": request.package_name, "pkg_type": request.pkg_type
         }, sort=[("uploaded_at", -1)])
@@ -244,10 +258,15 @@ async def apply_bulk_software_update(
     """
     try:
         db = get_database()
+        _bulk_role = getattr(_current_user, "role", None)
+        _bulk_tid = getattr(_current_user, "tenant_id", None) or None
         instructions = []
-        for update in request.updates:
-            agent = await db.agents.find_one({"id": update.agent_id})
-            tenant_id = agent.get("tenantId", "global") if agent else "global"
+        for update in request.updates[:100]:
+            _bulk_q: dict = {"id": update.agent_id}
+            if _bulk_role not in _PATCH_ADMIN_ROLES and _bulk_tid:
+                _bulk_q["tenantId"] = _bulk_tid
+            agent = await db.agents.find_one(_bulk_q)
+            tenant_id = agent.get("tenantId") or None if agent else None
             
             repo_pkg = await db.local_repo.find_one({
                 "tenantId": tenant_id, "pkg_name": update.package_name, "pkg_type": update.pkg_type
@@ -288,11 +307,16 @@ async def apply_os_patches(
     try:
         db = get_database()
         
-        # Verify agent exists
-        agent = await db.agents.find_one({"id": request.agent_id})
+        # Verify agent exists — scope to caller's tenant for non-admins
+        _os_role = getattr(_current_user, "role", None)
+        _os_tid = getattr(_current_user, "tenant_id", None) or None
+        _os_q: dict = {"id": request.agent_id}
+        if _os_role not in _PATCH_ADMIN_ROLES and _os_tid:
+            _os_q["tenantId"] = _os_tid
+        agent = await db.agents.find_one(_os_q)
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
-            
+
         job_id = f"patch-job-{int(datetime.now(timezone.utc).timestamp())}"
         
         # Agent expects format "Install Patches: KB123 KB456 Job: job-id"
@@ -384,7 +408,9 @@ async def enrich_all_patches(
     try:
         db = get_database()
         is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-        caller_tenant = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant and not is_admin:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         if tenant_id and not is_admin and tenant_id != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
@@ -443,7 +469,9 @@ async def get_prioritized_patches(
     try:
         db = get_database()
         is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-        caller_tenant = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant and not is_admin:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         if tenant_id and not is_admin and tenant_id != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
@@ -480,7 +508,9 @@ async def get_compliance_status(
     try:
         db = get_database()
         is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-        caller_tenant = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant and not is_admin:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         if tenant_id and not is_admin and tenant_id != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
@@ -558,7 +588,9 @@ async def trigger_live_software_scan(
     try:
         db = get_database()
         is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-        caller_tenant = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant and not is_admin:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         if tenant_id and not is_admin and tenant_id != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
@@ -614,7 +646,9 @@ async def get_outdated_software(
     try:
         db = get_database()
         is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-        caller_tenant = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant and not is_admin:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         if tenant_id and not is_admin and tenant_id != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
@@ -686,7 +720,9 @@ async def get_os_patches(
     try:
         db = get_database()
         is_admin = getattr(current_user, "role", "") in _PATCH_ADMIN_ROLES
-        caller_tenant = getattr(current_user, "tenant_id", "default")
+        caller_tenant = getattr(current_user, "tenant_id", None) or None
+        if not caller_tenant and not is_admin:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         if tenant_id and not is_admin and tenant_id != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant

@@ -12,10 +12,14 @@ class ScanRequest(BaseModel):
 
 @router.post("/scan")
 async def scan_packages(req: ScanRequest, current_user=Depends(get_current_user)):
-    return await supply_chain_service.scan_package_list(
-        req.packages, current_user.tenant_id or "default"
-    )
+    tenant_id = current_user.tenant_id or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return await supply_chain_service.scan_package_list(req.packages, tenant_id)
 
 @router.get("/findings")
 async def list_findings(current_user=Depends(get_current_user)):
-    return await supply_chain_service.list_findings(current_user.tenant_id or "default")
+    tenant_id = current_user.tenant_id or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return await supply_chain_service.list_findings(tenant_id)

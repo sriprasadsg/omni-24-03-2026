@@ -1,7 +1,7 @@
 import requests
 import sys
 
-base_url = "http://127.0.0.1:8000/api/assets/asset-EILT0197/metrics"
+base_url = "http://127.0.0.1:5000/api/assets/asset-EILT0197/metrics"
 
 ranges = ["1h", "24h", "7d", "30d"]
 

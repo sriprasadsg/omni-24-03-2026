@@ -2,7 +2,7 @@ import requests
 import json
 
 try:
-    response = requests.get("http://127.0.0.1:8000/api/agents")
+    response = requests.get("http://127.0.0.1:5000/api/agents")
     data = response.json()
     print(f"Status: {response.status_code}")
     if len(data) > 0:

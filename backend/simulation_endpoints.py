@@ -21,7 +21,9 @@ async def trigger_process_injection(
     agent_id = data.get("agentId")
     technique = data.get("technique", "memory_write")
     target = data.get("target", "notepad.exe")
-    tenant_id = getattr(current_user, "tenant_id", None) or "default"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     
     if not agent_id:
         raise HTTPException(status_code=400, detail="agentId is required")
@@ -77,7 +79,9 @@ async def trigger_process_injection(
 @router.get("/history")
 async def get_simulation_history(current_user: TokenData = Depends(get_current_user)):
     """Get history of simulations"""
-    tenant_id = getattr(current_user, "tenant_id", None) or "default"
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     db = get_database()
     history = await db.simulations.find({"tenantId": tenant_id}, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
     return history

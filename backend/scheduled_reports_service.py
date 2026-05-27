@@ -160,7 +160,7 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
     if "frequency" in data:
         update["next_run"] = _calculate_next_run(data["frequency"], data.get("send_at_hour", 8)).isoformat()
 
-    result = await db.report_schedules.update_one({"id": schedule_id}, {"$set": update})
+    result = await db.report_schedules.update_one(query, {"$set": update})
     return result.modified_count > 0
 
 
@@ -190,7 +190,7 @@ async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[st
     now = datetime.now(timezone.utc).isoformat()
     next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
     await db.report_schedules.update_one(
-        {"id": schedule_id},
+        query,
         {"$set": {"last_run": now, "next_run": next_run.isoformat()}, "$inc": {"run_count": 1}},
     )
 

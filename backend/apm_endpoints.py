@@ -13,6 +13,8 @@ from database import get_database
 from apm_service import get_apm_service
 from rbac_utils import require_permission
 
+_APM_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
 router = APIRouter(prefix="/api/apm", tags=["APM"])
 
 
@@ -138,8 +140,13 @@ async def acknowledge_alert(
     actor = getattr(current_user, "username", None) or (
         current_user.get("email") if isinstance(current_user, dict) else None
     )
+    caller_role = current_user.get("role", "") if isinstance(current_user, dict) else getattr(current_user, "role", "")
+    caller_tenant = current_user.get("tenant_id") if isinstance(current_user, dict) else getattr(current_user, "tenant_id", None)
+    alert_filter: dict = {"_id": alert_id}
+    if caller_role not in _APM_SUPER_ROLES and caller_tenant:
+        alert_filter["tenantId"] = caller_tenant
     result = await db.apm_alerts.update_one(
-        {"_id": alert_id},
+        alert_filter,
         {"$set": {"acknowledged": True, "acknowledged_by": actor}}
     )
 

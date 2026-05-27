@@ -19,7 +19,11 @@ async def repair_assets():
     for agent in agents:
         agent_id = agent.get("id")
         hostname = agent.get("hostname")
-        tenant_id = agent.get("tenantId", "default")
+        tenant_id = agent.get("tenantId") or None
+        if not tenant_id:
+            print(f"⚠️ Skipping agent {agent_id} (no tenantId)")
+            skipped_count += 1
+            continue
         
         if not hostname:
             print(f"⚠️ Skipping agent {agent_id} (no hostname)")

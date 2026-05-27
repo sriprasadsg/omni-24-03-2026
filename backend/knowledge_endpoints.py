@@ -184,6 +184,9 @@ async def ingest_knowledge(
     db = get_database()
     await _ensure_text_index(db)
 
+    insert_tenant = getattr(current_user, "tenant_id", None) or None
+    if not insert_tenant:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     doc_id = f"kb-{uuid.uuid4().hex[:12]}"
     doc = {
         "id": doc_id,
@@ -191,7 +194,7 @@ async def ingest_knowledge(
         "title": data.get("title", content[:80]),
         "source": data.get("source", "manual"),
         "tags": data.get("tags", []),
-        "tenantId": getattr(current_user, "tenant_id", "default"),
+        "tenantId": insert_tenant,
         "createdBy": getattr(current_user, "username", "system"),
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -217,7 +220,9 @@ async def query_knowledge(
     db = get_database()
     await _ensure_text_index(db)
 
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
 
     try:
         cursor = db.knowledge_docs.find(
@@ -273,7 +278,9 @@ async def list_docs(
 ):
     """List all knowledge base documents for the current tenant."""
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     docs = await db.knowledge_docs.find(
         {"$or": [{"tenantId": tenant_id}, {"tenantId": "global"}]},
         {"_id": 0, "content": 0},
@@ -288,7 +295,9 @@ async def delete_doc(
 ):
     """Delete a knowledge base document."""
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", "default")
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     result = await db.knowledge_docs.delete_one({"id": doc_id, "tenantId": tenant_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")

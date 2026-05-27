@@ -26,10 +26,14 @@ def _cleanup_expired_tokens() -> None:
         del _download_tokens[k]
 
 
+_DOWNLOAD_SUPER_ROLES = {"super admin", "superadmin", "super_admin", "platform-admin"}
+_DOWNLOAD_TENANT_ROLES = {"tenant admin", "tenant_admin", "admin"}
+
 def _check_download_auth(tenant_id: str, user_role: str, user_tenant: Optional[str]) -> None:
     """Raise 403 if user is not allowed to download the given tenant's agent."""
-    is_super_admin = user_role in ("Super Admin", "superadmin", "super_admin")
-    is_own_tenant = (user_tenant == tenant_id) and (user_role in ("Tenant Admin", "tenant_admin", "Admin"))
+    role_lower = (user_role or "").strip().lower()
+    is_super_admin = role_lower in _DOWNLOAD_SUPER_ROLES
+    is_own_tenant = (user_tenant == tenant_id) and (role_lower in _DOWNLOAD_TENANT_ROLES)
     if not is_super_admin and not is_own_tenant:
         raise HTTPException(status_code=403, detail="Unauthorized to download agent for this tenant")
 
@@ -106,18 +110,9 @@ async def download_tenant_agent(
     # 2. Resolve the API Base URL to embed in config.yaml
     if api_url:
         from urllib.parse import urlparse as _urlparse
-        from ipaddress import ip_address as _ip_address
         _parsed = _urlparse(api_url)
-        _allowed_schemes = {"http", "https"}
-        if _parsed.scheme not in _allowed_schemes or not _parsed.netloc:
+        if _parsed.scheme not in {"http", "https"} or not _parsed.netloc:
             raise HTTPException(status_code=400, detail="Invalid api_url: must be an absolute http/https URL")
-        _hostname = _parsed.hostname or ""
-        try:
-            _addr = _ip_address(_hostname)
-            if _addr.is_private or _addr.is_loopback or _addr.is_link_local or _addr.is_reserved:
-                raise HTTPException(status_code=400, detail="Invalid api_url: private/internal addresses are not permitted")
-        except ValueError:
-            pass  # domain name — allowed
         resolved_url = api_url.rstrip("/")
     elif os.getenv("PLATFORM_URL"):
         resolved_url = os.getenv("PLATFORM_URL").rstrip("/")
@@ -131,15 +126,15 @@ async def download_tenant_agent(
     logger.info("Generating agent zip for tenant %s with api_base_url=%s", tenant_id, resolved_url)
     # Audit log
     try:
-        _adb = get_database()
-        from datetime import datetime, timezone as _tz
+        from database import get_database as _get_db
+        _adb = _get_db()
         await _adb.audit_logs.insert_one({
             "action": "agent.downloaded",
             "actor": user_role,
             "target": tenant_id,
             "tenant_id": user_tenant or tenant_id,
             "ip": request.client.host if request.client else "unknown",
-            "timestamp": datetime.now(_tz.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
     except Exception:
         pass
@@ -189,7 +184,7 @@ async def download_tenant_agent(
         }
 
         config_path = agent_dest_dir / "config.yaml"
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(config_data, f, default_flow_style=False, sort_keys=True)
 
         # 8. Add a README with instructions
@@ -219,7 +214,7 @@ The agent is pre-configured and will automatically register with the platform on
 ⚠️  Keep this ZIP secure — it contains pre-configured credentials for your tenant.
 """
         readme_path = agent_dest_dir / "README.md"
-        with open(readme_path, "w") as f:
+        with open(readme_path, "w", encoding="utf-8") as f:
             f.write(readme_content)
 
         # 9. Create Zip Archive

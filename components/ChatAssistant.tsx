@@ -1,11 +1,17 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChatMessage } from '../types';
 import { getChatAssistantResponse } from '../services/apiService';
-// FIX: Replaced non-existent BotMessageSquareIcon with MessageSquareQuoteIcon and added missing SendIcon.
 import { XIcon, MessageSquareQuoteIcon, SendIcon, SparklesIcon, UserIcon, AlertTriangleIcon } from './icons';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+interface SkillDef {
+  name: string;
+  description: string;
+  usage: string;
+  category: string;
+}
 
 interface ChatAssistantProps {
   isOpen: boolean;
@@ -34,30 +40,73 @@ const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-
 export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, context, onNavigate }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMockMode, setIsMockMode] = useState(false);
+  const [skills, setSkills] = useState<SkillDef[]>([]);
+  const [activeSuggestion, setActiveSuggestion] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setMessages([{
       role: 'assistant',
-      content: `Hello! I'm the Omni-Agent AI. I have context on the current **${context.currentView}** page. Ask me to analyze data, correlate metrics, or even ask business questions like "Did the last deployment impact revenue?"`
+      content: `Hello! I'm the Omni-Agent AI. I have context on the current **${context.currentView}** page. Ask me anything, or type \`/\` for a list of quick skills.`
     }]);
-    // Check whether the backend is running in mock / unconfigured LLM mode
     fetch(`${API_BASE}/api/ai`)
       .then(r => r.json())
       .then(d => setIsMockMode(!!d.is_mock_mode))
+      .catch(() => {});
+    fetch(`${API_BASE}/api/ai/skills`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: SkillDef[]) => setSkills(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [isOpen, context.currentView]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Reset active suggestion when the query changes
+  useEffect(() => {
+    setActiveSuggestion(0);
+  }, [input]);
+
+  const showSuggestions = input.startsWith('/') && skills.length > 0;
+  const query = input.slice(1).toLowerCase();
+  const filteredSkills = showSuggestions
+    ? skills.filter(s =>
+        !query ||
+        s.name.startsWith(query) ||
+        s.description.toLowerCase().includes(query)
+      )
+    : [];
+
+  const selectSkill = useCallback((skill: SkillDef) => {
+    const hasParams = skill.usage.includes('<');
+    setInput(hasParams ? `/${skill.name} ` : `/${skill.name}`);
+    setActiveSuggestion(0);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || filteredSkills.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveSuggestion(i => Math.min(i + 1, filteredSkills.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveSuggestion(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      selectSkill(filteredSkills[activeSuggestion]);
+    } else if (e.key === 'Escape') {
+      setInput('');
+    }
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,14 +119,12 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
 
     try {
       const response = await getChatAssistantResponse(input.trim(), context);
-      const assistantMessage: ChatMessage = { role: 'assistant', content: response };
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (error) {
-      const errorMessage: ChatMessage = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
         content: `Sorry, I encountered an error. ${error instanceof Error ? error.message : 'Please check the console for details.'}`
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -87,7 +134,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end items-end" onClick={onClose}>
-      <div 
+      <div
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md h-[70vh] m-6 flex flex-col"
         onClick={e => e.stopPropagation()}
       >
@@ -100,16 +147,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
             <XIcon size={20} />
           </button>
         </header>
-        
+
         {isMockMode && (
           <div className="flex-shrink-0 flex items-start gap-2 px-4 py-2 bg-yellow-50 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-700/50 text-xs text-yellow-800 dark:text-yellow-300">
             <AlertTriangleIcon size={14} className="mt-0.5 flex-shrink-0" />
             <span>Running in limited mode — no LLM configured. Set <strong>GEMINI_API_KEY</strong> or <strong>OLLAMA_URL</strong>, or{' '}
               {onNavigate ? (
-                <button
-                  onClick={() => { onNavigate('settings'); onClose(); }}
-                  className="underline font-semibold hover:opacity-75"
-                >
+                <button onClick={() => { onNavigate('settings'); onClose(); }} className="underline font-semibold hover:opacity-75">
                   configure LLM provider
                 </button>
               ) : (
@@ -118,6 +162,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
             </span>
           </div>
         )}
+
         <main className="flex-grow p-4 overflow-y-auto space-y-4">
           {messages.map((message, index) => (
             <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
@@ -127,9 +172,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
                 </div>
               )}
               <div className={`p-3 rounded-lg max-w-xs ${message.role === 'user' ? 'bg-primary-500 text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                 <FormattedMarkdown content={message.content} />
+                <FormattedMarkdown content={message.content} />
               </div>
-               {message.role === 'user' && (
+              {message.role === 'user' && (
                 <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
                   <UserIcon size={18} />
                 </div>
@@ -150,26 +195,58 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
           )}
           <div ref={chatEndRef} />
         </main>
-        
-        <footer className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
-          <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="Ask about the data on this page..."
-              disabled={isLoading}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="h-9 w-9 flex-shrink-0 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:bg-primary-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              aria-label="Send message"
-            >
-              <SendIcon size={18} />
-            </button>
-          </form>
+
+        <footer className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
+          {/* Skill autocomplete dropdown */}
+          {showSuggestions && filteredSkills.length > 0 && (
+            <div className="border-b border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+              {filteredSkills.map((skill, i) => (
+                <button
+                  key={skill.name}
+                  type="button"
+                  onClick={() => selectSkill(skill)}
+                  className={`w-full flex items-start gap-3 px-4 py-2 text-left transition-colors ${
+                    i === activeSuggestion
+                      ? 'bg-primary-50 dark:bg-primary-900/30'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  }`}
+                >
+                  <span className="flex-shrink-0 mt-0.5 font-mono text-xs text-primary-600 dark:text-primary-400 w-28 truncate">
+                    /{skill.name}
+                  </span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
+                    {skill.description}
+                  </span>
+                </button>
+              ))}
+              <p className="px-4 py-1.5 text-xs text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700">
+                ↑↓ navigate · Tab complete · Enter send
+              </p>
+            </div>
+          )}
+
+          <div className="p-4">
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask a question or type / for skills…"
+                disabled={isLoading}
+                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="h-9 w-9 flex-shrink-0 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:bg-primary-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                aria-label="Send message"
+              >
+                <SendIcon size={18} />
+              </button>
+            </form>
+          </div>
         </footer>
       </div>
     </div>

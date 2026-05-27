@@ -21,6 +21,8 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+_CISSP_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
 router = APIRouter(prefix="/api/cissp", tags=["CISSP Oracle"])
 
 # ── CISSP Domain Reference Knowledge Base ────────────────────────────────────
@@ -468,7 +470,10 @@ async def trigger_cissp_assessment(request: Dict[str, Any], background_tasks: Ba
         agent = await db.agents.find_one({"status": "Online"}, {"hostname": 1})
         hostname = agent.get("hostname", "localhost") if agent else "localhost"
 
-    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
+    _role = getattr(current_user, "role", None)
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None
+    if not tenant_id and _role not in _CISSP_SUPER_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     assessment_id = f"cissp-{uuid.uuid4().hex[:8]}"
 
     async def _run_and_store(assessment_id: str, hostname: str, tenant_id: str):
@@ -518,8 +523,14 @@ async def get_cissp_assessment(assessment_id: str, current_user=Depends(get_curr
     """Retrieve a stored CISSP assessment report by ID."""
     from database import get_database
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
-    record = await db.cissp_assessments.find_one({"id": assessment_id, "tenantId": tenant_id}, {"_id": 0})
+    _role = getattr(current_user, "role", None)
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None
+    if not tenant_id and _role not in _CISSP_SUPER_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    query = {"id": assessment_id}
+    if _role not in _CISSP_SUPER_ROLES:
+        query["tenantId"] = tenant_id
+    record = await db.cissp_assessments.find_one(query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return {"success": True, "assessment": record}
@@ -530,7 +541,11 @@ async def list_cissp_assessments(current_user=Depends(get_current_user)):
     """List all stored CISSP assessments."""
     from database import get_database
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", "default")
-    cursor = db.cissp_assessments.find({"tenantId": tenant_id}, {"_id": 0, "result.domains": 0}).sort("completedAt", -1).limit(20)
+    _role = getattr(current_user, "role", None)
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None
+    if not tenant_id and _role not in _CISSP_SUPER_ROLES:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    list_query: dict = {} if _role in _CISSP_SUPER_ROLES else {"tenantId": tenant_id}
+    cursor = db.cissp_assessments.find(list_query, {"_id": 0, "result.domains": 0}).sort("completedAt", -1).limit(20)
     records = await cursor.to_list(length=20)
     return {"success": True, "assessments": records, "count": len(records)}

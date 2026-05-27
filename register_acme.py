@@ -1,7 +1,7 @@
 import requests
 import json
 
-url = "http://localhost:8000/api/auth/signup"
+url = "http://localhost:5000/api/auth/signup"
 payload = {
     "companyName": "Acme Corp",
     "name": "Admin User",

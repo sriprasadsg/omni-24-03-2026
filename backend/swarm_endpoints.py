@@ -268,7 +268,9 @@ async def get_swarm_peers(
     if not agent:
         return {"peers": []}
 
-    tenant_id = agent.get("tenantId", "default")
+    tenant_id = agent.get("tenantId") or None
+    if not tenant_id:
+        return {"peers": []}
     peers_cursor = db.agents.find(
         {
             "tenantId": tenant_id,

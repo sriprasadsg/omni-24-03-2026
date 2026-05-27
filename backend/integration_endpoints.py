@@ -15,7 +15,11 @@ def _resolve_tenant(current_user, requested_tenant_id: Optional[str] = None) -> 
     role = getattr(current_user, "role", "") or ""
     if role in _SUPER_ADMIN_ROLES and requested_tenant_id:
         return requested_tenant_id
-    return getattr(current_user, "tenant_id", None) or "default"
+    tid = getattr(current_user, "tenant_id", None) or None
+    if not tid:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tid
 
 
 # --- Models ---

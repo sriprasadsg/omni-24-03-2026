@@ -118,9 +118,74 @@ async def migrate_instructions_tenant_ids():
                 
         logger.info(f"[Migration] Successfully migrated {updated_count} and pruned {deleted_count} agent instructions.")
         print(f"[Migration] Successfully migrated {updated_count} and pruned {deleted_count} agent instructions.")
-        
+
     except Exception as e:
         logger.error(f"[Migration] Error migrating agent instructions: {e}")
         print(f"[Migration] Error migrating agent instructions: {e}")
+    finally:
+        set_tenant_id(old_tenant_id)
+
+
+async def seed_compliance_frameworks():
+    """
+    Idempotent seed: runs seed_compliance.py as a child process when the
+    compliance_frameworks collection is empty. No-ops on subsequent startups.
+    Uses create_subprocess_exec (no shell) with a fixed script path — no injection risk.
+    """
+    import asyncio as _asyncio
+    import os as _os
+    import sys as _sys
+    db = get_database()
+    old_tid = get_tenant_id()
+    set_tenant_id("platform-admin")
+    try:
+        count = await db._db.compliance_frameworks.count_documents({})
+        if count > 0:
+            logger.debug("[Migration] Compliance frameworks already present (%d), skipping.", count)
+            return
+        script_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "seed_compliance.py")
+        interpreter = _sys.executable
+        proc = await _asyncio.create_subprocess_exec(
+            interpreter, script_path,
+            stdout=_asyncio.subprocess.PIPE,
+            stderr=_asyncio.subprocess.PIPE,
+            cwd=_os.path.dirname(_os.path.abspath(__file__)),
+        )
+        _stdout, _stderr = await proc.communicate()
+        if proc.returncode == 0:
+            logger.info("[Migration] Compliance frameworks seeded via child process.")
+        else:
+            logger.error("[Migration] Compliance seed failed (rc=%d): %s",
+                         proc.returncode, _stderr.decode(errors="replace")[-400:])
+    except Exception as e:
+        logger.error("[Migration] Error seeding compliance frameworks: %s", e)
+    finally:
+        set_tenant_id(old_tid)
+
+
+async def migrate_tenant_registration_keys():
+    """
+    Backfill migration: ensures every tenant document has a registrationKey.
+    Tenants created before the key generation was added will be missing this field.
+    """
+    import secrets as _secrets
+    db = get_database()
+    old_tenant_id = get_tenant_id()
+    set_tenant_id("platform-admin")
+    try:
+        cursor = db._db.tenants.find(
+            {"$or": [{"registrationKey": {"$exists": False}}, {"registrationKey": None}]},
+            {"_id": 1, "id": 1, "name": 1}
+        )
+        docs = await cursor.to_list(length=1000)
+        count = 0
+        for doc in docs:
+            key = f"reg_{_secrets.token_hex(16)}"
+            await db._db.tenants.update_one({"_id": doc["_id"]}, {"$set": {"registrationKey": key}})
+            count += 1
+        if count:
+            logger.info("[Migration] Backfilled registrationKey for %d tenant(s).", count)
+    except Exception as e:
+        logger.error("[Migration] Error backfilling tenant registration keys: %s", e)
     finally:
         set_tenant_id(old_tenant_id)

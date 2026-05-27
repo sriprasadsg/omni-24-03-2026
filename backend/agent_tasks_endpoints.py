@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_tasks_endpoints")
 
 APPROVALS_COLLECTION = "agent_approvals"
+_TASK_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
 
 class ApprovalRequestModel(BaseModel):
@@ -153,8 +154,15 @@ async def trigger_network_scan(
 ):
     """Trigger a network scan on the agent."""
     db = get_database()
+    _scan_role = getattr(current_user, "role", None)
+    _scan_query: dict = {"id": agent_id}
+    if _scan_role not in _TASK_SUPER_ROLES:
+        _scan_tid = getattr(current_user, "tenant_id", None) or None
+        if not _scan_tid:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        _scan_query["tenantId"] = _scan_tid
 
-    agent = await db.agents.find_one({"id": agent_id})
+    agent = await db.agents.find_one(_scan_query)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -219,7 +227,7 @@ async def report_network_scan_results(
         }
 
         await db.network_devices.update_one(
-            {"id": device_id},
+            {"id": device_id, "tenantId": tenant_id},
             {"$set": live_fields, "$setOnInsert": {"interfaces": [], "configBackups": []}},
             upsert=True,
         )
@@ -258,7 +266,10 @@ async def get_pending_approvals(
     query: Dict[str, Any] = {"status": "pending"}
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _tid = getattr(current_user, "tenant_id", None) or None
+        if not _tid:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = _tid
     approvals = await db[APPROVALS_COLLECTION].find(query, {"_id": 0}).to_list(length=500)
     return approvals
 
@@ -310,7 +321,10 @@ async def list_all_agentic_decisions(
         query["status"] = status
     user_role = getattr(current_user, "role", "user")
     if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
-        query["tenantId"] = getattr(current_user, "tenant_id", "default")
+        _tid = getattr(current_user, "tenant_id", None) or None
+        if not _tid:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = _tid
     cursor = db.agentic_decisions.find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
     decisions = await cursor.to_list(limit)
     return {
@@ -423,9 +437,10 @@ async def update_safety_rules(
         caller_tenant = getattr(current_user, "tenant_id", None)
         if caller_tenant and caller_tenant != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this agent's rules")
+    _safe_payload = {k: v for k, v in payload.items() if k not in ("tenant_id", "tenantId", "_id", "id")}
     await db.agent_safety_rules.update_one(
         {"tenant_id": tenant_id},
-        {"$set": {**payload, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {**_safe_payload, "tenant_id": tenant_id, "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True,
     )
     return {"success": True, "tenant_id": tenant_id}

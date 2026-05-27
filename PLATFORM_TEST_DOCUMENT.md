@@ -66,7 +66,7 @@
 | B7 | Get single agent detail | GET `/api/agents/:id` | Full agent doc with capabilities list | | |
 | B8 | Agent install instructions | GET `/api/agents/install/:tenant_id` | Returns install script / token | | |
 | B9 | Agent capability management | POST `/api/agents/:id/capabilities` `{enable:["yara_scan"]}` | Capability list updated | | |
-| B10 | Remote shell WebSocket | WS `ws://localhost:8000/ws/remote/:agent_id` → send "ls" | Echo or command response | | |
+| B10 | Remote shell WebSocket | WS `ws://localhost:5000/ws/remote/:agent_id` → send "ls" | Echo or command response | | |
 | B11 | Fleet summary stats | GET `/api/agents/stats` | `{online, offline, total}` counts | | |
 | B12 | Agent integrity verify | POST `/api/agents/:id/verify-integrity` | 200 + hash validation result | | |
 
@@ -512,35 +512,35 @@ Run these 10 commands in order. All must pass for the platform to be considered 
 
 ```bash
 # 1. Health check
-curl -s http://localhost:8000/api/health | python -m json.tool
+curl -s http://localhost:5000/api/health | python -m json.tool
 
 # 2. Login + save token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"super@omni.ai","password":"password123"}' \
   | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
 # 3. List attack patterns
-curl -s http://localhost:8000/api/correlations/patterns/list \
+curl -s http://localhost:5000/api/correlations/patterns/list \
   -H "Authorization: Bearer $TOKEN" | python -m json.tool
 
 # 4. List playbooks
-curl -s http://localhost:8000/api/playbooks \
+curl -s http://localhost:5000/api/playbooks \
   -H "Authorization: Bearer $TOKEN" | python -m json.tool
 
 # 5. Check threat feed collection in DB
-curl -s "http://localhost:8000/api/threat-intel/feed" \
+curl -s "http://localhost:5000/api/threat-intel/feed" \
   -H "Authorization: Bearer $TOKEN" | python -m json.tool
 
 # 6. Create a security event
-curl -s -X POST http://localhost:8000/api/security-events \
+curl -s -X POST http://localhost:5000/api/security-events \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"event_type":"ransomware_detected","source_ip":"10.0.0.1","severity":"critical","description":"Test"}' \
   | python -m json.tool
 
 # 7. Run manual correlation
-curl -s -X POST http://localhost:8000/api/correlations/run \
+curl -s -X POST http://localhost:5000/api/correlations/run \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"tenant_id":"platform-admin","time_window_minutes":60}' \
@@ -565,7 +565,7 @@ print('role:', data.get('role'))
 "
 
 # 10. List roles
-curl -s http://localhost:8000/api/roles \
+curl -s http://localhost:5000/api/roles \
   -H "Authorization: Bearer $TOKEN" | python -m json.tool
 ```
 

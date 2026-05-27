@@ -15,7 +15,7 @@ async def get_historical_data(current_user: TokenData = Depends(get_current_user
     """Compute 6-month historical trend data from live collections."""
     is_admin = getattr(current_user, "role", "") in _ADMIN_ROLES
     if is_admin:
-        set_tenant_id("platform-admin")
+        set_tenant_id(None)
     db = get_database()
     tenant_id = None if is_admin else getattr(current_user, "tenant_id", None)
 

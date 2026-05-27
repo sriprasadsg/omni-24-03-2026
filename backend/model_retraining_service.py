@@ -159,11 +159,11 @@ class ModelRetrainingService:
         target = await db.ml_models.find_one(model_filter, {"_id": 0})
         if not target:
             raise ValueError("Model not found")
-        await db.ml_models.update_many(
-            {"name": target["name"], "stage": "Production"},
-            {"$set": {"stage": "Archived"}}
-        )
-        await db.ml_models.update_one({"id": model_id}, {"$set": {"stage": "Production"}})
+        archive_filter: dict = {"name": target["name"], "stage": "Production"}
+        if tenant_id:
+            archive_filter["tenant_id"] = tenant_id
+        await db.ml_models.update_many(archive_filter, {"$set": {"stage": "Archived"}})
+        await db.ml_models.update_one(model_filter, {"$set": {"stage": "Production"}})
         target["stage"] = "Production"
         return target
 

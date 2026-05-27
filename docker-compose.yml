@@ -3,7 +3,7 @@ version: "3.9"
 services:
   # ── MongoDB ────────────────────────────────────────────────
   mongo:
-    image: mongo:7.0
+    image: mongo:8.0
     container_name: omniagent-mongo
     restart: unless-stopped
     environment:
@@ -20,7 +20,7 @@ services:
 
   # ── Redis (rate limiting & caching) ───────────────────────
   redis:
-    image: redis:7.2-alpine
+    image: redis:8.0-alpine
     container_name: omniagent-redis
     restart: unless-stopped
     ports:
@@ -62,7 +62,7 @@ services:
 
   # ── Vite Frontend ──────────────────────────────────────────
   frontend:
-    image: node:20-alpine
+    image: node:24-alpine
     container_name: omniagent-frontend
     restart: unless-stopped
     working_dir: /app

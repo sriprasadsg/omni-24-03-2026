@@ -142,16 +142,32 @@ class SquareGateway(PaymentGatewayInterface):
             raise
 
     async def get_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        return []
+        try:
+            result = self.client.invoices.list_invoices(location_id=self.location_id)
+            if result.is_success():
+                invoices = result.body.get("invoices", [])
+                if customer_id:
+                    invoices = [
+                        inv for inv in invoices
+                        if inv.get("primary_recipient", {}).get("customer_id") == customer_id
+                    ]
+                return invoices[:limit]
+            logger.error("Square list_invoices failed: %s", result.errors)
+            return []
+        except Exception as e:
+            logger.error("Square get_invoices failed: %s", e)
+            return []
 
     async def verify_webhook(self, payload: bytes, signature: str, secret: str) -> bool:
-        # In production, use Square's webhook verification helper:
-        # from square.webhook_helpers import WebhookHelper
-        # return WebhookHelper.is_valid_webhook_event_signature(payload, signature, secret, self.client.base_url)
-        
-        # For this implementation, we simulate verification using a basic check
-        # and recommend the above for production-grade security.
-        return len(signature) > 10 # Basic non-triviality check for simulation
+        try:
+            from square.webhook_helpers import WebhookHelper
+            notification_url = self.credentials.get("webhook_url", "")
+            return WebhookHelper.is_valid_webhook_event_signature(
+                payload.decode(), signature, secret, notification_url
+            )
+        except Exception as e:
+            logger.error("Square webhook verification failed: %s", e)
+            return False
 
     async def construct_webhook_event(self, payload: bytes, signature: str, secret: str) -> Dict[str, Any]:
         import json

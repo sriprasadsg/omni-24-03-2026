@@ -61,8 +61,8 @@ print_info "Checking Python 3 version..."
 if command -v python3 &> /dev/null; then
     PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
     print_info "Found Python $PY_VER"
-    if [ "$(get_version_number $PY_VER)" -lt "$(get_version_number 3.10)" ]; then
-        print_info "Python version is older than 3.10. Upgrading..."
+    if [ "$(get_version_number $PY_VER)" -lt "$(get_version_number 3.11)" ]; then
+        print_info "Python version is older than 3.11. Upgrading..."
         apt-get install -y -qq python3
     else
         print_success "Suitable Python 3 version already installed."
@@ -127,6 +127,7 @@ pip install -r requirements.txt
 print_success "Backend dependencies installed"
 
 # Create .env with correct IP settings (Phases 1-10)
+GENERATED_ADMIN_PASS=$(openssl rand -base64 16)
 cat > .env <<EOF
 # === Core ===
 MONGODB_URL=mongodb://localhost:27017
@@ -134,7 +135,7 @@ MONGODB_DB_NAME=omni_platform
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)
 CORS_ORIGINS=http://$SYSTEM_IP:3000,http://$SYSTEM_IP:80,http://$SYSTEM_IP,http://localhost:3000,http://127.0.0.1:3000
-SUPER_ADMIN_PASSWORD=password123
+SUPER_ADMIN_PASSWORD=$GENERATED_ADMIN_PASS
 SYSLOG_UDP_PORT=5140
 
 # === Phase 1: AI/LLM ===
@@ -220,6 +221,10 @@ QRADAR_TOKEN=
 EOF
 chown $ACTUAL_USER:$ACTUAL_USER .env
 print_success "Backend .env created with IP $SYSTEM_IP (Phases 1-10 + Security extensions)"
+echo "================================================================"
+echo "  SUPER ADMIN PASSWORD: $GENERATED_ADMIN_PASS"
+echo "  Save this — it will not be shown again."
+echo "================================================================"
 
 # Create required backend directories (including report export path)
 mkdir -p logs backups uploads data_lake_storage static/reports omni_data

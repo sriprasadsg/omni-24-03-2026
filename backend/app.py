@@ -132,10 +132,12 @@ async def seed_database():
     """Create default super admin user if database is empty"""
     try:
         db = get_database()
-        
+        # Use raw collection to bypass tenant isolation — bootstrap has no request context
+        raw_users = db._db.users
+
         # Check if super admin exists
-        super_admin = await db.users.find_one({"email": "super@omni.ai"})
-        
+        super_admin = await raw_users.find_one({"email": "super@omni.ai"})
+
         _super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
         if not _super_admin_password:
             _super_admin_password = secrets.token_urlsafe(32)
@@ -160,10 +162,10 @@ async def seed_database():
         if not super_admin:
             logger.info("Creating new super admin user...")
             super_admin_data["id"] = f"user-{uuid.uuid4()}"
-            await db.users.insert_one(super_admin_data)
+            await raw_users.insert_one(super_admin_data)
         else:
             logger.info("Updating existing super admin credentials...")
-            await db.users.update_one(
+            await raw_users.update_one(
                 {"email": "super@omni.ai"},
                 {"$set": {
                     "password": super_admin_data["password"],
@@ -289,9 +291,11 @@ async def lifespan(app: FastAPI):
 
         # Run database migrations for multi-tenant isolation fixes
         try:
-            from database_migrations import migrate_compliance_tenant_ids, migrate_instructions_tenant_ids
+            from database_migrations import migrate_compliance_tenant_ids, migrate_instructions_tenant_ids, migrate_tenant_registration_keys, seed_compliance_frameworks
             await migrate_compliance_tenant_ids()
             await migrate_instructions_tenant_ids()
+            await migrate_tenant_registration_keys()
+            await seed_compliance_frameworks()
         except Exception as _e:
             logger.warning("[Migrations] Database self-healing migrations failed: %s", _e)
 
@@ -471,7 +475,7 @@ app.include_router(dr_endpoints.router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    import logging
+    import logging, traceback as _tb
     logging.getLogger(__name__).error("Unhandled exception: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=500,
@@ -801,7 +805,7 @@ app.add_middleware(
             r"|192\.168\.\d{1,3}\.\d{1,3}"
             r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
             r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
-            r")(:(3000|3001|4173|5173|5000))?"
+            r")(:(3000|4173|5173|5000))?"
         )
     ),
     allow_credentials=True,

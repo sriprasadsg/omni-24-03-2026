@@ -130,7 +130,7 @@ async def get_threat_feed(
         async for doc in cursor:
             doc["id"] = str(doc.pop("_id"))
             # Fill missing required fields with defaults
-            doc.setdefault("tenant_id", query.get("tenant_id", "default"))
+            doc.setdefault("tenant_id", query.get("tenant_id"))
             doc.setdefault("artifact", "")
             doc.setdefault("artifact_type", "unknown")
             doc.setdefault("verdict", "Unknown")
@@ -226,9 +226,9 @@ async def enrich_security_event(
                 "detection_ratio": result.get("detectionRatio")
             })
     
-    # Update event with enrichments
+    # Update event with enrichments — reuse same tenant_filter from the find above
     await db.security_events.update_one(
-        {"_id": event_id},
+        {"_id": event_id, **tenant_filter},
         {
             "$set": {
                 "threat_intel_enrichments": enrichments,

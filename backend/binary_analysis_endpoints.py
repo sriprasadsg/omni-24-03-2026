@@ -124,6 +124,9 @@ async def get_report(
     user_role = getattr(current_user, "role", "")
     job_filter: dict = {"job_id": job_id}
     if user_role not in _ANALYSIS_SUPER_ROLES:
+        user_tenant = getattr(current_user, "tenant_id", None)
+        if user_tenant:
+            job_filter["tenantId"] = user_tenant
         job_filter["submitted_by"] = current_user.username
     job = await db.analysis_jobs.find_one(job_filter, {"_id": 0})
     if not job:
@@ -146,6 +149,9 @@ async def get_analysis_history(
     user_role = getattr(current_user, "role", "")
     query: dict = {"status": "completed"}
     if user_role not in _ANALYSIS_SUPER_ROLES:
+        user_tenant = getattr(current_user, "tenant_id", None)
+        if user_tenant:
+            query["tenantId"] = user_tenant
         query["submitted_by"] = current_user.username
     if verdict:
         query["report.verdict"] = verdict

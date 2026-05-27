@@ -29,9 +29,9 @@ async def publish_event(topic: str, event: Dict[str, Any]):
             siem = get_siem_engine(db)
             # Expecting event structure: {"agent_id": ..., "tenant_id": ..., "logs": [...]}
             agent_id = event.get("agent_id", "unknown")
-            tenant_id = event.get("tenant_id", "unknown")
+            tenant_id = event.get("tenant_id") or None
             logs = event.get("logs", [])
-            if logs:
+            if logs and tenant_id:
                 await siem.ingest_logs(logs, tenant_id, agent_id)
         except Exception as e:
             logger.error("Streaming: Failed to process raw logs in SIEM engine: %s", e)

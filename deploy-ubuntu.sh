@@ -43,7 +43,7 @@ SYSTEM_IP=$(hostname -I | awk '{print $1}')
 BACKEND_PORT=5000
 FRONTEND_PORT=3000
 MONGODB_PORT=27017
-DOMAIN_NAME="localhost" # Change this for production
+DOMAIN_NAME="${SYSTEM_IP}"
 
 echo "═══════════════════════════════════════════════════════════"
 echo "    Enterprise Omni Platform - Ubuntu 24.04 Deployment"
@@ -216,6 +216,7 @@ grep -q "^py-cpuinfo" requirements.txt || pip install py-cpuinfo --quiet || true
 
 # .env Configuration (Phases 1-10)
 if [ ! -f ".env" ]; then
+    GENERATED_ADMIN_PASS=$(openssl rand -base64 16)
     cat > .env <<EOF
 # === Core ===
 MONGODB_URL=mongodb://localhost:27017
@@ -223,7 +224,7 @@ MONGODB_DB_NAME=omni_platform
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)
 CORS_ORIGINS=http://\$(hostname -I | awk '{print \$1}'):3000,http://\$(hostname -I | awk '{print \$1}'):80,http://\$(hostname -I | awk '{print \$1}'),http://localhost:3000,http://127.0.0.1:3000
-SUPER_ADMIN_PASSWORD=password123
+SUPER_ADMIN_PASSWORD=$GENERATED_ADMIN_PASS
 SYSLOG_UDP_PORT=5140
 
 # === Phase 1: AI/LLM ===
@@ -258,7 +259,7 @@ PAYMENT_GATEWAY_MODE=sandbox
 # === Phase 4: Google OAuth2 SSO & MFA ===
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:5000/api/sso/google/callback
+GOOGLE_REDIRECT_URI=http://${SYSTEM_IP}:5000/api/sso/google/callback
 MFA_ISSUER=OmniAgentPlatform
 
 # === Phase 8: Voice Bot (Google Cloud) ===
@@ -310,6 +311,10 @@ QRADAR_TOKEN=
 EOF
     chown $ACTUAL_USER:$ACTUAL_USER .env
     print_success "Backend .env file created (Phases 1-10 + Security extensions)"
+    echo "================================================================"
+    echo "  SUPER ADMIN PASSWORD: $GENERATED_ADMIN_PASS"
+    echo "  Save this — it will not be shown again."
+    echo "================================================================"
 fi
 
 # Database Setup & Enterprise Unlock

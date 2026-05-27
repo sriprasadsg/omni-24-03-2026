@@ -15,8 +15,13 @@ logger = logging.getLogger(__name__)
 
 def _tid(user) -> str:
     if isinstance(user, dict):
-        return user.get("tenant_id", "") or user.get("tenantId", "") or "platform-admin"
-    return getattr(user, "tenant_id", "") or "platform-admin"
+        tid = user.get("tenant_id") or user.get("tenantId") or None
+    else:
+        tid = getattr(user, "tenant_id", None) or None
+    if not tid:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tid
 
 
 def _role(user) -> str:

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Activity, Shield, Cpu, MessageSquare, Terminal } from 'lucide-react';
-import { fetchSwarmMissions, fetchSwarmTopology, startSwarmMission } from '../services/apiService';
+import { Play, Activity, Shield, Cpu, MessageSquare, Terminal, Zap, AlertTriangle } from 'lucide-react';
+import { fetchSwarmMissions, fetchSwarmTopology, startSwarmMission, propagateAntibody } from '../services/apiService';
 
 interface AgentMessage {
     agent_name: string;
@@ -16,11 +16,17 @@ interface Mission {
     logs: AgentMessage[];
 }
 
+const THREAT_TYPES = ['ransomware', 'c2_beacon', 'lateral_movement', 'data_exfil', 'brute_force', 'malware'];
+
 const SwarmDashboard: React.FC = () => {
     const [missionGoal, setMissionGoal] = useState('');
     const [activeMission, setActiveMission] = useState<Mission | null>(null);
     const [missions, setMissions] = useState<Mission[]>([]);
     const [topology, setTopology] = useState<any>(null);
+    const [antibodyThreat, setAntibodyThreat] = useState('ransomware');
+    const [antibodyIndicator, setAntibodyIndicator] = useState('');
+    const [antibodyStatus, setAntibodyStatus] = useState<{ ok: boolean; message: string } | null>(null);
+    const [propagating, setPropagating] = useState(false);
 
     useEffect(() => {
         fetchMissions();
@@ -62,6 +68,23 @@ const SwarmDashboard: React.FC = () => {
             fetchMissions();
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const handlePropagateAntibody = async () => {
+        if (!antibodyIndicator.trim()) return;
+        setPropagating(true);
+        setAntibodyStatus(null);
+        const result = await propagateAntibody({ threat_type: antibodyThreat, indicator: antibodyIndicator.trim() });
+        setPropagating(false);
+        if (result.status === 403) {
+            setAntibodyStatus({ ok: false, message: 'Tenant context required. Please re-authenticate.' });
+        } else if (!result.ok) {
+            setAntibodyStatus({ ok: false, message: result.data?.detail || 'Propagation failed.' });
+        } else {
+            const dispatched = result.data?.dispatched ?? 0;
+            setAntibodyStatus({ ok: true, message: `Antibody dispatched to ${dispatched} agent${dispatched !== 1 ? 's' : ''}.` });
+            setAntibodyIndicator('');
         }
     };
 
@@ -163,6 +186,49 @@ const SwarmDashboard: React.FC = () => {
                     </div>
                 </div>
 
+            </div>
+
+            {/* Digital Immune System */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                    <Shield size={20} className="text-red-600" /> Digital Immune System
+                </h2>
+                <p className="text-sm text-slate-500 mb-4">Broadcast a block rule (antibody) to all online agents in the tenant.</p>
+
+                {antibodyStatus && (
+                    <div className={`flex items-center gap-2 mb-4 px-4 py-3 rounded-lg text-sm font-medium border ${antibodyStatus.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                        {antibodyStatus.ok ? <Zap size={15} /> : <AlertTriangle size={15} />}
+                        {antibodyStatus.message}
+                        <button onClick={() => setAntibodyStatus(null)} className="ml-auto text-current opacity-50 hover:opacity-100">✕</button>
+                    </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-white"
+                        value={antibodyThreat}
+                        onChange={e => setAntibodyThreat(e.target.value)}
+                    >
+                        {THREAT_TYPES.map(t => (
+                            <option key={t} value={t}>{t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                        ))}
+                    </select>
+                    <input
+                        className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                        placeholder="IP, hash, or domain indicator…"
+                        value={antibodyIndicator}
+                        onChange={e => setAntibodyIndicator(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handlePropagateAntibody()}
+                    />
+                    <button
+                        onClick={handlePropagateAntibody}
+                        disabled={propagating || !antibodyIndicator.trim()}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg font-medium text-sm transition-colors"
+                    >
+                        {propagating ? <Activity size={16} className="animate-spin" /> : <Zap size={16} />}
+                        {propagating ? 'Propagating…' : 'Propagate'}
+                    </button>
+                </div>
             </div>
 
             {/* Topology Nodes (Visual Mock) */}

@@ -468,9 +468,13 @@ const App: React.FC = () => {
       return;
     }
 
+    // Only super-admins can list all tenants; skip the call to avoid repeated 403s
+    const _jwtPayload = (() => { try { return JSON.parse(atob(token.split('.')[1])); } catch { return {}; } })();
+    const _isSuperAdmin = ['Super Admin', 'superadmin', 'super_admin', 'platform-admin'].includes(_jwtPayload.role || '');
+
     try {
       const results = await Promise.allSettled([
-        api.fetchUsers(), api.fetchRoles(), api.fetchTenants(), api.fetchMetrics(),
+        api.fetchUsers(), api.fetchRoles(), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
         api.fetchAlerts(), api.fetchComplianceFrameworks(), api.fetchAiSystems(),
         api.fetchAssets(), api.fetchPatches(), api.fetchSecurityCases(),
         api.fetchPlaybooks(), api.fetchSecurityEvents(), api.fetchCloudAccounts(),
@@ -826,9 +830,9 @@ const App: React.FC = () => {
     }
 
     // Use permissions from currentUser object (provided by backend during login/signup)
-    let effectiveFeatures: Permission[];
+    let effectiveFeatures: Permission[] = [];
 
-    if (currentUser.permissions && Array.isArray(currentUser.permissions)) {
+    if (currentUser.permissions && Array.isArray(currentUser.permissions) && currentUser.permissions.length > 0) {
       // Backend included permissions in the user object
       const userPerms = currentUser.permissions as Permission[];
 
@@ -840,27 +844,30 @@ const App: React.FC = () => {
         effectiveFeatures = userPerms;
       }
     } else {
-      // Fallback to role-based lookup (old method)
-      const role = roles.find(r => r.name === currentUser.role);
-      if (!role) return { enabledFeatures: [], hasPermission: () => false };
+      // Fallback to role-based lookup (case-insensitive)
+      const roleLower = currentUser.role?.trim().toLowerCase() || '';
+      const role = roles.find(r => r.name?.trim().toLowerCase() === roleLower);
 
-      // Super admin has all permissions, always.
-      if (currentUser.role === 'Super Admin') {
-        effectiveFeatures = role.permissions;
-      } else {
-        const tenant = tenants.find(t => t.id === currentUser.tenantId);
-        if (!tenant) return { enabledFeatures: [], hasPermission: () => false };
-        // Intersect role permissions with tenant's enabled features
-        effectiveFeatures = role.permissions.filter(p => tenant.enabledFeatures.includes(p));
+      if (role) {
+        // If role grants "all" permissions, skip tenant intersection
+        if (role.permissions.includes('all' as Permission)) {
+          effectiveFeatures = ['all' as Permission];
+        } else {
+          const tenant = tenants.find(t => t.id === currentUser.tenantId);
+          effectiveFeatures = tenant
+            ? role.permissions.filter(p => tenant.enabledFeatures.includes(p))
+            : role.permissions;
+        }
       }
+      // If no role found, effectiveFeatures stays [] — checkPermission handles "all" shortcut below
     }
 
     const checkPermission = (permission: Permission): boolean => {
-      // Super Admin always has permission, regardless of loaded role data
       const roleName = currentUser?.role?.trim().toLowerCase() || '';
       const isSuperAdmin = roleName === 'super admin' || roleName === 'superadmin' || roleName === 'super_admin' || roleName === 'platform-admin';
-
       if (isSuperAdmin) return true;
+      // "all" permission grants access to everything
+      if (effectiveFeatures.includes('all' as Permission)) return true;
       return effectiveFeatures.includes(permission);
     };
 
@@ -1476,7 +1483,7 @@ const App: React.FC = () => {
       case 'servicePricing':
         return <ServicePricingPage />;
       case 'doraMetrics': return <DoraMetricsDashboard metrics={tenantData.doraMetrics} />;
-      case 'chaosEngineering': return <ChaosEngineeringDashboard experiments={tenantData.chaosExperiments} />;
+      case 'chaosEngineering': return <ChaosEngineeringDashboard />;
       case 'networkObservability': console.log("[App] Rendering NetworkObservability with:", tenantData.networkDevices); return <NetworkObservabilityDashboard networkDevices={tenantData.networkDevices} onAddDevice={handleAddNewDevice} onRefresh={loadAllData} />;
       case 'dataUtilization': return <DataUtilizationDashboard />;
       case 'tasks': return (
