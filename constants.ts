@@ -44,6 +44,7 @@ export const ALL_PERMISSIONS: Permission[] = [
     'view:chaos',
     'view:network',
     'manage:pricing',
+    'manage:agents',
 ];
 
 export const AVAILABLE_AGENT_VERSIONS: string[] = ['2.2.1', '2.3.0', '3.0.0-beta'];

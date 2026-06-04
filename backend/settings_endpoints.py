@@ -33,6 +33,14 @@ def _is_safe_host(host: str) -> bool:
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
+_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin"}
+
+
+def _require_admin(user: TokenData) -> None:
+    if getattr(user, "role", "") not in _SETTINGS_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin role required to modify settings")
+
+
 @router.get("/database")
 async def get_database_settings(current_user: TokenData = Depends(get_current_user)):
     """Get database settings"""
@@ -42,7 +50,8 @@ async def get_database_settings(current_user: TokenData = Depends(get_current_us
 
 @router.post("/database")
 async def save_database_settings(settings: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
-    """Save database settings"""
+    """Save database settings — admin only"""
+    _require_admin(current_user)
     db = get_database()
     # Add type identifier
     settings["type"] = "database"
@@ -71,7 +80,8 @@ async def get_llm_settings(current_user: TokenData = Depends(get_current_user)):
 
 @router.post("/llm")
 async def save_llm_settings(settings: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
-    """Save LLM settings"""
+    """Save LLM settings — admin only"""
+    _require_admin(current_user)
     db = get_database()
     # Add type identifier
     settings["type"] = "llm"

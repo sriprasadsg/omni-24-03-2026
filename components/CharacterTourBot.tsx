@@ -271,7 +271,6 @@ export const CharacterTourBot: React.FC<CharacterTourBotProps> = ({ currentUser:
         } else if (isActive && currentStep >= script.length) {
             endTour();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentStep, isActive]);
 
     function selectCharacterAndStart(type: CharacterType) {

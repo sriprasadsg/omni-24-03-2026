@@ -39,8 +39,8 @@ export default function MFAVerifyModal({ mfaSessionToken, onSuccess, onCancel }:
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.detail || 'Verification failed');
-            // Store token and notify parent
-            sessionStorage.setItem('access_token', d.access_token);
+            // Store token and notify parent (key must match what App.tsx reads)
+            sessionStorage.setItem('token', d.access_token);
             onSuccess(d.access_token, d.user);
         } catch (e: any) { setError(e.message); }
         finally { setLoading(false); }

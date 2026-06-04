@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Asset, AgentPlatform } from '../types';
+import { showToast } from '../utils/toast';
 
 interface RegisterAgentModalProps {
     isOpen: boolean;
@@ -32,7 +33,7 @@ export const RegisterAgentModal: React.FC<RegisterAgentModalProps> = ({ isOpen, 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!hostname.trim() || !ipAddress.trim() || !version.trim()) {
-            alert("Please fill all required fields.");
+            showToast("Please fill all required fields.", 'error');
             return;
         }
 

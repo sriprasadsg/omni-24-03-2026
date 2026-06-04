@@ -1,10 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import FileResponse
-from typing import List, Dict, Any
+from typing import Any
 from datetime import datetime, timezone
 import os
 import shutil
-import base64
 import hashlib
 
 from database import get_database

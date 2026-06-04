@@ -55,7 +55,16 @@ export default {
             boxShadow: {
                 'neon': '0 0 10px rgba(0, 210, 255, 0.5), 0 0 20px rgba(0, 210, 255, 0.3)',
                 'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-            }
+            },
+            keyframes: {
+                blink: {
+                    '0%, 100%': { opacity: '1' },
+                    '50%': { opacity: '0' },
+                },
+            },
+            animation: {
+                blink: 'blink 1s step-end infinite',
+            },
         }
     },
     plugins: [],

@@ -5,9 +5,9 @@ Provides API for static application security testing.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger(__name__)
@@ -76,10 +76,11 @@ async def get_scan_results(
     """Get scan results by ID"""
     sast_service = get_sast_service(db)
     
+    tenant_id = getattr(current_user, "tenant_id", None) or ""
     try:
-        results = await sast_service.get_scan_results(scan_id)
+        results = await sast_service.get_scan_results(scan_id, tenant_id=tenant_id)
         return results
-    
+
     except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
@@ -106,12 +107,14 @@ async def list_vulnerabilities(
     """
     sast_service = get_sast_service(db)
     
+    tenant_id = getattr(current_user, "tenant_id", None) or ""
     try:
         vulnerabilities = await sast_service.list_vulnerabilities(
             scan_id=scan_id,
             severity=severity,
             status=status,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
         
         return vulnerabilities
@@ -156,10 +159,11 @@ async def get_code_quality_metrics(
     """Get code quality metrics for a scan"""
     sast_service = get_sast_service(db)
     
+    tenant_id = getattr(current_user, "tenant_id", None) or ""
     try:
-        metrics = await sast_service.get_code_quality_metrics(scan_id)
+        metrics = await sast_service.get_code_quality_metrics(scan_id, tenant_id=tenant_id)
         return metrics
-    
+
     except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
@@ -177,10 +181,12 @@ async def get_scan_history(
     """Get scan history"""
     sast_service = get_sast_service(db)
     
+    tenant_id = getattr(current_user, "tenant_id", None) or ""
     try:
         history = await sast_service.get_scan_history(
             project_name=project_name,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
         
         return history

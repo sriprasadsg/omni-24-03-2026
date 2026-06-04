@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from models import User
 import uuid
+import os
+import socket
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/remote", tags=["Remote Access"])
@@ -51,8 +53,39 @@ async def get_active_sessions(
     return sessions
 
 
+def _resolve_backend_ws_base(request: Request) -> str:
+    """Return the ws:// base URL agents should connect back to.
+    Priority: PLATFORM_URL env → BACKEND_HOST env (if not 0.0.0.0/localhost) →
+              auto-detect LAN IP → fallback to request host."""
+    platform_url = os.getenv("PLATFORM_URL", "").rstrip("/")
+    if platform_url:
+        return platform_url.replace("https://", "wss://").replace("http://", "ws://")
+
+    env_host = os.getenv("BACKEND_HOST", "").strip()
+    env_port = os.getenv("BACKEND_PORT", "5000").strip()
+
+    if env_host and env_host not in ("0.0.0.0", "127.0.0.1", "localhost"):
+        return f"ws://{env_host}:{env_port}"
+
+    # Try to detect the server's LAN IP so remote agents can reach us
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            lan_ip = s.getsockname()[0]
+        if lan_ip and lan_ip != "127.0.0.1":
+            return f"ws://{lan_ip}:{env_port}"
+    except Exception:
+        pass
+
+    # Last resort: derive from the incoming request host
+    req_host = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not req_host or req_host in ("127.0.0.1", "::1"):
+        req_host = (request.client.host if request.client else None) or "localhost"
+    return f"ws://{req_host}:{env_port}"
+
+
 @router.post("/session/start")
-async def start_remote_session(payload: dict, current_user: User = Depends(get_current_user)):
+async def start_remote_session(request: Request, payload: dict, current_user: User = Depends(get_current_user)):
     """
     Start a remote session with an agent.
     Payload: {"agent_id": "uuid", "protocol": "ssh", "type": "shell"}
@@ -66,11 +99,18 @@ async def start_remote_session(payload: dict, current_user: User = Depends(get_c
 
     db = get_database()
     session_id = str(uuid.uuid4())
-    
+
     # Get user identifier - try email first, fall back to id
     user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'id', 'unknown')
-    
-    # Create session record
+    caller_tenant_id = getattr(current_user, 'tenant_id', None) or getattr(current_user, 'tenantId', None)
+
+    # The instruction must carry the AGENT's tenantId so the agent's polling query matches.
+    # When a super-admin (tenant=platform-admin) targets an agent from another tenant, using
+    # the caller's tenantId would make the instruction invisible to the agent.
+    agent_doc = await db.agents.find_one({"id": agent_id})
+    agent_tenant_id = (agent_doc.get("tenantId") if agent_doc else None) or caller_tenant_id
+
+    # Create session record — scoped to the caller's tenant for access-control checks
     session_data = {
         "session_id": session_id,
         "agent_id": agent_id,
@@ -78,15 +118,13 @@ async def start_remote_session(payload: dict, current_user: User = Depends(get_c
         "protocol": protocol,
         "type": session_type,
         "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "tenantId": caller_tenant_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.remote_sessions.insert_one(session_data)
-    
-    # Determine the backend's externally reachable address so agents on remote hosts work
-    import os as _os
-    _backend_host = _os.getenv("BACKEND_HOST", "localhost")
-    _backend_port = _os.getenv("BACKEND_PORT", "5000")
-    _agent_ws_base = f"ws://{_backend_host}:{_backend_port}"
+
+    # Use smart URL resolution: handles PLATFORM_URL, LAN IP detection, and HTTPS
+    agent_ws_base = _resolve_backend_ws_base(request)
 
     instruction = {
         "agent_id": agent_id,
@@ -95,9 +133,10 @@ async def start_remote_session(payload: dict, current_user: User = Depends(get_c
             "session_id": session_id,
             "protocol": protocol,
             "type": session_type,
-            "url": f"{_agent_ws_base}/api/tunnel/{session_id}/agent",
+            "url": f"{agent_ws_base}/api/tunnel/{session_id}/agent",
         },
         "status": "pending",
+        "tenantId": agent_tenant_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.agent_instructions.insert_one(instruction)

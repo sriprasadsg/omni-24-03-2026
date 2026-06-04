@@ -1,6 +1,5 @@
 import httpx
 import asyncio
-import json
 
 async def test_vt():
     async with httpx.AsyncClient() as client:

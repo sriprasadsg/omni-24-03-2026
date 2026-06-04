@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { DollarSignIcon, SaveIcon, RefreshCwIcon, CheckIcon, PlusIcon, TrashIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
+import { showToast } from '../utils/toast';
 
 interface ServicePrice {
     id: string;
@@ -81,7 +82,7 @@ export const ServicePricing: React.FC = () => {
 
     const handleAddService = async () => {
         if (!newService.id || !newService.name || newService.price === undefined) {
-            alert('Please fill all required fields');
+            showToast('Please fill all required fields', 'error');
             return;
         }
 
@@ -99,7 +100,7 @@ export const ServicePricing: React.FC = () => {
                 setTimeout(() => setSaveMessage(''), 3000);
             } else {
                 const err = await res.json();
-                alert('Error adding service: ' + err.detail);
+                showToast('Error adding service: ' + err.detail, 'error');
             }
         } catch (error) {
             console.error('Failed to add service', error);

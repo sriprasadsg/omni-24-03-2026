@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DOMPurify from 'dompurify';
 import { DownloadIcon, CopyIcon, ChevronDownIcon } from './icons';
 
 interface EvidenceMarkdownViewerProps {
@@ -66,7 +67,11 @@ export const EvidenceMarkdownViewer: React.FC<EvidenceMarkdownViewerProps> = ({ 
         // Replace line breaks
         html = html.replace(/\n/g, '<br/>');
 
-        return html;
+        return DOMPurify.sanitize(html, {
+            ALLOWED_TAGS: ['h2', 'h3', 'h4', 'strong', 'em', 'code', 'pre', 'br', 'li', 'ul', 'ol'],
+            ALLOWED_ATTR: ['class'],
+            FORBID_ATTR: ['style', 'onerror', 'onload'],
+        });
     };
 
     const escapeHtml = (text: string) => {

@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
+from fastapi import APIRouter, Depends
 from datetime import datetime, timezone, timedelta
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Future Ops"])
 
@@ -144,8 +147,8 @@ async def get_cost_optimization(current_user: TokenData = Depends(get_current_us
             from finops_service import finops_service
             await finops_service.refresh_cost_recommendations(db)
             recommendations = await db.cost_recommendations.find({}, {"_id": 0}).to_list(length=100)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Cost recommendation seed failed (non-fatal): %s", e)
 
     return {"recommendations": recommendations}
 
@@ -170,7 +173,8 @@ async def get_consent_tracking(current_user: TokenData = Depends(get_current_use
 
 async def _seed_blockchain_audit(db):
     """Seed genesis block if collection is empty."""
-    import hashlib, uuid as _uuid
+    import hashlib
+    import uuid as _uuid
     if await db.blockchain_audit.count_documents({}) > 0:
         return
     genesis = {

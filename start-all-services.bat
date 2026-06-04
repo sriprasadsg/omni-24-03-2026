@@ -204,7 +204,7 @@ echo.
 if "%START_AGENT%"=="1" (
     echo [5] Starting Agent...
     start "Omni-Agent" /D "%AGENT_DIR%" cmd /k ^
-        "set API_BASE_URL=%API_BASE_URL%& set REGISTRATION_KEY=%REGISTRATION_KEY%& set TENANT_ID=%TENANT_ID%& echo.& echo   Agent connecting to %API_BASE_URL%& echo.& %AGENT_PYTHON% agent.py --url %API_BASE_URL% --key %REGISTRATION_KEY%"
+        "set API_BASE_URL=%API_BASE_URL%& set REGISTRATION_KEY=%REGISTRATION_KEY%& set TENANT_ID=%TENANT_ID%& set MONGODB_URL=%MONGODB_URL%& set DATABASE_NAME=%DATABASE_NAME%& echo.& echo   Agent connecting to %API_BASE_URL%& echo.& %AGENT_PYTHON% agent.py --url %API_BASE_URL% --key %REGISTRATION_KEY%"
     echo   OK  Agent launched
     echo.
 )

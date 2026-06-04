@@ -4,8 +4,7 @@ Automated remediation actions for AWS, Azure, and GCP
 """
 
 import logging
-from typing import Dict, List, Any, Optional
-import os
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +34,6 @@ class CloudRemediationService:
         # Azure
         try:
             from azure.identity import DefaultAzureCredential
-            from azure.mgmt.network import NetworkManagementClient
-            from azure.mgmt.storage import StorageManagementClient
             self.azure_credential = DefaultAzureCredential()
             self.azure_enabled = True
             logger.info("[SUCCESS] Azure SDK initialized")
@@ -62,6 +59,7 @@ class CloudRemediationService:
             return {"success": False, "error": "AWS SDK not available"}
         
         try:
+            import boto3
             ec2 = boto3.client('ec2', region_name=region)
             
             # Get current rules

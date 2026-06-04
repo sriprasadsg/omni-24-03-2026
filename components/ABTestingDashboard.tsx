@@ -3,7 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Beaker, Users, Target, TrendingUp } from 'lucide-react';
-import { apiService } from '../services/apiService';
+import { authFetch } from '../services/apiService';
+const apiService = {
+    get: (url: string) => authFetch(url).then(r => r.ok ? r.json() : null),
+    post: (url: string, data?: any) => authFetch(url, { method: 'POST', body: JSON.stringify(data) }).then(r => r.ok ? r.json() : null),
+};
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 
 interface Experiment {

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Dict, Any
-from authentication_service import get_current_user
 from auth_types import TokenData
 from rbac_service import rbac_service
 import prompt_service
@@ -24,7 +23,7 @@ async def create_prompt(
     """
     try:
         return await prompt_service.create_prompt(prompt)
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
 
 @router.get("/{name}", response_model=Dict[str, Any])

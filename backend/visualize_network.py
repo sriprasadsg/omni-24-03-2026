@@ -1,7 +1,5 @@
-import sys
 import os
 import logging
-import datetime
 import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
@@ -24,7 +22,6 @@ def generate_network_graph():
     print("Generating Network Graph from Database...")
     
     # Connect to DB to get devices
-    from database import get_database
     # Note: verify_network_image.py or similar callers must ensure specific event loop handling if async
     # But since this is a heavy blocking visualization function, we might need to run it in a way that allows async DB access
     # OR, for simplicity in this script, we can use a synchronous pymongo connection if available, 
@@ -180,7 +177,7 @@ def generate_network_graph():
         "unknown": "unknown.png"
     }
 
-    from matplotlib.offsetbox import TextArea, AnnotationBbox, OffsetImage
+    from matplotlib.offsetbox import AnnotationBbox, OffsetImage
     # import os (Removed redundant import)
 
     # Load images

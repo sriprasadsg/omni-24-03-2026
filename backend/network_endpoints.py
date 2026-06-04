@@ -1,7 +1,7 @@
 from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 import datetime
@@ -220,7 +220,7 @@ async def trigger_server_scan(
                 await db.network_devices.insert_one(new_dev)
                 
         return {"status": "success", "devices_found": len(results)}
-    except Exception as e:
+    except Exception:
         logger.exception("Unhandled exception")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -243,7 +243,7 @@ async def get_network_topology_image(
         image_path = generate_network_graph()
         
         return FileResponse(image_path)
-    except Exception as e:
+    except Exception:
         logger.exception("Unhandled exception")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -262,12 +262,18 @@ async def get_network_topology(
             from network_topology_service import NetworkTopologyService
             
         tenant_id = getattr(current_user, "tenant_id", None) or None
+        role = getattr(current_user, "role", "") or ""
+        _super_roles = {"Super Admin", "super_admin", "platform-admin"}
+        # Super-admins without a tenant context see the platform-admin topology
         if not tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant context required")
+            if role in _super_roles:
+                tenant_id = "platform-admin"
+            else:
+                raise HTTPException(status_code=403, detail="Tenant context required")
         topology_data = await NetworkTopologyService.get_topology_data(tenant_id)
 
         return topology_data
-    except Exception as e:
+    except Exception:
         logger.exception("Unhandled exception")
         raise HTTPException(status_code=500, detail="Internal server error")
 

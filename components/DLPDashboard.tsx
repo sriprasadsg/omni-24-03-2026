@@ -18,15 +18,24 @@ export default function DLPDashboard() {
     const [newPolicy, setNewPolicy] = useState({ name: '', pattern: '', severity: 'medium' });
     const [saving, setSaving] = useState(false);
     const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const load = async () => {
-        const [r1, r2] = await Promise.all([
-            authFetch(`${API}/dlp/incidents`).then(r => r.json()),
-            authFetch(`${API}/dlp/policies`).then(r => r.json()),
-        ]);
-        setIncidents(Array.isArray(r1) ? r1 : []);
-        setPolicies(Array.isArray(r2) ? r2 : []);
+        try {
+            const [r1, r2] = await Promise.all([
+                authFetch(`${API}/dlp/incidents`).then(r => r.json()),
+                authFetch(`${API}/dlp/policies`).then(r => r.json()),
+            ]);
+            setIncidents(Array.isArray(r1) ? r1 : []);
+            setPolicies(Array.isArray(r2) ? r2 : []);
+            setLoadError(null);
+        } catch (err: any) {
+            setLoadError(err?.message || 'Failed to load DLP data');
+        } finally {
+            setLoading(false);
+        }
     };
     useEffect(() => { load(); }, []);
 
@@ -62,6 +71,18 @@ export default function DLPDashboard() {
         { id: 'scan', label: '🔍 Scan File' },
         { id: 'policies', label: `📋 Policies (${policies.length})` },
     ];
+
+    if (loading) return (
+        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#64748b', fontSize: 16 }}>Loading DLP data…</p>
+        </div>
+    );
+
+    if (loadError) return (
+        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#ef4444', fontSize: 16 }}>{loadError}</p>
+        </div>
+    );
 
     return (
         <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24 }}>

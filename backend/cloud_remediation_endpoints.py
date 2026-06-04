@@ -11,6 +11,11 @@ from database import get_database
 
 router = APIRouter(prefix="/api/cloud/remediation", tags=["Cloud Remediation"])
 
+_REMEDIATION_ROLES = {
+    "Super Admin", "super_admin", "platform-admin",
+    "Tenant Admin", "admin", "security_analyst",
+}
+
 
 def _tenant_id(user):
     if isinstance(user, dict):
@@ -31,7 +36,10 @@ async def execute_remediation(
     finding_id: str,
     current_user: dict = Depends(get_current_user)
 ) -> Dict:
-    """Execute auto-remediation for a security finding"""
+    """Execute auto-remediation for a security finding. Requires security_analyst or above."""
+    caller_role = current_user.get("role", "") if isinstance(current_user, dict) else getattr(current_user, "role", "")
+    if caller_role not in _REMEDIATION_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to execute cloud remediation")
     db = get_database()
     finding = await db.cloud_findings.find_one({"id": finding_id})
 

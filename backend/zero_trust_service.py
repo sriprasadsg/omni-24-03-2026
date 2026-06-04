@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
 from database import get_database
-from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
-from datetime import datetime, timezone
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Zero Trust & Quantum Security"])
 
@@ -152,7 +155,7 @@ async def get_device_trust_scores(current_user: TokenData = Depends(require_perm
                 time_since_seen = datetime.now(timezone.utc) - last_seen_dt
                 # Consider patched if seen within last 24 hours
                 os_patched = time_since_seen < timedelta(hours=24)
-            except:
+            except (ValueError, AttributeError):
                 os_patched = is_online
         
         # Antivirus active: check agent-reported antivirus status, fall back to online status
@@ -226,3 +229,115 @@ async def get_crypto_inventory(current_user: TokenData = Depends(require_permiss
     crypto_filter = {} if tenant_id is None else {"tenantId": tenant_id}
     inventory = await db.crypto_inventory.find(crypto_filter, {"_id": 0}).to_list(length=100)
     return inventory
+
+
+class ZeroTrustVerifyRequest(BaseModel):
+    user_id: str
+    resource: str
+    action: str
+    context: Optional[Dict[str, Any]] = None
+
+
+@router.post("/zero-trust/verify")
+async def verify_zero_trust_access(
+    req: ZeroTrustVerifyRequest,
+    current_user: TokenData = Depends(require_permission("view:security")),
+):
+    """
+    Evaluate a Zero Trust access decision for a given user, resource, and action.
+    Checks: user existence + role, device trust score, explicit deny policies.
+    Returns allow/deny with reasons for auditability.
+    """
+    db = get_database()
+    tenant_id = _resolve_tenant(current_user)
+    reasons: list[str] = []
+    risk_score = 0
+
+    # 1. Verify user exists in this tenant
+    user_filter: Dict[str, Any] = {"$or": [{"id": req.user_id}, {"email": req.user_id}]}
+    if tenant_id:
+        user_filter["tenantId"] = tenant_id
+    user_doc = await db.users.find_one(user_filter)
+    if not user_doc:
+        return {
+            "decision": "deny",
+            "user_id": req.user_id,
+            "resource": req.resource,
+            "action": req.action,
+            "reasons": ["User not found in tenant"],
+            "risk_score": 100,
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # 2. Check for explicit deny policies in the database
+    policy_filter: Dict[str, Any] = {
+        "resource": {"$regex": req.resource.replace("*", ".*"), "$options": "i"},
+        "action": {"$in": [req.action, "*"]},
+        "effect": "deny",
+    }
+    if tenant_id:
+        policy_filter["$or"] = [{"tenantId": tenant_id}, {"tenantId": None}]
+    deny_policy = await db.zero_trust_policies.find_one(policy_filter)
+    if deny_policy:
+        reasons.append(f"Explicit deny policy: {deny_policy.get('name', 'unnamed policy')}")
+        risk_score += 50
+
+    # 3. Check device trust score for the agent on this user's machine
+    agent_filter: Dict[str, Any] = {"assignedUser": req.user_id}
+    if tenant_id:
+        agent_filter["tenantId"] = tenant_id
+    agent = await db.agents.find_one(agent_filter)
+    device_trust_score = 100
+    if agent:
+        device_trust_score = agent.get("deviceTrustScore", 80)
+        if device_trust_score < 60:
+            reasons.append(f"Device trust score too low ({device_trust_score}/100)")
+            risk_score += 30
+        elif device_trust_score < 80:
+            reasons.append(f"Device trust score below optimal ({device_trust_score}/100)")
+            risk_score += 10
+
+    # 4. Check user role permissions
+    role_name = user_doc.get("role", "Viewer")
+    role_doc = await db.roles.find_one({"name": role_name})
+    if role_doc:
+        permissions = role_doc.get("permissions", [])
+        action_perm = f"{req.action}:{req.resource.split('/')[0]}"
+        if "all" not in permissions and action_perm not in permissions:
+            has_write = any(p.startswith("manage:") for p in permissions)
+            if req.action in ("delete", "write", "modify") and not has_write:
+                reasons.append(f"Role '{role_name}' lacks permission for action '{req.action}' on '{req.resource}'")
+                risk_score += 40
+
+    # 5. Final decision
+    decision = "deny" if (deny_policy or risk_score >= 60) else "allow"
+    if not reasons and decision == "allow":
+        reasons.append("Access granted — identity verified, device trusted, no deny policies matched")
+
+    # Audit log the decision
+    try:
+        await db.zero_trust_audit.insert_one({
+            "user_id": req.user_id,
+            "resource": req.resource,
+            "action": req.action,
+            "decision": decision,
+            "risk_score": risk_score,
+            "reasons": reasons,
+            "evaluated_by": getattr(current_user, "username", "system"),
+            "tenant_id": tenant_id,
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    return {
+        "decision": decision,
+        "user_id": req.user_id,
+        "resource": req.resource,
+        "action": req.action,
+        "reasons": reasons,
+        "risk_score": risk_score,
+        "device_trust_score": device_trust_score,
+        "user_role": user_doc.get("role"),
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+    }

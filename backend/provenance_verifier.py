@@ -1,6 +1,6 @@
 import hashlib
 import time
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime, timezone
 
 class ProvenanceVerifier:

@@ -55,6 +55,12 @@ fi
 
 (
     cd "$PROJECT_ROOT/backend"
+    export SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-Admin@2030}"
+    # PLATFORM_URL is used by agent install instructions endpoint
+    export PLATFORM_URL="${PLATFORM_URL:-http://localhost:5000}"
+    # Ticket file upload directory (auto-created by tickets_endpoints on start)
+    export TICKET_ATTACHMENT_DIR="${TICKET_ATTACHMENT_DIR:-/tmp/ticket_attachments}"
+    # Use socket_app (not app) so Socket.IO real-time events work
     "$BACKEND_PYTHON" -m uvicorn app:socket_app \
         --host 0.0.0.0 --port 5000 --log-level info
 ) &
@@ -93,6 +99,8 @@ fi
 
 (
     cd "$PROJECT_ROOT/agent"
+    export MONGODB_URL="${MONGODB_URL:-mongodb://127.0.0.1:27017}"
+    export DATABASE_NAME="${DATABASE_NAME:-omni_agent_platform}"
     "$AGENT_PYTHON" agent.py
 ) &
 AGENT_PID=$!

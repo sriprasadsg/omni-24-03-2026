@@ -1,9 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from database import get_database
 from data_warehouse_service import get_data_warehouse_service
 from rbac_utils import require_permission
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/warehouse", tags=["Data Warehouse"])
 
@@ -25,7 +29,7 @@ async def query_warehouse(
     try:
         results = await service.query_analytics(tenant_id, table_name, query_params)
         return results
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=400, detail="Bad request")
 
 @router.get("/stats")
@@ -47,8 +51,8 @@ async def get_warehouse_stats(
         try:
             await service.run_etl(tenant_id)
             stats = await service.get_aggregated_stats(tenant_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Warehouse ETL auto-seed failed (non-fatal): %s", e)
     return stats
 
 

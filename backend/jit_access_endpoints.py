@@ -53,7 +53,7 @@ async def create_request(
         req.pop("_id", None)
         req.pop("access_token", None)
         return {"request": req, "message": "JIT access request submitted — awaiting approval"}
-    except ValueError as exc:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
 
 
@@ -87,7 +87,7 @@ async def approve_request(
         )
         result.pop("_id", None)
         return {"request": result, "message": "JIT access approved and activated"}
-    except ValueError as exc:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
 
 

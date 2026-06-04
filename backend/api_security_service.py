@@ -1,7 +1,6 @@
 """API Security Service — inventory, abuse detection, schema enforcement."""
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import uuid
-import hashlib
 
 
 class APISecurityService:

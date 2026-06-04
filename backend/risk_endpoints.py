@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
 from risk_service import risk_service
 from pydantic import BaseModel
 from authentication_service import get_current_user

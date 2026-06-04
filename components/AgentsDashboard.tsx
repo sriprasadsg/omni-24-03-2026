@@ -4,7 +4,7 @@ import { ServerIcon, ZapIcon, CheckIcon, AlertTriangleIcon, CogIcon, PlusCircleI
 import { Agent, AgenticStep, LogEntry, Asset, AgentUpgradeJob, Filter, Tenant } from '../types';
 import { AgentLogsModal } from './AgentLogsModal';
 import { AgentInstallation } from './AgentInstallation';
-import { generateAgenticPlan, runAgentDiagnostics } from '../services/apiService';
+import { generateAgenticPlan, runAgentDiagnostics, restartAgent, deleteAgent } from '../services/apiService';
 import { AutonomousOpsLog } from './AutonomousOpsLog';
 import { useUser } from '@/contexts/UserContext';
 import { AgentDetailModal } from './AgentDetailModal';
@@ -15,6 +15,7 @@ import { ManageAgentCapabilitiesModal } from './ManageAgentCapabilitiesModal';
 import AgentRemoteControl from './AgentRemoteControl';
 import { UpgradeModal } from './UpgradeModal';
 import { fetchKpiSummary } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface AgentsDashboardProps {
   agents: Agent[];
@@ -44,8 +45,9 @@ const isRemediationRateLimited = (agent: Agent): boolean => {
 };
 
 export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets, logs, registrationKey, onRegisterAgent, onUpdateAgent, agentUpgradeJobs, onScheduleUpgrade, filters, onClearFilters, tenants, onSelectTenant, onDeleteAgent, activeTenantId, subscriptionTier = 'Free' }) => {
-  const { hasPermission } = useUser();
+  const { hasPermission, currentUser } = useUser();
   const canRemediate = hasPermission('remediate:agents');
+  const _isSuperAdmin = ['Super Admin', 'super_admin', 'superadmin', 'platform-admin'].includes(currentUser?.role ?? '');
 
   const FREE_TIER_AGENT_LIMIT = 5;
   const isFreeTier = subscriptionTier === 'Free' || subscriptionTier === 'free';
@@ -172,16 +174,16 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     try {
       const updatedAgent = await runAgentDiagnostics(agent.id);
       onUpdateAgent(updatedAgent); // Sync with parent state
-      alert(`Diagnostics completed for ${agent.hostname}.\nStatus: ${updatedAgent.health.overallStatus}`);
+      showToast(`Diagnostics completed for ${agent.hostname}. Status: ${updatedAgent.health.overallStatus}`, 'success');
     } catch (e) {
-      alert('Diagnostics failed to run.');
+      showToast('Diagnostics failed to run.', 'error');
     }
   };
 
   const startRemediation = async (agent: Agent) => {
     // Check rate limit
     if (isRemediationRateLimited(agent)) {
-      alert(`Remediation limit reached for ${agent.hostname}. Please try again later.`);
+      showToast(`Remediation limit reached for ${agent.hostname}. Please try again later.`, 'error');
       return;
     }
 
@@ -214,11 +216,11 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
 
   const handleAuthorizeRemediation = (agent: Agent) => {
     if (!canRemediate) {
-      alert("You don't have permission to perform this action.");
+      showToast("You don't have permission to perform this action.", 'error');
       return;
     }
     if (isRemediationRateLimited(agent)) {
-      alert(`Remediation limit reached for ${agent.hostname}. Please try again later.`);
+      showToast(`Remediation limit reached for ${agent.hostname}. Please try again later.`, 'error');
       return;
     }
     setAgentsToConfirmRemediation([agent]);
@@ -233,12 +235,17 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     setSelectedAgentIds(new Set());
   };
 
-  const handleBulkRestart = () => {
-    if (window.confirm(`Are you sure you want to restart ${selectedAgentIds.size} selected agent(s)?`)) {
-      console.log(`Restarting agents:`, Array.from(selectedAgentIds));
-      alert(`Restart command issued for ${selectedAgentIds.size} agent(s).`);
-      setSelectedAgentIds(new Set());
+  const handleBulkRestart = async () => {
+    if (!window.confirm(`Are you sure you want to restart ${selectedAgentIds.size} selected agent(s)?`)) return;
+    const ids = Array.from(selectedAgentIds);
+    const results = await Promise.allSettled(ids.map(id => restartAgent(id)));
+    const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success));
+    if (failed.length > 0) {
+      showToast(`Restart issued for ${ids.length - failed.length} agent(s). ${failed.length} failed (agent may not be connected).`, 'error');
+    } else {
+      showToast(`Restart command issued for ${ids.length} agent(s).`, 'success');
     }
+    setSelectedAgentIds(new Set());
   };
 
   const handleBulkDiagnostics = async () => {
@@ -250,11 +257,11 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     try {
       const updatedAgents = await Promise.all(Array.from(selectedAgentIds).map((id: string) => runAgentDiagnostics(id)));
       updatedAgents.forEach(agent => onUpdateAgent(agent)); // Sync with parent state
-      alert(`Diagnostics completed for ${updatedAgents.length} agents.`);
+      showToast(`Diagnostics completed for ${updatedAgents.length} agents.`, 'success');
       setSelectedAgentIds(new Set());
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      alert(`Bulk diagnostics failed: ${errorMessage}`);
+      showToast(`Bulk diagnostics failed: ${errorMessage}`, 'error');
     }
   };
 
@@ -262,6 +269,24 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     const agentsToFix = agents.filter(agent => selectedAgentIds.has(agent.id) && agent.status === 'Error');
     if (agentsToFix.length > 0) {
       setAgentsToConfirmRemediation(agentsToFix);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedAgentIds);
+    if (!window.confirm(`Deregister and delete ${ids.length} selected agent(s)? This cannot be undone.`)) return;
+    const results = await Promise.allSettled(ids.map(id => deleteAgent(id)));
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    ids.forEach((id, i) => {
+      if (results[i].status === 'fulfilled') {
+        const agent = agents.find(a => a.id === id);
+        if (agent && onDeleteAgent) onDeleteAgent(agent);
+      }
+    });
+    setSelectedAgentIds(new Set());
+    if (failed > 0) {
+      showToast(`Deleted ${succeeded} agent(s). ${failed} failed.`, 'error');
     }
   };
 
@@ -365,13 +390,15 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
         </div>
       </div>
 
-      {/* Banner - Flash Style */}
-      <div className="mb-6 glass border-l-4 border-l-amber-500 p-4 flex items-start bg-amber-50/10 rounded-r-lg">
-        <AlertTriangleIcon className="text-amber-500 mt-0.5 mr-3 flex-shrink-0" size={20} />
-        <p className="text-sm text-gray-800 dark:text-gray-200">
-          <span className="font-semibold text-amber-600 dark:text-amber-400">Installation Unavailable.</span> Please select a tenant to view agent installation commands. Super Admins must select 'View Tenant' from the Tenant Management dashboard.
-        </p>
-      </div>
+      {/* Banner — only shown to Super Admins who haven't selected a tenant yet */}
+      {_isSuperAdmin && !activeTenantId && (
+        <div className="mb-6 glass border-l-4 border-l-amber-500 p-4 flex items-start bg-amber-50/10 rounded-r-lg">
+          <AlertTriangleIcon className="text-amber-500 mt-0.5 mr-3 flex-shrink-0" size={20} />
+          <p className="text-sm text-gray-800 dark:text-gray-200">
+            <span className="font-semibold text-amber-600 dark:text-amber-400">Select a Tenant.</span> Please select a tenant to view agent installation commands. Select 'View Tenant' from the Tenant Management dashboard.
+          </p>
+        </div>
+      )}
 
       {filters.length > 0 && (
         <div className="mb-4 p-3 bg-primary-50 dark:bg-primary-900/50 rounded-lg flex items-center justify-between border border-primary-200 dark:border-primary-800">
@@ -485,6 +512,7 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
           onBulkRestart={handleBulkRestart}
           onBulkDiagnostics={handleBulkDiagnostics}
           onBulkRemediate={handleBulkRemediate}
+          onBulkDelete={onDeleteAgent ? handleBulkDelete : undefined}
           onUpdateAgent={onUpdateAgent}
           onRegisterAgent={onRegisterAgent}
           onRemoteControl={setRemoteControlAgent}

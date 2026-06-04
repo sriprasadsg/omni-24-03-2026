@@ -1,14 +1,17 @@
-from fastapi import APIRouter, HTTPException, Depends
+import logging
+from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from playbook_service import playbook_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/playbooks",
     tags=["Playbooks"]
 )
 
-print("DEBUG: Loading NEW Playbook API...")
+logger.debug("Loading NEW Playbook API...")
 
 class PlaybookCreate(BaseModel):
     name: str

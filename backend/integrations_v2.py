@@ -1,10 +1,32 @@
-from fastapi import APIRouter, Depends
-from typing import List, Dict, Any
+import ipaddress
+import logging
+import socket
+from urllib.parse import urlparse as _urlparse
+from fastapi import APIRouter, Depends, Query
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
 
-print("Loading integration_endpoints...")
+logger = logging.getLogger(__name__)
+
+
+def _validate_external_url(url: str) -> bool:
+    """Return True only if url resolves exclusively to public IPs. Blocks SSRF to internal targets."""
+    if not url or not url.startswith(("http://", "https://")):
+        return False
+    try:
+        hostname = _urlparse(url).hostname
+        if not hostname:
+            return False
+        for info in socket.getaddrinfo(hostname, None):
+            addr = ipaddress.ip_address(info[4][0])
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        return True
+    except Exception:
+        return False
+
+logger.debug("Loading integration_endpoints...")
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
 
 # Static list of supported integrations (Catalog)
@@ -22,11 +44,16 @@ SUPPORTED_INTEGRATIONS = [
 ]
 
 @router.get("/configs")
-async def list_integration_configs(current_user: TokenData = Depends(get_current_user)):
+async def list_integration_configs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: TokenData = Depends(get_current_user),
+):
     """List all integration configurations"""
     db = get_database()
-    # Fetch configurations for the tenant
-    configs = await db.integrations.find({"tenantId": current_user.tenant_id}, {"_id": 0}).to_list(length=100)
+    configs = await db.integrations.find(
+        {"tenantId": current_user.tenant_id}, {"_id": 0}
+    ).skip(skip).limit(limit).to_list(length=limit)
     return configs
 
 @router.post("/config")
@@ -52,12 +79,18 @@ async def save_integration_config(
     return {"success": True, "message": "Configuration saved", "id": config.get("id")}
 
 @router.get("/list")
-async def list_integrations(current_user: TokenData = Depends(get_current_user)):
+async def list_integrations(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+    current_user: TokenData = Depends(get_current_user),
+):
     """List all integrations (catalog + status)"""
     db = get_database()
-    
+
     # Fetch configured integrations from DB
-    db_configs = await db.integrations.find({"tenantId": current_user.tenant_id}, {"_id": 0}).to_list(length=100)
+    db_configs = await db.integrations.find(
+        {"tenantId": current_user.tenant_id}, {"_id": 0}
+    ).skip(skip).limit(limit).to_list(length=limit)
     
     # Convert DB configs to a map for easy lookup
     config_map = {conf.get("id"): conf for conf in db_configs}
@@ -126,6 +159,8 @@ async def test_integration(
             webhook_url = config.get("webhookUrl") or request.get("webhookUrl", "")
             if not webhook_url:
                 return {"success": False, "message": "Slack webhookUrl not configured."}
+            if not _validate_external_url(webhook_url):
+                return {"success": False, "message": "Invalid or disallowed webhook URL."}
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(webhook_url, json={"text": ":white_check_mark: Omni-Agent test notification"})
             if resp.status_code in (200, 204):
@@ -136,6 +171,8 @@ async def test_integration(
             webhook_url = config.get("webhookUrl") or request.get("webhookUrl", "")
             if not webhook_url:
                 return {"success": False, "message": "Teams webhookUrl not configured."}
+            if not _validate_external_url(webhook_url):
+                return {"success": False, "message": "Invalid or disallowed webhook URL."}
             payload = {"@type": "MessageCard", "text": "Omni-Agent test notification"}
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(webhook_url, json=payload)
@@ -159,6 +196,8 @@ async def test_integration(
             api_token = config.get("apiToken") or request.get("apiToken", "")
             if not api_url or not api_token:
                 return {"success": False, "message": "Jira apiUrl or apiToken not configured."}
+            if not _validate_external_url(api_url):
+                return {"success": False, "message": "Invalid or disallowed Jira API URL."}
             import base64
             auth = base64.b64encode(f"user:{api_token}".encode()).decode()
             async with httpx.AsyncClient(timeout=10) as client:

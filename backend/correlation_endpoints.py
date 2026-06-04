@@ -4,9 +4,9 @@ Correlation API Endpoints
 Provides SIEM correlation and attack pattern detection capabilities.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -74,7 +74,7 @@ async def analyze_correlations(
 @router.get("", response_model=List[Correlation])
 async def get_correlations(
     severity: Optional[str] = None,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=500),
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("view:security"))
 ):

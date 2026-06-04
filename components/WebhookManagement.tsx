@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Webhook, WebhookEvent, WebhookDelivery } from '../types';
 import { PlusCircleIcon, TrashIcon, RefreshCwIcon, CheckIcon, XCircleIcon, ClockIcon, CheckCircleIcon } from './icons';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 export const WebhookManagement: React.FC = () => {
     const [webhooks, setWebhooks] = useState<Webhook[]>([]);
@@ -93,13 +94,13 @@ export const WebhookManagement: React.FC = () => {
                 method: 'POST'
             });
             const delivery = await response.json();
-            alert(delivery.success ? 'Test successful!' : `Test failed: ${delivery.error}`);
+            showToast(delivery.success ? 'Test successful!' : `Test failed: ${delivery.error}`, delivery.success ? 'success' : 'error');
             if (selectedWebhook?.id === webhookId) {
                 fetchDeliveries(webhookId);
             }
         } catch (error) {
             console.error('Error testing webhook:', error);
-            alert('Test failed');
+            showToast('Test failed', 'error');
         }
     };
 

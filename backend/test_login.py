@@ -1,13 +1,17 @@
+import os
 import requests
-import json
 
 BASE_URL = "http://localhost:5000/api"
+_EMAIL = os.environ.get("SUPER_ADMIN_EMAIL", "super@omni.ai")
+_PASSWORD = os.environ.get("SUPER_ADMIN_PASSWORD", "")
+if not _PASSWORD:
+    raise SystemExit("SUPER_ADMIN_PASSWORD environment variable is required to run this script")
 
 def test_login():
-    print("Testing login for super@omni.ai...")
+    print(f"Testing login for {_EMAIL}...")
     payload = {
-        "email": "super@omni.ai",
-        "password": "password123"
+        "email": _EMAIL,
+        "password": _PASSWORD,
     }
     try:
         response = requests.post(f"{BASE_URL}/auth/login", json=payload)

@@ -1,16 +1,19 @@
+import os
 import requests
-import json
-import sys
 
 BASE_URL = 'http://127.0.0.1:5000/api'
+_EMAIL = os.environ.get("SUPER_ADMIN_EMAIL", "super@omni.ai")
+_PASSWORD = os.environ.get("SUPER_ADMIN_PASSWORD", "")
+if not _PASSWORD:
+    raise SystemExit("SUPER_ADMIN_PASSWORD environment variable is required to run this script")
 
 def test():
     try:
         # 1. Login
         print("Logging in...")
         login_res = requests.post(f"{BASE_URL}/auth/login", json={
-            'email': 'super@omni.ai', 
-            'password': 'password123'
+            'email': _EMAIL,
+            'password': _PASSWORD,
         })
         if login_res.status_code != 200:
             print(f"Login failed: {login_res.text}")

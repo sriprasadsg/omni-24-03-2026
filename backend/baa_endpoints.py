@@ -22,6 +22,13 @@ def _role(user) -> str | None:
     return getattr(user, "role", None) or (user.get("role") if isinstance(user, dict) else None)
 
 
+def _sub(user) -> str | None:
+    """Return user identifier — works for both TokenData (username) and dict (sub/email)."""
+    if isinstance(user, dict):
+        return user.get("sub") or user.get("email") or user.get("username")
+    return getattr(user, "username", None) or getattr(user, "email", None)
+
+
 def _normalize(doc: dict) -> dict:
     """Normalize stored doc to the shape the frontend expects."""
     doc.pop("_id", None)
@@ -97,7 +104,7 @@ async def create_baa(payload: dict, db=Depends(_db), current_user=Depends(get_cu
         "expiration_date": payload.get("expiration_date") or payload.get("expiry_date"),
         "status": "draft",
         "version": 1,
-        "created_by": current_user.get("sub"),
+        "created_by": _sub(current_user),
         "created_at": time.time(),
         "signed_by_vendor": False,
         "signed_by_us": False,
@@ -115,7 +122,7 @@ async def create_baa(payload: dict, db=Depends(_db), current_user=Depends(get_cu
 async def update_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
     payload.pop("id", None)
     payload.pop("_id", None)
-    payload["updated_by"] = current_user.get("sub")
+    payload["updated_by"] = _sub(current_user)
     payload["updated_at"] = time.time()
     tenant_id = _tenant(current_user)
     baa_filter: dict = {"id": baa_id}
@@ -139,12 +146,11 @@ async def sign_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Dep
     await db["baa_agreements"].update_one(
         baa_filter,
         {"$set": {update_field: True, f"{update_field}_at": time.time(),
-                  f"{update_field}_by": current_user.get("sub")}}
+                  f"{update_field}_by": _sub(current_user)}}
     )
     doc = await db["baa_agreements"].find_one(baa_filter)
     if doc and doc.get("signed_by_us") and doc.get("signed_by_vendor"):
         await db["baa_agreements"].update_one(baa_filter, {"$set": {"status": "active"}})
-    await db["baa_agreements"].update_one(baa_filter, {"$set": {"status": "active"}})
     return {"ok": True}
 
 
@@ -157,6 +163,6 @@ async def terminate_baa(baa_id: str, payload: dict, db=Depends(_db), current_use
     await db["baa_agreements"].update_one(
         baa_filter,
         {"$set": {"status": "terminated", "termination_reason": payload.get("reason"),
-                  "terminated_by": current_user.get("sub"), "terminated_at": time.time()}}
+                  "terminated_by": _sub(current_user), "terminated_at": time.time()}}
     )
     return {"ok": True}

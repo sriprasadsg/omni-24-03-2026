@@ -31,28 +31,46 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------
 # Optional Agentic Core imports
 # ─────────────────────────────────────────────
-try:
-    from agentic_core.llm_engine import AgenticLLM
-    from agentic_core.safety import SafetyGuardrails
-    from agentic_core.reasoning import AgenticReasoningEngine
-    from autonomous_actions.remediation import AutonomousRemediationEngine
-    from goal_system.manager import GoalManager
-    from knowledge_base.memory import AgentMemory
-    from swarm.coordinator import SwarmCoordinator
-except ImportError as _agentic_import_err:
-    AgenticLLM = None
-    SafetyGuardrails = None
-    AgenticReasoningEngine = None
-    AutonomousRemediationEngine = None
-    GoalManager = None
-    AgentMemory = None
-    SwarmCoordinator = None
+def _try_import(module_path: str, class_name: str):
+    """Import a single optional class; return (class, None) or (None, error_msg)."""
+    try:
+        import importlib
+        mod = importlib.import_module(module_path)
+        return getattr(mod, class_name), None
+    except Exception as _e:
+        return None, str(_e)
+
+_degraded: list[str] = []
+AgenticLLM,               _e = _try_import("agentic_core.llm_engine",          "AgenticLLM")
+if _e: _degraded.append(f"llm_engine ({_e})")
+
+SafetyGuardrails,         _e = _try_import("agentic_core.safety",              "SafetyGuardrails")
+if _e: _degraded.append(f"safety_guardrails ({_e})")
+
+AgenticReasoningEngine,   _e = _try_import("agentic_core.reasoning",           "AgenticReasoningEngine")
+if _e: _degraded.append(f"reasoning_engine ({_e})")
+
+AutonomousRemediationEngine, _e = _try_import("autonomous_actions.remediation", "AutonomousRemediationEngine")
+if _e: _degraded.append(f"autonomous_remediation ({_e})")
+
+GoalManager,              _e = _try_import("goal_system.manager",              "GoalManager")
+if _e: _degraded.append(f"goal_manager ({_e})")
+
+AgentMemory,              _e = _try_import("knowledge_base.memory",            "AgentMemory")
+if _e: _degraded.append(f"agent_memory ({_e})")
+
+SwarmCoordinator,         _e = _try_import("swarm.coordinator",                "SwarmCoordinator")
+if _e: _degraded.append(f"swarm_coordinator ({_e})")
+
+if _degraded:
     logging.warning(
-        "[Agent] Agentic core unavailable — agent running in degraded mode "
-        "(no autonomous reasoning, remediation, goal management, or swarm). "
-        "Import error: %s",
-        _agentic_import_err,
+        "[Agent] Running in degraded mode — %d agentic module(s) unavailable: %s. "
+        "Autonomous reasoning, remediation, and swarm coordination are DISABLED for those modules.",
+        len(_degraded),
+        ", ".join(_degraded),
     )
+else:
+    logging.info("[Agent] All agentic core modules loaded successfully.")
 
 from security import SecurityManager
 from platform_utils import PlatformUtils
@@ -246,7 +264,7 @@ def register_agent(cfg) -> bool:
 
         if resp.status_code in (200, 201):
             data = resp.json()
-            agent_token = data.get("token") or data.get("agent_token") or data.get("access_token") or "dummy-token"
+            agent_token = data.get("token") or data.get("agent_token") or data.get("access_token")
             agent_id    = data.get("agent_id") or data.get("agentId") or data.get("id")
 
             if agent_token and agent_id:
@@ -256,17 +274,13 @@ def register_agent(cfg) -> bool:
                 logger.info(f"[SUCCESS] Registration successful - Agent ID: {agent_id}")
                 return True
             else:
-                logger.warning(f"Registration response missing token/id: {data}")
-                # Fall back: if backend responded with a hostname-based ID use it
-                if agent_id:
-                    cfg["agent_id"] = agent_id
-
+                logger.warning(f"Registration response missing token or agent_id: {data}")
+                # Do NOT fall back to hostname-as-id or store a partial config —
+                # operating without a valid token would broadcast the registration key.
                 return False
 
         else:
             logger.warning(f"Registration failed (HTTP {resp.status_code}): {resp.text[:200]}")
-            # Fallback: derive an ID from hostname so instruction polling still works
-            cfg.setdefault("agent_id", hostname)
             return False
 
     except Exception as e:
@@ -382,10 +396,66 @@ class AgentCapabilityManager:
             return {"status": "started", "session_id": session_id}
         return {"status": "error", "error": "Remote Access capability not available"}
 
+    # ── Agent Chat Window ──────────────────────────────────────────────────
+    def execute_agent_chat(self, payload: dict, cfg: dict) -> dict:
+        """Open a chat popup window on the endpoint desktop."""
+        session_id      = payload.get("session_id")
+        subject         = payload.get("subject", "Message from IT Administrator")
+        initial_message = payload.get("initial_message", "")
+        backend_url     = payload.get("backend_url") or cfg.get("api_base_url", "").rstrip("/")
+        sender          = payload.get("sender", "Administrator")
+
+        chat_cap = self.capability_instances.get("chat_window")
+        if chat_cap:
+            return chat_cap.start_chat(
+                session_id=session_id,
+                subject=subject,
+                initial_message=initial_message,
+                backend_url=backend_url,
+                auth_headers=self._auth_headers(),
+                sender=sender,
+            )
+        return {"status": "error", "error": "chat_window capability not available"}
+
+    def deliver_chat_message(self, payload: dict) -> dict:
+        """Deliver a follow-up admin message to an already-open chat window.
+        The window polls the backend itself, so this just signals it's there."""
+        session_id = payload.get("session_id")
+        chat_cap   = self.capability_instances.get("chat_window")
+        if chat_cap and session_id:
+            # Window polls independently — no direct injection needed
+            logger.debug("[AgentChat] New message queued for session %s", session_id)
+            return {"status": "acknowledged", "session_id": session_id}
+        return {"status": "no_active_window", "session_id": session_id}
+
     # ── Single Instruction Dispatcher ──────────────────────────────────────
     def execute_single_instruction(self, instruction: str, payload: dict = None) -> dict:
         """Dispatches a single text instruction to the appropriate capability."""
         import re
+
+        # ── Create Ticket ──────────────────────────────────────────────────
+        if instruction == "create_ticket" or "create_ticket" in instruction:
+            cap = self.capability_instances.get("ticket_reporter")
+            if cap:
+                p = payload or {}
+                # Prefer tenant from payload (set by backend), fall back to agent config
+                tenant_id = p.get("tenantId") or self.cfg.get("tenant_id", "")
+                if tenant_id:
+                    cap.config["tenant_id"] = tenant_id
+                ticket = cap.raise_ticket(
+                    title=p.get("title", "Agent-raised ticket"),
+                    description=p.get("description", ""),
+                    ticket_type=p.get("type", "task"),
+                    priority=p.get("priority", "medium"),
+                    assignee=p.get("assignee", ""),
+                    tags=p.get("tags", ["user-raised"]),
+                    endpoint_info=p.get("endpoint_info"),  # forwarded from tray icon payload
+                )
+                if ticket:
+                    logger.info("Ticket created by agent instruction: %s", ticket.get("ticket_number"))
+                    return {"status": "success", "ticket_number": ticket.get("ticket_number"), "ticket_id": ticket.get("id")}
+                return {"status": "error", "error": "Ticket creation failed"}
+            return {"status": "error", "error": "TicketReporter capability not available"}
 
         # ── PII Scanner ────────────────────────────────────────────────────
         if "Run PII Scan" in instruction or "pii_scan" in instruction:
@@ -1439,28 +1509,39 @@ def check_and_execute_instructions(cfg, capability_mgr):
                 payload    = item.get("payload")
                 task_id    = item.get("task_id")
 
-                if instr_type == "start_remote_session":
-                    result = capability_mgr.execute_remote_session(payload)
-                elif instr_type == "run_software_scan":
-                    # Phase 11: Live software inventory scan on demand
-                    logger.info("[instruction] Running on-demand software inventory scan...")
-                    sw_inventory, os_patches_data = collect_software_inventory()
-                    result = {
-                        "status": "success",
-                        "software_inventory": sw_inventory,
-                        "os_patches": os_patches_data,
-                        "packages_found": len(sw_inventory)
-                    }
-                    # Report back to backend
-                    try:
-                        report_url = cfg.get("api_base_url", "").rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/software-inventory"
-                        requests.post(report_url, json=result, headers=capability_mgr._auth_headers(), timeout=10)
-                    except Exception as e:
-                        logger.warning(f"[run_software_scan] Failed to report: {e}")
-                elif instr_type:
-                    result = capability_mgr.execute_single_instruction(instr_type, payload=payload)
-                else:
-                    result = {"status": "skipped", "reason": "No instruction text"}
+                try:
+                    if instr_type == "start_remote_session":
+                        result = capability_mgr.execute_remote_session(payload)
+                    elif instr_type == "start_agent_chat":
+                        result = capability_mgr.execute_agent_chat(payload, cfg)
+                    elif instr_type == "agent_chat_message":
+                        result = capability_mgr.deliver_chat_message(payload)
+                    elif instr_type == "run_software_scan":
+                        # Phase 11: Live software inventory scan on demand
+                        logger.info("[instruction] Running on-demand software inventory scan...")
+                        sw_inventory, os_patches_data = collect_software_inventory()
+                        result = {
+                            "status": "success",
+                            "software_inventory": sw_inventory,
+                            "os_patches": os_patches_data,
+                            "packages_found": len(sw_inventory)
+                        }
+                        # Report back to backend
+                        try:
+                            report_url = cfg.get("api_base_url", "").rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/software-inventory"
+                            requests.post(report_url, json=result, headers=capability_mgr._auth_headers(), timeout=10)
+                        except Exception as e:
+                            logger.warning(f"[run_software_scan] Failed to report: {e}")
+                    elif instr_type:
+                        result = capability_mgr.execute_single_instruction(instr_type, payload=payload)
+                    else:
+                        result = {"status": "skipped", "reason": "No instruction text"}
+                except Exception as _instr_err:
+                    logger.error(
+                        "Instruction '%s' raised unhandled exception — skipping to next: %s",
+                        instr_type, _instr_err, exc_info=True
+                    )
+                    result = {"status": "error", "error": str(_instr_err)}
 
                 logger.info(f"Instruction '{instr_type}' result: {result.get('status', result)}")
 
@@ -1932,6 +2013,14 @@ def main(service_instance=None):
                     logger.warning("⚠️ Local AI Model (Ollama) not available.")
     except Exception as e:
         logger.warning(f"Failed to initialize AI Model: {e}")
+
+    # ── Start system tray icon (desktop endpoints only) ───────────────────
+    try:
+        from tray_icon import AgentTrayIcon
+        tray = AgentTrayIcon(cfg, lambda: capability_mgr.agent_id)
+        tray.start()
+    except Exception as _tray_err:
+        logger.debug("Tray icon not started: %s", _tray_err)
 
     # ── Fetch initial remote capability config ─────────────────────────────
     capability_mgr.fetch_configuration()

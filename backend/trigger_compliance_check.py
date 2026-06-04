@@ -6,7 +6,7 @@ Evaluates all assets for a tenant against compliance controls and updates status
 import asyncio
 import sys
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from database import get_database
 import argparse
 
@@ -114,7 +114,7 @@ async def evaluate_all_tenant_assets(tenant_id: str, framework_id: str = "all") 
         compliance_data = meta.get("compliance_enforcement", {})
         
         if not compliance_data or not compliance_data.get("compliance_checks"):
-            print(f"   ⏭️  Skipping - no compliance data available")
+            print("   ⏭️  Skipping - no compliance data available")
             continue
         
         checks = compliance_data.get("compliance_checks", [])
@@ -217,15 +217,15 @@ async def evaluate_all_tenant_assets(tenant_id: str, framework_id: str = "all") 
     
     # 5. Print summary
     print(f"\n{'='*60}")
-    print(f"📊 EVALUATION SUMMARY")
+    print("📊 EVALUATION SUMMARY")
     print(f"{'='*60}")
     print(f"Assets Evaluated: {stats['assets_evaluated']}")
     print(f"Controls Checked: {stats['controls_checked']}")
     print(f"Evidence Generated: {stats['evidence_generated']}")
-    print(f"\nCompliance Results:")
+    print("\nCompliance Results:")
     print(f"  ✅ Compliant: {stats['compliant_count']}")
     print(f"  ❌ Non-Compliant: {stats['non_compliant_count']}")
-    print(f"\nAsset Classification:")
+    print("\nAsset Classification:")
     print(f"  ✅ Fully Compliant Assets: {stats['compliant_assets']}")
     print(f"  ⚠️  Partially Compliant: {stats['partial_compliance_assets']}")
     print(f"  ❌ Non-Compliant Assets: {stats['non_compliant_assets']}")

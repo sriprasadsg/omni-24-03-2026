@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from datetime import datetime
 from authentication_service import get_current_user
+from database import get_database
 from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -125,15 +126,16 @@ async def deploy_software(
         caller_tenant = getattr(current_user, "tenant_id", None)
         is_super_admin = getattr(current_user, "role", "") in _SUPER_ADMIN_ROLES
 
+        # Batch-fetch all agents in one query instead of one find_one per agent_id
+        _batch_q: dict = {"id": {"$in": payload.agentIds[:100]}}
+        if not is_super_admin and caller_tenant:
+            _batch_q["tenantId"] = caller_tenant
+        _agent_docs = await db.agents.find(_batch_q, {"id": 1, "tenantId": 1}).to_list(length=100)
+        _agent_map = {a["id"]: a.get("tenantId") for a in _agent_docs if a.get("tenantId")}
+
         task_ids = []
         for agent_id in payload.agentIds[:100]:
-            _agent_q: dict = {"id": agent_id}
-            if not is_super_admin and caller_tenant:
-                _agent_q["tenantId"] = caller_tenant
-            agent = await db.agents.find_one(_agent_q)
-            if not agent:
-                continue
-            tenant_id = agent.get("tenantId") or None
+            tenant_id = _agent_map.get(agent_id)
             if not tenant_id:
                 continue
 

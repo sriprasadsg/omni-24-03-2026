@@ -11,6 +11,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 import aiohttp
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Version helpers
@@ -95,8 +99,8 @@ class SoftwareVersionService:
             )
             if doc:
                 return doc.get("latest_version")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Version cache read failed for %s/%s: %s", name, pkg_type, e)
         return None
 
     async def _save_to_cache(self, db, name: str, pkg_type: str, latest_version: str):
@@ -110,8 +114,8 @@ class SoftwareVersionService:
                 }},
                 upsert=True
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Version cache write failed for %s/%s: %s", name, pkg_type, e)
 
     # ── Registry lookups ──────────────────────────────────────────────────────
 
@@ -156,8 +160,8 @@ class SoftwareVersionService:
                     match = re.search(r'<strong>([^<]+)</strong>\s*\(([^)]+)\)', text)
                     if match:
                         return match.group(2).split("-")[0]  # strip epoch/revision
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Debian package version fetch failed: %s", e)
         return None
 
     # ── Public API ────────────────────────────────────────────────────────────

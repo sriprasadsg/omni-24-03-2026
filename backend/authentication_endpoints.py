@@ -1,14 +1,36 @@
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
-from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM, oauth2_scheme
+
+# Fields that must never appear in any user-facing API response
+_SENSITIVE_USER_FIELDS = frozenset({
+    'password', 'hashed_password', 'password_hash',
+    '_id', 'mfa',
+    'reset_token', 'invite_token', 'api_key', 'secret',
+})
+from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, oauth2_scheme
 from database import get_database
-from auth_utils import verify_password, hash_password
+
+# WHY db._db.* IS USED IN THIS FILE
+# ─────────────────────────────────────────────────────────────────────────────
+# Authentication endpoints must bypass tenant isolation (db._db.*) for three
+# reasons:
+#   1. LOGIN — the caller has no JWT yet, so we cannot derive tenant_id from the
+#      token. We must find the user record globally (across all tenants) to verify
+#      the password and mint the first JWT.
+#   2. BRUTE-FORCE TRACKING — login_attempts are keyed by email/IP, not tenant,
+#      so the lockout check must read across all tenants.
+#   3. TOKEN REVOCATION — revoked_tokens and revoked JTIs must be checked globally
+#      because a token can be presented to any endpoint regardless of tenant.
+#
+# Do NOT copy this pattern in new endpoints. Use db.<collection> (tenant-scoped)
+# for all operations performed after a user is authenticated.
+# ─────────────────────────────────────────────────────────────────────────────
+from auth_utils import verify_password, hash_password, validate_password_complexity
 from rate_limiter import limiter
 from pydantic import BaseModel, Field
 from datetime import timedelta, timezone
 import uuid
 import datetime
-import re
 import jwt
 import logging
 
@@ -67,20 +89,6 @@ async def _clear_login_failures(db, identifier: str) -> None:
     await db._db.login_attempts.delete_one({"identifier": identifier})
 
 
-def _validate_password_complexity(password: str) -> str | None:
-    """Return an error message if the password fails complexity requirements, else None."""
-    if len(password) < 8:
-        return "Password must be at least 8 characters"
-    if not re.search(r"[A-Z]", password):
-        return "Password must contain at least one uppercase letter"
-    if not re.search(r"[a-z]", password):
-        return "Password must contain at least one lowercase letter"
-    if not re.search(r"\d", password):
-        return "Password must contain at least one digit"
-    if not re.search(r"[^A-Za-z0-9]", password):
-        return "Password must contain at least one special character"
-    return None
-
 class LoginRequest(BaseModel):
     username: str | None = Field(None, max_length=254)
     email: str | None = Field(None, max_length=254)
@@ -112,8 +120,8 @@ async def _run_ueba_analysis(db, user_id: str, ip_address: str, user_agent: str)
             {"$setOnInsert": event.dict()},
             upsert=True,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("UEBA analysis failed (non-fatal): %s", e)
 
 
 @router.post("/login")
@@ -134,7 +142,8 @@ async def login_for_access_token(request: Request, login_request: LoginRequest):
     })
 
     # Validate credentials — use a single generic message to prevent user enumeration
-    if not user or not verify_password(login_request.password, user['password']):
+    stored_hash = user.get('password') or user.get('hashed_password') if user else None
+    if not user or not stored_hash or not verify_password(login_request.password, stored_hash):
         await _record_login_failure(db, identifier)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -173,7 +182,7 @@ async def login_for_access_token(request: Request, login_request: LoginRequest):
     refresh_token = create_refresh_token(data={"sub": user["email"]})
 
     # Prepare user object for frontend (exclude sensitive fields)
-    user_data = {k: v for k, v in user.items() if k not in ('password', '_id', 'mfa')}
+    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
 
@@ -219,7 +228,7 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     role = await db.roles.find_one({"name": role_name})
     
     # Build user response object (exclude sensitive fields)
-    user_data = {k: v for k, v in user.items() if k not in ('password', '_id', 'mfa')}
+    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
     
@@ -237,10 +246,7 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 @router.post("/signup")
 @limiter.limit("3/hour")
 async def signup(request: Request, data: dict[str, Any] = Body(...)):
-    from auth_utils import hash_password
-    import uuid
     from datetime import datetime, timezone
-    from typing import Any
     from tenant_context import set_tenant_id
     
     # Bypass tenant isolation for signup flow to check global existence and insert with correct tenantId
@@ -252,7 +258,7 @@ async def signup(request: Request, data: dict[str, Any] = Body(...)):
     password = data.get('password', '')
     if not all([company_name, name, email, password]):
         raise HTTPException(status_code=400, detail="All fields are required")
-    complexity_error = _validate_password_complexity(password)
+    complexity_error = validate_password_complexity(password)
     if complexity_error:
         raise HTTPException(status_code=400, detail=complexity_error)
     db = get_database()
@@ -323,7 +329,13 @@ async def signup(request: Request, data: dict[str, Any] = Body(...)):
         "permissions": enterprise_permissions,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
-    await db.users.insert_one(user_doc)
+    try:
+        await db.users.insert_one(user_doc)
+    except Exception as _dup:
+        # A unique index on users.email catches concurrent signups with the same address
+        if "duplicate" in str(_dup).lower() or "E11000" in str(_dup):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        raise
 
     # Seed GDPR/CCPA consent record for the new user
     await db.user_consents.insert_one({
@@ -347,7 +359,7 @@ async def signup(request: Request, data: dict[str, Any] = Body(...)):
     refresh_token = create_refresh_token(data={"sub": email})
     
     # Prepare user object for frontend (exclude sensitive fields)
-    user_data = {k: v for k, v in user_doc.items() if k not in ('password', '_id', 'mfa')}
+    user_data = {k: v for k, v in user_doc.items() if k not in _SENSITIVE_USER_FIELDS}
     if 'id' not in user_data:
         user_data['id'] = user_id
         
@@ -392,12 +404,6 @@ async def refresh_access_token(request: Request, data: dict[str, Any] = Body(...
     jti = payload.get("jti")
     db = get_database()
 
-    # Check if this refresh token's jti has been revoked (e.g. after logout)
-    if jti:
-        revoked = await db._db.revoked_tokens.find_one({"jti": jti}, {"_id": 1})
-        if revoked:
-            raise HTTPException(status_code=401, detail="Could not validate credentials")
-
     # Enforce account lockout — prevent refresh even if the token is technically valid
     await _check_login_lockout(db, email)
 
@@ -406,18 +412,38 @@ async def refresh_access_token(request: Request, data: dict[str, Any] = Body(...
     if not user or user.get("status") != "Active":
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
-    # Rotate: revoke the consumed refresh token immediately so it cannot be reused
+    # Atomically consume this refresh token's JTI — prevents double-use under concurrency.
+    # find_one_and_update with $setOnInsert + a unique index on jti guarantees only one
+    # request wins; the second sees inserted_id=None and gets a 401.
     if jti:
-        await db._db.revoked_tokens.insert_one({
-            "jti": jti,
-            "type": "refresh",
-            "revoked_at": datetime.now(timezone.utc).isoformat(),
-        })
+        try:
+            existing = await db._db.revoked_tokens.find_one_and_update(
+                {"jti": jti},
+                {"$setOnInsert": {
+                    "jti": jti,
+                    "type": "refresh",
+                    "revoked_at": datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+                return_document=False,
+            )
+            if existing is not None:
+                # Document already existed → token was already consumed
+                raise HTTPException(status_code=401, detail="Could not validate credentials")
+        except HTTPException:
+            raise
+        except Exception:
+            # Duplicate key from a concurrent request lost the race
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
 
+    # Preserve tenant_id: prefer the field stored in the user document.
+    # Fall back to the original token's tenant_id so Tenant Admins aren't locked out
+    # if their document was created before tenantId was indexed.
+    tenant_id_for_token = user.get("tenantId") or payload.get("tenant_id") or None
     token_data = {
         "sub": email,
         "role": user.get("role", "user"),
-        "tenant_id": user.get("tenantId") or None,
+        "tenant_id": tenant_id_for_token,
     }
     new_access_token = create_access_token(data=token_data)
     new_refresh_token = create_refresh_token(data={"sub": email})
@@ -434,102 +460,20 @@ async def logout(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         jti = payload.get("jti")
         if jti:
-            db = get_database()
-            exp = payload.get("exp")
-            await db.revoked_tokens.insert_one({"jti": jti, "exp": exp})
             from authentication_service import _revoked_jti_cache
-            _revoked_jti_cache.add(jti)
-    except Exception:
-        pass
+            _revoked_jti_cache.add(jti)  # block in-process immediately, even if DB write fails
+            try:
+                db = get_database()
+                exp = payload.get("exp")
+                await db.revoked_tokens.insert_one({
+                    "jti": jti,
+                    "exp": exp,
+                    "revoked_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception as db_err:
+                logger.warning("Token revocation DB write failed — token blocked in-process cache only: %s", db_err)
+    except Exception as e:
+        logger.warning("Token revocation failed (token will expire naturally): %s", e)
     return {"success": True, "message": "Logged out successfully"}
 
 
-class PasswordResetRequest(BaseModel):
-    email: str = Field(..., max_length=254)
-
-
-class PasswordResetConfirm(BaseModel):
-    token: str = Field(..., max_length=512)
-    new_password: str = Field(..., max_length=1024)
-
-
-# In-memory reset token store — replace with DB collection in production
-_reset_tokens: dict[str, dict] = {}
-
-
-@router.post("/reset-password/request")
-@limiter.limit("3/minute")
-async def request_password_reset(request: Request, body: PasswordResetRequest):
-    """Issue a password-reset token (returned in response for demo; send via email in production)."""
-    db = get_database()
-    user = await db._db.users.find_one({"email": body.email})
-    # Always return 200 to prevent email enumeration
-    if not user:
-        return {"success": True, "message": "If that address is registered you will receive a reset link"}
-
-    reset_token = uuid.uuid4().hex
-    expires_at = datetime.datetime.now(timezone.utc) + timedelta(minutes=30)
-    _reset_tokens[reset_token] = {"email": body.email, "expires_at": expires_at}
-
-    # Persist to DB so token survives process restarts; fall back to in-memory dict
-    try:
-        await db._db.password_reset_tokens.insert_one({
-            "token": reset_token,
-            "email": body.email,
-            "expires_at": expires_at.isoformat(),
-        })
-    except Exception:
-        pass  # in-memory dict is the fallback
-
-    # NOTE: in production wire this to an email delivery service (SES/SendGrid)
-    # and remove the token from the response body entirely.
-    import logging as _log
-    _log.getLogger(__name__).info("[PasswordReset] Token issued for %s", body.email)
-    return {
-        "success": True,
-        "message": "If that address is registered you will receive a reset link",
-    }
-
-
-@router.post("/reset-password/confirm")
-@limiter.limit("5/minute")
-async def confirm_password_reset(request: Request, body: PasswordResetConfirm):
-    """Apply a new password using a valid reset token."""
-    now = datetime.datetime.now(timezone.utc)
-    entry = _reset_tokens.get(body.token)
-
-    # Fall back to DB lookup (handles server-restart case)
-    db = get_database()
-    if not entry:
-        try:
-            db_token = await db._db.password_reset_tokens.find_one({"token": body.token})
-            if db_token:
-                expires_at = datetime.datetime.fromisoformat(db_token["expires_at"])
-                if expires_at.tzinfo is None:
-                    expires_at = expires_at.replace(tzinfo=timezone.utc)
-                entry = {"email": db_token["email"], "expires_at": expires_at}
-        except Exception:
-            pass
-
-    if not entry:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-
-    if now > entry["expires_at"]:
-        _reset_tokens.pop(body.token, None)
-        raise HTTPException(status_code=400, detail="Reset token has expired")
-
-    complexity_error = _validate_password_complexity(body.new_password)
-    if complexity_error:
-        raise HTTPException(status_code=400, detail=complexity_error)
-
-    hashed = hash_password(body.new_password)
-    await db._db.users.update_one(
-        {"email": entry["email"]},
-        {"$set": {"password": hashed}},
-    )
-    _reset_tokens.pop(body.token, None)
-    try:
-        await db._db.password_reset_tokens.delete_one({"token": body.token})
-    except Exception:
-        pass
-    return {"success": True, "message": "Password updated successfully"}

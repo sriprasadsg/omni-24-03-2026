@@ -6,7 +6,7 @@ Provides model drift detection and monitoring capabilities for AI systems.
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from database import get_database
@@ -15,6 +15,11 @@ from rbac_utils import require_permission
 import logging
 
 logger = logging.getLogger(__name__)
+
+def _get(user, key, default=None):
+    if isinstance(user, dict):
+        return user.get(key, default)
+    return getattr(user, key, default)
 
 router = APIRouter(prefix="/api/ml-monitoring", tags=["ML Monitoring"])
 
@@ -109,6 +114,52 @@ async def get_drift_history(
     )
     
     return history
+
+
+@router.get("/drift")
+async def get_drift_scores(
+    tenant_id: Optional[str] = None,
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("view:ai_systems")),
+):
+    """
+    Return drift scores per registered AI model.
+    Tests: O6 — GET /api/ml-monitoring/drift → Drift scores per model
+    """
+    caller_role = _get(current_user, "role", "")
+    caller_tenant = _get(current_user, "tenantId") or _get(current_user, "tenant_id")
+    # Only super-admins may cross tenant boundaries via the query param
+    effective_tenant = (tenant_id if caller_role == "Super Admin" else caller_tenant) or caller_tenant
+    query: Dict[str, Any] = {}
+    if caller_role != "Super Admin" and effective_tenant:
+        query["tenantId"] = effective_tenant
+
+    ai_systems = await db.ai_systems.find(query, {"_id": 0, "id": 1, "name": 1, "type": 1}).to_list(length=100)
+    drift_records = await db.model_drift.find(query, {"_id": 0}).sort("detected_at", -1).to_list(length=200)
+
+    drift_by_model: Dict[str, Any] = {}
+    for r in drift_records:
+        mid = r.get("model_id") or r.get("systemId", "")
+        if mid and mid not in drift_by_model:
+            drift_by_model[mid] = {
+                "model_id": mid,
+                "drift_score": r.get("drift_score", r.get("driftScore", 0)),
+                "drift_detected": r.get("drift_detected", False),
+                "detected_at": r.get("detected_at"),
+                "metric": r.get("metric", "feature_drift"),
+            }
+
+    result = []
+    for sys in ai_systems:
+        mid = sys["id"]
+        drift = drift_by_model.get(mid, {"drift_score": 0, "drift_detected": False, "detected_at": None, "metric": "none"})
+        result.append({"model_id": mid, "model_name": sys.get("name", mid), **drift})
+
+    for mid, drift in drift_by_model.items():
+        if not any(r["model_id"] == mid for r in result):
+            result.append({"model_id": mid, "model_name": mid, **drift})
+
+    return {"drift_scores": result, "total": len(result)}
 
 
 @router.get("/models-status")

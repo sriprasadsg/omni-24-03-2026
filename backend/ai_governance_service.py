@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
 import uuid
 import logging
-from typing import List, Dict, Any, Optional
-from database import get_database
-from models import AiModel, AiModelVersion, AiPolicy, AiPolicyRule
+from typing import List, Optional
+from models import AiModel, AiModelVersion, AiPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -198,8 +197,8 @@ class AiGovernanceService:
                 {"$set": snap},
                 upsert=True,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Compliance snapshot persistence failed (non-fatal): %s", e)
 
         return report
 
@@ -322,7 +321,7 @@ class AiGovernanceService:
             await self.db.ai_governance_scans.insert_one(scan_record)
 
             return scan_record
-        except Exception as e:
+        except Exception:
             logger.error("AI Expert evaluation failed for model %s", model_id, exc_info=True)
             return {"error": "AI Expert evaluation failed"}
 

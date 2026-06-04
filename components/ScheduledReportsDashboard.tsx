@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface ScheduledReport {
   id: string;
@@ -9,10 +10,31 @@ interface ScheduledReport {
   delivery_channel: string;
   recipients: string[];
   enabled: boolean;
-  last_run_at: string | null;
-  next_run_at: string | null;
+  // Backend uses last_run / next_run (not last_run_at / next_run_at)
+  last_run: string | null;
+  next_run: string | null;
+  last_run_at?: string | null; // legacy alias
+  next_run_at?: string | null; // legacy alias
+  last_error?: string | null;
   created_at: string;
   run_count: number;
+}
+
+function relativeTime(isoStr: string | null | undefined): string {
+  if (!isoStr) return '—';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const future = diff < 0;
+  const abs = Math.abs(diff);
+  const mins = Math.floor(abs / 60_000);
+  const hrs  = Math.floor(abs / 3_600_000);
+  const days = Math.floor(abs / 86_400_000);
+  let label: string;
+  if (abs < 60_000)       label = 'just now';
+  else if (mins < 60)     label = `${mins}m`;
+  else if (hrs < 24)      label = `${hrs}h`;
+  else                    label = `${days}d`;
+  if (label === 'just now') return label;
+  return future ? `in ${label}` : `${label} ago`;
 }
 
 const REPORT_TYPES = [
@@ -78,7 +100,7 @@ export default function ScheduledReportsDashboard() {
         body: JSON.stringify(body),
       });
       if (r.ok) { loadReports(); setShowCreate(false); setForm({ name: '', report_type: 'security_summary', frequency: 'weekly', delivery_channel: 'email', recipients: '', webhook_url: '' }); }
-      else { const d = await r.json(); alert(d.detail || 'Failed'); }
+      else { const d = await r.json(); showToast(d.detail || 'Failed', 'error'); }
     } finally { setSaving(false); }
   }
 
@@ -165,10 +187,35 @@ export default function ScheduledReportsDashboard() {
                 <p className="text-xs text-gray-400 mb-2 truncate">{rep.recipients.join(', ')}</p>
               )}
 
-              <div className="text-xs text-gray-500 space-y-0.5 mb-3">
-                {rep.last_run_at && <p>Last run: {new Date(rep.last_run_at).toLocaleString()}</p>}
-                {rep.next_run_at && <p>Next run: {new Date(rep.next_run_at).toLocaleString()}</p>}
-                <p>Runs: {rep.run_count}</p>
+              <div className="text-xs space-y-1.5 mb-3">
+                {/* Last delivery */}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Last run</span>
+                  <span className={`font-medium ${rep.last_error ? 'text-red-400' : 'text-gray-300'}`}>
+                    {rep.last_error
+                      ? <span title={rep.last_error}>⚠ {relativeTime(rep.last_run || rep.last_run_at)}</span>
+                      : relativeTime(rep.last_run || rep.last_run_at)}
+                  </span>
+                </div>
+                {/* Next run */}
+                {(() => {
+                  const nxt = rep.next_run || rep.next_run_at;
+                  const hoursUntil = nxt ? (new Date(nxt).getTime() - Date.now()) / 3_600_000 : Infinity;
+                  const urgentClass = hoursUntil < 1 ? 'text-red-400 font-bold' : hoursUntil < 24 ? 'text-amber-300 font-medium' : 'text-gray-300';
+                  return (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">Next run</span>
+                      <span className={urgentClass}>
+                        {hoursUntil < 24 && hoursUntil > 0 && '⏰ '}
+                        {relativeTime(nxt)}
+                      </span>
+                    </div>
+                  );
+                })()}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Total runs</span>
+                  <span className="text-gray-300">{rep.run_count}</span>
+                </div>
               </div>
 
               <div className="flex gap-2">

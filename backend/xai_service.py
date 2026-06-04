@@ -10,6 +10,10 @@ Global importance is recalculated from the *actual* UEBA risk-score distribution
 stored in MongoDB, so the numbers reflect real tenant behaviour.
 """
 from typing import Dict, Any, List
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 try:
     import shap as _shap
@@ -81,8 +85,8 @@ class XAIService:
         if _HAS_SKLEARN:
             try:
                 return _compute_rf_importance(model_id)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("XAI computation failed, using research fallback: %s", e)
         # Calibrated research fallback
         return [
             {"feature": f, "importance": _RESEARCH_WEIGHTS[f]}
@@ -108,8 +112,8 @@ class XAIService:
         if _HAS_SHAP and _HAS_SKLEARN:
             try:
                 return _shap_explanation(model_id, values, base_value)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("XAI computation failed, using research fallback: %s", e)
 
         # ── Shapley-approximate decomposition ─────────────────────────────────
         contributions = []

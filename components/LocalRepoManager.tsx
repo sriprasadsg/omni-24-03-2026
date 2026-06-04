@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface LocalPackage {
     filename: string;
@@ -84,10 +85,10 @@ export const LocalRepoManager: React.FC = () => {
             if (res.ok) {
                 fetchPackages();
             } else {
-                alert('Deletion failed. Ensure you have admin privileges.');
+                showToast('Deletion failed. Ensure you have admin privileges.', 'error');
             }
         } catch (e) {
-            alert('Error deleting package.');
+            showToast('Error deleting package.', 'error');
         }
     };
 

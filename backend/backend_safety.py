@@ -6,7 +6,6 @@ and autonomous decision service all share one source of truth.
 """
 from __future__ import annotations
 import logging
-from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)

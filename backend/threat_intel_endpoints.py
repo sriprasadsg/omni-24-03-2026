@@ -5,9 +5,11 @@ Provides real-time threat intelligence scanning using VirusTotal integration.
 Supports scanning of IPs, domains, URLs, and file hashes.
 """
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -15,6 +17,10 @@ from database import get_database
 from virustotal_client import get_virustotal_client
 from rbac_utils import require_permission
 from auth_types import TokenData
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/threat-intel", tags=["Threat Intelligence"])
 
@@ -63,15 +69,15 @@ async def scan_artifact(
     """
     vt_client = get_virustotal_client()
     
-    # Perform scan based on type
+    # Perform scan based on type — run sync requests client in a thread to avoid blocking the event loop
     if request.artifact_type == "ip":
-        result = vt_client.scan_ip(request.artifact)
+        result = await asyncio.to_thread(vt_client.scan_ip, request.artifact)
     elif request.artifact_type == "domain":
-        result = vt_client.scan_domain(request.artifact)
+        result = await asyncio.to_thread(vt_client.scan_domain, request.artifact)
     elif request.artifact_type == "url":
-        result = vt_client.scan_url(request.artifact)
+        result = await asyncio.to_thread(vt_client.scan_url, request.artifact)
     elif request.artifact_type == "hash":
-        result = vt_client.scan_file_hash(request.artifact)
+        result = await asyncio.to_thread(vt_client.scan_file_hash, request.artifact)
     else:
         raise HTTPException(status_code=400, detail=f"Invalid artifact type: {request.artifact_type}")
     
@@ -140,8 +146,8 @@ async def get_threat_feed(
             doc.setdefault("created_by", "system")
             try:
                 scans.append(ThreatIntelScan(**doc))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Skipping malformed threat intel scan doc: %s", e)
     except Exception:
         pass
     

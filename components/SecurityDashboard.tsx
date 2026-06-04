@@ -20,6 +20,7 @@ import { GeneratePlaybookModal } from './GeneratePlaybookModal';
 import { ThreatIntelModal } from './ThreatIntelModal';
 import * as api from '../services/apiService';
 import { ThreatIntelFeed } from './ThreatIntelFeed';
+import { showToast } from '../utils/toast';
 
 interface SecurityDashboardProps {
     securityCases: SecurityCase[];
@@ -136,7 +137,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                 }
             }
         } catch (error) {
-            alert(`Failed to scan artifact: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            showToast(`Failed to scan artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
         }
     };
 

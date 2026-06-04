@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 from database import get_database
 from approval_service import get_approval_service
 from rbac_utils import require_permission

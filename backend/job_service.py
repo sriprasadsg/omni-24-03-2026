@@ -1,7 +1,6 @@
 import os
 import redis
 import json
-from celery import Celery
 
 # Initialize Redis connection
 # Assuming generic default for now, similar to app.py

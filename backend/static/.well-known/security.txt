@@ -1,0 +1,7 @@
+Contact: mailto:security@omni-agent.local
+Expires: 2027-01-01T00:00:00.000Z
+Preferred-Languages: en
+Policy: https://omni-agent.local/security-policy
+Acknowledgments: https://omni-agent.local/hall-of-fame
+
+# Replace Contact, Expires, Policy, and Acknowledgments with your actual values before deploying.

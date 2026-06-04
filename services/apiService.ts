@@ -242,9 +242,9 @@ let LLM_SETTINGS: LlmSettings | null = null;
 let DATA_SOURCES: DataSource[] = [];
 let AGENT_UPGRADE_JOBS: AgentUpgradeJob[] = [];
 let VULNERABILITY_SCAN_JOBS: VulnerabilityScanJob[] = [];
-let REGISTERED_MODELS: RegisteredModel[] = [];
+const REGISTERED_MODELS: RegisteredModel[] = [];
 let AUTOMATION_POLICIES: AutomationPolicy[] = [];
-let NETWORK_DEVICES: NetworkDevice[] = [];
+const NETWORK_DEVICES: NetworkDevice[] = [];
 
 export const checkBackendHealth = async (): Promise<boolean> => {
     try {
@@ -313,14 +313,14 @@ const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, 
         // Defensive: handle paginated responses or wrapped objects
         const items = (data && typeof data === 'object' && 'items' in data) ? data.items : data;
 
-        localStorage.setItem(`omni_cache_${key}`, JSON.stringify(items));
+        sessionStorage.setItem(`omni_cache_${key}`, JSON.stringify(items));
         updateLocalVar(items);
         return items;
     } catch (e) {
         // If 401, it's already handled by authFetch redirect. 
         // For other errors (offline), fallback to cache or return empty.
         console.warn(`Backend offline or error for ${key}`, e);
-        const cached = localStorage.getItem(`omni_cache_${key}`);
+        const cached = sessionStorage.getItem(`omni_cache_${key}`);
         if (cached) {
             try {
                 const data = JSON.parse(cached);
@@ -417,6 +417,33 @@ export const fetchAlerts = async (tenantId?: string) => {
         return ALERTS;
     } catch { return []; }
 };
+
+export const bulkAcknowledgeAlerts = async (ids: string[]): Promise<{ matched: number; modified: number }> => {
+    const res = await authFetch(`${API_BASE}/alerts/bulk`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ids, patch: { acknowledged: true, status: 'acknowledged' } }),
+    });
+    if (!res.ok) throw new Error(`Bulk acknowledge failed: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const bulkDismissAlerts = async (ids: string[]): Promise<{ matched: number; modified: number }> => {
+    const res = await authFetch(`${API_BASE}/alerts/bulk`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ids, patch: { status: 'dismissed' } }),
+    });
+    if (!res.ok) throw new Error(`Bulk dismiss failed: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const bulkDeleteAlerts = async (ids: string[]): Promise<{ deleted: number }> => {
+    const res = await authFetch(`${API_BASE}/alerts/bulk`, {
+        method: 'DELETE',
+        body: JSON.stringify(ids),
+    });
+    if (!res.ok) throw new Error(`Bulk delete failed: HTTP ${res.status}`);
+    return res.json();
+};
 export const fetchComplianceFrameworks = async () => {
     try {
         const res = await authFetch(`${API_BASE}/compliance`);
@@ -455,6 +482,17 @@ export const fetchGlobalComplianceData = async (): Promise<any[]> => {
         console.warn("Asset compliance data unavailable");
         return [];
     }
+};
+
+export const addComplianceFramework = async (data: {
+    id?: string; name: string; shortName?: string; description?: string;
+    category?: string; official_url?: string;
+}) => {
+    const res = await authFetch(`${API_BASE}/compliance`, {
+        method: 'POST', body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to create framework');
+    return res.json();
 };
 
 export const addComplianceControl = async (frameworkId: string, control: any) => {
@@ -663,7 +701,9 @@ export const fetchAlertRules = async (tenantId?: string): Promise<AlertRule[]> =
         const res = await authFetch(url);
         if (!res.ok) throw new Error('Failed to fetch alert rules');
         const data = await res.json();
-        return Array.isArray(data) ? data : (data.items || []);
+        const rules = Array.isArray(data) ? data : (data.items || []);
+        ALERT_RULES = rules;
+        return rules;
     } catch (e) {
         console.warn('Backend offline for alert rules', e);
         return [];
@@ -707,11 +747,11 @@ export const fetchAgents = async (tenantId?: string) => {
         const items = data.items ? data.items : data;
 
         AGENTS = items;
-        localStorage.setItem('omni_cache_agents', JSON.stringify(items));
+        sessionStorage.setItem('omni_cache_agents', JSON.stringify(items));
         return items;
     } catch (e) {
         console.warn("Backend offline for agents", e);
-        const cached = localStorage.getItem(`omni_cache_agents`);
+        const cached = sessionStorage.getItem(`omni_cache_agents`);
         if (cached) {
             const data = JSON.parse(cached);
             AGENTS = data;
@@ -1933,6 +1973,19 @@ export const runAgentDiagnostics = async (agentId: string): Promise<Agent> => {
     return { id: agentId, health: data.health, status: data.status } as unknown as Agent;
 };
 
+export const restartAgent = async (agentId: string): Promise<{ success: boolean; command_id?: string; error?: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/remote/${agentId}/restart`, { method: 'POST' });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            return { success: false, error: err.detail || `HTTP ${res.status}` };
+        }
+        return await res.json();
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'Network error' };
+    }
+};
+
 export const scheduleAgentUpgrade = async (agentIds: string[], targetVersion: string) => {
     const job: AgentUpgradeJob = {
         id: `job-${Date.now()}`,
@@ -2473,7 +2526,8 @@ export const testSiemConnection = async (platform: string, config: any): Promise
 };
 
 export const testLlmConnection = async (settings: Record<string, string>) => {
-    const res = await authFetch(`${API_BASE}/settings/test-llm-connection`, {
+    // Uses the backend proxy — the API key is never used client-side
+    const res = await authFetch(`${API_BASE}/ai/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -2759,22 +2813,128 @@ export const getChatAssistantResponse = async (input: string, context: any): Pro
     return `AI assistant unavailable. You asked: "${input}".`;
 };
 
+/**
+ * Stream AI chat response via SSE.
+ * Calls onChunk for each text token, onDone when the stream ends,
+ * onError if the connection fails.
+ */
+export const streamChatAssistantResponse = (
+    input: string,
+    context: any,
+    onChunk: (text: string) => void,
+    onDone: () => void,
+    onError: (err: string) => void
+): (() => void) => {
+    let cancelled = false;
+
+    (async () => {
+        try {
+            const token = sessionStorage.getItem('token') || '';
+            const res = await fetch(`${API_BASE}/ai/chat/stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ message: input, context }),
+                credentials: 'include',
+            });
+
+            if (!res.ok || !res.body) {
+                onError(`Server error ${res.status}`);
+                return;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (!cancelled) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const raw = line.slice(6).trim();
+                    if (raw === '[DONE]') { onDone(); return; }
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed.error) { onError(parsed.error); return; }
+                        if (parsed.chunk) onChunk(parsed.chunk);
+                    } catch { /* ignore malformed SSE frame */ }
+                }
+            }
+            onDone();
+        } catch (e: any) {
+            if (!cancelled) onError(e?.message ?? 'Stream connection failed');
+        }
+    })();
+
+    return () => { cancelled = true; };
+};
+
 export const executePlaybook = async function* (playbookId: string, targetId: string, targetType: string): AsyncGenerator<PlaybookExecutionStep> {
-    yield { timestamp: new Date().toISOString(), message: `Starting playbook ${playbookId} on ${targetType} ${targetId}...`, status: 'running' };
+    const ts = () => new Date().toISOString();
+    yield { timestamp: ts(), message: `Initiating playbook ${playbookId} on ${targetType} ${targetId}…`, status: 'running' };
+    let executionId: string | null = null;
     try {
         const res = await authFetch(`${API_BASE}/playbooks/${playbookId}/execute`, {
             method: 'POST',
             body: JSON.stringify({ target_id: targetId, target_type: targetType, executed_by: 'frontend' }),
         });
-        if (res.ok) {
-            const data = await res.json();
-            yield { timestamp: new Date().toISOString(), message: `Execution complete: ${data.status ?? 'ok'}`, status: data.status === 'error' ? 'error' : 'success' };
-        } else {
-            yield { timestamp: new Date().toISOString(), message: `Server returned ${res.status}`, status: 'error' };
+        if (!res.ok) {
+            yield { timestamp: ts(), message: `Server returned ${res.status}`, status: 'error' };
+            return;
+        }
+        const data = await res.json();
+        executionId = data.execution_id ?? null;
+
+        // If no execution_id returned, surface the final status and stop
+        if (!executionId) {
+            yield { timestamp: ts(), message: `Execution complete: ${data.status ?? 'ok'}`, status: data.status === 'error' ? 'error' : 'success' };
+            return;
         }
     } catch (e) {
-        yield { timestamp: new Date().toISOString(), message: `Execution failed: ${e instanceof Error ? e.message : 'Unknown error'}`, status: 'error' };
+        yield { timestamp: ts(), message: `Execution failed: ${e instanceof Error ? e.message : 'Unknown error'}`, status: 'error' };
+        return;
     }
+
+    // Poll for step-by-step results using execution_id
+    yield { timestamp: ts(), message: `Execution queued (id: ${executionId}) — streaming results…`, status: 'running' };
+    const POLL_INTERVAL_MS = 1200;
+    const MAX_POLLS = 120; // 2 minutes max
+    let seenStepCount = 0;
+
+    for (let poll = 0; poll < MAX_POLLS; poll++) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+        try {
+            const r = await authFetch(`${API_BASE}/playbooks/enhanced/executions/${executionId}`);
+            if (!r.ok) break;
+            const exec = await r.json();
+            const steps: any[] = exec.steps ?? [];
+
+            // Yield any steps we haven't surfaced yet
+            for (let i = seenStepCount; i < steps.length; i++) {
+                const step = steps[i];
+                const stepStatus = step.status === 'completed' ? 'success'
+                    : step.status === 'failed' ? 'error' : 'running';
+                const detail = step.output ? ` → ${JSON.stringify(step.output).slice(0, 80)}` : '';
+                yield { timestamp: step.started_at ?? ts(), message: `[${step.name ?? `Step ${step.index}`}] ${step.status}${detail}`, status: stepStatus };
+            }
+            seenStepCount = steps.length;
+
+            const terminal = exec.status === 'completed' || exec.status === 'failed' || exec.status === 'error';
+            if (terminal && seenStepCount === steps.length) {
+                yield { timestamp: ts(), message: `Playbook ${exec.status}`, status: exec.status === 'completed' ? 'success' : 'error' };
+                return;
+            }
+        } catch {
+            // transient poll error — keep trying
+        }
+    }
+    yield { timestamp: ts(), message: 'Polling timed out — check the execution log for results', status: 'error' };
 };
 
 export const togglePlaybook = async (playbookId: string): Promise<{ id: string; enabled: boolean } | null> => {
@@ -2970,9 +3130,10 @@ export const fetchSwarmTopology = async () => {
 };
 
 // --- Notifications ---
-export const getNotifications = async (tenantId: string = "default") => {
+export const getNotifications = async () => {
     try {
-        const response = await fetch(`${API_BASE}/notifications?tenant_id=${tenantId}`);
+        const response = await authFetch(`${API_BASE}/notifications`);
+        if (!response.ok) return [];
         return await response.json();
     } catch (err) {
         console.error("Error fetching notifications:", err);
@@ -3310,9 +3471,7 @@ export const submitApprovalDecision = async (requestId: string, userEmail: strin
 
 export const markNotificationAsRead = async (notificationId: string) => {
     try {
-        const response = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
-            method: 'PUT'
-        });
+        const response = await authFetch(`${API_BASE}/notifications/${notificationId}/read`, { method: 'PUT' });
         return await response.json();
     } catch (err) {
         console.error("Error marking notification read:", err);
@@ -3340,9 +3499,7 @@ export const markAllNotificationsRead = markAllNotificationsAsRead;
 
 export const deleteNotification = async (notificationId: string) => {
     try {
-        const response = await fetch(`${API_BASE}/notifications/${notificationId}`, {
-            method: 'DELETE'
-        });
+        const response = await authFetch(`${API_BASE}/notifications/${notificationId}`, { method: 'DELETE' });
         return await response.json();
     } catch (err) {
         console.error("Error deleting notification:", err);
@@ -3350,9 +3507,10 @@ export const deleteNotification = async (notificationId: string) => {
     }
 };
 
-export const getNotificationConfig = async (tenantId: string = localStorage.getItem('tenantId') || "default") => {
+export const getNotificationConfig = async () => {
     try {
-        const response = await fetch(`${API_BASE}/notifications/config?tenant_id=${tenantId}`);
+        const response = await authFetch(`${API_BASE}/notifications/config`);
+        if (!response.ok) return [];
         return await response.json();
     } catch (err) {
         console.error("Error fetching notification config:", err);
@@ -3362,10 +3520,9 @@ export const getNotificationConfig = async (tenantId: string = localStorage.getI
 
 export const updateNotificationConfig = async (config: any) => {
     try {
-        const response = await fetch(`${API_BASE}/notifications/config`, {
+        const response = await authFetch(`${API_BASE}/notifications/config`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
+            body: JSON.stringify(config),
         });
         return await response.json();
     } catch (err) {
@@ -3536,6 +3693,362 @@ export const updateTask = async (id: number, updates: { completed?: boolean; tex
 export const deleteTask = async (id: number) => {
     const res = await authFetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error("Failed to delete task");
+};
+
+// --- Feature Flags ---
+
+export const fetchPlatformFeatures = async (): Promise<{
+    tier: string;
+    enabled: string[];
+    locked: Record<string, string>;
+    tier_order: Record<string, number>;
+}> => {
+    try {
+        const res = await authFetch(`${API_BASE}/platform/features`);
+        if (!res.ok) return { tier: 'Free', enabled: [], locked: {}, tier_order: {} };
+        return res.json();
+    } catch {
+        return { tier: 'Free', enabled: [], locked: {}, tier_order: {} };
+    }
+};
+
+// ── Internal Tickets ──────────────────────────────────────────────────────────
+
+export const fetchTickets = async (params: Record<string, any> = {}) => {
+    const qs = new URLSearchParams(params as any).toString();
+    const res = await authFetch(`${API_BASE}/tickets${qs ? '?' + qs : ''}`);
+    if (!res.ok) throw new Error("Failed to fetch tickets");
+    return res.json();
+};
+
+export const fetchTicketStats = async (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    const res = await authFetch(`${API_BASE}/tickets/stats${qs ? '?' + qs : ''}`);
+    if (!res.ok) throw new Error("Failed to fetch ticket stats");
+    return res.json();
+};
+
+export const fetchTicket = async (id: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}`);
+    if (!res.ok) throw new Error("Ticket not found");
+    return res.json();
+};
+
+export const createTicket = async (data: Record<string, any>) => {
+    const res = await authFetch(`${API_BASE}/tickets`, {
+        method: 'POST', body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create ticket");
+    return res.json();
+};
+
+export const updateTicket = async (id: string, updates: Record<string, any>) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}`, {
+        method: 'PATCH', body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update ticket");
+    return res.json();
+};
+
+export const bulkUpdateTickets = async (ticketIds: string[], updates: Record<string, any>) => {
+    const res = await authFetch(`${API_BASE}/tickets/bulk`, {
+        method: 'POST', body: JSON.stringify({ ticket_ids: ticketIds, updates }),
+    });
+    if (!res.ok) throw new Error("Failed to bulk update tickets");
+    return res.json();
+};
+
+export const deleteTicket = async (id: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error("Failed to delete ticket");
+    return res.json();
+};
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export const addTicketComment = async (id: string, text: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/comments`, {
+        method: 'POST', body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error("Failed to add comment");
+    return res.json();
+};
+
+// ── History / audit trail ─────────────────────────────────────────────────────
+
+export const fetchTicketHistory = async (id: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/history`);
+    if (!res.ok) throw new Error("Failed to fetch history");
+    return res.json();
+};
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+
+export const uploadTicketAttachment = async (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const token = sessionStorage.getItem('token');
+    const res = await fetch(`${API_BASE}/tickets/${id}/attachments`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+    });
+    if (!res.ok) throw new Error("Failed to upload attachment");
+    return res.json();
+};
+
+export const deleteTicketAttachment = async (ticketId: string, attachmentId: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${ticketId}/attachments/${attachmentId}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) throw new Error("Failed to delete attachment");
+    return res.json();
+};
+
+export const getAttachmentUrl = (ticketId: string, storedAs: string) =>
+    `${API_BASE}/tickets/${ticketId}/attachments/${storedAs}/download`;
+
+// ── Linking ───────────────────────────────────────────────────────────────────
+
+export const linkTickets = async (id: string, linkedId: string, linkType: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/links`, {
+        method: 'POST', body: JSON.stringify({ linked_id: linkedId, link_type: linkType }),
+    });
+    if (!res.ok) throw new Error("Failed to link ticket");
+    return res.json();
+};
+
+export const unlinkTickets = async (id: string, linkedId: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/links/${linkedId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error("Failed to unlink ticket");
+    return res.json();
+};
+
+// ── Work log ──────────────────────────────────────────────────────────────────
+
+export const logTicketWork = async (id: string, hours: number, description: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/work-log`, {
+        method: 'POST', body: JSON.stringify({ hours, description }),
+    });
+    if (!res.ok) throw new Error("Failed to log work");
+    return res.json();
+};
+
+// ── Escalation ────────────────────────────────────────────────────────────────
+
+export const escalateTicket = async (id: string, reason: string = '') => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/escalate`, {
+        method: 'POST', body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) throw new Error("Failed to escalate ticket");
+    return res.json();
+};
+
+// ── Approval ──────────────────────────────────────────────────────────────────
+
+export const approveTicket = async (id: string, comment: string = '') => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/approve`, {
+        method: 'POST', body: JSON.stringify({ comment }),
+    });
+    if (!res.ok) throw new Error("Failed to approve ticket");
+    return res.json();
+};
+
+export const rejectTicket = async (id: string, reason: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/reject`, {
+        method: 'POST', body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) throw new Error("Failed to reject ticket");
+    return res.json();
+};
+
+// ── Watchers ──────────────────────────────────────────────────────────────────
+
+export const addTicketWatcher = async (id: string, email: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/watchers`, {
+        method: 'POST', body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error("Failed to add watcher");
+    return res.json();
+};
+
+export const removeTicketWatcher = async (id: string, email: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/${id}/watchers/${encodeURIComponent(email)}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) throw new Error("Failed to remove watcher");
+    return res.json();
+};
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+
+export const fetchTicketTemplates = async () => {
+    const res = await authFetch(`${API_BASE}/tickets/templates/list`);
+    if (!res.ok) return [];
+    return res.json();
+};
+
+export const createTicketTemplate = async (data: Record<string, any>) => {
+    const res = await authFetch(`${API_BASE}/tickets/templates`, {
+        method: 'POST', body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create template");
+    return res.json();
+};
+
+export const updateTicketTemplate = async (id: string, data: Record<string, any>) => {
+    const res = await authFetch(`${API_BASE}/tickets/templates/${id}`, {
+        method: 'PATCH', body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update template");
+    return res.json();
+};
+
+export const deleteTicketTemplate = async (id: string) => {
+    const res = await authFetch(`${API_BASE}/tickets/templates/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error("Failed to delete template");
+    return res.json();
+};
+
+// ── Queue config ──────────────────────────────────────────────────────────────
+
+export const fetchQueueConfig = async () => {
+    const res = await authFetch(`${API_BASE}/tickets/queue/config`);
+    if (!res.ok) return { rules: [] };
+    return res.json();
+};
+
+export const saveQueueConfig = async (rules: any[]) => {
+    const res = await authFetch(`${API_BASE}/tickets/queue/config`, {
+        method: 'PUT', body: JSON.stringify({ rules }),
+    });
+    if (!res.ok) throw new Error("Failed to save queue config");
+    return res.json();
+};
+
+// ── Custom field schema ───────────────────────────────────────────────────────
+
+export const fetchTicketFieldSchema = async () => {
+    const res = await authFetch(`${API_BASE}/tickets/schema/fields`);
+    if (!res.ok) return { fields: [] };
+    return res.json();
+};
+
+export const saveTicketFieldSchema = async (fields: any[]) => {
+    const res = await authFetch(`${API_BASE}/tickets/schema/fields`, {
+        method: 'PUT', body: JSON.stringify({ fields }),
+    });
+    if (!res.ok) throw new Error("Failed to save field schema");
+    return res.json();
+};
+
+// ── Support Chat ──────────────────────────────────────────────────────────────
+
+export const fetchSupportConversations = async (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    const res = await authFetch(`${API_BASE}/support/conversations${qs ? '?' + qs : ''}`);
+    if (!res.ok) return [];
+    return res.json();
+};
+
+export const startSupportConversation = async (data: {
+    subject: string; message: string; chat_type: string;
+    target_user_id?: string; target_user_name?: string;
+    original_convo_id?: string; original_subject?: string;
+    original_user_name?: string; original_user_email?: string;
+}) => {
+    const res = await authFetch(`${API_BASE}/support/conversations`, {
+        method: 'POST', body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to start conversation');
+    return res.json();
+};
+
+export const fetchTenantUsersForChat = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/support/tenant-users`);
+        if (!res.ok) return [];
+        return res.json();
+    } catch { return []; }
+};
+
+export const fetchSupportConversation = async (id: string) => {
+    const res = await authFetch(`${API_BASE}/support/conversations/${id}`);
+    if (!res.ok) throw new Error('Conversation not found');
+    return res.json();
+};
+
+export const sendSupportMessage = async (convoId: string, content: string) => {
+    const res = await authFetch(`${API_BASE}/support/conversations/${convoId}/messages`, {
+        method: 'POST', body: JSON.stringify({ content }),
+    });
+    if (!res.ok) throw new Error('Failed to send message');
+    return res.json();
+};
+
+export const updateSupportStatus = async (convoId: string, status: string) => {
+    const res = await authFetch(`${API_BASE}/support/conversations/${convoId}/status`, {
+        method: 'PATCH', body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error('Failed to update status');
+    return res.json();
+};
+
+export const markSupportConversationRead = async (convoId: string): Promise<void> => {
+    try {
+        await authFetch(`${API_BASE}/support/conversations/${convoId}/read`, { method: 'POST' });
+    } catch { /* non-fatal */ }
+};
+
+export const fetchSupportPresence = async (usernames: string[]): Promise<Record<string, boolean>> => {
+    try {
+        const res = await authFetch(`${API_BASE}/support/presence?usernames=${encodeURIComponent(usernames.join(','))}`);
+        if (!res.ok) return {};
+        return res.json();
+    } catch { return {}; }
+};
+
+export const fetchSupportUnreadCount = async (): Promise<number> => {
+    try {
+        const res = await authFetch(`${API_BASE}/support/unread-count`);
+        if (!res.ok) return 0;
+        const data = await res.json();
+        return data.count ?? 0;
+    } catch { return 0; }
+};
+
+export const fetchCustomYaraRules = async (): Promise<import('../types').CustomYaraRule[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/analysis/yara-rules`);
+        if (!res.ok) return [];
+        return res.json();
+    } catch { return []; }
+};
+
+export const saveCustomYaraRule = async (rule: Partial<import('../types').CustomYaraRule>): Promise<import('../types').CustomYaraRule> => {
+    const isNew = !rule.id;
+    const method = isNew ? 'POST' : 'PUT';
+    const url = isNew ? `${API_BASE}/analysis/yara-rules` : `${API_BASE}/analysis/yara-rules/${rule.id}`;
+    const res = await authFetch(url, { method, body: JSON.stringify(rule) });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Save failed: HTTP ${res.status}`);
+    }
+    return res.json();
+};
+
+export const deleteCustomYaraRule = async (id: string): Promise<void> => {
+    await authFetch(`${API_BASE}/analysis/yara-rules/${id}`, { method: 'DELETE' });
+};
+
+export const validateYaraRule = async (content: string): Promise<{ valid: boolean; error?: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/analysis/yara-rules/validate`, {
+            method: 'POST', body: JSON.stringify({ content }),
+        });
+        if (!res.ok) return { valid: false, error: 'Validation request failed' };
+        return res.json();
+    } catch { return { valid: false, error: 'Network error' }; }
 };
 
 

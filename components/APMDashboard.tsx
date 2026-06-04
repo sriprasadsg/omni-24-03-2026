@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityIcon, TrendingUpIcon, AlertTriangleIcon, CheckCircleIcon, ClockIcon, ZapIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface EndpointMetric {
     endpoint: string;
@@ -136,6 +137,7 @@ export const APMDashboard: React.FC<APMDashboardProps> = ({ tenantId }) => {
             if (dbRes.ok) setDbPerformance(await dbRes.json());
         } catch (error) {
             console.error('Failed to load APM metrics:', error);
+            showToast('Failed to load APM metrics', 'error');
         } finally {
             setLoading(false);
         }

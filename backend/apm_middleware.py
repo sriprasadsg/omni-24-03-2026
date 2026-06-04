@@ -29,7 +29,7 @@ class APMMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
             status_code = response.status_code
-        except Exception as e:
+        except Exception:
             # Record error
             status_code = 500
             raise

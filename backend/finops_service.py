@@ -53,8 +53,25 @@ class FinOpsService:
             # Automation
             { "id": 'price-auto-workflow', "name": 'Automation Workflows', "unit": 'per_workflow_mo', "price": 20.00, "category": 'Automation', "description": 'Custom automation workflow builder.' },
             
-             # Developer Tools
-            { "id": 'price-devsecops', "name": 'DevSecOps Dashboard', "unit": 'per_repo_mo', "price": 10.00, "category": 'Developer Tools', "description": 'Pipeline security and vulnerability visibility.' }
+            # Developer Tools
+            { "id": 'price-devsecops', "name": 'DevSecOps Dashboard', "unit": 'per_repo_mo', "price": 10.00, "category": 'Developer Tools', "description": 'Pipeline security and vulnerability visibility.' },
+            { "id": 'price-sast', "name": 'SAST Scanning', "unit": 'per_scan', "price": 0.10, "category": 'Developer Tools', "description": 'Static application security testing.' },
+            { "id": 'price-dast', "name": 'DAST Scanning', "unit": 'per_scan', "price": 0.50, "category": 'Developer Tools', "description": 'Dynamic application security testing.' },
+            { "id": 'price-sbom', "name": 'SBOM Generation', "unit": 'per_artifact', "price": 0.05, "category": 'Developer Tools', "description": 'Software Bill of Materials generation.' },
+            # Advanced Security
+            { "id": 'price-ueba', "name": 'UEBA Analytics', "unit": 'per_user_mo', "price": 5.00, "category": 'Security', "description": 'User and Entity Behavior Analytics.' },
+            { "id": 'price-deception', "name": 'Deception Technology', "unit": 'per_honeytoken_mo', "price": 10.00, "category": 'Security', "description": 'Honeytokens and deceptive decoys.' },
+            { "id": 'price-dlp', "name": 'Data Loss Prevention', "unit": 'per_scan', "price": 0.02, "category": 'Security', "description": 'Sensitive data scanning and protection.' },
+            { "id": 'price-k8s-sec', "name": 'Kubernetes Security', "unit": 'per_cluster_mo', "price": 100.00, "category": 'Security', "description": 'Container and K8s workload protection.' },
+            { "id": 'price-api-sec', "name": 'API Security', "unit": 'per_api_mo', "price": 20.00, "category": 'Security', "description": 'API threat detection and rate limiting.' },
+            { "id": 'price-supply-chain', "name": 'Supply Chain Security', "unit": 'per_artifact', "price": 0.10, "category": 'Security', "description": 'Third-party dependency risk assessment.' },
+            # Compliance
+            { "id": 'price-compliance', "name": 'Compliance Automation', "unit": 'per_framework_mo', "price": 200.00, "category": 'Compliance', "description": 'Automated compliance evidence collection.' },
+            { "id": 'price-soc2', "name": 'SOC 2 Automation', "unit": 'per_month', "price": 500.00, "category": 'Compliance', "description": 'SOC 2 Type II evidence management.' },
+            { "id": 'price-pci-dss', "name": 'PCI-DSS Compliance', "unit": 'per_month', "price": 750.00, "category": 'Compliance', "description": 'PCI DSS control monitoring.' },
+            # AI & ML
+            { "id": 'price-ai-chat', "name": 'AI Assistant Queries', "unit": 'per_1000_queries', "price": 5.00, "category": 'AI Governance', "description": 'AI-powered security assistant.' },
+            { "id": 'price-mlops', "name": 'MLOps Pipeline', "unit": 'per_model_deploy', "price": 50.00, "category": 'AI Governance', "description": 'ML model lifecycle management.' },
         ]
         
     async def calculate_current_spend(self, tenant_id: str = None) -> Dict[str, Any]:

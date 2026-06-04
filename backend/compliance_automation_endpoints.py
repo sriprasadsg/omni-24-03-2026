@@ -4,9 +4,9 @@ Compliance Automation API Endpoints
 
 import io
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from typing import List, Dict, Optional
+from typing import List, Dict
 from authentication_service import get_current_user
 from compliance_automation_service import compliance_automation
 

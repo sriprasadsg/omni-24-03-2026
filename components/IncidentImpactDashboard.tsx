@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { IncidentImpactGraph, Alert, SecurityCase } from '../types';
 import { analyzeIncident } from '../services/apiService';
 import { Share2Icon, AlertTriangleIcon, BoxIcon, ShieldCheckIcon, ServerIcon, ArrowLeftIcon, CpuIcon, LoaderIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 
 interface IncidentImpactDashboardProps {
@@ -92,7 +93,7 @@ export const IncidentImpactDashboard: React.FC<IncidentImpactDashboardProps> = (
             const result = await analyzeIncident(context.type, context.id);
             setAiAnalysis(result);
         } catch (e) {
-            alert("AI Analysis failed. Check console or API Key settings.");
+            showToast("AI Analysis failed. Check console or API Key settings.", 'error');
         } finally {
             setIsAnalyzing(false);
         }

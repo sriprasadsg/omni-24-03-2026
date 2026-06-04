@@ -57,9 +57,9 @@ async def unlock_all():
         )
         
         if result.modified_count > 0:
-            print(f"   ✓ Successfully updated.")
+            print("   ✓ Successfully updated.")
         else:
-            print(f"   ℹ Already up to date or no changes needed.")
+            print("   ℹ Already up to date or no changes needed.")
 
     print("\n✅ All tenants have been unlocked successfully!")
     client.close()

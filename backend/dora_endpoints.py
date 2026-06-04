@@ -9,6 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dora", tags=["DORA Metrics"])
 

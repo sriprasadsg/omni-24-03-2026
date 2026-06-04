@@ -69,7 +69,13 @@ class OmniLocalProvider:
         """
         available = (ADAPTER_PATH / "adapter_config.json").exists()
         if not available:
-            logger.info("OmniLocalProvider: no adapter found at %s — skipping", ADAPTER_PATH)
+            # Warn at WARNING level so operators know the local model is absent and
+            # external LLM APIs (Gemini/Anthropic) will be used instead, incurring API costs.
+            logger.warning(
+                "OmniLocalProvider: adapter not found at %s — falling back to external LLM. "
+                "Set OMNI_LOCAL_ENABLED=false to suppress this warning, or train an adapter first.",
+                ADAPTER_PATH,
+            )
         return available
 
     async def generate(self, prompt: str) -> str:
@@ -91,6 +97,10 @@ class OmniLocalProvider:
             raise OmniLowConfidenceError(text, confidence)
 
         return text
+
+    async def generate_stream(self, prompt: str):
+        """Stream by yielding the full response as one chunk (local models don't token-stream)."""
+        yield await self.generate(prompt)
 
     # ------------------------------------------------------------------ #
     # Internal                                                             #

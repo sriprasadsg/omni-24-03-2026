@@ -3,6 +3,7 @@ from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
 from database import get_database, mongodb
 from authentication_service import get_current_user
+from rbac_utils import is_super_admin
 from rate_limiter import limiter
 from datetime import datetime, timezone
 import uuid
@@ -10,14 +11,12 @@ import secrets
 
 router = APIRouter(prefix="/api/tenants", tags=["Tenant Management"])
 
-_SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 _TENANT_ADMIN_ROLES = {"Admin", "Tenant Admin", "tenant_admin"}
 
 
 def _assert_tenant_access(current_user, tenant_id: str) -> None:
     """Raise 403 unless caller is a super-admin or owns the tenant."""
-    role = getattr(current_user, "role", "")
-    if role in _SUPER_ADMIN_ROLES:
+    if is_super_admin(getattr(current_user, "role", "")):
         return
     caller_tenant = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
     if caller_tenant != tenant_id:
@@ -42,27 +41,25 @@ class TenantCreate(BaseModel):
 @router.get("")
 async def get_tenants(current_user = Depends(get_current_user)):
     """List all tenants. Super Admin only."""
-    _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
-    if getattr(current_user, "role", "") not in _SUPER_ADMIN_ROLES:
+    if not is_super_admin(getattr(current_user, "role", "")):
         raise HTTPException(status_code=403, detail="Super Admin access required")
     tenants = await mongodb.db.tenants.find({}, {"_id": 0}).to_list(length=1000)
-    
-    # Attach agent count for each tenant
+
+    # Batch agent counts via a single aggregation instead of one query per tenant
+    pipeline = [{"$group": {"_id": "$tenantId", "count": {"$sum": 1}}}]
+    count_cursor = mongodb.db.agents.aggregate(pipeline)
+    agent_counts = {doc["_id"]: doc["count"] async for doc in count_cursor}
+
     for tenant in tenants:
-        tenant_id = tenant.get("id")
-        if tenant_id:
-            agent_count = await mongodb.db.agents.count_documents({"tenantId": tenant_id})
-            tenant["agentCount"] = agent_count
-        else:
-            tenant["agentCount"] = 0
-            
+        tenant["agentCount"] = agent_counts.get(tenant.get("id"), 0)
+
     return tenants
 
 @router.post("")
 async def create_tenant(data: TenantCreate, current_user = Depends(get_current_user)):
     """Create a new tenant"""
     # Authorization Check
-    if current_user.role != "Super Admin":
+    if not is_super_admin(getattr(current_user, "role", "")):
         raise HTTPException(status_code=403, detail="Only Super Admin can create tenants")
     
     # Use raw mongodb.db
@@ -131,9 +128,9 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
     Only Super Admin can update tenant configuration.
     """
     # Check permissions
-    if current_user.role != "Super Admin":
+    if not is_super_admin(getattr(current_user, "role", "")):
         # Tenant Admins can only update their own tenant's voiceBotSettings
-        if current_user.tenantId != tenant_id and current_user.role != "Admin":
+        if current_user.tenantId != tenant_id and current_user.role not in ("Admin", "Tenant Admin", "tenant_admin"):
             raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
         if current_user.tenantId != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
@@ -180,7 +177,7 @@ async def delete_tenant(tenant_id: str, current_user = Depends(get_current_user)
     Only Super Admin can delete tenants.
     """
     # Check if user is Super Admin
-    if current_user.role != "Super Admin":
+    if not is_super_admin(getattr(current_user, "role", "")):
         raise HTTPException(status_code=403, detail="Only Super Admin can delete tenants")
     
     db = get_database() # We need isolated DB for users/agents to delete correctly? 
@@ -246,10 +243,11 @@ async def update_tenant_branding(
     - Tenant Admin of THAT tenant
     """
     # Authorization Check
-    if current_user.role != "Super Admin":
-        # Check if user belongs to this tenant and is Admin
-        if current_user.tenantId != tenant_id or current_user.role != "Admin":
-             raise HTTPException(status_code=403, detail="Not authorized to update branding for this tenant")
+    if not is_super_admin(getattr(current_user, "role", "")):
+        # Tenant Admins may update branding for their own tenant
+        _admin_roles = {"Admin", "Tenant Admin", "tenant_admin", "admin"}
+        if current_user.tenantId != tenant_id or current_user.role not in _admin_roles:
+            raise HTTPException(status_code=403, detail="Not authorized to update branding for this tenant")
 
     # Update
     result = await mongodb.db.tenants.update_one(
@@ -272,12 +270,12 @@ async def generate_api_key(
     current_user=Depends(get_current_user),
 ):
     """Generate a new API key for the tenant. Returns the plaintext key once — store it safely."""
-    is_super_admin = getattr(current_user, "role", "") in ("Super Admin", "superadmin")
+    _is_super_admin = is_super_admin(getattr(current_user, "role", ""))
     is_own_admin = (
         getattr(current_user, "tenant_id", None) == tenant_id
         and getattr(current_user, "role", "") in ("Admin", "Tenant Admin", "tenant_admin")
     )
-    if not is_super_admin and not is_own_admin:
+    if not _is_super_admin and not is_own_admin:
         raise HTTPException(status_code=403, detail="Not authorized to manage API keys for this tenant")
 
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
@@ -394,12 +392,12 @@ async def revoke_api_key(
     current_user=Depends(get_current_user),
 ):
     """Revoke (delete) an API key for the tenant."""
-    is_super_admin = getattr(current_user, "role", "") in ("Super Admin", "superadmin")
+    _is_super_admin = is_super_admin(getattr(current_user, "role", ""))
     is_own_admin = (
         getattr(current_user, "tenant_id", None) == tenant_id
         and getattr(current_user, "role", "") in ("Admin", "Tenant Admin", "tenant_admin")
     )
-    if not is_super_admin and not is_own_admin:
+    if not _is_super_admin and not is_own_admin:
         raise HTTPException(status_code=403, detail="Not authorized to manage API keys for this tenant")
 
     result = await mongodb.db.tenants.update_one(

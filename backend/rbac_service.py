@@ -2,7 +2,7 @@ from fastapi import HTTPException, status, Depends
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
-from typing import List, Optional
+from typing import List
 
 class RBACService:
     def __init__(self):
@@ -49,14 +49,41 @@ class RBACService:
             ],
             "viewer": [
                 "view:dashboard", "view:reporting", "view:assets", "view:compliance",
-                "view:ai_governance", "view:cloud_security", "view:finops"
-            ]
+                "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
+            ],
+            # Analyst — security-focused investigation access
+            "analyst": [
+                "view:dashboard", "view:reporting", "view:agents", "view:assets",
+                "view:security", "investigate:security", "view:compliance",
+                "view:threat_hunting", "view:threat_intel", "view:vulnerabilities",
+                "view:audit_log", "view:logs", "view:attack_path", "view:dspm",
+                "view:mdr", "view:xdr", "view:devsecops", "view:tracing", "view:profile",
+            ],
+            "Analyst": [],  # alias — normalized to "analyst" by _normalize_role
+            # Security analyst — deeper threat response
+            "security_analyst": [
+                "view:dashboard", "view:security", "investigate:security",
+                "manage:security_cases", "view:threat_hunting", "view:threat_intel",
+                "view:vulnerabilities", "view:attack_path", "view:audit_log",
+                "view:logs", "view:mdr", "view:xdr", "view:dspm", "view:tracing",
+                "view:compliance", "view:assets", "view:profile",
+            ],
+            # Incident responder — triage and case management
+            "incident_responder": [
+                "view:dashboard", "view:security", "investigate:security",
+                "manage:security_cases", "view:threat_hunting", "view:audit_log",
+                "view:logs", "view:mdr", "view:xdr", "view:profile",
+                "view:agents", "view:assets",
+            ],
         }
 
     @staticmethod
     def _normalize_role(name: str) -> str:
-        """Canonicalize role names: 'Super Admin' / 'superadmin' → 'super_admin'."""
-        return (name or "").lower().replace(" ", "_").replace("-", "_")
+        """Canonicalize role names to snake_case, e.g. 'Super Admin' / 'superadmin' → 'super_admin'."""
+        normalized = (name or "").lower().strip().replace(" ", "_").replace("-", "_")
+        if normalized == "superadmin":
+            return "super_admin"
+        return normalized
 
     async def get_user_permissions(self, user: TokenData) -> List[str]:
         """Fetch permissions for the current user based on their role"""

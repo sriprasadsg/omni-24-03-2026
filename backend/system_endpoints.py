@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
-from typing import List, Dict, Any
+from fastapi import APIRouter, Request, Depends
+from typing import Dict, Any
 import logging
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -43,8 +43,8 @@ async def remediate_route(data: Dict[str, Any], current_user: TokenData = Depend
             "Be direct and actionable. Respond in plain text, no markdown."
         )
         analysis = await ai.generate_text(prompt, max_tokens=300)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("AI error analysis failed (non-fatal): %s", e)
 
     if not analysis:
         analysis = (

@@ -85,10 +85,14 @@ export type AppView =
   | 'dataGovernance'
   | 'webMonitoring'
   | 'edr'
+  | 'yaraRules'
+  | 'alertManagement'
+  | 'complianceEvidence'
   | 'mlops'
   | 'mitreAttack'
   | 'dlp'
   | 'ticketing'
+  | 'internalTickets'
   | 'siem'
   | 'ueba'
   | 'vulnerabilities'
@@ -135,7 +139,17 @@ export type AppView =
   | 'containerScan'
   | 'pam'
   | 'baaManagement'
-  | 'codeReviewGraph';
+  | 'codeReviewGraph'
+  | 'supportChat'
+  | 'agentChat'
+  | 'chat'
+  | 'bundleManagement'
+  | 'certificates'
+  | 'aiAnomaly'
+  | 'problemManagement'
+  | 'changeManagement'
+  | 'ticketWebhooks'
+  | 'notificationPrefs';
 
 
 export type Permission =
@@ -284,7 +298,46 @@ export type Tenant = {
   finOpsData?: FinOpsData;
   voiceBotSettings?: VoiceBotSettings;
   agentCount?: number;
+  // Bundle-based feature entitlement (new)
+  assignedBundles?: string[];
+  customFeatures?: string[];
+  blockedFeatures?: string[];
 };
+
+// ── Feature Bundles ───────────────────────────────────────────────────────────
+
+export type FeatureCategory =
+  | 'core' | 'observability' | 'security' | 'compliance'
+  | 'patching' | 'devsecops' | 'operations' | 'ai_ml' | 'enterprise';
+
+export interface PlatformFeature {
+  key: string;
+  name: string;
+  description: string;
+  category: FeatureCategory;
+  minTier: SubscriptionTier;
+  permission: string;
+}
+
+export interface FeatureBundle {
+  key: string;
+  name: string;
+  description: string;
+  color: string;
+  icon: string;
+  features: PlatformFeature[];
+  feature_count: number;
+  price_hint: string;
+}
+
+export interface TenantFeatures {
+  tenant_id: string;
+  assigned_bundles: string[];
+  custom_features: string[];
+  blocked_features: string[];
+  effective_features: PlatformFeature[];
+  feature_keys: string[];
+}
 
 export type MetricType = 'cpu' | 'memory' | 'disk' | 'network' | 'security_event';
 export type MetricChangeType = 'increase' | 'decrease';
@@ -310,6 +363,11 @@ export interface Alert {
   message: string;
   source: string;
   timestamp: string;
+  acknowledged?: boolean;
+  status?: string;
+  type?: string;
+  hostname?: string;
+  tenantId?: string;
 }
 
 export interface ComplianceFramework {
@@ -387,7 +445,7 @@ export interface SecurityEvent {
     technique: string;
     url: string;
   };
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export type AiSystemStatus = 'Active' | 'In Development' | 'Sunset';
@@ -411,7 +469,14 @@ export interface AiSystem {
     lastRetrainingTriggered: string | null;
   };
   performanceData: { time: string, latency: number, throughput: number, errorRate: number }[];
-  securityAlerts: any[]; // Placeholder
+  securityAlerts: AiSecurityAlert[];
+}
+
+export interface AiSecurityAlert {
+  id: string;
+  timestamp: string;
+  severity: AlertSeverity;
+  message: string;
 }
 
 export interface ImpactAssessment {
@@ -537,7 +602,7 @@ export interface Agent {
   lastSeen: string;
   remediationAttempts?: { timestamp: string }[];
   capabilities?: AgentCapability[];
-  meta?: any;
+  meta?: Record<string, unknown>;
   health: AgentHealth;
 }
 
@@ -616,6 +681,10 @@ export interface Patch {
   status: PatchStatus;
   releaseDate: string;
   affectedAssets: string[];
+  // SLA enrichment fields (populated by patch_enrichment_endpoints)
+  sla_hours?: number;
+  patch_deadline?: number; // Unix timestamp (seconds)
+  sla_status?: 'compliant' | 'at_risk' | 'overdue';
 }
 
 export type CaseStatus = 'New' | 'In Progress' | 'On Hold' | 'Resolved';
@@ -705,7 +774,7 @@ export interface SoftwareComponent {
 
 export interface HistoricalData {
   date: string;
-  [key: string]: any;
+  [key: string]: string | number;
 }
 
 export interface Integration {
@@ -714,7 +783,7 @@ export interface Integration {
   description: string;
   category: 'Collaboration' | 'Ticketing' | 'SIEM' | 'Observability' | 'Security' | 'Community & Partners' | 'Custom' | string;
   isEnabled: boolean;
-  config: SlackIntegrationConfig | PagerDutyIntegrationConfig | JiraIntegrationConfig | Record<string, any>;
+  config: SlackIntegrationConfig | PagerDutyIntegrationConfig | JiraIntegrationConfig | Record<string, string | number | boolean>;
 }
 
 export interface SlackIntegrationConfig {
@@ -780,13 +849,34 @@ export interface LlmSettings {
 export type DataSourceType = 'PostgreSQL' | 'AWS S3' | 'MongoDB';
 export type DataSourceStatus = 'Connected' | 'Error' | 'Pending';
 
+export interface PostgreSQLDataSourceConfig {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password?: string;
+  ssl?: boolean;
+}
+
+export interface S3DataSourceConfig {
+  bucket: string;
+  region: string;
+  prefix?: string;
+  accessKeyId?: string;
+}
+
+export interface MongoDBDataSourceConfig {
+  uri: string;
+  database: string;
+}
+
 export interface DataSource {
   id: string;
   tenantId: string;
   name: string;
   type: DataSourceType;
   status: DataSourceStatus;
-  config: any;
+  config: PostgreSQLDataSourceConfig | S3DataSourceConfig | MongoDBDataSourceConfig;
   lastTested: string | null;
 }
 
@@ -976,8 +1066,8 @@ export interface ApiDocEndpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   path: string;
   description: string;
-  requestBody?: any;
-  responseBody?: any;
+  requestBody?: Record<string, unknown>;
+  responseBody?: Record<string, unknown>;
 }
 
 export interface IncidentImpactGraph {
@@ -1014,7 +1104,7 @@ export interface WebhookDelivery {
   id: string;
   webhookId: string;
   event: WebhookEvent;
-  payload: any;
+  payload: Record<string, unknown>;
   deliveredAt: string;
   success: boolean;
   responseStatus?: number;
@@ -1028,7 +1118,7 @@ export interface ProactiveInsight {
   summary: string;
   timestamp: string;
   severity: 'High' | 'Medium' | 'Low';
-  details: any;
+  details: Record<string, unknown>;
 }
 
 export type TraceStatus = 'OK' | 'ERROR';
@@ -1256,7 +1346,7 @@ export interface AiModelVersion {
   createdAt: string;
   createdBy: string;
   status: 'Staging' | 'Production' | 'Archived';
-  metrics: { accuracy?: number, latency?: number, [key: string]: any };
+  metrics: { accuracy?: number; latency?: number; [key: string]: number | undefined };
 }
 
 export interface AiModel {
@@ -1432,4 +1522,59 @@ export interface AccessRequest {
     reason: string;
     status: 'Pending' | 'Approved' | 'Denied';
     requested_at: string;
+}
+
+// ── Support Chat ──────────────────────────────────────────────────────────────
+
+export interface SupportMessage {
+    id: string;
+    sender_id: string;
+    sender_role: string;
+    content: string;
+    created_at: string;
+}
+
+export interface SupportConversation {
+    id: string;
+    tenant_id: string;
+    subject: string;
+    chat_type: 'user_to_admin' | 'admin_to_superadmin' | 'admin_to_user';
+    status: 'open' | 'in_progress' | 'resolved' | 'closed';
+    initiator_id: string;
+    initiator_name?: string;
+    initiator_email?: string;
+    initiator_role: string;
+    target_user_id?: string;
+    target_user_name?: string;
+    messages?: SupportMessage[];
+    message_count?: number;
+    last_message?: SupportMessage;
+    readers?: Record<string, string>;  // username → ISO timestamp of last read
+    original_convo_id?: string;
+    original_subject?: string;
+    original_user_name?: string;
+    original_user_email?: string;
+    created_at: string;
+    updated_at: string;
+    resolved_at?: string;
+}
+
+export interface TenantUser {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    status: string;
+}
+
+export interface CustomYaraRule {
+    id: string;
+    name: string;
+    content: string;
+    description?: string;
+    enabled: boolean;
+    tenantId?: string;
+    createdBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }

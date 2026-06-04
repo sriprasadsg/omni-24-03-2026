@@ -1,67 +1,69 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 
 // Suppress console.log in production builds
 if (!import.meta.env.DEV) {
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
+   
   console.log = () => {};
 }
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
-// ... imports
-import { AuditLog as AuditLogComponent } from './components/AuditLog';
-
 import { LoginPage } from './components/LoginPage';
-import { CXODashboard } from './components/CXODashboard';
 import { Dashboard } from './components/Dashboard';
-import { ReportingDashboard } from './components/ReportingDashboard';
-import { AgentsDashboard } from './components/AgentsDashboard';
-import { AgentCapabilitiesDashboard } from './components/AgentCapabilitiesDashboard';
-import { AssetManagementDashboard } from './components/AssetManagementDashboard';
-import PatchManagementDashboard from './components/PatchManagementDashboard';
-import VulnerabilityManagement from './components/VulnerabilityManagement';
-import { SoftwareUpdateManagement } from './components/SoftwareUpdateManagement';
-import { CloudSecurityDashboard } from './components/CloudSecurityDashboard';
-import { SecurityDashboard } from './components/SecurityDashboard';
-import { ComplianceDashboard } from './components/ComplianceDashboard';
-import { AIGovernanceDashboard } from './components/AIGovernanceDashboard';
-import { FinOpsBillingPage } from './components/FinOpsBillingPage';
-import { AuditLogDashboard } from './components/AuditLogDashboard';
-import { SecurityAuditDashboard } from './components/SecurityAuditDashboard';
-import { SettingsDashboard } from './components/SettingsDashboard';
-import { SiemRulesDashboard } from './components/SiemRulesDashboard';
-import { IncidentResponseDashboard } from './components/IncidentResponseDashboard';
-import { TenantManagementDashboard } from './components/TenantManagementDashboard';
+
+// ── Always-visible UI (eager) ─────────────────────────────────────────────────
 import { AddNewTenantModal } from './components/AddNewTenantModal';
+import { TenantOnboardingWizard } from './components/TenantOnboardingWizard';
 import { ManageTenantModal } from './components/ManageTenantModal';
 import { RegisterAgentModal } from './components/RegisterAgentModal';
 import { ChatFab } from './components/ChatFab';
+import SupportChatToast, { SupportToastData } from './components/SupportChatToast';
 import { ChatAssistant } from './components/ChatAssistant';
 import { AICommandBar, Command } from './components/AICommandBar';
-import { LogExplorerDashboard } from './components/LogExplorerDashboard';
-import { ThreatHuntingDashboard } from './components/ThreatHuntingDashboard';
-import { ThreatIntelFeedEnhanced } from './components/ThreatIntelFeedEnhanced';
-import { UserProfilePage } from './components/UserProfilePage';
-import { AutomationPoliciesDashboard } from './components/AutomationPoliciesDashboard';
-import { DevSecOpsDashboard } from './components/DevSecOpsDashboard';
-import { DeveloperHubDashboard } from './components/DeveloperHubDashboard';
-import { IncidentImpactDashboard } from './components/IncidentImpactDashboard';
-import { ProactiveInsightsDashboard } from './components/ProactiveInsightsDashboard';
-import { DistributedTracingDashboard } from './components/DistributedTracingDashboard';
-import { DataSecurityDashboard } from './components/DataSecurityDashboard';
-import { AttackPathDashboard } from './components/AttackPathDashboard';
-import { ServiceCatalogDashboard } from './components/ServiceCatalogDashboard';
-import { DoraMetricsDashboard } from './components/DoraMetricsDashboard';
-import { ChaosEngineeringDashboard } from './components/ChaosEngineeringDashboard';
-import { NetworkObservabilityDashboard } from './components/NetworkObservabilityDashboard';
-import { DataUtilizationDashboard } from './components/DataUtilizationDashboard';
-import { ServicePricing } from './components/ServicePricing';
-import { ServicePricingPage } from './components/ServicePricingPage';
+import { GlobalSearchModal } from './components/GlobalSearchModal';
 import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
-// 2030 Industry Features
-import { WebhookManagement } from './components/WebhookManagement';
-import { SustainabilityDashboard } from './components/SustainabilityDashboard';
+
+// ── Lazy-loaded dashboard components ──────────────────────────────────────────
+const CXODashboard = lazy(() => import('./components/CXODashboard').then(m => ({ default: m.CXODashboard })));
+const ReportingDashboard = lazy(() => import('./components/ReportingDashboard').then(m => ({ default: m.ReportingDashboard })));
+const AgentsDashboard = lazy(() => import('./components/AgentsDashboard').then(m => ({ default: m.AgentsDashboard })));
+const AgentCapabilitiesDashboard = lazy(() => import('./components/AgentCapabilitiesDashboard').then(m => ({ default: m.AgentCapabilitiesDashboard })));
+const AssetManagementDashboard = lazy(() => import('./components/AssetManagementDashboard').then(m => ({ default: m.AssetManagementDashboard })));
+const PatchManagementDashboard = lazy(() => import('./components/PatchManagementDashboard'));
+const VulnerabilityManagement = lazy(() => import('./components/VulnerabilityManagement'));
+const SoftwareUpdateManagement = lazy(() => import('./components/SoftwareUpdateManagement').then(m => ({ default: m.SoftwareUpdateManagement })));
+const CloudSecurityDashboard = lazy(() => import('./components/CloudSecurityDashboard').then(m => ({ default: m.CloudSecurityDashboard })));
+const SecurityDashboard = lazy(() => import('./components/SecurityDashboard').then(m => ({ default: m.SecurityDashboard })));
+const ComplianceDashboard = lazy(() => import('./components/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })));
+const AIGovernanceDashboard = lazy(() => import('./components/AIGovernanceDashboard').then(m => ({ default: m.AIGovernanceDashboard })));
+const FinOpsBillingPage = lazy(() => import('./components/FinOpsBillingPage').then(m => ({ default: m.FinOpsBillingPage })));
+const AuditLogDashboard = lazy(() => import('./components/AuditLogDashboard').then(m => ({ default: m.AuditLogDashboard })));
+const SecurityAuditDashboard = lazy(() => import('./components/SecurityAuditDashboard').then(m => ({ default: m.SecurityAuditDashboard })));
+const SettingsDashboard = lazy(() => import('./components/SettingsDashboard').then(m => ({ default: m.SettingsDashboard })));
+const SiemRulesDashboard = lazy(() => import('./components/SiemRulesDashboard').then(m => ({ default: m.SiemRulesDashboard })));
+const IncidentResponseDashboard = lazy(() => import('./components/IncidentResponseDashboard').then(m => ({ default: m.IncidentResponseDashboard })));
+const TenantManagementDashboard = lazy(() => import('./components/TenantManagementDashboard').then(m => ({ default: m.TenantManagementDashboard })));
+const LogExplorerDashboard = lazy(() => import('./components/LogExplorerDashboard').then(m => ({ default: m.LogExplorerDashboard })));
+const ThreatHuntingDashboard = lazy(() => import('./components/ThreatHuntingDashboard').then(m => ({ default: m.ThreatHuntingDashboard })));
+const ThreatIntelFeedEnhanced = lazy(() => import('./components/ThreatIntelFeedEnhanced').then(m => ({ default: m.ThreatIntelFeedEnhanced })));
+const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(m => ({ default: m.UserProfilePage })));
+const AutomationPoliciesDashboard = lazy(() => import('./components/AutomationPoliciesDashboard').then(m => ({ default: m.AutomationPoliciesDashboard })));
+const DevSecOpsDashboard = lazy(() => import('./components/DevSecOpsDashboard').then(m => ({ default: m.DevSecOpsDashboard })));
+const DeveloperHubDashboard = lazy(() => import('./components/DeveloperHubDashboard').then(m => ({ default: m.DeveloperHubDashboard })));
+const IncidentImpactDashboard = lazy(() => import('./components/IncidentImpactDashboard').then(m => ({ default: m.IncidentImpactDashboard })));
+const ProactiveInsightsDashboard = lazy(() => import('./components/ProactiveInsightsDashboard').then(m => ({ default: m.ProactiveInsightsDashboard })));
+const DistributedTracingDashboard = lazy(() => import('./components/DistributedTracingDashboard').then(m => ({ default: m.DistributedTracingDashboard })));
+const DataSecurityDashboard = lazy(() => import('./components/DataSecurityDashboard').then(m => ({ default: m.DataSecurityDashboard })));
+const AttackPathDashboard = lazy(() => import('./components/AttackPathDashboard').then(m => ({ default: m.AttackPathDashboard })));
+const ServiceCatalogDashboard = lazy(() => import('./components/ServiceCatalogDashboard').then(m => ({ default: m.ServiceCatalogDashboard })));
+const DoraMetricsDashboard = lazy(() => import('./components/DoraMetricsDashboard').then(m => ({ default: m.DoraMetricsDashboard })));
+const ChaosEngineeringDashboard = lazy(() => import('./components/ChaosEngineeringDashboard').then(m => ({ default: m.ChaosEngineeringDashboard })));
+const NetworkObservabilityDashboard = lazy(() => import('./components/NetworkObservabilityDashboard').then(m => ({ default: m.NetworkObservabilityDashboard })));
+const DataUtilizationDashboard = lazy(() => import('./components/DataUtilizationDashboard').then(m => ({ default: m.DataUtilizationDashboard })));
+const ServicePricingPage = lazy(() => import('./components/ServicePricingPage').then(m => ({ default: m.ServicePricingPage })));
+const WebhookManagement = lazy(() => import('./components/WebhookManagement').then(m => ({ default: m.WebhookManagement })));
+const SustainabilityDashboard = lazy(() => import('./components/SustainabilityDashboard').then(m => ({ default: m.SustainabilityDashboard })));
 const ZeroTrustQuantumDashboard = lazy(() => import('./components/ZeroTrustQuantumDashboard'));
 const PaymentSettings = lazy(() => import('./components/PaymentSettings'));
 const SubscriptionManagement = lazy(() => import('./components/SubscriptionManagement'));
@@ -81,65 +83,73 @@ const PlaybookBuilder = lazy(() => import('./components/PlaybookBuilder'));
 const SecuritySimulation = lazy(() => import('./components/SecuritySimulation').then(m => ({ default: m.SecuritySimulation })));
 const PersistenceDashboard = lazy(() => import('./components/PersistenceDashboard').then(m => ({ default: m.PersistenceDashboard })));
 const MultiStepApprovalDashboard = lazy(() => import('./components/MultiStepApprovalDashboard').then(m => ({ default: m.MultiStepApprovalDashboard })));
+const CertificatesDashboard = lazy(() => import('./components/CertificatesDashboard').then(m => ({ default: m.CertificatesDashboard })));
+const AIAnomalyDashboard = lazy(() => import('./components/AIAnomalyDashboard').then(m => ({ default: m.AIAnomalyDashboard })));
 const SwarmDashboard = lazy(() => import('./components/SwarmDashboard'));
 const SimulationDashboard = lazy(() => import('./components/SimulationDashboard'));
 const ComplianceOracleDashboard = lazy(() => import('./components/ComplianceOracleDashboard'));
 const CISSPOracle = lazy(() => import('./components/CISSPOracle'));
 
-import { AdvancedBiDashboard } from './components/AdvancedBiDashboard';
-import { ApiStatusDashboard } from './components/ApiStatusDashboard';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { TimeZoneProvider } from './contexts/TimeZoneContext';
+import { FeaturesProvider } from './contexts/FeaturesContext';
 
 import { UserContext } from '@/contexts/UserContext';
-import { DataWarehouseDashboard } from './components/DataWarehouseDashboard';
-import { StreamingDashboard } from './components/StreamingDashboard';
-import { DataGovernanceDashboard } from './components/DataGovernanceDashboard';
-import { MLOpsDashboard } from './components/MLOpsDashboard';
-import { AutoMLDashboard } from './components/AutoMLDashboard';
-import { XAIDashboard } from './components/XAIDashboard';
-import { ABTestingDashboard } from './components/ABTestingDashboard';
-import { DASTDashboard } from './components/DASTDashboard';
-import { ServiceMeshDashboard } from './components/ServiceMeshDashboard';
-import { WebMonitoringDashboard } from './components/WebMonitoringDashboard';
-import { EDRDashboard } from './components/EDRDashboard';
-import { UEBADashboard } from './components/UEBADashboard';
-import { MDRDashboard } from './components/MDRDashboard';
-import { XDRDashboard } from './components/XDRDashboard';
-import { APMDashboard } from './components/APMDashboard';
-import AgentApprovalDashboard from './components/AgentApprovalDashboard';
-import ThreatDashboard from './components/ThreatDashboard';
-import CloudIntegrationsDashboard from './components/CloudIntegrationsDashboard';
-import JITAccessDashboard from './components/JITAccessDashboard';
-import IncidentWarRoomDashboard from './components/IncidentWarRoomDashboard';
-import PrivacyDashboard from './components/PrivacyDashboard';
-import ScheduledReportsDashboard from './components/ScheduledReportsDashboard';
-import { SecretsManagementDashboard } from './components/SecretsManagementDashboard';
-import CustomFrameworkBuilder from './components/CustomFrameworkBuilder';
-import DeceptionDashboard from './components/DeceptionDashboard';
-import { NetworkTopologyMap } from './components/NetworkTopologyMap';
-import { ShadowAI } from './components/ShadowAI';
-import KnowledgeBaseDashboard from './components/KnowledgeBaseDashboard';
-import RetentionPolicyDashboard from './components/RetentionPolicyDashboard';
-import APISecurityDashboard from './components/APISecurityDashboard';
-import DAMDashboard from './components/DAMDashboard';
-import K8sSecurityDashboard from './components/K8sSecurityDashboard';
-import NDRDashboard from './components/NDRDashboard';
-import InsiderThreatDashboard from './components/InsiderThreatDashboard';
-import EmailSecurityDashboard from './components/EmailSecurityDashboard';
-import SupplyChainDashboard from './components/SupplyChainDashboard';
-import { HADRDashboard } from './components/HADRDashboard';
-import { CorrelationDashboard } from './components/CorrelationDashboard';
-import { CodeReviewGraphDashboard } from './components/CodeReviewGraphDashboard';
+const AdvancedBiDashboard = lazy(() => import('./components/AdvancedBiDashboard').then(m => ({ default: m.AdvancedBiDashboard })));
+const BundleManagementDashboard = lazy(() => import('./components/BundleManagementDashboard'));
+const DataWarehouseDashboard = lazy(() => import('./components/DataWarehouseDashboard').then(m => ({ default: m.DataWarehouseDashboard })));
+const StreamingDashboard = lazy(() => import('./components/StreamingDashboard').then(m => ({ default: m.StreamingDashboard })));
+const DataGovernanceDashboard = lazy(() => import('./components/DataGovernanceDashboard').then(m => ({ default: m.DataGovernanceDashboard })));
+const MLOpsDashboard = lazy(() => import('./components/MLOpsDashboard').then(m => ({ default: m.MLOpsDashboard })));
+const AutoMLDashboard = lazy(() => import('./components/AutoMLDashboard').then(m => ({ default: m.AutoMLDashboard })));
+const XAIDashboard = lazy(() => import('./components/XAIDashboard').then(m => ({ default: m.XAIDashboard })));
+const ABTestingDashboard = lazy(() => import('./components/ABTestingDashboard').then(m => ({ default: m.ABTestingDashboard })));
+const DASTDashboard = lazy(() => import('./components/DASTDashboard').then(m => ({ default: m.DASTDashboard })));
+const ServiceMeshDashboard = lazy(() => import('./components/ServiceMeshDashboard').then(m => ({ default: m.ServiceMeshDashboard })));
+const WebMonitoringDashboard = lazy(() => import('./components/WebMonitoringDashboard').then(m => ({ default: m.WebMonitoringDashboard })));
+const EDRDashboard = lazy(() => import('./components/EDRDashboard').then(m => ({ default: m.EDRDashboard })));
+const YaraRuleEditor = lazy(() => import('./components/YaraRuleEditor').then(m => ({ default: m.YaraRuleEditor })));
+const AlertManagementDashboard = lazy(() => import('./components/AlertManagementDashboard').then(m => ({ default: m.AlertManagementDashboard })));
+const ComplianceEvidenceStatusDashboard = lazy(() => import('./components/ComplianceEvidenceStatusDashboard').then(m => ({ default: m.ComplianceEvidenceStatusDashboard })));
+const UEBADashboard = lazy(() => import('./components/UEBADashboard').then(m => ({ default: m.UEBADashboard })));
+const MDRDashboard = lazy(() => import('./components/MDRDashboard').then(m => ({ default: m.MDRDashboard })));
+const XDRDashboard = lazy(() => import('./components/XDRDashboard').then(m => ({ default: m.XDRDashboard })));
+const APMDashboard = lazy(() => import('./components/APMDashboard').then(m => ({ default: m.APMDashboard })));
+const AgentApprovalDashboard = lazy(() => import('./components/AgentApprovalDashboard'));
+const ThreatDashboard = lazy(() => import('./components/ThreatDashboard'));
+const CloudIntegrationsDashboard = lazy(() => import('./components/CloudIntegrationsDashboard'));
+const JITAccessDashboard = lazy(() => import('./components/JITAccessDashboard'));
+const IncidentWarRoomDashboard = lazy(() => import('./components/IncidentWarRoomDashboard'));
+const PrivacyDashboard = lazy(() => import('./components/PrivacyDashboard'));
+const ScheduledReportsDashboard = lazy(() => import('./components/ScheduledReportsDashboard'));
+const SecretsManagementDashboard = lazy(() => import('./components/SecretsManagementDashboard').then(m => ({ default: m.SecretsManagementDashboard })));
+const CustomFrameworkBuilder = lazy(() => import('./components/CustomFrameworkBuilder'));
+const DeceptionDashboard = lazy(() => import('./components/DeceptionDashboard'));
+const NetworkTopologyMap = lazy(() => import('./components/NetworkTopologyMap').then(m => ({ default: m.NetworkTopologyMap })));
+const ShadowAI = lazy(() => import('./components/ShadowAI').then(m => ({ default: m.ShadowAI })));
+const KnowledgeBaseDashboard = lazy(() => import('./components/KnowledgeBaseDashboard'));
+const RetentionPolicyDashboard = lazy(() => import('./components/RetentionPolicyDashboard'));
+const APISecurityDashboard = lazy(() => import('./components/APISecurityDashboard'));
+const DAMDashboard = lazy(() => import('./components/DAMDashboard'));
+const K8sSecurityDashboard = lazy(() => import('./components/K8sSecurityDashboard'));
+const NDRDashboard = lazy(() => import('./components/NDRDashboard'));
+const InsiderThreatDashboard = lazy(() => import('./components/InsiderThreatDashboard'));
+const EmailSecurityDashboard = lazy(() => import('./components/EmailSecurityDashboard'));
+const SupplyChainDashboard = lazy(() => import('./components/SupplyChainDashboard'));
+const HADRDashboard = lazy(() => import('./components/HADRDashboard').then(m => ({ default: m.HADRDashboard })));
+const CorrelationDashboard = lazy(() => import('./components/CorrelationDashboard').then(m => ({ default: m.CorrelationDashboard })));
+const CodeReviewGraphDashboard = lazy(() => import('./components/CodeReviewGraphDashboard').then(m => ({ default: m.CodeReviewGraphDashboard })));
 
-import { PentestDashboard } from './components/PentestDashboard';
-import FutureTechDashboard from './components/FutureTechDashboard';
+const PentestDashboard = lazy(() => import('./components/PentestDashboard').then(m => ({ default: m.PentestDashboard })));
+const FutureTechDashboard = lazy(() => import('./components/FutureTechDashboard'));
 const PredictiveHealthDashboard = React.lazy(() => import('./components/PredictiveHealthDashboard').then(m => ({ default: m.PredictiveHealthDashboard })));
 const SystemHealthDashboard = React.lazy(() => import('./components/SystemHealthDashboard').then(m => ({ default: m.SystemHealthDashboard })));
 const GoalSystemDashboard = React.lazy(() => import('./components/GoalSystemDashboard').then(m => ({ default: m.GoalSystemDashboard })));
 const IntegrationsHub = React.lazy(() => import('./components/IntegrationsHub').then(m => ({ default: m.IntegrationsHub })));
 const ComplianceFrameworksDashboard = React.lazy(() => import('./components/ComplianceFrameworksDashboard').then(m => ({ default: m.ComplianceFrameworksDashboard })));
 const RemoteAccessDashboard = React.lazy(() => import('./components/RemoteAccessDashboard').then(m => ({ default: m.RemoteAccessDashboard })));
+const AgentChatPanel = React.lazy(() => import('./components/AgentChatPanel'));
+const ChatHub = React.lazy(() => import('./components/ChatHub'));
 const AIRemediationDashboard = React.lazy(() => import('./components/AIRemediationDashboard').then(m => ({ default: m.AIRemediationDashboard })));
 const RollbackDashboard = React.lazy(() => import('./components/RollbackDashboard').then(m => ({ default: m.RollbackDashboard })));
 const FimAlertsDashboard = React.lazy(() => import('./components/FimAlertsPanel').then(m => ({ default: m.FimAlertsPanel })));
@@ -151,18 +161,24 @@ const ContainerScanDashboard = React.lazy(() => import('./components/ContainerSc
 const PAMDashboard = React.lazy(() => import('./components/PAMDashboard').then(m => ({ default: m.PAMDashboard })));
 const BAAManagement = React.lazy(() => import('./components/BAAManagement').then(m => ({ default: m.BAAManagement })));
 const MitreAttackHeatmap = React.lazy(() => import('./components/MitreAttackHeatmap'));
+const SupportChatDashboard = React.lazy(() => import('./components/SupportChatPanel'));
 const DLPDashboard = React.lazy(() => import('./components/DLPDashboard'));
 const TicketingIntegration = React.lazy(() => import('./components/TicketingIntegration'));
+const InternalTicketsDashboard = React.lazy(() => import('./components/InternalTicketsDashboard'));
+const ProblemManagementDashboard = lazy(() => import('./components/ProblemManagementDashboard'));
+const ChangeManagementDashboard = lazy(() => import('./components/ChangeManagementDashboard'));
+const TicketWebhooksDashboard = lazy(() => import('./components/TicketWebhooksDashboard'));
+const NotificationPreferencesDashboard = lazy(() => import('./components/NotificationPreferencesDashboard'));
 
 
 import * as api from './services/apiService';
 // WebSocket for real-time notifications
 import { socketService } from './services/socketService';
-import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSystem, Asset, Patch, SecurityCase, Playbook, SecurityEvent, CloudAccount, CSPMFinding, Notification, AuditLog, Integration, AlertRule, Agent, DatabaseSettings, LlmSettings, DataSource, Sbom, SoftwareComponent, AgentUpgradeJob, PatchDeploymentJob, Permission, Filter, LogEntry, UebaFinding, ModelExperiment, RegisteredModel, ModelStage, AutomationPolicy, SastFinding, CodeRepository, ApiDocEndpoint, IncidentImpactGraph, NewUserPayload, AgentPlatform, SubscriptionTier, SensitiveDataFinding, AttackPath, ServiceTemplate, ProvisionedService, DoraMetrics, ChaosExperiment, ProactiveInsight, Trace, ServiceMap, VulnerabilityScanJob, NetworkDevice, ThreatIntelResult, NewTenantPayload, Task, Priority, AssetCompliance } from './types';
+import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSystem, Asset, Patch, SecurityCase, Playbook, SecurityEvent, CloudAccount, CSPMFinding, Notification as AppNotification, AuditLog, Integration, AlertRule, Agent, DatabaseSettings, LlmSettings, DataSource, Sbom, SoftwareComponent, AgentUpgradeJob, PatchDeploymentJob, Permission, Filter, LogEntry, UebaFinding, ModelExperiment, RegisteredModel, ModelStage, AutomationPolicy, SastFinding, CodeRepository, ApiDocEndpoint, IncidentImpactGraph, NewUserPayload, AgentPlatform, SubscriptionTier, SensitiveDataFinding, AttackPath, ServiceTemplate, ProvisionedService, DoraMetrics, ChaosExperiment, ProactiveInsight, Trace, ServiceMap, VulnerabilityScanJob, NetworkDevice, ThreatIntelResult, NewTenantPayload, Task, Priority, AssetCompliance } from './types';
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
+import { showToast } from './utils/toast';
 
-// API Base URL - Use relative path so Vite proxy handles it correctly and bypasses CORS
 const API_BASE = '/api';
 
 // FIX: Added mappings for new AppViews to satisfy the Record type.
@@ -258,6 +274,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   mitreAttack: 'view:security',
   dlp: 'view:security',
   ticketing: 'manage:settings',
+  internalTickets: 'view:dashboard',
   siem: 'view:security',
   ueba: 'view:security',
   vulnerabilities: 'view:vulnerabilities',
@@ -293,6 +310,8 @@ const viewPermissionMap: Record<AppView, Permission> = {
   runtimeSecurity: 'view:security',
   sast: 'view:security',
   remoteAccess: 'view:agents',
+  agentChat: 'manage:agents',
+  chat: 'manage:agents',
   aiRemediation: 'view:ai_governance',
   rollback: 'manage:settings',
   pipelineSecurity: 'view:devsecops',
@@ -301,8 +320,44 @@ const viewPermissionMap: Record<AppView, Permission> = {
   pam: 'manage:settings',
   baaManagement: 'view:compliance',
   codeReviewGraph: 'view:devsecops',
+  supportChat: 'view:dashboard',
+  bundleManagement: 'manage:tenants',
+  certificates: 'view:assets',
+  aiAnomaly: 'view:security',
+  yaraRules: 'view:security',
+  alertManagement: 'view:security',
+  complianceEvidence: 'view:compliance',
+  problemManagement: 'view:security',
+  changeManagement: 'manage:settings',
+  ticketWebhooks: 'manage:settings',
+  notificationPrefs: 'view:profile',
 };
 
+
+// ── Notification sound — synthesized two-tone chime (no audio file needed) ──
+function playNotificationSound() {
+    try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const play = (freq: number, startAt: number, dur: number) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + startAt);
+            gain.gain.setValueAtTime(0, ctx.currentTime + startAt);
+            gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + startAt + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startAt + dur);
+            osc.start(ctx.currentTime + startAt);
+            osc.stop(ctx.currentTime + startAt + dur);
+        };
+        play(880,  0,    0.22);   // A5 — first tone
+        play(1108, 0.20, 0.28);   // C#6 — second tone (chord-like chime)
+        setTimeout(() => ctx.close().catch(() => {}), 800);
+    } catch { /* autoplay policy blocked — silent fail */ }
+}
 
 const App: React.FC = () => {
   // Global App State
@@ -310,10 +365,42 @@ const App: React.FC = () => {
   // Theme managed by ThemeProvider
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
+  // Ref so WebSocket handlers can read the latest view without being re-registered on every navigation
+  const currentViewRef = useRef<AppView>('dashboard');
+  useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+
+  // Refresh metrics every 30 s while the dashboard is visible
+  useEffect(() => {
+    if (currentView !== 'dashboard') return;
+    const tick = async () => {
+      const fresh = await api.fetchMetrics();
+      if (fresh && fresh.length > 0) setMetrics(fresh);
+    };
+    const timer = setInterval(tick, 30_000);
+    return () => clearInterval(timer);
+  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refresh recent alerts every 60 s while the dashboard is visible
+  // Note: fetchAlerts() without tenantId uses server-side tenant from the JWT
+  useEffect(() => {
+    if (currentView !== 'dashboard') return;
+    const tick = async () => {
+      const fresh = await api.fetchAlerts();
+      if (fresh && fresh.length > 0) setAlerts(fresh as Alert[]);
+    };
+    const timer = setInterval(tick, 60_000);
+    return () => clearInterval(timer);
+  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Support chat in-app toast queue & unread count ────────────────────────
+  const [supportToasts, setSupportToasts] = useState<SupportToastData[]>([]);
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [viewingTenantId, setViewingTenantId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [brandingConfig, setBrandingConfig] = useState<{ logoUrl?: string, companyName?: string }>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -342,8 +429,6 @@ const App: React.FC = () => {
   }, []);
   */
   useEffect(() => {
-    console.log("[App] App component mounted and useEffect running");
-    // Start proactive token refresh if a session already exists (e.g. page reload)
     api.startTokenRefreshCycle();
     return () => api.stopTokenRefreshCycle();
   }, []);
@@ -364,7 +449,7 @@ const App: React.FC = () => {
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [cloudAccounts, setCloudAccounts] = useState<CloudAccount[]>([]);
   const [cspmFindings, setCspmFindings] = useState<CSPMFinding[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // notifications state removed — NotificationCenter manages its own state independently
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
@@ -404,6 +489,7 @@ const App: React.FC = () => {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [serviceMap, setServiceMap] = useState<ServiceMap | null>(null);
   const [myTasks, setMyTasks] = useState<Task[]>([]);
+  const [serverLockedFeatures, setServerLockedFeatures] = useState<Record<string, string>>({});
 
   // Modal State
   const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
@@ -427,6 +513,8 @@ const App: React.FC = () => {
         'security': 'security',
         'compliance': 'compliance',
         'aigovernance': 'aiGovernance',
+        'tickets': 'internalTickets',
+        'helpdesk': 'internalTickets',
       };
 
       const view = hashToView[hash] || Object.keys(viewPermissionMap).find(key => key.toLowerCase() === hash) as AppView | undefined;
@@ -451,6 +539,11 @@ const App: React.FC = () => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
         event.preventDefault();
         setIsCommandBarOpen(prev => !prev);
+      }
+      // Ctrl+/ opens global data search
+      if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+        event.preventDefault();
+        setIsGlobalSearchOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -478,7 +571,7 @@ const App: React.FC = () => {
         api.fetchAlerts(), api.fetchComplianceFrameworks(), api.fetchAiSystems(),
         api.fetchAssets(), api.fetchPatches(), api.fetchSecurityCases(),
         api.fetchPlaybooks(), api.fetchSecurityEvents(), api.fetchCloudAccounts(),
-        api.fetchCspmFindings(), api.fetchNotifications(), api.fetchAuditLogs(),
+        api.fetchCspmFindings(), api.fetchAuditLogs(),
         api.fetchIntegrations(), api.fetchAlertRules(), api.fetchHistoricalData(viewingTenantId || undefined),
         api.fetchAgents(), api.fetchInfrastructure(), api.fetchDataSources(),
         api.fetchSboms(), api.fetchSoftwareComponents(),
@@ -516,43 +609,42 @@ const App: React.FC = () => {
       setSecurityEvents(getResult(11, []));
       setCloudAccounts(getResult(12, []));
       setCspmFindings(getResult(13, []));
-      setNotifications(getResult(14, []));
-      setAuditLogs(getResult(15, []));
-      setIntegrations(getResult(16, []));
-      setAlertRules(getResult(17, []));
-      setHistoricalData(getResult(18, {}));
-      setAgents(getResult(19, []));
-      const infra = getResult(20, { db: null, llm: null });
+      setAuditLogs(getResult(14, []));
+      setIntegrations(getResult(15, []));
+      setAlertRules(getResult(16, []));
+      setHistoricalData(getResult(17, {}));
+      setAgents(getResult(18, []));
+      const infra = getResult(19, { db: null, llm: null });
       setDatabaseSettings(infra?.db || null);
       setLlmSettings(infra?.llm || null);
-      setDataSources(getResult(21, []));
-      setSboms(getResult(22, []));
-      setSoftwareComponents(getResult(23, []));
-      setAgentUpgradeJobs(getResult(24, []));
-      setPatchDeploymentJobs(getResult(25, []));
-      setVulnerabilityScanJobs(getResult(26, []));
-      setLogs(getResult(27, []));
-      setUebaFindings(getResult(28, []));
-      setModelExperiments(getResult(29, []));
-      setRegisteredModels(getResult(30, []));
-      setAutomationPolicies(getResult(31, []));
-      setSastFindings(getResult(32, []));
-      setCodeRepositories(getResult(33, []));
-      setApiDocs(getResult(34, []));
-      setSensitiveDataFindings(getResult(35, []));
-      setAttackPaths(getResult(36, []));
-      setServiceTemplates(getResult(37, []));
-      setProvisionedServices(getResult(38, []));
-      setDoraMetrics(getResult(39, []));
-      setChaosExperiments(getResult(40, []));
-      setProactiveInsights(getResult(41, []));
-      setTraces(getResult(42, []));
-      setServiceMap(getResult(43, null));
-      setThreatIntelFeed(getResult(44, []));
-      const netDevs = getResult(45, []);
+      setDataSources(getResult(20, []));
+      setSboms(getResult(21, []));
+      setSoftwareComponents(getResult(22, []));
+      setAgentUpgradeJobs(getResult(23, []));
+      setPatchDeploymentJobs(getResult(24, []));
+      setVulnerabilityScanJobs(getResult(25, []));
+      setLogs(getResult(26, []));
+      setUebaFindings(getResult(27, []));
+      setModelExperiments(getResult(28, []));
+      setRegisteredModels(getResult(29, []));
+      setAutomationPolicies(getResult(30, []));
+      setSastFindings(getResult(31, []));
+      setCodeRepositories(getResult(32, []));
+      setApiDocs(getResult(33, []));
+      setSensitiveDataFindings(getResult(34, []));
+      setAttackPaths(getResult(35, []));
+      setServiceTemplates(getResult(36, []));
+      setProvisionedServices(getResult(37, []));
+      setDoraMetrics(getResult(38, []));
+      setChaosExperiments(getResult(39, []));
+      setProactiveInsights(getResult(40, []));
+      setTraces(getResult(41, []));
+      setServiceMap(getResult(42, null));
+      setThreatIntelFeed(getResult(43, []));
+      const netDevs = getResult(44, []);
       setNetworkDevices(netDevs);
-      setAssetComplianceData(getResult(46, []));
-      setMyTasks(getResult(47, []));
+      setAssetComplianceData(getResult(45, []));
+      setMyTasks(getResult(46, []));
 
       // Check if any critical data failed to determine "Backend Connected" status roughly
       const criticalFailures = results.slice(0, 3).filter(r => r.status === 'rejected').length;
@@ -572,10 +664,8 @@ const App: React.FC = () => {
   // ==================== AUTHENTICATION FUNCTIONS ====================
 
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
-    console.log(`[Frontend] handleLogin called for ${email}`);
     try {
       const data = await api.login(email, password);
-      console.log(`[Frontend] Login response data:`, data);
 
       if (data.success && data.user) {
         // Store authentication tokens
@@ -588,13 +678,15 @@ const App: React.FC = () => {
         setCurrentView('dashboard');
         api.startTokenRefreshCycle();
 
+        // Fetch server-confirmed feature flags (non-blocking)
+        api.fetchPlatformFeatures().then(f => setServerLockedFeatures(f.locked)).catch(() => {});
+
         // Load all data in background (non-blocking)
         loadAllData().catch(err => console.error('Error loading data:', err));
 
         return true;
       }
 
-      console.log('[Frontend] Login success=false in response');
       return false;
     } catch (error) {
       console.error('[Frontend] Login error:', error);
@@ -650,7 +742,8 @@ const App: React.FC = () => {
     setCurrentUser(null);
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('refresh_token');
-    setCurrentView('patchManagement');
+    // Reload to the login page — clearing React state and any cached data
+    window.location.href = '/';
   };
 
   const handleRegisterTenant = async (payload: NewTenantPayload): Promise<boolean> => {
@@ -665,6 +758,41 @@ const App: React.FC = () => {
   };
 
 
+  // SSO callback — exchange one-time code for JWT before restoreSession runs
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.pathname !== '/sso-callback') return;
+    const code = url.searchParams.get('code');
+    const errorParam = url.searchParams.get('error');
+
+    if (errorParam) {
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+
+    if (!code) {
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+
+    fetch('/api/sso/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.access_token) {
+          sessionStorage.setItem('token', d.access_token);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        window.history.replaceState({}, '', '/');
+        window.location.reload();
+      });
+  }, []);
+
   // Initial Data Load
   useEffect(() => {
     const restoreSession = async () => {
@@ -672,6 +800,8 @@ const App: React.FC = () => {
       if (user) {
         setCurrentUser(user);
         setViewingTenantId((user.role === 'Super Admin' || user.role === 'superadmin' || user.role === 'super_admin') ? null : user.tenantId);
+        // Fetch server-confirmed feature flags
+        api.fetchPlatformFeatures().then(f => setServerLockedFeatures(f.locked)).catch(() => {});
         // Only load data AFTER session is restored
         loadAllData();
       } else {
@@ -696,8 +826,7 @@ const App: React.FC = () => {
       setIsBackendConnected(prev => {
         if (prev !== isConnected) {
           if (isConnected) {
-            console.log("Backend reconnected, refreshing data...");
-            loadAllData(); // Auto-refresh on reconnection
+              loadAllData(); // Auto-refresh on reconnection
           } else {
             // Backend connection lost, mark agents as offline
             setAgents(prevAgents => prevAgents.map(a => ({ ...a, status: 'Offline' })));
@@ -727,14 +856,13 @@ const App: React.FC = () => {
 
     // Initial fetch when entering view is covered by loadAllData or previous state
     const interval = setInterval(() => {
-      console.log("Polling Agents status...");
-      api.fetchAgents().then(agentsData => {
+      api.fetchAgents().then((agentsData: Agent[]) => {
         // Deduplicate agents by ID (keep the latest entry)
         const uniqueAgents = Object.values(
-          agentsData.reduce((acc, agent) => {
+          agentsData.reduce((acc: Record<string, Agent>, agent: Agent) => {
             acc[agent.id] = agent;
             return acc;
-          }, {} as Record<string, typeof agentsData[0]>)
+          }, {})
         );
         setAgents(uniqueAgents as Agent[]);
       }).catch(err => console.error("Error polling agents:", err));
@@ -749,14 +877,9 @@ const App: React.FC = () => {
   // WebSocket Connection Management
   useEffect(() => {
     if (currentUser && activeTenantId) {
-      console.log('[App] Establishing WebSocket connection for tenant:', activeTenantId);
-
-      // Connect to WebSocket server
       socketService.connect(activeTenantId);
 
-      // Handler: Agent status changes
       const handleAgentStatusChange = (data: { agent_id: string; status: string; timestamp: string }) => {
-        console.log('[App] Agent status updated via WebSocket:', data);
         setAgents(prev => prev.map(agent =>
           agent.id === data.agent_id
             ? { ...agent, status: data.status as any, lastSeen: data.timestamp }
@@ -764,55 +887,106 @@ const App: React.FC = () => {
         ));
       };
 
-      // Handler: New notifications
-      const handleNotification = (notification: any) => {
-        console.log('[App] New notification via WebSocket:', notification);
-        setNotifications(prev => [{
-          id: `notif-${Date.now()}`,
-          message: notification.message || notification.title || 'Notification',
-          timestamp: notification.timestamp || new Date().toISOString(),
-          isRead: false,
-          linkTo: 'dashboard' as AppView,
-        }, ...prev]);
-      };
-
-      // Handler: Security events
       const handleSecurityEvent = (event: any) => {
-        console.log('[App] New security event via WebSocket:', event);
         setSecurityEvents(prev => [event, ...prev]);
       };
 
-      // Handler: Compliance alerts
-      const handleComplianceAlert = (alert: any) => {
-        console.log('[App] Compliance alert via WebSocket:', alert);
-        // Add to notifications or handle separately
-        handleNotification({
-          type: 'warning',
-          title: 'Compliance Alert',
-          message: alert.message || 'New compliance issue detected',
-          ...alert
-        });
+      const handleNotification = (data: any) => {
+        playNotificationSound();
+        console.log('[App] Notification received:', data);
       };
 
-      // Subscribe to WebSocket events
+      const handleComplianceAlert = (data: any) => {
+        playNotificationSound();
+        console.warn('[App] Compliance alert received:', data);
+        setCurrentView('compliance');
+      };
+
       socketService.on('agent_status_change', handleAgentStatusChange);
-      socketService.on('notification', handleNotification);
       socketService.on('security_event', handleSecurityEvent);
+      socketService.on('notification', handleNotification);
       socketService.on('compliance_alert', handleComplianceAlert);
 
-      console.log('[App] WebSocket event listeners registered');
-
-      // Cleanup on unmount or user/tenant change
       return () => {
-        console.log('[App] Cleaning up WebSocket connection');
         socketService.off('agent_status_change', handleAgentStatusChange);
-        socketService.off('notification', handleNotification);
         socketService.off('security_event', handleSecurityEvent);
+        socketService.off('notification', handleNotification);
         socketService.off('compliance_alert', handleComplianceAlert);
         socketService.disconnect();
       };
     }
   }, [currentUser, activeTenantId]);
+
+  // ── Browser notification permission ──────────────────────────────────────
+  useEffect(() => {
+    if (currentUser && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [currentUser]);
+
+  // ── Support chat: in-app toast + sound + OS notification + unread count ────
+  useEffect(() => {
+    if (!currentUser) return;
+    const handler = (data: any) => {
+      if (data.event !== 'new_message') return;
+
+      const isOnSupportChat = !document.hidden && ['supportChat', 'chat'].includes(currentViewRef.current);
+
+      // 1. Notification sound (always play unless already on support chat page)
+      if (!isOnSupportChat) {
+        playNotificationSound();
+      }
+
+      // 2. Increment unread badge + update tab title
+      if (!isOnSupportChat) {
+        setSupportUnreadCount(prev => prev + 1);
+      }
+
+      // 3. In-app toast (visible from any page while tab is open)
+      if (!isOnSupportChat) {
+        const toast: SupportToastData = {
+          id: `${data.convo_id}-${data.message?.id ?? Date.now()}`,
+          senderRole: data.message?.sender_role ?? 'user',
+          senderName: data.message?.sender_id ?? '',
+          preview: String(data.message?.content ?? '').slice(0, 160),
+          convoId: data.convo_id ?? '',
+          at: Date.now(),
+        };
+        setSupportToasts(prev => [...prev.slice(-4), toast]); // max 5 stacked
+      }
+
+      // 4. OS-level push notification (works when tab is hidden/minimised)
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        const sender = (data.message?.sender_role ?? 'Someone').replace(/_/g, ' ');
+        const preview = String(data.message?.content ?? '').slice(0, 120);
+        const notif = new Notification(`New support message from ${sender}`, {
+          body: preview || 'You have a new support message.',
+          icon: '/favicon.ico',
+          tag: `support-${data.convo_id}`,
+        });
+        notif.onclick = () => {
+          window.focus();
+          setCurrentView('chat');
+          notif.close();
+        };
+      }
+    };
+    socketService.on('support_message', handler);
+    return () => socketService.off('support_message', handler);
+  }, [currentUser, setCurrentView]);
+
+  // ── Browser tab title badge ───────────────────────────────────────────────
+  useEffect(() => {
+    const base = 'Omni-Agent AI';
+    document.title = supportUnreadCount > 0 ? `(${supportUnreadCount}) ${base}` : base;
+  }, [supportUnreadCount]);
+
+  // ── Reset unread count when user navigates to any chat view ────────────────
+  useEffect(() => {
+    if (['supportChat', 'chat'].includes(currentView)) {
+      setSupportUnreadCount(0);
+    }
+  }, [currentView]);
 
   // --- DERIVED STATE & CONTEXT ---
   const { enabledFeatures, hasPermission } = useMemo(() => {
@@ -891,7 +1065,6 @@ const App: React.FC = () => {
         vulnerabilityScanJobs: vulnerabilityScanJobs,
         cloudAccounts: cloudAccounts,
         cspmFindings: cspmFindings,
-        notifications: notifications,
         auditLogs: auditLogs,
         integrations: integrations,
         alertRules: alertRules,
@@ -932,7 +1105,6 @@ const App: React.FC = () => {
       vulnerabilityScanJobs: vulnerabilityScanJobs, // Assume global for now
       cloudAccounts: cloudAccounts.filter(c => c.tenantId === activeTenantId),
       cspmFindings: cspmFindings.filter(f => f.tenantId === activeTenantId),
-      notifications: (Array.isArray(notifications) ? notifications : []).filter(n => tenants.find(t => t.id === activeTenantId)), // Simple filter for demo
       auditLogs: auditLogs.filter(log => {
         const detailsStr = typeof log.details === 'string' ? log.details : JSON.stringify(log.details || {});
         const userName = log.userName || '';
@@ -963,7 +1135,7 @@ const App: React.FC = () => {
       networkDevices: networkDevices.filter(d => d.tenantId === activeTenantId),
       assetComplianceData: assetComplianceData.filter(ac => assets.some(a => a.id === ac.assetId && a.tenantId === activeTenantId)),
     };
-  }, [activeTenantId, alerts, assets, agents, securityEvents, securityCases, complianceFrameworks, aiSystems, patches, patchDeploymentJobs, vulnerabilityScanJobs, cloudAccounts, cspmFindings, notifications, auditLogs, integrations, alertRules, tenants, dataSources, sboms, softwareComponents, agentUpgradeJobs, logs, uebaFindings, modelExperiments, registeredModels, automationPolicies, sastFindings, codeRepositories, sensitiveDataFindings, attackPaths, serviceTemplates, provisionedServices, doraMetrics, chaosExperiments, proactiveInsights, traces, serviceMap, networkDevices, assetComplianceData]);
+  }, [activeTenantId, alerts, assets, agents, securityEvents, securityCases, complianceFrameworks, aiSystems, patches, patchDeploymentJobs, vulnerabilityScanJobs, cloudAccounts, cspmFindings, auditLogs, integrations, alertRules, tenants, dataSources, sboms, softwareComponents, agentUpgradeJobs, logs, uebaFindings, modelExperiments, registeredModels, automationPolicies, sastFindings, codeRepositories, sensitiveDataFindings, attackPaths, serviceTemplates, provisionedServices, doraMetrics, chaosExperiments, proactiveInsights, traces, serviceMap, networkDevices, assetComplianceData]);
 
 
   // --- EVENT HANDLERS & API CALLS ---
@@ -981,11 +1153,11 @@ const App: React.FC = () => {
       }
 
       console.error("Signup failed:", result.error);
-      alert(result.error || "Signup failed. Please try again.");
+      showToast(result.error || "Signup failed. Please try again.", 'error');
       return false;
     } catch (error) {
       console.error("Signup error:", error);
-      alert("An error occurred during signup. Please try again.");
+      showToast("An error occurred during signup. Please try again.", 'error');
       return false;
     }
   };
@@ -1004,6 +1176,10 @@ const App: React.FC = () => {
   }, []);
 
   const logout = useCallback(() => {
+    // Must clear stored tokens — omitting these leaves the refresh token active
+    // allowing a new access token to be silently obtained after "logout".
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refresh_token');
     api.stopTokenRefreshCycle();
     setCurrentUser(null);
     setViewingTenantId(null);
@@ -1030,14 +1206,12 @@ const App: React.FC = () => {
 
   const handleAddNewTenant = async (tenantData: { name: string; subscriptionTier: string }) => {
     try {
-      console.log('[App] Adding new tenant:', tenantData);
       const newTenant = await api.addTenant(tenantData);
       setTenants(prev => [...prev, newTenant]);
-      console.log('[App] Tenant added successfully:', newTenant.id);
-      alert(`Tenant "${tenantData.name}" created successfully.`);
+      showToast(`Tenant "${tenantData.name}" created successfully.`, 'success');
     } catch (error: any) {
       console.error('[App] Error adding tenant:', error);
-      alert(error.message || "Failed to add tenant. Please try again.");
+      showToast(error.message || "Failed to add tenant. Please try again.", 'error');
     }
   };
 
@@ -1067,18 +1241,13 @@ const App: React.FC = () => {
 
   const handleDeleteTenant = async (tenantId: string) => {
     try {
-      console.log('[App] Deleting tenant:', tenantId);
       await api.deleteTenant(tenantId);
-
-      // Only update state after successful API call
       setTenants(prev => prev.filter(t => t.id !== tenantId));
       setUsers(prev => prev.filter(u => u.tenantId !== tenantId));
-
-      console.log('[App] Tenant deleted successfully');
-      alert('Tenant deleted successfully');
+      showToast('Tenant deleted successfully', 'success');
     } catch (error) {
       console.error('[App] Error deleting tenant:', error);
-      alert(`Failed to delete tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`Failed to delete tenant: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -1086,7 +1255,7 @@ const App: React.FC = () => {
 
   const handleRegisterAgent = (data: { hostname: string, ipAddress: string, platform: AgentPlatform, version: string, assetId: string | 'new' }) => {
     if (!activeTenantId) {
-      alert("Cannot register agent: No active tenant selected.");
+      showToast("Cannot register agent: No active tenant selected.", 'error');
       return;
     }
     api.registerAgent({ ...data, tenantId: activeTenantId }).then(({ newAgent, newAsset }) => {
@@ -1118,11 +1287,11 @@ const App: React.FC = () => {
         // Note: Ideally use a toast notification here
       } else {
         console.error(`[App] Failed to delete agent, backend response:`, response);
-        alert(`Failed to delete agent: ${response?.message || "Unknown error"}`);
+        showToast(`Failed to delete agent: ${response?.message || "Unknown error"}`, 'error');
       }
     } catch (error) {
       console.error("Failed to delete agent (Exception):", error);
-      alert(`Failed to delete agent. See console for details.`);
+      showToast("Failed to delete agent. See console for details.", 'error');
     }
   };
 
@@ -1135,7 +1304,7 @@ const App: React.FC = () => {
       console.log(`[App] Asset deleted successfully`);
     } catch (error) {
       console.error("Failed to delete asset:", error);
-      alert(`Failed to delete asset: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`Failed to delete asset: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -1175,7 +1344,7 @@ const App: React.FC = () => {
     api.updateUser(userId, updates).then(allUsers => {
       setUsers(allUsers);
     }).catch(error => {
-      alert(error.message || "Failed to update user.");
+      showToast(error.message || "Failed to update user.", 'error');
     });
   };
 
@@ -1184,7 +1353,7 @@ const App: React.FC = () => {
       api.deleteUser(userId).then(allUsers => {
         setUsers(allUsers);
       }).catch(error => {
-        alert(error.message || "Failed to delete user.");
+        showToast(error.message || "Failed to delete user.", 'error');
       });
     }
   };
@@ -1192,7 +1361,7 @@ const App: React.FC = () => {
   const handleResetPassword = async (userId: string, userName: string) => {
     if (window.confirm(`Are you sure you want to reset the password for ${userName}?`)) {
       await api.resetPassword(userId);
-      alert(`A password reset link has been sent to the user's email (simulated).`);
+      showToast(`Password reset link sent to the user's email.`, 'success');
     }
   };
 
@@ -1201,7 +1370,7 @@ const App: React.FC = () => {
       const allUsers = await api.addUser(user);
       setUsers(allUsers);
     } catch (error: any) {
-      alert(error.message || "Failed to add user. Please try again.");
+      showToast(error.message || "Failed to add user. Please try again.", 'error');
     }
   };
 
@@ -1212,7 +1381,7 @@ const App: React.FC = () => {
         const updatedSelf = allUsers.find(u => u.id === currentUser.id);
         if (updatedSelf) setCurrentUser(updatedSelf);
       }).catch(error => {
-        alert(error.message || "Failed to update profile.");
+        showToast(error.message || "Failed to update profile.", 'error');
       });
     }
   };
@@ -1265,7 +1434,7 @@ const App: React.FC = () => {
       const newPlaybook = await api.generatePlaybook(prompt);
       setPlaybooks(prev => [newPlaybook, ...prev]);
     } catch (error) {
-      alert(`Failed to generate playbook: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`Failed to generate playbook: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -1385,7 +1554,8 @@ const App: React.FC = () => {
     registerTenant,
     hasPermission,
     enabledFeatures,
-  }), [currentUser, handleLogin, logout, signup, registerTenant, hasPermission, enabledFeatures]);
+    serverLockedFeatures,
+  }), [currentUser, handleLogin, logout, signup, registerTenant, hasPermission, enabledFeatures, serverLockedFeatures]);
 
   // --- RENDER LOGIC ---
   if (error) {
@@ -1416,10 +1586,10 @@ const App: React.FC = () => {
     }
 
     switch (currentView) {
-      case 'dashboard': return <Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} />;
-      case 'cxo': return <CXODashboard />;
-      case 'reporting': return <ReportingDashboard historicalData={historicalData} assets={tenantData.assets} />;
-      case 'agents': return <AgentsDashboard
+      case 'dashboard': return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
+      case 'cxo': return <ErrorBoundary name="CXODashboard"><CXODashboard /></ErrorBoundary>;
+      case 'reporting': return <ErrorBoundary name="ReportingDashboard"><ReportingDashboard historicalData={historicalData} assets={tenantData.assets} /></ErrorBoundary>;
+      case 'agents': return <ErrorBoundary name="AgentsDashboard"><AgentsDashboard
         agents={tenantData.agents}
         assets={tenantData.assets}
         registrationKey={tenants.find(t => t.id === activeTenantId)?.registrationKey || null}
@@ -1439,152 +1609,170 @@ const App: React.FC = () => {
           (currentUser as any)?.subscriptionTier ||
           'Free'
         }
-      />;
-      case 'agentCapabilities': return <AgentCapabilitiesDashboard />;
-      case 'assetManagement': return <AssetManagementDashboard assets={tenantData.assets} patches={tenantData.patches} onRunVulnerabilityScan={handleRunVulnerabilityScan} filters={assetFilters} onClearFilters={() => setAssetFilters([])} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} onDeleteAsset={handleDeleteAsset} />;
-      case 'softwareUpdates': return <SoftwareUpdateManagement assets={tenantData.assets} />;
-      case 'patchManagement': return <PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} />;
-      case 'vulnerabilityManagement': return <VulnerabilityManagement />;
-      case 'cloudSecurity': return <CloudSecurityDashboard cloudAccounts={tenantData.cloudAccounts} findings={tenantData.cspmFindings} onAddAccount={handleAddCloudAccount} />;
-      case 'security': return <SecurityDashboard securityCases={tenantData.securityCases} playbooks={playbooks} securityEvents={tenantData.securityEvents} users={users} onCaseUpdate={handleCaseUpdate} onGeneratePlaybook={handleGeneratePlaybook} onAnalyzeImpact={handleAnalyzeImpact} threatIntelFeed={threatIntelFeed} />;
-      case 'compliance': return <ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} />;
-      case 'aiGovernance': return <AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} />;
-      case 'finops': return <FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} />;
-      case 'auditLog': return <AuditLogDashboard logs={tenantData.auditLogs} />;
-      case 'settings': return <SettingsDashboard integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => prev.map(r => r.id === saved.id ? saved : r)))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} />;
-      case 'tenantManagement': return <TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} />;
-      case 'siem': return <ThreatDashboard />;
-      case 'siemRules': return <SiemRulesDashboard />;
-      case 'incidentResponse': return <IncidentResponseDashboard />;
-      case 'logExplorer': return <LogExplorerDashboard />;
-      case 'threatHunting': return <ThreatHuntingDashboard findings={tenantData.uebaFindings} auditLogs={auditLogs} users={users} />;
-      case 'incidentImpact': return <IncidentImpactDashboard graph={incidentImpactGraph!} context={viewingImpactFor} alerts={tenantData.alerts} cases={tenantData.securityCases} onAnalyze={handleAnalyzeImpact} />;
-      case 'pentest': return <PentestDashboard tenantId={activeTenantId} />;
-      case 'playbooks': return <PlaybookBuilder />;
+      /></ErrorBoundary>;
+      case 'agentCapabilities': return <ErrorBoundary name="AgentCapabilitiesDashboard"><AgentCapabilitiesDashboard /></ErrorBoundary>;
+      case 'assetManagement': return <ErrorBoundary name="AssetManagementDashboard"><AssetManagementDashboard assets={tenantData.assets} patches={tenantData.patches} onRunVulnerabilityScan={handleRunVulnerabilityScan} filters={assetFilters} onClearFilters={() => setAssetFilters([])} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} onDeleteAsset={handleDeleteAsset} /></ErrorBoundary>;
+      case 'softwareUpdates': return <ErrorBoundary name="SoftwareUpdateManagement"><SoftwareUpdateManagement assets={tenantData.assets} /></ErrorBoundary>;
+      case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} /></ErrorBoundary>;
+      case 'vulnerabilityManagement': return <ErrorBoundary name="VulnerabilityManagement"><VulnerabilityManagement /></ErrorBoundary>;
+      case 'cloudSecurity': return <ErrorBoundary name="CloudSecurityDashboard"><CloudSecurityDashboard cloudAccounts={tenantData.cloudAccounts} findings={tenantData.cspmFindings} onAddAccount={handleAddCloudAccount} /></ErrorBoundary>;
+      case 'security': return <ErrorBoundary name="SecurityDashboard"><SecurityDashboard securityCases={tenantData.securityCases} playbooks={playbooks} securityEvents={tenantData.securityEvents} users={users} onCaseUpdate={handleCaseUpdate} onGeneratePlaybook={handleGeneratePlaybook} onAnalyzeImpact={handleAnalyzeImpact} threatIntelFeed={threatIntelFeed} /></ErrorBoundary>;
+      case 'compliance': return <ErrorBoundary name="ComplianceDashboard"><ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} /></ErrorBoundary>;
+      case 'aiGovernance': return <ErrorBoundary name="AIGovernanceDashboard"><AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} /></ErrorBoundary>;
+      case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} /></ErrorBoundary>;
+      case 'auditLog': return <ErrorBoundary name="AuditLogDashboard"><AuditLogDashboard logs={tenantData.auditLogs} /></ErrorBoundary>;
+      case 'settings': return <ErrorBoundary name="SettingsDashboard"><SettingsDashboard integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => { const exists = prev.some(r => r.id === saved.id); return exists ? prev.map(r => r.id === saved.id ? saved : r) : [...prev, saved]; }))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} /></ErrorBoundary>;
+      case 'bundleManagement': return <ErrorBoundary name="BundleManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Bundle Management...</div>}><BundleManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'tenantManagement': return <ErrorBoundary name="TenantManagementDashboard"><TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} /></ErrorBoundary>;
+      case 'siem': return <ErrorBoundary name="ThreatDashboard"><ThreatDashboard /></ErrorBoundary>;
+      case 'siemRules': return <ErrorBoundary name="SiemRulesDashboard"><SiemRulesDashboard /></ErrorBoundary>;
+      case 'incidentResponse': return <ErrorBoundary name="IncidentResponseDashboard"><IncidentResponseDashboard /></ErrorBoundary>;
+      case 'logExplorer': return <ErrorBoundary name="LogExplorerDashboard"><LogExplorerDashboard /></ErrorBoundary>;
+      case 'threatHunting': return <ErrorBoundary name="ThreatHuntingDashboard"><ThreatHuntingDashboard findings={tenantData.uebaFindings} auditLogs={auditLogs} users={users} /></ErrorBoundary>;
+      case 'incidentImpact': return <ErrorBoundary name="IncidentImpactDashboard"><IncidentImpactDashboard graph={incidentImpactGraph!} context={viewingImpactFor} alerts={tenantData.alerts} cases={tenantData.securityCases} onAnalyze={handleAnalyzeImpact} /></ErrorBoundary>;
+      case 'pentest': return <ErrorBoundary name="PentestDashboard"><PentestDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
+      case 'playbooks': return <ErrorBoundary name="PlaybookBuilder"><PlaybookBuilder /></ErrorBoundary>;
       case 'threatIntelligence': return (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Threat Intelligence</h1>
+        <ErrorBoundary name="ThreatIntelligence">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Threat Intelligence</h1>
+            </div>
+            <ThreatIntelFeedEnhanced tenantId={activeTenantId ?? ''} />
           </div>
-          <ThreatIntelFeedEnhanced tenantId={activeTenantId} />
-        </div>
+        </ErrorBoundary>
       );
-      case 'profile': return <UserProfilePage onProfileUpdate={handleProfileUpdate} />;
-      case 'automation': return <AutomationPoliciesDashboard policies={tenantData.automationPolicies} onUpdatePolicy={handleUpdateAutomationPolicy} onAddPolicy={handleAddAutomationPolicy} />;
-      case 'devsecops': return <DevSecOpsDashboard sboms={tenantData.sboms} softwareComponents={tenantData.softwareComponents} onUploadSbom={handleUploadSbom} sastFindings={tenantData.sastFindings} repositories={tenantData.codeRepositories} initialTab="sast" mode="sast-only" />;
-      case 'sbom': return <DevSecOpsDashboard sboms={tenantData.sboms} softwareComponents={tenantData.softwareComponents} onUploadSbom={handleUploadSbom} sastFindings={tenantData.sastFindings} repositories={tenantData.codeRepositories} initialTab="sbom" mode="sbom-only" />;
-      case 'developer_hub': return <DeveloperHubDashboard endpoints={apiDocs} />;
-      case 'proactiveInsights': return <ProactiveInsightsDashboard insights={tenantData.proactiveInsights} />;
-      case 'distributedTracing': return <DistributedTracingDashboard traces={tenantData.traces} serviceMap={tenantData.serviceMap} />;
-      case 'dataSecurity': return <DataSecurityDashboard findings={tenantData.sensitiveDataFindings} />;
-      case 'attackPath': return <AttackPathDashboard attackPaths={tenantData.attackPaths} />;
+      case 'profile': return <ErrorBoundary name="UserProfilePage"><UserProfilePage onProfileUpdate={handleProfileUpdate} /></ErrorBoundary>;
+      case 'automation': return <ErrorBoundary name="AutomationPoliciesDashboard"><AutomationPoliciesDashboard policies={tenantData.automationPolicies} onUpdatePolicy={handleUpdateAutomationPolicy} onAddPolicy={handleAddAutomationPolicy} /></ErrorBoundary>;
+      case 'devsecops': return <ErrorBoundary name="DevSecOpsDashboard"><DevSecOpsDashboard sboms={tenantData.sboms} softwareComponents={tenantData.softwareComponents} onUploadSbom={handleUploadSbom} sastFindings={tenantData.sastFindings} repositories={tenantData.codeRepositories} initialTab="sast" mode="sast-only" /></ErrorBoundary>;
+      case 'sbom': return <ErrorBoundary name="DevSecOpsDashboardSbom"><DevSecOpsDashboard sboms={tenantData.sboms} softwareComponents={tenantData.softwareComponents} onUploadSbom={handleUploadSbom} sastFindings={tenantData.sastFindings} repositories={tenantData.codeRepositories} initialTab="sbom" mode="sbom-only" /></ErrorBoundary>;
+      case 'developer_hub': return <ErrorBoundary name="DeveloperHubDashboard"><DeveloperHubDashboard endpoints={apiDocs} /></ErrorBoundary>;
+      case 'proactiveInsights': return <ErrorBoundary name="ProactiveInsightsDashboard"><ProactiveInsightsDashboard insights={tenantData.proactiveInsights} /></ErrorBoundary>;
+      case 'distributedTracing': return <ErrorBoundary name="DistributedTracingDashboard"><DistributedTracingDashboard traces={tenantData.traces} serviceMap={tenantData.serviceMap} /></ErrorBoundary>;
+      case 'dataSecurity': return <ErrorBoundary name="DataSecurityDashboard"><DataSecurityDashboard findings={tenantData.sensitiveDataFindings} /></ErrorBoundary>;
+      case 'attackPath': return <ErrorBoundary name="AttackPathDashboard"><AttackPathDashboard attackPaths={tenantData.attackPaths} /></ErrorBoundary>;
       case 'serviceCatalog':
-        return <ServiceCatalogDashboard templates={tenantData.serviceTemplates} provisionedServices={tenantData.provisionedServices} />;
+        return <ErrorBoundary name="ServiceCatalogDashboard"><ServiceCatalogDashboard templates={tenantData.serviceTemplates} provisionedServices={tenantData.provisionedServices} /></ErrorBoundary>;
       case 'servicePricing':
-        return <ServicePricingPage />;
-      case 'doraMetrics': return <DoraMetricsDashboard metrics={tenantData.doraMetrics} />;
-      case 'chaosEngineering': return <ChaosEngineeringDashboard />;
-      case 'networkObservability': console.log("[App] Rendering NetworkObservability with:", tenantData.networkDevices); return <NetworkObservabilityDashboard networkDevices={tenantData.networkDevices} onAddDevice={handleAddNewDevice} onRefresh={loadAllData} />;
-      case 'dataUtilization': return <DataUtilizationDashboard />;
+        return <ErrorBoundary name="ServicePricingPage"><ServicePricingPage /></ErrorBoundary>;
+      case 'doraMetrics': return <ErrorBoundary name="DoraMetricsDashboard"><DoraMetricsDashboard metrics={tenantData.doraMetrics} /></ErrorBoundary>;
+      case 'chaosEngineering': return <ErrorBoundary name="ChaosEngineeringDashboard"><ChaosEngineeringDashboard /></ErrorBoundary>;
+      case 'networkObservability': console.log("[App] Rendering NetworkObservability with:", tenantData.networkDevices); return <ErrorBoundary name="NetworkObservabilityDashboard"><NetworkObservabilityDashboard networkDevices={tenantData.networkDevices} onAddDevice={handleAddNewDevice} onRefresh={loadAllData} /></ErrorBoundary>;
+      case 'dataUtilization': return <ErrorBoundary name="DataUtilizationDashboard"><DataUtilizationDashboard /></ErrorBoundary>;
       case 'tasks': return (
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6">My Tasks</h2>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <TaskForm onAdd={handleAddTask} />
-            <TaskList tasks={myTasks} onToggle={handleToggleTask} onDelete={handleDeleteTask} />
+        <ErrorBoundary name="Tasks">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6">My Tasks</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <TaskForm onAdd={handleAddTask} />
+              <TaskList tasks={myTasks} onToggle={handleToggleTask} onDelete={handleDeleteTask} />
+            </div>
           </div>
-        </div>
+        </ErrorBoundary>
       );
       // 2030 Industry Features
-      case 'webhooks': return <WebhookManagement />;
-      case 'sustainability': return <SustainabilityDashboard />;
-      case 'zeroTrustQuantum': return <ZeroTrustQuantumDashboard />;
-      case 'paymentSettings': return <PaymentSettings />;
-      case 'subscriptionManagement': return <SubscriptionManagement />;
-      case 'invoices': return <InvoiceList />;
+      case 'webhooks': return <ErrorBoundary name="WebhookManagement"><WebhookManagement /></ErrorBoundary>;
+      case 'sustainability': return <ErrorBoundary name="SustainabilityDashboard"><SustainabilityDashboard /></ErrorBoundary>;
+      case 'zeroTrustQuantum': return <ErrorBoundary name="ZeroTrustQuantumDashboard"><ZeroTrustQuantumDashboard /></ErrorBoundary>;
+      case 'paymentSettings': return <ErrorBoundary name="PaymentSettings"><PaymentSettings /></ErrorBoundary>;
+      case 'subscriptionManagement': return <ErrorBoundary name="SubscriptionManagement"><SubscriptionManagement /></ErrorBoundary>;
+      case 'invoices': return <ErrorBoundary name="InvoiceList"><InvoiceList /></ErrorBoundary>;
       case 'unifiedOps':
       case 'futureOps':
-        return <FutureOpsDashboard />;
+        return <ErrorBoundary name="FutureOpsDashboard"><FutureOpsDashboard /></ErrorBoundary>;
       case 'futureTech':
-        return <FutureTechDashboard />;
-      case 'swarm': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Swarm...</div>}><SwarmDashboard /></Suspense>;
-      case 'digitalTwin': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Digital Twin...</div>}><SimulationDashboard /></Suspense>;
-      case 'riskRegister': return <RiskRegister />;
-      case 'vendorManagement': return <VendorManagement />;
-      case 'trustCenter': return <TrustCenter />;
-      case 'secureFileShare': return <SecureFileShare />;
-      case 'securityTraining': return <SecurityTraining />;
-      case 'complianceOracle': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ComplianceOracleDashboard /></Suspense>;
-      case 'cissporacle': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><CISSPOracle /></Suspense>;
-      case 'complianceFrameworks': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Compliance Frameworks...</div>}><ComplianceFrameworksDashboard /></Suspense>;
-      case 'jobs': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Jobs...</div>}><JobsDashboard /></Suspense>;
-      case 'llmops': return <Suspense fallback={<div className="p-8 text-slate-400">Loading LLMOps...</div>}><LLMOpsDashboard /></Suspense>;
-      case 'softwareDeployment': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SoftwareDeployment /></Suspense>;
-      case 'securitySimulation': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SecuritySimulation /></Suspense>;
-      case 'dast': return <DASTDashboard />;
-      case 'serviceMesh': return <ServiceMeshDashboard />;
+        return <ErrorBoundary name="FutureTechDashboard"><FutureTechDashboard /></ErrorBoundary>;
+      case 'swarm': return <ErrorBoundary name="SwarmDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Swarm...</div>}><SwarmDashboard /></Suspense></ErrorBoundary>;
+      case 'digitalTwin': return <ErrorBoundary name="SimulationDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Digital Twin...</div>}><SimulationDashboard /></Suspense></ErrorBoundary>;
+      case 'riskRegister': return <ErrorBoundary name="RiskRegister"><RiskRegister /></ErrorBoundary>;
+      case 'vendorManagement': return <ErrorBoundary name="VendorManagement"><VendorManagement /></ErrorBoundary>;
+      case 'trustCenter': return <ErrorBoundary name="TrustCenter"><TrustCenter /></ErrorBoundary>;
+      case 'secureFileShare': return <ErrorBoundary name="SecureFileShare"><SecureFileShare /></ErrorBoundary>;
+      case 'securityTraining': return <ErrorBoundary name="SecurityTraining"><SecurityTraining /></ErrorBoundary>;
+      case 'complianceOracle': return <ErrorBoundary name="ComplianceOracleDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ComplianceOracleDashboard /></Suspense></ErrorBoundary>;
+      case 'cissporacle': return <ErrorBoundary name="CISSPOracle"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><CISSPOracle /></Suspense></ErrorBoundary>;
+      case 'complianceFrameworks': return <ErrorBoundary name="ComplianceFrameworksDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Compliance Frameworks...</div>}><ComplianceFrameworksDashboard /></Suspense></ErrorBoundary>;
+      case 'jobs': return <ErrorBoundary name="JobsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Jobs...</div>}><JobsDashboard /></Suspense></ErrorBoundary>;
+      case 'llmops': return <ErrorBoundary name="LLMOpsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading LLMOps...</div>}><LLMOpsDashboard /></Suspense></ErrorBoundary>;
+      case 'softwareDeployment': return <ErrorBoundary name="SoftwareDeployment"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SoftwareDeployment /></Suspense></ErrorBoundary>;
+      case 'securitySimulation': return <ErrorBoundary name="SecuritySimulation"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SecuritySimulation /></Suspense></ErrorBoundary>;
+      case 'dast': return <ErrorBoundary name="DASTDashboard"><DASTDashboard /></ErrorBoundary>;
+      case 'serviceMesh': return <ErrorBoundary name="ServiceMeshDashboard"><ServiceMeshDashboard /></ErrorBoundary>;
       case 'persistence':
-      case 'persistenceDetection': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><PersistenceDashboard /></Suspense>;
-      case 'approvalWorkflows': return <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MultiStepApprovalDashboard /></Suspense>;
+      case 'persistenceDetection': return <ErrorBoundary name="PersistenceDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><PersistenceDashboard /></Suspense></ErrorBoundary>;
+      case 'approvalWorkflows': return <ErrorBoundary name="MultiStepApprovalDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MultiStepApprovalDashboard /></Suspense></ErrorBoundary>;
       case 'advancedBi':
-      case 'biDashboard': return <AdvancedBiDashboard tenantId={activeTenantId || undefined} />;
-      case 'systemHealth': return <Suspense fallback={<div className="p-8 text-slate-400">Loading System Health...</div>}><SystemHealthDashboard /></Suspense>;
-      case 'predictiveHealth': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Predictive Health...</div>}><PredictiveHealthDashboard /></Suspense>;
-      case 'goalSystem': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Goal System...</div>}><GoalSystemDashboard /></Suspense>;
-      case 'integrationsHub': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Integrations Hub...</div>}><IntegrationsHub /></Suspense>;
-      case 'securityAudit': return <SecurityAuditDashboard />;
-      case 'dataWarehouse': return <DataWarehouseDashboard />;
-      case 'streaming': return <StreamingDashboard />;
-      case 'dataGovernance': return <DataGovernanceDashboard />;
-      case 'webMonitoring': return <WebMonitoringDashboard />;
-      case 'mlops': return <MLOpsDashboard />;
-      case 'automl': return <AutoMLDashboard />;
-      case 'xai': return <XAIDashboard />;
-      case 'abTesting': return <ABTestingDashboard />;
-      case 'edr': return <EDRDashboard token={sessionStorage.getItem('access_token') || undefined} />;
-      case 'mdr': return <MDRDashboard />;
-      case 'xdr': return <XDRDashboard />;
-      case 'mitreAttack': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading MITRE ATT&CK...</div>}><MitreAttackHeatmap /></Suspense>;
-      case 'dlp': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading DLP...</div>}><DLPDashboard /></Suspense>;
-      case 'ticketing': return <Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Ticketing...</div>}><TicketingIntegration /></Suspense>;
-      case 'ueba': return <UEBADashboard />;
-      case 'vulnerabilities': return <VulnerabilityManagement />;
-      case 'apm': return <APMDashboard tenantId={activeTenantId || ''} />;
-      case 'agentApproval': return <AgentApprovalDashboard />;
-      case 'cloudIntegrations': return <CloudIntegrationsDashboard />;
-      case 'jitAccess': return <JITAccessDashboard />;
-      case 'incidentWarRoom': return <IncidentWarRoomDashboard />;
-      case 'privacy': return <PrivacyDashboard />;
-      case 'scheduledReports': return <ScheduledReportsDashboard />;
-      case 'secretsManagement': return <SecretsManagementDashboard />;
-      case 'customFrameworks': return <CustomFrameworkBuilder />;
-      case 'deception': return <DeceptionDashboard />;
-      case 'shadowAI': return <ShadowAI />;
-      case 'networkTopology': return <NetworkTopologyMap refreshKey={0} />;
-      case 'hadr': return <HADRDashboard />;
-      case 'correlations': return <CorrelationDashboard tenantId={activeTenantId || ''} />;
-      case 'knowledgeBase': return <KnowledgeBaseDashboard />;
-      case 'retentionPolicy': return <RetentionPolicyDashboard />;
-      case 'apiSecurity': return <APISecurityDashboard />;
-      case 'databaseMonitoring': return <DAMDashboard />;
-      case 'k8sSecurity': return <K8sSecurityDashboard />;
-      case 'ndr': return <NDRDashboard />;
-      case 'insiderThreat': return <InsiderThreatDashboard />;
-      case 'emailSecurity': return <EmailSecurityDashboard />;
-      case 'supplyChain': return <SupplyChainDashboard />;
-      case 'fim': return <Suspense fallback={<div className="p-8 text-slate-400">Loading FIM...</div>}><FimAlertsDashboard /></Suspense>;
-      case 'runtimeSecurity': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Runtime Security...</div>}><RuntimeSecurityDashboard /></Suspense>;
-      case 'sast': return <Suspense fallback={<div className="p-8 text-slate-400">Loading SAST...</div>}><SASTDashboardLazy /></Suspense>;
-      case 'remoteAccess': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Remote Access...</div>}><RemoteAccessDashboard /></Suspense>;
-      case 'aiRemediation': return <Suspense fallback={<div className="p-8 text-slate-400">Loading AI Remediation...</div>}><AIRemediationDashboard /></Suspense>;
-      case 'rollback': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Rollback...</div>}><RollbackDashboard /></Suspense>;
-      case 'pipelineSecurity': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Pipeline Security...</div>}><PipelineSecurityDashboard /></Suspense>;
-      case 'iacSecurity': return <Suspense fallback={<div className="p-8 text-slate-400">Loading IaC Security...</div>}><IaCSecurityDashboard /></Suspense>;
-      case 'containerScan': return <Suspense fallback={<div className="p-8 text-slate-400">Loading Container Scan...</div>}><ContainerScanDashboard /></Suspense>;
-      case 'pam': return <Suspense fallback={<div className="p-8 text-slate-400">Loading PAM...</div>}><PAMDashboard /></Suspense>;
-      case 'baaManagement': return <Suspense fallback={<div className="p-8 text-slate-400">Loading BAA Management...</div>}><BAAManagement /></Suspense>;
-      case 'codeReviewGraph': return <CodeReviewGraphDashboard />;
-      default: return <Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} />;
+      case 'biDashboard': return <ErrorBoundary name="AdvancedBiDashboard"><AdvancedBiDashboard tenantId={activeTenantId || undefined} /></ErrorBoundary>;
+      case 'systemHealth': return <ErrorBoundary name="SystemHealthDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading System Health...</div>}><SystemHealthDashboard /></Suspense></ErrorBoundary>;
+      case 'predictiveHealth': return <ErrorBoundary name="PredictiveHealthDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Predictive Health...</div>}><PredictiveHealthDashboard /></Suspense></ErrorBoundary>;
+      case 'goalSystem': return <ErrorBoundary name="GoalSystemDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Goal System...</div>}><GoalSystemDashboard /></Suspense></ErrorBoundary>;
+      case 'integrationsHub': return <ErrorBoundary name="IntegrationsHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Integrations Hub...</div>}><IntegrationsHub /></Suspense></ErrorBoundary>;
+      case 'securityAudit': return <ErrorBoundary name="SecurityAuditDashboard"><SecurityAuditDashboard /></ErrorBoundary>;
+      case 'dataWarehouse': return <ErrorBoundary name="DataWarehouseDashboard"><DataWarehouseDashboard /></ErrorBoundary>;
+      case 'streaming': return <ErrorBoundary name="StreamingDashboard"><StreamingDashboard /></ErrorBoundary>;
+      case 'dataGovernance': return <ErrorBoundary name="DataGovernanceDashboard"><DataGovernanceDashboard /></ErrorBoundary>;
+      case 'webMonitoring': return <ErrorBoundary name="WebMonitoringDashboard"><WebMonitoringDashboard /></ErrorBoundary>;
+      case 'mlops': return <ErrorBoundary name="MLOpsDashboard"><MLOpsDashboard /></ErrorBoundary>;
+      case 'automl': return <ErrorBoundary name="AutoMLDashboard"><AutoMLDashboard /></ErrorBoundary>;
+      case 'xai': return <ErrorBoundary name="XAIDashboard"><XAIDashboard /></ErrorBoundary>;
+      case 'abTesting': return <ErrorBoundary name="ABTestingDashboard"><ABTestingDashboard /></ErrorBoundary>;
+      case 'edr': return <ErrorBoundary name="EDRDashboard"><EDRDashboard token={sessionStorage.getItem('token') || undefined} /></ErrorBoundary>;
+      case 'yaraRules': return <ErrorBoundary name="YaraRuleEditor"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading YARA Rule Editor...</div>}><YaraRuleEditor /></Suspense></ErrorBoundary>;
+      case 'alertManagement': return <ErrorBoundary name="AlertManagementDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Alert Management...</div>}><AlertManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'complianceEvidence': return <ErrorBoundary name="ComplianceEvidenceStatusDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Evidence Status...</div>}><ComplianceEvidenceStatusDashboard agents={tenantData.agents} /></Suspense></ErrorBoundary>;
+      case 'mdr': return <ErrorBoundary name="MDRDashboard"><MDRDashboard /></ErrorBoundary>;
+      case 'xdr': return <ErrorBoundary name="XDRDashboard"><XDRDashboard /></ErrorBoundary>;
+      case 'mitreAttack': return <ErrorBoundary name="MitreAttackHeatmap"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading MITRE ATT&CK...</div>}><MitreAttackHeatmap /></Suspense></ErrorBoundary>;
+      case 'dlp': return <ErrorBoundary name="DLPDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading DLP...</div>}><DLPDashboard /></Suspense></ErrorBoundary>;
+      case 'ticketing': return <ErrorBoundary name="TicketingIntegration"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Ticketing...</div>}><TicketingIntegration /></Suspense></ErrorBoundary>;
+      case 'internalTickets': return <ErrorBoundary name="InternalTicketsDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Tickets...</div>}><InternalTicketsDashboard currentUserEmail={currentUser?.email ?? ''} /></Suspense></ErrorBoundary>;
+      case 'ueba': return <ErrorBoundary name="UEBADashboard"><UEBADashboard /></ErrorBoundary>;
+      case 'vulnerabilities': return <ErrorBoundary name="VulnerabilityManagement2"><VulnerabilityManagement /></ErrorBoundary>;
+      case 'apm': return <ErrorBoundary name="APMDashboard"><APMDashboard tenantId={activeTenantId || ''} /></ErrorBoundary>;
+      case 'agentApproval': return <ErrorBoundary name="AgentApprovalDashboard"><AgentApprovalDashboard /></ErrorBoundary>;
+      case 'cloudIntegrations': return <ErrorBoundary name="CloudIntegrationsDashboard"><CloudIntegrationsDashboard /></ErrorBoundary>;
+      case 'jitAccess': return <ErrorBoundary name="JITAccessDashboard"><JITAccessDashboard /></ErrorBoundary>;
+      case 'incidentWarRoom': return <ErrorBoundary name="IncidentWarRoomDashboard"><IncidentWarRoomDashboard /></ErrorBoundary>;
+      case 'privacy': return <ErrorBoundary name="PrivacyDashboard"><PrivacyDashboard /></ErrorBoundary>;
+      case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
+      case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
+      case 'customFrameworks': return <ErrorBoundary name="CustomFrameworkBuilder"><CustomFrameworkBuilder /></ErrorBoundary>;
+      case 'deception': return <ErrorBoundary name="DeceptionDashboard"><DeceptionDashboard /></ErrorBoundary>;
+      case 'shadowAI': return <ErrorBoundary name="ShadowAI"><ShadowAI /></ErrorBoundary>;
+      case 'networkTopology': return <ErrorBoundary name="NetworkTopologyMap"><NetworkTopologyMap refreshKey={0} /></ErrorBoundary>;
+      case 'hadr': return <ErrorBoundary name="HADRDashboard"><HADRDashboard /></ErrorBoundary>;
+      case 'correlations': return <ErrorBoundary name="CorrelationDashboard"><CorrelationDashboard tenantId={activeTenantId || ''} /></ErrorBoundary>;
+      case 'knowledgeBase': return <ErrorBoundary name="KnowledgeBaseDashboard"><KnowledgeBaseDashboard /></ErrorBoundary>;
+      case 'retentionPolicy': return <ErrorBoundary name="RetentionPolicyDashboard"><RetentionPolicyDashboard /></ErrorBoundary>;
+      case 'apiSecurity': return <ErrorBoundary name="APISecurityDashboard"><APISecurityDashboard /></ErrorBoundary>;
+      case 'databaseMonitoring': return <ErrorBoundary name="DAMDashboard"><DAMDashboard /></ErrorBoundary>;
+      case 'k8sSecurity': return <ErrorBoundary name="K8sSecurityDashboard"><K8sSecurityDashboard /></ErrorBoundary>;
+      case 'ndr': return <ErrorBoundary name="NDRDashboard"><NDRDashboard /></ErrorBoundary>;
+      case 'insiderThreat': return <ErrorBoundary name="InsiderThreatDashboard"><InsiderThreatDashboard /></ErrorBoundary>;
+      case 'emailSecurity': return <ErrorBoundary name="EmailSecurityDashboard"><EmailSecurityDashboard /></ErrorBoundary>;
+      case 'supplyChain': return <ErrorBoundary name="SupplyChainDashboard"><SupplyChainDashboard /></ErrorBoundary>;
+      case 'fim': return <ErrorBoundary name="FimAlertsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading FIM...</div>}><FimAlertsDashboard /></Suspense></ErrorBoundary>;
+      case 'runtimeSecurity': return <ErrorBoundary name="RuntimeSecurityDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Runtime Security...</div>}><RuntimeSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'sast': return <ErrorBoundary name="SASTDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading SAST...</div>}><SASTDashboardLazy /></Suspense></ErrorBoundary>;
+      case 'remoteAccess': return <ErrorBoundary name="RemoteAccessDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Remote Access...</div>}><RemoteAccessDashboard /></Suspense></ErrorBoundary>;
+      case 'agentChat': return <ErrorBoundary name="ChatHubEndpoint"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab="endpoint" /></Suspense></ErrorBoundary>;
+      case 'aiRemediation': return <ErrorBoundary name="AIRemediationDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading AI Remediation...</div>}><AIRemediationDashboard /></Suspense></ErrorBoundary>;
+      case 'rollback': return <ErrorBoundary name="RollbackDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Rollback...</div>}><RollbackDashboard /></Suspense></ErrorBoundary>;
+      case 'pipelineSecurity': return <ErrorBoundary name="PipelineSecurityDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Pipeline Security...</div>}><PipelineSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'iacSecurity': return <ErrorBoundary name="IaCSecurityDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading IaC Security...</div>}><IaCSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'containerScan': return <ErrorBoundary name="ContainerScanDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Container Scan...</div>}><ContainerScanDashboard /></Suspense></ErrorBoundary>;
+      case 'pam': return <ErrorBoundary name="PAMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading PAM...</div>}><PAMDashboard /></Suspense></ErrorBoundary>;
+      case 'baaManagement': return <ErrorBoundary name="BAAManagement"><Suspense fallback={<div className="p-8 text-slate-400">Loading BAA Management...</div>}><BAAManagement /></Suspense></ErrorBoundary>;
+      case 'codeReviewGraph': return <ErrorBoundary name="CodeReviewGraphDashboard"><CodeReviewGraphDashboard /></ErrorBoundary>;
+      case 'supportChat': return <ErrorBoundary name="ChatHubSupport"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab="support" /></Suspense></ErrorBoundary>;
+      case 'chat': return <ErrorBoundary name="ChatHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub /></Suspense></ErrorBoundary>;
+      case 'certificates': return <ErrorBoundary name="CertificatesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Certificates...</div>}><CertificatesDashboard /></Suspense></ErrorBoundary>;
+      case 'aiAnomaly': return <ErrorBoundary name="AIAnomalyDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading AI Anomaly Detection...</div>}><AIAnomalyDashboard /></Suspense></ErrorBoundary>;
+      case 'problemManagement': return <ErrorBoundary name="ProblemManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Problem Management...</div>}><ProblemManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'changeManagement': return <ErrorBoundary name="ChangeManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Change Management...</div>}><ChangeManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'ticketWebhooks': return <ErrorBoundary name="TicketWebhooksDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Ticket Webhooks...</div>}><TicketWebhooksDashboard /></Suspense></ErrorBoundary>;
+      case 'notificationPrefs': return <ErrorBoundary name="NotificationPreferencesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Notification Preferences...</div>}><NotificationPreferencesDashboard /></Suspense></ErrorBoundary>;
+      default: return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
 
     }
   };
@@ -1599,8 +1787,10 @@ const App: React.FC = () => {
           logout: handleLogout,
           registerTenant: handleRegisterTenant,
           enabledFeatures,
-          hasPermission
+          hasPermission,
+          serverLockedFeatures,
         }}>
+          <FeaturesProvider>
           <ErrorBoundary name="AppLayout">
             {!currentUser ? (
               <LoginPage users={users} onLogin={handleLogin} onSignup={handleSignup} />
@@ -1623,23 +1813,17 @@ const App: React.FC = () => {
               <div className="flex-1 flex flex-col overflow-hidden">
                 <Header
                   allUsers={users}
-                  notifications={tenantData.notifications}
-                  onNotificationClick={(n) => {
-                    handleSetCurrentView(n.linkTo);
-                    api.markNotificationAsRead(n.id).then(() => api.fetchNotifications().then(setNotifications));
-                  }}
-                  onMarkAllAsRead={() => {
-                    const unreadIds = tenantData.notifications.filter(n => !n.isRead).map(n => n.id);
-                    api.markAllNotificationsAsRead(unreadIds).then(() => api.fetchNotifications().then(setNotifications));
-                  }}
                   onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                   onOpenCommandBar={() => setIsCommandBarOpen(true)}
+                  onOpenSearch={() => setIsGlobalSearchOpen(true)}
                   setCurrentView={handleSetCurrentView}
                   onStartTour={() => window.dispatchEvent(new Event('start-genesis-tour'))}
                 />
-                <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6">
+                <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6'}`}>
                   <ErrorBoundary name="MainContent">
-                    {renderView()}
+                    <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}>
+                      {renderView()}
+                    </Suspense>
                   </ErrorBoundary>
                 </main>
               </div>
@@ -1669,10 +1853,22 @@ const App: React.FC = () => {
           </ErrorBoundary>
           <ChatFab onClick={() => setIsChatOpen(true)} />
 
+          {/* Support chat in-app toast notifications */}
+          <SupportChatToast
+            toasts={supportToasts}
+            onDismiss={id => setSupportToasts(prev => prev.filter(t => t.id !== id))}
+            onOpen={convoId => {
+              setCurrentView('chat');
+              setSupportToasts(prev => prev.filter(t => t.convoId !== convoId));
+              setSupportUnreadCount(0);
+            }}
+          />
+
           {/* Sidebar Items are in Sidebar.tsx */}
 
 
-          <AddNewTenantModal isOpen={isAddTenantModalOpen} onClose={() => setIsAddTenantModalOpen(false)} onSave={handleAddNewTenant} />
+          <TenantOnboardingWizard isOpen={isAddTenantModalOpen} onClose={() => setIsAddTenantModalOpen(false)} onComplete={(tenant) => { setTenants(prev => [...prev, tenant]); setIsAddTenantModalOpen(false); }} />
+          {/* Legacy simple modal kept but replaced by wizard above */}
           {managingTenant && (
             <ManageTenantModal
               isOpen={!!managingTenant}
@@ -1699,6 +1895,12 @@ const App: React.FC = () => {
             onClose={() => setIsCommandBarOpen(false)}
             onExecuteCommand={handleExecuteCommand}
           />
+          <GlobalSearchModal
+            isOpen={isGlobalSearchOpen}
+            onClose={() => setIsGlobalSearchOpen(false)}
+            onNavigate={(view) => { handleSetCurrentView(view as any); setIsGlobalSearchOpen(false); }}
+          />
+          </FeaturesProvider>
         </UserContext.Provider>
       </ThemeProvider>
     </TimeZoneProvider>

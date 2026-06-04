@@ -7,9 +7,8 @@ Provides API for backup management, disaster recovery, and HA monitoring.
 import logging
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +160,7 @@ async def verify_backup(
         result = await hadr_service.verify_backup(backup_id)
         return result
     
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
         logger.error("Backup verification failed: %s", e)
@@ -191,7 +190,7 @@ async def restore_from_backup(
         
         return result
     
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
         logger.error("Restoration failed: %s", e)

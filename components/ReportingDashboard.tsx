@@ -17,6 +17,7 @@ import {
 import { BarChart3Icon, DownloadIcon, ActivityIcon, ShieldCheckIcon, TrendingUpIcon } from './icons';
 import { Asset, HistoricalData } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { showToast } from '../utils/toast';
 
 interface ReportingDashboardProps {
     historicalData: {
@@ -52,12 +53,67 @@ const SEVERITY_COLORS: Record<string, string> = {
     Low: '#22c55e',
 };
 
+interface ExecutiveSummary {
+    kpis: {
+        compliance_rate: number;
+        patches_per_week: number;
+        mttr_hours: number;
+        asset_exposure_rate: number;
+        critical_vulnerabilities: number;
+        high_exploit_risk: number;
+    };
+}
+
+interface SlaBreachedPatch {
+    cveId?: string;
+    id?: string;
+    severity: string;
+    sla_hours: number;
+    breach_hours?: number;
+    status?: string;
+}
+
+interface SlaReport {
+    summary: { total_patches: number; compliant: number; breached: number; at_risk: number };
+    period: { days: number };
+    patches: { breached: SlaBreachedPatch[] };
+}
+
+interface VulnCritical {
+    cveId?: string;
+    id?: string;
+    cvss_score?: number;
+    status?: string;
+}
+
+interface VulnReport {
+    summary: { total_assets: number; exposed_assets: number; exposure_rate: number; pending_patches: number };
+    severity_distribution: Record<string, number>;
+    critical_vulnerabilities: VulnCritical[];
+}
+
+interface ChangeRecord {
+    type?: string;
+    status?: string;
+    created_by?: string;
+    created_at?: string;
+    patch_count?: number;
+    asset_count?: number;
+    reason?: string;
+}
+
+interface ChangeReport {
+    summary: { total_changes: number; deployments: number; staged_deployments: number; rollbacks: number };
+    period?: { start: string; end: string };
+    changes: ChangeRecord[];
+}
+
 export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historicalData }) => {
     const [exportingType, setExportingType] = useState<string | null>(null);
-    const [executiveSummary, setExecutiveSummary] = useState<any>(null);
-    const [slaReport, setSlaReport] = useState<any>(null);
-    const [vulnReport, setVulnReport] = useState<any>(null);
-    const [changeReport, setChangeReport] = useState<any>(null);
+    const [executiveSummary, setExecutiveSummary] = useState<ExecutiveSummary | null>(null);
+    const [slaReport, setSlaReport] = useState<SlaReport | null>(null);
+    const [vulnReport, setVulnReport] = useState<VulnReport | null>(null);
+    const [changeReport, setChangeReport] = useState<ChangeReport | null>(null);
     const [loadingReports, setLoadingReports] = useState(true);
     const [activeTab, setActiveTab] = useState<'sla' | 'vuln' | 'change'>('sla');
 
@@ -69,29 +125,32 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
     const textColor = theme === 'dark' ? '#d1d5db' : '#374151';
 
     useEffect(() => {
+        let cancelled = false;
         Promise.all([
             fetchExecutiveSummaryReport(),
             fetchSlaReport(),
             fetchVulnerabilityExposureReport(),
             fetchChangeManagementReport(),
         ]).then(([exec, sla, vuln, change]) => {
+            if (cancelled) return;
             setExecutiveSummary(exec);
             setSlaReport(sla);
             setVulnReport(vuln);
             setChangeReport(change);
-        }).finally(() => setLoadingReports(false));
+        }).finally(() => { if (!cancelled) setLoadingReports(false); });
+        return () => { cancelled = true; };
     }, []);
 
     const handleExport = async (module: string, format: 'csv' | 'pdf') => {
         if (!canExport) {
-            alert("Permission Denied: You do not have 'export:reports' scope.");
+            showToast("Permission Denied: You do not have 'export:reports' scope.", 'error');
             return;
         }
         setExportingType(`${module}-${format}`);
         try {
             await exportReport(module, format);
         } catch (e) {
-            alert(`Failed to export ${module}.`);
+            showToast(`Failed to export ${module}.`, 'error');
         } finally {
             setExportingType(null);
         }
@@ -129,17 +188,20 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
         const [error, setError] = useState<string | null>(null);
 
         useEffect(() => {
+            let cancelled = false;
             fetchComplianceFrameworks().then((list: any[]) => {
+                if (cancelled) return;
                 const items = list.map((f: any) => ({ id: f.id || f._id || '', name: f.name || f.id || '' }))
                     .filter((f: { id: string; name: string }) => f.id);
                 setFrameworks(items);
             });
+            return () => { cancelled = true; };
         }, []);
 
         const isAll = selectedId === ALL_ID;
 
         const handleGenerate = async (format: 'csv' | 'excel' | 'pdf') => {
-            if (!canExport) { alert("Permission Denied: You do not have 'export:reports' scope."); return; }
+            if (!canExport) { showToast("Permission Denied: You do not have 'export:reports' scope.", 'error'); return; }
             setBusy(format);
             setError(null);
             try {
@@ -148,7 +210,7 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                     if (format === 'pdf') { setError('PDF is not supported for all-frameworks export. Use CSV or Excel.'); setBusy(null); return; }
                     result = await generateAllComplianceReport(format as 'csv' | 'excel');
                 } else {
-                    if (!selectedId) { alert('Please select a framework first.'); setBusy(null); return; }
+                    if (!selectedId) { showToast('Please select a framework first.', 'error'); setBusy(null); return; }
                     if (format === 'csv')        result = await generateComplianceReport(selectedId);
                     else if (format === 'excel') result = await generateExcelComplianceReport(selectedId);
                     else                         result = await generatePDFComplianceReport(selectedId);
@@ -356,7 +418,7 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {slaReport.patches.breached.map((p: any, i: number) => (
+                                                {slaReport.patches.breached.map((p, i) => (
                                                     <tr key={i} className="border-t border-gray-200 dark:border-gray-700">
                                                         <td className="px-3 py-2 font-mono">{p.cveId || p.id || '—'}</td>
                                                         <td className="px-3 py-2">
@@ -416,7 +478,7 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {vulnReport.critical_vulnerabilities.slice(0, 10).map((v: any, i: number) => (
+                                                    {vulnReport.critical_vulnerabilities.slice(0, 10).map((v, i) => (
                                                         <tr key={i} className="border-t border-gray-200 dark:border-gray-700">
                                                             <td className="px-3 py-2 font-mono">{v.cveId || v.id || '—'}</td>
                                                             <td className="px-3 py-2 text-red-600 dark:text-red-400">{v.cvss_score ?? '—'}</td>
@@ -452,7 +514,7 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {changeReport.changes.map((c: any, i: number) => (
+                                            {changeReport.changes.map((c, i) => (
                                                 <tr key={i} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                                     <td className="px-3 py-2">
                                                         <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${c.type === 'rollback' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'}`}>
@@ -492,6 +554,18 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                         <ExportCard title="Patch Management" onExport={f => handleExport('Patch Management', f)} />
                     </div>
 
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">IT Operations</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ExportCard title="Change Management" onExport={f => handleExport('Change Management', f)} />
+                        <ExportCard title="Agent Health" onExport={f => handleExport('Agent Health', f)} />
+                    </div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Chat & Support</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ExportCard title="Support Chat" onExport={f => handleExport('Support Chat', f)} />
+                        <ExportCard title="Endpoint Chat" onExport={f => handleExport('Endpoint Chat', f)} />
+                    </div>
+
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Security Operations</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <ExportCard title="Security Events" onExport={f => handleExport('Security Events', f)} />
@@ -510,6 +584,10 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <ExportCard title="AI Risk Register" onExport={f => handleExport('AI Risk Register', f)} />
                         <ExportCard title="Secrets Management" onExport={f => handleExport('Secrets Management', f)} />
+                        <ExportCard title="Audit Log" onExport={f => handleExport('Audit Log', f)} />
+                        <ExportCard title="User Activity" onExport={f => handleExport('User Activity', f)} />
+                        <ExportCard title="Automation Policies" onExport={f => handleExport('Automation Policies', f)} />
+                        <ExportCard title="Cloud Security" onExport={f => handleExport('Cloud Security', f)} />
                     </div>
 
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Compliance Framework Reports</p>

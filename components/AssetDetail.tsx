@@ -10,6 +10,7 @@ import { FimAlertsPanel } from './FimAlertsPanel';
 import { RemoteDesktop } from './RemoteDesktop';
 import { startRemoteSession, fetchAgents, linkAssetToAgent, authFetch, fetchAssetById } from '../services/apiService';
 import { MonitorIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface AssetDetailProps {
     asset: Asset;
@@ -71,7 +72,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
             setDesktopSessionId(newSessionId);
         } catch (e) {
             console.error("Failed to start stream", e);
-            alert("Failed to start desktop stream");
+            showToast("Failed to start desktop stream", 'error');
         } finally {
             setIsStartingStream(false);
         }
@@ -90,7 +91,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
             setAvailableAgents(res);
         } catch (e) {
             console.error("Failed to fetch agents", e);
-            alert("Failed to load agents list.");
+            showToast("Failed to load agents list.", 'error');
         }
     };
 
@@ -100,12 +101,12 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
         setIsLinking(true);
         try {
             await linkAssetToAgent(asset.id, selectedAgentId);
-            alert("Agent linked successfully.");
+            showToast("Agent linked successfully.", 'success');
             setIsLinkingAgent(false);
             window.location.reload(); // Reload to refresh data
         } catch (e: any) {
             console.error("Link Agent Error:", e);
-            alert(`Failed to link agent: ${e.message || "Unknown error"}`);
+            showToast(`Failed to link agent: ${e.message || "Unknown error"}`, 'error');
         } finally {
             setIsLinking(false);
         }
@@ -136,13 +137,13 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
             });
             const result = await response.json();
             if (response.ok) {
-                alert(`✅ Command sent successfully.\n\nTask ID: ${result.task_id}\n\nThe agent will pick this up shortly.`);
+                showToast(`Command sent successfully. Task ID: ${result.task_id}`, 'success');
             } else {
-                alert(`❌ Error: ${result.detail || 'Failed to send command'}`);
+                showToast(`Error: ${result.detail || 'Failed to send command'}`, 'error');
             }
         } catch (error) {
             console.error('Error sending RDP command:', error);
-            alert(`❌ Error: ${error}`);
+            showToast(`Error: ${error}`, 'error');
         }
     };
 
@@ -166,13 +167,13 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
             const result = await response.json();
 
             if (result.success) {
-                alert(`✅ Success!\n\n${result.message}\n\nJob ID: ${result.job.id}\nScheduled for: ${new Date(result.job.scheduledFor).toLocaleString()}`);
+                showToast(`Patch job created. Job ID: ${result.job.id}`, 'success');
             } else {
-                alert(`❌ Error: ${result.error || 'Failed to create patch job'}`);
+                showToast(`Error: ${result.error || 'Failed to create patch job'}`, 'error');
             }
         } catch (error) {
             console.error('Error applying patch:', error);
-            alert(`❌ Failed to apply patch: ${error}`);
+            showToast(`Failed to apply patch: ${error}`, 'error');
         }
     }
 
@@ -448,14 +449,14 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                                                                             });
                                                                             const result = await response.json();
                                                                             if (result.success) {
-                                                                                alert(`✅ Success: ${result.message}`);
+                                                                                showToast(`Success: ${result.message}`, 'success');
                                                                                 // Ideally trigger refresh here, but for now reload
                                                                                 window.location.reload();
                                                                             } else {
-                                                                                alert(`❌ Error: ${result.error || 'Failed to resolve'}`);
+                                                                                showToast(`Error: ${result.error || 'Failed to resolve'}`, 'error');
                                                                             }
                                                                         } catch (e) {
-                                                                            alert(`❌ Error: ${e}`);
+                                                                            showToast(`Error: ${e}`, 'error');
                                                                         }
                                                                     }
                                                                 }}

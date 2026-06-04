@@ -2,10 +2,13 @@
 Background scheduler for periodic tasks.
 Includes FinOps cost recalculation for all tenants.
 """
-import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timezone
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 scheduler = None
 
@@ -59,8 +62,8 @@ async def recalculate_all_finops_costs():
             for tenant in tenants:
                 try:
                     await wh.run_etl(tenant["id"])
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("ETL failed for tenant %s: %s", tenant.get("id"), e)
             print(f"[Scheduler] [OK] Data warehouse ETL complete for {len(tenants)} tenant(s)")
         except Exception as e:
             print(f"[Scheduler] [WARN] Data warehouse ETL failed: {e}")

@@ -86,7 +86,7 @@ def main():
 
         # Step 5: Register with the backend
         api_endpoint = f"{args.api_url.rstrip('/')}/api/agents/register"
-        print(f"[5/5] Registering agent with the Omni-Agent AI Platform...")
+        print("[5/5] Registering agent with the Omni-Agent AI Platform...")
 
         try:
             data = json.dumps(payload).encode('utf-8')

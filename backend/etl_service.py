@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from data_lake_service import DataLakeService
 
@@ -48,8 +47,6 @@ class ETLService:
         finally:
             end_time = datetime.now(timezone.utc)
             duration = (end_time - start_time).total_seconds()
-            
-            # Record Job History
             job_record = {
                 "job_id": job_id,
                 "tenant_id": tenant_id,
@@ -60,8 +57,8 @@ class ETLService:
                 "details": details
             }
             await self.db.etl_jobs.insert_one(job_record)
-            
-            return job_record
+
+        return job_record
 
     async def _extract_and_store_raw(self, tenant_id: str, collection_name: str) -> int:
         """Extract recent data and store raw JSON in Data Lake"""
@@ -74,7 +71,6 @@ class ETLService:
             return 0
 
         # Serialize to JSON (handle ObjectId and datetime)
-        import json
         from bson import json_util
         
         data_str = json_util.dumps(items)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { TrendingUpIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { showToast } from '../utils/toast';
 
 interface ExecutiveSummary {
     kpis: {
@@ -34,6 +35,7 @@ export const ExecutiveDashboard: React.FC<{ tenantId?: string }> = ({ tenantId }
             setSummary(data);
         } catch (error) {
             console.error('Error fetching executive summary:', error);
+            showToast('Failed to load executive summary', 'error');
         } finally {
             setLoading(false);
         }

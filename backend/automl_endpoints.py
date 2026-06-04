@@ -153,7 +153,9 @@ async def upload_training_dataset(
     Upload a CSV or JSON training dataset file.
     Parses the file to count rows/columns and registers it in the DB.
     """
-    import io, csv, json as _json
+    import io
+    import csv
+    import json as _json
 
     allowed = {
         "text/csv": "csv",
@@ -167,6 +169,8 @@ async def upload_training_dataset(
     )
     if ext is None:
         raise HTTPException(status_code=400, detail="Only CSV and JSON files are supported")
+    if file.size and file.size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
 
     raw = await file.read()
     size_bytes = len(raw)

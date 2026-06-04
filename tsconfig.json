@@ -33,6 +33,7 @@
     "backend",
     "agent",
     "scripts",
-    "version 1"
+    "version 1",
+    "code-review-graph-main"
   ]
 }

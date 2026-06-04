@@ -1,5 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 class DataWarehouseService:
     def __init__(self, db: AsyncIOMotorDatabase):

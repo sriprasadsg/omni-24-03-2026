@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import is_super_admin
 from datetime import datetime, timezone, timedelta
 from cache_service import cached
 from pagination_utils import paginate_mongo_query, PaginationParams
@@ -71,7 +72,7 @@ async def get_agents(
 ):
     """Get all agents with pagination and caching"""
     collection = db["agents"]
-    is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
+    is_admin = is_super_admin(current_user.role)
 
     query: Dict[str, Any] = {}
     if is_admin:
@@ -161,7 +162,7 @@ async def search_agents_route(
     if status:
         query["status"] = status
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(user_role):
         _ac_tenant = getattr(current_user, "tenant_id", None) or None
         if not _ac_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
@@ -184,7 +185,7 @@ async def bulk_delete_agents_route(
         raise HTTPException(status_code=400, detail="Cannot delete more than 100 agents at once")
     user_role = getattr(current_user, "role", "user")
     query: Dict[str, Any] = {"id": {"$in": ids}}
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(user_role):
         _ac_tenant = getattr(current_user, "tenant_id", None) or None
         if not _ac_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
@@ -207,7 +208,7 @@ async def bulk_update_agents_route(
     patch.pop("id", None)
     user_role = getattr(current_user, "role", "user")
     query: Dict[str, Any] = {"id": {"$in": ids}}
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(user_role):
         _ac_tenant = getattr(current_user, "tenant_id", None) or None
         if not _ac_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
@@ -219,7 +220,7 @@ async def bulk_update_agents_route(
 @router.get("/network-utilization")
 async def get_network_utilization(current_user=Depends(get_current_user), db=Depends(get_database)):
     """Get aggregated network utilization metrics for agents."""
-    is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
+    is_admin = is_super_admin(current_user.role)
     query: Dict[str, Any] = {} if is_admin else {"tenantId": getattr(current_user, "tenant_id", None)}
 
     agents = await db["agents"].find(
@@ -261,7 +262,6 @@ async def get_agent_configuration(agent_id: str, _tenant: Dict[str, Any] = Depen
     return {"enabledCapabilities": capabilities, "collectionIntervals": intervals}
 
 
-_DIAG_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 
 @router.post("/{agent_id}/diagnostics")
@@ -272,7 +272,7 @@ async def run_agent_diagnostics(agent_id: str, current_user=Depends(get_current_
     caller_tenant = getattr(current_user, "tenant_id", None)
     caller_role = getattr(current_user, "role", None)
     agent_filter: dict = {"id": agent_id}
-    if caller_role not in _DIAG_SUPER_ROLES and caller_tenant:
+    if not is_super_admin(caller_role or "") and caller_tenant:
         agent_filter["tenantId"] = caller_tenant
     agent = await db.agents.find_one(agent_filter, {"_id": 0})
     if not agent:

@@ -5,6 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import { CogIcon, ShieldSearchIcon, BarChart3Icon, SlackIcon, PagerDutyIcon, JiraIcon, PlusIcon, TrashIcon } from './icons';
 import { AddIntegrationModal } from './AddIntegrationModal';
 import * as apiService from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface IntegrationsMarketplaceProps {
     integrations: Integration[];
@@ -69,7 +70,7 @@ export const IntegrationsMarketplace: React.FC<IntegrationsMarketplaceProps> = (
             window.location.reload();
         } catch (error) {
             console.error("Failed to add integration", error);
-            alert("Failed to add integration");
+            showToast("Failed to add integration", 'error');
         }
     };
 
@@ -81,7 +82,7 @@ export const IntegrationsMarketplace: React.FC<IntegrationsMarketplaceProps> = (
             window.location.reload();
         } catch (error) {
             console.error('Failed to delete integration', error);
-            alert('Failed to delete integration.');
+            showToast('Failed to delete integration.', 'error');
         }
     };
 

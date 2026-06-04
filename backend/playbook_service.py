@@ -82,7 +82,7 @@ class PlaybookService:
             try:
                 query = {"$or": [{"_id": ObjectId(playbook_id)}, {"id": playbook_id}]}
             except Exception:
-                pass
+                pass  # playbook_id is not a valid ObjectId hex — string id query is fine
             playbook = await db[self.collection_name].find_one(query)
             if not playbook:
                 return None

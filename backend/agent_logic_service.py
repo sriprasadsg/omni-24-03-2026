@@ -1,3 +1,4 @@
+import logging
 from typing import List, Dict, Any
 from google import genai
 import json
@@ -5,6 +6,8 @@ import os
 from database import get_database
 from datetime import datetime, timezone
 from local_ip import ollama_default_url
+
+_log = logging.getLogger(__name__)
 
 class AgentLogicService:
     def __init__(self):
@@ -29,8 +32,8 @@ class AgentLogicService:
                     resp = await client.get(f"{self.ollama_url}/api/tags")
                     if resp.status_code == 200:
                         self.is_configured = True
-            except:
-                pass
+            except Exception as exc:
+                _log.debug("Ollama connectivity check failed: %s", exc)
             return
 
         # Default to Gemini logic
@@ -48,7 +51,7 @@ class AgentLogicService:
                 self.is_configured = True
                 self.provider_type = "gemini"
             except Exception as e:
-                print(f"Failed to initialize AgentLogicService (Gemini): {e}")
+                _log.warning("Failed to initialize AgentLogicService (Gemini): %s", e)
         
     async def generate_goals(self, agent_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -96,7 +99,7 @@ class AgentLogicService:
                 goals = json.loads(cleaned_text)
                 return goals
             except Exception as e:
-                print(f"Goal generation failed: {e}")
+                _log.warning("Goal generation failed: %s", e)
 
         # --- SMART HEURISTIC FALLBACK ---
         goals = []
@@ -114,8 +117,8 @@ class AgentLogicService:
                 "status": {"$in": ["Open", "In Progress"]},
                 "severity": {"$in": ["Critical", "High"]},
             })
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("Open alert count query failed: %s", e)
         if open_alert_count > 0:
             goals.append({
                 "name": "Resolve Active Threats",
@@ -151,8 +154,8 @@ class AgentLogicService:
                 age_min = (_dt.datetime.now(_dt.timezone.utc) - last_seen_dt).total_seconds() / 60
                 if age_min > 5:
                     heartbeat_score = max(0.0, 100.0 - age_min * 2)
-            except Exception:
-                pass
+            except Exception as e:
+                _log.debug("Failed to parse lastSeen timestamp: %s", e)
         goals.append({"name": "Agent Heartbeat Stability", "target": 100.0, "current": heartbeat_score, "status": "active"})
 
         return goals[:5]
@@ -234,10 +237,8 @@ class AgentLogicService:
             dispatched.append({"goal": goal.get("name"), "instruction": instruction})
 
         if dispatched:
-            print(
-                f"[AgentLogicService] Dispatched {len(dispatched)} instructions for agent {agent_id}: "
-                + str([d["instruction"] for d in dispatched])
-            )
+            _log.info("[AgentLogicService] Dispatched %d instructions for agent %s: %s",
+                      len(dispatched), agent_id, [d["instruction"] for d in dispatched])
         return dispatched
 
 agent_logic_service = AgentLogicService()

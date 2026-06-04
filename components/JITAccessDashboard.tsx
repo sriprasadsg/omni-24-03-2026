@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface JITRequest {
   id: string;
@@ -71,7 +72,7 @@ export default function JITAccessDashboard() {
         body: JSON.stringify(form),
       });
       if (r.ok) { loadAll(); setShowCreate(false); setForm({ resource: '', role: '', reason: '', duration_hours: 1 }); }
-      else { const d = await r.json(); alert(d.detail || 'Failed to create'); }
+      else { const d = await r.json(); showToast(d.detail || 'Failed to create', 'error'); }
     } finally { setSaving(false); }
   }
 

@@ -1,9 +1,11 @@
 
 import asyncio
+import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
 async def analyze_links():
-    client = AsyncIOMotorClient("mongodb://127.0.0.1:27017")
+    mongo_uri = os.getenv("MONGODB_URI", "mongodb://127.0.0.1:27017")
+    client = AsyncIOMotorClient(mongo_uri)
     db = client.omni_platform
     
     agents_with_asset = await db.agents.count_documents({"assetId": {"$exists": True, "$ne": None}})
@@ -11,8 +13,8 @@ async def analyze_links():
     
     unique_asset_ids = await db.agents.distinct("assetId")
     
-    print(f"Agent-Asset Link Analysis:")
-    print(f"--------------------------")
+    print("Agent-Asset Link Analysis:")
+    print("--------------------------")
     print(f"Agents with assetId: {agents_with_asset}")
     print(f"Agents WITHOUT assetId: {agents_without_asset}")
     print(f"Unique assetIds referenced by agents: {len(unique_asset_ids)}")

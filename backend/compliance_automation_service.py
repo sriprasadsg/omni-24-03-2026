@@ -5,13 +5,12 @@ Automates evidence collection and compliance reporting
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List
 from database import get_database
 import io
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,8 @@ async def _calc_avg_resolution_hours(db, tenant_id: str, days: int) -> float:
                 closed = datetime.fromisoformat(doc["resolved_at"].replace("Z", "+00:00"))
                 total_hours += (closed - opened).total_seconds() / 3600
                 count += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Unparseable alert timestamp, skipping resolution delta: %s", e)
         return round(total_hours / count, 2) if count else 0.0
     except Exception as exc:
         logger.debug("Could not compute avg resolution time: %s", exc)
@@ -55,20 +54,35 @@ class ComplianceAutomationService:
     async def generate_patch_compliance_evidence(self, tenant_id: str, framework: str = "All") -> Dict:
         """Generate automated patch compliance evidence"""
         await self.init_db()
-        
-        # Get all agents for tenant
-        agents = await self.db.agents.find({"tenantId": tenant_id}).to_list(length=1000)
 
-        # Get patch data
-        patches = await self.db.patches.find({"tenantId": tenant_id}).to_list(length=1000)
-        
-        # Calculate metrics
-        total_agents = len(agents)
-        patched_agents = len([a for a in agents if a.get("patchStatus") == "Up to Date"])
+        # Aggregated counts — single round-trip each
+        agent_agg = await self.db.agents.aggregate([
+            {"$match": {"tenantId": tenant_id}},
+            {"$group": {
+                "_id": None,
+                "total": {"$sum": 1},
+                "patched": {"$sum": {"$cond": [{"$eq": ["$patchStatus", "Up to Date"]}, 1, 0]}},
+            }},
+        ]).to_list(length=1)
+        counts = agent_agg[0] if agent_agg else {"total": 0, "patched": 0}
+        total_agents = counts["total"]
+        patched_agents = counts["patched"]
         compliance_rate = (patched_agents / total_agents * 100) if total_agents > 0 else 0
-        
-        critical_missing = len([p for p in patches if p.get("severity") == "Critical" and p.get("status") == "Missing"])
-        
+
+        critical_missing = await self.db.patches.count_documents(
+            {"tenantId": tenant_id, "severity": "Critical", "status": "Missing"}
+        )
+
+        # Lightweight agent list for evidence details (id + hostname only)
+        agents = await self.db.agents.find(
+            {"tenantId": tenant_id}, {"_id": 0, "id": 1, "hostname": 1, "patchStatus": 1}
+        ).to_list(length=1000)
+
+        missing_critical = await self.db.patches.find(
+            {"tenantId": tenant_id, "severity": "Critical", "status": "Missing"},
+            {"_id": 0, "id": 1, "name": 1},
+        ).to_list(length=500)
+
         evidence = {
             "type": "patch_compliance",
             "framework": framework,
@@ -78,31 +92,37 @@ class ComplianceAutomationService:
                 "total_agents": total_agents,
                 "patched_agents": patched_agents,
                 "compliance_rate": round(compliance_rate, 2),
-                "critical_missing_patches": critical_missing
+                "critical_missing_patches": critical_missing,
             },
             "details": {
-                "agents": [{"id": a["id"], "hostname": a["hostname"], "patchStatus": a.get("patchStatus")} for a in agents],
-                "missing_critical_patches": [{"id": p["id"], "name": p["name"]} for p in patches if p.get("severity") == "Critical" and p.get("status") == "Missing"]
-            }
+                "agents": agents,
+                "missing_critical_patches": missing_critical,
+            },
         }
-        
-        # Store evidence
+
         await self.db.compliance_evidence.insert_one(evidence)
-        
         return evidence
     
     async def generate_vulnerability_evidence(self, tenant_id: str) -> Dict:
         """Generate automated vulnerability scan evidence"""
         await self.init_db()
-        
-        # Get vulnerabilities
-        vulns = await self.db.vulnerabilities.find({"tenantId": tenant_id}).to_list(length=1000)
-        
-        # Calculate metrics
-        total_vulns = len(vulns)
-        critical_vulns = len([v for v in vulns if v.get("severity") == "Critical"])
-        high_vulns = len([v for v in vulns if v.get("severity") == "High"])
-        remediated = len([v for v in vulns if v.get("status") == "Resolved"])
+
+        # Single aggregation replaces four in-memory filter passes
+        vuln_agg = await self.db.vulnerabilities.aggregate([
+            {"$match": {"tenantId": tenant_id}},
+            {"$group": {
+                "_id": None,
+                "total": {"$sum": 1},
+                "critical": {"$sum": {"$cond": [{"$eq": ["$severity", "Critical"]}, 1, 0]}},
+                "high": {"$sum": {"$cond": [{"$eq": ["$severity", "High"]}, 1, 0]}},
+                "remediated": {"$sum": {"$cond": [{"$eq": ["$status", "Resolved"]}, 1, 0]}},
+            }},
+        ]).to_list(length=1)
+        vc = vuln_agg[0] if vuln_agg else {"total": 0, "critical": 0, "high": 0, "remediated": 0}
+        total_vulns = vc["total"]
+        critical_vulns = vc["critical"]
+        high_vulns = vc["high"]
+        remediated = vc["remediated"]
         
         # Derive real scan coverage from agent OSV scans
         total_agents = await self.db.agents.count_documents({"tenantId": tenant_id})

@@ -1,4 +1,3 @@
-from datetime import timezone
 from fastapi import APIRouter, BackgroundTasks, Query, Body, Depends
 from pydantic import BaseModel
 from typing import Dict, Any
@@ -81,7 +80,8 @@ Goal: {goal}
 Return a JSON array of 3-5 objects, each with "type" (one of: vulnerability_scan, os_patch_install, threat_hunt, log_collection, isolate_host, general_task) and "instruction" (one short sentence).
 Example: [{{"type": "vulnerability_scan", "instruction": "Scan all endpoints for critical CVEs"}}]"""
         try:
-            import json, re as _re
+            import json
+            import re as _re
             raw = await ai_service.generate_text(prompt, source="swarm_coordinator")
             raw = raw.replace("```json", "").replace("```", "").strip()
             m = _re.search(r'\[.*\]', raw, _re.DOTALL)

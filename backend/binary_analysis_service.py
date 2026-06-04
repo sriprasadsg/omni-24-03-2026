@@ -7,15 +7,12 @@ Dependencies (add to requirements.txt):
     yara-python>=4.3.1   # requires libssl-dev, build-tools
 """
 import os
-import io
-import json
 import hashlib
 import logging
 import platform
 import tempfile
 import subprocess
-import threading
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -41,10 +38,11 @@ class BinaryAnalysisService:
     # PUBLIC API
     # ==================================================================
 
-    def analyze(self, file_bytes: bytes, filename: str) -> Dict[str, Any]:
+    def analyze(self, file_bytes: bytes, filename: str, custom_rules: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Full binary analysis pipeline.
         Returns a comprehensive report dict.
+        custom_rules: list of dicts with keys 'name' and 'content' (from DB).
         """
         sha256 = self._hash_bytes(file_bytes, "sha256")
         md5 = self._hash_bytes(file_bytes, "md5")
@@ -75,7 +73,7 @@ class BinaryAnalysisService:
             report["static"] = {"info": f"File type '{file_type}' — basic analysis only"}
 
         # --- YARA Scanning ---
-        report["yara_matches"] = self._scan_yara(file_bytes, filename)
+        report["yara_matches"] = self._scan_yara(file_bytes, filename, custom_rules or [])
 
         # --- Sandbox (lightweight, safe subprocess observation) ---
         if file_type == "PE" and file_size < 50 * 1024 * 1024:  # sanity cap: 50 MB
@@ -175,32 +173,63 @@ class BinaryAnalysisService:
     # YARA SCANNING
     # ==================================================================
 
-    def _scan_yara(self, data: bytes, filename: str) -> List[Dict[str, Any]]:
-        """Run all loaded YARA rulesets against the file bytes."""
+    def _scan_yara(self, data: bytes, filename: str, custom_rules: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Run all loaded YARA rulesets against the file bytes.
+
+        custom_rules: list of {'name': str, 'content': str} dicts from the DB.
+        """
         matches = []
-        if not self._yara_rules:
-            return matches
         try:
             import yara  # type: ignore
-            for ruleset_name, rules in self._yara_rules.items():
-                try:
-                    hits = rules.match(data=data)
-                    for hit in hits:
-                        matches.append({
-                            "ruleset": ruleset_name,
-                            "rule": hit.rule,
-                            "namespace": hit.namespace,
-                            "meta": dict(hit.meta),
-                            "tags": list(hit.tags),
-                            "strings_matched": [
-                                {"offset": s.plaintext().hex()[:20], "identifier": s.identifier}
-                                for s in hit.strings[:5]
-                            ],
-                        })
-                except Exception as e:
-                    logger.warning(f"YARA scan error on {ruleset_name}: {e}")
         except ImportError:
             logger.info("yara-python not installed — YARA scanning skipped")
+            return matches
+
+        # Built-in file-based rulesets
+        for ruleset_name, rules in (self._yara_rules or {}).items():
+            try:
+                hits = rules.match(data=data)
+                for hit in hits:
+                    matches.append({
+                        "ruleset": ruleset_name,
+                        "rule": hit.rule,
+                        "namespace": hit.namespace,
+                        "meta": dict(hit.meta),
+                        "tags": list(hit.tags),
+                        "source": "builtin",
+                        "strings_matched": [
+                            {"offset": s.plaintext().hex()[:20], "identifier": s.identifier}
+                            for s in hit.strings[:5]
+                        ],
+                    })
+            except Exception as e:
+                logger.warning(f"YARA scan error on {ruleset_name}: {e}")
+
+        # Custom DB-stored rules (per-tenant)
+        for cr in (custom_rules or []):
+            rule_name = cr.get("name", "custom")
+            content = cr.get("content", "")
+            if not content:
+                continue
+            try:
+                compiled = yara.compile(source=content)
+                hits = compiled.match(data=data)
+                for hit in hits:
+                    matches.append({
+                        "ruleset": f"custom:{rule_name}",
+                        "rule": hit.rule,
+                        "namespace": hit.namespace,
+                        "meta": dict(hit.meta),
+                        "tags": list(hit.tags),
+                        "source": "custom",
+                        "strings_matched": [
+                            {"offset": s.plaintext().hex()[:20], "identifier": s.identifier}
+                            for s in hit.strings[:5]
+                        ],
+                    })
+            except Exception as e:
+                logger.warning(f"Custom YARA rule '{rule_name}' error: {e}")
+
         return matches
 
     # ==================================================================
@@ -272,8 +301,8 @@ class BinaryAnalysisService:
             import shutil
             try:
                 shutil.rmtree(tmpdir, ignore_errors=True)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Temp dir cleanup failed: %s", e)
 
         return result
 

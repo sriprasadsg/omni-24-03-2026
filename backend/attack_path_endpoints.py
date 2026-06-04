@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Dict, Any
 from authentication_service import get_current_user
 from attack_path_service import get_attack_path_service
 from database import get_database

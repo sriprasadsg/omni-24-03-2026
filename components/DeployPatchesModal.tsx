@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Patch, Asset } from '../types';
 import { XIcon, ZapIcon, ClockIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface DeployPatchesModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export const DeployPatchesModal: React.FC<DeployPatchesModalProps> = ({ isOpen, 
     
     const handleConfirm = () => {
         if (deploymentType === 'Scheduled' && !scheduleTime) {
-            alert('Please select a date and time for the scheduled deployment.');
+            showToast('Please select a date and time for the scheduled deployment.', 'error');
             return;
         }
         onDeploy(deploymentType, scheduleTime);

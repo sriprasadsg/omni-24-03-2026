@@ -9,7 +9,6 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
-from collections import defaultdict
 
 
 class MLMonitoringService:
@@ -80,8 +79,36 @@ class MLMonitoringService:
         }
         
         # Store drift detection result
-        await self.db.model_drift_detections.insert_one(result)
-        
+        await self.db.model_drift_detections.insert_one({**result})
+        result.pop("_id", None)
+
+        # Generate security alert for critical/high drift so operators are notified
+        if drift_detected and severity in ("critical", "high"):
+            import uuid as _uuid
+            sev_map = {"critical": "Critical", "high": "High"}
+            alert = {
+                "id": str(_uuid.uuid4()),
+                "tenantId": tenant_id,
+                "severity": sev_map[severity],
+                "type": "ml_drift",
+                "source": f"ml_monitoring:{model_id}",
+                "message": (
+                    f"ML drift detected on model '{model_id}' [{severity.upper()}]: "
+                    f"PSI={round(psi_score, 3)}, KL={round(kl_divergence, 3)}, "
+                    f"perf_drift={round(performance_drift, 3)}. "
+                    f"{self._get_recommendation(severity, psi_score, performance_drift)}"
+                ),
+                "status": "Open",
+                "acknowledged": False,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            await self.db.alerts.insert_one(alert)
+            alert.pop("_id", None)
+            result["alert_generated"] = True
+            result["alert_id"] = alert["id"]
+        else:
+            result["alert_generated"] = False
+
         return result
     
     def _calculate_psi(self, baseline: List[Dict], current: List[Dict]) -> float:

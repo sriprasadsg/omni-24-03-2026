@@ -8,7 +8,6 @@ import io
 import logging
 import base64
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
-from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
 from authentication_service import get_current_user
@@ -127,7 +126,7 @@ async def synthesize_text(req: TTSRequest, current_user=Depends(get_current_user
             audio_bytes = synthesize_speech_gtts(req.text)
             audio_b64 = base64.b64encode(audio_bytes).decode()
             return {"audio_base64": audio_b64, "format": "mp3", "provider": "gtts"}
-        except Exception as gtts_err:
+        except Exception:
             raise HTTPException(status_code=503, detail="TTS service unavailable")
 
 

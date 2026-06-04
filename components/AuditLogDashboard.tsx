@@ -49,6 +49,26 @@ export const AuditLogDashboard: React.FC<AuditLogDashboardProps> = ({ logs }) =>
         setSearchTerm('');
     };
 
+    const exportCsv = () => {
+        const headers = ['Timestamp', 'User', 'Action', 'Resource Type', 'Resource ID', 'Details'];
+        const rows = filteredLogs.map(log => [
+            new Date(log.timestamp).toISOString(),
+            log.userName,
+            log.action,
+            log.resourceType,
+            log.resourceId,
+            `"${(log.details || '').replace(/"/g, '""')}"`,
+        ]);
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="container mx-auto space-y-6">
             <div className="flex justify-between items-center mb-6">
@@ -56,6 +76,13 @@ export const AuditLogDashboard: React.FC<AuditLogDashboardProps> = ({ logs }) =>
                     <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Audit Log</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Review user actions and system events.</p>
                 </div>
+                <div className="flex items-center gap-3">
+                    {activeTab === 'table' && (
+                        <button onClick={exportCsv}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                            ↓ Export CSV ({filteredLogs.length})
+                        </button>
+                    )}
                 <div className="bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 flex">
                     <button
                         onClick={() => setActiveTab('timeline')}
@@ -69,6 +96,7 @@ export const AuditLogDashboard: React.FC<AuditLogDashboardProps> = ({ logs }) =>
                     >
                         📋 Data Table
                     </button>
+                </div>
                 </div>
             </div>
 

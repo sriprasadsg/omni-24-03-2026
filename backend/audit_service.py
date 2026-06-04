@@ -1,5 +1,4 @@
 import hashlib
-import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -21,8 +20,10 @@ class AuditService:
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def log_action(self, *args, **kwargs):
-        logging.warning("Synchronous log_action called - not persisting to DB! Use log_action_async.")
-        return {}
+        raise RuntimeError(
+            "AuditService.log_action() is a no-op stub. "
+            "Use await log_action_async(...) to persist audit entries."
+        )
 
     async def log_action_async(self, 
                    user_name: str, 
@@ -74,15 +75,21 @@ class AuditService:
         logging.info(f"[AUDIT] {user_name} performed {action} on {resource_type} {resource_id} [Hash: {log_entry.get('hash', 'N/A')[:8]}...]")
         return log_entry
 
-    async def get_logs(self, tenant_id: str = None) -> List[Dict[str, Any]]:
+    async def get_logs(self, tenant_id: str = None, is_super_admin: bool = False) -> List[Dict[str, Any]]:
         """
-        Retrieve logs, optionally filtered by tenant.
+        Retrieve logs filtered by tenant.
+        Super-admins with is_super_admin=True may omit tenant_id to see all tenants.
+        All other callers must supply a tenant_id; omitting it returns an empty list.
         """
         db = get_database()
-        query = {}
+        query: Dict[str, Any] = {}
         if tenant_id:
-            query['tenantId'] = tenant_id
-            
+            query["tenantId"] = tenant_id
+        elif not is_super_admin:
+            # Fail-closed: no tenant context and not a super-admin → return nothing
+            logging.warning("[AUDIT] get_logs called without tenant_id by non-super-admin — returning empty list")
+            return []
+
         # Return most recent first
         logs = await db.audit_logs.find(query, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
         return logs

@@ -91,7 +91,9 @@ export default function CustomFrameworkBuilder() {
       const r = await authFetch('/api/custom-frameworks/templates');
       const d = await r.json();
       setTemplates(d.templates || []);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to load framework templates:', e);
+    }
   }
 
   async function createFramework() {

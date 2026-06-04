@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, Any, List
+from fastapi import APIRouter, Depends
+from typing import Dict, Any
 from datetime import datetime, timezone
 from data_quality_service import quality_service
 from data_governance_service import governance_service
@@ -43,6 +43,92 @@ async def get_catalog(
     Get the Data Governance Catalog.
     """
     return await governance_service.get_data_catalog()
+
+
+@router.get("/governance/lineage")
+async def get_data_lineage(
+    current_user: dict = Depends(require_permission("view:reporting"))
+):
+    """
+    Return data lineage graph (nodes + edges) derived from the catalog.
+    Nodes have: id, label, type (source|process|destination), classification
+    Edges have: source, target, label
+    """
+    from database import get_database
+    db = get_database()
+
+    # Fetch catalog entries to build lineage
+    catalog = await governance_service.get_data_catalog()
+    nodes = []
+    edges = []
+
+    # Also pull ETL pipeline definitions if they exist
+    etl_pipelines = await db.etl_pipelines.find({}, {"_id": 0}).to_list(length=50)
+
+    # Build source nodes from catalog (first half = sources, rest = destinations)
+    source_layer = [e for e in catalog if e.get("type") in ("database", "api", "file", "stream", "source") or e.get("classification") in ("CONFIDENTIAL", "RESTRICTED")]
+    dest_layer = [e for e in catalog if e not in source_layer]
+
+    seen_ids: set = set()
+    for entry in source_layer[:8]:
+        nid = entry.get("id") or entry.get("name", "").lower().replace(" ", "_")
+        if nid in seen_ids:
+            continue
+        seen_ids.add(nid)
+        nodes.append({"id": nid, "label": entry.get("name", nid), "type": "source",
+                      "classification": entry.get("classification", "INTERNAL"),
+                      "owner": entry.get("owner", "")})
+
+    # Processing nodes from ETL pipelines
+    for pipe in etl_pipelines[:6]:
+        nid = pipe.get("id") or pipe.get("name", "").lower().replace(" ", "_")
+        if nid in seen_ids:
+            continue
+        seen_ids.add(nid)
+        nodes.append({"id": nid, "label": pipe.get("name", nid), "type": "process",
+                      "classification": "INTERNAL", "owner": pipe.get("owner", "")})
+        # Connect to sources
+        for src in source_layer[:2]:
+            src_id = src.get("id") or src.get("name", "").lower().replace(" ", "_")
+            edges.append({"source": src_id, "target": nid, "label": pipe.get("operation", "ETL")})
+
+    # Destination nodes
+    for entry in dest_layer[:6]:
+        nid = (entry.get("id") or entry.get("name", "")).lower().replace(" ", "_") + "_dest"
+        if nid in seen_ids:
+            continue
+        seen_ids.add(nid)
+        nodes.append({"id": nid, "label": entry.get("name", nid), "type": "destination",
+                      "classification": entry.get("classification", "INTERNAL"),
+                      "owner": entry.get("owner", "")})
+        # Connect last process → dest, or source → dest directly
+        if etl_pipelines:
+            last_proc = etl_pipelines[0].get("id") or etl_pipelines[0].get("name", "").lower().replace(" ", "_")
+            if last_proc in seen_ids:
+                edges.append({"source": last_proc, "target": nid, "label": "load"})
+        elif source_layer:
+            src_id = (source_layer[0].get("id") or source_layer[0].get("name", "")).lower().replace(" ", "_")
+            edges.append({"source": src_id, "target": nid, "label": "direct"})
+
+    # Seed with platform defaults if catalog is empty
+    if not nodes:
+        nodes = [
+            {"id": "agents_db",    "label": "Agent Telemetry DB",   "type": "source",      "classification": "CONFIDENTIAL", "owner": "Platform"},
+            {"id": "assets_db",    "label": "Asset Inventory",       "type": "source",      "classification": "INTERNAL",     "owner": "Platform"},
+            {"id": "etl_normalize","label": "ETL Normalization",      "type": "process",     "classification": "INTERNAL",     "owner": "Data Eng"},
+            {"id": "etl_enrich",   "label": "CVE Enrichment",         "type": "process",     "classification": "INTERNAL",     "owner": "Data Eng"},
+            {"id": "data_lake",    "label": "Security Data Lake",     "type": "destination", "classification": "RESTRICTED",   "owner": "CISO"},
+            {"id": "warehouse",    "label": "Analytics Warehouse",    "type": "destination", "classification": "INTERNAL",     "owner": "Analytics"},
+        ]
+        edges = [
+            {"source": "agents_db",     "target": "etl_normalize", "label": "ingest"},
+            {"source": "assets_db",     "target": "etl_normalize", "label": "ingest"},
+            {"source": "etl_normalize", "target": "etl_enrich",    "label": "transform"},
+            {"source": "etl_enrich",    "target": "data_lake",     "label": "load"},
+            {"source": "etl_enrich",    "target": "warehouse",     "label": "load"},
+        ]
+
+    return {"nodes": nodes, "edges": edges}
 
 # --- Quality Endpoints ---
 

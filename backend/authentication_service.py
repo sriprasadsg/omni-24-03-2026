@@ -15,25 +15,36 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 if not SECRET_KEY:
     import logging as _logging
     _env = os.getenv("ENVIRONMENT", "development").lower()
-    if _env == "production":
+    _dev_envs = {"development", "dev", "local", "test"}
+    if _env not in _dev_envs:
+        # Block startup for production, staging, or any unrecognised environment
         raise RuntimeError(
-            "JWT_SECRET_KEY environment variable is not set. "
-            "Refusing to start in production without a stable signing key. "
-            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+            f"JWT_SECRET_KEY is not set (ENVIRONMENT={_env!r}). "
+            "Refusing to start without a stable signing key outside local development. "
+            "Generate one: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
         )
     _logging.getLogger(__name__).warning(
-        "JWT_SECRET_KEY not set — using ephemeral key (dev only). "
-        "All sessions will be lost on restart. Set JWT_SECRET_KEY before going to production."
+        "⚠ JWT_SECRET_KEY not set — using ephemeral key (dev only). "
+        "All sessions will be lost on restart. Set JWT_SECRET_KEY before deploying."
     )
     SECRET_KEY = secrets.token_urlsafe(64)
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
-REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7 days
+_ALLOWED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512"}
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+if ALGORITHM not in _ALLOWED_JWT_ALGORITHMS:
+    raise RuntimeError(
+        f"JWT_ALGORITHM '{ALGORITHM}' is not in the allowed set {_ALLOWED_JWT_ALGORITHMS}. "
+        "Only HMAC-based algorithms are supported for this deployment."
+    )
+ACCESS_TOKEN_EXPIRE_MINUTES = min(int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")), 120)
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# In-process JTI revocation cache — populated by verify_token_async so that
-# the synchronous verify_token path (WebSocket upgrade, etc.) can also reject
-# revoked tokens without a DB round-trip.
-_revoked_jti_cache: set = set()
+# JTI revocation cache — mirrored from the `revoked_tokens` MongoDB collection.
+# Populated eagerly by verify_token_async; also refreshed from DB on every async
+# verification so multi-worker deployments eventually converge (max lag = one
+# request cycle). The sync verify_token path uses this cache as a best-effort
+# check — prefer async get_current_user (Depends) in all new endpoints.
+_revoked_jti_cache: set[str] = set()
+_revocation_cache_last_sync: float = 0.0  # epoch seconds of last full DB sync
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -108,8 +119,9 @@ async def verify_token_async(token: str) -> TokenData:
         if jti:
             try:
                 from database import get_database
+                import time as _time
                 db = get_database()
-                revoked = await db.revoked_tokens.find_one({"jti": jti}, {"_id": 1})
+                revoked = await db._db.revoked_tokens.find_one({"jti": jti}, {"_id": 1})
                 if revoked:
                     _revoked_jti_cache.add(jti)
                     raise HTTPException(
@@ -117,15 +129,21 @@ async def verify_token_async(token: str) -> TokenData:
                         detail="Could not validate credentials",
                         headers={"WWW-Authenticate": "Bearer"},
                     )
+                # Periodically bulk-sync recently revoked JTIs into the in-process cache
+                # so the sync verify_token path stays current across workers.
+                global _revocation_cache_last_sync
+                now = _time.monotonic()
+                if now - _revocation_cache_last_sync > 60:  # refresh every 60 s
+                    _revocation_cache_last_sync = now
+                    async for doc in db._db.revoked_tokens.find({}, {"jti": 1, "_id": 0}).limit(5000):
+                        if doc.get("jti"):
+                            _revoked_jti_cache.add(doc["jti"])
             except HTTPException:
                 raise
             except Exception as _db_err:
-                logger.warning("Token revocation DB check failed: %s", _db_err)
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Could not validate credentials",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+                # Fail-open: a transient DB error must not log out every active user.
+                # The in-process _revoked_jti_cache provides best-effort protection.
+                logger.warning("Token revocation DB check failed (fail-open): %s", _db_err)
 
         return TokenData(
             username=username,

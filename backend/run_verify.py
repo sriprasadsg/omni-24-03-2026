@@ -1,6 +1,5 @@
 
 import subprocess
-import os
 
 print("Starting verification wrapper...")
 try:

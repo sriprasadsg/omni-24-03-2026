@@ -120,10 +120,10 @@ async def expand_iso27001_controls():
     
     if result.modified_count > 0:
         print(f"✅ Successfully expanded ISO 27001:2022 to {len(complete_iso27001_controls)} controls")
-        print(f"   - Organizational (A.5): 37 controls")
-        print(f"   - People (A.6): 8 controls")
-        print(f"   - Physical (A.7): 14 controls")
-        print(f"   - Technological (A.8): 34 controls")
+        print("   - Organizational (A.5): 37 controls")
+        print("   - People (A.6): 8 controls")
+        print("   - Physical (A.7): 14 controls")
+        print("   - Technological (A.8): 34 controls")
     else:
         print("⚠️  No changes made - framework may not exist")
     

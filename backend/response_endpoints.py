@@ -2,7 +2,7 @@
 Autonomous Response API Endpoints
 CRUD for response policies + manual/automated response action dispatch.
 """
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.background import BackgroundTasks
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
-from response_orchestrator import ResponseOrchestrator, BUILTIN_POLICIES, seed_builtin_policies
+from response_orchestrator import ResponseOrchestrator, seed_builtin_policies
 
 router = APIRouter(prefix="/api/response", tags=["Autonomous Response"])
 orchestrator = ResponseOrchestrator()

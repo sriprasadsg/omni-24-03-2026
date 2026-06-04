@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 const API_BASE = '/api';
 
@@ -124,6 +125,7 @@ export const IncidentResponseDashboard: React.FC = () => {
       }
     } catch (e) {
       console.error('Failed to load incidents', e);
+      showToast('Failed to load incident data', 'error');
     } finally {
       setLoading(false);
     }

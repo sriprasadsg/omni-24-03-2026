@@ -1,5 +1,5 @@
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
+from typing import List, Dict, Any
 import uuid
 
 class MaintenanceService:

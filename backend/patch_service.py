@@ -6,7 +6,7 @@ Handles CVE/CVSS scoring, inventory management, and patch prioritization
 import aiohttp
 import asyncio
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
 
 class PatchManagementService:

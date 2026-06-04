@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSignIcon, PlusIcon, TrashIcon, SettingsIcon } from './icons';
 import { fetchServicePricing, createServicePricing, updateSingleServicePricing, deleteServicePricing } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 // Simple Edit Icon component (inline SVG)
 const EditIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
@@ -137,7 +138,7 @@ export const ServicePricingPage: React.FC = () => {
             await deleteServicePricing(service.id);
             await loadServices();
         } catch (e: any) {
-            alert(`Failed to delete service: ${e.message}`);
+            showToast(`Failed to delete service: ${e.message}`, 'error');
         }
     };
 

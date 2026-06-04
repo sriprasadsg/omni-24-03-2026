@@ -1,7 +1,6 @@
 import asyncio
 import sys
 import os
-from datetime import datetime, timedelta
 
 # Add parent directory to sys.path to import backend modules
 sys.path.append(os.path.join(os.getcwd(), 'backend'))
@@ -12,7 +11,7 @@ async def fetch_recent():
     await connect_to_mongo()
     db = get_database()
     
-    print(f"\n📢 Fetching the 20 most recent compliance records...")
+    print("\n📢 Fetching the 20 most recent compliance records...")
     
     cursor = db.asset_compliance.find().sort("lastUpdated", -1).limit(20)
     records = await cursor.to_list(length=20)

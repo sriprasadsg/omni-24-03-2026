@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 import { CopyIcon, CheckIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, ChevronDownIcon, AlertTriangleIcon, DownloadIcon, InfoIcon, CodeIcon, BuildingIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { Tenant } from '../types';
@@ -58,12 +59,32 @@ interface AgentInstallationProps {
 
 
 
-export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrationKey, tenantId, tenants, onSelectTenant }) => {
+export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrationKey: registrationKeyProp, tenantId, tenants, onSelectTenant }) => {
     const { hasPermission, currentUser } = useUser();
-    // Allow agent installation for Super Admins and users with view:agents permission
-    const canInstallAgents = currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin' || hasPermission('view:agents');
+    const _role = currentUser?.role ?? '';
+    const _SUPER  = new Set(['Super Admin', 'superadmin', 'super_admin', 'platform-admin']);
+    const _TENANT = new Set(['Tenant Admin', 'tenant_admin', 'admin']);
+    const canInstallAgents = _SUPER.has(_role) || _TENANT.has(_role) || hasPermission('view:agents');
     const [isOpen, setIsOpen] = useState(true);
     const [activeTab, setActiveTab] = useState<PlatformTab>('linux');
+
+    // When the parent doesn't supply a registrationKey (Tenant Admin's tenant list is not
+    // loaded in App.tsx for non-super-admins), fetch it directly from the backend.
+    const [fetchedKey, setFetchedKey] = useState<string | null>(null);
+    const [fetchingKey, setFetchingKey] = useState(false);
+    const effectiveTenantId = tenantId || currentUser?.tenantId;
+
+    React.useEffect(() => {
+        if (registrationKeyProp || !effectiveTenantId || !canInstallAgents) return;
+        setFetchingKey(true);
+        authFetch(`/api/agent/install/${effectiveTenantId}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.registration_key) setFetchedKey(data.registration_key); })
+            .catch(() => {})
+            .finally(() => setFetchingKey(false));
+    }, [registrationKeyProp, effectiveTenantId, canInstallAgents]);
+
+    const registrationKey = registrationKeyProp || fetchedKey;
 
     // Editable server URL — agents embed this in their config.yaml to call back to the platform.
     // Defaults to the auto-detected backend URL but must be set to the real server IP/hostname
@@ -90,9 +111,11 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     let instructionMessage: string | null = null;
     if (!canInstallAgents) {
         instructionMessage = "You do not have the required permissions to install new agents.";
-    } else if (!registrationKey) {
-        if (!tenants || tenants.length === 0) {
+    } else if (!fetchingKey && !registrationKey) {
+        if (!effectiveTenantId) {
             instructionMessage = "Please select a tenant to view agent installation commands. Super Admins must select 'View Tenant' from the Tenant Management dashboard.";
+        } else {
+            instructionMessage = "Unable to load registration key. Please refresh or contact your administrator.";
         }
     }
 
@@ -111,7 +134,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                 method: 'POST',
             });
             if (!tokenRes.ok) {
-                alert('Failed to initiate download. Please try again.');
+                showToast('Failed to initiate download. Please try again.', 'error');
                 return;
             }
             const { token: downloadToken } = await tokenRes.json();
@@ -120,7 +143,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
             // receives the ZIP — no JS body-reading, no proxy buffering issues.
             window.location.href = `/api/agent/download/${tenantId}?download_token=${downloadToken}&api_url=${backendUrl}`;
         } catch (e) {
-            alert('An error occurred while downloading the agent package.');
+            showToast('An error occurred while downloading the agent package.', 'error');
         } finally {
             // Give the browser a moment to initiate the download before clearing the spinner
             setTimeout(() => setIsDownloadingZip(false), 1500);
@@ -148,7 +171,15 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
 
             {isOpen && (
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                    {instructionMessage ? (
+                    {fetchingKey ? (
+                        <div className="p-4 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                            </svg>
+                            Loading installation details…
+                        </div>
+                    ) : instructionMessage ? (
                         <div className="p-4 bg-amber-50 dark:bg-amber-900/50 rounded-lg flex items-center text-sm text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                             <AlertTriangleIcon size={20} className="mr-3 flex-shrink-0 text-amber-500" />
                             <div>

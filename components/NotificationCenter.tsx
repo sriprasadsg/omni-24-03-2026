@@ -65,6 +65,21 @@ const NotificationCenter: React.FC = () => {
         }
     }, [isOpen]);
 
+    // Background polling — keeps the unread badge fresh without opening the panel
+    useEffect(() => {
+        const token = sessionStorage.getItem('token');
+        if (!token) return;
+        const poll = async () => {
+            try {
+                const notifs = await getNotifications();
+                if (Array.isArray(notifs)) setNotifications(notifs);
+            } catch { /* ignore */ }
+        };
+        poll(); // initial fetch on mount
+        const timer = setInterval(poll, 60_000);
+        return () => clearInterval(timer);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {

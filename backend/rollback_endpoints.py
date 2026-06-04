@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
 import time
 
 from auth_utils import get_current_user

@@ -6,8 +6,6 @@ Detects dependency confusion, typosquatting, and OSV database matches.
 
 import re
 import uuid
-import json
-import hashlib
 from datetime import datetime, timezone
 from database import get_database
 

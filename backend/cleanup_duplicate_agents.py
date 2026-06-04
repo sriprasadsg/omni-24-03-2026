@@ -5,7 +5,6 @@ Keeps the most recent version of each agent based on lastSeen timestamp
 
 import asyncio
 from database import connect_to_mongo, get_database, close_mongo_connection
-from datetime import datetime
 from collections import defaultdict
 
 async def cleanup_duplicate_agents():
@@ -64,7 +63,7 @@ async def cleanup_duplicate_agents():
                 total_deleted += 1
                 print(f"    ➖ Deleted: {agent.get('hostname', 'unknown')} (lastSeen: {agent.get('lastSeen', 'N/A')})")
     
-    print(f"\n✅ Cleanup complete!")
+    print("\n✅ Cleanup complete!")
     print(f"📊 Removed {total_deleted} duplicate agents")
     print(f"📊 Unique agents remaining: {len(agents_by_id)}")
     

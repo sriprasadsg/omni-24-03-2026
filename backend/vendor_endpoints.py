@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any, Optional
-from vendor_service import vendor_service, Vendor, VendorAssessment
+from typing import List, Dict, Any
+from vendor_service import vendor_service
 from pydantic import BaseModel
 from authentication_service import get_current_user
 from auth_types import TokenData

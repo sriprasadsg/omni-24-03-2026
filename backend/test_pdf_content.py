@@ -45,7 +45,7 @@ def analyze_pdf(filepath):
                 pass
     
     if potential_text:
-        print(f"\nFound potential text content:")
+        print("\nFound potential text content:")
         for text in potential_text[:5]:
             print(f"  - {text[:80]}")
     else:

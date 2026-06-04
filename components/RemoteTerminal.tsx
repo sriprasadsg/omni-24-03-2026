@@ -13,130 +13,128 @@ interface RemoteTerminalProps {
 export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
+    const termRef = useRef<Terminal | null>(null);
+    const fitRef = useRef<FitAddon | null>(null);
     const [connected, setConnected] = useState(false);
-    const term = useRef<Terminal | null>(null);
 
     useEffect(() => {
         if (!terminalRef.current) return;
 
-        // Initialize xterm
+        let cancelled = false;
+
+        // ── 1. Initialise xterm ──────────────────────────────────────────────
         const terminal = new Terminal({
             cursorBlink: true,
-            theme: {
-                background: '#1e1e1e',
-                foreground: '#f0f0f0',
-            },
+            theme: { background: '#1e1e1e', foreground: '#f0f0f0' },
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-            fontSize: 14
+            fontSize: 14,
         });
-
         const fitAddon = new FitAddon();
         terminal.loadAddon(fitAddon);
         terminal.open(terminalRef.current);
-        fitAddon.fit();
+        termRef.current = terminal;
+        fitRef.current = fitAddon;
 
-        term.current = terminal;
+        // Defer fit() until after the browser has painted the flex container.
+        // Calling it synchronously gives a 0×0 measurement and crashes xterm.
+        const fitTimer = setTimeout(() => {
+            if (!cancelled) {
+                try { fitAddon.fit(); } catch { /* container not yet visible */ }
+            }
+        }, 60);
 
-        // Connect WebSocket (User Side)
+        // ── 2. WebSocket helpers ─────────────────────────────────────────────
         const connectWebSocket = (url: string) => {
+            if (cancelled) return;
+
             const ws = new WebSocket(url);
             wsRef.current = ws;
 
             ws.onopen = () => {
+                if (cancelled) { ws.close(); return; }
                 setConnected(true);
-                term.current?.writeln('\x1b[32m✔ Secure Connection Established.\x1b[0m');
-                term.current?.writeln('Waiting for agent shell...\r\n');
-                // Sending a ping or init command
-                ws.send(JSON.stringify({ type: 'init', cols: term.current?.cols, rows: term.current?.rows }));
+                terminal.writeln('\x1b[32m✔ Secure Connection Established.\x1b[0m');
+                terminal.writeln('Waiting for agent shell...\r\n');
+                ws.send(JSON.stringify({ type: 'init', cols: terminal.cols, rows: terminal.rows }));
             };
 
-            ws.onmessage = (event) => {
-                term.current?.write(event.data);
-            };
+            ws.onmessage = (event) => { terminal.write(event.data); };
 
             ws.onclose = () => {
                 setConnected(false);
-                term.current?.writeln('\r\n\x1b[31m✖ Connection Closed.\x1b[0m');
+                if (!cancelled) terminal.writeln('\r\n\x1b[31m✖ Connection Closed.\x1b[0m');
             };
 
-            ws.onerror = (err) => {
-                console.error(err);
-                term.current?.writeln('\r\n\x1b[31m✖ WebSocket Error.\x1b[0m');
+            ws.onerror = () => {
+                if (!cancelled) terminal.writeln('\r\n\x1b[31m✖ WebSocket Error. Check that the backend is reachable.\x1b[0m');
             };
 
-            // User Input -> WebSocket
-            term.current?.onData((data) => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(data);
-                }
+            terminal.onData((data) => {
+                if (ws.readyState === WebSocket.OPEN) ws.send(data);
             });
         };
 
-        terminal.writeln(`\x1b[33mConnecting to ${agent.hostname} (${agent.ipAddress})...\x1b[0m`);
-
-        // Trigger Agent Connection
+        // ── 3. Start remote session ──────────────────────────────────────────
         const startAgentSession = async () => {
+            terminal.writeln(`\x1b[33mConnecting to ${agent.hostname} (${agent.ipAddress || 'unknown IP'})...\x1b[0m`);
+            terminal.writeln('\x1b[34mRequesting agent connection...\x1b[0m');
             try {
-                terminal.writeln('\x1b[34mRequesting agent connection...\x1b[0m');
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-
-                // Use agent.id if available, otherwise hostname
                 const response = await startRemoteSession(agent.id || agent.hostname, 'ssh', 'shell');
+                if (cancelled) return;
 
-                if (response.session_id) {
+                if (response?.session_id) {
                     terminal.writeln('\x1b[34mSession created. Connecting...\x1b[0m');
-
-                    let wsUrl = response.websocket_url;
-                    if (wsUrl) {
-                        const wsHost = import.meta.env.VITE_WS_URL
-                            ? import.meta.env.VITE_WS_URL.replace(/^https?/, wsUrl.startsWith('wss') ? 'wss' : 'ws')
-                            : `${protocol}//${window.location.host}`;
-                        wsUrl = `${wsHost}/api/tunnel/${response.session_id}/user`;
-                    }
-
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const token = sessionStorage.getItem('token') || '';
+                    const wsUrl = `${protocol}//${window.location.host}/api/tunnel/${response.session_id}/user?token=${encodeURIComponent(token)}`;
                     connectWebSocket(wsUrl);
                 } else {
-                    terminal.writeln('\x1b[31mFailed to start session: ' + (response.error || 'Unknown error') + '\x1b[0m');
+                    terminal.writeln('\x1b[31mFailed to start session: ' + (response?.error || 'Unknown error') + '\x1b[0m');
                 }
             } catch (err) {
-                console.error("Failed to start agent session", err);
-                terminal.writeln('\x1b[31mFailed to trigger agent connection. Ensure agent is online.\x1b[0m');
+                if (!cancelled) terminal.writeln('\x1b[31mFailed to connect. Ensure the agent is online.\x1b[0m');
             }
         };
+
         startAgentSession();
 
-        // Resize handler
-        const handleResize = () => fitAddon.fit();
+        // ── 4. Resize handler ────────────────────────────────────────────────
+        const handleResize = () => {
+            try { fitAddon.fit(); } catch { /* terminal may be disposed */ }
+        };
         window.addEventListener('resize', handleResize);
 
+        // ── 5. Cleanup ───────────────────────────────────────────────────────
         return () => {
-            if (wsRef.current) {
+            cancelled = true;
+            clearTimeout(fitTimer);
+            window.removeEventListener('resize', handleResize);
+            if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
                 wsRef.current.close();
             }
-            terminal.dispose();
-            window.removeEventListener('resize', handleResize);
+            wsRef.current = null;
+            try { terminal.dispose(); } catch { /* already disposed */ }
+            termRef.current = null;
+            fitRef.current = null;
         };
     }, [agent]);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
-            <div className="bg-[#1e1e1e] rounded-lg shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col border border-gray-700">
+        <div className="h-full w-full flex flex-col bg-black">
+            <div className="bg-[#1e1e1e] w-full h-full flex flex-col border border-gray-700 rounded-lg shadow-2xl">
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-gray-700 rounded-t-lg">
-                    <div className="flex items-center">
-                        <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className="text-gray-200 font-mono text-sm">root@{agent.hostname}:~</span>
+                <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-gray-700 rounded-t-lg shrink-0">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+                        <span className="text-gray-200 font-mono text-sm">
+                            {connected ? `root@${agent.hostname}:~` : `Connecting to ${agent.hostname}…`}
+                        </span>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-white transition-colors"
-                    >
-                        ✕
-                    </button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-lg leading-none">✕</button>
                 </div>
 
-                {/* Terminal Container */}
-                <div className="flex-grow overflow-hidden p-2" ref={terminalRef}></div>
+                {/* xterm container — must have explicit height for fitAddon to measure */}
+                <div className="flex-1 overflow-hidden p-1" ref={terminalRef} style={{ minHeight: 0 }} />
             </div>
         </div>
     );

@@ -2,13 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import get_database
 from audit_service import get_audit_service
 from deployment_service import get_deployment_service, DeploymentStage, ApprovalStatus
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
 import logging
-import os
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

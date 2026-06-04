@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from auth_utils import require_auth
 from database import get_db
 from api_security_service import APISecurityService
 
 router = APIRouter(prefix="/api/api-security", tags=["api-security"])
+
+_API_SEC_ANALYST_ROLES = {
+    "Super Admin", "super_admin", "platform-admin",
+    "Tenant Admin", "admin", "security_analyst",
+}
 
 
 def get_svc(db=Depends(get_db)):
@@ -21,6 +26,8 @@ async def list_endpoints(limit: int = Query(100), user=Depends(require_auth), sv
 
 @router.post("/discover")
 async def discover(user=Depends(require_auth), svc: APISecurityService = Depends(get_svc)):
+    if getattr(user, "role", None) not in _API_SEC_ANALYST_ROLES:
+        raise HTTPException(status_code=403, detail="Security Analyst or Admin role required")
     tenant_id = getattr(user, "tenant_id", None)
     discovered = await svc.discover_endpoints(tenant_id)
     return {"discovered": len(discovered), "message": f"Scanned and catalogued {len(discovered)} endpoints"}
@@ -38,6 +45,8 @@ async def get_alerts(severity: str = Query(None), limit: int = Query(50),
 
 @router.post("/endpoints/{endpoint_id}/analyze")
 async def analyze(endpoint_id: str, user=Depends(require_auth), svc: APISecurityService = Depends(get_svc)):
+    if getattr(user, "role", None) not in _API_SEC_ANALYST_ROLES:
+        raise HTTPException(status_code=403, detail="Security Analyst or Admin role required")
     tenant_id = getattr(user, "tenant_id", None)
     result = await svc.analyze_endpoint(endpoint_id, tenant_id)
     if not result:

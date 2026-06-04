@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { LlmSettings as LlmSettingsType } from '../types';
 import { BrainCircuitIcon, XIcon, CogIcon, CheckIcon, AlertTriangleIcon, InfoIcon } from './icons';
-import { GoogleGenAI } from '@google/genai';
 import { testLlmConnection } from '../services/apiService';
 
 interface LlmSettingsProps {
@@ -134,17 +133,17 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
             if (!formData.apiKey || formData.apiKey.includes('*')) {
                 throw new Error('A valid API key must be provided to run a test.');
             }
-            const ai = new GoogleGenAI({ apiKey: formData.apiKey });
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.0-flash',
-                contents: 'Say "test successful"',
+            // Key is sent to the backend proxy — never used client-side
+            const result = await testLlmConnection({
+                provider: formData.provider,
+                api_key:  formData.apiKey,
+                model:    formData.model || 'gemini-2.0-flash',
             });
-
-            if (response.text && response.text.toLowerCase().includes('test successful')) {
+            if (result.success) {
                 setTestStatus('success');
                 setTestMessage('Connection successful!');
             } else {
-                throw new Error('Received an unexpected response from the API.');
+                throw new Error(result.error || 'Unexpected response from provider.');
             }
         } catch (error) {
             setTestStatus('failed');

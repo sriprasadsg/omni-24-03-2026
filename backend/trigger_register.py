@@ -1,7 +1,5 @@
 import requests
 import socket
-import json
-import time
 
 def register(hostname_override=None):
     hostname = hostname_override if hostname_override else socket.gethostname()
@@ -11,7 +9,7 @@ def register(hostname_override=None):
     try:
         with open("key.txt", "r") as f:
             reg_key = f.read().strip()
-    except:
+    except (FileNotFoundError, OSError):
         reg_key = "default-key-if-missing"
 
     payload = {

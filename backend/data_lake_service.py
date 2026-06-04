@@ -1,10 +1,11 @@
 import boto3
+import logging
 import os
 import json
-import shutil
 from datetime import datetime, timezone
-from botocore.exceptions import NoCredentialsError, ClientError
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 class DataLakeService:
     def __init__(self):
@@ -17,10 +18,10 @@ class DataLakeService:
         if self.provider == "local":
             os.makedirs(os.path.join(self.local_storage_root, "raw"), exist_ok=True)
             os.makedirs(os.path.join(self.local_storage_root, "processed"), exist_ok=True)
-            print(f"[DataLake] Initialized LOCAL storage at {self.local_storage_root}")
+            logger.info("[DataLake] Initialized LOCAL storage at %s", self.local_storage_root)
         else:
             self.s3 = boto3.client('s3', region_name=self.region)
-            print(f"[DataLake] Initialized AWS S3 storage bucket={self.bucket_name}")
+            logger.info("[DataLake] Initialized AWS S3 storage bucket=%s", self.bucket_name)
 
     @staticmethod
     def _safe_segment(s: str) -> str:
@@ -55,7 +56,7 @@ class DataLakeService:
                 f.write(content)
             return True
         except Exception as e:
-            print(f"[DataLake] Local save error: {e}")
+            logger.error("[DataLake] Local save error: %s", e)
             return False
 
     def _save_s3(self, path: str, content: str) -> bool:
@@ -68,7 +69,7 @@ class DataLakeService:
             )
             return True
         except Exception as e:
-            print(f"[DataLake] S3 save error: {e}")
+            logger.error("[DataLake] S3 save error: %s", e)
             return False
 
     async def list_files(self, zone: str, category: str) -> List[str]:
@@ -95,7 +96,7 @@ class DataLakeService:
                         for obj in page['Contents']:
                             results.append(obj['Key'])
             except Exception as e:
-                print(f"[DataLake] S3 list error: {e}")
+                logger.error("[DataLake] S3 list error: %s", e)
         
         return results
 

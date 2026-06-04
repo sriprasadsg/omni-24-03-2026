@@ -1,4 +1,3 @@
-import asyncio
 import unittest
 from unittest.mock import MagicMock, patch
 from intent_parser_service import IntentParserService

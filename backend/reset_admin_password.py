@@ -39,7 +39,7 @@ async def reset_super_admin_password():
 
     # Verify the update worked
     updated_user = await db.users.find_one({'email': 'super@omni.ai'})
-    print(f"\nVerification:")
+    print("\nVerification:")
     print(f"  Email: {updated_user.get('email')}")
     print(f"  Role: {updated_user.get('role')}")
     print(f"  Has password: {bool(updated_user.get('password'))}")

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckIcon, XCircleIcon, ClockIcon, AlertTriangleIcon, UserIcon, BotMessageSquareIcon } from './icons';
 import * as api from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
+import { showToast } from '../utils/toast';
 
 export const MultiStepApprovalDashboard: React.FC = () => {
     const { currentUser } = useUser();
@@ -38,13 +39,13 @@ export const MultiStepApprovalDashboard: React.FC = () => {
         try {
             const res = await api.submitApprovalDecision(requestId, currentUser.email, decision, comments);
             if (res.success) {
-                alert(`Request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
+                showToast(`Request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`, 'success');
                 setComments('');
                 setSelectedRequest(null);
                 loadData();
             }
         } catch (e) {
-            alert("Failed to submit decision");
+            showToast("Failed to submit decision", 'error');
         }
     };
 

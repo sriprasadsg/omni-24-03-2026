@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from data_lake_service import data_lake_service
 from authentication_service import get_current_user
 from auth_types import TokenData

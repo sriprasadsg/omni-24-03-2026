@@ -1,120 +1,112 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangleIcon, MonitorIcon, PowerIcon } from './icons';
+import { AlertTriangleIcon, MonitorIcon } from './icons';
+import { startRemoteSession } from '../services/apiService';
 
 interface RemoteDesktopProps {
     agentId: string;
     sessionId?: string;
 }
 
-export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId }) => {
+export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId: sessionIdProp }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [fps, setFps] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    const [statusMsg, setStatusMsg] = useState('Requesting desktop session…');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const frameCountRef = useRef(0);
     const lastFpsTimeRef = useRef(Date.now());
-
-    useEffect(() => {
-        if (!sessionId) return;
-
-        // Construct WebSocket URL
-        // In prod, this would likely be a separate path or negotiated via API
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sessionId}/viewer`;
-
-        console.log(`Connecting to Desktop Stream: ${wsUrl}`);
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-            console.log("Desktop Stream Connected");
-            setIsConnected(true);
-            setError(null);
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                // Expecting JSON { type: "frame", data: "base64..." }
-                // The backend proxy blindly forwards what the agent sends
-                // The agent is sending raw text data, but it might be partial if not careful.
-                // However, our agent sends small JSON payloads.
-
-                // Note: If using the existing "RemoteTerminal" tunnel, it expects raw text.
-                // But since we are creating a dedicated flow, we handle JSON.
-
-                const payload = JSON.parse(event.data);
-                if (payload.type === 'frame' && payload.data) {
-                    renderFrame(payload.data);
-
-                    // FPS Counter
-                    frameCountRef.current++;
-                    const now = Date.now();
-                    if (now - lastFpsTimeRef.current >= 1000) {
-                        setFps(frameCountRef.current);
-                        frameCountRef.current = 0;
-                        lastFpsTimeRef.current = now;
-                    }
-                }
-            } catch (err) {
-                // Ignore non-JSON messages (e.g. initial handshake or stray text)
-                // console.warn("Stream decode error", err);
-            }
-        };
-
-        ws.onerror = (err) => {
-            console.error("Stream WebSocket Error", err);
-            setError("Connection failed");
-            setIsConnected(false);
-        };
-
-        ws.onclose = () => {
-            console.log("Stream Disconnected");
-            setIsConnected(false);
-            setFps(0);
-        };
-
-        return () => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.close();
-            }
-        };
-    }, [sessionId]);
 
     const renderFrame = (base64Data: string) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-
         const img = new Image();
-        img.onload = () => {
-            // Auto-resize canvas to match aspect ratio if needed, or scale content
-            // For now, fast render
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        };
+        img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         img.src = `data:image/jpeg;base64,${base64Data}`;
     };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const openWs = (sid: string) => {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const token = sessionStorage.getItem('token') || '';
+            const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sid}/viewer?token=${encodeURIComponent(token)}`;
+
+            if (cancelled) return;
+            setStatusMsg('Connecting to desktop stream…');
+
+            const ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
+
+            ws.onopen = () => { setIsConnected(true); setError(null); setStatusMsg(''); };
+
+            ws.onmessage = (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (payload.type === 'frame' && payload.data) {
+                        renderFrame(payload.data);
+                        frameCountRef.current++;
+                        const now = Date.now();
+                        if (now - lastFpsTimeRef.current >= 1000) {
+                            setFps(frameCountRef.current);
+                            frameCountRef.current = 0;
+                            lastFpsTimeRef.current = now;
+                        }
+                    }
+                } catch { /* ignore non-JSON */ }
+            };
+
+            ws.onerror = () => { setError('Stream connection failed'); setIsConnected(false); };
+            ws.onclose = () => { setIsConnected(false); setFps(0); };
+        };
+
+        const init = async () => {
+            if (sessionIdProp) {
+                openWs(sessionIdProp);
+                return;
+            }
+            // No sessionId supplied — start a new desktop session via the API.
+            setStatusMsg('Requesting desktop session…');
+            const resp = await startRemoteSession(agentId, 'vnc', 'desktop');
+            if (cancelled) return;
+            if (resp?.session_id) {
+                openWs(resp.session_id);
+            } else {
+                setError(resp?.error ? String(resp.error) : 'Failed to start desktop session');
+                setStatusMsg('');
+            }
+        };
+
+        init().catch(e => { if (!cancelled) setError(String(e)); });
+
+        return () => {
+            cancelled = true;
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.close();
+            }
+        };
+    }, [agentId, sessionIdProp]);
 
     return (
         <div className="flex flex-col h-full bg-slate-950 p-4 rounded-lg border border-slate-800">
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center space-x-2">
-                    <MonitorIcon size={20} className={isConnected ? "text-green-400" : "text-slate-500"} />
+                    <MonitorIcon size={20} className={isConnected ? 'text-green-400' : 'text-slate-500'} />
                     <h3 className="text-sm font-semibold text-slate-200">
                         Remote Desktop View
                         {isConnected && <span className="ml-2 text-xs font-mono text-slate-500">({fps} FPS)</span>}
                     </h3>
                 </div>
-                <div className="flex space-x-2">
-                    {!isConnected && !error && (
-                        <span className="text-xs text-yellow-500 animate-pulse flex items-center">
-                            Connecting...
-                        </span>
+                <div>
+                    {!isConnected && !error && statusMsg && (
+                        <span className="text-xs text-yellow-500 animate-pulse">{statusMsg}</span>
                     )}
                     {error && (
-                        <span className="text-xs text-red-400 flex items-center">
-                            <AlertTriangleIcon size={12} className="mr-1" /> {error}
+                        <span className="text-xs text-red-400 flex items-center gap-1">
+                            <AlertTriangleIcon size={12} /> {error}
                         </span>
                     )}
                 </div>
@@ -124,10 +116,16 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                 {!isConnected && !error && (
                     <div className="text-center">
                         <MonitorIcon size={48} className="mx-auto text-slate-700 mb-2" />
-                        <p className="text-slate-500 text-sm">Waiting for video stream...</p>
+                        <p className="text-slate-500 text-sm">{statusMsg || 'Waiting for video stream…'}</p>
                     </div>
                 )}
-
+                {error && (
+                    <div className="text-center">
+                        <AlertTriangleIcon size={40} className="mx-auto text-red-600 mb-2" />
+                        <p className="text-red-400 text-sm">{error}</p>
+                        <p className="text-slate-500 text-xs mt-1">Ensure the agent is online and has the remote-desktop capability enabled.</p>
+                    </div>
+                )}
                 <canvas
                     ref={canvasRef}
                     width={800}
@@ -136,8 +134,8 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                 />
             </div>
 
-            <div className="mt-4 text-xs text-slate-500 text-center">
-                Security Note: Stream is encrypted via WebSocket (TLS). Quality auto-adjusted for bandwidth.
+            <div className="mt-3 text-xs text-slate-600 text-center">
+                Stream is relayed via an encrypted WebSocket tunnel.
             </div>
         </div>
     );

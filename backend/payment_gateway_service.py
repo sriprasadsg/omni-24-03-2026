@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 from enum import Enum
 
 
@@ -104,8 +103,25 @@ class PaymentGatewayInterface(ABC):
 
 class GenericGateway(PaymentGatewayInterface):
     """Credential store for custom / third-party gateways with no built-in API client.
-    Operations are no-ops that return placeholder responses so the rest of the
-    billing pipeline doesn't break when a custom gateway is configured."""
+
+    IMPORTANT — KNOWN GAP: All billing operations below are no-ops that return
+    stub/placeholder responses. The `SubscriptionManagement` and `InvoiceList` frontend
+    components will render empty data for any tenant configured with a Custom gateway.
+
+    To integrate a real gateway, subclass this and override the relevant methods,
+    then register the subclass in PaymentGatewayFactory below.
+    """
+
+    _warn_logged: set[str] = set()
+
+    def _warn_noop(self, method: str) -> None:
+        import logging as _log
+        if method not in self._warn_logged:
+            _log.getLogger(__name__).warning(
+                "GenericGateway.%s called — this is a no-op stub. "
+                "Integrate a real payment gateway to enable this operation.", method
+            )
+            self._warn_logged.add(method)
 
     async def create_customer(self, email, name, metadata=None):
         return {"id": f"cust_{email}", "email": email}
@@ -126,7 +142,8 @@ class GenericGateway(PaymentGatewayInterface):
         return {"id": f"re_{charge_id}", "amount": amount}
 
     async def get_invoices(self, customer_id, limit=10):
-        return []
+        self._warn_noop("get_invoices")
+        return []  # ← always empty; SubscriptionManagement/InvoiceList will show nothing
 
     async def verify_webhook(self, payload, signature, secret):
         return False
@@ -135,7 +152,8 @@ class GenericGateway(PaymentGatewayInterface):
         raise NotImplementedError("Webhooks not supported for custom gateways")
 
     async def list_payment_methods(self, customer_id):
-        return []
+        self._warn_noop("list_payment_methods")
+        return []  # ← always empty; Payment Settings page will show no saved cards
 
     async def add_payment_method(self, customer_id, payment_method_id):
         return {"id": payment_method_id}

@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Request
-from typing import List, Dict, Any, Optional
+import ipaddress
+import socket
+from urllib.parse import urlparse as _wh_urlparse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -10,6 +13,23 @@ import hashlib
 import httpx
 from intent_parser_service import intent_parser_service
 from integration_service import get_integration_service
+
+
+def _is_safe_webhook_url(url: str) -> bool:
+    """Reject webhook URLs that resolve to private/internal addresses (SSRF guard)."""
+    if not url or not url.startswith(("http://", "https://")):
+        return False
+    try:
+        hostname = _wh_urlparse(url).hostname
+        if not hostname:
+            return False
+        for info in socket.getaddrinfo(hostname, None):
+            addr = ipaddress.ip_address(info[4][0])
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        return True
+    except Exception:
+        return False
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
@@ -98,10 +118,14 @@ async def create_webhook(
     
     webhook_id = f"wh-{uuid.uuid4().hex[:12]}"
     
+    url = webhook_data.get("url", "")
+    if not _is_safe_webhook_url(url):
+        raise HTTPException(status_code=400, detail="Invalid or disallowed webhook URL")
+
     new_webhook = {
         "id": webhook_id,
         "name": webhook_data.get("name"),
-        "url": webhook_data.get("url"),
+        "url": url,
         "events": webhook_data.get("events", []),
         "status": "Active",
         "secret": f"whsec_{uuid.uuid4().hex[:24]}", # Auto-generated secret

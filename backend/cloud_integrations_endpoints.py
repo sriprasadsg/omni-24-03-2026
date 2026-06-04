@@ -4,9 +4,8 @@ CRUD for Azure Defender, Microsoft Sentinel, GCP SCC, and GCP Chronicle integrat
 """
 
 import os
-import base64
 from fastapi import APIRouter, Depends, HTTPException, Body
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 from datetime import datetime, timezone
 import uuid
 import logging
@@ -343,8 +342,8 @@ async def trigger_cloud_discovery(
             elif provider in ("gcp_scc", "gcp_chronicle"):
                 from gcp_scc_ingest import poll_gcp_scc_findings
                 real_count += await poll_gcp_scc_findings(config, tenant_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Cloud provider poll failed for %s: %s", provider, e)
 
     # Generate simulated discovered assets so the dashboard is never empty
     rng = random.Random()
@@ -409,8 +408,8 @@ async def list_discovered_assets(current_user: dict = Depends(get_current_user))
         try:
             await trigger_cloud_discovery({}, current_user)
             assets = await db.cloud_discovered_assets.find(query, {"_id": 0}).sort("discovered_at", -1).to_list(length=500)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Cloud asset auto-seed failed (non-fatal): %s", e)
 
     return {"assets": assets, "total": len(assets)}
 

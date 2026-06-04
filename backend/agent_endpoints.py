@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from agent_registry_endpoints import router as _registry
 from agent_core_endpoints import router as _core
 from agent_tasks_endpoints import router as _tasks
+from agent_approval_endpoints import router as _approvals
 from agent_telemetry_endpoints import router as _telemetry
 from agent_heartbeat_endpoints import router as _heartbeat
 from agent_security_endpoints import router as _security
@@ -17,6 +18,7 @@ router = APIRouter()
 router.include_router(_registry)
 router.include_router(_core)
 router.include_router(_tasks)
+router.include_router(_approvals)
 router.include_router(_telemetry)
 router.include_router(_heartbeat)
 router.include_router(_security)

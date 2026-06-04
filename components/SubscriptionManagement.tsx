@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, Check, X, Loader, CreditCard, ShieldCheck, Settings } from 'lucide-react';
 import * as api from '../services/apiService';
 import { PaymentMethodModal } from './PaymentMethodModal';
+import { showToast } from '../utils/toast';
 
 interface SubscriptionInfo {
     subscriptionTier: string;
@@ -151,7 +152,7 @@ export default function SubscriptionManagement() {
             const data = await response.json();
 
             if (data.success) {
-                alert(`Successfully upgraded to ${selectedPlan}!`);
+                showToast(`Successfully upgraded to ${selectedPlan}!`, 'success');
                 setIsPaymentModalOpen(false);
                 loadSubscriptionInfo(); // Refresh state
             } else {
@@ -174,7 +175,7 @@ export default function SubscriptionManagement() {
             const data = await response.json();
 
             if (data.success) {
-                alert('Payment method added successfully!');
+                showToast('Payment method added successfully!', 'success');
                 setIsPaymentModalOpen(false);
                 loadPaymentMethods();
             } else {
@@ -196,7 +197,7 @@ export default function SubscriptionManagement() {
             });
             const data = await response.json();
             if (data.success) {
-                alert('Subscription canceled successfully');
+                showToast('Subscription canceled successfully', 'info');
                 loadSubscriptionInfo();
             }
         } catch (error) {

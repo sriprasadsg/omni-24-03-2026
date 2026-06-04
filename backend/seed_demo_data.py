@@ -1,6 +1,5 @@
 import asyncio
 import uuid
-import os
 from datetime import datetime, timedelta, timezone
 from database import connect_to_mongo, close_mongo_connection, get_database
 from auth_utils import hash_password

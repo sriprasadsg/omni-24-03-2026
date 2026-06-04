@@ -4,10 +4,13 @@ Continuous Compliance Monitoring Service
 Real-time compliance posture tracking and policy-as-code enforcement.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import importlib
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+logger = logging.getLogger(__name__)
 
 class ContinuousComplianceService:
     """Continuous Compliance Monitoring and Policy Enforcement"""

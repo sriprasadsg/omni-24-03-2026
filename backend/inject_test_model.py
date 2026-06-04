@@ -1,6 +1,5 @@
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
-import uuid
 from datetime import datetime, timezone
 
 async def seed_test_model():

@@ -9,7 +9,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from database import get_database
-import uuid
 
 logger = logging.getLogger(__name__)
 

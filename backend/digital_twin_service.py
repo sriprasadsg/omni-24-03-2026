@@ -6,9 +6,11 @@ Impact score is derived from asset criticality and open vulnerability count.
 Success probability is estimated from patch deployment history.
 """
 import asyncio
-from fastapi import APIRouter, Depends
+import uuid
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -108,13 +110,29 @@ async def run_simulation(request: SimulationRequest, current_user: TokenData = D
 
     compliance_check = "FAILED" if impact_score >= 90 else "PASSED"
 
-    return SimulationResult(
+    result = SimulationResult(
         success_probability=success_prob,
         impact_score=impact_score,
         predicted_downtime=predicted_downtime,
         conflicts=conflicts,
         compliance_check=compliance_check,
     )
+
+    # Persist the run so history is available
+    run_doc = {
+        "id": str(uuid.uuid4()),
+        "tenantId": tenant_id,
+        "action_type": request.action_type,
+        "target_id": request.target_id,
+        "details": request.details,
+        "ran_by": getattr(current_user, "username", "unknown"),
+        "ran_at": datetime.now(timezone.utc).isoformat(),
+        **result.dict(),
+    }
+    await db.simulation_runs.insert_one(run_doc)
+    run_doc.pop("_id", None)
+
+    return result
 
 
 @router.get("/state")
@@ -140,3 +158,19 @@ async def get_twin_state(current_user: TokenData = Depends(get_current_user)):
         "assets_modeled": assets_modeled,
         "network_segments": segments,
     }
+
+
+@router.get("/history")
+async def get_simulation_history(
+    limit: int = Query(50, ge=1, le=200),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Return past simulation runs for this tenant, newest first."""
+    db = get_database()
+    user_role = getattr(current_user, "role", "")
+    tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+    query: dict = {}
+    if user_role not in _DT_SUPER_ROLES and tenant_id:
+        query["tenantId"] = tenant_id
+    runs = await db.simulation_runs.find(query, {"_id": 0}).sort("ran_at", -1).to_list(length=limit)
+    return runs

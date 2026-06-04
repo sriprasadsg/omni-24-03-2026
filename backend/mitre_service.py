@@ -5,9 +5,6 @@ Loads the ATT&CK Enterprise matrix and correlates platform alerts/playbooks
 to generate a coverage heatmap.
 """
 
-import json
-import os
-from typing import Optional
 from database import get_database
 
 # Embedded compact ATT&CK matrix (14 tactics, 40 representative techniques)

@@ -1,8 +1,6 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
-from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, HTTPException, Query, Depends
+from typing import List, Dict, Any
 from audit_service import get_audit_service
-import logging
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_utils import require_permission
@@ -11,6 +9,9 @@ router = APIRouter(
     prefix="/api/audit-logs",
     tags=["Audit & Rollback"]
 )
+
+_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+
 
 @router.get("", response_model=List[Dict[str, Any]])
 async def get_audit_logs(
@@ -22,7 +23,8 @@ async def get_audit_logs(
     Fetch system audit logs for the timeline view.
     """
     tenant_id = get_tenant_id()
-    return await get_audit_service().get_logs(tenant_id=tenant_id)
+    is_super_admin = getattr(current_user, "role", "") in _SUPER_ROLES
+    return await get_audit_service().get_logs(tenant_id=tenant_id, is_super_admin=is_super_admin)
 
 @router.post("/{log_id}/rollback")
 async def rollback_action(
@@ -41,7 +43,7 @@ async def rollback_action(
         )
         return {"success": True, "restored_state": result}
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=400, detail="Bad request")
 
 @router.post("/integrity-check")

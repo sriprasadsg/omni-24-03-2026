@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any
 from email_service import email_service
 from webhook_service import WebhookService
 from database import get_database

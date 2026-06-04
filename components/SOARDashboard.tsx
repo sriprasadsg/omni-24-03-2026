@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { PlayIcon, CheckCircleIcon, XCircleIcon, ClockIcon, AlertTriangleIcon, ZapIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface PlaybookExecution {
     id: string;
@@ -145,14 +146,14 @@ export const SOARDashboard: React.FC<SOARDashboardProps> = ({ tenantId }) => {
 
             if (response.ok) {
                 await loadData();
-                alert(`Step ${action}d successfully`);
+                showToast(`Step ${action}d successfully`, 'success');
             } else {
                 const error = await response.json();
-                alert(error.detail || `Failed to ${action} step`);
+                showToast(error.detail || `Failed to ${action} step`, 'error');
             }
         } catch (error) {
             console.error(`Failed to ${action} step:`, error);
-            alert(`Failed to ${action} step`);
+            showToast(`Failed to ${action} step`, 'error');
         }
     };
 
@@ -168,15 +169,15 @@ export const SOARDashboard: React.FC<SOARDashboardProps> = ({ tenantId }) => {
 
             if (response.ok) {
                 const data = await response.json();
-                alert(`Playbook created: ${data.playbook_id}`);
+                showToast(`Playbook created: ${data.playbook_id}`, 'success');
                 await loadData();
             } else {
                 const error = await response.json();
-                alert(error.detail || 'Failed to create playbook');
+                showToast(error.detail || 'Failed to create playbook', 'error');
             }
         } catch (error) {
             console.error('Failed to create playbook:', error);
-            alert('Failed to create playbook');
+            showToast('Failed to create playbook', 'error');
         }
     };
 

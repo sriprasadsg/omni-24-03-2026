@@ -1,6 +1,10 @@
-from datetime import datetime, timezone, timedelta
+import logging
+from datetime import datetime, timezone
 import uuid
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
+
 
 class AttackPathService:
     def __init__(self, db=None):
@@ -123,8 +127,8 @@ class AttackPathService:
                         {"$set": path},
                         upsert=True
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to persist attack path %s: %s", path_id, e)
 
         return paths
 

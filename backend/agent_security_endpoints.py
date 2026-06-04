@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 from datetime import datetime, timezone
@@ -19,9 +19,11 @@ async def ingest_fim_event(
     _auth=Depends(verify_agent_key),
 ):
     """Receive FIM events via HTTP when Socket.IO is unavailable."""
+    tenant_id = _auth.get("tenant_id") or _auth.get("tenantId") or ""
     doc = {
         "id": str(uuid.uuid4()),
         "agent_id": agent_id,
+        "tenantId": tenant_id,
         "path": payload.get("path", ""),
         "event_type": payload.get("event_type", "unknown"),
         "severity": payload.get("severity", "high"),
@@ -85,7 +87,8 @@ async def post_shadow_ai_scan(
     await db.shadow_ai_scans.insert_one(doc)
     doc.pop("_id", None)
 
-    for conn in body.get("ai_connections", []):
+    _MAX_ARRAY = 500
+    for conn in body.get("ai_connections", [])[:_MAX_ARRAY]:
         await db.shadow_ai_events.update_one(
             {"agent_id": agent_id, "remote_host": conn.get("remote_host"), "process": conn.get("process")},
             {"$set": {
@@ -99,7 +102,7 @@ async def post_shadow_ai_scan(
             upsert=True,
         )
 
-    for proc in body.get("local_ai_processes", []):
+    for proc in body.get("local_ai_processes", [])[:_MAX_ARRAY]:
         await db.security_alerts.insert_one({
             "tenantId": tenant_id,
             "agent_id": agent_id,
@@ -160,7 +163,7 @@ async def post_vulnerability_scan(
     await db.agent_vulnerability_scans.insert_one(doc)
     doc.pop("_id", None)
 
-    for pkg in body.get("vulnerable_packages", []):
+    for pkg in body.get("vulnerable_packages", [])[:_MAX_ARRAY]:
         for cve in pkg.get("cves", []):
             severity = cve.get("severity", "Unknown")
             if severity in ("CRITICAL", "HIGH"):
@@ -228,7 +231,7 @@ async def post_persistence_findings(
     await db.agent_persistence_findings.insert_one(doc)
     doc.pop("_id", None)
 
-    for entry in body.get("suspicious_entries", []):
+    for entry in body.get("suspicious_entries", [])[:_MAX_ARRAY]:
         if entry.get("severity") in ("Critical", "High"):
             await db.security_alerts.insert_one({
                 "tenantId": tenant_id,

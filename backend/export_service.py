@@ -2,15 +2,11 @@ import csv
 import io
 import re
 from datetime import datetime
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, landscape
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from database import get_database
+from export_service_pdf import ExportServicePDFMixin
 
 
-class ExportService:
+class ExportService(ExportServicePDFMixin):
     async def generate_report(self, report_type: str, fmt: str, tenant_id: str = None):
         data = await self._fetch_data(report_type, tenant_id)
         filename = f"{report_type.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}"
@@ -217,6 +213,136 @@ class ExportService:
             "Tenant ID":     t.get("tenantId") or "—",
         }
 
+    # ── new format methods ────────────────────────────────────────────────────
+
+    def _format_change(self, c: dict) -> dict:
+        votes = c.get("cab_votes") or []
+        approved = sum(1 for v in votes if isinstance(v, dict) and v.get("vote") == "approve")
+        return {
+            "Change ID":         c.get("id") or str(c.get("_id", ""))[:12],
+            "Title":             c.get("title") or "—",
+            "Type":              c.get("change_type") or "—",
+            "Status":            c.get("status") or "—",
+            "Risk Level":        c.get("risk_level") or "—",
+            "Impact Level":      c.get("impact_level") or "—",
+            "Assignee":          c.get("assignee") or "—",
+            "Reporter":          c.get("reporter") or "—",
+            "Required Approvals": str(c.get("required_approvals") or 0),
+            "CAB Votes":         f"{approved}/{len(votes)}",
+            "Has Rollback Plan": "Yes" if c.get("rollback_plan") else "No",
+            "Scheduled Start":   str(c.get("scheduled_start") or "—"),
+            "Scheduled End":     str(c.get("scheduled_end") or "—"),
+            "Created At":        str(c.get("created_at") or "—"),
+            "Tenant ID":         c.get("tenantId") or c.get("tenant_id") or "—",
+        }
+
+    def _format_agent_health(self, a: dict) -> dict:
+        caps = a.get("capabilities") or []
+        return {
+            "Agent ID":       a.get("id") or str(a.get("_id", ""))[:12],
+            "Hostname":       a.get("hostname") or "—",
+            "IP Address":     a.get("ipAddress") or a.get("ip_address") or "—",
+            "Platform":       a.get("platform") or "—",
+            "OS Type":        a.get("osType") or a.get("os_type") or "—",
+            "OS Version":     (a.get("osVersion") or a.get("os_version") or "—")[:40],
+            "Status":         a.get("status") or "—",
+            "Agent Version":  a.get("version") or a.get("agentVersion") or "—",
+            "Last Seen":      str(a.get("lastSeen") or a.get("last_seen") or "—"),
+            "Capabilities":   ", ".join(caps) if isinstance(caps, list) else str(caps or "—"),
+            "Tenant ID":      a.get("tenantId") or a.get("tenant_id") or "—",
+        }
+
+    def _format_support_chat(self, c: dict) -> dict:
+        msgs = c.get("messages") or []
+        return {
+            "Conversation ID":  c.get("id") or "—",
+            "Subject":          c.get("subject") or "—",
+            "Chat Type":        c.get("chat_type") or "—",
+            "Status":           c.get("status") or "—",
+            "Initiator Name":   c.get("initiator_name") or c.get("initiator_id") or "—",
+            "Initiator Email":  c.get("initiator_email") or "—",
+            "Initiator Role":   c.get("initiator_role") or "—",
+            "Target User":      c.get("target_user_name") or c.get("target_user_id") or "—",
+            "Message Count":    str(c.get("message_count") or len(msgs)),
+            "Escalated":        "Yes" if c.get("escalated") else "No",
+            "Escalated By":     c.get("escalated_by") or "—",
+            "Created At":       str(c.get("created_at") or "—"),
+            "Resolved At":      str(c.get("resolved_at") or "—"),
+            "Tenant ID":        c.get("tenant_id") or "—",
+        }
+
+    def _format_endpoint_chat(self, s: dict) -> dict:
+        msgs = s.get("messages") or []
+        return {
+            "Session ID":      s.get("id") or "—",
+            "Agent Hostname":  s.get("agent_hostname") or "—",
+            "Subject":         s.get("subject") or "—",
+            "Status":          s.get("status") or "—",
+            "Initiator ID":    s.get("initiator_id") or "—",
+            "Initiator Type":  s.get("initiator_type") or "admin",
+            "Message Count":   str(s.get("message_count") or len(msgs)),
+            "Escalated":       "Yes" if s.get("escalated") else "No",
+            "Escalated By":    s.get("escalated_by") or "—",
+            "Escalation Note": (s.get("escalation_note") or "")[:120] or "—",
+            "Created At":      str(s.get("created_at") or "—"),
+            "Tenant ID":       s.get("tenant_id") or "—",
+        }
+
+    def _format_audit_log(self, e: dict) -> dict:
+        return {
+            "Event ID":      e.get("id") or str(e.get("_id", ""))[:12],
+            "Action":        e.get("action") or e.get("event_type") or "—",
+            "Actor":         e.get("user") or e.get("actor") or e.get("username") or "—",
+            "Resource Type": e.get("resource_type") or e.get("resourceType") or "—",
+            "Resource ID":   str(e.get("resource_id") or e.get("resourceId") or "—"),
+            "Outcome":       e.get("outcome") or e.get("status") or "—",
+            "IP Address":    e.get("ip_address") or e.get("ipAddress") or "—",
+            "Tenant ID":     e.get("tenantId") or e.get("tenant_id") or "—",
+            "Timestamp":     str(e.get("timestamp") or e.get("created_at") or "—"),
+        }
+
+    def _format_user_activity(self, u: dict) -> dict:
+        return {
+            "User ID":    u.get("id") or str(u.get("_id", ""))[:12],
+            "Name":       u.get("name") or "—",
+            "Email":      u.get("email") or "—",
+            "Role":       u.get("role") or "—",
+            "Status":     u.get("status") or "—",
+            "Tenant ID":  u.get("tenantId") or "—",
+            "Last Login": str(u.get("lastLogin") or u.get("last_login") or "—"),
+            "Created At": str(u.get("createdAt") or u.get("created_at") or "—"),
+        }
+
+    def _format_automation(self, p: dict) -> dict:
+        actions = p.get("actions") or []
+        return {
+            "Policy ID":    p.get("id") or str(p.get("_id", ""))[:12],
+            "Name":         p.get("name") or "—",
+            "Trigger Type": p.get("trigger") or p.get("trigger_type") or p.get("triggerType") or "—",
+            "Actions Count": str(len(actions) if isinstance(actions, list) else 0),
+            "Enabled":      "Yes" if p.get("enabled") else "No",
+            "Last Run":     str(p.get("last_run") or p.get("lastRun") or "—"),
+            "Run Count":    str(p.get("run_count") or p.get("runCount") or 0),
+            "Created At":   str(p.get("created_at") or p.get("createdAt") or "—"),
+            "Tenant ID":    p.get("tenantId") or p.get("tenant_id") or "—",
+        }
+
+    def _format_cspm(self, f: dict) -> dict:
+        return {
+            "Finding ID":    f.get("id") or str(f.get("_id", ""))[:12],
+            "Cloud Provider": f.get("provider") or f.get("cloud_provider") or f.get("cloudProvider") or "—",
+            "Account ID":    f.get("accountId") or f.get("account_id") or "—",
+            "Region":        f.get("region") or "—",
+            "Severity":      f.get("severity") or "—",
+            "Resource Type": f.get("resourceType") or f.get("resource_type") or "—",
+            "Resource ID":   f.get("resourceId") or f.get("resource_id") or "—",
+            "Rule ID":       f.get("ruleId") or f.get("rule_id") or f.get("checkId") or "—",
+            "Status":        f.get("status") or "—",
+            "Detected At":   str(f.get("detectedAt") or f.get("detected_at") or f.get("createdAt") or "—"),
+            "Remediated At": str(f.get("remediatedAt") or f.get("remediated_at") or "—"),
+            "Tenant ID":     f.get("tenantId") or f.get("tenant_id") or "—",
+        }
+
     # ── data fetching ─────────────────────────────────────────────────────────
 
     async def _fetch_data(self, report_type, tenant_id=None):
@@ -289,6 +415,50 @@ class ExportService:
             raw = await cursor.to_list(length=500)
             return [self._format_response_task(t) for t in raw]
 
+        # ── New modules ───────────────────────────────────────────────────────
+
+        elif report_type == 'Change Management':
+            cursor = db.change_requests.find(query, {"_id": 0}).sort("created_at", -1).limit(1000)
+            raw = await cursor.to_list(length=1000)
+            return [self._format_change(c) for c in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'Agent Health':
+            cursor = db.agents.find(query, {"_id": 0}).sort("lastSeen", -1).limit(1000)
+            raw = await cursor.to_list(length=1000)
+            return [self._format_agent_health(a) for a in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'Support Chat':
+            cursor = db.support_conversations.find(query, {"_id": 0}).sort("created_at", -1).limit(1000)
+            raw = await cursor.to_list(length=1000)
+            return [self._format_support_chat(c) for c in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'Endpoint Chat':
+            cursor = db.agent_chat_sessions.find(query, {"_id": 0}).sort("created_at", -1).limit(1000)
+            raw = await cursor.to_list(length=1000)
+            return [self._format_endpoint_chat(s) for s in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'Audit Log':
+            q_audit = {"tenantId": tenant_id} if tenant_id else {}
+            cursor = db.audit_logs.find(q_audit, {"_id": 0}).sort("timestamp", -1).limit(2000)
+            raw = await cursor.to_list(length=2000)
+            return [self._format_audit_log(e) for e in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'User Activity':
+            q_user = {"tenantId": tenant_id} if tenant_id else {}
+            cursor = db._db.users.find(q_user, {"_id": 0}).sort("name", 1).limit(1000)
+            raw = await cursor.to_list(length=1000)
+            return [self._format_user_activity(u) for u in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'Automation Policies':
+            cursor = db.automation_policies.find(query, {"_id": 0}).sort("name", 1).limit(1000)
+            raw = await cursor.to_list(length=1000)
+            return [self._format_automation(p) for p in raw] or [{"Note": "No data available"}]
+
+        elif report_type == 'Cloud Security':
+            cursor = db.cspm_findings.find(query, {"_id": 0}).sort("detectedAt", -1).limit(2000)
+            raw = await cursor.to_list(length=2000)
+            return [self._format_cspm(f) for f in raw] or [{"Note": "No data available"}]
+
         return []
 
     # ── CSV ───────────────────────────────────────────────────────────────────
@@ -309,199 +479,3 @@ class ExportService:
 
         return output.getvalue()
 
-    # ── PDF ───────────────────────────────────────────────────────────────────
-
-    # Column width hints (inches) for known fields
-    _COL_WIDTHS = {
-        "Hostname":            1.1,
-        "IP Address":          1.1,
-        "OS Type":             0.9,
-        "OS Version":          1.4,
-        "Status":              0.7,
-        "CPU Cores":           0.7,
-        "CPU Model":           1.6,
-        "Total Memory":        0.9,
-        "Disks":               2.0,
-        "Installed Software":  1.8,
-        "Critical Files":      0.8,
-        "Last Seen":           1.1,
-        "Tenant ID":           1.2,
-        # patches
-        "Patch ID":            0.9,
-        "Title":               2.0,
-        "Severity":            0.7,
-        "CVE":                 1.2,
-        "Released":            1.0,
-        "Applied":             1.0,
-        # alerts / security events
-        "Alert ID":            1.0,
-        "Source":              1.0,
-        "Timestamp":           1.2,
-        # AI risks
-        "Risk ID":             0.9,
-        "Description":         2.5,
-        "Owner":               1.0,
-        "System":              1.2,
-        # vulnerabilities
-        "Vuln ID":             0.9,
-        "CVSS Score":          0.8,
-        "Component":           1.2,
-        "Version":             0.8,
-        "Fixed Version":       0.9,
-        "Detected":            1.1,
-        "Asset":               1.1,
-        # threat intel
-        "Scan ID":             1.0,
-        "Artifact":            1.8,
-        "Type":                0.8,
-        "Verdict":             0.8,
-        "Malicious":           0.7,
-        "Suspicious":          0.8,
-        "Harmless":            0.8,
-        "Scanned At":          1.1,
-        # SBOM
-        "SBOM ID":             1.0,
-        "Name":                1.6,
-        "Format":              0.8,
-        "Total Components":    1.0,
-        "Critical Vulns":      0.9,
-        "High Vulns":          0.8,
-        "License Issues":      0.9,
-        "Generated At":        1.1,
-        # secrets
-        "Secret ID":           1.0,
-        "Environment":         0.9,
-        "Rotation Due":        1.1,
-        "Last Rotated":        1.1,
-        "Tags":                1.2,
-        # EDR alerts
-        "Rule":                1.8,
-        "Category":            1.0,
-        "MITRE Tactic":        1.0,
-        "MITRE Technique":     1.2,
-        "Agent ID":            1.0,
-        "Process":             1.2,
-        "Acknowledged":        0.8,
-        # response tasks
-        "Task ID":             1.0,
-        "Priority":            0.7,
-        "Assigned To":         1.0,
-        "Alert ID":            1.0,
-        "Created":             1.1,
-        "Completed":           1.1,
-        "Notes":               2.0,
-    }
-
-    # PDF columns to include per report type (ordered, human-readable)
-    _PDF_COLS = {
-        "Asset Inventory": [
-            "Hostname", "IP Address", "OS Type", "Status",
-            "CPU Cores", "Total Memory", "Disks", "Installed Software", "Last Seen",
-        ],
-        "Patch Management": [
-            "Patch ID", "Title", "Severity", "Status", "Asset", "CVE", "Released",
-        ],
-        "Security Events": [
-            "Alert ID", "Title", "Severity", "Status", "Source", "Asset", "Timestamp",
-        ],
-        "AI Risk Register": [
-            "Risk ID", "Description", "Severity", "Status", "Owner", "System",
-        ],
-        "Vulnerability": [
-            "Vuln ID", "Title", "CVE", "Severity", "CVSS Score",
-            "Status", "Asset", "Component", "Version", "Fixed Version",
-        ],
-        "Threat Intelligence": [
-            "Artifact", "Type", "Verdict", "Malicious", "Suspicious", "Harmless", "Scanned At",
-        ],
-        "SBOM": [
-            "SBOM ID", "Name", "Version", "Format", "Asset",
-            "Total Components", "Critical Vulns", "High Vulns", "License Issues", "Generated At",
-        ],
-        "Secrets Management": [
-            "Secret ID", "Name", "Type", "Environment", "Status",
-            "Rotation Due", "Last Rotated", "Owner",
-        ],
-        "EDR Alerts": [
-            "Alert ID", "Rule", "Severity", "Category", "MITRE Tactic",
-            "MITRE Technique", "Agent ID", "Process", "Acknowledged", "Timestamp",
-        ],
-        "Incident Response": [
-            "Task ID", "Type", "Status", "Priority", "Asset",
-            "Assigned To", "Created", "Completed", "Notes",
-        ],
-    }
-
-    def _generate_pdf(self, data, title):
-        output = io.BytesIO()
-        doc = SimpleDocTemplate(
-            output,
-            pagesize=landscape(letter),
-            leftMargin=0.5 * inch,
-            rightMargin=0.5 * inch,
-            topMargin=0.5 * inch,
-            bottomMargin=0.5 * inch,
-        )
-        elements = []
-        styles = getSampleStyleSheet()
-        cell_style = ParagraphStyle(
-            "cell", parent=styles["Normal"], fontSize=7, leading=9, wordWrap='CJK'
-        )
-        header_style = ParagraphStyle(
-            "header", parent=styles["Normal"], fontSize=7, leading=9,
-            fontName="Helvetica-Bold", textColor=colors.whitesmoke
-        )
-
-        elements.append(Paragraph(f"{title} Report", styles["Title"]))
-        elements.append(Paragraph(
-            f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            styles["Normal"]
-        ))
-        elements.append(Spacer(1, 14))
-
-        if not data:
-            elements.append(Paragraph("No data available.", styles["Normal"]))
-        else:
-            # Choose columns
-            desired = self._PDF_COLS.get(title, list(data[0].keys()))
-            headers = [h for h in desired if h in data[0]]
-            if not headers:
-                headers = list(data[0].keys())[:10]
-
-            # Column widths
-            page_w = landscape(letter)[0] - inch  # usable width
-            col_w = [self._COL_WIDTHS.get(h, 1.0) * inch for h in headers]
-            total_w = sum(col_w)
-            if total_w > page_w:
-                scale = page_w / total_w
-                col_w = [w * scale for w in col_w]
-
-            # Build table rows with wrapped paragraphs
-            header_row = [Paragraph(h, header_style) for h in headers]
-            table_data = [header_row]
-            for row in data:
-                cells = []
-                for h in headers:
-                    val = str(row.get(h, "—"))
-                    cells.append(Paragraph(val, cell_style))
-                table_data.append(cells)
-
-            t = Table(table_data, colWidths=col_w, repeatRows=1)
-            t.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, 0),  colors.HexColor("#2d3748")),
-                ("TEXTCOLOR",     (0, 0), (-1, 0),  colors.whitesmoke),
-                ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-                ("FONTSIZE",      (0, 0), (-1, 0),  7),
-                ("BOTTOMPADDING", (0, 0), (-1, 0),  6),
-                ("TOPPADDING",    (0, 0), (-1, 0),  6),
-                ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, colors.HexColor("#f7fafc")]),
-                ("FONTSIZE",      (0, 1), (-1, -1), 7),
-                ("TOPPADDING",    (0, 1), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
-                ("GRID",          (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e0")),
-                ("VALIGN",        (0, 0), (-1, -1), "TOP"),
-            ]))
-            elements.append(t)
-
-        doc.build(elements)
-        return output.getvalue()

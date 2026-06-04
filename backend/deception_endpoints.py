@@ -2,9 +2,10 @@
 Deception Technology Endpoints
 """
 
+import json as _json
 import re
 from fastapi import APIRouter, Depends, HTTPException, Body, Request, Query
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import logging
 
 from authentication_service import get_current_user
@@ -94,12 +95,19 @@ async def webhook_trigger(request: Request, token_id: str):
         return {"status": "ok"}
 
     source_ip = request.client.host if request.client else "unknown"
-    user_agent = request.headers.get("user-agent", "")
+    user_agent = request.headers.get("user-agent", "")[:512]
+
+    # Capture whatever JSON the attacker sends; truncate to prevent oversized storage
+    body: Dict[str, Any] = {}
     try:
-        body = await request.json()
-    except Exception:
+        raw = await request.body()
+        if raw and len(raw) <= 32_768:          # 32 KB limit
+            body = _json.loads(raw)
+            if not isinstance(body, dict):
+                body = {"payload": str(body)[:1024]}
+    except (ValueError, _json.JSONDecodeError, UnicodeDecodeError):
         body = {}
 
-    triggered = await svc.record_trigger(token_id, source_ip, user_agent, body)
+    await svc.record_trigger(token_id, source_ip, user_agent, body)
     # Always return 200 to not reveal detection
     return {"status": "ok"}

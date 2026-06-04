@@ -3,7 +3,6 @@ Test script to verify system information collection
 """
 import platform
 import psutil
-import socket
 import subprocess
 
 print("=" * 60)
@@ -33,7 +32,7 @@ print(f"platform.platform(): {platform.platform()}")
 
 try:
     result = subprocess.check_output(["wmic", "os", "get", "caption,version"], shell=False, timeout=5).decode(errors='ignore')
-    print(f"\nWMIC OS output:")
+    print("\nWMIC OS output:")
     print(result)
 except Exception as e:
     print(f"Error: {e}")

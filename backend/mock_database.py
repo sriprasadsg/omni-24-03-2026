@@ -10,7 +10,7 @@ async def connect_to_mongo():
     print("Using Mock MongoDB (mongomock-motor)")
     mongodb.client = AsyncMongoMockClient()
     mongodb.db = mongodb.client['omni_platform']
-    print(f"Connected to Mock MongoDB database: omni_platform")
+    print("Connected to Mock MongoDB database: omni_platform")
 
 async def close_mongo_connection():
     # Mock client doesn't need explicit close usually, but for API consistency

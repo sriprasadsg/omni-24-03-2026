@@ -1,6 +1,5 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, Any
 from .training_service import get_training_service
 from authentication_service import get_current_user
 from auth_types import TokenData

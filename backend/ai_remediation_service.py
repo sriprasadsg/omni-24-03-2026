@@ -56,7 +56,8 @@ Detail: {risk_detail}
 
 Generate a concise step-by-step remediation plan. Return as JSON list of action strings, max 5 items."""
         try:
-            import json, re
+            import json
+            import re
             raw = await ai_service.generate_text(prompt, source="ai_remediation_run")
             raw = raw.replace("```json", "").replace("```", "").strip()
             match = re.search(r'\[.*\]', raw, re.DOTALL)

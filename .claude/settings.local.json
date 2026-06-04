@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "mcp__plugin_playwright_playwright__browser_take_screenshot"
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "PowerShell(cd \"d:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\"; Select-String -Path \"backend/finops_service.py\" -Pattern \"get_service_pricing|PRICING\" | Select-Object -First 5 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
+      "Bash(dir /b *.json *.yml *.yaml *.env*)",
+      "Bash(dir /b backend\\\\*.py)",
+      "Bash(dir \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "claude-flow",
+    "ruv-swarm",
+    "flow-nexus"
+  ]
 }

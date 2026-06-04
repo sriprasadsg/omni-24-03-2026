@@ -11,6 +11,10 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query
 from database import get_database
 from authentication_service import get_current_user
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/predictive", tags=["Predictive Health"])
 
@@ -44,7 +48,8 @@ async def _get_host_metrics(db, hostname: str) -> Dict[str, Any]:
             sort=[("timestamp", -1)],
         )
         return doc or {}
-    except Exception:
+    except Exception as e:
+        logger.debug("Host metrics query failed for %s: %s", hostname, e)
         return {}
 
 

@@ -126,7 +126,6 @@ class AutoMLService:
             )
         else:
             # Deterministic fallback when sklearn not installed
-            import time
             _lr_options  = [0.001, 0.01, 0.05, 0.1]
             _layer_opts  = [2, 3, 4, 5]
             idx      = existing_count % 4

@@ -1,5 +1,5 @@
-from typing import Dict, List, Optional
-from datetime import datetime, timezone, timedelta
+from typing import Dict, Optional
+from datetime import datetime, timezone
 from database import get_database
 import logging
 

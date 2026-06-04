@@ -1,6 +1,5 @@
 import asyncio
-import os
-from database import connect_to_mongo, get_database, close_mongo_connection
+from database import connect_to_mongo, get_database
 
 async def clear_mock_data():
     print("Initializing core database connection...")

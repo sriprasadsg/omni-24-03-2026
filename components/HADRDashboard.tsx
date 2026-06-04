@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { ShieldCheckIcon, DatabaseIcon, ClockIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, PlayIcon, GlobeIcon, ServerIcon, HardDriveIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface BackupMetadata {
     id: string;
@@ -91,7 +92,7 @@ export const HADRDashboard: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Backup initiated successfully');
+                showToast('Backup initiated successfully', 'success');
                 await loadData();
             }
         } catch (error) {
@@ -104,7 +105,7 @@ export const HADRDashboard: React.FC = () => {
         try {
             const response = await authFetch('/api/hadr/test-dr', { method: 'POST' });
             if (response.ok) {
-                alert(`DR Test initiated`);
+                showToast('DR Test initiated', 'success');
                 await loadData();
             }
         } catch (error) {

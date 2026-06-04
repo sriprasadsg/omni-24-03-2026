@@ -16,9 +16,12 @@ _TARGET_RE = re.compile(r'^[\w\-\.]+$')
 
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/chaos", tags=["Chaos Engineering"])
+# Chaos actions dispatch real OS-level commands to agent hosts (disk-fill, CPU stress, process kill).
+# They require an explicit high-privilege permission to prevent low-priv users from triggering DoS.
 
 # Experiment types → agent instruction templates
 _CHAOS_INSTRUCTIONS = {
@@ -71,7 +74,7 @@ class NewExperiment(BaseModel):
 
 
 @router.get("/experiments", response_model=List[ChaosExperiment])
-async def get_experiments(current_user: TokenData = Depends(get_current_user)):
+async def get_experiments(current_user: TokenData = Depends(require_permission("view:chaos"))):
     db = get_database()
     user_role = getattr(current_user, "role", "")
     if user_role in _CHAOS_SUPER_ROLES:
@@ -88,7 +91,7 @@ async def get_experiments(current_user: TokenData = Depends(get_current_user)):
 @router.post("/experiments", response_model=ChaosExperiment)
 async def create_experiment(
     data: NewExperiment,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:chaos")),
 ):
     db = get_database()
     tenant_id = getattr(current_user, "tenant_id", None) or None
@@ -110,7 +113,7 @@ async def create_experiment(
 @router.post("/experiments/{experiment_id}/run")
 async def run_experiment(
     experiment_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:chaos")),
 ):
     """
     Execute a chaos experiment by dispatching real agent instructions to

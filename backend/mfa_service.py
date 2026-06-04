@@ -79,7 +79,7 @@ def generate_qr_base64(uri: str) -> str:
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode()
-    except Exception as e:
+    except Exception:
         return ""  # Frontend falls back to showing the raw URI
 
 

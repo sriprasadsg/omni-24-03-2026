@@ -1,5 +1,4 @@
 import json
-import os
 
 def generate_missing_tech_controls():
     with open('all_valid_ids.json', 'r', encoding='utf-8') as f:

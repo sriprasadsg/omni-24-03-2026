@@ -3,7 +3,8 @@ Compliance Framework Evaluation Endpoints.
 Runs NIST CSF, CIS Controls v8, and ISO 27001:2022 automated checks.
 """
 from __future__ import annotations
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi import APIRouter, Query, Depends

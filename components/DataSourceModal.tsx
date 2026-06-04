@@ -14,7 +14,7 @@ const defaultSource: Omit<DataSource, 'id' | 'tenantId' | 'lastTested'> = {
   name: '',
   type: 'PostgreSQL',
   status: 'Pending',
-  config: {},
+  config: {} as any,
 };
 
 const typeOptions: DataSourceType[] = ['PostgreSQL', 'AWS S3', 'MongoDB'];
@@ -75,27 +75,28 @@ export const DataSourceModal: React.FC<DataSourceModalProps> = ({ isOpen, onClos
   };
 
   const renderConfigFields = () => {
+    const cfg = formData.config as any;
     switch (formData.type) {
       case 'PostgreSQL':
         return (
           <>
-            <input name="host" value={formData.config.host || ''} onChange={handleConfigChange} placeholder="Host (e.g., my-db.db.internal)" className="mt-1 block w-full input-style" />
-            <input name="port" type="number" value={formData.config.port || ''} onChange={handleConfigChange} placeholder="Port (e.g., 5432)" className="mt-1 block w-full input-style" />
-            <input name="username" value={formData.config.username || ''} onChange={handleConfigChange} placeholder="Username" className="mt-1 block w-full input-style" />
-            <input name="databaseName" value={formData.config.databaseName || ''} onChange={handleConfigChange} placeholder="Database Name" className="mt-1 block w-full input-style" />
+            <input name="host" value={cfg.host || ''} onChange={handleConfigChange} placeholder="Host (e.g., my-db.db.internal)" className="mt-1 block w-full input-style" />
+            <input name="port" type="number" value={cfg.port || ''} onChange={handleConfigChange} placeholder="Port (e.g., 5432)" className="mt-1 block w-full input-style" />
+            <input name="username" value={cfg.username || ''} onChange={handleConfigChange} placeholder="Username" className="mt-1 block w-full input-style" />
+            <input name="databaseName" value={cfg.databaseName || ''} onChange={handleConfigChange} placeholder="Database Name" className="mt-1 block w-full input-style" />
           </>
         );
       case 'AWS S3':
         return (
           <>
-            <input name="bucketName" value={formData.config.bucketName || ''} onChange={handleConfigChange} placeholder="Bucket Name" className="mt-1 block w-full input-style" />
-            <input name="region" value={formData.config.region || ''} onChange={handleConfigChange} placeholder="Region (e.g., us-east-1)" className="mt-1 block w-full input-style" />
+            <input name="bucketName" value={cfg.bucketName || ''} onChange={handleConfigChange} placeholder="Bucket Name" className="mt-1 block w-full input-style" />
+            <input name="region" value={cfg.region || ''} onChange={handleConfigChange} placeholder="Region (e.g., us-east-1)" className="mt-1 block w-full input-style" />
           </>
         );
       case 'MongoDB':
         return (
           <>
-            <input name="connectionString" value={formData.config.connectionString || ''} onChange={handleConfigChange} placeholder="Connection String (mongodb+srv://...)" className="mt-1 block w-full input-style" />
+            <input name="connectionString" value={cfg.connectionString || ''} onChange={handleConfigChange} placeholder="Connection String (mongodb+srv://...)" className="mt-1 block w-full input-style" />
           </>
         );
       default:

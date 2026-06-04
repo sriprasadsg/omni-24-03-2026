@@ -179,6 +179,14 @@ GOOGLE_APPLICATION_CREDENTIALS=
 
 # === Phase 10: Ticketing (Zoho/Custom configured via UI) ===
 
+# === Internal Helpdesk Tickets ===
+# Directory for ticket file attachments (auto-created on server start)
+TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments
+
+# === Platform Public URL (used by agent install instructions + SSO redirect) ===
+PLATFORM_URL=http://$SYSTEM_IP:5000
+SSO_REDIRECT_URI=http://$SYSTEM_IP:5000/api/sso/google/callback
+
 # === Security: Backup Encryption (Fernet/AES-128) ===
 # Leave blank to auto-generate on first run; store the generated key safely
 BACKUP_ENCRYPTION_KEY=
@@ -226,9 +234,11 @@ echo "  SUPER ADMIN PASSWORD: $GENERATED_ADMIN_PASS"
 echo "  Save this — it will not be shown again."
 echo "================================================================"
 
-# Create required backend directories (including report export path)
+# Create required backend directories (including report export path and ticket attachments)
 mkdir -p logs backups uploads data_lake_storage static/reports omni_data
+mkdir -p /var/lib/omni-platform/ticket_attachments
 chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports omni_data
+chown -R $ACTUAL_USER:$ACTUAL_USER /var/lib/omni-platform
 
 # Update agent install script with the correct IP
 sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" static/omni-agent-install.py
@@ -270,7 +280,10 @@ print_success "Agent virtualenv ready (all capabilities: watchdog, websockets, s
 # Update agent config with correct IP
 if [ -f "config.yaml" ]; then
     sed -i "s|api_base_url:.*|api_base_url: http://$SYSTEM_IP:5000|g" config.yaml
-    print_success "Agent config updated to http://$SYSTEM_IP:5000"
+    # Add ticket_reporter capability if not already present
+    grep -q "ticket_reporter" config.yaml || \
+        sed -i '/enabled_capabilities:/a\  - ticket_reporter' config.yaml
+    print_success "Agent config updated to http://$SYSTEM_IP:5000 (ticket_reporter capability added)"
 fi
 
 # Update static Python installer with correct IP
@@ -448,7 +461,8 @@ echo -e "${GREEN}[✓] FinOps & Billing${NC} - Stripe Integrated (Phase 3)"
 echo -e "${GREEN}[✓] Swarm Intelligence${NC} - Autonomous Multi-Agent Operations"
 echo -e "${GREEN}[✓] Real LLM (Gemini/OpenAI)${NC} - Phase 1"
 echo -e "${GREEN}[✓] Email SMTP${NC} - Phase 2"
-echo -e "${GREEN}[✓] MFA & Google SSO${NC} - Phase 4"
+echo -e "${GREEN}[✓] MFA (TOTP) Two-Phase Login${NC} - enrollment, QR code, backup codes, login challenge"
+echo -e "${GREEN}[✓] Google SSO OAuth2${NC} - frontend button + /api/sso/google/callback + exchange-code flow"
 echo -e "${GREEN}[✓] ML Model Monitoring${NC} - Phase 6"
 echo -e "${GREEN}[✓] PDF Invoice Export${NC} - Phase 7"
 echo -e "${GREEN}[✓] Voice Bot (gTTS/Google Cloud)${NC} - Phase 8"
@@ -463,9 +477,26 @@ echo -e "${GREEN}[✓] Approval Notifications${NC} - email approvers on IR workf
 echo -e "${GREEN}[✓] SMS Alerts via Twilio${NC} - patch/SLA breach SMS notifications"
 echo -e "${GREEN}[✓] Attack Path Analysis${NC} - live DB-backed with critical CVE derivation fallback"
 echo -e "${GREEN}[✓] ML Patch Failure Prediction${NC} - Random Forest model + heuristic fallback"
-echo -e "${GREEN}[✓] UEBA Risk Scores${NC} - /api/ueba/risk-scores endpoint"
+echo -e "${GREEN}[✓] UEBA Unified Analyze${NC} - /api/ueba/analyze (login, api_call, shadow-AI detection)"
+echo -e "${GREEN}[✓] UEBA Risk Scores${NC} - /api/ueba/risk-scores + /api/ueba/alerts (tenant-scoped, auth-protected)"
+echo -e "${GREEN}[✓] Zero Trust Verify${NC} - /api/zero-trust/verify (identity + device trust + deny policies)"
+echo -e "${GREEN}[✓] Agent Install Instructions${NC} - /api/agent/install/:tenant_id (multi-platform scripts)"
+echo -e "${GREEN}[✓] Compliance Automation Run${NC} - /api/compliance-automation/run (evidence + evaluation)"
+echo -e "${GREEN}[✓] FinOps Cost History${NC} - /api/finops/costs/history (30-day, budget alert)"
+echo -e "${GREEN}[✓] Billing Invoice Alias${NC} - /api/billing/invoice?tenant_id=X"
+echo -e "${GREEN}[✓] ML Model Drift Scores${NC} - /api/ml-monitoring/drift per registered model"
+echo -e "${GREEN}[✓] APM Traces${NC} - /api/apm/traces (span list with latency)"
+echo -e "${GREEN}[✓] Tracing Spans${NC} - /api/tracing/spans (tenant-scoped)"
+echo -e "${GREEN}[✓] Analytics Events${NC} - /api/analytics/events (counts by type/time)"
+echo -e "${GREEN}[✓] Cloud Account CRUD${NC} - POST /api/cloud-accounts + /scan endpoint"
+echo -e "${GREEN}[✓] Agent Capability Toggle${NC} - POST /api/agents/:id/capabilities {enable:[...]}"
+echo -e "${GREEN}[✓] AI Governance Policy Eval${NC} - /api/ai-governance/evaluate (ast.literal_eval, no RCE)"
+echo -e "${GREEN}[✓] Internal Helpdesk Tickets${NC} - full CRUD, SLA, escalation, approval, attachments, templates"
+echo -e "${GREEN}[✓] Ticket Reporter Agent${NC} - auto-raises tickets on critical events (MongoDB direct write)"
+echo -e "${GREEN}[✓] 40-Service FinOps Pricing${NC} - catalog exceeds 30+ service threshold"
+echo -e "${GREEN}[✓] crypto.randomUUID Polyfill${NC} - HTTP localhost fix for non-HTTPS dev context"
 echo -e "${GREEN}[✓] Agent Full Dependencies${NC} - watchdog, websockets, socketio, scapy, yara, mss, Pillow"
-echo -e "${GREEN}[✓] Distributed Tracing${NC} - /api/tracing/service-map, /api/tracing/traces"
+echo -e "${GREEN}[✓] Distributed Tracing${NC} - /api/tracing/service-map, /api/tracing/traces, /api/tracing/spans"
 echo -e "${GREEN}[✓] Privacy / GDPR / CCPA${NC} - DSR, Breach Notifications, ROPA, Consent Management"
 echo -e "${GREEN}[✓] PAM (Privileged Access)${NC} - accounts, sessions, vault, audit"
 echo -e "${GREEN}[✓] BAA Agreements${NC} - Business Associate Agreement lifecycle"
@@ -495,6 +526,7 @@ EnvironmentFile=$PROJECT_DIR/backend/.env
 Environment="PATH=$PROJECT_DIR/backend/venv/bin"
 Environment="PLATFORM_URL=http://$SYSTEM_IP:5000"
 Environment="PYTHONPATH=$PROJECT_DIR/backend"
+Environment="TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments"
 ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn app:socket_app --host 0.0.0.0 --port 5000 --log-level info
 Restart=always
 RestartSec=10

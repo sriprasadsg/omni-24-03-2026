@@ -1,24 +1,33 @@
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 from database import get_database
-from datetime import datetime, timezone
-import uuid
 
 class VulnerabilityService:
     def __init__(self):
         self.collection_name = "vulnerabilities"
 
-    async def get_vulnerabilities(self, tenant_id: str = "platform-admin") -> List[Dict[str, Any]]:
+    async def get_vulnerabilities(
+        self,
+        tenant_id: str = "platform-admin",
+        page: int = 1,
+        page_size: int = 100,
+        severity: str = None,
+    ) -> Dict[str, Any]:
         """
-        List all vulnerabilities for a tenant.
+        List vulnerabilities for a tenant with pagination.
         """
         db = get_database()
-        cursor = db[self.collection_name].find({"tenantId": tenant_id})
-        vulns = await cursor.to_list(length=1000)
+        query: dict = {"tenantId": tenant_id}
+        if severity:
+            query["severity"] = severity
+        skip = (page - 1) * page_size
+        cursor = db[self.collection_name].find(query, {"_id": 0}).skip(skip).limit(page_size)
+        vulns = await cursor.to_list(length=page_size)
         for v in vulns:
             if "_id" in v:
                 v["id"] = str(v["_id"])
                 del v["_id"]
-        return vulns
+        total = await db[self.collection_name].count_documents(query)
+        return {"items": vulns, "total": total, "page": page, "page_size": page_size}
 
     async def get_vulnerability_stats(self, tenant_id: str = "platform-admin") -> Dict[str, Any]:
         """

@@ -1,5 +1,7 @@
+import json as _json
 from fastapi import APIRouter, HTTPException, Body, Depends
-from typing import Dict, Any
+from fastapi.responses import StreamingResponse
+from typing import Dict, Any, AsyncIterator
 from ai_playbook_service import ai_playbook_service
 from ai_remediation_service import ai_remediation_service
 from ai_service import ai_service
@@ -7,7 +9,6 @@ from authentication_service import get_current_user
 
 router = APIRouter(prefix="/api/ai", tags=["AI Automation"])
 
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
@@ -53,11 +54,43 @@ async def chat_assistant(
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))
 ):
     """Chat with AI Assistant"""
-    message = payload.get("message")
+    message = payload.get("message") or ""
     context = payload.get("context", {})
     context["tenantId"] = get_tenant_id()
     context["role"] = getattr(current_user, "role", "") or ""
     return {"response": await ai_service.chat(message, context)}
+
+
+@router.post("/chat/stream")
+async def chat_assistant_stream(
+    payload: Dict[str, Any] = Body(...),
+    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))
+):
+    """Stream chat with AI Assistant via Server-Sent Events."""
+    message = payload.get("message", "")
+    context = payload.get("context", {})
+    context["tenantId"] = get_tenant_id()
+    context["role"] = getattr(current_user, "role", "") or ""
+
+    async def sse_generator() -> AsyncIterator[str]:
+        try:
+            async for chunk in ai_service.chat_stream(message, context):
+                # Escape newlines in JSON so SSE frame stays on one line
+                yield f"data: {_json.dumps({'chunk': chunk})}\n\n"
+        except Exception as exc:
+            yield f"data: {_json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 @router.post("/generate-playbook")
 async def generate_playbook(
@@ -98,10 +131,13 @@ async def analyze_impact(
     )
     try:
         raw = await ai_service.generate_text(prompt, source="analyze_impact")
-        import json as _json, re as _re
+        import json as _json
+        import re as _re
         cleaned = raw.replace("```json", "").replace("```", "").strip()
         match = _re.search(r"\{[\s\S]+\}", cleaned)
         result = _json.loads(match.group(0)) if match else {"impact_summary": cleaned}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         import logging as _logging
         _logging.getLogger(__name__).error("AI impact analysis error: %s", exc)
@@ -127,7 +163,6 @@ async def ai_threat_hunt(
     """
     import json as _json
     import re as _re
-    from datetime import datetime, timezone, timedelta
     from database import get_database
 
     query_text = payload.get("query", "").strip()
@@ -191,7 +226,7 @@ async def ai_threat_hunt(
             "generated_pipeline": generated_pipeline,
             "total": len(events),
         }
-    except Exception as exc:
+    except Exception:
         # If the AI filter is malformed, fall back to simple message regex
         try:
             safe_filter = {
@@ -247,3 +282,64 @@ async def record_ai_feedback(
     }
     await db.ai_feedback.insert_one(doc)
     return {"status": "recorded", "feedback_id": doc["id"]}
+
+
+# ── LLM Test-Connection Proxy ─────────────────────────────────────────────────
+
+from pydantic import BaseModel as _BM
+
+class TestConnectionBody(_BM):
+    provider: str
+    api_key:  str
+    model:    str = "gemini-2.0-flash"
+
+
+@router.post("/test-connection")
+async def test_llm_connection(
+    body: TestConnectionBody,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),
+) -> Dict[str, Any]:
+    """
+    Proxy a minimal LLM call to verify a user-supplied API key.
+    The key is never stored — it is used only for this single test request.
+    Supported providers: gemini, openai, anthropic.
+    """
+    provider = body.provider.lower()
+    try:
+        import httpx as _hx
+        async with _hx.AsyncClient(timeout=15.0) as _client:
+            if provider in ("gemini", "google"):
+                resp = await _client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{body.model}:generateContent",
+                    params={"key": body.api_key},
+                    json={"contents": [{"parts": [{"text": "Say 'test successful'"}]}]},
+                )
+                resp.raise_for_status()
+                text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                return {"success": True, "response": text}
+
+            elif provider == "openai":
+                resp = await _client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {body.api_key}"},
+                    json={"model": body.model, "messages": [{"role": "user", "content": "Say 'test successful'"}], "max_tokens": 10},
+                )
+                resp.raise_for_status()
+                text = resp.json()["choices"][0]["message"]["content"]
+                return {"success": True, "response": text}
+
+            elif provider == "anthropic":
+                resp = await _client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": body.api_key, "anthropic-version": "2023-06-01"},
+                    json={"model": body.model, "max_tokens": 10, "messages": [{"role": "user", "content": "Say 'test successful'"}]},
+                )
+                resp.raise_for_status()
+                text = resp.json()["content"][0]["text"]
+                return {"success": True, "response": text}
+
+            else:
+                return {"success": False, "error": f"Provider '{provider}' test not supported via this endpoint. Try saving and using the provider directly."}
+
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}

@@ -1,7 +1,11 @@
 """Database Activity Monitoring (DAM) service."""
 from datetime import datetime, timezone, timedelta
 import uuid
+import logging
 
+
+
+logger = logging.getLogger(__name__)
 
 RISK_RULES = [
     {"id": "bulk_delete", "name": "Bulk DELETE operation", "severity": "critical",
@@ -49,8 +53,8 @@ class DAMService:
             try:
                 if rule["match"](doc):
                     triggered.append({"id": rule["id"], "name": rule["name"], "severity": rule["severity"]})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Risk rule %s evaluation failed: %s", rule.get("id"), e)
         doc["triggered_rules"] = triggered
         doc["risk_score"] = max(
             ({"critical": 1.0, "high": 0.8, "medium": 0.5, "low": 0.2}.get(r["severity"], 0) for r in triggered),

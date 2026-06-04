@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Activity,
     Cloud,
+    Database,
     Shield,
     Lock,
     Server,
@@ -17,9 +18,9 @@ import {
     Key
 } from 'lucide-react';
 import * as api from '../services/apiService';
-import { Integration } from '../types';
 import { AddIntegrationModal } from './AddIntegrationModal';
 import { IntegrationSettingsModal } from './IntegrationSettingsModal';
+import { showToast } from '../utils/toast';
 
 interface Integration {
     id: string;
@@ -29,6 +30,9 @@ interface Integration {
     last_sync: string;
     events_count: number;
     description: string;
+    category: string;
+    isEnabled: boolean;
+    config?: Record<string, any>;
 }
 
 export const IntegrationsHub: React.FC = () => {
@@ -47,6 +51,7 @@ export const IntegrationsHub: React.FC = () => {
             setIntegrations(data);
         } catch (error) {
             console.error("Failed to fetch integrations:", error);
+            showToast("Failed to load integrations", "error");
         } finally {
             setLoading(false);
         }
@@ -279,7 +284,7 @@ export const IntegrationsHub: React.FC = () => {
                 <IntegrationSettingsModal 
                     isOpen={isConfigModalOpen}
                     onClose={() => setIsConfigModalOpen(false)}
-                    integration={selectedIntegration}
+                    integration={selectedIntegration as any}
                     onSave={handleSaveIntegration}
                 />
             </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, AlertTriangleIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface ApprovalRequest {
     id: string;
@@ -60,20 +61,20 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
             const data = await response.json();
 
             if (data.success) {
-                alert(`✅ Approved! Deployment is progressing to ${data.approval.stage} stage.`);
+                showToast(`Approved! Deployment is progressing to ${data.approval.stage} stage.`, 'success');
                 fetchPendingApprovals();
                 setSelectedApproval(null);
                 setComments('');
             }
         } catch (error) {
             console.error('Error approving:', error);
-            alert('Failed to approve deployment');
+            showToast('Failed to approve deployment', 'error');
         }
     };
 
     const handleReject = async (approvalId: string) => {
         if (!rejectionReason.trim()) {
-            alert('Please provide a reason for rejection');
+            showToast('Please provide a reason for rejection', 'error');
             return;
         }
 
@@ -89,7 +90,7 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
             const data = await response.json();
 
             if (data.success) {
-                alert('❌ Deployment rejected and halted.');
+                showToast('Deployment rejected and halted.', 'info');
                 fetchPendingApprovals();
                 setShowRejectModal(false);
                 setRejectionReason('');
@@ -97,7 +98,7 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
             }
         } catch (error) {
             console.error('Error rejecting:', error);
-            alert('Failed to reject deployment');
+            showToast('Failed to reject deployment', 'error');
         }
     };
 

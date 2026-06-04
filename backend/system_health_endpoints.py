@@ -6,14 +6,16 @@ Expands beyond the basic binary/VT health check with process, queue, DB, and age
 from __future__ import annotations
 
 import asyncio
-import os
+import logging
 import platform
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from database import get_database
+
+logger = logging.getLogger(__name__)
 
 try:
     import psutil
@@ -68,7 +70,8 @@ async def _queue_depths(db) -> Dict[str, int]:
         )
         keys = ["alert_queue", "open_alerts", "deployment_tasks", "running_playbooks"]
         return {k: (v if isinstance(v, int) else 0) for k, v in zip(keys, results)}
-    except Exception:
+    except Exception as e:
+        logger.debug("Queue stats query failed: %s", e)
         return {}
 
 

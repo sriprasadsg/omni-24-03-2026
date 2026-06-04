@@ -50,7 +50,7 @@ async def test_finops_calculation():
             print(f"  Current Month Cost: ${result.get('currentMonthCost', 0):.2f}")
             print(f"  Forecasted Cost: ${result.get('forecastedCost', 0):.2f}")
             print(f"  Potential Savings: ${result.get('potentialSavings', 0):.2f}")
-            print(f"  Cost Breakdown:")
+            print("  Cost Breakdown:")
             for item in result.get('costBreakdown', []):
                 print(f"    - {item['service']}: ${item['cost']:.2f}")
         else:

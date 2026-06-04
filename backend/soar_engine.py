@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -120,23 +120,36 @@ class SOAREngine:
         }
 
     def _evaluate_condition(self, condition: str, context: dict) -> bool:
-        # Extremely naive condition evaluator for demo purposes.
-        # Format "results.node_1.score > 10"
+        # Format "results.node_1.score > 10" or "results.node.verdict == malicious"
         try:
             parts = condition.split()
             if len(parts) == 3:
-                left_path = parts[0].split('.') # ['results', 'node_1', 'score']
+                left_path = parts[0].split('.')
                 operator = parts[1]
-                right_val = int(parts[2])
-                
-                # resolve left
+                raw_right = parts[2]
+
+                # Coerce right-hand value: try int, then float, then keep as string
+                try:
+                    right_val: Any = int(raw_right)
+                except ValueError:
+                    try:
+                        right_val = float(raw_right)
+                    except ValueError:
+                        right_val = raw_right  # string comparison
+
+                # Resolve left-hand path
                 val = context
                 for p in left_path:
+                    if not isinstance(val, dict):
+                        return False
                     val = val.get(p, {})
-                
-                if operator == '>': return val > right_val
-                if operator == '<': return val < right_val
+
+                if operator == '>':  return val > right_val
+                if operator == '<':  return val < right_val
+                if operator == '>=': return val >= right_val
+                if operator == '<=': return val <= right_val
                 if operator == '==': return val == right_val
+                if operator == '!=': return val != right_val
         except Exception as e:
             logger.error(f"Failed to evaluate condition '{condition}': {e}")
             return False  # Fail closed — unknown/malformed conditions must not pass
@@ -195,11 +208,16 @@ class SOAREngine:
             headers = {"Authorization": f"SSWS {okta_token}", "Accept": "application/json"}
             # Lookup user ID first
             async with httpx.AsyncClient(timeout=10) as client:
-                search = await client.get(f"https://{okta_domain}/api/v1/users/{user}", headers=headers)
+                from urllib.parse import quote as _quote
+                safe_user = _quote(user, safe="")
+                search = await client.get(f"https://{okta_domain}/api/v1/users/{safe_user}", headers=headers)
                 if search.status_code != 200:
                     return {"action": "failed", "user": user, "reason": f"User not found: {search.status_code}"}
                 user_id = search.json().get("id")
-                resp = await client.post(f"https://{okta_domain}/api/v1/users/{user_id}/lifecycle/suspend", headers=headers)
+                if not user_id or not isinstance(user_id, str):
+                    return {"action": "failed", "user": user, "reason": "Okta returned no user ID"}
+                safe_user_id = _quote(user_id, safe="")
+                resp = await client.post(f"https://{okta_domain}/api/v1/users/{safe_user_id}/lifecycle/suspend", headers=headers)
                 if resp.status_code in (200, 204):
                     return {"action": "suspended", "user": user, "idp": "Okta", "okta_user_id": user_id}
                 return {"action": "failed", "user": user, "status": resp.status_code, "detail": resp.text[:200]}

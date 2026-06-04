@@ -5,7 +5,7 @@ async def test_mongodb():
     try:
         client = AsyncIOMotorClient('mongodb://localhost:27017')
         info = await client.server_info()
-        print(f"✅ MongoDB Connected!")
+        print("✅ MongoDB Connected!")
         print(f"Version: {info.get('version', 'unknown')}")
         
         # Test database access

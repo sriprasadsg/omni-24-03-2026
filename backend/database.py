@@ -155,7 +155,13 @@ class MongoDB:
     db = None
 
 mongodb = MongoDB()
-db = None # Global compatibility reference
+db = None  # Global compatibility reference
+_demo_mode: bool = False  # Set to True when running against in-memory mock
+
+
+def is_demo_mode() -> bool:
+    """Return True if the app is running against the in-memory mock database."""
+    return _demo_mode
 
 async def connect_to_mongo():
     """Connect to MongoDB with exponential-backoff retry (3 attempts)."""
@@ -192,12 +198,14 @@ async def connect_to_mongo():
             "All data written this session will be LOST on restart.",
             max_attempts, mongodb_url,
         )
-        if os.getenv("ALLOW_MOCK_DB", "true").lower() in ("1", "true", "yes"):
+        if os.getenv("ALLOW_MOCK_DB", "false").lower() in ("1", "true", "yes"):
             if AsyncMongoMockClient:
                 _logging.getLogger(__name__).warning(
-                    "[DATABASE] Falling back to in-memory mock (ALLOW_MOCK_DB=true). NO DATA PERSISTED."
+                    "⚠️  Running in DEMO MODE — data is not persisted. Set MONGODB_URL to use a real database."
                 )
                 mongodb.client = AsyncMongoMockClient()
+                global _demo_mode
+                _demo_mode = True
             else:
                 raise last_exc
         else:
@@ -252,6 +260,36 @@ async def connect_to_mongo():
         await mongodb.db.patches.create_index([("tenantId", 1), ("status", 1)])
         await mongodb.db.vulnerabilities.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.compliance_evidence.create_index([("tenantId", 1), ("controlId", 1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("status", 1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("created_at", -1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("priority", 1)])
+        await mongodb.db.tickets.create_index("id", unique=True)
+        # Indexes for ticket report queries (sla, resolution time, assignee workload, ageing)
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("sla_status", 1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("resolved_at", -1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("assignee", 1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("due_date", 1), ("status", 1)])
+        await mongodb.db.tickets.create_index([("tenantId", 1), ("escalated", 1)])
+
+        # software_inventory: compound unique index so per-heartbeat upserts are O(1) not O(n)
+        await mongodb.db.software_inventory.create_index(
+            [("agent_id", 1), ("name", 1)], unique=True, background=True
+        )
+
+        # TTL indexes — auto-expire high-volume event data to prevent unbounded growth
+        await mongodb.db.security_events.create_index("timestamp", expireAfterSeconds=7776000)   # 90 days
+        await mongodb.db.audit_logs.create_index("timestamp", expireAfterSeconds=15552000)       # 180 days
+        await mongodb.db.edr_telemetry.create_index("timestamp", expireAfterSeconds=2592000)     # 30 days
+        await mongodb.db.agent_metrics_history.create_index("timestamp", expireAfterSeconds=2592000)  # 30 days
+        await mongodb.db.fim_events.create_index("timestamp", expireAfterSeconds=7776000)        # 90 days
+
+        # TTL indexes for auth/security collections that previously grew unboundedly.
+        # login_attempts: brute-force records expire after 24 h (longer than any lockout window)
+        await mongodb.db.login_attempts.create_index("last_attempt", expireAfterSeconds=86400)
+        # password_reset_tokens: tokens are short-lived; purge after 1 h regardless
+        await mongodb.db.password_reset_tokens.create_index("created_at", expireAfterSeconds=3600)
+        # revoked_tokens: only needs to outlive the longest possible access-token TTL (24 h)
+        await mongodb.db.revoked_tokens.create_index("revoked_at", expireAfterSeconds=86400)
     except Exception as index_error:
         import logging as _logging
         _logging.getLogger(__name__).warning(
@@ -271,7 +309,9 @@ async def close_mongo_connection():
 def get_database():
     """Get database instance with tenant isolation"""
     if mongodb.db is None:
-        return None
+        raise RuntimeError(
+            "Database not connected. The server is still starting up or MongoDB is unreachable."
+        )
     return TenantIsolatedDatabase(mongodb.db)
 
 # Alias used by newer endpoint files as a FastAPI Depends target

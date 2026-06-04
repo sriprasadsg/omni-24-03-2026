@@ -5,7 +5,7 @@ Replaces the broken prompt_service import with a self-contained implementation.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Body
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime, timezone
 import uuid
 import re

@@ -4,7 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Microscope, Play, Plus, GitMerge, Trophy } from 'lucide-react';
-import { apiService } from '../services/apiService';
+import { authFetch } from '../services/apiService';
+const apiService = {
+    get: (url: string) => authFetch(url).then(r => r.ok ? r.json() : null),
+    post: (url: string, data?: any) => authFetch(url, { method: 'POST', body: JSON.stringify(data) }).then(r => r.ok ? r.json() : null),
+};
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, Label } from 'recharts';
 
 interface Trial {

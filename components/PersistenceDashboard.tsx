@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Asset } from '../types';
 import { ShieldCheckIcon, ShieldAlertIcon, SearchIcon, ZapIcon, ClockIcon, AlertTriangleIcon, FileTextIcon } from './icons';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 export const PersistenceDashboard: React.FC = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
@@ -25,19 +26,19 @@ export const PersistenceDashboard: React.FC = () => {
 
     const handleScan = async () => {
         if (!selectedAsset) {
-            alert("Please select an asset to scan");
+            showToast("Please select an asset to scan", 'error');
             return;
         }
         setScanning(true);
         try {
             const res = await api.triggerPersistenceScan(selectedAsset);
             if (res.success) {
-                alert("Persistence scan triggered! Results will appear shortly.");
+                showToast("Persistence scan triggered! Results will appear shortly.", 'success');
                 // Poll for results after a delay
                 setTimeout(() => fetchResults(selectedAsset), 5000);
             }
         } catch (e) {
-            alert("Failed to trigger scan");
+            showToast("Failed to trigger scan", 'error');
         } finally {
             setScanning(false);
         }

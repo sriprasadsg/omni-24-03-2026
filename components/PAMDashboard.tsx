@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Key, Monitor, Lock, RotateCcw, RefreshCw, Play, Square, Terminal, Clock } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 type Tab = 'accounts' | 'sessions' | 'vault' | 'audit';
 
@@ -111,9 +112,16 @@ export function PAMDashboard() {
 
   const rotateCredential = useCallback(async (id: string) => {
     setRotating(id);
-    await fetch(`/api/pam/vault/${id}/rotate`, { method: 'POST', headers }).catch(() => {});
-    setVault(prev => prev.map(e => e.id === id ? { ...e, last_rotated: Date.now() / 1000, rotation_count: e.rotation_count + 1 } : e));
-    setRotating(null);
+    try {
+      const res = await fetch(`/api/pam/vault/${id}/rotate`, { method: 'POST', headers });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Rotation failed');
+      setVault(prev => prev.map(e => e.id === id ? { ...e, last_rotated: Date.now() / 1000, rotation_count: e.rotation_count + 1 } : e));
+    } catch (e) {
+      console.error('PAM credential rotation failed:', e);
+      showToast(e instanceof Error ? e.message : 'Failed to rotate credential', 'error');
+    } finally {
+      setRotating(null);
+    }
   }, []);
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [

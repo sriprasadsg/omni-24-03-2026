@@ -1,6 +1,5 @@
 
 import asyncio
-import json
 from database import connect_to_mongo, get_database
 from network_topology_service import NetworkTopologyService
 

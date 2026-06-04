@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 import {
     ShieldCheckIcon,
     AlertTriangleIcon,
@@ -37,7 +38,7 @@ const AgentApprovalDashboard: React.FC = () => {
 
     const fetchApprovals = async () => {
         try {
-            const res = await authFetch('/api/agents/approvals/pending');
+            const res = await authFetch('/api/approvals/pending');
             if (res.status === 403) {
                 setTenantError(true);
                 return;
@@ -49,6 +50,7 @@ const AgentApprovalDashboard: React.FC = () => {
             }
         } catch (err) {
             console.error("Failed to fetch approvals:", err);
+            showToast("Failed to load approval requests", "error");
         } finally {
             setLoading(false);
         }
@@ -57,9 +59,9 @@ const AgentApprovalDashboard: React.FC = () => {
     const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
         setDecisionError(null);
         try {
-            const res = await authFetch(`/api/agents/approvals/${id}/decide`, {
+            const res = await authFetch(`/api/approvals/${id}/decide`, {
                 method: 'POST',
-                body: JSON.stringify({ decision, reason: "User manual decision via UI" })
+                body: JSON.stringify({ decision, comments: "User manual decision via UI" })
             });
 
             if (res.status === 403) {
