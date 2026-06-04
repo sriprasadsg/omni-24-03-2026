@@ -13,12 +13,12 @@
 Get-BitLockerVolume Output: 
 
 manage-bde output:
-BitLocker Drive Encryption: Configuration Tool version 10.0.26100
-Copyright (C) 2013 Microsoft Corporation. All rights reserved.
-
-ERROR: An attempt to access a required resource was denied.
-
-Check that you have administrative rights on the computer.
+BitLocker Drive Encryption: Configuration Tool version 10.0.26100
+Copyright (C) 2013 Microsoft Corporation. All rights reserved.
+
+ERROR: An attempt to access a required resource was denied.
+
+Check that you have administrative rights on the computer.
 
 Stderr: 
 ```

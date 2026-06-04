@@ -10,13 +10,13 @@
 
 ## 2. Automated Command Output
 ```json
-{
-    "SecurityServicesRunning":  [
-                                    2,
-                                    3,
-                                    4
-                                ]
-}
+{
+    "SecurityServicesRunning":  [
+                                    2,
+                                    3,
+                                    4
+                                ]
+}
 
 ```
 

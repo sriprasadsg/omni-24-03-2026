@@ -5,7 +5,15 @@
       "PowerShell(cd \"d:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\"; Select-String -Path \"backend/finops_service.py\" -Pattern \"get_service_pricing|PRICING\" | Select-Object -First 5 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
       "Bash(dir /b *.json *.yml *.yaml *.env*)",
       "Bash(dir /b backend\\\\*.py)",
-      "Bash(dir \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")"
+      "Bash(dir \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")",
+      "Bash(python3 -c \"from playwright.sync_api import sync_playwright; print\\('playwright ok'\\)\")",
+      "Bash(playwright install *)",
+      "Bash(python3 -m playwright install --list)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Python311\\\\python.exe\" -c \"from playwright.sync_api import sync_playwright; print\\('playwright ok'\\)\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\srihari\\\\AppData\\\\Roaming\\\\Python\\\\Python311\\\\Scripts\\\\playwright.exe\" install --list 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Python311\\\\python.exe\" -m playwright install chromium 2>&1)",
+      "Bash(git config *)",
+      "Bash(git add *)"
     ]
   },
   "enabledMcpjsonServers": [

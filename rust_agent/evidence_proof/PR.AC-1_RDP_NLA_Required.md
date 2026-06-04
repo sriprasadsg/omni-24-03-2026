@@ -10,9 +10,9 @@
 
 ## 2. Automated Command Output
 ```json
-{
-    "UserAuthentication":  1
-}
+{
+    "UserAuthentication":  1
+}
 
 ```
 

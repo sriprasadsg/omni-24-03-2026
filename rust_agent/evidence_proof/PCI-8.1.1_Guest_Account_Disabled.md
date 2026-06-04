@@ -10,9 +10,9 @@
 
 ## 2. Automated Command Output
 ```json
-{
-    "Enabled":  false
-}
+{
+    "Enabled":  false
+}
 
 ```
 

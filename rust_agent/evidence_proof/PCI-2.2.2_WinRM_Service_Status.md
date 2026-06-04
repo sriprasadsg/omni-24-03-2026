@@ -10,14 +10,14 @@
 
 ## 2. Automated Command Output
 ```text
-
-SERVICE_NAME: WinRM 
-        TYPE               : 20  WIN32_SHARE_PROCESS  
-        STATE              : 1  STOPPED 
-        WIN32_EXIT_CODE    : 1077  (0x435)
-        SERVICE_EXIT_CODE  : 0  (0x0)
-        CHECKPOINT         : 0x0
-        WAIT_HINT          : 0x0
+
+SERVICE_NAME: WinRM 
+        TYPE               : 20  WIN32_SHARE_PROCESS  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 1077  (0x435)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
 
 ```
 
