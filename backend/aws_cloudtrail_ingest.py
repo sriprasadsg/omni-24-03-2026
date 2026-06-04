@@ -82,7 +82,7 @@ async def fetch_cloudtrail_logs(
 
     db = get_database()
     ingested = 0
-    prefix = f"AWSLogs/"
+    prefix = "AWSLogs/"
 
     try:
         paginator = s3.get_paginator("list_objects_v2")

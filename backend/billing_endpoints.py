@@ -11,8 +11,8 @@ from fastapi import APIRouter, HTTPException, Depends
 
 logger = logging.getLogger(__name__)
 from fastapi.responses import Response
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field
+from typing import Optional, List
 from database import get_database
 from authentication_service import get_current_user
 from tenant_context import get_tenant_id
@@ -22,18 +22,31 @@ router = APIRouter(prefix="/api/billing", tags=["Billing"])
 _BILLING_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
 
 
+def _tid(user) -> str:
+    """Extract tenant_id from the authenticated JWT user — never from the ContextVar."""
+    if isinstance(user, dict):
+        return user.get("tenant_id") or user.get("tenantId") or ""
+    return getattr(user, "tenant_id", None) or getattr(user, "tenantId", None) or ""
+
+
+class InvoiceLineItem(BaseModel):
+    description: str = Field(..., max_length=500)
+    amount: float
+    quantity: int = Field(1, ge=1, le=10_000)
+
+
 class InvoiceRequest(BaseModel):
-    period_start: Optional[str] = None
-    period_end: Optional[str] = None
-    plan: Optional[str] = None
-    custom_items: Optional[list] = None
+    period_start: Optional[str] = Field(None, max_length=32)
+    period_end: Optional[str] = Field(None, max_length=32)
+    plan: Optional[str] = Field(None, max_length=100)
+    custom_items: Optional[List[InvoiceLineItem]] = None
 
 
 @router.get("/invoices")
 async def list_invoices(current_user=Depends(get_current_user)):
     """List all invoices for the current tenant."""
     db = get_database()
-    tenant_id = get_tenant_id()
+    tenant_id = _tid(current_user)
 
     # Try Stripe first if configured
     stripe_key = os.getenv("STRIPE_SECRET_KEY")
@@ -45,7 +58,7 @@ async def list_invoices(current_user=Depends(get_current_user)):
             if stripe_customer_id:
                 invoices = stripe_gateway.list_invoices(stripe_customer_id)
                 return {"invoices": invoices, "source": "stripe"}
-        except Exception as e:
+        except Exception:
             pass  # Fall through to database
 
     # Fallback: MongoDB invoices
@@ -55,11 +68,32 @@ async def list_invoices(current_user=Depends(get_current_user)):
     return {"invoices": invoices, "source": "database"}
 
 
+@router.post("/invoice")
+async def generate_invoice_alias(
+    tenant_id: str = "",
+    req: InvoiceRequest = None,
+    current_user=Depends(get_current_user),
+):
+    """Generate invoice — query-param alias for /invoices/generate (test-compatible)."""
+    from tenant_context import set_tenant_id as _stid
+    if tenant_id:
+        caller_role = getattr(current_user, "role", "") if not isinstance(current_user, dict) else current_user.get("role", "")
+        caller_tenant = getattr(current_user, "tenant_id", None) if not isinstance(current_user, dict) else (current_user.get("tenant_id") or current_user.get("tenantId"))
+        _SUPER = {"Super Admin", "super_admin", "platform-admin"}
+        if caller_role not in _SUPER and caller_tenant != tenant_id:
+            raise HTTPException(status_code=403, detail="Not authorized to generate invoices for this tenant")
+        _stid(tenant_id)
+    return await generate_invoice(req or InvoiceRequest(), current_user)
+
+
 @router.post("/invoices/generate")
 async def generate_invoice(req: InvoiceRequest, current_user=Depends(get_current_user)):
     """Generate a new invoice for the current period."""
+    caller_role = getattr(current_user, "role", "") if not isinstance(current_user, dict) else current_user.get("role", "")
+    if caller_role not in _BILLING_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Billing admin role required to generate invoices")
     db = get_database()
-    tenant_id = get_tenant_id()
+    tenant_id = _tid(current_user)
     tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0}) or {}
 
     # Build invoice
@@ -97,7 +131,7 @@ async def download_invoice_pdf(invoice_id: str, current_user=Depends(get_current
     """Download an invoice as a PDF."""
     from invoice_generator import generate_invoice_pdf
     db = get_database()
-    tenant_id = get_tenant_id()
+    tenant_id = _tid(current_user)
 
     invoice = await db.invoices.find_one({"id": invoice_id, "tenantId": tenant_id}, {"_id": 0})
     if not invoice:
@@ -123,7 +157,7 @@ async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_us
     if getattr(current_user, "role", None) not in _BILLING_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin role required")
     db = get_database()
-    tenant_id = get_tenant_id()
+    tenant_id = _tid(current_user)
     result = await db.invoices.update_one(
         {"id": invoice_id, "tenantId": tenant_id},
         {"$set": {"status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}}
@@ -137,7 +171,7 @@ async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_us
 async def get_payment_methods(current_user=Depends(get_current_user)):
     """List saved payment methods for the tenant."""
     db = get_database()
-    tenant_id = get_tenant_id()
+    tenant_id = _tid(current_user)
     tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0}) or {}
 
     stripe_key = os.getenv("STRIPE_SECRET_KEY")
@@ -158,8 +192,8 @@ async def get_payment_methods(current_user=Depends(get_current_user)):
                 for m in methods.data
             ]
             return {"payment_methods": cards, "source": "stripe"}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Stripe payment method fetch failed: %s", e)
 
     # PayPal fallback: check if PayPal credentials are configured
     paypal_client = os.getenv("PAYPAL_CLIENT_ID")
@@ -170,8 +204,8 @@ async def get_payment_methods(current_user=Depends(get_current_user)):
             ).to_list(length=20)
             if saved:
                 return {"payment_methods": saved, "source": "paypal"}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("PayPal payment method fetch failed: %s", e)
 
     return {"payment_methods": [], "source": "none", "note": "Configure Stripe or PayPal to manage payment methods"}
 
@@ -262,7 +296,7 @@ async def create_stripe_checkout(
 
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     db = get_database()
-    tenant_id = get_tenant_id()
+    tenant_id = _tid(current_user)
     tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0}) or {}
 
     session = stripe_gateway.create_checkout_session(

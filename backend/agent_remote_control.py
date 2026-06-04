@@ -1,17 +1,28 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict
 import logging
-import asyncio
+import re
 import uuid
 from datetime import datetime, timezone
-import json
 
 from authentication_service import get_current_user
 from database import get_database
 from auth_types import TokenData
+from rbac_utils import require_permission
 import websocket_manager
 
 _RC_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+# Roles that may issue remote shell commands — elevated privilege required
+_RC_EXECUTE_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin", "tenant_admin"}
+
+# Allowlist of permitted executables for remote execution
+_ALLOWED_COMMANDS = {
+    "ls", "ps", "whoami", "hostname", "netstat", "ss", "df", "uptime",
+    "date", "ping", "ifconfig", "ip", "cat", "head", "tail", "grep",
+    "find", "systemctl", "service", "journalctl", "dmesg", "id",
+    "uname", "env", "which", "pwd", "lsof", "top", "free",
+}
+# Shell metacharacters that must not appear in arguments
+_SHELL_META_RE = re.compile(r'[;&|`$()<>\\\n\r]')
 
 router = APIRouter(prefix="/api/agents/remote", tags=["agent-remote-control"])
 logger = logging.getLogger(__name__)
@@ -22,7 +33,7 @@ logger = logging.getLogger(__name__)
 async def execute_command(
     agent_id: str,
     command: dict,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:agents"))
 ):
     """Execute a shell command on the agent"""
     # Check if agent is connected
@@ -41,12 +52,20 @@ async def execute_command(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
+    cmd = (command.get("command") or "").strip()
+    args = command.get("args", []) or []
+    if cmd not in _ALLOWED_COMMANDS:
+        raise HTTPException(status_code=400, detail=f"Command '{cmd}' is not permitted. Allowed: {sorted(_ALLOWED_COMMANDS)}")
+    for arg in args:
+        if _SHELL_META_RE.search(str(arg)):
+            raise HTTPException(status_code=400, detail="Shell metacharacters are not permitted in command arguments")
+
     command_id = str(uuid.uuid4())
     command_payload = {
         "type": "execute",
         "command_id": command_id,
-        "command": command.get("command"),
-        "args": command.get("args", []),
+        "command": cmd,
+        "args": args,
         "user_id": current_user.username  # This is actually the email/sub
     }
     
@@ -90,7 +109,7 @@ async def execute_command(
 @router.post("/{agent_id}/restart")
 async def restart_agent(
     agent_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:agents"))
 ):
     """Restart the agent"""
     if not await websocket_manager.is_agent_connected(agent_id):
@@ -132,7 +151,10 @@ async def restart_agent(
     return {"success": True, "status": "restart_initiated", "command_id": command_id}
 
 @router.get("/{agent_id}/status")
-async def get_agent_connection_status(agent_id: str):
+async def get_agent_connection_status(
+    agent_id: str,
+    _current_user: TokenData = Depends(get_current_user),
+):
     """Check if agent is connected to WebSocket"""
     is_connected = await websocket_manager.is_agent_connected(agent_id)
     # connected_agents = await websocket_manager.get_connected_agents()

@@ -1,7 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from typing import List, Dict, Optional, Any
 from pydantic import BaseModel
-import logging
 
 from ai_threat_service import threat_service
 
@@ -17,7 +16,6 @@ class ThreatHuntResponse(BaseModel):
     generated_pipeline: List[Dict[str, Any]]
     error: Optional[str] = None
 
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_utils import require_permission

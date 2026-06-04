@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AiSystem, User } from '../types';
+import { showToast } from '../utils/toast';
 
 interface AddAiSystemModalProps {
   isOpen: boolean;
@@ -47,11 +48,11 @@ export const AddAiSystemModal: React.FC<AddAiSystemModalProps> = ({ isOpen, onCl
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !description.trim() || !version.trim() || !owner) {
-      alert("Please fill all fields.");
+      showToast("Please fill all fields.", 'error');
       return;
     }
 
-    let updatedSystemData = { name, description, version, owner, status };
+    const updatedSystemData = { name, description, version, owner, status };
     
     // Automatic Status Change Logic on Save
     if (isEditing && systemToEdit) {

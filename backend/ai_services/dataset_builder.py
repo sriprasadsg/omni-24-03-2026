@@ -215,7 +215,7 @@ class OmniDatasetBuilder:
             fix = d.get("fix") or d.get("remediation") or d.get("patch") or "Apply vendor patch and follow remediation guidance."
             if title:
                 out.append(_rec(
-                    instruction=f"How should we remediate this vulnerability?",
+                    instruction="How should we remediate this vulnerability?",
                     inp=f"CVE: {cve}\nTitle: {title}\nCVSS: {cvss}\nDescription: {desc}",
                     output=fix,
                 ))

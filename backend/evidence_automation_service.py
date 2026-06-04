@@ -5,7 +5,7 @@ Automatically collects compliance evidence from various sources
 and maps it to compliance controls.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import hashlib

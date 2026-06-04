@@ -3,8 +3,8 @@ Automation Policy endpoints — CRUD for tenant automation/remediation policies.
 Used by PolicyManager.tsx frontend component.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Body, Query
-from typing import Dict, Any, Optional
+from fastapi import APIRouter, HTTPException, Depends, Body
+from typing import Dict, Any
 from datetime import datetime, timezone
 import uuid
 

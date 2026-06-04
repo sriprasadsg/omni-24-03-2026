@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from typing import Dict, List, Optional
+from pydantic import BaseModel, Field
 import uuid
 import datetime
 import os
@@ -189,6 +189,56 @@ async def log_audit_event(db, prompt, status, findings, user_id, tenant_id, resp
     }
     await db.ai_audit_logs.insert_one(event)
 
+@router.get("/policy")
+async def get_guardrail_policy(current_user: TokenData = Depends(require_permission("view:ai_governance"))):
+    """Return the current guardrail policy for this tenant (or global fallback)."""
+    db = get_database()
+    tid = getattr(current_user, "tenant_id", None)
+    settings = (await db.ai_settings.find_one({"tenant_id": tid}, {"_id": 0})) or \
+               (await db.ai_settings.find_one({"tenant_id": "global"}, {"_id": 0})) or {}
+    return PolicyConfig(**settings.get("policy", {})).dict()
+
+
+@router.put("/policy")
+async def update_guardrail_policy(
+    policy: PolicyConfig,
+    current_user: TokenData = Depends(require_permission("manage:ai_governance")),
+):
+    """Save guardrail policy for this tenant."""
+    db = get_database()
+    tid = getattr(current_user, "tenant_id", None) or "global"
+    await db.ai_settings.update_one(
+        {"tenant_id": tid},
+        {"$set": {"policy": policy.dict(), "updated_at": datetime.datetime.utcnow().isoformat()}},
+        upsert=True,
+    )
+    return {"success": True, **policy.dict()}
+
+
+class TestPromptRequest(BaseModel):
+    prompt: str = Field(..., max_length=8_000)
+
+
+@router.post("/test")
+async def test_guardrail_policy(
+    req: TestPromptRequest,
+    current_user: TokenData = Depends(require_permission("view:ai_governance")),
+):
+    """Test a prompt against the current guardrail policy and return scan findings."""
+    db = get_database()
+    tid = getattr(current_user, "tenant_id", None)
+    settings = (await db.ai_settings.find_one({"tenant_id": tid}, {"_id": 0})) or \
+               (await db.ai_settings.find_one({"tenant_id": "global"}, {"_id": 0})) or {}
+    policy = PolicyConfig(**settings.get("policy", {}))
+    result = scan_text(req.prompt, block_pii=policy.block_pii, block_injection=policy.block_injection)
+    return {
+        "passed": result.passed,
+        "findings": result.findings,
+        "prompt_length": len(req.prompt),
+        "policy_applied": policy.dict(),
+    }
+
+
 @router.get("/audit-logs")
 async def get_audit_logs(current_user: TokenData = Depends(require_permission("manage:ai_governance"))):
     db = get_database()
@@ -202,11 +252,14 @@ async def get_audit_logs(current_user: TokenData = Depends(require_permission("m
 chat_router = APIRouter(prefix="/api/ai", tags=["AI Chat"])
 
 class ChatRequest(BaseModel):
-    message: str
-    context: Optional[str] = "You are a helpful enterprise security assistant for the Omni-Agent platform."
-    history: Optional[List[Dict[str, str]]] = []
-    provider: Optional[str] = "gemini"
-    model: Optional[str] = None
+    message: str = Field(..., max_length=32_000)
+    context: Optional[str] = Field(
+        default="You are a helpful enterprise security assistant for the Omni-Agent platform.",
+        max_length=4_000,
+    )
+    history: Optional[List[Dict[str, str]]] = Field(default_factory=list, max_length=100)
+    provider: Optional[str] = Field(default="gemini", max_length=50)
+    model: Optional[str] = Field(default=None, max_length=100)
 
 @chat_router.post("/chat")
 async def ai_chat(req: ChatRequest, current_user: TokenData = Depends(require_permission("view:dashboard"))):

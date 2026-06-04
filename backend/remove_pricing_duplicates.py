@@ -53,7 +53,7 @@ async def remove_duplicate_service_pricing():
                 print(f"✅ KEEP: {service_name} (ID: {service_id})")
         
         print("-" * 70)
-        print(f"\nSummary:")
+        print("\nSummary:")
         print(f"  Total entries: {len(all_services)}")
         print(f"  Unique services to keep: {len(kept_services)}")
         print(f"  Duplicates to remove: {len(duplicates_to_remove)}")

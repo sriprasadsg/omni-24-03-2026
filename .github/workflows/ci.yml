@@ -9,6 +9,11 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
+
 jobs:
   # ── Backend ────────────────────────────────────────────────────────────────
   backend:
@@ -24,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.13"
           cache: pip
 
       - name: Install dependencies
@@ -35,18 +40,31 @@ jobs:
           pip install ruff
           ruff check .
 
+      - name: Security scan (bandit)
+        run: |
+          pip install bandit[toml]
+          bandit -r . -ll -x ./tests,./scripts -f json -o bandit-report.json || true
+          bandit -r . -ll -x ./tests,./scripts
+
       - name: Type check (pyright)
         run: |
           pip install pyright
-          pyright --pythonversion 3.14 || true
+          pyright --pythonversion 3.13
+
+      - name: Dependency vulnerability check (safety)
+        run: |
+          pip install safety
+          safety check -r requirements.txt --ignore 70612
+        continue-on-error: true
 
       - name: Run tests
         env:
-          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY || 'ci-test-secret-key-not-for-production' }}
+          # Generate with: python -c "import secrets; print(secrets.token_urlsafe(64))" and set as a GitHub repo secret
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           MONGODB_URL: mongodb://localhost:27017
         run: |
-          pip install pytest pytest-asyncio httpx
-          pytest --tb=short -q || true   # non-blocking until test suite is added
+          pip install pytest pytest-asyncio httpx slowapi pytest-cov
+          pytest tests/ --tb=short -q --cov=. --cov-report=term-missing --cov-fail-under=30
 
     services:
       mongodb:
@@ -75,12 +93,15 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint (ESLint)
-        run: npx eslint . --ext .ts,.tsx --max-warnings 0 || true
+        run: npx eslint . --max-warnings 0
 
       - name: Build
         run: npm run build
         env:
           VITE_PROXY_TARGET: http://localhost:5010
+
+      - name: Dependency audit (npm audit)
+        run: npm audit --audit-level=high
 
   # ── Docker build ───────────────────────────────────────────────────────────
   docker:
@@ -93,7 +114,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -f Dockerfile.backend -t omni-backend:ci . || true
+        run: docker build -f Dockerfile.backend -t omni-backend:ci .
 
       - name: Build frontend image
-        run: docker build -f Dockerfile.frontend -t omni-frontend:ci . || true
+        run: docker build -f Dockerfile.frontend -t omni-frontend:ci .

@@ -1,6 +1,5 @@
 
 import asyncio
-import uuid
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -72,8 +71,8 @@ async def repair_assets():
             else:
                 skipped_count += 1
                 
-    print(f"--------------------------------------")
-    print(f"Repair Complete.")
+    print("--------------------------------------")
+    print("Repair Complete.")
     print(f"Assets Created/Linked: {repaired_count}")
     print(f"Already Synchronized: {skipped_count}")
     

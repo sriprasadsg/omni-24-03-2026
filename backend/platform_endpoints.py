@@ -7,18 +7,44 @@ All previously stub-only features now backed by MongoDB.
 import os as _os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
 
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
+from feature_flags import get_enabled_features, FEATURE_TIERS, TIER_ORDER
 
-_SSL_VERIFY = not _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes")
+_SSL_VERIFY = _os.getenv("DISABLE_SSL_VERIFY", "").lower() not in ("1", "true", "yes")
 
 router = APIRouter(prefix="/api", tags=["Platform"])
+
+
+# ── Feature flags ──────────────────────────────────────────────────────────────
+
+@router.get("/platform/features")
+async def get_tenant_features(current_user: TokenData = Depends(get_current_user)):
+    """
+    Returns the feature access map for the calling user's tenant.
+    Frontend uses this to show/lock sidebar items without additional API calls.
+    """
+    db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    tier = "Free"
+    if tenant_id:
+        tenant = await db.tenants.find_one({"id": tenant_id})
+        tier = (tenant or {}).get("subscriptionTier", "Free")
+
+    enabled = get_enabled_features(tier)
+    locked  = {k: v for k, v in FEATURE_TIERS.items() if k not in enabled}
+
+    return {
+        "tier": tier,
+        "enabled": enabled,
+        "locked": locked,           # feature_key → min tier required
+        "tier_order": TIER_ORDER,
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -261,13 +287,19 @@ async def test_data_source(
 @router.get("/agents/upgrade-jobs")
 async def list_upgrade_jobs(
     tenantId: Optional[str] = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
     """List agent upgrade jobs from the database."""
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None) or ""
+    is_admin = caller_role in _PLATFORM_SUPER_ROLES
+
     db = get_database()
     query: Dict[str, Any] = {}
-    if tenantId:
+    if is_admin and tenantId:
         query["tenantId"] = tenantId
+    elif not is_admin:
+        query["tenantId"] = caller_tenant
     jobs = await db.agent_upgrade_jobs.find(query, {"_id": 0}).sort("createdAt", -1).to_list(length=100)
     return jobs
 
@@ -290,6 +322,8 @@ async def create_service_template(
     template: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(get_current_user),
 ):
+    if getattr(current_user, "role", "") not in _PLATFORM_SUPER_ROLES:
+        raise HTTPException(status_code=403, detail="Platform admin role required to create service templates")
     db = get_database()
     template.setdefault("id", str(uuid.uuid4()))
     template.setdefault("createdAt", _now())
@@ -302,12 +336,18 @@ async def create_service_template(
 @router.get("/service-catalog/provisioned")
 async def list_provisioned_services(
     tenantId: Optional[str] = None,
-    _current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user),
 ):
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None) or ""
+    is_admin = caller_role in _PLATFORM_SUPER_ROLES
+
     db = get_database()
     query: Dict[str, Any] = {}
-    if tenantId:
+    if is_admin and tenantId:
         query["tenantId"] = tenantId
+    elif not is_admin:
+        query["tenantId"] = caller_tenant
     services = await db.provisioned_services.find(query, {"_id": 0}).sort("provisionedAt", -1).to_list(length=200)
     return services
 
@@ -339,7 +379,6 @@ async def list_api_endpoints(
     Return the platform's OpenAPI endpoint list formatted for the Developer Hub UI.
     Derived at runtime from FastAPI's route registry — always up to date.
     """
-    from fastapi import FastAPI
     import sys
 
     # Locate the running FastAPI app instance

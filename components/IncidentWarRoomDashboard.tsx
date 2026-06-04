@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { ShieldAlertIcon, ClockIcon, UsersIcon, MessageSquareIcon, FileTextIcon, ActivityIcon, PlusIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface Incident {
     id: string;
@@ -57,8 +58,18 @@ const IncidentWarRoomDashboard: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [chatMsg, setChatMsg] = useState('');
     const [taskForm, setTaskForm] = useState({ title: '', assignee: '', priority: 'medium' });
+    const [tlEvent, setTlEvent] = useState('');
+    const [enriching, setEnriching] = useState(false);
 
     useEffect(() => { loadAll(); }, []);
+
+    // Poll selected incident every 5 s so collaborators' chat/timeline updates appear live
+    useEffect(() => {
+        if (!selected?.id) return;
+        const id = selected.id;
+        const timer = setInterval(() => { loadIncident(id); }, 5000);
+        return () => clearInterval(timer);
+    }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     async function loadAll() {
         try {
@@ -70,16 +81,23 @@ const IncidentWarRoomDashboard: React.FC = () => {
             const s = await sRes.json();
             setIncidents(i.incidents || []);
             setSummary(s);
-            if (i.incidents && i.incidents.length > 0 && !selected) {
-                setSelected(i.incidents[0]);
+            if (i.incidents && i.incidents.length > 0) {
+                // Functional update: only auto-select if nothing is already selected.
+                // Avoids stale-closure bug — reads current state at update time.
+                setSelected(prev => prev ?? i.incidents[0]);
             }
         } catch (e) { console.error(e); }
     }
 
     async function loadIncident(id: string) {
-        const r = await authFetch(`/api/incidents/${id}`);
-        const d = await r.json();
-        setSelected(d);
+        try {
+            const r = await authFetch(`/api/incidents/${id}`);
+            if (!r.ok) return;
+            const d = await r.json();
+            setSelected(d);
+        } catch (e) {
+            console.error('Failed to refresh incident:', e);
+        }
     }
 
     async function createIncident() {
@@ -102,6 +120,41 @@ const IncidentWarRoomDashboard: React.FC = () => {
         });
         loadIncident(id);
         loadAll();
+    }
+
+    async function addTimelineEvent(id: string, event: string) {
+        if (!event.trim()) return;
+        await authFetch(`/api/incidents/${id}/timeline`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event, detail: '' }),
+        });
+        loadIncident(id);
+    }
+
+    async function enrichFromCorrelations(id: string) {
+        setEnriching(true);
+        try {
+            const r = await authFetch('/api/correlations?limit=5&severity=High');
+            if (!r.ok) return;
+            const correlations: any[] = await r.json();
+            if (!correlations.length) {
+                showToast('No recent high-severity correlations found to enrich this timeline.', 'info');
+                return;
+            }
+            for (const corr of correlations) {
+                const eventLabel = corr.pattern_name || corr.rule_name || 'Correlation Match';
+                const detail = `[AUTO] ${eventLabel} — ${corr.event_count ?? ''} events, confidence ${Math.round((corr.confidence ?? 0) * 100)}%`;
+                await authFetch(`/api/incidents/${id}/timeline`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event: 'CORRELATED THREAT DETECTED', detail }),
+                });
+            }
+            await loadIncident(id);
+        } finally {
+            setEnriching(false);
+        }
     }
 
     async function sendChat(id: string) {
@@ -275,12 +328,20 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                 </div>
                                             ))}
                                             <div className="flex gap-4 mt-8 bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-                                                <input id="tl-event" placeholder="Add tactical milestone..."
+                                                <input value={tlEvent} onChange={e => setTlEvent(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter' && tlEvent.trim()) { addTimelineEvent(selected.id, tlEvent); setTlEvent(''); }}}
+                                                    placeholder="Add tactical milestone..."
                                                     className="flex-1 bg-transparent border-none text-sm text-white placeholder-slate-600 focus:ring-0" />
-                                                <button onClick={() => {
-                                                    const inp = document.getElementById('tl-event') as HTMLInputElement;
-                                                    if (inp.value) { /* addTimelineEvent mocked */ inp.value = ''; }
-                                                }} className="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">POST MILESTONE</button>
+                                                <button onClick={() => { if (tlEvent.trim()) { addTimelineEvent(selected.id, tlEvent); setTlEvent(''); } }}
+                                                    className="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                                    POST MILESTONE
+                                                </button>
+                                                <button onClick={() => enrichFromCorrelations(selected.id)}
+                                                    disabled={enriching}
+                                                    title="Auto-add recent high-severity SIEM correlations to this timeline"
+                                                    className="bg-red-900/40 hover:bg-red-900/70 border border-red-700/50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-300 transition-all disabled:opacity-50 flex items-center gap-1">
+                                                    {enriching ? '⏳' : '⚡'} ENRICH
+                                                </button>
                                             </div>
                                         </div>
                                     )}

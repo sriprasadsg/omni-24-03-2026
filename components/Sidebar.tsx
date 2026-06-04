@@ -1,8 +1,16 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon } from './icons';
-import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon } from 'lucide-react';
+import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon } from './icons';
+import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { useFeatures } from '../contexts/FeaturesContext';
+import { fetchSupportUnreadCount } from '../services/apiService';
+import { socketService } from '../services/socketService';
+
+// Tier precedence — matches backend TIER_ORDER
+const TIER_ORDER: Record<string, number> = { Free: 0, Pro: 1, Enterprise: 2, Custom: 3 };
+const tierMeetsMin = (current: string, min?: string) =>
+    !min || (TIER_ORDER[current] ?? 0) >= (TIER_ORDER[min] ?? 0);
 
 interface SidebarProps {
     isOpen: boolean;
@@ -21,6 +29,9 @@ interface NavItem {
     label: string;
     icon: React.ReactNode;
     permission: Permission;
+    minTier?: 'Pro' | 'Enterprise';
+    featureKey?: string; // backend feature_flags.py key — used for server-confirmed locking
+    locked?: string; // set at runtime by visibleGroups
 }
 
 interface NavGroup {
@@ -28,26 +39,51 @@ interface NavGroup {
     items: NavItem[];
 }
 
-const NavLink: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; disabled?: boolean; isOpen: boolean }> = ({ icon, label, active, onClick, disabled, isOpen }) => (
+const NavLink: React.FC<{
+    icon: React.ReactNode; label: string; active?: boolean;
+    onClick: () => void; disabled?: boolean; isOpen: boolean;
+    locked?: string; badge?: number;
+}> = ({ icon, label, active, onClick, disabled, isOpen, locked, badge }) => (
     <button
-        onClick={onClick}
+        onClick={locked ? undefined : onClick}
         disabled={disabled}
-        className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 relative group ${active
-            ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''} `}
-        title={!isOpen ? label : undefined}
+        title={locked ? `Requires ${locked} plan — click to upgrade` : (!isOpen ? label : undefined)}
+        className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 relative group
+            ${locked ? 'opacity-50 cursor-not-allowed' : ''}
+            ${active && !locked
+                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200'
+            } ${disabled && !locked ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
-        <div className={`flex-shrink-0 transition-colors duration-200 ${active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300'} `}>
+        {/* Icon — badge dot shown when sidebar is collapsed */}
+        <div className={`relative flex-shrink-0 transition-colors duration-200 ${active && !locked ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300'}`}>
             {icon}
+            {!isOpen && !!badge && badge > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white border border-gray-900">
+                    {badge > 9 ? '9+' : badge}
+                </span>
+            )}
         </div>
 
         {isOpen && (
             <span className="ml-3 truncate flex-1 text-left">{label}</span>
         )}
 
-        {active && (
-            <div className={`absolute left-0 w-1 h-5 bg-primary-500 rounded-r-full -ml-3`} />
+        {isOpen && locked && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-700/40">
+                <Lock size={9} />{locked}
+            </span>
+        )}
+
+        {/* Badge count — shown when sidebar is open and no tier lock */}
+        {isOpen && !locked && !!badge && badge > 0 && (
+            <span className="ml-auto flex-shrink-0 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white px-1">
+                {badge > 99 ? '99+' : badge}
+            </span>
+        )}
+
+        {!locked && active && (
+            <div className="absolute left-0 w-1 h-5 bg-primary-500 rounded-r-full -ml-3" />
         )}
     </button>
 );
@@ -61,7 +97,8 @@ const SidebarGroup: React.FC<{
     setCurrentView: (view: AppView) => void;
     expandedGroup: string | null;
     setExpandedGroup: (title: string | null) => void;
-}> = ({ group, groupIndex, isOpen, currentView, setCurrentView, expandedGroup, setExpandedGroup }) => {
+    badgeCounts?: Record<string, number>;
+}> = ({ group, groupIndex, isOpen, currentView, setCurrentView, expandedGroup, setExpandedGroup, badgeCounts }) => {
     const isExpanded = expandedGroup === group.title;
     const hasActiveItem = group.items.some(i => i.view === currentView);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -69,7 +106,7 @@ const SidebarGroup: React.FC<{
     // Auto-expand when this group contains the active view
     useEffect(() => {
         if (hasActiveItem) setExpandedGroup(group.title);
-    }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [currentView]);
 
     const toggle = () => setExpandedGroup(isExpanded ? null : group.title);
 
@@ -116,6 +153,8 @@ const SidebarGroup: React.FC<{
                             active={currentView === item.view}
                             onClick={() => setCurrentView(item.view)}
                             isOpen={isOpen}
+                            locked={item.locked as string | undefined}
+                            badge={badgeCounts?.[item.view]}
                         />
                     ))}
                 </div>
@@ -128,25 +167,49 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     const userContext = useUser();
     const hasPermission = userContext?.hasPermission || (() => true);
     const currentUser = userContext?.currentUser;
+    const serverLockedFeatures = userContext?.serverLockedFeatures ?? {};
+    const { hasFeature, assignedBundles } = useFeatures();
+    const isBundleMode = assignedBundles.length > 0;
 
     // ── Accordion state: which group header is currently open ──────────────
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+
+    // ── Chat unread badge (support + endpoint combined) ───────────────────
+    const [supportUnread, setSupportUnread]   = useState(0);
+    const [endpointUnread, setEndpointUnread] = useState(0);
+    useEffect(() => {
+        const fetch = () => fetchSupportUnreadCount().then(setSupportUnread).catch(() => {});
+        fetch();
+        const id = setInterval(fetch, 30_000);
+        return () => clearInterval(id);
+    }, []);
+    useEffect(() => {
+        const handler = (data: any) => {
+            if (data.event === 'agent_chat_message' || data.event === 'agent_chat_initiated') {
+                setEndpointUnread(prev => prev + 1);
+            }
+        };
+        // Reset endpoint badge whenever user navigates to chat
+        if (['chat', 'agentChat'].includes(currentView)) setEndpointUnread(0);
+        socketService.on('agent_chat', handler);
+        return () => socketService.off('agent_chat', handler);
+    }, [currentView]);
 
     const navGroups: NavGroup[] = useMemo(() => [
         {
             title: "Dashboards & Insights",
             items: [
                 { view: 'dashboard', label: 'Overview', icon: <DashboardIcon size={20} />, permission: 'view:dashboard' },
-                { view: 'cxo', label: 'CXO Insights', icon: <CrownIcon size={20} />, permission: 'view:cxo_dashboard' },
-                { view: 'unifiedOps', label: 'Unified Future Ops', icon: <DashboardIcon size={20} />, permission: 'view:unified_ops' },
+                { view: 'cxo', label: 'CXO Insights', icon: <CrownIcon size={20} />, permission: 'view:cxo_dashboard', minTier: 'Enterprise', featureKey: 'cxo_dashboard' },
+                { view: 'unifiedOps', label: 'Unified Future Ops', icon: <DashboardIcon size={20} />, permission: 'view:unified_ops', minTier: 'Enterprise', featureKey: 'unified_ops' },
                 { view: 'proactiveInsights', label: 'Proactive Insights', icon: <LightbulbIcon size={20} />, permission: 'view:insights' },
                 { view: 'reporting', label: 'Reporting', icon: <BarChart3Icon size={20} />, permission: 'view:reporting' },
-                { view: 'advancedBi', label: 'Advanced BI', icon: <BarChart3Icon size={20} />, permission: 'view:advanced_bi' },
-                { view: 'digitalTwin', label: 'Digital Twin', icon: <BoxIcon size={20} />, permission: 'view:dashboard' },
-                { view: 'futureTech', label: '2027 Horizon', icon: <ZapIcon size={20} />, permission: 'view:dashboard' },
-                { view: 'sustainability', label: 'Sustainability', icon: <SunIcon size={20} />, permission: 'view:sustainability' },
+                { view: 'advancedBi', label: 'Advanced BI', icon: <BarChart3Icon size={20} />, permission: 'view:advanced_bi', minTier: 'Enterprise', featureKey: 'advanced_bi' },
+                { view: 'digitalTwin', label: 'Digital Twin', icon: <BoxIcon size={20} />, permission: 'view:dashboard', minTier: 'Enterprise', featureKey: 'digital_twin' },
+                { view: 'futureTech', label: '2027 Horizon', icon: <ZapIcon size={20} />, permission: 'view:dashboard', minTier: 'Enterprise' },
+                { view: 'sustainability', label: 'Sustainability', icon: <SunIcon size={20} />, permission: 'view:sustainability', minTier: 'Enterprise', featureKey: 'sustainability' },
                 { view: 'predictiveHealth', label: 'Predictive Health', icon: <ActivityIcon size={20} />, permission: 'view:predictive_health' },
-                { view: 'goalSystem', label: 'Goal System', icon: <TargetIcon size={20} />, permission: 'view:goal_system' },
+                { view: 'goalSystem', label: 'Goal System', icon: <TargetIcon size={20} />, permission: 'view:goal_system', minTier: 'Enterprise', featureKey: 'goal_system' },
                 { view: 'integrationsHub', label: 'Integrations Hub', icon: <PuzzleIcon size={20} />, permission: 'view:integrations' },
             ]
         },
@@ -176,25 +239,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'serviceCatalog', label: 'Service Catalog (IDP)', icon: <PuzzleIcon size={20} />, permission: 'view:service_catalog' },
                 { view: 'jobs', label: 'Jobs', icon: <ClipboardListIcon size={20} />, permission: 'view:jobs' },
                 { view: 'remoteAccess', label: 'Remote Access', icon: <ActivityIcon size={20} />, permission: 'view:agents' },
+                { view: 'chat', label: 'Chat', icon: <MessageSquareQuoteIcon size={20} />, permission: 'manage:agents' },
+                { view: 'certificates', label: 'Certificates / TLS', icon: <ShieldCheckIcon size={20} />, permission: 'view:assets' },
             ]
         },
         {
             title: "Security (SecOps)",
             items: [
                 { view: 'security', label: 'Security Overview', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
+                { view: 'alertManagement', label: 'Alert Management', icon: <AlertOctagonIcon size={20} />, permission: 'view:security' },
                 { view: 'edr', label: 'EDR (Real-Time)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
+                { view: 'yaraRules', label: 'YARA Rule Editor', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'mdr', label: 'MDR Intelligence', icon: <ShieldZapIcon size={20} />, permission: 'view:mdr' },
                 { view: 'xdr', label: 'XDR Intelligence', icon: <NetworkIcon size={20} />, permission: 'view:xdr' },
                 { view: 'mitreAttack', label: 'MITRE ATT&CK', icon: <NetworkIcon size={20} />, permission: 'view:security' },
                 { view: 'dlp', label: 'Data Loss Prevention', icon: <ShieldLockIcon size={20} />, permission: 'view:security' },
                 { view: 'cloudSecurity', label: 'Cloud Security', icon: <CloudShieldIcon size={20} />, permission: 'view:cloud_security' },
-                { view: 'threatHunting', label: 'Threat Hunting', icon: <SearchIcon size={20} />, permission: 'view:threat_hunting' },
+                { view: 'threatHunting', label: 'Threat Hunting', icon: <SearchIcon size={20} />, permission: 'view:threat_hunting', minTier: 'Pro', featureKey: 'threat_hunting' },
                 { view: 'siem', label: 'SIEM Dashboard (OCSF)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'threatIntelligence', label: 'Threat Intelligence', icon: <TargetIcon size={20} />, permission: 'view:threat_intel' },
                 { view: 'siemRules', label: 'SIEM Correlation Rules', icon: <ShieldIcon size={20} />, permission: 'view:security' },
                 { view: 'incidentResponse', label: 'Incident Response', icon: <AlertOctagonIcon size={20} />, permission: 'investigate:security' },
                 { view: 'incidentWarRoom', label: 'Incident War Room', icon: <AlertOctagonIcon size={20} />, permission: 'investigate:security' },
                 { view: 'deception', label: 'Deception Technology', icon: <ShieldIcon size={20} />, permission: 'view:security' },
+                { view: 'aiAnomaly', label: 'AI Anomaly Detection', icon: <SparklesIcon size={20} />, permission: 'view:security' },
                 { view: 'ueba', label: 'UEBA (Insider Threats)', icon: <UserIcon size={20} />, permission: 'view:security' },
                 { view: 'shadowAI', label: 'Shadow AI Detection', icon: <UserIcon size={20} />, permission: 'view:security' },
                 { view: 'insiderThreat', label: 'Insider Threat', icon: <UserIcon size={20} />, permission: 'view:security' },
@@ -232,11 +300,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'pipelineSecurity', label: 'Pipeline Security', icon: <ShieldCheckIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'iacSecurity', label: 'IaC Security', icon: <FileCodeIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'containerScan', label: 'Container Scanning', icon: <BoxIcon size={20} />, permission: 'view:devsecops' },
-                { view: 'chaosEngineering', label: 'Chaos Engineering', icon: <BombIcon size={20} />, permission: 'view:chaos' },
+                { view: 'chaosEngineering', label: 'Chaos Engineering', icon: <BombIcon size={20} />, permission: 'view:chaos', minTier: 'Enterprise', featureKey: 'chaos_engineering' },
                 { view: 'developer_hub', label: 'Developer Hub', icon: <BookKeyIcon size={20} />, permission: 'view:developer_hub' },
-                { view: 'mlops', label: 'MLOps', icon: <WorkflowIcon size={20} />, permission: 'view:mlops' },
-                { view: 'llmops', label: 'LLMOps', icon: <BotIcon size={20} />, permission: 'view:llmops' },
-                { view: 'automl', label: 'AutoML', icon: <LightbulbIcon size={20} />, permission: 'view:automl' },
+                { view: 'mlops', label: 'MLOps', icon: <WorkflowIcon size={20} />, permission: 'view:mlops', minTier: 'Enterprise', featureKey: 'mlops' },
+                { view: 'llmops', label: 'LLMOps', icon: <BotIcon size={20} />, permission: 'view:llmops', minTier: 'Enterprise', featureKey: 'llmops' },
+                { view: 'automl', label: 'AutoML', icon: <LightbulbIcon size={20} />, permission: 'view:automl', minTier: 'Enterprise', featureKey: 'automl' },
                 { view: 'abTesting', label: 'A/B Testing', icon: <GitMergeIcon size={20} />, permission: 'manage:experiments' },
                 { view: 'xai', label: 'AI Explainability', icon: <DnaIcon size={20} />, permission: 'view:xai' },
             ]
@@ -245,10 +313,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             title: "Governance & Compliance",
             items: [
                 { view: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
+                { view: 'complianceEvidence', label: 'Evidence Collector', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceFrameworks', label: 'Framework Evaluator', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'customFrameworks', label: 'Custom Frameworks', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceOracle', label: 'Compliance Oracle', icon: <BotIcon size={20} />, permission: 'view:compliance' },
-                { view: 'cissporacle', label: 'CISSP Oracle', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
+                { view: 'cissporacle', label: 'CISSP Oracle', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance', minTier: 'Enterprise', featureKey: 'cissp_oracle' },
                 { view: 'privacy', label: 'Privacy (GDPR/CCPA)', icon: <ShieldLockIcon size={20} />, permission: 'view:compliance' },
                 { view: 'riskRegister', label: 'Risk Register', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
                 { view: 'vendorManagement', label: 'Vendor Mgmt', icon: <UsersIcon size={20} />, permission: 'view:compliance' },
@@ -269,11 +338,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'playbooks', label: 'Playbooks', icon: <BookKeyIcon size={20} />, permission: 'manage:playbooks' },
                 { view: 'jitAccess', label: 'JIT Privileged Access', icon: <Lock size={20} />, permission: 'manage:settings' },
                 { view: 'scheduledReports', label: 'Scheduled Reports', icon: <ClipboardListIcon size={20} />, permission: 'view:reporting' },
-                { view: 'swarm', label: 'Autonomous Swarms', icon: <WorkflowIcon size={20} />, permission: 'view:swarm' },
+                { view: 'swarm', label: 'Autonomous Swarms', icon: <WorkflowIcon size={20} />, permission: 'view:swarm', minTier: 'Pro', featureKey: 'swarm' },
                 { view: 'agentApproval', label: 'Agent Approvals', icon: <ShieldCheckIcon size={20} />, permission: 'view:agents' },
                 { view: 'aiRemediation', label: 'AI Remediation', icon: <ZapIcon size={20} />, permission: 'view:ai_governance' },
                 { view: 'rollback', label: 'Rollback & Checkpoints', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'tasks', label: 'My Tasks', icon: <ClipboardListIcon size={20} />, permission: 'view:profile' },
+                { view: 'internalTickets', label: 'Tickets', icon: <ClipboardListIcon size={20} />, permission: 'view:dashboard', featureKey: 'tickets' },
+                { view: 'problemManagement', label: 'Problem Management', icon: <AlertOctagonIcon size={20} />, permission: 'view:security' },
+                { view: 'changeManagement', label: 'Change Management', icon: <WorkflowIcon size={20} />, permission: 'manage:settings' },
+                /* Support Chat merged into 'chat' tab hub */
             ]
         },
         {
@@ -286,14 +359,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'invoices', label: 'Invoices', icon: <FileText size={20} />, permission: 'view:dashboard' },
                 { view: 'cloudIntegrations', label: 'Cloud Integrations', icon: <CloudShieldIcon size={20} />, permission: 'manage:settings' },
                 { view: 'secretsManagement', label: 'Secrets Management', icon: <Lock size={20} />, permission: 'manage:settings' },
-                { view: 'hadr', label: 'HA/DR & Backups', icon: <ShieldCheckIcon size={20} />, permission: 'manage:settings' },
+                { view: 'hadr', label: 'HA/DR & Backups', icon: <ShieldCheckIcon size={20} />, permission: 'manage:settings', minTier: 'Enterprise', featureKey: 'hadr' },
                 { view: 'retentionPolicy', label: 'Data Retention', icon: <ClipboardListIcon size={20} />, permission: 'manage:settings' },
                 { view: 'knowledgeBase', label: 'Knowledge Base (RAG)', icon: <BookKeyIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },
                 { view: 'tenantManagement', label: 'Tenants', icon: <BuildingIcon size={20} />, permission: 'manage:tenants' },
+                { view: 'bundleManagement', label: 'Feature Bundles', icon: <PuzzleIcon size={20} />, permission: 'manage:tenants' },
                 { view: 'webhooks', label: 'Webhooks', icon: <Share2Icon size={20} />, permission: 'manage:settings' },
                 { view: 'ticketing', label: 'Ticketing Integration', icon: <Share2Icon size={20} />, permission: 'manage:settings' },
+                { view: 'ticketWebhooks', label: 'Ticket Webhooks', icon: <Share2Icon size={20} />, permission: 'manage:settings' },
+                { view: 'notificationPrefs', label: 'Notification Prefs', icon: <SettingsIcon size={20} />, permission: 'view:profile' },
                 { view: 'dataWarehouse', label: 'Data Warehouse', icon: <DatabaseIcon size={20} />, permission: 'view:reporting' },
             ]
         }
@@ -301,24 +377,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
 
     const visibleGroups = useMemo(() => {
         const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin';
+        const userTier: string = (currentUser as any)?.subscriptionTier || 'Free';
 
         return navGroups
             .filter(group => isSuperAdmin || group.title !== "Management & Settings")
             .map(group => ({
                 ...group,
-                items: group.items.filter(item => {
-                    if (isViewingTenant && item.permission === 'manage:tenants') return false;
-
-                    // Super Admin sees everything
-                    if (isSuperAdmin) {
+                items: group.items
+                    .filter(item => {
+                        if (isViewingTenant && item.permission === 'manage:tenants') return false;
+                        if (isSuperAdmin) return true;
+                        if (!hasPermission(item.permission)) return false;
+                        // Bundle mode: hide items whose feature the tenant hasn't been assigned
+                        if (isBundleMode && item.featureKey && !hasFeature(item.featureKey)) return false;
                         return true;
-                    }
-
-                    return hasPermission(item.permission);
-                })
+                    })
+                    .map(item => {
+                        if (isSuperAdmin) return { ...item, locked: undefined };
+                        const serverMinTier = item.featureKey ? serverLockedFeatures[item.featureKey] : undefined;
+                        const clientLocked = item.minTier && !tierMeetsMin(userTier, item.minTier);
+                        const locked = serverMinTier || (clientLocked ? item.minTier : undefined);
+                        return { ...item, locked };
+                    }),
             }))
             .filter(group => group.items.length > 0);
-    }, [navGroups, isViewingTenant, currentUser, hasPermission]);
+    }, [navGroups, isViewingTenant, currentUser, hasPermission, serverLockedFeatures, isBundleMode, hasFeature]);
 
     return (
         <aside className={`flex-shrink-0 glass border-r-0 flex flex-col transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64' : 'w-20'} `} >
@@ -380,6 +463,7 @@ hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors border border-am
                             setCurrentView={setCurrentView}
                             expandedGroup={expandedGroup}
                             setExpandedGroup={setExpandedGroup}
+                            badgeCounts={{ chat: supportUnread + endpointUnread }}
                         />
                     ))
                 }

@@ -24,8 +24,10 @@ async def report_heartbeat(
     Receive heartbeat from agent.
     Updates status, lastSeen, and processes all capability data pipelines.
     """
+    if not _tenant:
+        raise HTTPException(status_code=403, detail="Agent authentication required")
     db = get_database()
-    _hb_tenant_id = (_tenant.get("id") if _tenant else None) or payload.get("tenantId") or None
+    _hb_tenant_id = _tenant.get("id") or None
     _hb_agent_filter: dict = {"id": agent_id}
     if _hb_tenant_id:
         _hb_agent_filter["tenantId"] = _hb_tenant_id

@@ -1,6 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { CSPMFinding } from '../types';
 import { XIcon, BotIcon, FileCodeIcon, CopyIcon, CheckIcon } from './icons';
 import { generateCSPMRemediation, generateIacCode } from '../services/apiService';
@@ -27,13 +28,18 @@ const FormattedMarkdown: React.FC<{ content: string }> = ({ content }) => {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    const html = escaped
+        .replace(/### (.*)/g, '<h3 class="text-sm font-semibold mt-4 mb-2">$1</h3>')
+        .replace(/```bash\n([\s\S]*?)\n```/g, '<pre class="bg-gray-900 text-white p-2 rounded-md text-xs"><code>$1</code></pre>')
+        .replace(/`([^`]+)`/g, '<code class="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-xs">$1</code>');
     return (
         <div className="prose prose-sm dark:prose-invert max-w-none"
             dangerouslySetInnerHTML={{
-                __html: escaped
-                    .replace(/### (.*)/g, '<h3 class="text-sm font-semibold mt-4 mb-2">$1</h3>')
-                    .replace(/```bash\n([\s\S]*?)\n```/g, '<pre class="bg-gray-900 text-white p-2 rounded-md text-xs"><code>$1</code></pre>')
-                    .replace(/`([^`]+)`/g, '<code class="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-xs">$1</code>')
+                __html: DOMPurify.sanitize(html, {
+                    ALLOWED_TAGS: ['h3', 'pre', 'code', 'br', 'p', 'strong', 'em', 'ul', 'ol', 'li'],
+                    ALLOWED_ATTR: ['class'],
+                    FORBID_ATTR: ['style', 'onerror', 'onload'],
+                })
             }}
         />
     );

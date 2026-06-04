@@ -1,6 +1,8 @@
-import asyncio
-from typing import Dict, List, Optional
-from fastapi import WebSocket, WebSocketDisconnect
+import logging
+from typing import Dict, Optional
+from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 class ConnectionManager:
     """
@@ -20,14 +22,14 @@ class ConnectionManager:
         if session_id not in self.active_sessions:
             self.active_sessions[session_id] = {"user": None, "agent": None}
         self.active_sessions[session_id]["user"] = websocket
-        print(f"User connected to session {session_id}")
+        logger.info("User connected to session %s", session_id)
 
     async def connect_agent(self, session_id: str, websocket: WebSocket):
         await websocket.accept()
         if session_id not in self.active_sessions:
             self.active_sessions[session_id] = {"user": None, "agent": None}
         self.active_sessions[session_id]["agent"] = websocket
-        print(f"Agent connected to session {session_id}")
+        logger.info("Agent connected to session %s", session_id)
         
         # Notify user that agent is ready
         user_ws = self.active_sessions[session_id]["user"]
@@ -37,7 +39,7 @@ class ConnectionManager:
     def disconnect(self, session_id: str, role: str):
         if session_id in self.active_sessions:
             self.active_sessions[session_id][role] = None
-            print(f"{role.capitalize()} disconnected from session {session_id}")
+            logger.info("%s disconnected from session %s", role.capitalize(), session_id)
             
             # Cleanup if empty
             if not self.active_sessions[session_id]["user"] and not self.active_sessions[session_id]["agent"]:

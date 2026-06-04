@@ -1,3 +1,4 @@
+import asyncio
 import smtplib
 import ssl
 from email.mime.text import MIMEText
@@ -8,8 +9,6 @@ from typing import Optional, List, Dict
 import secrets
 import hashlib
 import logging
-from datetime import datetime, timedelta
-from jinja2 import Template
 from cryptography.fernet import Fernet
 import os
 import base64
@@ -24,16 +23,31 @@ class EmailService:
         self.cipher = Fernet(self.encryption_key)
     
     def _get_or_create_encryption_key(self) -> bytes:
-        """Get or create encryption key for SMTP passwords"""
-        key_file = 'email_encryption.key'
+        """Load encryption key from environment variable (preferred) or legacy key file."""
+        env_key = os.environ.get("EMAIL_ENCRYPTION_KEY")
+        if env_key:
+            return env_key.encode() if isinstance(env_key, str) else env_key
+
+        # Legacy fallback: read from file if env var not set
+        key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "email_encryption.key")
         if os.path.exists(key_file):
-            with open(key_file, 'rb') as f:
+            import warnings
+            warnings.warn(
+                "EMAIL_ENCRYPTION_KEY env var not set; using key file (deprecated). "
+                "Set EMAIL_ENCRYPTION_KEY to the file contents and remove the file.",
+                DeprecationWarning, stacklevel=3,
+            )
+            with open(key_file, "rb") as f:
                 return f.read()
-        else:
-            key = Fernet.generate_key()
-            with open(key_file, 'wb') as f:
-                f.write(key)
-            return key
+
+        # No key found — generate ephemeral key and warn loudly
+        new_key = Fernet.generate_key()
+        logger.warning(
+            "EMAIL_ENCRYPTION_KEY not set and no key file found. "
+            "Generated an ephemeral key — previously encrypted SMTP passwords are unrecoverable. "
+            "Set EMAIL_ENCRYPTION_KEY=%s in your environment.", new_key.decode(),
+        )
+        return new_key
     
     def encrypt_password(self, password: str) -> str:
         """Encrypt SMTP password"""
@@ -50,7 +64,7 @@ class EmailService:
             logger.error("Failed to decrypt SMTP password: %s", exc)
             return ""
     
-    def send_email(
+    async def send_email(
         self,
         smtp_config: Dict,
         to_email: str,
@@ -97,22 +111,22 @@ class EmailService:
             
             # Decrypt password
             smtp_password = self.decrypt_password(smtp_config['smtpPasswordEncrypted'])
-            
-            # Create SMTP connection
-            context = ssl.create_default_context()
-            
-            if smtp_config.get('useTLS', True):
-                # Use STARTTLS
-                with smtplib.SMTP(smtp_config['smtpHost'], smtp_config['smtpPort']) as server:
-                    server.starttls(context=context)
-                    server.login(smtp_config['smtpUser'], smtp_password)
-                    server.send_message(message)
-            else:
-                # Use SSL
-                with smtplib.SMTP_SSL(smtp_config['smtpHost'], smtp_config['smtpPort'], context=context) as server:
-                    server.login(smtp_config['smtpUser'], smtp_password)
-                    server.send_message(message)
-            
+
+            # Run blocking SMTP I/O in a thread pool to avoid stalling the event loop
+            def _send_sync():
+                context = ssl.create_default_context()
+                if smtp_config.get('useTLS', True):
+                    with smtplib.SMTP(smtp_config['smtpHost'], smtp_config['smtpPort']) as server:
+                        server.starttls(context=context)
+                        server.login(smtp_config['smtpUser'], smtp_password)
+                        server.send_message(message)
+                else:
+                    with smtplib.SMTP_SSL(smtp_config['smtpHost'], smtp_config['smtpPort'], context=context) as server:
+                        server.login(smtp_config['smtpUser'], smtp_password)
+                        server.send_message(message)
+
+            await asyncio.to_thread(_send_sync)
+
             return {
                 'success': True,
                 'message': 'Email sent successfully'
@@ -122,7 +136,7 @@ class EmailService:
             logger.error("Email send failed (host=%s): %s", smtp_config.get('smtpHost'), e)
             return {'success': False, 'message': 'Failed to send email'}
 
-    def verify_smtp_config(self, smtp_config: Dict) -> Dict:
+    async def verify_smtp_config(self, smtp_config: Dict) -> Dict:
         """
         Test SMTP configuration by attempting to connect
         
@@ -134,16 +148,19 @@ class EmailService:
         """
         try:
             smtp_password = self.decrypt_password(smtp_config['smtpPasswordEncrypted'])
-            context = ssl.create_default_context()
-            
-            if smtp_config.get('useTLS', True):
-                with smtplib.SMTP(smtp_config['smtpHost'], smtp_config['smtpPort'], timeout=10) as server:
-                    server.starttls(context=context)
-                    server.login(smtp_config['smtpUser'], smtp_password)
-            else:
-                with smtplib.SMTP_SSL(smtp_config['smtpHost'], smtp_config['smtpPort'], context=context, timeout=10) as server:
-                    server.login(smtp_config['smtpUser'], smtp_password)
-            
+
+            def _verify_sync():
+                context = ssl.create_default_context()
+                if smtp_config.get('useTLS', True):
+                    with smtplib.SMTP(smtp_config['smtpHost'], smtp_config['smtpPort'], timeout=10) as server:
+                        server.starttls(context=context)
+                        server.login(smtp_config['smtpUser'], smtp_password)
+                else:
+                    with smtplib.SMTP_SSL(smtp_config['smtpHost'], smtp_config['smtpPort'], context=context, timeout=10) as server:
+                        server.login(smtp_config['smtpUser'], smtp_password)
+
+            await asyncio.to_thread(_verify_sync)
+
             return {
                 'success': True,
                 'message': 'SMTP configuration is valid'

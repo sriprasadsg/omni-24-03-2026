@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from file_share_service import file_share_service, SharedFile
 from authentication_service import get_current_user
 from pydantic import BaseModel, Field

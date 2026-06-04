@@ -2,7 +2,6 @@ import asyncio
 import sys
 import os
 import csv
-import datetime
 
 sys.path.append(os.path.join(os.getcwd(), 'backend'))
 from database import connect_to_mongo, get_database, close_mongo_connection

@@ -1,5 +1,4 @@
 import asyncio
-import os
 from database import connect_to_mongo, get_database, close_mongo_connection
 from rag_service import rag_service
 import logging

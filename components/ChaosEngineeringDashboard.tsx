@@ -30,6 +30,17 @@ export const ChaosEngineeringDashboard: React.FC = () => {
     const [creating, setCreating] = useState(false);
     const [runningId, setRunningId] = useState<string | null>(null);
     const [runResult, setRunResult] = useState<{ id: string; message: string; ok: boolean } | null>(null);
+    const [viewingResult, setViewingResult] = useState<{ id: string; data: any } | null>(null);
+    const [loadingResult, setLoadingResult] = useState<string | null>(null);
+
+    const handleViewResult = async (id: string) => {
+        setLoadingResult(id);
+        try {
+            const { authFetch } = await import('../services/apiService');
+            const res = await authFetch(`/api/chaos/experiments/${id}/result`);
+            if (res.ok) setViewingResult({ id, data: await res.json() });
+        } finally { setLoadingResult(null); }
+    };
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -159,16 +170,28 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                             {new Date(exp.lastRun).toLocaleString()}
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            <button
-                                                onClick={() => handleRun(exp.id)}
-                                                disabled={runningId === exp.id || exp.status === 'Running'}
-                                                title="Run experiment"
-                                                className="inline-flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-all border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                {runningId === exp.id
-                                                    ? <CogIcon size={16} className="animate-spin" />
-                                                    : <ZapIcon size={16} />}
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                {(exp.status === 'Completed' || exp.status === 'Failed') && (
+                                                    <button
+                                                        onClick={() => handleViewResult(exp.id)}
+                                                        disabled={loadingResult === exp.id}
+                                                        title="View execution results"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-blue-500/20 text-gray-400 hover:text-blue-400 transition-all border border-white/5 text-[10px] font-black uppercase"
+                                                    >
+                                                        {loadingResult === exp.id ? <CogIcon size={12} className="animate-spin" /> : '📋'} Results
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleRun(exp.id)}
+                                                    disabled={runningId === exp.id || exp.status === 'Running'}
+                                                    title="Run experiment"
+                                                    className="inline-flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-all border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                >
+                                                    {runningId === exp.id
+                                                        ? <CogIcon size={16} className="animate-spin" />
+                                                        : <ZapIcon size={16} />}
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -186,6 +209,55 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Execution Result Panel */}
+            {viewingResult && (
+                <div className="glass-premium rounded-3xl shadow-2xl overflow-hidden border border-white/10 mt-2">
+                    <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/5">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                            📋 Execution Results — {viewingResult.id.slice(0, 8)}
+                        </h3>
+                        <button onClick={() => setViewingResult(null)} className="text-gray-400 hover:text-white text-xs font-black uppercase">✕ Close</button>
+                    </div>
+                    <div className="p-5 space-y-3">
+                        <div className="flex items-center gap-6 text-xs">
+                            <span className="text-gray-400 uppercase font-bold">Status: <span className="text-white">{viewingResult.data.status}</span></span>
+                            <span className="text-gray-400 uppercase font-bold">Agents: <span className="text-white">{viewingResult.data.completed_agents}/{viewingResult.data.total_agents} completed</span></span>
+                        </div>
+                        {viewingResult.data.instructions?.length > 0 && (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="text-[10px] uppercase text-gray-500 border-b border-white/10">
+                                        <tr>
+                                            <th className="py-2 pr-4">Agent ID</th>
+                                            <th className="py-2 pr-4">Status</th>
+                                            <th className="py-2">Result</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {viewingResult.data.instructions.map((inst: any, i: number) => (
+                                            <tr key={i} className="border-b border-white/5">
+                                                <td className="py-2 pr-4 font-mono text-gray-300">{inst.agent_id?.slice(0, 12)}</td>
+                                                <td className="py-2 pr-4">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${inst.status === 'completed' ? 'bg-green-500/20 text-green-400' : inst.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                                        {inst.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2 text-gray-400 truncate max-w-xs">
+                                                    {typeof inst.result === 'string' ? inst.result : JSON.stringify(inst.result)?.slice(0, 80) || '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {(!viewingResult.data.instructions || viewingResult.data.instructions.length === 0) && (
+                            <p className="text-xs text-gray-500 uppercase font-bold">No agent instructions recorded for this experiment.</p>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Create Experiment Modal */}
             {showCreate && (

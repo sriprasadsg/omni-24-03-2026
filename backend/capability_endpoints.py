@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
-from typing import Dict, Any, List
+from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -203,6 +203,41 @@ async def configure_agent_capabilities(
         "enabledCapabilities": enabled_capabilities,
         "collectionIntervals": collection_intervals
     }
+
+@router.post("/{agent_id}/capabilities")
+async def update_agent_capabilities_simple(
+    agent_id: str,
+    body: Dict[str, Any] = Body(...),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """
+    Simple capability toggle endpoint (test-compatible alias).
+    Body: { enable: ["yara_scan", ...], disable: ["fim", ...] }
+    """
+    db = get_database()
+    _CAP_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    agent_filter: dict = {"id": agent_id}
+    if caller_role not in _CAP_SUPER_ROLES and caller_tenant:
+        agent_filter["tenantId"] = caller_tenant
+
+    agent = await db.agents.find_one(agent_filter)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    enable_list: list = body.get("enable", [])
+    disable_list: list = body.get("disable", [])
+
+    current_caps: list = agent.get("capabilities", [])
+    updated_caps = list((set(current_caps) | set(enable_list)) - set(disable_list))
+
+    await db.agents.update_one(
+        agent_filter,
+        {"$set": {"capabilities": updated_caps}},
+    )
+    return {"success": True, "agentId": agent_id, "capabilities": updated_caps}
+
 
 @router.get("/{agent_id}/capabilities/configuration")
 async def get_agent_configuration(

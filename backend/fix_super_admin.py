@@ -1,7 +1,7 @@
 """
 Direct super-admin password reset — bypasses tenant isolation wrapper.
 Run from backend/ directory:
-  venv\Scripts\python.exe fix_super_admin.py
+  venv\\Scripts\\python.exe fix_super_admin.py
 """
 import asyncio
 import os

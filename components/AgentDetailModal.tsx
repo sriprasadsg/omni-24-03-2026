@@ -6,8 +6,12 @@ import { useTimeZone } from '../contexts/TimeZoneContext';
 import { RuntimeSecurityTab } from './RuntimeSecurityTab';
 import { AgentComplianceTab, ComplianceData, ComplianceRule } from './AgentComplianceTab';
 import { PredictiveHealthTab } from './PredictiveHealthTab';
+import { AgentOverviewTab } from './AgentOverviewTab';
+import { AgentSoftwareTab } from './AgentSoftwareTab';
+import { AgentPatchingTab } from './AgentPatchingTab';
 import { ConfirmationModal } from './ConfirmationModal';
-import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, linkAgentToAsset, fetchAssets, authFetch } from '../services/apiService';
+import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, fetchAssets } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 
 interface AgentDetailModalProps {
@@ -183,53 +187,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [isMoving, setIsMoving] = useState(false);
 
-    // Live asset data (fetched when modal opens to get fresh vulnerability data)
-    const [liveAsset, setLiveAsset] = useState<Asset | null>(null);
-
-    React.useEffect(() => {
-        if (isOpen && agent?.assetId) {
-            fetchAssets().then((assets: Asset[]) => {
-                setLiveAsset(assets.find((a: Asset) => a.id === agent.assetId) || null);
-            }).catch(() => setLiveAsset(null));
-        } else {
-            setLiveAsset(null);
-        }
-    }, [isOpen, agent?.assetId]);
-
-    // Link Asset State
-    const [isLinkingAsset, setIsLinkingAsset] = useState(false);
-    const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
-    const [selectedAssetId, setSelectedAssetId] = useState('');
-    const [isLinking, setIsLinking] = useState(false);
-
-    const handleOpenLinkModal = async () => {
-        setIsLinkingAsset(true);
-        try {
-            const res = await fetchAssets();
-            setAvailableAssets(res);
-        } catch (e) {
-            console.error("Failed to fetch assets", e);
-            alert("Failed to load assets list. Please try again.");
-        }
-    };
-
-    const handleLinkAsset = async () => {
-        if (!selectedAssetId || !agent) return;
-
-        setIsLinking(true);
-        try {
-            await linkAgentToAsset(agent.id, selectedAssetId);
-            alert("Asset linked successfully.");
-            setIsLinkingAsset(false);
-            window.location.reload(); // Reload to refresh data
-        } catch (e: any) {
-            console.error("Link Asset Error:", e);
-            alert(`Failed to link asset: ${e.message || "Unknown error"}`);
-        } finally {
-            setIsLinking(false);
-        }
-    };
-
     const handleOpenMoveModal = async () => {
         setIsMoveModalOpen(true);
         // Fetch tenants dynamically to ensure fresh list
@@ -238,7 +195,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
             setTenants(res);
         } catch (e) {
             console.error("Failed to fetch tenants", e);
-            alert("Failed to load tenants list. Please try again.");
+            showToast("Failed to load tenants list. Please try again.", 'error');
         }
     };
 
@@ -248,13 +205,13 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
         setIsMoving(true);
         try {
             await moveAgent(agent.id, targetTenantId);
-            alert("Agent moved successfully.");
+            showToast("Agent moved successfully.", 'success');
             setIsMoveModalOpen(false);
             onClose(); // Close main modal as agent might disappear from current view
             window.location.reload(); // Simple reload to refresh all data views
         } catch (e: any) {
             console.error("Move Agent Error:", e);
-            alert(`Failed to move agent: ${e.message || "Unknown error"}`);
+            showToast(`Failed to move agent: ${e.message || "Unknown error"}`, 'error');
         } finally {
             setIsMoving(false);
         }
@@ -282,16 +239,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
         } catch (e) {
             console.error("Failed to refresh compliance:", e);
-            alert("Failed to trigger scan. Check console.");
+            showToast("Failed to trigger scan. Check console.", 'error');
         }
     };
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-    // Live metrics state
-    interface MetricSnapshot { cpu: number; memory: number; disk: number; timestamp: string; }
-    const [liveMetrics, setLiveMetrics] = useState<MetricSnapshot[]>([]);
-    const [latestMetrics, setLatestMetrics] = useState<MetricSnapshot | null>(null);
 
     // Single compliance-fetch effect. Depends on refreshTrigger so manual refresh works.
     // Falls back to deriving assetId from hostname (matches backend's "asset-{hostname}" convention)
@@ -408,46 +360,14 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     }, [isOpen, activeTab, asset?.id, agent?.assetId, agent?.hostname, refreshTrigger]);
 
 
-    // Live metrics polling — runs while the modal is open on overview tab
-    React.useEffect(() => {
-        if (!isOpen || !agent?.id) return;
-
-        const fetchMetrics = async () => {
-            try {
-                const res = await authFetch(`/api/agents/${agent.id}/metrics?limit=60`);
-                if (res.ok) {
-                    const data = await res.json();
-                    const snaps: MetricSnapshot[] = data.snapshots || [];
-                    setLiveMetrics(snaps);
-                    if (snaps.length > 0) setLatestMetrics(snaps[snaps.length - 1]);
-                }
-            } catch (_) {}
-        };
-
-        fetchMetrics();
-        const interval = setInterval(fetchMetrics, 15000);
-        return () => clearInterval(interval);
-    }, [isOpen, agent?.id]);
-
-    const sortedVulnerabilities = React.useMemo(() => {
-        const effectiveAsset = liveAsset || asset;
-        if (!effectiveAsset || !effectiveAsset.vulnerabilities) return [];
-        return [...effectiveAsset.vulnerabilities]
-            .filter(v => v.status === 'Open')
-            .sort((a, b) => {
-                const severityOrder: Record<VulnerabilitySeverity, number> = { Critical: 4, High: 3, Medium: 2, Low: 1, Informational: 0 };
-                return severityOrder[b.severity] - severityOrder[a.severity];
-            });
-    }, [liveAsset, asset]);
-
     if (!isOpen || !agent) return null;
 
     const currentStatus = statusInfo[agent.status] || statusInfo.Offline;
 
     // Extract runtime security data from agent meta
-    const runtimeSecurityData = agent.meta?.runtime_security;
-    const complianceData = agent.meta?.compliance_enforcement;
-    const healthData = agent.meta?.predictive_health;
+    const runtimeSecurityData = (agent.meta as any)?.runtime_security;
+    const complianceData = (agent.meta as any)?.compliance_enforcement;
+    const healthData = (agent.meta as any)?.predictive_health;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
@@ -545,241 +465,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
                 <div className="flex-grow overflow-y-auto pr-2 pt-4">
                     {activeTab === 'overview' ? (
-                        <div className="space-y-4">
-                            <dl>
-                                <DetailRow label="Status">
-                                    <span className={`flex items - center font - semibold ${currentStatus.textClass} `}>
-                                        {currentStatus.icon}
-                                        <span className="ml-2">{agent.status}</span>
-                                    </span>
-                                </DetailRow>
-                                <DetailRow label="Platform">
-                                    <div className="flex items-center space-x-2">
-                                        {platformIcons[agent.platform]}
-                                        <span>{agent.platform}</span>
-                                    </div>
-                                </DetailRow>
-                                <DetailRow label="OS Version">
-                                    {asset?.osVersion || agent.meta?.os_full_name || agent.meta?.os_version || 'Unknown'}
-                                </DetailRow>
-                                <DetailRow label="Device Type">
-                                    <span className="capitalize">
-                                        {agent.meta?.device_type || 'Unknown'}
-                                        {agent.meta?.chassis_label && agent.meta.chassis_label !== 'Unknown' && (
-                                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({agent.meta.chassis_label})</span>
-                                        )}
-                                        {agent.meta?.is_virtual && (
-                                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">Virtual</span>
-                                        )}
-                                    </span>
-                                </DetailRow>
-                                <DetailRow label="CPU">
-                                    {asset?.cpuModel || agent.meta?.cpu_model || agent.meta?.metrics_collection?.cpu?.model || 'Unknown'}
-                                </DetailRow>
-                                <DetailRow label="Memory">
-                                    {agent.meta?.memory_gb || (agent.meta?.total_memory_gb ? `${agent.meta.total_memory_gb} GB` : null) || 'Unknown'}
-                                </DetailRow>
-                                <DetailRow label="Serial Number">
-                                    <span className="font-mono text-xs">{agent.meta?.serial_number || asset?.serialNumber || 'Unknown'}</span>
-                                </DetailRow>
-                                <DetailRow label="Agent Version">{agent.version}</DetailRow>
-                                <DetailRow label="Network Interfaces">
-                                    <div className="space-y-1">
-                                        {asset?.macAddresses?.map((mac, idx) => (
-                                            <div key={idx} className="flex space-x-2 text-xs">
-                                                <span className="font-semibold text-gray-600 dark:text-gray-400">{mac.interface}:</span>
-                                                <span className="font-mono">{mac.mac}</span>
-                                            </div>
-                                        )) || <span className="font-mono text-xs">{asset?.macAddress || 'Unknown'}</span>}
-                                    </div>
-                                </DetailRow>
-                                <DetailRow label="Last Seen">{new Date(agent.lastSeen).toLocaleString(undefined, { timeZone })}</DetailRow>
-                                <DetailRow label="Agent ID"><span className="font-mono text-xs">{agent.id}</span></DetailRow>
-                                <DetailRow label="Asset ID">
-                                    <div className="flex items-center space-x-2">
-                                        <span className="font-mono text-xs text-gray-900 dark:text-gray-200">{agent.assetId || 'Unlinked'}</span>
-                                        {(hasPermission('manage:agents') || hasPermission('admin:*')) && (
-                                            <button
-                                                onClick={handleOpenLinkModal}
-                                                className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center"
-                                            >
-                                                <GitMergeIcon size={12} className="mr-1" />
-                                                {agent.assetId ? 'Change Link' : 'Link Asset'}
-                                            </button>
-                                        )}
-                                    </div>
-                                    {isLinkingAsset && (
-                                        <div className="mt-2 text-xs flex items-center space-x-2 border p-2 rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
-                                            <select
-                                                value={selectedAssetId}
-                                                onChange={(e) => setSelectedAssetId(e.target.value)}
-                                                className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-xs dark:bg-gray-700 dark:text-gray-200"
-                                            >
-                                                <option value="">Select an Asset...</option>
-                                                {availableAssets.map(a => (
-                                                    <option key={a.id} value={a.id}>{a.hostname} ({a.osType || 'Unknown OS'}) {a.agentStatus === 'Online' ? '⚡' : ''}</option>
-                                                ))}
-                                            </select>
-                                            <button
-                                                onClick={handleLinkAsset}
-                                                disabled={isLinking || !selectedAssetId}
-                                                className="bg-primary-600 text-white px-2 py-1 flex items-center justify-center whitespace-nowrap rounded hover:bg-primary-700 disabled:opacity-50"
-                                            >
-                                                {isLinking ? 'Linking...' : 'Confirm'}
-                                            </button>
-                                            <button
-                                                onClick={() => setIsLinkingAsset(false)}
-                                                disabled={isLinking}
-                                                className="bg-gray-200 text-gray-700 px-2 py-1 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    )}
-                                </DetailRow>
-                                <DetailRow label="Tenant">
-                                    <div className="flex flex-col">
-                                        <span className="font-medium text-gray-900 dark:text-gray-100">{tenantName}</span>
-                                        <span className="font-mono text-xs text-gray-500">{agent.tenantId}</span>
-                                    </div>
-                                </DetailRow>
-                            </dl>
-
-                            {/* Live Performance Metrics */}
-                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 flex items-center justify-between">
-                                    <span className="flex items-center">
-                                        <ActivityIcon size={16} className="mr-2" />
-                                        Performance Metrics
-                                    </span>
-                                    <span className="flex items-center gap-2">
-                                        {latestMetrics && (
-                                            <span className="text-xs text-gray-400">
-                                                {new Date(latestMetrics.timestamp).toLocaleTimeString(undefined, { timeZone })}
-                                            </span>
-                                        )}
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                                            Live
-                                        </span>
-                                    </span>
-                                </h3>
-                                {(() => {
-                                    const cpu = latestMetrics?.cpu ?? agent.meta?.current_cpu ?? null;
-                                    const mem = latestMetrics?.memory ?? agent.meta?.current_memory ?? null;
-                                    const disk = latestMetrics?.disk ?? agent.meta?.disk_usage ?? null;
-                                    const metrics = [
-                                        { label: 'CPU', value: cpu, color: cpu !== null && cpu > 80 ? 'bg-red-500' : cpu !== null && cpu > 60 ? 'bg-amber-500' : 'bg-primary-500' },
-                                        { label: 'Memory', value: mem, color: mem !== null && mem > 85 ? 'bg-red-500' : mem !== null && mem > 70 ? 'bg-amber-500' : 'bg-blue-500' },
-                                        { label: 'Disk', value: disk, color: disk !== null && disk > 90 ? 'bg-red-500' : disk !== null && disk > 75 ? 'bg-amber-500' : 'bg-teal-500' },
-                                    ];
-                                    return (
-                                        <div className="space-y-3">
-                                            {metrics.map(({ label, value, color }) => (
-                                                <div key={label}>
-                                                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                                        <span>{label}</span>
-                                                        <span className="font-mono font-semibold">
-                                                            {value !== null ? `${Math.round(value)}%` : '—'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                                        <div
-                                                            className={`h-2 rounded-full transition-all duration-700 ${color}`}
-                                                            style={{ width: value !== null ? `${Math.min(100, Math.round(value))}%` : '0%' }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Enabled Capabilities</h3>
-                                {agent.capabilities && agent.capabilities.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                                        {agent.capabilities.map((cap: any) => {
-                                            const capId = (typeof cap === 'string' ? cap : cap?.id) as AgentCapability;
-                                            const info = capabilityInfo[capId];
-                                            return info ? (
-                                                <div key={capId} title={info.label} className="flex items-center">
-                                                    <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-primary-500 dark:text-primary-400">
-                                                        {info.icon}
-                                                    </div>
-                                                    <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">{info.label}</span>
-                                                </div>
-                                            ) : null;
-                                        })}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400">No capabilities enabled.</p>
-                                )}
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 flex items-center">
-                                    <ShieldAlertIcon size={16} className="mr-2" />
-                                    Asset Vulnerabilities
-                                </h3>
-                                {sortedVulnerabilities.length > 0 ? (
-                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                        {sortedVulnerabilities.map((vuln, index) => (
-                                            <div key={index} className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex justify-between items-center">
-                                                <div>
-                                                    <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">{vuln.cveId || 'Unknown CVE'}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{vuln.affectedSoftware}</p>
-                                                </div>
-                                                <span className={`px - 2 py - 1 text - xs font - medium rounded - full ${severityClasses[vuln.severity]} `}>
-                                                    {vuln.severity}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400">No open vulnerabilities detected on the associated asset.</p>
-                                )}
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 flex items-center">
-                                    <HistoryIcon size={16} className="mr-2" />
-                                    Remediation History
-                                </h3>
-                                {agent.remediationAttempts && agent.remediationAttempts.length > 0 ? (
-                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                        {agent.remediationAttempts.map((attempt, index) => {
-                                            const isSuccess = (index + agent.hostname.length) % 3 !== 0;
-                                            return (
-                                                <div key={index} className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex justify-between items-center">
-                                                    <div>
-                                                        <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">Attempt #{index + 1}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(attempt.timestamp).toLocaleString(undefined, { timeZone })}</p>
-                                                    </div>
-                                                    <div className="flex items-center space-x-4">
-                                                        {isSuccess ? (
-                                                            <span className="flex items-center text-xs font-medium text-green-700 bg-green-100 dark:text-green-200 dark:bg-green-900/50 px-2 py-1 rounded-full">
-                                                                <CheckIcon size={14} className="mr-1.5" /> Success
-                                                            </span>
-                                                        ) : (
-                                                            <span className="flex items-center text-xs font-medium text-red-700 bg-red-100 dark:text-red-200 dark:bg-red-900/50 px-2 py-1 rounded-full">
-                                                                <XCircleIcon size={14} className="mr-1.5" /> Failed
-                                                            </span>
-                                                        )}
-                                                        <button onClick={() => onViewRemediationLogs(agent)} className="text-xs font-medium text-primary-600 hover:underline">
-                                                            View Log
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )
-                                        }).reverse()}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400">No remediation attempts have been recorded for this agent.</p>
-                                )}
-                            </div>
-                        </div>
+                        <AgentOverviewTab
+                            agent={agent}
+                            asset={asset}
+                            tenantName={tenantName}
+                            currentStatusIcon={currentStatus.icon}
+                            currentStatusTextClass={currentStatus.textClass}
+                            platformIcon={platformIcons[agent.platform] || <ServerIcon size={20} className="text-gray-500 dark:text-gray-400" />}
+                            capabilityInfo={capabilityInfo}
+                            onViewRemediationLogs={onViewRemediationLogs}
+                            hasPermission={hasPermission}
+                        />
                     ) : activeTab === 'runtime' ? (
                         <RuntimeSecurityTab data={runtimeSecurityData} />
                     ) : activeTab === 'compliance' ? (
@@ -789,131 +485,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             onRefresh={canTriggerScan ? handleRefreshCompliance : undefined}
                         />
                     ) : activeTab === 'software' ? (
-                        <div className="space-y-4">
-                            {(() => {
-                                // Check both asset and agent meta for software data
-                                const softwareList = asset?.installedSoftware || agent?.meta?.installed_software || [];
-
-                                return (
-                                    <>
-                                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
-                                            <ComponentIcon size={20} className="mr-2" />
-                                            Installed Software ({softwareList.length})
-                                        </h3>
-                                        {softwareList.length > 0 ? (
-                                            <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                                    <thead className="bg-gray-50 dark:bg-gray-800">
-                                                        <tr>
-                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Version</th>
-                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Install Date</th>
-                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                                        {softwareList.map((sw: { name: string; version: string; installDate?: string; updateAvailable?: boolean; latestVersion?: string }, idx: number) => (
-                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-200 font-medium">
-                                                                    <div className="flex items-center">
-                                                                        {sw.name}
-                                                                        {sw.updateAvailable && (
-                                                                            <span title="Update Available" className="ml-2 w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 font-mono text-xs">
-                                                                    {sw.version}
-                                                                    {sw.latestVersion && (
-                                                                        <div className="text-red-500 dark:text-red-400 font-bold mt-1">
-                                                                            Latest: {sw.latestVersion}
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{sw.installDate || 'Unknown'}</td>
-                                                                <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                                                    {sw.updateAvailable ? (
-                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
-                                                                            Update Available
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                                                                            Up to date
-                                                                        </span>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        ) : (
-                                            <p className="text-gray-500 dark:text-gray-400 italic">No installed software detected.</p>
-                                        )}
-                                    </>
-                                );
-                            })()}
-                        </div>
+                        <AgentSoftwareTab agent={agent} asset={asset} />
                     ) : activeTab === 'patching' ? (
-                        <div className="space-y-6">
-                            {/* System Information */}
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 flex items-center">
-                                    <ServerIcon size={20} className="mr-2" />
-                                    System Information
-                                </h3>
-                                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-                                    <div className="sm:col-span-1">
-                                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">BIOS Version</dt>
-                                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{agent.meta?.system_patching?.bios_info?.version || 'Unknown'}</dd>
-                                    </div>
-                                    <div className="sm:col-span-1">
-                                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Manufacturer</dt>
-                                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{agent.meta?.system_patching?.bios_info?.manufacturer || 'Unknown'}</dd>
-                                    </div>
-                                    <div className="sm:col-span-1">
-                                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Release Date</dt>
-                                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{agent.meta?.system_patching?.bios_info?.release_date || 'Unknown'}</dd>
-                                    </div>
-                                    <div className="sm:col-span-1">
-                                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Boot Time</dt>
-                                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{agent.meta?.system_patching?.uptime?.boot_time || 'Unknown'}</dd>
-                                    </div>
-                                </dl>
-                            </div>
-
-                            {/* Pending Updates */}
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 flex items-center">
-                                    <HistoryIcon size={20} className="mr-2" />
-                                    Pending Updates ({agent.meta?.system_patching?.pending_updates?.length || 0})
-                                </h3>
-                                {agent.meta?.system_patching?.pending_updates && agent.meta.system_patching.pending_updates.length > 0 ? (
-                                    <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg max-h-60">
-                                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                            <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Update Title</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Severity</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Mandatory</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                                {agent.meta.system_patching.pending_updates.map((update: any, idx: number) => (
-                                                    <tr key={idx}>
-                                                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-200">{update.title}</td>
-                                                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{update.severity}</td>
-                                                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{update.mandatory ? 'Yes' : 'No'}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400 italic">No pending updates found.</p>
-                                )}
-                            </div>
-                        </div>
+                        <AgentPatchingTab agent={agent} />
                     ) : (
                         <PredictiveHealthTab data={healthData} />
                     )}

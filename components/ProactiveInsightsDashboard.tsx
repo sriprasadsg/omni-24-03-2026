@@ -55,7 +55,7 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
                                 <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">{insight.summary}</p>
                                 <div className="mt-3 flex items-center gap-2">
                                     <div className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
-                                    <p className="text-[10px] text-gray-400 font-mono uppercase tracking-tighter">{insight.details.entity}</p>
+                                    <p className="text-[10px] text-gray-400 font-mono uppercase tracking-tighter">{insight.details.entity as string}</p>
                                 </div>
                             </div>
                         ))}
@@ -77,7 +77,7 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
                                         }`}>{insight.severity}</span>
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{insight.summary}</p>
-                                <div className="mt-3 text-[10px] font-mono text-indigo-500 opacity-70">{insight.details.entity}</div>
+                                <div className="mt-3 text-[10px] font-mono text-indigo-500 opacity-70">{insight.details.entity as string}</div>
                             </div>
                         ))}
                     </div>
@@ -101,7 +101,7 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
                                         </div>
                                     </div>
                                     <span className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-[10px] font-black uppercase border border-green-500/20">
-                                        {rca.details.status}
+                                        {rca.details.status as string}
                                     </span>
                                 </div>
                                 <div className="glass p-4 rounded-2xl border border-primary-500/20 text-sm italic text-gray-600 dark:text-gray-300 relative overflow-hidden group">

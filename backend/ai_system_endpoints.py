@@ -42,7 +42,7 @@ async def list_ai_systems(current_user: TokenData = Depends(get_current_user)):
                 })
 
         return merged
-    except Exception as e:
+    except Exception:
         logger.exception("Unhandled exception")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -108,5 +108,5 @@ async def get_system_risks(system_id: str, current_user: TokenData = Depends(get
             })
 
         return normalised
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

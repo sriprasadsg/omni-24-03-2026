@@ -7,7 +7,7 @@ template management, and analytics.
 
 import logging
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timezone
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 from database import get_database
 from enhanced_playbook_engine import get_playbook_engine
-from soar_integrations import get_integration_manager
 from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/playbooks/enhanced", tags=["Enhanced SOAR"])
@@ -51,10 +50,10 @@ class ApprovalActionRequest(BaseModel):
 
 
 class PlaybookTemplate(BaseModel):
-    name: str
-    description: str
-    category: str
-    trigger: str
+    name: str = Field(..., max_length=255)
+    description: str = Field(..., max_length=5000)
+    category: str = Field(..., max_length=100)
+    trigger: str = Field(..., max_length=255)
     steps: List[Dict[str, Any]]
     tags: List[str] = []
 
@@ -175,9 +174,9 @@ async def get_playbook_executions(
         async for execution in cursor:
             execution["id"] = str(execution.pop("_id"))
             executions.append(execution)
-    except Exception:
-        pass
-    
+    except Exception as e:
+        logger.warning("Failed to fetch playbook executions: %s", e)
+
     return executions
 
 
@@ -287,219 +286,3 @@ async def approve_playbook_step(
         }
 
 
-@router.get("/templates")
-async def get_playbook_templates(
-    category: Optional[str] = None,
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:playbooks"))
-):
-    """
-    Get playbook templates
-    
-    Categories:
-    - phishing_response
-    - malware_containment
-    - ddos_mitigation
-    - data_breach_response
-    - insider_threat
-    - ransomware_recovery
-    """
-    query = {"is_template": True}
-    if category:
-        query["category"] = category
-    
-    cursor = db.playbooks.find(query)
-    
-    templates = []
-    async for template in cursor:
-        template["id"] = str(template.pop("_id"))
-        templates.append(template)
-    
-    return templates
-
-
-@router.post("/templates")
-async def create_playbook_from_template(
-    template_id: str,
-    name: str,
-    customizations: Optional[Dict[str, Any]] = None,
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("manage:playbooks"))
-):
-    """
-    Create a new playbook from a template
-    
-    Allows customization of template parameters
-    """
-    # Get template
-    template = await db.playbooks.find_one({
-        "_id": template_id,
-        "is_template": True
-    })
-    
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    
-    # Create new playbook from template
-    playbook = {
-        "name": name,
-        "description": template.get("description"),
-        "trigger": template.get("trigger"),
-        "steps": template.get("steps"),
-        "tenantId": _get(current_user, "tenantId"),
-        "created_by": _get(current_user, "email"),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "template_id": template_id,
-        "is_template": False
-    }
-    
-    # Apply customizations
-    if customizations:
-        playbook.update(customizations)
-    
-    result = await db.playbooks.insert_one(playbook)
-    
-    return {
-        "message": "Playbook created from template",
-        "playbook_id": str(result.inserted_id)
-    }
-
-
-@router.get("/analytics")
-async def get_playbook_analytics(
-    _days: int = 30,
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:playbooks"))
-):
-    """
-    Get playbook execution analytics
-    
-    Returns:
-    - Total executions
-    - Success rate
-    - Average execution time
-    - Most used playbooks
-    - Failure reasons
-    """
-    tenant_id = _get(current_user, "tenantId")
-    
-    # Aggregate statistics
-    pipeline = [
-        {"$match": {"tenant_id": tenant_id}},
-        {
-            "$group": {
-                "_id": "$playbook_id",
-                "playbook_name": {"$first": "$playbook_name"},
-                "total_executions": {"$sum": 1},
-                "successful": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
-                },
-                "failed": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}
-                },
-                "avg_duration": {"$avg": "$duration_ms"}
-            }
-        },
-        {"$sort": {"total_executions": -1}}
-    ]
-    
-    cursor = db.playbook_executions.aggregate(pipeline)
-    
-    playbook_stats = []
-    total_executions = 0
-    total_successful = 0
-    
-    async for stat in cursor:
-        success_rate = (stat["successful"] / stat["total_executions"] * 100) if stat["total_executions"] > 0 else 0
-        
-        playbook_stats.append({
-            "playbook_id": stat["_id"],
-            "playbook_name": stat["playbook_name"],
-            "total_executions": stat["total_executions"],
-            "success_rate": round(success_rate, 2),
-            "avg_duration_ms": round(stat.get("avg_duration", 0), 2)
-        })
-        
-        total_executions += stat["total_executions"]
-        total_successful += stat["successful"]
-    
-    overall_success_rate = (total_successful / total_executions * 100) if total_executions > 0 else 0
-    
-    return {
-        "total_executions": total_executions,
-        "overall_success_rate": round(overall_success_rate, 2),
-        "playbook_stats": playbook_stats
-    }
-
-
-@router.get("/integrations")
-async def get_available_integrations(
-    _current_user: dict = Depends(require_permission("view:playbooks"))
-):
-    """
-    Get list of available integration connectors
-    
-    Returns status of each integration
-    """
-    integration_manager = get_integration_manager()
-    
-    # Test all connections
-    connection_status = await integration_manager.test_all_connections()
-    
-    integrations = []
-    for name, connector in integration_manager.connectors.items():
-        integrations.append({
-            "name": name,
-            "type": connector.__class__.__name__,
-            "available": connection_status.get(name, False),
-            "actions": _get_connector_actions(name)
-        })
-    
-    return integrations
-
-
-def _get_connector_actions(connector_name: str) -> List[str]:
-    """Get available actions for a connector"""
-    action_map = {
-        "slack": ["send_message", "request_approval"],
-        "jira": ["create_ticket", "update_ticket", "add_comment"],
-        "firewall": ["block_ip", "unblock_ip", "create_rule"],
-        "edr": ["isolate_endpoint", "release_endpoint", "quarantine_file", "scan_endpoint"],
-        "email_gateway": ["block_sender", "quarantine_email", "release_email"],
-        "cloud_provider": ["quarantine_instance", "snapshot_instance", "revoke_credentials"]
-    }
-    return action_map.get(connector_name, [])
-
-
-@router.post("/integrations/test")
-async def test_integration(
-    connector_name: str,
-    action: str,
-    params: Dict[str, Any],
-    _current_user: dict = Depends(require_permission("manage:playbooks"))
-):
-    """
-    Test an integration connector action
-    
-    Useful for validating integration configuration
-    """
-    integration_manager = get_integration_manager()
-    
-    try:
-        result = await integration_manager.execute_action(
-            connector_name=connector_name,
-            action=action,
-            params=params
-        )
-        
-        return {
-            "message": "Integration test successful",
-            "result": result
-        }
-    
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Not found")
-    except Exception as e:
-        logger.error("Integration test failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")

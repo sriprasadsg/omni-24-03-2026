@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import json
 import re
 from datetime import datetime, timezone
 from database import get_database

@@ -44,7 +44,8 @@ def _is_safe_webhook_url(url: str) -> bool:
         except ValueError:
             pass  # hostname, not IP — DNS resolution happens at request time; block obvious patterns
         return True
-    except Exception:
+    except Exception as e:
+        logger.debug("Webhook URL private-IP check failed: %s", e)
         return False
 
 
@@ -67,7 +68,7 @@ class WebhookService:
         if not webhooks:
             return
             
-        print(f"[WebhookService] Triggering {len(webhooks)} webhooks for event: {event_type}")
+        logger.info("[WebhookService] Triggering %d webhooks for event: %s", len(webhooks), event_type)
         
         # Prepare the standard payload wrapper
         webhook_payload = {
@@ -118,7 +119,7 @@ class WebhookService:
                 )
                 
         except Exception as e:
-            print(f"[WebhookService] Failed to send to {url}: {e}")
+            logger.warning("[WebhookService] Failed to send to %s: %s", url, e)
             # Update with error
             await db.webhooks.update_one(
                 {"id": hook['id']},

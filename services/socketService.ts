@@ -103,6 +103,24 @@ class SocketService {
         this.socket.on('pong', (data) => {
             console.log('[WebSocket] 🏓 Pong received:', data);
         });
+
+        this.socket.on('support_message', (data) => {
+            this.emit('support_message', data);
+        });
+
+        this.socket.on('support_typing', (data) => {
+            this.emit('support_typing', data);
+        });
+    }
+
+    sendSupportMessage(convoId: string, content: string) {
+        if (this.socket) {
+            this.socket.emit('support_chat_message', { convo_id: convoId, content });
+        }
+    }
+
+    sendTyping(convoId: string, isTyping: boolean) {
+        this.socket?.emit('support_typing', { convo_id: convoId, is_typing: isTyping });
     }
 
     /**

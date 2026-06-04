@@ -2,21 +2,27 @@
 Real-time Analytics Service for Reporting
 Generates historical trend data from actual database records
 """
+import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Any
-from collections import defaultdict
+from typing import Dict, Any
 
-async def generate_analytics(db, tenant_id: str = None) -> Dict[str, Any]:
+logger = logging.getLogger(__name__)
+
+async def generate_analytics(db, tenant_id: str) -> Dict[str, Any]:
     """
-    Generate analytics data from real database records
-    
+    Generate analytics data from real database records.
+
     Args:
         db: MongoDB database instance
-        tenant_id: Optional tenant filter
-    
+        tenant_id: Required — callers must provide a non-empty tenant ID.
+                   Passing an empty/None value raises ValueError to prevent
+                   cross-tenant data leakage from unfiltered queries.
+
     Returns:
         Dictionary containing historical trends
     """
+    if not tenant_id:
+        raise ValueError("tenant_id is required for generate_analytics")
     
     # Calculate date range (last 6 months)
     end_date = datetime.now(timezone.utc)
@@ -42,9 +48,13 @@ async def generate_analytics(db, tenant_id: str = None) -> Dict[str, Any]:
     query_filter = {}
     if tenant_id:
         query_filter["tenantId"] = tenant_id
-    
+
+    start_iso = start_date.isoformat()
+    end_iso = end_date.isoformat()
+
     # === ALERTS DATA ===
-    alerts = await db.security_events.find(query_filter).to_list(length=10000)
+    alerts_filter = {**query_filter, "timestamp": {"$gte": start_iso, "$lte": end_iso}}
+    alerts = await db.security_events.find(alerts_filter, {"_id": 0}).to_list(length=2000)
     for alert in alerts:
         timestamp_str = alert.get("timestamp")
         if timestamp_str:
@@ -56,12 +66,12 @@ async def generate_analytics(db, tenant_id: str = None) -> Dict[str, Any]:
                  
                     if month_key in alert_data and severity in alert_data[month_key]:
                         alert_data[month_key][severity] += 1
-            except:
+            except Exception:
                 continue
-    
+
     # === COMPLIANCE DATA ===
     # Calculate compliance score based on compliant vs non-compliant controls
-    compliance_results = await db.compliance_results.find(query_filter).to_list(length=10000)
+    compliance_results = await db.compliance_results.find(query_filter, {"_id": 0}).to_list(length=2000)
     
     # Group compliance results by month using their timestamp
     month_compliance: Dict[str, list] = {month: [] for month in months}
@@ -85,7 +95,8 @@ async def generate_analytics(db, tenant_id: str = None) -> Dict[str, Any]:
             compliance_data[month_key] = round(passed / total * 100, 1)
     
     # === VULNERABILITY DATA ===
-    vulnerabilities = await db.vulnerabilities.find(query_filter).to_list(length=10000)
+    vuln_filter = {**query_filter, "discoveredAt": {"$gte": start_iso, "$lte": end_iso}}
+    vulnerabilities = await db.vulnerabilities.find(vuln_filter, {"_id": 0}).to_list(length=2000)
     for vuln in vulnerabilities:
         discovered_at = vuln.get("discoveredAt")
         if discovered_at:
@@ -97,7 +108,8 @@ async def generate_analytics(db, tenant_id: str = None) -> Dict[str, Any]:
                     
                     if month_key in vulnerability_data and severity in vulnerability_data[month_key]:
                         vulnerability_data[month_key][severity] += 1
-            except:
+            except Exception as e:
+                logger.debug("Skipping vulnerability with unparseable date: %s", e)
                 continue
     
     # Format data for frontend charts

@@ -42,6 +42,24 @@ const getPriorityColor = (score: number | undefined) => {
 const severityOptions: (PatchSeverity | 'All')[] = ['All', 'Critical', 'High', 'Medium', 'Low'];
 const statusOptions: (PatchStatus | 'All')[] = ['All', 'Pending', 'Deployed', 'Failed', 'Superseded'];
 
+function getSlaLabel(patch: import('../types').Patch): { label: string; cls: string } | null {
+  if (!patch.sla_hours || !patch.patch_deadline) return null;
+  const nowMs = Date.now();
+  const deadlineMs = patch.patch_deadline * 1000;
+  const remainMs = deadlineMs - nowMs;
+  if (remainMs <= 0) {
+    const overHrs = Math.round(-remainMs / 3_600_000);
+    return { label: `OVERDUE ${overHrs}h`, cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold' };
+  }
+  const remHrs = Math.round(remainMs / 3_600_000);
+  const threshold = patch.sla_hours * 0.25;
+  if (remHrs < threshold) {
+    return { label: `At Risk ${remHrs}h left`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
+  }
+  const remDays = Math.round(remHrs / 24);
+  return { label: `${remDays > 0 ? `${remDays}d` : `${remHrs}h`} left`, cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' };
+}
+
 
 export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds, onSetSelectedPatchIds }) => {
   const { hasPermission } = useUser();
@@ -50,17 +68,25 @@ export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds,
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<PatchSeverity | 'All'>('All');
   const [statusFilter, setStatusFilter] = useState<PatchStatus | 'All'>('All');
+  const [slaFilter, setSlaFilter] = useState<'All' | 'overdue' | 'at_risk'>('All');
   const [selectedPatch, setSelectedPatch] = useState<Patch | null>(null);
 
   const filteredPatches = useMemo(() => {
     return patches.filter(patch => {
       const severityMatch = severityFilter === 'All' || patch.severity === severityFilter;
       const statusMatch = statusFilter === 'All' || patch.status === statusFilter;
+      const slaMatch = slaFilter === 'All' || (() => {
+        const sla = getSlaLabel(patch);
+        if (!sla) return false;
+        if (slaFilter === 'overdue') return sla.label.startsWith('OVERDUE');
+        if (slaFilter === 'at_risk') return sla.label.startsWith('At Risk');
+        return true;
+      })();
       const searchMatch = (
         (patch.cveId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (patch.description || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
-      return severityMatch && statusMatch && searchMatch;
+      return severityMatch && statusMatch && slaMatch && searchMatch;
     });
   }, [patches, searchTerm, severityFilter, statusFilter]);
 
@@ -125,6 +151,17 @@ export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds,
             {statusOptions.map(opt => <option key={opt} value={opt}>{opt === 'All' ? 'All Statuses' : opt}</option>)}
           </select>
         </div>
+        <div className="flex-shrink-0 w-full md:w-36">
+          <select
+            value={slaFilter}
+            onChange={(e) => setSlaFilter(e.target.value as 'All' | 'overdue' | 'at_risk')}
+            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+          >
+            <option value="All">All SLA</option>
+            <option value="overdue">Overdue</option>
+            <option value="at_risk">At Risk</option>
+          </select>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
@@ -145,6 +182,7 @@ export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds,
               <th scope="col" className="px-6 py-3">EPSS %</th>
               <th scope="col" className="px-6 py-3">Priority</th>
               <th scope="col" className="px-6 py-3">Status</th>
+              <th scope="col" className="px-6 py-3">SLA</th>
               <th scope="col" className="px-6 py-3">Assets</th>
             </tr>
           </thead>
@@ -199,6 +237,13 @@ export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds,
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[patch.status] || 'bg-gray-100 text-gray-800'}`}>
                     {patch.status}
                   </span>
+                </td>
+                <td className="px-6 py-4">
+                  {(() => {
+                    const sla = getSlaLabel(patch);
+                    if (!sla) return <span className="text-xs text-gray-400">—</span>;
+                    return <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${sla.cls}`}>{sla.label}</span>;
+                  })()}
                 </td>
                 <td className="px-6 py-4 font-semibold text-center text-gray-900 dark:text-gray-100">{patch.affectedAssets?.length || 0}</td>
               </tr>

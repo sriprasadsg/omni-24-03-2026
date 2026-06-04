@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface Integration {
   id: string;
@@ -87,7 +88,7 @@ export default function CloudIntegrationsDashboard() {
         body: JSON.stringify({ provider: selectedProvider, name: formName || providers[selectedProvider]?.name, config: form }),
       });
       if (r.ok) { loadAll(); setShowAdd(false); setForm({}); setFormName(''); setSelectedProvider(''); }
-      else { const d = await r.json(); alert(d.detail || 'Failed to create'); }
+      else { const d = await r.json(); showToast(d.detail || 'Failed to create', 'error'); }
     } finally { setSaving(false); }
   }
 

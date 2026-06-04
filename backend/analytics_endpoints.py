@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -76,6 +77,56 @@ async def get_historical_data(current_user: TokenData = Depends(get_current_user
         vuln_data.append({"date": label, "Critical": crit_vuln, "High": high_vuln})
 
     return {"alerts": alerts_data, "compliance": compliance_data, "vulnerabilities": vuln_data}
+
+
+@router.get("/events")
+async def get_event_analytics(
+    tenant_id: Optional[str] = None,
+    days: int = 30,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """
+    Return event counts by type and time bucket.
+    Tests: O9 — GET /api/analytics/events?tenant_id=X → Event counts by type/time
+    """
+    is_admin = getattr(current_user, "role", "") in _ADMIN_ROLES
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    effective_tenant = (tenant_id if is_admin else caller_tenant) or caller_tenant
+
+    db = get_database()
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=days)).isoformat()
+
+    query = {"timestamp": {"$gte": start}}
+    if effective_tenant:
+        query["tenantId"] = effective_tenant
+
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": {"type": "$event_type", "day": {"$substr": ["$timestamp", 0, 10]}},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"_id.day": 1}},
+    ]
+
+    records = await db.security_events.aggregate(pipeline).to_list(length=500)
+
+    by_type: dict = {}
+    by_day: dict = {}
+    for r in records:
+        etype = r["_id"].get("type", "unknown")
+        day = r["_id"].get("day", "")
+        cnt = r["count"]
+        by_type[etype] = by_type.get(etype, 0) + cnt
+        by_day[day] = by_day.get(day, 0) + cnt
+
+    return {
+        "by_type": by_type,
+        "by_day": [{"date": k, "count": v} for k, v in sorted(by_day.items())],
+        "total": sum(by_type.values()),
+        "period_days": days,
+    }
 
 
 @router.get("/bi")

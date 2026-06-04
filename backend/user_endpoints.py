@@ -1,6 +1,6 @@
 import logging
 from datetime import timezone
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 from pydantic import BaseModel
 from database import get_database
@@ -8,10 +8,16 @@ from authentication_service import get_current_user
 from auth_utils import hash_password as get_password_hash
 from tenant_context import get_tenant_id
 import datetime
-import uuid
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
+
+# Canonical super-admin role set — used consistently across all endpoints in this file.
+_SUPER_ADMIN_ROLES = {"super_admin", "superadmin", "Super Admin", "platform-admin"}
+# Roles that may create/edit users within their own tenant
+_ADMIN_ROLES = _SUPER_ADMIN_ROLES | {"admin", "Tenant Admin", "tenant_admin"}
+# Roles a non-super-admin is allowed to assign when creating or updating a user
+_ASSIGNABLE_ROLES = {"viewer", "user", "analyst", "Analyst", "Tenant Admin", "tenant_admin", "admin"}
 
 async def _audit(db, action: str, actor: str, target: str, tenant_id: str):
     try:
@@ -61,11 +67,11 @@ async def list_users(current_user: dict = Depends(get_current_user)):
     
     if is_super_admin:
         # Super Admin sees everything
-        users = await db.users.find({}).to_list(length=1000)
+        users = await db.users.find({}, {"password": 0, "hashed_password": 0}).to_list(length=1000)
     else:
         # Regular users only see their own tenant
         tenant_id = get_tenant_id()
-        users = await db.users.find({"tenantId": tenant_id}).to_list(length=100)
+        users = await db.users.find({"tenantId": tenant_id}, {"password": 0, "hashed_password": 0}).to_list(length=100)
     
     return [
         {
@@ -86,8 +92,13 @@ async def create_user(user: UserCreate, current_user: dict = Depends(get_current
     """
     Create a new user.
     """
-    if getattr(current_user, "role", None) not in ["admin", "super_admin", "Super Admin"]:
+    caller_role = getattr(current_user, "role", None)
+    if caller_role not in _ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Not authorized to create users")
+
+    # Prevent privilege escalation: non-super-admins cannot assign elevated roles
+    if user.role not in _ASSIGNABLE_ROLES and caller_role not in _SUPER_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail=f"Not authorized to assign role '{user.role}'")
         
     db = get_database()
     
@@ -141,9 +152,9 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
     """
     db = get_database()
     current_role = getattr(current_user, "role", None)
-    is_super_admin = current_role in ["super_admin", "superadmin", "Super Admin"]
-    
-    if current_role not in ["admin", "super_admin", "Super Admin", "Tenant Admin"]:
+    is_super_admin = current_role in _SUPER_ADMIN_ROLES
+
+    if current_role not in _ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Not authorized to update users")
 
     try:
@@ -153,7 +164,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     # Find the user to update
-    target_user = await db.users.find_one({"_id": obj_id})
+    target_user = await db.users.find_one({"_id": obj_id}, {"password": 0, "hashed_password": 0})
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -197,7 +208,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
     await _audit(db, "user.updated", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     # Reload and return
-    updated_user = await db.users.find_one({"_id": obj_id})
+    updated_user = await db.users.find_one({"_id": obj_id}, {"password": 0, "hashed_password": 0})
     updated_user["id"] = user_id
     return {
         "id": user_id,
@@ -229,7 +240,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     # Find the user
-    target_user = await db.users.find_one({"_id": obj_id})
+    target_user = await db.users.find_one({"_id": obj_id}, {"password": 0, "hashed_password": 0})
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 

@@ -2,12 +2,13 @@
 UEBA (User and Entity Behavior Analytics) Service
 Detects behavioral anomalies through multi-rule analysis.
 """
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import logging
 from database import get_database
+from authentication_service import get_current_user
 
 router = APIRouter(prefix="/api/ueba", tags=["UEBA"])
 logger = logging.getLogger(__name__)
@@ -73,12 +74,13 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
         _alert_copy = {k: v for k, v in alert.items() if k != "_id"}
         import asyncio as _asyncio
         _asyncio.create_task(_broker.publish("security_events", _alert_copy))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Security event streaming publish failed (non-fatal): %s", e)
 
     # Append an immutable blockchain audit block for this security event
     try:
-        import hashlib as _hl, json as _json
+        import hashlib as _hl
+        import json as _json
         last_block = await db.blockchain_audit.find_one(
             {}, {"_id": 0, "blockNumber": 1, "hash": 1}, sort=[("blockNumber", -1)]
         )
@@ -96,8 +98,8 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
             _json.dumps(block_data, sort_keys=True).encode()
         ).hexdigest()
         await db.blockchain_audit.insert_one(block_data)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Blockchain audit block write failed (non-fatal): %s", e)
 
 
 def _parse_dt(val: str) -> datetime:
@@ -286,6 +288,97 @@ async def report_shadow_ai(event: ShadowAIEvent, background_tasks: BackgroundTas
     return {"status": "recorded"}
 
 
+@router.post("/analyze")
+async def analyze_event(
+    body: Dict[str, Any],
+    background_tasks: BackgroundTasks,
+    db=Depends(get_database),
+):
+    """
+    Unified UEBA analyze endpoint.
+    Routes to analyze_login or analyze_data_access based on event_type.
+    Returns { risk_score, flags, recommendations, is_anomalous }.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    event_type = body.get("event_type", "login")
+
+    if event_type == "api_call":
+        # Check for Shadow AI — calls to known AI provider endpoints/IPs
+        _SHADOW_AI_PROVIDERS = {
+            "openai.com", "api.openai.com",
+            "generativelanguage.googleapis.com", "gemini.google.com",
+            "anthropic.com", "api.anthropic.com",
+            "huggingface.co", "api-inference.huggingface.co",
+            "cohere.ai", "api.cohere.ai",
+            "api.mistral.ai",
+        }
+        endpoint = body.get("endpoint", "") or body.get("ip_address", "")
+        is_shadow_ai = any(provider in str(endpoint).lower() for provider in _SHADOW_AI_PROVIDERS)
+
+        base_event = LoginEvent(
+            user_id=body.get("user_id", "unknown"),
+            ip_address=body.get("ip_address", "0.0.0.0"),
+            user_agent=body.get("user_agent", ""),
+            timestamp=body.get("timestamp", now),
+        )
+        result = await analyze_login(db, base_event)
+
+        if is_shadow_ai:
+            result["triggered_rules"] = list(result.get("triggered_rules", [])) + ["shadow_ai_detected"]
+            result["risk_score"] = min(100, result.get("risk_score", 0) + 60)
+            result["is_anomalous"] = True
+            result.setdefault("recommendations", []).append(
+                "Unauthorized AI service access detected. Review and enforce AI usage policy."
+            )
+
+    elif event_type == "login":
+        event = LoginEvent(
+            user_id=body.get("user_id", "unknown"),
+            ip_address=body.get("ip_address", "0.0.0.0"),
+            user_agent=body.get("user_agent", ""),
+            timestamp=body.get("timestamp", now),
+            country=body.get("country"),
+            source_host=body.get("source_host"),
+            login_success=body.get("login_success", True),
+        )
+        result = await analyze_login(db, event)
+    elif event_type == "data_access":
+        event = DataAccessEvent(
+            user_id=body.get("user_id", "unknown"),
+            resource=body.get("resource", "unknown"),
+            bytes_accessed=int(body.get("bytes_accessed", 0)),
+            timestamp=body.get("timestamp", now),
+            sensitivity=body.get("sensitivity", "public"),
+        )
+        result = await analyze_data_access(db, event)
+    else:
+        # Generic risk scoring for unknown event types
+        risk_score = 10
+        flags: list[str] = []
+        if body.get("ip_address"):
+            ioc = await db.edr_ioc.find_one(
+                {"$or": [{"value": body["ip_address"]}, {"source_ip": body["ip_address"]}]}
+            )
+            if ioc:
+                flags.append("ioc_match")
+                risk_score += 50
+        result = {
+            "risk_score": risk_score,
+            "flags": flags,
+            "recommendations": ["Monitor this user's activity" if risk_score > 30 else "No action required"],
+            "is_anomalous": risk_score >= 50,
+            "triggered_rules": flags,
+        }
+
+    # Normalise to the expected response shape
+    return {
+        "risk_score": result.get("risk_score", 0),
+        "flags": result.get("triggered_rules", result.get("flags", [])),
+        "recommendations": result.get("recommendations", []),
+        "is_anomalous": result.get("is_anomalous", False),
+    }
+
+
 @router.post("/analyze-login")
 async def analyze_login_behavior(event: LoginEvent, background_tasks: BackgroundTasks, db=Depends(get_database)):
     """Multi-rule behavioral analysis of a login event."""
@@ -365,6 +458,80 @@ async def get_ueba_stats(db=Depends(get_database)):
         "total_login_events_analyzed": total_logins,
         "rules_active": len(_RULES),
     }
+
+
+_UEBA_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+
+
+@router.get("/risk-scores")
+async def get_user_risk_scores(
+    tenant_id: Optional[str] = None,
+    limit: int = 50,
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+):
+    """
+    Aggregate risk scores per user from recent login events.
+    Returns a sorted list (highest risk first).
+    """
+    caller_role = getattr(current_user, "role", "") or ""
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    # Non-admins are always scoped to their own tenant; admins may cross-scope
+    effective_tenant = (tenant_id if caller_role in _UEBA_SUPER_ROLES else caller_tenant) or caller_tenant
+    query: Dict[str, Any] = {}
+    if effective_tenant:
+        query["tenantId"] = effective_tenant
+
+    pipeline = [
+        {"$match": {**query, "analysis.risk_score": {"$exists": True}}},
+        {"$group": {
+            "_id": "$user_id",
+            "max_risk_score": {"$max": "$analysis.risk_score"},
+            "avg_risk_score": {"$avg": "$analysis.risk_score"},
+            "event_count": {"$sum": 1},
+            "last_seen": {"$max": "$timestamp"},
+            "triggered_rules": {"$push": "$analysis.triggered_rules"},
+        }},
+        {"$sort": {"max_risk_score": -1}},
+        {"$limit": limit},
+    ]
+
+    results = await db.login_events.aggregate(pipeline).to_list(length=limit)
+    return [
+        {
+            "user_id": r["_id"],
+            "risk_score": round(r["max_risk_score"], 1),
+            "avg_risk_score": round(r["avg_risk_score"], 1),
+            "event_count": r["event_count"],
+            "last_seen": r["last_seen"],
+        }
+        for r in results
+    ]
+
+
+@router.get("/alerts")
+async def get_ueba_alerts(
+    tenant_id: Optional[str] = None,
+    limit: int = 100,
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+):
+    """Return tenant-scoped UEBA anomaly alerts sorted by recency."""
+    caller_role = getattr(current_user, "role", "") or ""
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    effective_tenant = (tenant_id if caller_role in _UEBA_SUPER_ROLES else caller_tenant) or caller_tenant
+    query: Dict[str, Any] = {"type": {"$regex": "^ueba_", "$options": "i"}}
+    if effective_tenant:
+        query["tenantId"] = effective_tenant
+
+    alerts = await (
+        db.alerts
+        .find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .limit(limit)
+        .to_list(length=limit)
+    )
+    return alerts
 
 
 @router.get("/rules")

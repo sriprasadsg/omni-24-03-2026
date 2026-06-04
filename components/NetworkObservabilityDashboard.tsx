@@ -21,6 +21,7 @@ const StatCard: React.FC<{ title: string; value: string | number; }> = ({ title,
 );
 
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboardProps> = ({ networkDevices, onAddDevice, onRefresh }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -46,7 +47,7 @@ export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboa
         try {
             console.log(`Initiating server-side scan (all networks: ${scanAllNetworks})...`);
             await api.triggerServerNetworkScan(scanAllNetworks);
-            alert("Network scan initiated. This may take a few minutes.");
+            showToast("Network scan initiated. This may take a few minutes.", 'success');
 
             // Poll for results (simple delay for now)
             setTimeout(() => {
@@ -58,7 +59,7 @@ export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboa
 
         } catch (e) {
             console.error("Scan failed", e);
-            alert("Failed to start scan");
+            showToast("Failed to start scan", 'error');
             setIsScanning(false);
         }
     };
@@ -87,13 +88,13 @@ export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboa
         setRescanningSubnet(subnet);
         try {
             await api.triggerServerNetworkScan(false, subnet);
-            alert(`Rescan initiated for ${subnet}.`);
+            showToast(`Rescan initiated for ${subnet}.`, 'success');
             setTimeout(() => {
                 if (onRefresh) onRefresh();
                 setMapRefreshKey(k => k + 1);
             }, 3000);
         } catch (e) {
-            alert(`Failed to rescan ${subnet}`);
+            showToast(`Failed to rescan ${subnet}`, 'error');
         } finally {
             setRescanningSubnet(null);
         }

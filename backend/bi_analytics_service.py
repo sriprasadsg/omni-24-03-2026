@@ -7,8 +7,11 @@ Computes all BI metrics from real MongoDB data:
   - Efficiency     → from patch deployment history and security case MTTR
   - Asset dist.    → from assets collection grouped by OS type
 """
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class BiAnalyticsService:
@@ -25,11 +28,11 @@ class BiAnalyticsService:
             q["tenantId"] = tenant_id
 
         # ── 1. Risk Profile (radar) ───────────────────────────────────────────
-        agents = await db.agents.find(q, {"securityScore": 1}).to_list(length=1000)
+        agents = await db.agents.find(q, {"securityScore": 1, "_id": 0}).to_list(length=1000)
         scores = [a.get("securityScore", 0) for a in agents if a.get("securityScore")]
         avg_sec = round(sum(scores) / len(scores), 1) if scores else 75.0
 
-        frameworks = await db.compliance_frameworks.find(q, {"controls": 1}).to_list(length=1000)
+        frameworks = await db.compliance_frameworks.find(q, {"controls": 1, "_id": 0}).to_list(length=1000)
         passed = failed = 0
         for fw in frameworks:
             for ctrl in fw.get("controls", []):
@@ -70,7 +73,7 @@ class BiAnalyticsService:
         # ── 2. Predictive Trends (6 months back + 3 months forward) ──────────
         now = datetime.now(timezone.utc)
         monthly_alerts: Dict[str, int] = {}
-        alerts_cur = await db.alerts.find(q, {"createdAt": 1}).to_list(length=5000)
+        alerts_cur = await db.alerts.find(q, {"createdAt": 1, "_id": 0}).to_list(length=5000)
         for a in alerts_cur:
             ts = a.get("createdAt", "")
             if len(ts) >= 7:
@@ -106,8 +109,8 @@ class BiAnalyticsService:
                     t0 = datetime.fromisoformat(c["createdAt"].replace("Z", "+00:00"))
                     t1 = datetime.fromisoformat(c["resolvedAt"].replace("Z", "+00:00"))
                     deltas.append((t1 - t0).total_seconds() / 3600)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Unparseable case timestamp, skipping MTTR delta: %s", e)
             if deltas:
                 mttr_hours = round(sum(deltas) / len(deltas), 1)
 

@@ -7,19 +7,18 @@ import { SunIcon, MoonIcon, BotIcon, HelpCircleIcon } from './icons';
 import { User, Notification, AppView } from '../types';
 import { UserMenu } from './UserMenu';
 import NotificationCenter from './NotificationCenter';
+import ToastContainer from './ToastContainer';
 
 interface HeaderProps {
     allUsers: User[];
-    notifications: Notification[];
-    onNotificationClick: (notification: Notification) => void;
-    onMarkAllAsRead: () => void;
     onToggleSidebar: () => void;
     onOpenCommandBar: () => void;
+    onOpenSearch?: () => void;
     setCurrentView: (view: AppView) => void;
     onStartTour: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ allUsers, notifications, onNotificationClick, onMarkAllAsRead, onToggleSidebar, onOpenCommandBar, setCurrentView, onStartTour }) => {
+export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpenCommandBar, onOpenSearch, setCurrentView, onStartTour }) => {
     const { themeId, setThemeId, isDarkMode, toggleDarkMode } = useTheme();
     const { timeZone, setTimeZone, availableTimeZones } = useTimeZone();
 
@@ -27,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, notifications, onNotif
 
 
     return (
+        <>
         <header className="glass dark:glass shadow-sm z-50 sticky top-0 flex-shrink-0 border-b border-white/20 dark:border-white/5">
             <div className="w-full px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
@@ -73,6 +73,16 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, notifications, onNotif
                             <HelpCircleIcon size={20} />
                         </button>
 
+                        {onOpenSearch && (
+                            <button
+                                onClick={onOpenSearch}
+                                className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 text-xs font-mono hidden sm:flex items-center"
+                                aria-label="Open Global Search"
+                            >
+                                <span className="mr-2 text-sm">Search</span>
+                                <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">⌘/</kbd>
+                            </button>
+                        )}
                         <button
                             onClick={onOpenCommandBar}
                             className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 text-xs font-mono hidden sm:flex items-center"
@@ -91,5 +101,7 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, notifications, onNotif
                 </div>
             </div>
         </header>
+        <ToastContainer />
+        </>
     );
 };

@@ -3,7 +3,6 @@ Remove duplicate assets from MongoDB.
 Keep only the most recent entry based on lastSeen timestamp.
 """
 from pymongo import MongoClient
-from datetime import datetime
 import os
 
 _mongo_url = os.environ.get("MONGODB_URL", "mongodb://localhost:27017")
@@ -65,12 +64,12 @@ else:
 total_assets = db.assets.count_documents({})
 unique_ids = len(db.assets.distinct("id"))
 
-print(f"\n📊 Final Stats:")
+print("\n📊 Final Stats:")
 print(f"  Total assets: {total_assets}")
 print(f"  Unique IDs: {unique_ids}")
 
 if total_assets == unique_ids:
-    print(f"  ✅ All assets have unique IDs!")
+    print("  ✅ All assets have unique IDs!")
 else:
     print(f"  ⚠️  Warning: Still have {total_assets - unique_ids} duplicates")
 

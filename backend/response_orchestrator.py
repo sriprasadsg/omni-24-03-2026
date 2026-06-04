@@ -5,7 +5,7 @@ and automatically triggers the appropriate response action.
 """
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from database import get_database
 
 logger = logging.getLogger(__name__)
@@ -32,15 +32,21 @@ class ResponseOrchestrator:
     """
 
     async def evaluate_alert(
-        self, alert: Dict[str, Any], agent_id: str, dry_run: bool = False
+        self, alert: Dict[str, Any], agent_id: str, dry_run: bool = False,
+        tenant_id: str = "",
     ) -> List[Dict]:
         """
-        Evaluate an alert against all enabled policies.
+        Evaluate an alert against enabled policies scoped to this tenant.
         Returns a list of response tasks dispatched (or simulated when dry_run=True).
         dry_run=True: policies are matched and tasks are built but NOT written to the DB.
         """
+        if not tenant_id:
+            logger.error("evaluate_alert called without tenant_id — refusing to run cross-tenant")
+            return []
         db = get_database()
-        policies = await db.response_policies.find({"enabled": True}, {"_id": 0}).to_list(length=100)
+        policies = await db.response_policies.find(
+            {"enabled": True, "tenantId": tenant_id}, {"_id": 0}
+        ).to_list(length=100)
         dispatched = []
 
         for policy in policies:
@@ -123,10 +129,13 @@ class ResponseOrchestrator:
         task.pop("_id", None)
         return task
 
-    async def mark_executed(self, task_id: str, result: Dict) -> bool:
+    async def mark_executed(self, task_id: str, result: Dict, tenant_id: str = "") -> bool:
         db = get_database()
+        query: dict = {"task_id": task_id}
+        if tenant_id:
+            query["tenantId"] = tenant_id
         res = await db.response_tasks.update_one(
-            {"task_id": task_id},
+            query,
             {"$set": {
                 "status": "executed",
                 "executed_at": datetime.now(timezone.utc).isoformat(),

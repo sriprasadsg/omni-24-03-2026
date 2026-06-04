@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchDastScans, startDastScan } from '../services/apiService';
 import { DastScan, DastFinding } from '../types';
 import { Shield, Play, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 export const DASTDashboard: React.FC = () => {
     const [scans, setScans] = useState<DastScan[]>([]);
@@ -20,6 +21,7 @@ export const DASTDashboard: React.FC = () => {
             setScans(data);
         } catch (e) {
             console.error("Failed to load DAST scans", e);
+            showToast("Failed to load DAST scan data", "error");
         } finally {
             setLoading(false);
         }

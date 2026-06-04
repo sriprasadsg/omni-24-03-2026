@@ -22,7 +22,7 @@ admins = run_ps("(Get-LocalGroupMember -Group 'Administrators' | Select-Object N
 admin_pass = "Administrator" in admins
 
 # 3. WDAC / Device Guard
-cg = run_ps("(Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard).SecurityServicesRunning")
+cg = run_ps(r"(Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard).SecurityServicesRunning")
 cg_pass = cg != "" and cg != "0"
 
 hostname = socket.gethostname().upper()

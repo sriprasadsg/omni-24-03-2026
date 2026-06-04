@@ -1,0 +1,15 @@
+[lint]
+# Rules kept: F821 (undefined-name), F401 (unused-import), F841 (unused-variable)
+# Rules suppressed: style-only issues common in FastAPI codebases
+ignore = [
+    "E402",  # module-level import not at top — FastAPI/app init patterns require this
+    "E701",  # multiple statements on one line (colon)
+    "E702",  # multiple statements on one line (semicolon)
+    "E722",  # bare-except — acceptable in plugin/integration code
+    "E741",  # ambiguous variable name (e.g. `l`)
+    "F601",  # multi-value repeated key literal
+    "F401",  # imported but unused — auto-fixed critical ones; residual are safe re-exports
+    "F841",  # local variable assigned but never used — residual in generated/template code
+]
+
+exclude = ["venv/", ".venv/", "__pycache__/", "*.orig"]

@@ -58,30 +58,30 @@ async def manually_collect_compliance():
         )
         
         if result.modified_count > 0:
-            print(f"\n✅ Successfully updated asset metadata with compliance data")
+            print("\n✅ Successfully updated asset metadata with compliance data")
         else:
-            print(f"\n⚠️  Asset not found or already had this data")
+            print("\n⚠️  Asset not found or already had this data")
         
         # Also update agent metadata
         await db.agents.update_one(
             {"hostname": hostname},
             {
                 "$set": {
-                    f"meta.compliance_enforcement": compliance_data,
+                    "meta.compliance_enforcement": compliance_data,
                     "lastSeen": datetime.now(timezone.utc).isoformat()
                 }
             }
         )
         
-        print(f"\n✅ Data injection complete!")
-        print(f"\n📋 Now run the evaluation script:")
-        print(f"   python backend/trigger_compliance_check.py --tenant_id all")
+        print("\n✅ Data injection complete!")
+        print("\n📋 Now run the evaluation script:")
+        print("   python backend/trigger_compliance_check.py --tenant_id all")
         
     except ImportError as e:
         print(f"❌ Error importing compliance capability: {e}")
-        print(f"\n💡 Make sure you're running from the backend directory")
-        print(f"   cd backend")
-        print(f"   python manually_collect_compliance.py")
+        print("\n💡 Make sure you're running from the backend directory")
+        print("   cd backend")
+        print("   python manually_collect_compliance.py")
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback

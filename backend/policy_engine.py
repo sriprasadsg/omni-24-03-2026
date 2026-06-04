@@ -4,10 +4,9 @@ Handles policy-based automation, scheduling, and conditional deployment
 """
 
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from enum import Enum
-import aiohttp
-import json
+from policy_engine_actions import PatchPolicyActionsMixin
 
 
 class PolicyTrigger(str, Enum):
@@ -30,9 +29,9 @@ class PolicyAction(str, Enum):
     QUARANTINE = "quarantine"
 
 
-class PatchPolicyEngine:
+class PatchPolicyEngine(PatchPolicyActionsMixin):
     """Automated policy-based patch deployment engine"""
-    
+
     def __init__(self, db):
         self.db = db
     
@@ -263,235 +262,6 @@ class PatchPolicyEngine:
         
         else:
             raise ValueError(f"Unknown action type: {action_type}")
-    
-    async def _auto_deploy_patch(
-        self,
-        patch: Dict[str, Any],
-        config: Dict[str, Any],
-        tenant_id: str
-    ) -> Dict[str, Any]:
-        """Deploy patch immediately"""
-        from deployment_service import get_deployment_service
-        
-        # Get affected assets
-        asset_ids = patch.get("affectedAssets", [])
-        
-        # Apply group filter if specified
-        if config.get("asset_groups"):
-            assets = await self.db.assets.find(
-                {
-                    "id": {"$in": asset_ids},
-                    "group": {"$in": config["asset_groups"]}
-                },
-                {"_id": 0, "id": 1}
-            ).to_list(length=1000)
-            asset_ids = [a["id"] for a in assets]
-        
-        # Create deployment job
-        job_id = f"auto-deploy-{patch['id']}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        
-        deployment_job = {
-            "id": job_id,
-            "type": "immediate",
-            "tenant_id": tenant_id,
-            "patch_ids": [patch["id"]],
-            "asset_ids": asset_ids,
-            "status": "scheduled",
-            "created_by": "policy_engine",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "scheduled_for": config.get("schedule", "immediate")
-        }
-        
-        await self.db.patch_deployment_jobs.insert_one(deployment_job)
-        
-        return {
-            "deployment_id": job_id,
-            "asset_count": len(asset_ids),
-            "scheduled_for": deployment_job["scheduled_for"]
-        }
-    
-    async def _auto_deploy_staged(
-        self,
-        patch: Dict[str, Any],
-        config: Dict[str, Any],
-        tenant_id: str
-    ) -> Dict[str, Any]:
-        """Deploy patch using staged deployment"""
-        from deployment_service import get_deployment_service
-        
-        deployment_service = get_deployment_service(self.db)
-        
-        asset_ids = patch.get("affectedAssets", [])
-        
-        deployment = await deployment_service.create_staged_deployment(
-            patch_ids=[patch["id"]],
-            asset_ids=asset_ids,
-            tenant_id=tenant_id,
-            created_by="policy_engine",
-            deployment_config={
-                "auto_progress": config.get("auto_progress", False),
-                "rollback_on_failure": config.get("rollback_on_failure", True),
-                "failure_threshold": config.get("failure_threshold", 0.10)
-            }
-        )
-        
-        return {
-            "deployment_id": deployment["id"],
-            "type": "staged",
-            "stages": len(deployment["stages"])
-        }
-    
-    async def _request_manual_approval(
-        self,
-        patch: Dict[str, Any],
-        config: Dict[str, Any],
-        tenant_id: str
-    ) -> Dict[str, Any]:
-        """Create manual approval request"""
-        
-        approval_id = f"approval-{patch['id']}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        
-        approval = {
-            "id": approval_id,
-            "type": "manual_patch_approval",
-            "patch_id": patch["id"],
-            "tenant_id": tenant_id,
-            "status": "pending",
-            "approvers": config.get("approvers", []),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "expires_at": (datetime.now(timezone.utc).timestamp() + (config.get("expiry_hours", 48) * 3600))
-        }
-        
-        await self.db.manual_approvals.insert_one(approval)
-        
-        # Send notification to approvers
-        if config.get("approvers"):
-            from email_service import email_service
-            smtp_config = await self.db.smtp_config.find_one({"tenant_id": tenant_id})
-            
-            if smtp_config:
-                email_service.send_alert_notification(
-                    smtp_config=smtp_config,
-                    recipients=config["approvers"],
-                    alert={
-                        "title": f"Approval Required: Patch {patch.get('name')}",
-                        "severity": "High",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "asset": f"Patch ID: {patch['id']}",
-                        "description": f"A patch requires your approval before deployment.\nPolicy: {config.get('policy_name', 'Manual Approval Policy')}",
-                        "recommendations": f"Please review and approve via the dashboard.\nExpires at: {datetime.fromtimestamp(approval['expires_at'], timezone.utc)}"
-                    }
-                )
-        
-        return {"approval_id": approval_id}
-    
-    async def _send_notifications(
-        self,
-        patch: Dict[str, Any],
-        config: Dict[str, Any],
-        tenant_id: str
-    ) -> Dict[str, Any]:
-        """Send notifications about patch"""
-        
-        # Prepare notification message
-        message = f"New patch available: {patch.get('name')}\n"
-        message += f"Severity: {patch.get('severity')}\n"
-        message += f"CVSS: {patch.get('cvss_score', 'N/A')}\n"
-        message += f"Affected Assets: {len(patch.get('affectedAssets', []))}\n"
-        
-        # Integrate with actual notification services
-        results = {
-            "email_sent": False,
-            "reasons": []
-        }
-        
-        # 1. Email Notification
-        if "email" in config.get("channels", ["email"]):
-            from email_service import email_service
-            
-            # Get SMTP config for tenant
-            smtp_config = await self.db.smtp_config.find_one({"tenant_id": tenant_id})
-            
-            if smtp_config:
-                recipients = config.get("recipients", [])
-                if recipients:
-                    alert_data = {
-                        "title": f"Patch Notification: {patch.get('name')}",
-                        "severity": patch.get("severity", "Medium"),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "asset": f"{len(patch.get('affectedAssets', []))} assets affected",
-                        "description": message,
-                        "recommendations": "Review and approve/deploy this patch."
-                    }
-                    
-                    email_result = email_service.send_alert_notification(
-                        smtp_config=smtp_config,
-                        recipients=recipients,
-                        alert=alert_data
-                    )
-                    results["email_sent"] = email_result["success"]
-                    results["email_details"] = email_result
-                else:
-                    results["reasons"].append("No recipients configured")
-            else:
-                results["reasons"].append("SMTP config not found for tenant")
-        
-        # 2. Slack Notification
-        if "slack" in config.get("channels", []):
-            webhook_url = config.get("slack_webhook")
-            if webhook_url:
-                payload = {
-                    "text": f"🚨 *New Patch Available: {patch.get('name')}*\n*Severity:* {patch.get('severity')}\n*Affected Assets:* {len(patch.get('affectedAssets', []))}"
-                }
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.post(webhook_url, json=payload) as response:
-                            results["slack_sent"] = response.status in [200, 201]
-                except Exception as e:
-                    results["slack_sent"] = False
-                    results["reasons"].append(f"Slack webhook failed: {str(e)}")
-            else:
-                results["reasons"].append("Slack webhook missing")
-
-        # 3. Teams Notification
-        if "teams" in config.get("channels", []):
-            webhook_url = config.get("teams_webhook")
-            if webhook_url:
-                payload = {
-                    "text": f"**New Patch Available: {patch.get('name')}**\n\n**Severity:** {patch.get('severity')}\n\n**Affected Assets:** {len(patch.get('affectedAssets', []))}"
-                }
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.post(webhook_url, json=payload) as response:
-                            results["teams_sent"] = response.status in [200, 201]
-                except Exception as e:
-                    results["teams_sent"] = False
-                    results["reasons"].append(f"Teams webhook failed: {str(e)}")
-            else:
-                results["reasons"].append("Teams webhook missing")
-
-        return results
-    
-    async def _quarantine_patch(
-        self,
-        patch: Dict[str, Any],
-        config: Dict[str, Any],
-        tenant_id: str
-    ) -> Dict[str, Any]:
-        """Quarantine patch for manual review"""
-        
-        await self.db.patches.update_one(
-            {"id": patch["id"]},
-            {
-                "$set": {
-                    "quarantined": True,
-                    "quarantine_reason": config.get("reason", "Automatic quarantine by policy"),
-                    "quarantined_at": datetime.now(timezone.utc).isoformat()
-                }
-            }
-        )
-        
-        return {"quarantined": True}
     
     async def process_new_patch(
         self,

@@ -198,7 +198,9 @@ cd "$PROJECT_DIR/backend"
 
 # Create/Update required directories
 mkdir -p logs backups uploads data_lake_storage static/reports omni_data
+mkdir -p /var/lib/omni-platform/ticket_attachments
 chown -R $ACTUAL_USER:$ACTUAL_USER logs backups uploads data_lake_storage static/reports omni_data
+chown -R $ACTUAL_USER:$ACTUAL_USER /var/lib/omni-platform
 
 # Virtual Env
 rm -rf venv
@@ -268,6 +270,13 @@ GOOGLE_APPLICATION_CREDENTIALS=
 
 # === Phase 10: Ticketing (Zoho/Custom) ===
 # Configured via UI — no static creds needed here
+
+# === Internal Helpdesk Tickets ===
+TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments
+
+# === Platform Public URL (agent install instructions + SSO redirect) ===
+PLATFORM_URL=http://${SYSTEM_IP}:5000
+SSO_REDIRECT_URI=http://${SYSTEM_IP}:5000/api/sso/google/callback
 
 # === Security: Backup Encryption (Fernet/AES-128) ===
 # Leave blank to auto-generate on first run; store the generated key safely
@@ -496,6 +505,8 @@ enabled_capabilities:
   - vendor_risk
   - backup_verifier
   - deception_monitor
+  # Helpdesk integration — auto-raises tickets on critical detections
+  - ticket_reporter
   # Advanced / optional (comment out if not needed)
   - cloud_metadata
   - vss_manager
@@ -608,6 +619,7 @@ EnvironmentFile=$PROJECT_DIR/backend/.env
 Environment="PATH=$PROJECT_DIR/backend/venv/bin"
 Environment="PLATFORM_URL=http://$SYSTEM_IP:5000"
 Environment="PYTHONPATH=$PROJECT_DIR/backend"
+Environment="TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments"
 ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn app:socket_app --host 0.0.0.0 --port 5000 --log-level info
 Restart=always
 RestartSec=10

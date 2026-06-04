@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { XIcon, ZapIcon, ClockIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface SoftwareItem {
     id: string;
@@ -31,7 +32,7 @@ export const DeploySoftwareUpdatesModal: React.FC<DeploySoftwareUpdatesModalProp
 
     const handleConfirm = () => {
         if (deploymentType === 'Scheduled' && !scheduleTime) {
-            alert('Please select a date and time for the scheduled deployment.');
+            showToast('Please select a date and time for the scheduled deployment.', 'error');
             return;
         }
         onDeploy(deploymentType, scheduleTime);

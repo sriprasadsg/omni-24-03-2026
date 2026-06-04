@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AiModel, fetchAiModels, registerAiModel } from '../services/apiService';
 import { PlusIcon, ServerIcon, ClockIcon, AlertTriangleIcon, SearchIcon, LayersIcon, ShieldCheckIcon, SparklesIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
+import { showToast } from '../utils/toast';
 
 interface AiModelRegistryProps {
     onEvaluate?: (modelId: string) => void;
@@ -57,7 +58,7 @@ export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, on
             loadModels();
         } catch (error) {
             console.error(error);
-            alert("Failed to register model");
+            showToast("Failed to register model", 'error');
         }
     };
 

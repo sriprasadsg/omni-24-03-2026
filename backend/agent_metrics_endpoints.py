@@ -6,7 +6,7 @@ Frontend calls GET /api/agents/{id}/metrics/history for charts.
 """
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from database import get_database

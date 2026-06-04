@@ -10,13 +10,15 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dr", tags=["Disaster Recovery"])
 
+_DR_FAILOVER_ROLES = {"Super Admin", "super_admin", "platform-admin", "Tenant Admin", "admin"}
+
 @router.get("/status")
 async def get_dr_status(tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):
     """Provides real-time Disaster Recovery health and RPO/RTO metrics."""
     try:
         status = await dr_service.get_dr_status(tenant_id)
         return status
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/regions")
@@ -25,11 +27,14 @@ async def get_region_status(tenant_id: str = Depends(get_tenant_id), _user=Depen
     try:
         status = await dr_service.get_dr_status(tenant_id)
         return status["regions"]
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/trigger-failover/{region_id}")
 async def trigger_failover(region_id: str, tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):
+    caller_role = getattr(_user, "role", "") if not isinstance(_user, dict) else _user.get("role", "")
+    if caller_role not in _DR_FAILOVER_ROLES:
+        raise HTTPException(status_code=403, detail="Only administrators can trigger disaster recovery failover")
     """Initiates a Disaster Recovery failover to the target region."""
     try:
         db = get_database()

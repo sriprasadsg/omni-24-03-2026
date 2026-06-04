@@ -4,8 +4,6 @@ REST API to surface Identity Threat Detection & Response alerts.
 Also hooks into auth login events via hooks called at login/role-change time.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Optional, List
-from datetime import datetime
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user
@@ -67,6 +65,9 @@ async def get_itdr_summary(current_user: TokenData = Depends(get_current_user)):
         "by_type": by_type,
     }
 
+_ITDR_SUSPEND_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin",
+                       "Tenant Admin", "security_analyst", "incident_responder"}
+
 class SuspendUserRequest(BaseModel):
     idp_provider: str  # 'okta' or 'entra'
     tenant_id: str
@@ -78,6 +79,8 @@ async def suspend_user_in_idp(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Suspend a user account directly in Okta or Entra ID based on ITDR alert."""
+    if getattr(current_user, "role", "") not in _ITDR_SUSPEND_ROLES:
+        raise HTTPException(status_code=403, detail="Security role required to suspend user accounts")
     db = get_database()
     integration_service = get_integration_service(db)
     

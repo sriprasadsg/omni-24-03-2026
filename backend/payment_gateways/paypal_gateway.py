@@ -3,7 +3,7 @@ import os
 import paypalrestsdk
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone, timedelta
-from payment_gateway_service import PaymentGatewayInterface, SubscriptionStatus, InvoiceStatus
+from payment_gateway_service import PaymentGatewayInterface
 import logging
 
 logger = logging.getLogger(__name__)

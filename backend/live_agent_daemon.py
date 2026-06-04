@@ -11,10 +11,8 @@ import time
 import socket
 import platform
 import psutil
-import uuid
 
 _log = logging.getLogger(__name__)
-import json
 
 # Configuration
 BACKEND_URL = "http://localhost:5000"
@@ -42,7 +40,8 @@ def get_mac_address():
                     # Return first non-loopback MAC address
                     return addr.address
         return "00:00:00:00:00:00"
-    except:
+    except Exception as e:
+        _log.debug("MAC address detection failed: %s", e)
         return "00:00:00:00:00:00"
 
 def get_cpu_model():
@@ -79,7 +78,8 @@ def get_kernel_version():
             return platform.version()
         else:
             return platform.release()
-    except:
+    except Exception as e:
+        _log.debug("Kernel version detection failed: %s", e)
         return "Unknown"
 
 def get_serial_number():
@@ -227,7 +227,8 @@ def get_comprehensive_system_info():
         s.connect(("8.8.8.8", 80))
         ip_address = s.getsockname()[0]
         s.close()
-    except:
+    except Exception as e:
+        _log.debug("Primary IP detection failed, using loopback: %s", e)
         ip_address = "127.0.0.1"
     
     # Get platform information
@@ -297,7 +298,8 @@ def get_real_metrics():
     if system_name == "Windows":
         try:
             os_ver = get_os_version_details()
-        except:
+        except Exception as e:
+            _log.debug("OS version detail detection failed: %s", e)
             os_ver = platform.release()
     else:
         os_ver = platform.release()
@@ -440,7 +442,7 @@ async def main():
     
     # Get comprehensive system info
     print("Collecting comprehensive system information...")
-    system_info = get_comprehensive_system_info()
+    system_info = await asyncio.to_thread(get_comprehensive_system_info)
     print(f"  Hostname: {system_info['hostname']}")
     print(f"  Platform: {system_info['platform']} ({system_info['osVersion']})")
     print(f"  IP Address: {system_info['ipAddress']}")
@@ -459,7 +461,7 @@ async def main():
         print("❌ Failed to register agent. Exiting.")
         return
     
-    print(f"✓ Agent registered successfully!")
+    print("✓ Agent registered successfully!")
     print()
     
     # Initial Compliance Scan

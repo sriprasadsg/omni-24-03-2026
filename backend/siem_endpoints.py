@@ -5,8 +5,12 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import re
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/siem", tags=["SIEM"])
 
@@ -18,7 +22,7 @@ async def ingest_log(source: str, payload: Dict[str, Any], tenant_id: str = Depe
     try:
         event_id = await ingest_service.ingest_raw_log(tenant_id, source, payload)
         return {"status": "Success", "event_id": event_id}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/events")
@@ -33,7 +37,7 @@ async def get_events(
     try:
         events = await ingest_service.get_security_events(tenant_id, limit, skip)
         return {"events": events}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # ── SIEM Integration Config Management ───────────────────────────────────────
@@ -50,7 +54,7 @@ async def list_siem_configs(
             {"tenant_id": tenant_id}, {"_id": 0, "aws_secret_key": 0, "api_token": 0}
         ).to_list(length=100)
         return {"configs": configs}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -89,7 +93,7 @@ async def upsert_siem_config(
         )
         safe = {k: v for k, v in update.items() if k not in ("aws_secret_key", "api_token")}
         return {"success": True, "config": safe}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -108,7 +112,7 @@ async def delete_siem_config(
         return {"success": True}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -135,8 +139,8 @@ async def search_logs(
         if q:
             try:
                 query["message"] = {"$regex": re.escape(q), "$options": "i"}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("SIEM search query build failed: %s", e)
 
         cursor = db.security_events.find(query, {"_id": 0}).sort("time", -1).limit(limit)
         raw_events = await cursor.to_list(length=limit)
@@ -153,7 +157,7 @@ async def search_logs(
             for e in raw_events
         ]
         return {"logs": logs, "total": len(logs)}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -214,7 +218,7 @@ async def get_log_aggregations(
             "severity_counts": severity_counts,
             "total": total,
         }
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -260,7 +264,7 @@ async def list_siem_rules(
             {"tenant_id": tenant_id}, {"_id": 0}
         ).sort("created_at", -1).to_list(length=500)
         return rules
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -290,7 +294,7 @@ async def create_siem_rule(
         await db.siem_rules.insert_one(rule)
         rule.pop("_id", None)
         return rule
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -316,7 +320,7 @@ async def update_siem_rule(
         return {"success": True}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -335,5 +339,5 @@ async def delete_siem_rule(
         return {"success": True}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

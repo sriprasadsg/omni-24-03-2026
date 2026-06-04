@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Dict, Any
 from database import get_database
 from maintenance_service import get_maintenance_service
 
@@ -18,7 +18,7 @@ async def create_maintenance_window(window_data: Dict[str, Any], current_user: T
     try:
         window = await service.create_window(window_data)
         return {"success": True, "window": window}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/windows")

@@ -1,6 +1,5 @@
 import asyncio
-import os
-from database import get_database, _init_db
+from database import _init_db
 from ai_service import IncidentAnalyzer
 from motor.motor_asyncio import AsyncIOMotorClient
 

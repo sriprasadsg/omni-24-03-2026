@@ -194,9 +194,10 @@ Write-Host ""
 Write-Step "3" "Starting Backend (FastAPI/uvicorn on :$BACKEND_PORT)"
 
 $backendScript = @"
-`$env:MONGODB_URL   = '$MONGODB_URL'
-`$env:DATABASE_NAME = '$DATABASE_NAME'
-`$env:CORS_ORIGINS  = '$CORS_ORIGINS'
+`$env:MONGODB_URL          = '$MONGODB_URL'
+`$env:DATABASE_NAME        = '$DATABASE_NAME'
+`$env:CORS_ORIGINS         = '$CORS_ORIGINS'
+`$env:SUPER_ADMIN_PASSWORD = 'Admin@2030'
 Set-Location '$BACKEND_DIR'
 Write-Host ''
 Write-Host '  Omni-Agent Backend' -ForegroundColor Cyan
@@ -247,6 +248,8 @@ if ($startAgent) {
 `$env:API_BASE_URL     = '$API_BASE_URL'
 `$env:REGISTRATION_KEY = '$REGISTRATION_KEY'
 `$env:TENANT_ID        = '$TENANT_ID'
+`$env:MONGODB_URL      = '$MONGODB_URL'
+`$env:DATABASE_NAME    = '$DATABASE_NAME'
 Set-Location '$AGENT_DIR'
 Write-Host ''
 Write-Host '  Omni-Agent Client' -ForegroundColor Cyan
@@ -272,7 +275,7 @@ Write-Host "    Backend    http://127.0.0.1:$BACKEND_PORT" -ForegroundColor Cyan
 Write-Host "    API Docs   http://127.0.0.1:$BACKEND_PORT/docs" -ForegroundColor Cyan
 Write-Host "    Health     http://127.0.0.1:$BACKEND_PORT/health" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Default login:  super@omni.ai  /  Admin@2030!" -ForegroundColor Yellow
+Write-Host "  Default login:  super@omni.ai  /  Admin@2030" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  To stop all services:" -ForegroundColor Yellow
 Write-Host "    Stop-Process -Name python,node -Force" -ForegroundColor Gray

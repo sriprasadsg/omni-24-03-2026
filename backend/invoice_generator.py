@@ -3,9 +3,8 @@ Invoice PDF Generator — Phase 7
 Generates professional PDF invoices using reportlab.
 """
 import io
-import os
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 try:
     from reportlab.lib.pagesizes import letter, A4

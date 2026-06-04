@@ -28,7 +28,7 @@ export const AIGovernanceDashboard: React.FC<any> = (props) => {
         authFetch(`${API_BASE}/ai-governance/dashboard`)
             .then(r => r.ok ? r.json() : null)
             .then(d => d && setGovStats(d))
-            .catch(() => {});
+            .catch((e) => console.error('Failed to load AI governance stats:', e));
     }, []);
 
     return (

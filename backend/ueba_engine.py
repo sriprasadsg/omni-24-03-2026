@@ -1,5 +1,3 @@
-import os
-import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 import uuid
@@ -174,7 +172,7 @@ class UEBAEngine:
                         ml_boost = min(40, max(10, abs(anomaly_score) * 40))
                         score += ml_boost
                         ml_score = ml_boost
-                        reasons.append(f"Behavior deviates significantly from peer group baseline (ML Isolation Forest)")
+                        reasons.append("Behavior deviates significantly from peer group baseline (ML Isolation Forest)")
                         
         # Normalize to 0-100
         final_score = min(100, max(0, int(score)))

@@ -79,7 +79,7 @@ async def get_latest_version(platform: str = "windows"):
         parts = filename.split('-')
         # omni, agent, 2.0.1, windows.exe
         version = parts[2]
-    except:
+    except IndexError:
         version = "unknown"
         
     download_url = f"{base_url}/api/agent-updates/download/{filename}"

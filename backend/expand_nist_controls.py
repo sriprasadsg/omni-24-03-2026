@@ -1,6 +1,5 @@
 import asyncio
 from database import connect_to_mongo, close_mongo_connection, get_database
-from datetime import datetime, timezone
 
 async def add_missing_nist_controls():
     """Add comprehensive NIST CSF 2.0 controls - all 106 subcategories"""

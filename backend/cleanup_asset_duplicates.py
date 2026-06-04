@@ -70,12 +70,12 @@ async def cleanup_duplicates():
     unique_ids_cursor = await db.assets.distinct("id")
     unique_ids = len(unique_ids_cursor)
     
-    print(f"\n📊 Final Stats:")
+    print("\n📊 Final Stats:")
     print(f"  Total assets: {total_assets}")
     print(f"  Unique IDs: {unique_ids}")
     
     if total_assets == unique_ids:
-        print(f"  ✅ All assets have unique IDs!")
+        print("  ✅ All assets have unique IDs!")
     else:
         print(f"  ⚠️  Warning: Still have {total_assets - unique_ids} duplicates")
     

@@ -1,6 +1,9 @@
-from typing import Dict, Any, Optional
+import logging
+from typing import Dict, Any
 import json
 from agent_logic_service import agent_logic_service
+
+logger = logging.getLogger(__name__)
 from celery_app import celery_app
 from database import get_database
 from datetime import datetime, timezone
@@ -47,7 +50,7 @@ class IntentParserService:
         
         task_description = self._build_task_description(action, params)
         
-        print(f"[IntentParser] Dispatching task: {task_description} to {target_agent}")
+        logger.info("[IntentParser] Dispatching task: %s to %s", task_description, target_agent)
         
         task = celery_app.send_task(
             "tasks.run_agent_task_async",
@@ -119,7 +122,7 @@ class IntentParserService:
                 cleaned_text = response.text.replace("```json", "").replace("```", "").strip()
                 return json.loads(cleaned_text)
         except Exception as e:
-            print(f"[IntentParser] LLM Detection failed: {e}")
+            logger.warning("[IntentParser] LLM Detection failed: %s", e)
 
         # Basic heuristic fallback
         low_text = (title + " " + description).lower()

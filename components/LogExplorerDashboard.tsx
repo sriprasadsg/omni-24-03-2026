@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { SearchIcon, FilterIcon, RefreshCw, BarChart2Icon, DatabaseIcon, CpuIcon, CloudIcon, ShieldCheckIcon, AlertTriangleIcon } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 export const LogExplorerDashboard: React.FC = () => {
     // Basic fetch wrapper for API calls
@@ -26,6 +27,7 @@ export const LogExplorerDashboard: React.FC = () => {
             setStats(statsRes);
         } catch (error) {
             console.error("Failed to load SIEM logs", error);
+            showToast("Failed to load SIEM logs", "error");
         } finally {
             setLoading(false);
         }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { listPrompts, createPrompt, ingestKnowledge, queryKnowledge } from '../services/apiService';
 import { SparklesIcon, UploadIcon } from './icons';
+import { showToast } from '../utils/toast';
 import ModelTrainingDashboard from './ModelTrainingDashboard';
 
 const LLMOpsDashboard: React.FC = () => {
@@ -34,11 +35,11 @@ const LLMOpsDashboard: React.FC = () => {
             input_variables: newPrompt.template.match(/\{(\w+)\}/g)?.map(s => s.slice(1, -1)) || []
         });
         if (res.success) {
-            alert('Prompt Created!');
+            showToast('Prompt Created!', 'success');
             setNewPrompt({ name: '', template: '', input_variables: [] });
             loadPrompts();
         } else {
-            alert('Failed: ' + res.error);
+            showToast('Failed: ' + res.error, 'error');
         }
     };
 

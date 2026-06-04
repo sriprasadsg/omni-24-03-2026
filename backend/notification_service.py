@@ -3,9 +3,15 @@ Notification Service - Multi-Channel Alerts
 Handles email, SMS, Slack, and webhook notifications
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import aiohttp
+
+
+def _append_log(path: str, line: str) -> None:
+    with open(path, "a") as fh:
+        fh.write(line)
 
 
 class NotificationService:
@@ -82,6 +88,7 @@ class NotificationService:
         """
         Send email notification using SMTP logic (Synchronous wrapper)
         """
+        import asyncio
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
@@ -96,8 +103,8 @@ class NotificationService:
         # If no host configured and not testing, log and return
         if smtp_host == "localhost" and not os.getenv("FORCE_SMTP"):
              # Fallback to Logger
-             with open("notifications.log", "a") as f:
-                 f.write(f"[EMAIL] To: {recipients} | Subject: {subject} | Body: {body[:50]}...\n")
+             line = f"[EMAIL] To: {recipients} | Subject: {subject} | Body: {body[:50]}...\n"
+             await asyncio.to_thread(_append_log, "notifications.log", line)
              return {
                  "success": True,
                  "provider": "logger",
@@ -111,13 +118,15 @@ class NotificationService:
             msg['Subject'] = f"[{severity.upper()}] {subject}"
             
             msg.attach(MIMEText(body, 'plain'))
-            
-            # Synchronous SMTP (Block briefly) - acceptable for MVP
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
-                if smtp_user and smtp_pass:
-                    server.starttls()
-                    server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
+
+            def _smtp_send():
+                with smtplib.SMTP(smtp_host, smtp_port) as server:
+                    if smtp_user and smtp_pass:
+                        server.starttls()
+                        server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+
+            await asyncio.to_thread(_smtp_send)
                 
             return {
                 "success": True,
@@ -125,8 +134,8 @@ class NotificationService:
                 "host": smtp_host
             }
         except Exception as e:
-             with open("notifications.log", "a") as f:
-                 f.write(f"[EMAIL_FAIL] To: {recipients} | Error: {e}\n")
+             await asyncio.to_thread(_append_log, "notifications.log",
+                                     f"[EMAIL_FAIL] To: {recipients} | Error: {e}\n")
              return {
                 "success": False,
                 "error": str(e)
@@ -171,9 +180,8 @@ class NotificationService:
             "Writing to sms_outbox.log instead."
         )
         try:
-            with open("sms_outbox.log", "a") as f:
-                for number in phone_numbers:
-                    f.write(f"[SMS] To: {number} | Msg: {message}\n")
+            lines = "".join(f"[SMS] To: {n} | Msg: {message}\n" for n in phone_numbers)
+            await asyncio.to_thread(_append_log, "sms_outbox.log", lines)
         except OSError:
             pass
         return {"success": False, "provider": "file_fallback", "recipients": phone_numbers}

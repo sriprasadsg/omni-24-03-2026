@@ -1,7 +1,5 @@
 import asyncio
-import jwt
 from database import get_database, connect_to_mongo
-from datetime import datetime, timedelta
 
 # Mock a Super Admin user
 SECRET_KEY = "your-secret-key" # Need to find the real one or mock it

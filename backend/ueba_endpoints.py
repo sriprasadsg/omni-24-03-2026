@@ -1,7 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, BackgroundTasks, Request
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 from ueba_engine import ueba_engine
 from database import get_database
 from tenant_context import get_tenant_id
@@ -26,7 +24,7 @@ async def get_all_risk_scores(tenant_id: str = Depends(get_tenant_id)):
     # Join with user table to get names/emails
     user_ids = [s.get("userId") for s in scores if s.get("userId")]
     users_cursor = db.users.find({"id": {"$in": user_ids}, "tenantId": tenant_id})
-    users_list = await users_cursor.to_list(None)
+    users_list = await users_cursor.to_list(length=500)
     
     user_map = {u.get("id"): u for u in users_list}
     

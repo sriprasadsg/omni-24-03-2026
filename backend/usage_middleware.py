@@ -2,7 +2,6 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from database import get_database
 from datetime import datetime, timezone
-import json
 import logging
 
 logger = logging.getLogger("usage_middleware")

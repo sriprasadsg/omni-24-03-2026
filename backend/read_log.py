@@ -1,5 +1,4 @@
 
-import os
 
 def read_crash_log():
     try:
@@ -12,7 +11,7 @@ def read_crash_log():
                         print(f"--- CONTENT ({enc}) ---")
                         print(content[-2000:]) # Last 2000 chars
                         return
-            except:
+            except (UnicodeDecodeError, OSError):
                 continue
         print("Could not read file with any encoding")
     except Exception as e:

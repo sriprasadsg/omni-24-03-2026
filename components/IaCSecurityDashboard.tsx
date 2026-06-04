@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Code2, AlertTriangle, XCircle, CheckCircle, RefreshCw, EyeOff } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 interface Violation {
   id: string;
@@ -57,10 +58,16 @@ export function IaCSecurityDashboard() {
 
   const suppress = useCallback(async (id: string) => {
     setSuppressing(id);
-    await fetch(`/api/iac-security/violations/${id}/suppress`, {
-      method: 'POST', headers, body: JSON.stringify({ reason: 'Accepted risk' }),
-    }).catch(() => {});
-    setViolations(prev => prev.map(v => v.id === id ? { ...v, suppressed: true } : v));
+    try {
+      const res = await fetch(`/api/iac-security/violations/${id}/suppress`, {
+        method: 'POST', headers, body: JSON.stringify({ reason: 'Accepted risk' }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Suppress failed');
+      setViolations(prev => prev.map(v => v.id === id ? { ...v, suppressed: true } : v));
+    } catch (e) {
+      console.error('IaC violation suppress failed:', e);
+      showToast(e instanceof Error ? e.message : 'Failed to suppress violation', 'error');
+    }
     setSuppressing(null);
   }, []);
 

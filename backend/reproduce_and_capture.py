@@ -4,7 +4,6 @@ import time
 import requests
 import sys
 import os
-import signal
 
 def reproduce():
     # Start server

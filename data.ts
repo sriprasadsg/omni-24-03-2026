@@ -8,7 +8,7 @@ import {
 import { ALL_PERMISSIONS } from './constants';
 
 const generateMetricData = (base: number, variance: number, points: number = 30) => {
-    let data = [];
+    const data = [];
     for (let i = 0; i < points; i++) {
         data.push({
             time: `${i}m ago`,
@@ -19,13 +19,12 @@ const generateMetricData = (base: number, variance: number, points: number = 30)
 };
 
 export const USERS_DATA: User[] = [
-    { id: 'user-super-admin', tenantId: 'platform-admin', tenantName: 'Platform', name: 'Super Admin', email: 'super@omni.ai', password: 'password123', role: 'Super Admin', avatar: 'https://i.pravatar.cc/150?u=super-admin', status: 'Active' },
-    { id: 'user-acme-admin', tenantId: 'tenant-acme-corp', tenantName: 'Acme Corp', name: 'Alice Admin', email: 'alice@acme.com', password: 'password123', role: 'Tenant Admin', avatar: 'https://i.pravatar.cc/150?u=alice-admin', status: 'Active' },
-    { id: 'user-acme-secops', tenantId: 'tenant-acme-corp', tenantName: 'Acme Corp', name: 'Bob Security', email: 'bob@acme.com', password: 'password123', role: 'SecOps Analyst', avatar: 'https://i.pravatar.cc/150?u=bob-secops', status: 'Active' },
-    { id: 'user-acme-devops', tenantId: 'tenant-acme-corp', tenantName: 'Acme Corp', name: 'Charlie DevOps', email: 'charlie@acme.com', password: 'password123', role: 'DevOps Engineer', avatar: 'https://i.pravatar.cc/150?u=charlie-devops', status: 'Disabled' },
-    { id: 'user-initech-admin', tenantId: 'tenant-initech', tenantName: 'Initech', name: 'Eve Engineer', email: 'eve@initech.com', password: 'password123', role: 'Tenant Admin', avatar: 'https://i.pravatar.cc/150?u=eve-engineer', status: 'Active' },
-    { id: 'user-sriprasad-admin', tenantId: 'tenant-sriprasad', tenantName: 'Sri Prasad Corp', name: 'Sri Prasad', email: 'sri@omni.ai', password: 'password123', role: 'Tenant Admin', avatar: 'https://i.pravatar.cc/150?u=sri', status: 'Active' },
-    { id: 'user-sriprasad-admin', tenantId: 'tenant-sriprasad', tenantName: 'Sri Prasad Corp', name: 'Sri Prasad', email: 'sri@omni.ai', password: 'password123', role: 'Tenant Admin', avatar: 'https://i.pravatar.cc/150?u=sri', status: 'Active' },
+    { id: 'user-super-admin',    tenantId: 'platform-admin',    tenantName: 'Platform',        name: 'Super Admin',    email: 'super@omni.ai',  role: 'Super Admin',     avatar: 'https://i.pravatar.cc/150?u=super-admin', status: 'Active'   },
+    { id: 'user-acme-admin',     tenantId: 'tenant-acme-corp',  tenantName: 'Acme Corp',        name: 'Alice Admin',    email: 'alice@acme.com', role: 'Tenant Admin',    avatar: 'https://i.pravatar.cc/150?u=alice-admin',  status: 'Active'   },
+    { id: 'user-acme-secops',    tenantId: 'tenant-acme-corp',  tenantName: 'Acme Corp',        name: 'Bob Security',   email: 'bob@acme.com',   role: 'SecOps Analyst',  avatar: 'https://i.pravatar.cc/150?u=bob-secops',   status: 'Active'   },
+    { id: 'user-acme-devops',    tenantId: 'tenant-acme-corp',  tenantName: 'Acme Corp',        name: 'Charlie DevOps', email: 'charlie@acme.com', role: 'DevOps Engineer', avatar: 'https://i.pravatar.cc/150?u=charlie-devops', status: 'Disabled' },
+    { id: 'user-initech-admin',  tenantId: 'tenant-initech',    tenantName: 'Initech',          name: 'Eve Engineer',   email: 'eve@initech.com', role: 'Tenant Admin',   avatar: 'https://i.pravatar.cc/150?u=eve-engineer',  status: 'Active'   },
+    { id: 'user-sriprasad-admin', tenantId: 'tenant-sriprasad', tenantName: 'Sri Prasad Corp', name: 'Sri Prasad',     email: 'sri@omni.ai',    role: 'Tenant Admin',    avatar: 'https://i.pravatar.cc/150?u=sri',           status: 'Active'   },
 ];
 
 export const ROLES_DATA: Role[] = [
@@ -567,7 +566,7 @@ export const DATABASE_SETTINGS_DATA: DatabaseSettings = { type: 'MongoDB', host:
 export const LLM_SETTINGS_DATA: LlmSettings = { provider: 'Gemini', apiKey: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', model: 'gemini-flash-latest', host: 'http://localhost:11434' };
 
 export const DATA_SOURCES_DATA: DataSource[] = [
-    { id: 'ds-1', tenantId: 'tenant-acme-corp', name: 'Production Postgres DB', type: 'PostgreSQL', status: 'Connected', config: { host: 'prod-db.acme.internal' }, lastTested: new Date().toISOString() }
+    { id: 'ds-1', tenantId: 'tenant-acme-corp', name: 'Production Postgres DB', type: 'PostgreSQL', status: 'Connected', config: { host: 'prod-db.acme.internal' } as any, lastTested: new Date().toISOString() }
 ];
 
 export const SBOMS_DATA: Sbom[] = [

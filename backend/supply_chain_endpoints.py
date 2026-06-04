@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from authentication_service import get_current_user
 import supply_chain_service
-from typing import Optional
 
 router = APIRouter(prefix="/api/supply-chain", tags=["Supply Chain"])
 

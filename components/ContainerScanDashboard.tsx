@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Shield, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 interface ContainerImage {
   id: string;
@@ -66,7 +67,7 @@ export function ContainerScanDashboard() {
       fetch('/api/container-scan/images', { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/container-scan/vulnerabilities', { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/container-scan/stats', { headers }).then(r => r.ok ? r.json() : null),
-    ]).catch(() => [[], [], null]);
+    ]).catch((e) => { console.error('Failed to load container scan data:', e); showToast('Failed to load container scan data', 'error'); return [[], [], null]; });
     setImages(Array.isArray(imgs) ? imgs : []);
     setVulns(Array.isArray(v) ? v : []);
     setStats(s);

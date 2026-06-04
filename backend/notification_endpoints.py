@@ -2,13 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, Body, Query
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from database import get_database
-from notification_service import get_notification_service
 import logging
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 logger = logging.getLogger(__name__)
 
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
@@ -32,7 +30,8 @@ def _validate_webhook_url(url: str) -> bool:
         except ValueError:
             pass  # hostname is a domain name — allow
         return True
-    except Exception:
+    except Exception as e:
+        logger.debug("Webhook URL validation failed: %s", e)
         return False
 
 

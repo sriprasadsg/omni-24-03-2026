@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Plus, CheckCircle, XCircle, Clock, RefreshCw, Shield } from 'lucide-react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface BAA {
   id: string;
@@ -67,18 +68,32 @@ export function BAAManagement() {
 
   const sign = useCallback(async (id: string) => {
     setActing(id);
-    await authFetch(`/api/baa/${id}/sign`, { method: 'POST' }).catch(() => {});
-    setBaas(prev => prev.map(b => b.id === id ? { ...b, status: 'active' as const, signed_at: Date.now() / 1000 } : b));
-    setActing(null);
+    try {
+      const res = await authFetch(`/api/baa/${id}/sign`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Sign failed');
+      setBaas(prev => prev.map(b => b.id === id ? { ...b, status: 'active' as const, signed_at: Date.now() / 1000 } : b));
+    } catch (e) {
+      console.error('BAA sign failed:', e);
+      showToast(e instanceof Error ? e.message : 'Failed to sign BAA', 'error');
+    } finally {
+      setActing(null);
+    }
   }, []);
 
   const terminate = useCallback(async (id: string) => {
     setActing(id);
-    await authFetch(`/api/baa/${id}/terminate`, {
-      method: 'POST', body: JSON.stringify({ reason: 'Terminated by administrator' }),
-    }).catch(() => {});
-    setBaas(prev => prev.map(b => b.id === id ? { ...b, status: 'terminated' as const } : b));
-    setActing(null);
+    try {
+      const res = await authFetch(`/api/baa/${id}/terminate`, {
+        method: 'POST', body: JSON.stringify({ reason: 'Terminated by administrator' }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Terminate failed');
+      setBaas(prev => prev.map(b => b.id === id ? { ...b, status: 'terminated' as const } : b));
+    } catch (e) {
+      console.error('BAA terminate failed:', e);
+      showToast(e instanceof Error ? e.message : 'Failed to terminate BAA', 'error');
+    } finally {
+      setActing(null);
+    }
   }, []);
 
   const createBAA = useCallback(async () => {

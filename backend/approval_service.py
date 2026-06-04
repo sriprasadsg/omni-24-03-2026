@@ -175,8 +175,8 @@ class ApprovalService:
                 "tenantId": request.get("tenantId") or None,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             })
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("JIT approval notification failed (non-fatal): %s", e)
 
         return request
 

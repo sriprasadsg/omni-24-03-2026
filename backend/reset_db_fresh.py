@@ -75,7 +75,7 @@ async def reset():
         "id": "user-admin",
         "email": "super@omni.ai",
         "name": "Super Admin",
-        "password": get_password_hash("password123"),
+        "password": get_password_hash(os.getenv("SUPER_ADMIN_PASSWORD", "changeme_set_SUPER_ADMIN_PASSWORD")),
         "role": "Super Admin",
         "tenantId": "platform-admin",
         "status": "Active",
@@ -89,7 +89,7 @@ async def reset():
         "id": "user-exa-admin",
         "email": "admin@exafluence.com",
         "name": "Exafluence Admin",
-        "password": get_password_hash("password123"),
+        "password": get_password_hash(os.getenv("TENANT_ADMIN_PASSWORD", "changeme_set_TENANT_ADMIN_PASSWORD")),
         "role": "Tenant Admin",
         "tenantId": exafluence_id,
         "status": "Active",
@@ -239,7 +239,7 @@ async def reset():
 
     print("\nReset and initialization complete!")
     print(f"Tenant: Exafluence ({exafluence_id})")
-    print(f"Agent: 1 Online")
+    print("Agent: 1 Online")
     print("Login: admin@exafluence.com (use configured password)")
 
     client.close()

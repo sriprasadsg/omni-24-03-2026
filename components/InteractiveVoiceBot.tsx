@@ -32,6 +32,9 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
     // Wake Word Detection state
     const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(true);
 
+    // Microphone permission state
+    const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied' | 'requesting'>('unknown');
+
     // Refs for native APIs and lifecycle management
     const recognitionRef = useRef<any>(null);
     const backgroundRecognitionRef = useRef<any>(null);
@@ -45,6 +48,50 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
     const aiResponseRef = useRef(aiResponse);
     useEffect(() => { aiResponseRef.current = aiResponse; }, [aiResponse]);
 
+    // --- Microphone permission helper ---
+
+    const requestMicPermission = async (): Promise<boolean> => {
+        // Already known
+        if (micPermission === 'granted') return true;
+        if (micPermission === 'denied') return false;
+
+        setMicPermission('requesting');
+        try {
+            // Proactively trigger the browser permission dialog via getUserMedia.
+            // This must happen before SpeechRecognition.start() otherwise Chrome
+            // fires a 'not-allowed' error when the user hasn't been prompted yet.
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Release the track immediately — we only needed the prompt.
+            stream.getTracks().forEach(t => t.stop());
+            setMicPermission('granted');
+            return true;
+        } catch {
+            setMicPermission('denied');
+            setIsWakeWordEnabled(false);
+            setDisplayText("Microphone access was denied. Click the 🔒 icon in your browser's address bar to allow it, then refresh.");
+            return false;
+        }
+    };
+
+    // Check existing permission state on mount (non-blocking).
+    useEffect(() => {
+        if (typeof navigator !== 'undefined' && navigator.permissions) {
+            navigator.permissions.query({ name: 'microphone' as PermissionName })
+                .then(status => {
+                    if (status.state === 'granted') setMicPermission('granted');
+                    if (status.state === 'denied') {
+                        setMicPermission('denied');
+                        setIsWakeWordEnabled(false);
+                    }
+                    status.onchange = () => {
+                        if (status.state === 'granted') { setMicPermission('granted'); setIsWakeWordEnabled(true); }
+                        if (status.state === 'denied')  { setMicPermission('denied');  setIsWakeWordEnabled(false); }
+                    };
+                })
+                .catch(() => {}); // permissions API not supported — handled by getUserMedia fallback
+        }
+    }, []);
+
     // --- Safe Wrappers for Speech Recognition ---
 
     const stopBackground = () => {
@@ -53,8 +100,9 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
     };
 
     const startBackground = () => {
-        // Prevent starting if already active or busy
+        // Prevent starting if already active, busy, or mic not allowed
         if (!isWakeWordEnabled || isActive || isDismissed || botState !== 'idle' || isBackgroundStarting.current) return;
+        if (micPermission === 'denied' || micPermission === 'requesting') return;
         try {
             isBackgroundStarting.current = true;
             backgroundRecognitionRef.current?.start();
@@ -112,11 +160,14 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
 
                 recognition.onerror = (event: any) => {
                     isMainStarting.current = false;
-                    console.error('[VoiceBot] Main recognition error:', event.error);
+                    if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                        console.warn('[VoiceBot] Main recognition error:', event.error);
+                    }
                     if (event.error === 'not-allowed') {
+                        setMicPermission('denied');
                         setBotState('idle');
                         setIsWakeWordEnabled(false);
-                        setDisplayText("Microphone access denied. Please allow microphone permission in your browser settings.");
+                        setDisplayText("Microphone blocked. Click 🔒 in the address bar → allow microphone → refresh.");
                     } else if (event.error === 'aborted') {
                         setDisplayText("Connection lost. Retrying assistant...");
                         setTimeout(() => setBotState('idle'), 1500);
@@ -329,7 +380,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
 
     // --- UI Controls ---
 
-    const toggleListening = () => {
+    const toggleListening = async () => {
         if (!isActive) {
             setIsActive(true);
             setIsDismissed(false);
@@ -341,13 +392,19 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
 
         if (botState === 'idle') {
             if (!recognitionRef.current) {
-                setDisplayText("Speech recognition not supported.");
+                setDisplayText("Speech recognition not supported in this browser.");
                 return;
+            }
+            // Request mic permission before starting — triggers the browser dialog
+            // if not yet granted, and blocks gracefully if denied.
+            if (micPermission !== 'granted') {
+                const allowed = await requestMicPermission();
+                if (!allowed) return;
             }
             if (synthRef.current) synthRef.current.cancel();
             setTranscript('');
             setAiResponse('');
-            
+
             // Critical transition: Stop background, wait for release, then start main
             stopBackground();
             setTimeout(() => startMain(), 400);
@@ -461,9 +518,26 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
 
             {!isActive && !isDismissed && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-br-sm shadow-lg p-3 mb-4 border border-gray-200 dark:border-gray-700 animate-bounce pointer-events-auto cursor-pointer" onClick={toggleListening}>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {displayText}
+                    <p className="text-sm text-gray-700 dark:text-gray-300">{displayText}</p>
+                    {micPermission === 'denied' && (
+                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            🔒 Microphone blocked — click 🔒 in address bar to allow
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* Mic permission request overlay — shown inside the bot panel */}
+            {isActive && micPermission === 'denied' && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 mb-4 max-w-sm border border-red-300 dark:border-red-700 pointer-events-auto">
+                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">🎤 Microphone access blocked</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        Click the 🔒 lock icon in your browser's address bar, set <strong>Microphone</strong> to <strong>Allow</strong>, then refresh the page.
                     </p>
+                    <button onClick={() => window.location.reload()}
+                        className="w-full py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs rounded-lg font-medium">
+                        Refresh after allowing
+                    </button>
                 </div>
             )}
 

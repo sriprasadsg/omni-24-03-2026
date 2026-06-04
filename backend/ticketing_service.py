@@ -71,7 +71,8 @@ async def save_ticketing_config(tenant_id: str, config: dict) -> dict:
 async def create_jira_ticket(alert: dict, config: dict) -> dict:
     """Create a Jira issue from a platform alert."""
     try:
-        import httpx, base64
+        import httpx
+        import base64
         jira_url = config.get("jira_url", "").rstrip("/")
         auth = base64.b64encode(
             f"{config['jira_email']}:{config['jira_api_token']}".encode()
@@ -171,7 +172,7 @@ async def create_zoho_desk_ticket(alert: dict, config: dict) -> dict:
 async def create_custom_webhook_ticket(alert: dict, config: dict) -> dict:
     """Send alert data to a custom webhook (generic integration)."""
     try:
-        import httpx, json
+        import httpx
         url = config.get("custom_webhook_url")
         method = config.get("custom_webhook_method", "POST").upper()
         headers = config.get("custom_webhook_headers", {})

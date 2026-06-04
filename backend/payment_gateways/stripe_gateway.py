@@ -5,7 +5,7 @@ Wraps Stripe SDK for subscriptions, checkout sessions, and webhook handling.
 import stripe
 import os
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Role, Tenant } from '../types';
+import { showToast } from '../utils/toast';
 
 interface AddUserModalProps {
     isOpen: boolean;
@@ -36,7 +37,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
         e.preventDefault();
         const tenant = tenants.find(t => t.id === finalTenantId);
         if (!name.trim() || !email.trim() || !selectedRole || !tenant) {
-            alert("Please fill all fields correctly.");
+            showToast("Please fill all fields correctly.", 'error');
             return;
         }
 

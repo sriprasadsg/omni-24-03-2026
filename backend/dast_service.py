@@ -9,10 +9,13 @@ Runs lightweight HTTP-based security checks against target URLs:
 
 import asyncio
 import ipaddress
+import logging
 import os as _os
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,7 +24,7 @@ from pydantic import BaseModel
 from authentication_service import get_current_user
 from auth_types import TokenData
 
-_SSL_VERIFY = not _os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("1", "true", "yes")
+_SSL_VERIFY = _os.getenv("DISABLE_SSL_VERIFY", "").lower() not in ("1", "true", "yes")
 
 router = APIRouter(prefix="/api/dast", tags=["Dynamic Application Security Testing"])
 
@@ -257,8 +260,8 @@ async def _run_scan(scan_id: str, target_url: str) -> None:
                                 "remediation": f"Restrict access to {path} or remove the file.",
                                 "url": base + path,
                             })
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("HTTP path probe failed for %s: %s", path, e)
 
     except ImportError:
         findings.append({

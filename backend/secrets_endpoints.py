@@ -88,7 +88,7 @@ async def create_secret(
         
         return secret
     
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
     except Exception as e:
         logger.error("Failed to create secret: %s", e)
@@ -184,7 +184,7 @@ async def get_audit_log(
             limit=limit
         )
         return logs
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -283,7 +283,7 @@ async def update_secret(
         
         return result
     
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
         logger.error("Failed to update secret: %s", e)
@@ -315,7 +315,7 @@ async def rotate_secret(
         
         return result
     
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
     except Exception as e:
         logger.error("Failed to rotate secret: %s", e)
@@ -346,7 +346,7 @@ async def revoke_secret(
         
         return result
     
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:
         logger.error("Failed to revoke secret: %s", e)
@@ -397,7 +397,10 @@ async def scan_code_for_secrets(
     - AWS keys
     """
     secrets_service = get_secrets_service(db)
-    
+
+    if file.size and file.size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+
     try:
         # Read file content
         content = await file.read()

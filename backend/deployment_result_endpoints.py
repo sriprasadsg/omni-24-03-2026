@@ -12,8 +12,7 @@ from typing import Any, Dict, List
 from datetime import datetime, timezone
 
 from database import get_database
-from authentication_service import get_current_user, verify_token
-from auth_types import TokenData
+from authentication_service import verify_token
 
 router = APIRouter(tags=["Deployment Results"])
 

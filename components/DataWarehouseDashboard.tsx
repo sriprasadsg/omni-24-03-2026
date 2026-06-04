@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Database, Activity, Server, RefreshCw, Layers, HardDrive } from 'lucide-react';
-import { apiService } from '../services/apiService';
+import { authFetch } from '../services/apiService';
+const apiService = {
+    get: (url: string) => authFetch(url).then(r => r.ok ? r.json() : null),
+    post: (url: string, data?: any) => authFetch(url, { method: 'POST', body: JSON.stringify(data) }).then(r => r.ok ? r.json() : null),
+};
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface WarehouseStats {

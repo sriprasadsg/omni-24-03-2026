@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckIcon, XIcon, AlertTriangleIcon, ShieldCheckIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 export interface ComplianceRule {
     id: string;
@@ -139,7 +140,7 @@ export const AgentComplianceTab: React.FC<AgentComplianceTabProps> = ({ data, ag
         console.log(`[Fix] Using Agent ID: "${agentId}"`);
 
         if (!agentId) {
-            alert("Agent ID is missing, cannot trigger fix.");
+            showToast("Agent ID is missing, cannot trigger fix.", 'error');
             return;
         }
 
@@ -159,13 +160,13 @@ export const AgentComplianceTab: React.FC<AgentComplianceTabProps> = ({ data, ag
             console.log(`[Fix] Response body:`, result);
 
             if (result.success) {
-                alert(`Fix instruction sent for: ${fixTarget}. \nPlease wait for the agent to process it.`);
+                showToast(`Fix instruction sent for: ${fixTarget}. Please wait for the agent to process it.`, 'success');
             } else {
-                alert(`Failed to trigger fix: ${result.message}`);
+                showToast(`Failed to trigger fix: ${result.message}`, 'error');
             }
         } catch (error) {
             console.error("[Fix] Error caught:", error);
-            alert(`Error connecting to backend: ${error}`);
+            showToast(`Error connecting to backend: ${error}`, 'error');
         }
     };
 

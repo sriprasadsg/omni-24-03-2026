@@ -89,9 +89,9 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                     <h4 className="font-medium text-gray-600 dark:text-gray-400 mb-1">Raw Details</h4>
                     {selectedEvent.details.fileHash && (
                       <div className="flex items-center justify-between mb-2">
-                        <p><span className="font-medium text-gray-600 dark:text-gray-400">File Hash:</span> <span className="font-mono text-xs">{selectedEvent.details.fileHash}</span></p>
+                        <p><span className="font-medium text-gray-600 dark:text-gray-400">File Hash:</span> <span className="font-mono text-xs">{selectedEvent.details.fileHash as string}</span></p>
                         <button
-                          onClick={() => onScanArtifact(selectedEvent, selectedEvent.details.fileHash, 'hash')}
+                          onClick={() => onScanArtifact(selectedEvent, selectedEvent.details.fileHash as string, 'hash')}
                           disabled={!canInvestigate}
                           title="Scan with VirusTotal"
                           className="flex items-center text-xs font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:no-underline">

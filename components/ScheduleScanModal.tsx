@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { XIcon, ZapIcon, ClockIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface ScheduleScanModalProps {
   isOpen: boolean;
@@ -24,7 +25,7 @@ export const ScheduleScanModal: React.FC<ScheduleScanModalProps> = ({ isOpen, on
 
     const handleConfirm = () => {
         if (scanType === 'Scheduled' && !scheduleTime) {
-            alert('Please select a date and time for the scheduled scan.');
+            showToast('Please select a date and time for the scheduled scan.', 'error');
             return;
         }
         onSchedule(scanType, scheduleTime);

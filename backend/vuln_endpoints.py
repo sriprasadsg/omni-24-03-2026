@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Query, Depends, Body
 from typing import List, Dict, Any, Optional
 from vuln_service import vuln_service
 from datetime import datetime, timezone
-import asyncio
 import re
 from database import get_database
 
@@ -13,18 +12,27 @@ router = APIRouter(
     tags=["Vulnerability Management"]
 )
 
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
 
-@router.get("", response_model=List[Dict[str, Any]])
-async def get_vulnerabilities(current_user: TokenData = Depends(rbac_service.has_permission("view:security"))):
+@router.get("", response_model=Dict[str, Any])
+async def get_vulnerabilities(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    severity: Optional[str] = Query(None),
+    current_user: TokenData = Depends(rbac_service.has_permission("view:security")),
+):
     """
-    List all vulnerabilities.
+    List vulnerabilities with pagination.
     """
+    import logging as _log
     tenant_id = get_tenant_id()
-    return await vuln_service.get_vulnerabilities(tenant_id)
+    try:
+        return await vuln_service.get_vulnerabilities(tenant_id, page=page, page_size=page_size, severity=severity)
+    except Exception as e:
+        _log.getLogger(__name__).error("get_vulnerabilities failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_vulnerability_stats(current_user: TokenData = Depends(rbac_service.has_permission("view:security"))):
@@ -136,3 +144,20 @@ async def resolve_vulnerability(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Vulnerability not found")
     return {"success": True, "status": "resolved"}
+
+
+@router.get("/{vuln_id}")
+async def get_vulnerability_by_id(
+    vuln_id: str,
+    current_user: TokenData = Depends(rbac_service.has_permission("view:security")),
+):
+    """Fetch a single vulnerability record by its id field."""
+    if not _ID_RE.match(vuln_id):
+        raise HTTPException(status_code=400, detail="Invalid vulnerability ID")
+    tenant_id = get_tenant_id()
+    db = get_database()
+    doc = await db.vulnerabilities.find_one({"id": vuln_id, "tenantId": tenant_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Vulnerability not found")
+    return doc
+

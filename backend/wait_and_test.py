@@ -24,7 +24,7 @@ async def test_sbom():
                 resp = await client.get("http://127.0.0.1:5000/api/sboms", headers=headers)
                 print("Tenant Admin Response:", resp.status_code, resp.text)
                 return
-        except Exception as e:
+        except Exception:
             time.sleep(2)
     print("Backend never started.")
 

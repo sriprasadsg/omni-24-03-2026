@@ -1,13 +1,12 @@
 import asyncio
-import json
 import re
 import ast
 from motor.motor_asyncio import AsyncIOMotorClient
-import sys
 import os
 
 def load_mappings():
-    path = os.path.join(os.path.dirname(__file__), "compliance_endpoints.py")
+    # COMPLIANCE_CHECK_MAPPINGS was moved to compliance_evidence_processor.py
+    path = os.path.join(os.path.dirname(__file__), "compliance_evidence_processor.py")
     with open(path, "r", encoding="utf-8") as f:
         source = f.read()
     
@@ -17,7 +16,7 @@ def load_mappings():
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "MAPPINGS":
+                if isinstance(target, ast.Name) and target.id == "COMPLIANCE_CHECK_MAPPINGS":
                     if isinstance(node.value, ast.Dict):
                         mappings = {}
                         for k, v in zip(node.value.keys, node.value.values):
@@ -33,7 +32,8 @@ def load_mappings():
     return {}
 
 async def analyze_relevance():
-    client = AsyncIOMotorClient("mongodb://localhost:27017")
+    mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    client = AsyncIOMotorClient(mongo_uri)
     db = client.omni_platform
 
     print("Analyzing Compliance Evidence Relevance...")
@@ -55,7 +55,7 @@ async def analyze_relevance():
     # 2. Analyze MAPPINGS
     MAPPINGS = load_mappings()
     print(f"Loaded {len(MAPPINGS)} check mappings.")
-    
+
     mapped_controls = {}
     for check_name, target_controls in MAPPINGS.items():
         for raw_ctrl in target_controls:

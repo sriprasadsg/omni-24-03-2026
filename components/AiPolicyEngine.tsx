@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheckIcon, PlusIcon, TrashIcon, AlertTriangleIcon, ActivityIcon, CpuIcon } from './icons';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 export const AiPolicyEngine: React.FC = () => {
     const [policies, setPolicies] = useState<any[]>([]);
@@ -41,7 +42,7 @@ export const AiPolicyEngine: React.FC = () => {
             setShowCreateModal(false);
             loadPolicies();
         } catch (e) {
-            alert("Failed to create policy");
+            showToast("Failed to create policy", 'error');
         }
     };
 

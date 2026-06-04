@@ -6,7 +6,7 @@ Handles patch verification, signature validation, and encryption
 import hashlib
 import hmac
 import secrets
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, Any, Tuple
 from datetime import datetime, timezone
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Depends
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,12 @@ def register_all_routers(app: FastAPI) -> None:
         task_router = APIRouter()
 
         @task_router.get("/tasks/{task_id}")
-        async def global_task_status(task_id: str):
+        async def global_task_status(
+            task_id: str,
+            current_user=Depends(__import__("authentication_service").get_current_user),
+        ):
             from agent_endpoints import get_task_status
-            return await get_task_status(task_id)
+            return await get_task_status(task_id, current_user=current_user)
 
         app.include_router(task_router, prefix="/api")
     except Exception as exc:
@@ -49,7 +52,8 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "user_endpoints",           "router")
     _load(app, "tenant_endpoints",         "router")
     _load(app, "role_endpoints",           "router")
-    _load(app, "authentication_endpoints", "router")
+    _load(app, "authentication_endpoints",       "router")
+    _load(app, "auth_password_reset_endpoints",  "router")
     _load(app, "audit_endpoints",          "router")
     _load(app, "cache_endpoints",          "router")
     _load(app, "repo_endpoints",           "router")
@@ -82,15 +86,14 @@ def register_all_routers(app: FastAPI) -> None:
     # ── Patch & Software Management ───────────────────────────────────────────
     _load(app, "patch_endpoints",             "router")
     _load(app, "sbom_endpoints",              "router")
-    try:
-        import software_endpoints
-        app.include_router(software_endpoints.router, prefix="/api/repo")
-        app.include_router(software_endpoints.router)
-    except Exception as exc:
-        logger.error("[Router] Failed to load software_endpoints: %s", exc)
+    _load(app, "software_endpoints",          "router")
     _load(app, "update_endpoints",            "router")
     _load(app, "agent_download_endpoints",    "router")
     _load(app, "deployment_result_endpoints", "router")
+
+    # ── Feature Bundles ───────────────────────────────────────────────────────
+    _load(app, "bundle_endpoints",          "router")
+    _load(app, "ticket_reports_endpoints",  "router")
 
     # ── Compliance & Governance ───────────────────────────────────────────────
     _load(app, "compliance_endpoints",      "router")
@@ -123,7 +126,8 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "ticketing_endpoints",           "router")
     _load(app, "soar_endpoints",                "router", prefix="/api/soar")
     _load(app, "playbook_endpoints",            "router")
-    _load(app, "enhanced_playbook_endpoints",   "router")
+    _load(app, "enhanced_playbook_endpoints",          "router")
+    _load(app, "enhanced_playbook_template_endpoints", "router")
     _load(app, "automation_endpoints",          "router")
     _load(app, "policy_endpoints",              "router")
     _load(app, "alert_endpoints",               "router")
@@ -154,6 +158,12 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "container_scan_endpoints",         "router")
     _load(app, "pam_endpoints",                    "router")
     _load(app, "baa_endpoints",                    "router")
+
+    # ── Global Search ─────────────────────────────────────────────────────────
+    _load(app, "global_search_endpoints",    "router")
+
+    # ── Certificate / TLS Tracking ────────────────────────────────────────────
+    _load(app, "certificate_endpoints",      "router")
 
     # ── Observability & Platform ──────────────────────────────────────────────
     _load(app, "network_endpoints",          "router")
@@ -199,6 +209,7 @@ def register_all_routers(app: FastAPI) -> None:
         ("maintenance_endpoints",           {}),
         ("new_playbook_api",                {}),
         ("remote_endpoints",                {}),
+        ("agent_chat_endpoints",            {}),
         ("service_mesh_service",            {}),
         ("swarm_service",                   {}),
         ("training_endpoints",              {}),
@@ -221,6 +232,12 @@ def register_all_routers(app: FastAPI) -> None:
         ("supply_chain_security_endpoints", {}),
         ("supply_chain_endpoints",          {}),
         ("code_review_graph_endpoints",     {}),
+        ("tickets_endpoints",               {}),
+        ("tickets_config_endpoints",        {}),
+        ("tickets_workflow_endpoints",      {}),
+        ("problem_management_endpoints",    {}),
+        ("change_management_endpoints",     {}),
+        ("support_endpoints",               {}),
     ]
 
     seen: set[str] = set()

@@ -2,9 +2,6 @@
 import requests
 import json
 import time
-import random
-import uuid
-from datetime import datetime
 
 # Configuration
 API_URL = "http://localhost:5000/api"

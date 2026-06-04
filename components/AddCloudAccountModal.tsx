@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { CloudAccount, CloudProvider } from '../types';
 import { XIcon, InfoIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface AddCloudAccountModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !accountId.trim()) {
-        alert("Please fill all required fields.");
+        showToast("Please fill all required fields.", 'error');
         return;
     }
     onSave({ provider, name, accountId });

@@ -9,6 +9,7 @@ export interface UserContextType {
   registerTenant: (payload: NewTenantPayload) => Promise<boolean>;
   hasPermission: (permission: Permission) => boolean;
   enabledFeatures: Permission[];
+  serverLockedFeatures: Record<string, string>; // feature_key → min tier required (server-confirmed)
 }
 
 const defaultContext: UserContextType = {
@@ -19,9 +20,8 @@ const defaultContext: UserContextType = {
   registerTenant: async () => false,
   hasPermission: () => false,
   enabledFeatures: [],
+  serverLockedFeatures: {},
 };
-
-console.log('[UserContext] Module initialized');
 
 export const UserContext = createContext<UserContextType>(defaultContext);
 

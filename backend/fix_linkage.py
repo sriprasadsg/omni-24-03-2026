@@ -51,7 +51,7 @@ async def fix_linkage():
     )
     with open("fix_out.txt", "w") as f:
         f.write(f"Upserted Asset: {asset_id}\n")
-        f.write(f"Linked Agent to Asset\n")
+        f.write("Linked Agent to Asset\n")
         f.write(f"Updated {res.modified_count} Firewall records\n")
         f.write(f"Updated {res2.modified_count} Audit records\n")
 

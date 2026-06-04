@@ -1,6 +1,6 @@
 
 import os
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw
 
 ICON_DIR = os.path.join(os.path.dirname(__file__), "static", "device_icons")
 os.makedirs(ICON_DIR, exist_ok=True)

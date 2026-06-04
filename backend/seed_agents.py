@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from datetime import datetime, timezone
 from database import connect_to_mongo, get_database
 

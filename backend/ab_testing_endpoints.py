@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ab_testing_service import ab_service
 from rbac_utils import require_permission
 from rate_limiter import limiter

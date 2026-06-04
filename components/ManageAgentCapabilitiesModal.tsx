@@ -96,11 +96,25 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
     const handleToggle = (capability: AgentCapability) => {
         setEnabledCapabilities(prev => {
             const next = new Set(prev);
-            if (next.has(capability)) {
-                next.delete(capability);
-            } else {
-                next.add(capability);
-            }
+            if (next.has(capability)) next.delete(capability);
+            else next.add(capability);
+            return next;
+        });
+    };
+
+    const allIds = allCapabilities.map(c => c.id);
+    const allEnabled = allIds.every(id => enabledCapabilities.has(id));
+    const noneEnabled = allIds.every(id => !enabledCapabilities.has(id));
+
+    const handleSelectAll = () =>
+        setEnabledCapabilities(allEnabled ? new Set() : new Set(allIds));
+
+    const handleGroupToggle = (groupItems: { id: AgentCapability }[]) => {
+        const ids = groupItems.map(c => c.id);
+        const allOn = ids.every(id => enabledCapabilities.has(id));
+        setEnabledCapabilities(prev => {
+            const next = new Set(prev);
+            ids.forEach(id => allOn ? next.delete(id) : next.add(id));
             return next;
         });
     };
@@ -111,7 +125,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
             const ids = Array.from(enabledCapabilities).map(
                 (c: any) => (typeof c === 'string' ? c : c.id) as AgentCapability
             );
-            onSave({ ...agent, capabilities: ids, agentCapabilities: ids });
+            onSave({ ...agent, capabilities: ids });
         }
     };
 
@@ -128,44 +142,105 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{agent.hostname}</p>
                     </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                        <XIcon size={20} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* Global select-all / clear-all */}
+                        <button
+                            onClick={handleSelectAll}
+                            className={`px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                                allEnabled
+                                    ? 'bg-red-50 border-red-300 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400'
+                                    : 'bg-primary-50 border-primary-300 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/20 dark:border-primary-700 dark:text-primary-400'
+                            }`}
+                        >
+                            {allEnabled ? 'Disable All' : 'Enable All'}
+                        </button>
+                        <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
+                            <XIcon size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Summary bar */}
+                <div className="flex-shrink-0 mb-3 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 px-1">
+                    <span className="font-medium text-primary-600 dark:text-primary-400">{enabledCapabilities.size} enabled</span>
+                    <span>·</span>
+                    <span>{allIds.length - enabledCapabilities.size} disabled</span>
+                    <span>·</span>
+                    <span>{allIds.length} total</span>
                 </div>
 
                 <div className="flex-grow space-y-5 overflow-y-auto pr-2">
-                    {CAPABILITY_GROUPS.map(group => (
-                        <div key={group.title}>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 px-1">{group.title}</p>
-                            <div className="space-y-2">
-                                {group.items.map(cap => (
-                                    <div key={cap.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-primary-500 dark:text-primary-400 mr-4">
-                                                {cap.icon}
+                    {CAPABILITY_GROUPS.map(group => {
+                        const groupAllOn = group.items.every(c => enabledCapabilities.has(c.id));
+                        const groupSomeOn = group.items.some(c => enabledCapabilities.has(c.id));
+                        return (
+                            <div key={group.title}>
+                                {/* Group header with per-group select-all */}
+                                <div className="flex items-center justify-between mb-2 px-1">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                        {group.title}
+                                    </p>
+                                    <button
+                                        onClick={() => handleGroupToggle(group.items)}
+                                        className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors ${
+                                            groupAllOn
+                                                ? 'text-gray-500 border-gray-300 hover:text-red-500 hover:border-red-300 dark:border-gray-600'
+                                                : 'text-primary-600 border-primary-300 hover:bg-primary-50 dark:text-primary-400 dark:border-primary-700'
+                                        }`}
+                                    >
+                                        {groupAllOn ? 'Disable All' : groupSomeOn ? 'Enable Rest' : 'Enable All'}
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {group.items.map(cap => {
+                                        const isEnabled = enabledCapabilities.has(cap.id);
+                                        return (
+                                            <div
+                                                key={cap.id}
+                                                onClick={() => handleToggle(cap.id)}
+                                                className={`p-3 rounded-lg border flex items-center justify-between cursor-pointer transition-all duration-150 ${
+                                                    isEnabled
+                                                        ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                                                        : 'bg-gray-50/40 dark:bg-gray-800/30 border-gray-100 dark:border-gray-700/50 opacity-50 hover:opacity-70'
+                                                }`}
+                                            >
+                                                <div className="flex items-center">
+                                                    <div className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full mr-4 transition-colors ${
+                                                        isEnabled
+                                                            ? 'bg-gray-100 dark:bg-gray-700 text-primary-500 dark:text-primary-400'
+                                                            : 'bg-gray-100 dark:bg-gray-700/50 text-gray-400 dark:text-gray-600'
+                                                    }`}>
+                                                        {cap.icon}
+                                                    </div>
+                                                    <div>
+                                                        <p className={`font-semibold text-sm ${isEnabled ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                            {cap.label}
+                                                            {!isEnabled && <span className="ml-2 text-[10px] font-normal text-gray-400 dark:text-gray-600 italic">disabled</span>}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{cap.description}</p>
+                                                    </div>
+                                                </div>
+                                                {/* Toggle switch — click on row also toggles */}
+                                                <button
+                                                    type="button"
+                                                    onClick={e => { e.stopPropagation(); handleToggle(cap.id); }}
+                                                    className={`${isEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:ring-offset-gray-800`}
+                                                    role="switch"
+                                                    aria-checked={isEnabled}
+                                                >
+                                                    <span
+                                                        aria-hidden="true"
+                                                        className={`${isEnabled ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                                                    />
+                                                </button>
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-gray-800 dark:text-gray-200">{cap.label}</p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">{cap.description}</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={`${enabledCapabilities.has(cap.id) ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:ring-offset-gray-800`}
-                                            role="switch"
-                                            aria-checked={enabledCapabilities.has(cap.id)}
-                                            onClick={() => handleToggle(cap.id)}
-                                        >
-                                            <span
-                                                aria-hidden="true"
-                                                className={`${enabledCapabilities.has(cap.id) ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
-                                            />
-                                        </button>
-                                    </div>
-                                ))}
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div className="flex-shrink-0 mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">

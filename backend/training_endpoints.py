@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
 from training_service import training_service, TrainingModule, UserTrainingProgress
 from pydantic import BaseModel

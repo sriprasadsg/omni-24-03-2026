@@ -1,25 +1,21 @@
 """
-Secrets Management Service
+Secrets Management Service aggregator.
 
-Provides centralized secrets management with:
-- HashiCorp Vault integration
-- AWS Secrets Manager integration
-- Azure Key Vault integration
-- Automatic secret rotation
-- Secret versioning
-- Access policies
-- Audit logging
+Backend helpers live in secrets_service_backends.py (encryption, Vault, AWS).
+Scanning and audit helpers live in secrets_service_security.py.
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone, timedelta
-from motor.motor_asyncio import AsyncIOMotorDatabase
+import asyncio
 import logging
-import hashlib
-import base64
-import json
-from cryptography.fernet import Fernet
 import os
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, List, Optional
+
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from cryptography.fernet import Fernet
+
+from secrets_service_backends import SecretsManagementBackendsMixin
+from secrets_service_security import SecretsManagementSecurityMixin
 
 
 class SecretType:
@@ -39,45 +35,42 @@ class SecretStatus:
     REVOKED = "revoked"
 
 
-class SecretsManagementService:
-    """Centralized Secrets Management Service"""
-    
+class SecretsManagementService(
+    SecretsManagementSecurityMixin,
+    SecretsManagementBackendsMixin,
+):
+    """Centralized Secrets Management Service."""
+
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.logger = logging.getLogger("SecretsManagementService")
-        
-        # Initialize encryption key (in production, load from secure location)
         self.encryption_key = self._get_or_create_master_key()
         self.cipher = Fernet(self.encryption_key)
-        
-        # Vault configurations (in production, load from environment)
         self.vault_config = {
             "hashicorp_vault": {
                 "enabled": False,
                 "url": os.getenv("VAULT_ADDR", "http://localhost:8200"),
-                "token": os.getenv("VAULT_TOKEN", "")
+                "token": os.getenv("VAULT_TOKEN", ""),
             },
             "aws_secrets_manager": {
                 "enabled": False,
-                "region": os.getenv("AWS_REGION", "us-east-1")
+                "region": os.getenv("AWS_REGION", "us-east-1"),
             },
             "azure_key_vault": {
                 "enabled": False,
-                "vault_url": os.getenv("AZURE_VAULT_URL", "")
-            }
+                "vault_url": os.getenv("AZURE_VAULT_URL", ""),
+            },
         }
-        
-        # Rotation policies
         self.rotation_policies = {
-            SecretType.API_KEY: 90,  # days
+            SecretType.API_KEY: 90,
             SecretType.DATABASE_PASSWORD: 30,
             SecretType.ENCRYPTION_KEY: 365,
             SecretType.CERTIFICATE: 365,
             SecretType.SSH_KEY: 180,
             SecretType.OAUTH_TOKEN: 7,
-            SecretType.WEBHOOK_SECRET: 90
+            SecretType.WEBHOOK_SECRET: 90,
         }
-    
+
     async def create_secret(
         self,
         name: str,
@@ -86,597 +79,184 @@ class SecretsManagementService:
         tenant_id: str,
         description: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        rotation_enabled: bool = True
+        rotation_enabled: bool = True,
     ) -> Dict[str, Any]:
-        """
-        Create a new secret
-        
-        Args:
-            name: Secret name (unique per tenant)
-            value: Secret value (will be encrypted)
-            secret_type: Type of secret (api_key, database_password, etc.)
-            tenant_id: Tenant ID
-            description: Optional description
-            metadata: Optional metadata
-            rotation_enabled: Enable automatic rotation
-        
-        Returns:
-            Secret metadata (without the actual value)
-        """
-        # Check if secret already exists
+        """Create a new secret (value is stored encrypted)."""
         existing = await self.db.secrets.find_one({
-            "name": name,
-            "tenant_id": tenant_id,
-            "status": {"$ne": SecretStatus.REVOKED}
+            "name": name, "tenant_id": tenant_id,
+            "status": {"$ne": SecretStatus.REVOKED},
         })
-        
         if existing:
             raise ValueError(f"Secret '{name}' already exists")
-        
-        # Encrypt the secret value
+
         encrypted_value = self._encrypt_secret(value)
-        
-        # Calculate next rotation date
         rotation_days = self.rotation_policies.get(secret_type, 90)
-        next_rotation = datetime.now(timezone.utc) + timedelta(days=rotation_days) if rotation_enabled else None
-        
+        next_rotation = (
+            datetime.now(timezone.utc) + timedelta(days=rotation_days)
+            if rotation_enabled else None
+        )
         secret = {
-            "name": name,
-            "secret_type": secret_type,
-            "tenant_id": tenant_id,
-            "description": description,
-            "encrypted_value": encrypted_value,
-            "status": SecretStatus.ACTIVE,
-            "version": 1,
+            "name": name, "secret_type": secret_type, "tenant_id": tenant_id,
+            "description": description, "encrypted_value": encrypted_value,
+            "status": SecretStatus.ACTIVE, "version": 1,
             "rotation_enabled": rotation_enabled,
             "rotation_days": rotation_days if rotation_enabled else None,
             "next_rotation": next_rotation.isoformat() if next_rotation else None,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": "system",
             "updated_at": datetime.now(timezone.utc).isoformat(),
-            "last_accessed": None,
-            "access_count": 0,
-            "metadata": metadata or {}
+            "last_accessed": None, "access_count": 0,
+            "metadata": metadata or {},
         }
-        
-        # Store in database
         result = await self.db.secrets.insert_one(secret.copy())
         secret_id = str(result.inserted_id)
-        
-        # Log secret creation
-        await self._log_secret_access(
-            secret_id=secret_id,
-            action="create",
-            tenant_id=tenant_id,
-            user="system"
-        )
-        
-        # Mirror to external vault if configured (fire-and-forget)
-        import asyncio as _asyncio
-        _asyncio.create_task(self.write_to_vault(name, value, tenant_id))
-        _asyncio.create_task(self.write_to_aws_secrets_manager(name, value, tenant_id))
-
-        # Return metadata (without encrypted value)
+        await self._log_secret_access(secret_id, "create", tenant_id, "system")
+        asyncio.create_task(self.write_to_vault(name, value, tenant_id))
+        asyncio.create_task(self.write_to_aws_secrets_manager(name, value, tenant_id))
         secret.pop("encrypted_value")
         secret["id"] = secret_id
-
         self.logger.info("Created secret: %s (type: %s)", name, secret_type)
-
         return secret
 
     async def get_secret(
-        self,
-        name: str,
-        tenant_id: str,
-        user: str = "system"
+        self, name: str, tenant_id: str, user: str = "system"
     ) -> str:
-        """
-        Retrieve a secret value
-        
-        Args:
-            name: Secret name
-            tenant_id: Tenant ID
-            user: User requesting the secret
-        
-        Returns:
-            Decrypted secret value
-        """
-        # Get secret from database
+        """Retrieve a decrypted secret value."""
         secret = await self.db.secrets.find_one({
-            "name": name,
-            "tenant_id": tenant_id,
-            "status": SecretStatus.ACTIVE
+            "name": name, "tenant_id": tenant_id, "status": SecretStatus.ACTIVE,
         })
-        
         if not secret:
             raise ValueError(f"Secret '{name}' not found or not active")
-        
-        # Decrypt the value
         decrypted_value = self._decrypt_secret(secret["encrypted_value"])
-        
-        # Update access tracking
         await self.db.secrets.update_one(
             {"_id": secret["_id"]},
-            {
-                "$set": {
-                    "last_accessed": datetime.now(timezone.utc).isoformat()
-                },
-                "$inc": {"access_count": 1}
-            }
+            {"$set": {"last_accessed": datetime.now(timezone.utc).isoformat()},
+             "$inc": {"access_count": 1}},
         )
-        
-        # Log access
-        await self._log_secret_access(
-            secret_id=str(secret["_id"]),
-            action="read",
-            tenant_id=tenant_id,
-            user=user
-        )
-        
+        await self._log_secret_access(str(secret["_id"]), "read", tenant_id, user)
         return decrypted_value
-    
+
     async def update_secret(
-        self,
-        name: str,
-        new_value: str,
-        tenant_id: str,
-        user: str = "system"
+        self, name: str, new_value: str, tenant_id: str, user: str = "system"
     ) -> Dict[str, Any]:
-        """
-        Update a secret value (creates a new version)
-        
-        Args:
-            name: Secret name
-            new_value: New secret value
-            tenant_id: Tenant ID
-            user: User updating the secret
-        
-        Returns:
-            Updated secret metadata
-        """
-        # Get current secret
+        """Update a secret value (archives the old version)."""
         secret = await self.db.secrets.find_one({
-            "name": name,
-            "tenant_id": tenant_id,
-            "status": SecretStatus.ACTIVE
+            "name": name, "tenant_id": tenant_id, "status": SecretStatus.ACTIVE,
         })
-        
         if not secret:
             raise ValueError(f"Secret '{name}' not found")
-        
-        # Archive old version
         await self.db.secret_versions.insert_one({
-            "secret_id": str(secret["_id"]),
-            "version": secret["version"],
+            "secret_id": str(secret["_id"]), "version": secret["version"],
             "encrypted_value": secret["encrypted_value"],
             "archived_at": datetime.now(timezone.utc).isoformat(),
-            "archived_by": user
+            "archived_by": user,
         })
-        
-        # Encrypt new value
         encrypted_value = self._encrypt_secret(new_value)
-        
-        # Update secret
         new_version = secret["version"] + 1
-        
         await self.db.secrets.update_one(
             {"_id": secret["_id"]},
-            {
-                "$set": {
-                    "encrypted_value": encrypted_value,
-                    "version": new_version,
-                    "updated_at": datetime.now(timezone.utc).isoformat()
-                }
-            }
+            {"$set": {"encrypted_value": encrypted_value, "version": new_version,
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
-        
-        # Log update
         await self._log_secret_access(
-            secret_id=str(secret["_id"]),
-            action="update",
-            tenant_id=tenant_id,
-            user=user,
-            details={"new_version": new_version}
+            str(secret["_id"]), "update", tenant_id, user,
+            details={"new_version": new_version},
         )
-        
-        self.logger.info(f"Updated secret: {name} (version: {new_version})")
-        
-        return {
-            "name": name,
-            "version": new_version,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-    
+        self.logger.info("Updated secret: %s (version: %d)", name, new_version)
+        return {"name": name, "version": new_version,
+                "updated_at": datetime.now(timezone.utc).isoformat()}
+
     async def rotate_secret(
-        self,
-        name: str,
-        tenant_id: str,
-        user: str = "system"
+        self, name: str, tenant_id: str, user: str = "system"
     ) -> Dict[str, Any]:
-        """
-        Rotate a secret (generate new value)
-        
-        For API keys and tokens, generates a new random value.
-        For passwords, requires manual input.
-        """
+        """Rotate a secret by generating a new random value."""
         secret = await self.db.secrets.find_one({
-            "name": name,
-            "tenant_id": tenant_id,
-            "status": SecretStatus.ACTIVE
+            "name": name, "tenant_id": tenant_id, "status": SecretStatus.ACTIVE,
         })
-        
         if not secret:
             raise ValueError(f"Secret '{name}' not found")
-        
-        # Mark as rotating
         await self.db.secrets.update_one(
-            {"_id": secret["_id"]},
-            {"$set": {"status": SecretStatus.ROTATING}}
+            {"_id": secret["_id"]}, {"$set": {"status": SecretStatus.ROTATING}}
         )
-        
-        # Generate new value based on type
-        if secret["secret_type"] in [SecretType.API_KEY, SecretType.WEBHOOK_SECRET]:
+        if secret["secret_type"] in (SecretType.API_KEY, SecretType.WEBHOOK_SECRET):
             new_value = self._generate_random_secret(32)
         elif secret["secret_type"] == SecretType.OAUTH_TOKEN:
             new_value = self._generate_random_secret(64)
         else:
-            # For passwords and other types, rotation requires manual input
-            raise ValueError(f"Manual rotation required for secret type: {secret['secret_type']}")
-        
-        # Update the secret
+            raise ValueError(
+                f"Manual rotation required for secret type: {secret['secret_type']}"
+            )
         result = await self.update_secret(name, new_value, tenant_id, user)
-        
-        # Update rotation date
         rotation_days = secret.get("rotation_days", 90)
         next_rotation = datetime.now(timezone.utc) + timedelta(days=rotation_days)
-        
         await self.db.secrets.update_one(
             {"_id": secret["_id"]},
-            {
-                "$set": {
-                    "status": SecretStatus.ACTIVE,
-                    "next_rotation": next_rotation.isoformat()
-                }
-            }
+            {"$set": {"status": SecretStatus.ACTIVE,
+                      "next_rotation": next_rotation.isoformat()}},
         )
-        
-        # Log rotation
-        await self._log_secret_access(
-            secret_id=str(secret["_id"]),
-            action="rotate",
-            tenant_id=tenant_id,
-            user=user
-        )
-        
-        self.logger.info(f"Rotated secret: {name}")
-        
-        return {
-            "name": name,
-            "new_value": new_value,
-            "version": result["version"],
-            "next_rotation": next_rotation.isoformat()
-        }
-    
+        await self._log_secret_access(str(secret["_id"]), "rotate", tenant_id, user)
+        self.logger.info("Rotated secret: %s", name)
+        return {"name": name, "rotated": True,
+                "version": result["version"],
+                "next_rotation": next_rotation.isoformat()}
+
     async def revoke_secret(
-        self,
-        name: str,
-        tenant_id: str,
-        user: str = "system"
+        self, name: str, tenant_id: str, user: str = "system"
     ) -> Dict[str, Any]:
-        """
-        Revoke a secret (mark as revoked, cannot be used)
-        """
-        secret = await self.db.secrets.find_one({
-            "name": name,
-            "tenant_id": tenant_id
-        })
-        
+        """Revoke a secret (permanently marks it unusable)."""
+        secret = await self.db.secrets.find_one({"name": name, "tenant_id": tenant_id})
         if not secret:
             raise ValueError(f"Secret '{name}' not found")
-        
-        # Mark as revoked
+        now = datetime.now(timezone.utc).isoformat()
         await self.db.secrets.update_one(
             {"_id": secret["_id"]},
-            {
-                "$set": {
-                    "status": SecretStatus.REVOKED,
-                    "revoked_at": datetime.now(timezone.utc).isoformat(),
-                    "revoked_by": user
-                }
-            }
+            {"$set": {"status": SecretStatus.REVOKED, "revoked_at": now, "revoked_by": user}},
         )
-        
-        # Log revocation
-        await self._log_secret_access(
-            secret_id=str(secret["_id"]),
-            action="revoke",
-            tenant_id=tenant_id,
-            user=user
-        )
-        
-        self.logger.warning(f"Revoked secret: {name}")
-        
-        return {
-            "name": name,
-            "status": SecretStatus.REVOKED,
-            "revoked_at": datetime.now(timezone.utc).isoformat()
-        }
-    
+        await self._log_secret_access(str(secret["_id"]), "revoke", tenant_id, user)
+        self.logger.warning("Revoked secret: %s", name)
+        return {"name": name, "status": SecretStatus.REVOKED, "revoked_at": now}
+
     async def list_secrets(
-        self,
-        tenant_id: str,
-        status: Optional[str] = None
+        self, tenant_id: str, status: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        List all secrets for a tenant (without values)
-        """
-        query = {"tenant_id": tenant_id}
+        """List all secrets for a tenant (values omitted)."""
+        query: Dict[str, Any] = {"tenant_id": tenant_id}
         if status:
             query["status"] = status
-        
-        cursor = self.db.secrets.find(query).sort("name", 1)
-        
         secrets = []
-        async for secret in cursor:
-            # Remove encrypted value
+        async for secret in self.db.secrets.find(query).sort("name", 1):
             secret.pop("encrypted_value", None)
             secret["id"] = str(secret.pop("_id"))
             secrets.append(secret)
-        
         return secrets
-    
-    async def check_rotation_needed(self, tenant_id: str = None) -> List[Dict[str, Any]]:
-        """
-        Check which secrets need rotation
 
-        Returns list of secrets that need rotation
-        """
-        now = datetime.now(timezone.utc).isoformat()
-        query: dict = {
+    async def check_rotation_needed(
+        self, tenant_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Return secrets that are overdue for rotation."""
+        query: Dict[str, Any] = {
             "status": SecretStatus.ACTIVE,
             "rotation_enabled": True,
-            "next_rotation": {"$lte": now},
+            "next_rotation": {"$lte": datetime.now(timezone.utc).isoformat()},
         }
         if tenant_id:
             query["tenant_id"] = tenant_id
-        cursor = self.db.secrets.find(query)
-        
-        secrets_to_rotate = []
-        async for secret in cursor:
-            secrets_to_rotate.append({
-                "id": str(secret["_id"]),
-                "name": secret["name"],
+        result = []
+        async for secret in self.db.secrets.find(query):
+            result.append({
+                "id": str(secret["_id"]), "name": secret["name"],
                 "tenant_id": secret["tenant_id"],
                 "secret_type": secret["secret_type"],
-                "next_rotation": secret["next_rotation"]
+                "next_rotation": secret["next_rotation"],
             })
-        
-        return secrets_to_rotate
-    
-    async def scan_for_hardcoded_secrets(
-        self,
-        code: str,
-        file_path: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Scan code for hardcoded secrets
-        
-        Detects:
-        - API keys
-        - Passwords
-        - Tokens
-        - Private keys
-        """
-        findings = []
-        
-        # Patterns for common secrets
-        patterns = {
-            "api_key": [
-                r"api[_-]?key['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9]{20,})['\"]",
-                r"apikey['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9]{20,})['\"]"
-            ],
-            "password": [
-                r"password['\"]?\s*[:=]\s*['\"]([^'\"]{8,})['\"]",
-                r"passwd['\"]?\s*[:=]\s*['\"]([^'\"]{8,})['\"]"
-            ],
-            "token": [
-                r"token['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9]{20,})['\"]",
-                r"auth[_-]?token['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9]{20,})['\"]"
-            ],
-            "private_key": [
-                r"-----BEGIN (RSA |EC )?PRIVATE KEY-----"
-            ],
-            "aws_key": [
-                r"AKIA[0-9A-Z]{16}"
-            ]
-        }
-        
-        import re
-        
-        for secret_type, pattern_list in patterns.items():
-            for pattern in pattern_list:
-                matches = re.finditer(pattern, code, re.IGNORECASE)
-                for match in matches:
-                    findings.append({
-                        "type": secret_type,
-                        "file_path": file_path,
-                        "line": code[:match.start()].count('\n') + 1,
-                        "pattern": pattern,
-                        "severity": "critical",
-                        "recommendation": f"Move {secret_type} to secrets management system"
-                    })
-        
-        return findings
-    
-    async def get_secret_access_log(
-        self,
-        secret_name: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        limit: int = 100
-    ) -> List[Dict[str, Any]]:
-        """
-        Get secret access audit log
-        """
-        query = {}
-        if secret_name:
-            query["secret_name"] = secret_name
-        if tenant_id:
-            query["tenant_id"] = tenant_id
-        
-        cursor = self.db.secret_access_log.find(query).sort("timestamp", -1).limit(limit)
-        
-        logs = []
-        async for log in cursor:
-            log["id"] = str(log.pop("_id"))
-            logs.append(log)
-        
-        return logs
-    
-    def _encrypt_secret(self, value: str) -> str:
-        """Encrypt a secret value"""
-        return self.cipher.encrypt(value.encode()).decode()
-    
-    def _decrypt_secret(self, encrypted_value: str) -> str:
-        """Decrypt a secret value"""
-        return self.cipher.decrypt(encrypted_value.encode()).decode()
-    
-    # ── External vault integration ─────────────────────────────────────────────
-
-    async def write_to_vault(self, name: str, value: str, tenant_id: str) -> bool:
-        """Write a secret to HashiCorp Vault if configured. Returns True on success."""
-        vault_cfg = self.vault_config.get("hashicorp_vault", {})
-        if not vault_cfg.get("enabled") and not vault_cfg.get("token"):
-            return False
-        url = vault_cfg["url"].rstrip("/")
-        token = vault_cfg["token"]
-        path = f"/v1/secret/data/{tenant_id}/{name}"
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url + path,
-                    headers={"X-Vault-Token": token, "Content-Type": "application/json"},
-                    json={"data": {"value": value}},
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    if resp.status in (200, 204):
-                        self.logger.info("[Vault] Wrote secret %s/%s", tenant_id, name)
-                        return True
-                    self.logger.warning("[Vault] Write failed HTTP %s", resp.status)
-        except Exception as exc:
-            self.logger.warning("[Vault] write_to_vault error: %s", exc)
-        return False
-
-    async def read_from_vault(self, name: str, tenant_id: str) -> Optional[str]:
-        """Read a secret from HashiCorp Vault. Returns None if not configured or not found."""
-        vault_cfg = self.vault_config.get("hashicorp_vault", {})
-        if not vault_cfg.get("token"):
-            return None
-        url = vault_cfg["url"].rstrip("/")
-        token = vault_cfg["token"]
-        path = f"/v1/secret/data/{tenant_id}/{name}"
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url + path,
-                    headers={"X-Vault-Token": token},
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data.get("data", {}).get("data", {}).get("value")
-        except Exception as exc:
-            self.logger.warning("[Vault] read_from_vault error: %s", exc)
-        return None
-
-    async def write_to_aws_secrets_manager(self, name: str, value: str, tenant_id: str) -> bool:
-        """Write/update a secret in AWS Secrets Manager if boto3 is available."""
-        try:
-            import boto3
-            region = self.vault_config.get("aws_secrets_manager", {}).get("region", "us-east-1")
-            client = boto3.client("secretsmanager", region_name=region)
-            secret_id = f"omniagent/{tenant_id}/{name}"
-            try:
-                client.put_secret_value(SecretId=secret_id, SecretString=value)
-            except client.exceptions.ResourceNotFoundException:
-                client.create_secret(Name=secret_id, SecretString=value)
-            self.logger.info("[AWS SM] Stored secret %s", secret_id)
-            return True
-        except ImportError:
-            self.logger.debug("[AWS SM] boto3 not installed; skipping AWS Secrets Manager")
-        except Exception as exc:
-            self.logger.warning("[AWS SM] write error: %s", exc)
-        return False
-
-    async def read_from_aws_secrets_manager(self, name: str, tenant_id: str) -> Optional[str]:
-        """Read a secret from AWS Secrets Manager."""
-        try:
-            import boto3
-            region = self.vault_config.get("aws_secrets_manager", {}).get("region", "us-east-1")
-            client = boto3.client("secretsmanager", region_name=region)
-            secret_id = f"omniagent/{tenant_id}/{name}"
-            resp = client.get_secret_value(SecretId=secret_id)
-            return resp.get("SecretString")
-        except ImportError:
-            pass
-        except Exception as exc:
-            self.logger.warning("[AWS SM] read error: %s", exc)
-        return None
-
-    def _get_or_create_master_key(self) -> bytes:
-        """Get or create master encryption key"""
-        key = os.getenv("SECRETS_MASTER_KEY")
-        if key:
-            return base64.urlsafe_b64decode(key)
-        env = os.getenv("ENVIRONMENT", "development").lower()
-        if env == "production":
-            raise RuntimeError(
-                "SECRETS_MASTER_KEY is not set. "
-                "Refusing to start in production without a stable master key. "
-                "Generate one with: python -c \"from cryptography.fernet import Fernet; import base64; print(base64.urlsafe_b64encode(Fernet.generate_key()).decode())\""
-            )
-        self.logger.warning(
-            "SECRETS_MASTER_KEY is not set — using ephemeral key (dev only). "
-            "All managed secrets will be unrecoverable after restart. "
-            "Set SECRETS_MASTER_KEY before going to production."
-        )
-        return Fernet.generate_key()
-    
-    def _generate_random_secret(self, length: int = 32) -> str:
-        """Generate a random secret"""
-        import secrets
-        import string
-        
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        return ''.join(secrets.choice(alphabet) for _ in range(length))
-    
-    async def _log_secret_access(
-        self,
-        secret_id: str,
-        action: str,
-        tenant_id: str,
-        user: str,
-        details: Optional[Dict[str, Any]] = None
-    ):
-        """Log secret access for audit trail"""
-        log_entry = {
-            "secret_id": secret_id,
-            "action": action,
-            "tenant_id": tenant_id,
-            "user": user,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": details or {}
-        }
-        
-        await self.db.secret_access_log.insert_one(log_entry)
+        return result
 
 
-# Singleton
 _secrets_service: Optional[SecretsManagementService] = None
 
+
 def get_secrets_service(db: AsyncIOMotorDatabase) -> SecretsManagementService:
-    """Get or create secrets management service singleton"""
+    """Get or create the secrets management service singleton."""
     global _secrets_service
     if _secrets_service is None:
         _secrets_service = SecretsManagementService(db)

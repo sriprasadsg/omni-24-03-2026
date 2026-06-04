@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, Any, List
+from fastapi import APIRouter, Depends
+from typing import Dict, Any
 from xai_service import xai_service
 from rbac_utils import require_permission
 

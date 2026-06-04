@@ -1,14 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
-from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
 from database import get_database
 
 router = APIRouter(prefix="/api/kpi", tags=["Business KPI"])
 
-from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 @router.get("/summary")
 async def get_kpi_summary(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
@@ -88,8 +90,8 @@ async def get_business_metrics(current_user: TokenData = Depends(rbac_service.ha
                 if 0 < delta_h < 8760:  # ignore outliers > 1 year
                     total_hours += delta_h
                     valid += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Unparseable alert timestamp, skipping MTTR: %s", e)
         mttr_hours = round(total_hours / valid, 1) if valid else 0.0
     else:
         mttr_hours = 0.0

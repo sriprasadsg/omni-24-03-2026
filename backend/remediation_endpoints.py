@@ -56,9 +56,9 @@ async def execute_remediation(
             {"$set": updated_request.dict()}
         )
         return updated_request
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

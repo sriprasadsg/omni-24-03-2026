@@ -1,6 +1,5 @@
 import urllib.request
 import json
-import sys
 
 def test_endpoint():
     # Login to get token

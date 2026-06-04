@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheckIcon, ShieldAlertIcon, KeyIcon, SmartphoneIcon, ShieldLockIcon, CheckIcon, AlertTriangleIcon, CopyIcon, GlobeIcon } from './icons';
 import * as apiService from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 export const SecuritySettings: React.FC = () => {
     const [mfaStatus, setMfaStatus] = useState<{ enabled: boolean; enrolled_at: string | null; backup_codes_remaining: number } | null>(null);
@@ -65,9 +66,9 @@ export const SecuritySettings: React.FC = () => {
         try {
             await apiService.disableMfa(code);
             loadSecurityInfo();
-            alert('MFA has been disabled.');
+            showToast('MFA has been disabled.', 'success');
         } catch (err) {
-            alert('Failed to disable MFA. Please ensure your code is correct.');
+            showToast('Failed to disable MFA. Please ensure your code is correct.', 'error');
         }
     };
 

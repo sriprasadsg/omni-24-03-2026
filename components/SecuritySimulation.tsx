@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Asset } from '../types';
 import { BombIcon, ZapIcon, CheckIcon, XCircleIcon, ClockIcon, ShieldAlertIcon, TerminalIcon } from './icons';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 export const SecuritySimulation: React.FC = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
@@ -36,18 +37,18 @@ export const SecuritySimulation: React.FC = () => {
 
     const handleTrigger = async () => {
         if (!selectedAsset) {
-            alert("Please select a target asset");
+            showToast("Please select a target asset", 'error');
             return;
         }
         setTriggering(true);
         try {
             const res = await api.triggerProcessInjectionSimulation(selectedAsset, technique, target);
             if (res.success) {
-                alert(`Simulation triggered! Case ID: ${res.caseId}`);
+                showToast(`Simulation triggered! Case ID: ${res.caseId}`, 'success');
                 loadData();
             }
         } catch (e) {
-            alert("Failed to trigger simulation");
+            showToast("Failed to trigger simulation", 'error');
         } finally {
             setTriggering(false);
         }

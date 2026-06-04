@@ -3,7 +3,6 @@ import logging
 import re
 from database import get_database
 from ai_service import ai_service
-import requests
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 import { PatchDeploymentJob, PatchDeploymentJobStatus } from '../types';
 import { UploadCloudIcon, ZapIcon, ChevronDownIcon, ClockIcon, CheckIcon, AlertTriangleIcon, XCircleIcon, CogIcon, TerminalSquareIcon, XIcon, RefreshCwIcon } from './icons';
 
@@ -68,15 +69,15 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
             });
 
             if (response.ok) {
-                alert('Rollback initiated successfully.');
+                showToast('Rollback initiated successfully.', 'success');
                 // In a real app, we would refresh the jobs list here
             } else {
                 const error = await response.json();
-                alert(`Failed to initiate rollback: ${error.error || 'Unknown error'}`);
+                showToast(`Failed to initiate rollback: ${error.error || 'Unknown error'}`, 'error');
             }
         } catch (error) {
             console.error('Error rolling back:', error);
-            alert('Error connecting to server.');
+            showToast('Error connecting to server.', 'error');
         } finally {
             setRollingBack(null);
         }

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import is_super_admin
 import datetime
 import re
 from cache_service import cached, invalidate_cache
@@ -24,7 +25,7 @@ async def get_assets(
     collection = db["assets"]
     
     # RBAC check
-    is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
+    is_admin = is_super_admin(current_user.role)
     query = {}
     
     if is_admin:
@@ -70,7 +71,7 @@ async def search_assets(
         ]
     }
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(user_role):
         caller_tenant = getattr(current_user, "tenant_id", None) or None
         if not caller_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
@@ -91,7 +92,7 @@ async def bulk_delete_assets_route(
         raise HTTPException(status_code=400, detail="No IDs provided")
     query: Dict[str, Any] = {"id": {"$in": ids}}
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(user_role):
         caller_tenant = getattr(current_user, "tenant_id", None) or None
         if not caller_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
@@ -110,7 +111,7 @@ async def get_asset_details(
     """Get details for a specific asset, enriched with agent meta for missing fields."""
     query = {"id": asset_id}
 
-    is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
+    is_admin = is_super_admin(current_user.role)
     if not is_admin:
         query["tenantId"] = current_user.tenant_id
 
@@ -182,7 +183,7 @@ async def get_asset_metrics(
 ):
     """Get metrics history for an asset"""
     asset_query = {"id": asset_id}
-    is_admin = current_user.role in ["Super Admin", "super_admin", "admin", "platform-admin"]
+    is_admin = is_super_admin(current_user.role)
     if not is_admin:
         asset_query["tenantId"] = current_user.tenant_id
 
@@ -267,9 +268,8 @@ async def delete_asset(
     # Check permissions
     user_role = getattr(current_user, "role", None)
     tenant_id = getattr(current_user, "tenant_id", None) or None
-    _ASSET_SUPER_ROLES = {"Super Admin", "superadmin", "super_admin", "admin"}
     _asset_read_q: dict = {"id": asset_id}
-    if user_role not in _ASSET_SUPER_ROLES:
+    if not is_super_admin(user_role):
         if not tenant_id:
             raise HTTPException(status_code=403, detail="Tenant context required")
         _asset_read_q["tenantId"] = tenant_id
@@ -280,7 +280,7 @@ async def delete_asset(
 
     # Delete asset — include tenantId in delete query for defense-in-depth
     delete_query: dict = {"id": asset_id}
-    if user_role not in ["Super Admin", "superadmin", "super_admin", "admin"]:
+    if not is_super_admin(user_role):
         delete_query["tenantId"] = tenant_id
     result = await db.assets.delete_one(delete_query)
     
@@ -320,7 +320,7 @@ async def link_asset_to_agent(
 
     # Verify asset exists and user has access
     asset_query = {"id": asset_id}
-    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(current_user.role):
         asset_query["tenantId"] = current_user.tenant_id
         
     asset = await db.assets.find_one(asset_query)
@@ -329,7 +329,7 @@ async def link_asset_to_agent(
         
     # Verify agent exists
     agent_query = {"id": agent_id}
-    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(current_user.role):
         agent_query["tenantId"] = current_user.tenant_id
         
     agent = await db.agents.find_one(agent_query)
@@ -338,7 +338,7 @@ async def link_asset_to_agent(
 
     # Update Asset record — include tenantId in filter to prevent cross-tenant writes
     asset_update_filter = {"id": asset_id}
-    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(current_user.role):
         asset_update_filter["tenantId"] = current_user.tenant_id
     await db.assets.update_one(
         asset_update_filter,
@@ -351,7 +351,7 @@ async def link_asset_to_agent(
 
     # Update Agent record — include tenantId in filter to prevent cross-tenant writes
     agent_update_filter = {"id": agent_id}
-    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(current_user.role):
         agent_update_filter["tenantId"] = current_user.tenant_id
     await db.agents.update_one(
         agent_update_filter,
@@ -384,7 +384,7 @@ async def bulk_update_assets(
     user_role = getattr(current_user, "role", "user")
     tenant_id = getattr(current_user, "tenant_id", None) or None
 
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if not is_super_admin(user_role):
         if not tenant_id:
             raise HTTPException(status_code=403, detail="Tenant context required")
         query["tenantId"] = tenant_id
@@ -433,7 +433,7 @@ async def set_asset_criticality(
 
     asset_query: dict = {"id": asset_id}
     user_role = getattr(current_user, "role", "")
-    if user_role not in ("Super Admin", "superadmin", "super_admin", "platform-admin"):
+    if not is_super_admin(user_role):
         asset_query["tenantId"] = getattr(current_user, "tenant_id", None)
 
     result = await db.assets.update_one(

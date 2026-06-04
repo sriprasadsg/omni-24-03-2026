@@ -40,7 +40,7 @@ async def seed_data():
             "id": f"user-{uuid.uuid4().hex[:8]}",
             "email": email,
             "name": "Super Admin",
-            "password": get_password_hash("password123"),
+            "password": get_password_hash(os.getenv("SUPER_ADMIN_PASSWORD", "changeme_set_SUPER_ADMIN_PASSWORD")),
             "role": "Super Admin",
             "tenantId": tenant_id,
             "status": "Active",

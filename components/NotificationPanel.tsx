@@ -5,6 +5,7 @@ import { Notification, AppView } from '../types';
 // FIX: Added missing BellIcon.
 import { BellIcon, ShieldAlertIcon, ShieldZapIcon } from './icons';
 import { useTimeZone } from '../contexts/TimeZoneContext';
+import { showToast } from '../utils/toast';
 
 interface NotificationBellProps {
     notifications: Notification[];
@@ -119,7 +120,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                     )}
 
                     <div className="flex-shrink-0 text-center p-2 border-t border-gray-200 dark:border-gray-700">
-                        <a href="#" onClick={(e) => { e.preventDefault(); alert("Feature not implemented."); }} className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                        <a href="#" onClick={(e) => { e.preventDefault(); showToast("Feature not implemented.", 'info'); }} className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
                             View all notifications
                         </a>
                     </div>

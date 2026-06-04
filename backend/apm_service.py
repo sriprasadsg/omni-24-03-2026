@@ -8,7 +8,6 @@ metrics collection, distributed tracing, and performance analytics.
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
-import time
 from collections import defaultdict
 import statistics
 

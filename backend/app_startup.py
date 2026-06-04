@@ -1,0 +1,453 @@
+"""Startup helpers: config validation, database seeding, background service launcher."""
+
+import asyncio
+import logging
+import os
+import secrets
+import uuid
+from datetime import datetime, timezone
+
+from auth_utils import hash_password
+from database import get_database
+from migrations.runner import run_migrations
+
+logger = logging.getLogger(__name__)
+
+_KNOWN_WEAK_JWT_VALUES = {
+    "",
+    "your-super-secret-jwt-key-change-this-in-production",
+    "change-me-to-a-long-random-secret-string-at-least-32-chars",
+    "secret",
+    "changeme",
+}
+
+_PLACEHOLDER_PATTERNS = ("changeme_set_", "change_this_", "your_password", "password123")
+
+
+def _check_placeholder_secrets():
+    """Refuse to start in production if placeholder secrets are detected."""
+    env = os.environ.get("APP_ENV", "development").lower()
+    if env in ("development", "dev", "test", "ci"):
+        return  # Allow placeholders in non-production
+
+    dangerous = []
+    for var in ("SUPER_ADMIN_PASSWORD", "TENANT_ADMIN_PASSWORD", "JWT_SECRET_KEY",
+                "MONGO_ROOT_PASSWORD", "REDIS_PASSWORD"):
+        val = os.environ.get(var, "")
+        if any(val.startswith(p) or val == p for p in _PLACEHOLDER_PATTERNS):
+            dangerous.append(var)
+
+    if dangerous:
+        raise RuntimeError(
+            f"Refusing to start: placeholder secrets detected for: {', '.join(dangerous)}. "
+            "Set real secrets before deploying to production."
+        )
+
+
+def _validate_startup_config() -> None:
+    """Warn about dangerous or missing configuration at startup."""
+    _check_placeholder_secrets()
+
+    issues: list[str] = []
+
+    jwt_key = os.getenv("JWT_SECRET_KEY", "")
+    if jwt_key.lower() in _KNOWN_WEAK_JWT_VALUES:
+        issues.append(
+            "JWT_SECRET_KEY is unset or uses a known-weak default. "
+            "Generate a secure key: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+        )
+
+    super_pass = os.getenv("SUPER_ADMIN_PASSWORD", "")
+    if super_pass in {"", "your-secure-super-admin-password", "change-me-to-a-strong-password"}:
+        issues.append("SUPER_ADMIN_PASSWORD is unset or uses a placeholder value.")
+
+    optional_integrations = {
+        "GEMINI_API_KEY": "AI/LLM features",
+        "VIRUSTOTAL_API_KEY": "VirusTotal binary scanning",
+        "SMTP_USER": "email notifications",
+        "SLACK_WEBHOOK_URL": "Slack alerts",
+        "STRIPE_SECRET_KEY": "Stripe payments",
+    }
+    missing_optional = [
+        f"{var} ({desc})" for var, desc in optional_integrations.items()
+        if not os.getenv(var)
+    ]
+
+    for issue in issues:
+        logger.warning("[StartupConfig] ⚠️  %s", issue)
+    if missing_optional:
+        logger.info(
+            "[StartupConfig] Optional integrations not configured (features will be degraded): %s",
+            ", ".join(missing_optional),
+        )
+    if not issues:
+        logger.info("[StartupConfig] ✅ Core configuration looks good.")
+
+
+async def seed_database():
+    """Create or refresh the super admin user and platform tenant."""
+    try:
+        db = get_database()
+
+        # Run schema migrations before any seeding so indexes exist before data is inserted
+        await run_migrations(db._db)
+
+        raw_users = db._db.users
+
+        _super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
+        if not _super_admin_password:
+            _super_admin_password = secrets.token_urlsafe(32)
+            logger.warning(
+                "SUPER_ADMIN_PASSWORD env var not set — generated a random password. "
+                "Set the variable explicitly for a stable super admin login."
+            )
+
+        super_admin_data = {
+            "tenantId": "platform-admin",
+            "tenantName": "Platform",
+            "name": "Super Admin",
+            "email": "super@omni.ai",
+            "password": hash_password(_super_admin_password),
+            "role": "Super Admin",
+            "avatar": "https://i.pravatar.cc/150?u=super-admin",
+            "status": "Active",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        super_admin = await raw_users.find_one({"email": "super@omni.ai"})
+        if not super_admin:
+            logger.info("Creating new super admin user...")
+            super_admin_data["id"] = f"user-{uuid.uuid4()}"
+            await raw_users.insert_one(super_admin_data)
+        else:
+            logger.info("Updating existing super admin credentials...")
+            await raw_users.update_one(
+                {"email": "super@omni.ai"},
+                {"$set": {
+                    "password": super_admin_data["password"],
+                    "status": "Active",
+                    "role": "Super Admin",
+                }},
+            )
+
+        logger.info("Super admin account verified.")
+
+        platform_tenant = await db.tenants.find_one({"id": "platform-admin"})
+        if not platform_tenant:
+            _reg_key = os.getenv("PLATFORM_ADMIN_REG_KEY") or secrets.token_urlsafe(32)
+            if not os.getenv("PLATFORM_ADMIN_REG_KEY"):
+                logger.warning("PLATFORM_ADMIN_REG_KEY env var not set — generated a random registration key.")
+            await db.tenants.insert_one({
+                "id": "platform-admin",
+                "name": "Platform",
+                "subscriptionTier": "Enterprise",
+                "registrationKey": _reg_key,
+                "enabledFeatures": [],
+                "apiKeys": [],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.info("Platform tenant created successfully.")
+
+        all_permissions = [
+            "view:dashboard", "view:reporting", "export:reports", "view:agents",
+            "view:software_deployment", "view:agent_logs", "remediate:agents", "view:assets",
+            "view:patching", "manage:patches", "view:security", "manage:security_cases",
+            "manage:security_playbooks", "investigate:security", "view:compliance",
+            "manage:compliance_evidence", "view:ai_governance", "manage:ai_risks",
+            "manage:settings", "manage:tenants", "view:cloud_security", "view:finops",
+            "view:audit_log", "manage:rbac", "manage:api_keys", "view:logs",
+            "view:threat_hunting", "view:profile", "view:automation", "manage:automation",
+            "view:devsecops", "manage:devsecops", "view:sbom", "manage:sbom",
+            "view:developer_hub", "view:insights", "view:tracing",
+            "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
+            "view:chaos", "view:network", "manage:pricing", "view:software_updates",
+            "view:zero_trust", "view:mdr", "view:xdr", "view:agent_capabilities",
+            "manage:agents", "admin:*",
+        ]
+        await db.roles.update_one(
+            {"name": "Super Admin"},
+            {"$set": {
+                "id": "role-super-admin",
+                "name": "Super Admin",
+                "description": "Has all permissions across all tenants.",
+                "permissions": all_permissions,
+                "isEditable": False,
+                "tenantId": "platform",
+            }},
+            upsert=True,
+        )
+        logger.info("Super Admin role permissions updated")
+
+        tenant_admin_permissions = [
+            "view:dashboard", "view:reporting", "export:reports",
+            "view:agents", "view:software_deployment", "view:agent_logs", "remediate:agents",
+            "view:assets", "view:patching", "manage:patches", "view:security",
+            "manage:security_cases", "investigate:security", "view:compliance",
+            "manage:compliance_evidence", "view:ai_governance", "manage:ai_risks",
+            "view:cloud_security", "view:finops", "view:audit_log",
+            "manage:rbac", "manage:api_keys", "view:logs", "view:profile",
+            "view:automation", "manage:automation", "view:devsecops", "manage:devsecops",
+            "view:sbom", "manage:sbom", "view:insights", "view:software_updates",
+            "view:threat_hunting", "view:tracing", "view:dspm", "view:attack_path",
+            "view:service_catalog", "view:dora_metrics", "view:chaos", "view:network",
+            "view:zero_trust", "view:developer_hub", "manage:security_playbooks",
+            "view:cxo_dashboard", "view:unified_ops", "view:advanced_bi",
+            "view:sustainability", "view:web_monitoring", "view:analytics",
+            "view:threat_intel", "view:vulnerabilities", "view:persistence",
+            "view:security_audit", "view:mlops", "view:llmops", "view:automl",
+            "manage:experiments", "view:xai", "view:governance", "manage:playbooks",
+            "view:swarm", "view:mdr", "view:xdr", "view:agent_capabilities",
+            "manage:pricing", "manage:agents", "view:integrations",
+        ]
+        await db.roles.update_one(
+            {"name": "Tenant Admin"},
+            {"$set": {
+                "id": "role-tenant-admin",
+                "name": "Tenant Admin",
+                "description": "Administrator for a specific tenant with full permissions except cross-tenant management.",
+                "permissions": tenant_admin_permissions,
+                "isEditable": False,
+                "tenantId": "all",
+            }},
+            upsert=True,
+        )
+        logger.info("Tenant Admin role created/updated")
+
+        # ── Standard roles (seeded with tenantId="all" so they apply platform-wide) ──
+        standard_roles = [
+            {
+                "id": "role-analyst",
+                "name": "analyst",
+                "display_name": "Analyst",
+                "description": "Security analyst with investigation and threat-hunting access.",
+                "permissions": [
+                    "view:dashboard", "view:reporting", "view:agents", "view:assets",
+                    "view:security", "investigate:security", "view:compliance",
+                    "view:threat_hunting", "view:threat_intel", "view:vulnerabilities",
+                    "view:audit_log", "view:logs", "view:attack_path", "view:dspm",
+                    "view:mdr", "view:xdr", "view:devsecops", "view:tracing", "view:profile",
+                ],
+                "isEditable": True,
+                "tenantId": "all",
+            },
+            {
+                "id": "role-security-analyst",
+                "name": "security_analyst",
+                "display_name": "Security Analyst",
+                "description": "Deep security investigation with case management access.",
+                "permissions": [
+                    "view:dashboard", "view:security", "investigate:security",
+                    "manage:security_cases", "view:threat_hunting", "view:threat_intel",
+                    "view:vulnerabilities", "view:attack_path", "view:audit_log",
+                    "view:logs", "view:mdr", "view:xdr", "view:dspm", "view:tracing",
+                    "view:compliance", "view:assets", "view:profile",
+                ],
+                "isEditable": True,
+                "tenantId": "all",
+            },
+            {
+                "id": "role-incident-responder",
+                "name": "incident_responder",
+                "display_name": "Incident Responder",
+                "description": "Incident triage and security case management.",
+                "permissions": [
+                    "view:dashboard", "view:security", "investigate:security",
+                    "manage:security_cases", "view:threat_hunting", "view:audit_log",
+                    "view:logs", "view:mdr", "view:xdr", "view:profile",
+                    "view:agents", "view:assets",
+                ],
+                "isEditable": True,
+                "tenantId": "all",
+            },
+            {
+                "id": "role-user",
+                "name": "user",
+                "display_name": "User",
+                "description": "Standard platform user with read-only access to core modules.",
+                "permissions": [
+                    "view:dashboard", "view:reporting", "view:agents", "view:agent_capabilities",
+                    "view:assets", "view:patching", "view:security", "view:compliance",
+                    "view:ai_governance", "view:cloud_security", "view:finops",
+                    "view:audit_log", "view:logs", "view:threat_hunting", "view:profile",
+                    "view:automation", "view:devsecops", "view:developer_hub",
+                    "view:insights", "view:tracing", "view:mdr", "view:xdr",
+                ],
+                "isEditable": True,
+                "tenantId": "all",
+            },
+            {
+                "id": "role-viewer",
+                "name": "viewer",
+                "display_name": "Viewer",
+                "description": "Read-only access to dashboards and reports.",
+                "permissions": [
+                    "view:dashboard", "view:reporting", "view:assets", "view:compliance",
+                    "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
+                ],
+                "isEditable": True,
+                "tenantId": "all",
+            },
+        ]
+        for role_def in standard_roles:
+            await db.roles.update_one(
+                {"name": role_def["name"]},
+                {"$set": role_def},
+                upsert=True,
+            )
+        logger.info("Standard roles (analyst, security_analyst, incident_responder, user, viewer) seeded")
+
+    except Exception as e:
+        logger.error("Database seeding error: %s", e)
+
+
+async def _safe_bg_task(coro, name: str) -> None:
+    """Run a background coroutine; log exceptions instead of silently dropping them."""
+    try:
+        await coro
+    except Exception as _exc:
+        logger.error("Background task '%s' failed: %s", name, _exc, exc_info=True)
+
+
+async def run_startup_services() -> None:
+    """Launch all background tasks and periodic services."""
+    db = get_database()
+
+    try:
+        from database_migrations import (
+            migrate_compliance_tenant_ids, migrate_instructions_tenant_ids,
+            migrate_tenant_registration_keys, seed_compliance_frameworks,
+        )
+        await migrate_compliance_tenant_ids()
+        await migrate_instructions_tenant_ids()
+        await migrate_tenant_registration_keys()
+        await seed_compliance_frameworks()
+    except Exception as _e:
+        logger.warning("[Migrations] Database self-healing migrations failed: %s", _e)
+
+    try:
+        from response_endpoints import initialize_response_module
+        await initialize_response_module()
+    except Exception as _e:
+        logger.warning("[MDR] Response policy seeding failed: %s", _e)
+
+    try:
+        from response_orchestrator import seed_builtin_policies
+        await seed_builtin_policies()
+    except Exception as _e:
+        logger.warning("[Orchestrator] Policy seeding failed: %s", _e)
+
+    try:
+        from xdr_playbook_seeds import seed_xdr_playbooks
+        await seed_xdr_playbooks()
+    except Exception as _e:
+        logger.warning("[XDR] Playbook seeding failed: %s", _e)
+
+    from app_background_tasks import _start_xdr_correlation_scanner
+    asyncio.create_task(_safe_bg_task(_start_xdr_correlation_scanner(), "xdr_correlation"))
+
+    try:
+        from threat_feed_sync import start_threat_feed_loop
+        asyncio.create_task(_safe_bg_task(start_threat_feed_loop(db._db), "threat_feed_loop"))
+    except Exception as _e:
+        logger.warning("[ThreatFeed] Failed to start: %s", _e)
+
+    try:
+        from nvd_sync import start_nvd_sync_loop
+        asyncio.create_task(_safe_bg_task(start_nvd_sync_loop(db._db), "nvd_sync_loop"))
+    except Exception as _e:
+        logger.warning("[NVD] CVE sync failed to start: %s", _e)
+
+    try:
+        from usage_tracker import start_usage_tracking_loop
+        asyncio.create_task(_safe_bg_task(start_usage_tracking_loop(), "usage_tracking"))
+    except Exception as _e:
+        logger.warning("[UsageTracker] Failed to start: %s", _e)
+
+    async def _approval_timeout_loop():
+        from enhanced_playbook_engine import process_approval_timeouts
+        from database import get_database as _gdb
+        from tenant_context import set_tenant_id as _sti
+        _atl_log = logging.getLogger("approval_timeout_loop")
+        while True:
+            try:
+                _sti("platform-admin")
+                await process_approval_timeouts(_gdb()._db)
+            except Exception as _e:
+                _atl_log.warning("Approval timeout processor error: %s", _e)
+            await asyncio.sleep(60)
+
+    asyncio.create_task(_approval_timeout_loop())
+
+    from app_background_tasks import monitor_agent_status
+    asyncio.create_task(_safe_bg_task(monitor_agent_status(), "agent_status_monitor"))
+
+    try:
+        from scheduler import start_scheduler as start_deployment_scheduler
+        start_deployment_scheduler()
+    except ImportError:
+        logger.warning("[Scheduler] Deployment scheduler module not found, skipping")
+
+    try:
+        from finops_scheduler import start_scheduler as start_finops_scheduler
+        start_finops_scheduler()
+    except ImportError:
+        logger.warning("[FinOps] Scheduler module not found, skipping")
+
+    try:
+        from tickets_escalation_service import start_escalation_scheduler
+        from database import mongodb as _mdb
+        asyncio.create_task(start_escalation_scheduler(_mdb.db))
+        logger.info("[Tickets] SLA auto-escalation scheduler started")
+    except Exception as _e:
+        logger.warning("[Tickets] Escalation scheduler failed to start: %s", _e)
+
+    try:
+        from syslog_receiver import start_syslog_server
+        _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
+        asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port))
+        logger.info("[SIEM] UDP Syslog server started on port %d", _syslog_port)
+    except Exception as _e:
+        logger.warning("[SIEM] Syslog server not started: %s", _e)
+
+    for module, func, label in [
+        ("aws_cloudtrail_ingest", "start_aws_polling", "[SIEM] AWS CloudTrail"),
+        ("okta_log_ingest", "start_okta_polling", "[SIEM] Okta log"),
+        ("azure_defender_ingest", "start_azure_polling", "[SIEM] Azure Defender"),
+        ("gcp_scc_ingest", "start_gcp_polling", "[SIEM] GCP SCC"),
+    ]:
+        try:
+            import importlib
+            _mod = importlib.import_module(module)
+            asyncio.create_task(getattr(_mod, func)())
+            logger.info("%s polling started", label)
+        except Exception as _e:
+            logger.warning("%s ingest not started: %s", label, _e)
+
+    try:
+        from jit_access_service import start_jit_expiry_loop
+        asyncio.create_task(start_jit_expiry_loop())
+        logger.info("[JIT] Expiry enforcement loop started")
+    except Exception as _e:
+        logger.warning("[JIT] Expiry loop not started: %s", _e)
+
+    try:
+        from scheduled_reports_service import start_report_scheduler
+        asyncio.create_task(start_report_scheduler())
+        logger.info("[Reports] Scheduled report delivery started")
+    except Exception as _e:
+        logger.warning("[Reports] Scheduler not started: %s", _e)
+
+    try:
+        from streaming_service import processor as _stream_processor
+        await _stream_processor.start()
+        logger.info("[Stream] StreamProcessor started")
+    except Exception as _e:
+        logger.warning("[Stream] StreamProcessor failed to start: %s", _e)
+
+    try:
+        from knowledge_endpoints import seed_knowledge_base
+        _kb_count = await seed_knowledge_base(db._db)
+        if _kb_count:
+            logger.info("[KnowledgeBase] Seeded %d default security documents", _kb_count)
+    except Exception as _e:
+        logger.warning("[KnowledgeBase] Seeding failed: %s", _e)

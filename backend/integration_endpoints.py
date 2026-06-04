@@ -1,7 +1,7 @@
 from datetime import timezone
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from database import get_database
 from integration_service import get_integration_service
 from authentication_service import get_current_user
@@ -92,15 +92,15 @@ async def test_integration(
 # ── SOAR Connector Execution API ──────────────────────────────────────────────
 
 _CONNECTOR_MAP = {
-    "slack":         ("soar_integrations", "SlackConnector"),
-    "teams":         ("soar_integrations", "TeamsConnector"),
+    "slack":         ("soar_connectors_messaging", "SlackConnector"),
+    "teams":         ("soar_connectors_messaging", "TeamsConnector"),
+    "pagerduty":     ("soar_connectors_messaging", "PagerDutyConnector"),
+    "email_gateway": ("soar_connectors_messaging", "EmailGatewayConnector"),
+    "firewall":      ("soar_connectors_security", "FirewallConnector"),
+    "edr":           ("soar_connectors_security", "EDRConnector"),
+    "cloud":         ("soar_connectors_cloud", "CloudProviderConnector"),
     "jira":          ("soar_integrations", "JiraConnector"),
     "servicenow":    ("soar_integrations", "ServiceNowConnector"),
-    "pagerduty":     ("soar_integrations", "PagerDutyConnector"),
-    "firewall":      ("soar_integrations", "FirewallConnector"),
-    "edr":           ("soar_integrations", "EDRConnector"),
-    "email_gateway": ("soar_integrations", "EmailGatewayConnector"),
-    "cloud":         ("soar_integrations", "CloudProviderConnector"),
 }
 
 
@@ -146,7 +146,7 @@ async def test_connector(
         return {"success": ok, "connector": connector_name, "message": "Connected" if ok else "Connection failed"}
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -178,9 +178,9 @@ async def execute_connector_action(
         return result
     except HTTPException:
         raise
-    except ValueError as exc:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Bad request")
-    except Exception as exc:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

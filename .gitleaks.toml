@@ -1,0 +1,21 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "CI and test fixtures"
+regexes = [
+    '''ci-test''',
+    '''changeme_set_''',
+    '''your_.*_here''',
+    '''change_this_strong_password''',
+]
+
+[[allowlists]]
+description = "Example/template files"
+paths = [
+    '''.env.example''',
+    '''backend/.env.example''',
+    '''CHANGELOG.md''',
+]

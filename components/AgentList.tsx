@@ -26,6 +26,7 @@ interface AgentListProps {
     onBulkRestart: () => void;
     onBulkDiagnostics: () => void;
     onBulkRemediate: () => void;
+    onBulkDelete?: () => void;
     onUpdateAgent: (agent: Agent) => void;
     onRegisterAgent: () => void;
     onRemoteControl: (agent: Agent) => void;
@@ -116,8 +117,25 @@ const AgentCard: React.FC<{
         onRequestDelete(agent);
     };
 
-    // Rate limiting check
+    // Heartbeat staleness
     const now = new Date().getTime();
+    const lastSeenMs = agent.lastSeen ? new Date(agent.lastSeen).getTime() : 0;
+    const staleSecs = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : Infinity;
+    const hearbeatColor = staleSecs < 120
+        ? 'text-green-500' : staleSecs < 600
+        ? 'text-amber-400' : 'text-red-400';
+    const hearbeatDot = staleSecs < 120
+        ? 'bg-green-500 animate-pulse' : staleSecs < 600
+        ? 'bg-amber-400' : 'bg-red-500';
+    const lastSeenLabel = (() => {
+        if (!lastSeenMs) return '—';
+        if (staleSecs < 60) return `${staleSecs}s ago`;
+        if (staleSecs < 3600) return `${Math.floor(staleSecs / 60)}m ago`;
+        if (staleSecs < 86400) return `${Math.floor(staleSecs / 3600)}h ago`;
+        return new Date(agent.lastSeen).toLocaleDateString(undefined, { timeZone });
+    })();
+
+    // Rate limiting check
     const oneHourAgo = now - 60 * 60 * 1000;
     const recentAttempts = (agent.remediationAttempts || []).filter(
         attempt => new Date(attempt.timestamp).getTime() > oneHourAgo
@@ -176,7 +194,10 @@ const AgentCard: React.FC<{
                         </div>
                         <div className="flex items-center">
                             <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Last Seen</span>
-                            <span className="text-gray-800 dark:text-gray-200 text-xs">{new Date(agent.lastSeen).toLocaleString(undefined, { timeZone })}</span>
+                            <span className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hearbeatDot}`} title={agent.lastSeen ? new Date(agent.lastSeen).toLocaleString(undefined, { timeZone }) : 'Never'} />
+                                <span className={`text-xs font-medium ${hearbeatColor}`}>{lastSeenLabel}</span>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -224,7 +245,7 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
     const {
         agents, assets, selectedAgentIds, upgradingAgentIds, onToggleSelection, onSelectAll,
         onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs,
-        onBulkRestart, onBulkDiagnostics, onBulkRemediate, onRegisterAgent, onRemoteControl, filters
+        onBulkRestart, onBulkDiagnostics, onBulkRemediate, onBulkDelete, onRegisterAgent, onRemoteControl, filters
     } = props;
 
     const { timeZone } = useTimeZone();
@@ -336,6 +357,7 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                         <button onClick={onBulkRemediate} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-primary-600 rounded-lg hover:bg-primary-700 shadow-md shadow-primary-500/20 transition-all">Remediate</button>
                         <button onClick={onBulkRestart} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 shadow-sm dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">Restart</button>
                         <button onClick={onBulkDiagnostics} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 shadow-sm dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">Diagnostics</button>
+                        {onBulkDelete && <button onClick={onBulkDelete} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 bg-red-50 border border-red-300 rounded-lg hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/50 transition-all">Delete</button>}
                     </div>
                 </div>
             )}

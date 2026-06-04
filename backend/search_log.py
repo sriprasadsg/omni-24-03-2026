@@ -1,5 +1,4 @@
 
-import sys
 
 def search_log():
     try:

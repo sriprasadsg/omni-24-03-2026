@@ -244,7 +244,11 @@ async def generate_sbom(
     Generate an SBOM for the current host using Syft (if available) or pip/npm fallback.
     Stores the result and correlates vulnerabilities automatically.
     """
-    import subprocess, shutil, tempfile, os, platform
+    import subprocess
+    import shutil
+    import tempfile
+    import os
+    import platform
     from pathlib import Path
 
     raw_target = request.get("target", ".")
@@ -361,8 +365,8 @@ async def generate_sbom(
                     })
             if not source or source == "unknown":
                 source = "npm"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("npm package.json SBOM parse failed: %s", e)
 
     if not components:
         raise HTTPException(status_code=500, detail="SBOM generation failed: no package managers available (syft, pip, npm)")

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Body
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
 from datetime import datetime, timezone, timedelta
@@ -56,10 +56,13 @@ async def report_software_inventory(
     _tenant: Dict[str, Any] = Depends(verify_agent_key)
 ):
     """Agent reports live software inventory result from 'run_software_scan'."""
+    if not _tenant:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Agent authentication required")
     db = get_database()
     sw_list = payload.get("software_inventory", [])
     hostname = payload.get("hostname", agent_id)
-    tenant_id = (_tenant.get("id") if _tenant else None) or payload.get("tenantId") or None
+    tenant_id = _tenant.get("id") or None
 
     await db.agents.update_one(
         {"id": agent_id},

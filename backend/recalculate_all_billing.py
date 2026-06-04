@@ -48,14 +48,14 @@ async def recalculate_all_tenant_billing():
                     total_agents = fin_ops_data.get("totalAgents", 0)
                     active_agents = fin_ops_data.get("activeAgents", 0)
                     
-                    print(f"  ✅ SUCCESS:")
+                    print("  ✅ SUCCESS:")
                     print(f"     Agents: {active_agents}/{total_agents} (active/total)")
                     print(f"     Services charged: {services_count}")
                     print(f"     Current month cost: ${current_cost:.2f}")
                     
                     success_count += 1
                 else:
-                    print(f"  ⚠️  WARNING: No finOps data returned")
+                    print("  ⚠️  WARNING: No finOps data returned")
                     error_count += 1
                     
             except Exception as e:

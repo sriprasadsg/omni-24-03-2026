@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any
 from ai_governance_service import get_ai_governance_service
 from database import get_database
 from authentication_service import get_current_user
@@ -32,6 +32,95 @@ async def create_policy(request: Request, policy: AiPolicy, current_user: TokenD
     service = get_ai_governance_service(db)
     policy.tenantId = get_tid(current_user)
     return await service.create_policy(policy)
+
+@router.post("/evaluate")
+@limiter.limit("20/minute")
+async def evaluate_policy_action(
+    request: Request,
+    body: Dict[str, Any] = Body(...),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """
+    Evaluate whether an action is allowed for a model under active AI governance policies.
+    Uses ast.literal_eval for safe condition evaluation — eval() is never called.
+
+    Body: { model_id: str, action: str, context?: dict }
+    Returns: { allowed: bool, policy_id?, reason? }
+    """
+    import ast
+
+    model_id = body.get("model_id", "")
+    action = body.get("action", "")
+    ctx: dict = body.get("context") or {}
+
+    if not model_id or not action:
+        raise HTTPException(status_code=422, detail="model_id and action are required")
+
+    db = get_database()
+    tenant_id = get_tid(current_user)
+    policy_filter: dict = {"$or": [{"tenantId": tenant_id}, {"tenantId": None}], "enabled": True}
+    policies = await db.ai_policies.find(policy_filter, {"_id": 0}).to_list(length=100)
+
+    def _safe_eval_condition(condition: str, eval_ctx: dict) -> bool:
+        """
+        Evaluate a simple boolean condition string against eval_ctx.
+        Only supports: membership test (<var> in <literal_list>) and
+        comparison (<var> <op> <literal>).
+        Raises ValueError for any expression that cannot be parsed as a safe literal.
+        """
+        if not condition or not condition.strip():
+            return True
+
+        # Substitute context variables using word-boundary replacement so that a
+        # key like "on" does not corrupt substrings like "action" or "condition".
+        import re as _re
+        substituted = condition
+        for k, v in eval_ctx.items():
+            pattern = r'\b' + _re.escape(k) + r'\b'
+            if isinstance(v, str):
+                substituted = _re.sub(pattern, repr(v), substituted)
+            elif isinstance(v, (int, float, bool)):
+                substituted = _re.sub(pattern, str(v), substituted)
+
+        # Now try to evaluate the resulting pure-literal expression
+        try:
+            result = ast.literal_eval(substituted)
+            if isinstance(result, bool):
+                return result
+        except (ValueError, SyntaxError):
+            pass
+
+        # Handle `x in [...]` and `x not in [...]` patterns explicitly
+        import re
+        m = re.match(r"^\s*(.+?)\s+(not\s+in|in)\s+(.+)\s*$", substituted.strip(), re.IGNORECASE)
+        if m:
+            left_str, op, right_str = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+            try:
+                left = ast.literal_eval(left_str)
+                right = ast.literal_eval(right_str)
+                return (left not in right) if "not" in op else (left in right)
+            except (ValueError, SyntaxError) as exc:
+                raise ValueError(f"Unsafe or unparseable condition: {condition!r}") from exc
+
+        raise ValueError(f"Condition cannot be safely evaluated: {condition!r}")
+
+    for policy in policies:
+        rules = policy.get("rules", [])
+        for rule in rules:
+            if rule.get("action") != action and rule.get("action") != "*":
+                continue
+            condition = rule.get("condition", "")
+            try:
+                allowed = _safe_eval_condition(condition, ctx)
+            except ValueError as exc:
+                logger.warning("Policy condition rejected (unsafe): %s", exc)
+                return {"allowed": False, "policy_id": policy.get("id"), "reason": str(exc)}
+
+            if not allowed:
+                return {"allowed": False, "policy_id": policy.get("id"), "reason": rule.get("reason", "Policy condition not met")}
+
+    return {"allowed": True}
+
 
 @router.post("/evaluate/{model_id}")
 @limiter.limit("20/minute")

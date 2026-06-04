@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { ShieldCheckIcon, AlertTriangleIcon, CodeIcon, RefreshCwIcon, CheckCircleIcon, XCircleIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface Scan {
     scan_id: string;
@@ -105,17 +106,17 @@ export const SASTDashboard: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Scan triggered successfully');
+                showToast('Scan triggered successfully', 'success');
                 setShowScanModal(false);
                 setFormData({ project_name: '', repository_url: '', branch: 'main', scan_type: 'full' });
                 await loadData();
             } else {
                 const error = await response.json();
-                alert(error.detail || 'Failed to trigger scan');
+                showToast(error.detail || 'Failed to trigger scan', 'error');
             }
         } catch (error) {
             console.error('Failed to trigger scan:', error);
-            alert('Failed to trigger scan');
+            showToast('Failed to trigger scan', 'error');
         }
     };
 
@@ -145,15 +146,15 @@ export const SASTDashboard: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Marked as false positive');
+                showToast('Marked as false positive', 'success');
                 await loadData();
             } else {
                 const error = await response.json();
-                alert(error.detail || 'Failed to mark false positive');
+                showToast(error.detail || 'Failed to mark false positive', 'error');
             }
         } catch (error) {
             console.error('Failed to mark false positive:', error);
-            alert('Failed to mark false positive');
+            showToast('Failed to mark false positive', 'error');
         }
     };
 

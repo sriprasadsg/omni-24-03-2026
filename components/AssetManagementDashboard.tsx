@@ -5,6 +5,7 @@ import { AssetDetail } from './AssetDetail';
 import { DatabaseIcon, ShieldSearchIcon, XCircleIcon, FilterIcon, ClockIcon } from './icons';
 import { ScheduleScanModal } from './ScheduleScanModal';
 import { VulnerabilityScanJobs } from './VulnerabilityScanJobs';
+import { showToast } from '../utils/toast';
 
 interface AssetManagementDashboardProps {
     assets: Asset[];
@@ -132,7 +133,7 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
             await onScheduleVulnerabilityScan(assetsToScan, scanType, scheduleTime);
         } catch (error) {
             console.error('Failed to schedule scan:', error);
-            alert(`Failed to schedule vulnerability scan: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            showToast(`Failed to schedule vulnerability scan: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
         } finally {
             setIsScanModalOpen(false);
             setAssetsToScan([]);

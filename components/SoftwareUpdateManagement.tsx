@@ -3,6 +3,7 @@ import { authFetch } from '../services/apiService';
 import { BoxIcon, DownloadIcon, RefreshCwIcon, AlertCircleIcon, CheckIcon, SearchIcon } from './icons';
 import { Asset } from '../types';
 import { DeploySoftwareUpdatesModal } from './DeploySoftwareUpdatesModal';
+import { showToast } from '../utils/toast';
 
 interface SoftwareItem {
     id: string;
@@ -133,13 +134,13 @@ export const SoftwareUpdateManagement: React.FC<SoftwareUpdateManagementProps> =
 
             if (data.success) {
                 setSelectedSoftwareIds(new Set());
-                alert(`✅ Deployment ${deploymentType === 'Immediate' ? 'Started' : 'Scheduled'}!\n\nJob ID: ${data.job.id}\nUpdates: ${selectedItems.length}\nAssets: ${new Set(selectedItems.map(sw => sw.assetId)).size}\nStatus: ${data.job.status}\n\nTrack progress with Job ID: ${data.job.id}`);
+                showToast(`Deployment ${deploymentType === 'Immediate' ? 'started' : 'scheduled'}. Job ID: ${data.job.id}`, 'success');
             } else {
-                alert(`❌ Deployment failed: ${data.error || 'Unknown error'}`);
+                showToast(`Deployment failed: ${data.error || 'Unknown error'}`, 'error');
             }
         } catch (error) {
             console.error('Deployment error:', error);
-            alert(`❌ Failed to start deployment: ${error instanceof Error ? error.message : 'Network error'}`);
+            showToast(`Failed to start deployment: ${error instanceof Error ? error.message : 'Network error'}`, 'error');
         }
     };
 

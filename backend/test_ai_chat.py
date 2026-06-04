@@ -1,5 +1,4 @@
 import asyncio
-import json
 from ai_service import ai_service
 from database import connect_to_mongo
 

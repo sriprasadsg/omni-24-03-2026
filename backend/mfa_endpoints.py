@@ -2,7 +2,7 @@
 MFA Endpoints — /api/mfa/*
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from database import get_database

@@ -15,6 +15,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { PlayIcon, SaveIcon, PlusIcon, BoltIcon, ShieldBanIcon, ShieldCheckIcon, MessageSquareIcon, GlobeIcon, DatabaseIcon } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 // Custom Node Components
 const TriggerNode = ({ data }: any) => (
@@ -163,10 +164,10 @@ export const PlaybookBuilder: React.FC = () => {
                 method: 'POST',
                 body: JSON.stringify(def)
             });
-            alert('Playbook saved successfully!');
+            showToast('Playbook saved successfully!', 'success');
         } catch (err) {
             console.error(err);
-            alert('Failed to save playbook');
+            showToast('Failed to save playbook', 'error');
         } finally {
             setSaving(false);
         }
@@ -179,7 +180,7 @@ export const PlaybookBuilder: React.FC = () => {
         try {
             // In a real scenario, this executes the DAG on the backend.
             // For immediate UI feedback, we'll simulate the graph traversal here visually
-            let log = [...runLog];
+            const log = [...runLog];
             const logMsg = (m: string) => { log.push({ msg: m, time: new Date().toISOString() }); setRunLog([...log]); };
 
             logMsg(`Triggering playbook: ${playbookName}`);
@@ -190,8 +191,8 @@ export const PlaybookBuilder: React.FC = () => {
                 setRunning(false); return;
             }
 
-            let queue = [...triggers.map(t => t.id)];
-            let visited = new Set();
+            const queue = [...triggers.map(t => t.id)];
+            const visited = new Set();
 
             while (queue.length > 0) {
                 const currId = queue.shift();

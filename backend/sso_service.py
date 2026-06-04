@@ -12,7 +12,6 @@ import uuid
 import secrets
 import urllib.parse
 from datetime import datetime, timezone
-from typing import Optional
 from database import get_database
 
 # In-memory OIDC state store (nonce → { provider, redirect_uri, expires })

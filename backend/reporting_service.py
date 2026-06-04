@@ -4,7 +4,7 @@ Handles SLA tracking, compliance reports, vulnerability analytics, and change lo
 """
 
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from collections import defaultdict
 
 

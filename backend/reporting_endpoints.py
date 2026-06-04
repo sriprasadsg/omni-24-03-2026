@@ -63,7 +63,7 @@ async def get_sla_compliance_report(
             start_date=start,
             end_date=end,
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -80,7 +80,7 @@ async def get_vulnerability_exposure_report(
         return await reporting_service.generate_vulnerability_exposure_report(
             tenant_id=_resolve_tenant_id(current_user, tenant_id)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -105,7 +105,7 @@ async def get_change_management_log(
             end_date=end,
             limit=limit,
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -122,7 +122,7 @@ async def get_executive_summary(
         return await reporting_service.generate_executive_summary(
             tenant_id=_resolve_tenant_id(current_user, tenant_id)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -148,7 +148,7 @@ async def schedule_report(
         result = await db.report_schedules.insert_one(schedule)
         schedule["id"] = str(result.inserted_id)
         return schedule
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -168,7 +168,7 @@ async def get_report_schedules(
         for s in schedules:
             s["id"] = str(s.pop("_id"))
         return schedules
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # ── Notifications ─────────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ async def send_notification(
             channels=data.get("channels", ["email"]),
             metadata=data.get("metadata"),
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -224,7 +224,7 @@ async def configure_notifications(
             upsert=True,
         )
         return {"success": True, "message": f"{data.get('type')} notifications configured"}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -242,7 +242,7 @@ async def get_notification_configs(_current_user: TokenData = Depends(get_curren
             if "smtp_password" in config:
                 config["smtp_password"] = "***"
         return {"configs": configs}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -263,5 +263,5 @@ async def get_notification_history(
             query["severity"] = severity
         notifications = await db.notifications.find(query, {"_id": 0}).sort("sent_at", -1).limit(limit).to_list(length=limit)
         return {"notifications": notifications, "count": len(notifications)}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user, create_access_token
 from datetime import datetime, timezone, timedelta
@@ -111,8 +111,8 @@ async def register_agent(request: Request, data: Dict[str, Any] = Body(...), bac
     try:
         from finops_service import finops_service
         await finops_service.recalculate_tenant_costs(tenant["id"])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("FinOps cost recalculation failed for tenant %s: %s", tenant["id"], e)
 
     try:
         from admin_evidence_service import run_evidence_collection_for_asset
@@ -121,8 +121,8 @@ async def register_agent(request: Request, data: Dict[str, Any] = Body(...), bac
         else:
             import asyncio
             asyncio.create_task(run_evidence_collection_for_asset(hostname, db))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Evidence collection dispatch failed for host %s: %s", hostname, e)
 
     token_data = {"sub": agent_id, "role": "agent", "tenant_id": tenant["id"], "jti": str(uuid.uuid4())}
     access_token = create_access_token(data=token_data, expires_delta=timedelta(days=3650))

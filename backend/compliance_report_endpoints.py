@@ -38,9 +38,9 @@ async def generate_csv_report(
         result = await compliance_reporting_service.generate_report(tenant_id, framework_id)
         await _persist_report_meta(result, framework_id, tenant_id, "csv", current_user)
         return result
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -56,9 +56,9 @@ async def generate_excel_report(
         result = await compliance_reporting_service.generate_excel_report(tenant_id, framework_id)
         await _persist_report_meta(result, framework_id, tenant_id, "excel", current_user)
         return result
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -74,9 +74,9 @@ async def generate_pdf_report(
         result = await compliance_reporting_service.generate_pdf_report(tenant_id, framework_id)
         await _persist_report_meta(result, framework_id, tenant_id, "pdf", current_user)
         return result
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -93,9 +93,9 @@ async def generate_all_csv_report(
         result = await compliance_reporting_service.generate_all_csv_report(tenant_id)
         await _persist_report_meta(result, "all", tenant_id, "csv", current_user)
         return result
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -110,9 +110,9 @@ async def generate_all_excel_report(
         result = await compliance_reporting_service.generate_all_excel_report(tenant_id)
         await _persist_report_meta(result, "all", tenant_id, "excel", current_user)
         return result
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

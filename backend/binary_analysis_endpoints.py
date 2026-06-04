@@ -2,9 +2,8 @@
 Binary Analysis API Endpoints
 File upload for static PE analysis, YARA scanning, and lightweight sandbox.
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, BackgroundTasks
-from fastapi.responses import JSONResponse
-from typing import Optional, List
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, BackgroundTasks
+from typing import Optional
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
@@ -72,23 +71,32 @@ async def analyze_file(
     await db.analysis_jobs.insert_one(job)
     job.pop("_id", None)
 
-    # Run in background
-    background_tasks.add_task(_run_analysis, job_id, content, file.filename, run_sandbox)
+    # Run in background (pass tenant_id so custom YARA rules are scoped correctly)
+    tenant_id = getattr(current_user, "tenant_id", None)
+    background_tasks.add_task(_run_analysis, job_id, content, file.filename, run_sandbox, tenant_id)
 
     return {"status": "queued", "job_id": job_id, "filename": file.filename}
 
 
-async def _run_analysis(job_id: str, content: bytes, filename: str, run_sandbox: bool):
+async def _run_analysis(job_id: str, content: bytes, filename: str, run_sandbox: bool, tenant_id: Optional[str] = None):
     """Background task: run analysis and store report in MongoDB."""
+    import functools
     db = get_database()
     try:
         await db.analysis_jobs.update_one(
             {"job_id": job_id}, {"$set": {"status": "running"}}
         )
+        # Fetch enabled custom YARA rules for this tenant
+        custom_query: dict = {"enabled": True}
+        if tenant_id:
+            custom_query["tenantId"] = tenant_id
+        custom_rules = await db.custom_yara_rules.find(custom_query, {"_id": 0, "name": 1, "content": 1}).to_list(length=200)
+
         # Run in executor to avoid blocking the event loop
         loop = asyncio.get_event_loop()
         report = await loop.run_in_executor(
-            None, binary_analysis_service.analyze, content, filename
+            None,
+            functools.partial(binary_analysis_service.analyze, content, filename, custom_rules=custom_rules),
         )
         await db.analysis_jobs.update_one(
             {"job_id": job_id},
@@ -112,6 +120,10 @@ async def _run_analysis(job_id: str, content: bytes, filename: str, run_sandbox:
 # ------------------------------------------------------------------
 
 _ANALYSIS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+_YARA_WRITE_ROLES = {
+    "Super Admin", "super_admin", "platform-admin",
+    "Tenant Admin", "admin", "security_analyst",
+}
 
 
 @router.get("/report/{job_id}")
@@ -200,4 +212,121 @@ async def check_hash(
         "previous_verdict": (job["report"].get("verdict") if job else None),
         "previous_threat_score": (job["report"].get("threat_score") if job else None),
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Custom YARA Rule Editor  (per-tenant DB-backed rules)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _validate_yara_syntax(content: str) -> Optional[str]:
+    """Return an error string if syntax is obviously wrong, else None."""
+    import re
+    stripped = content.strip()
+    if not stripped:
+        return "Rule content is empty"
+    if not re.search(r'\brule\s+\w+', stripped):
+        return "Missing 'rule <name>' declaration"
+    if 'condition:' not in stripped:
+        return "Missing 'condition:' section"
+    if '{' not in stripped or '}' not in stripped:
+        return "Missing rule braces { }"
+    try:
+        import yara  # type: ignore
+        yara.compile(source=content)
+    except ImportError:
+        pass  # yara-python not installed — skip compile check
+    except Exception as e:
+        return str(e)
+    return None
+
+
+@router.get("/yara-rules")
+async def list_yara_rules(current_user: TokenData = Depends(get_current_user)):
+    db = get_database()
+    tid = getattr(current_user, "tenant_id", None)
+    query: dict = {"tenantId": tid} if tid else {}
+    rules = await db.custom_yara_rules.find(query, {"_id": 0}).to_list(length=500)
+    return rules
+
+
+@router.post("/yara-rules")
+async def create_yara_rule(
+    payload: dict = Body(...),
+    current_user: TokenData = Depends(get_current_user),
+):
+    if getattr(current_user, "role", None) not in _YARA_WRITE_ROLES:
+        raise HTTPException(status_code=403, detail="Security Analyst or Admin role required")
+    content = (payload.get("content") or "").strip()
+    err = _validate_yara_syntax(content)
+    if err:
+        raise HTTPException(status_code=422, detail=f"Invalid YARA syntax: {err}")
+    db = get_database()
+    rule = {
+        "id": str(uuid.uuid4()),
+        "name": (payload.get("name") or "custom_rule").strip()[:80],
+        "content": content,
+        "description": (payload.get("description") or "")[:256],
+        "enabled": payload.get("enabled", True),
+        "tenantId": getattr(current_user, "tenant_id", None),
+        "createdBy": current_user.username,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.custom_yara_rules.insert_one({**rule})
+    rule.pop("_id", None)
+    return rule
+
+
+@router.put("/yara-rules/{rule_id}")
+async def update_yara_rule(
+    rule_id: str,
+    payload: dict = Body(...),
+    current_user: TokenData = Depends(get_current_user),
+):
+    if getattr(current_user, "role", None) not in _YARA_WRITE_ROLES:
+        raise HTTPException(status_code=403, detail="Security Analyst or Admin role required")
+    db = get_database()
+    tid = getattr(current_user, "tenant_id", None)
+    filt: dict = {"id": rule_id}
+    if tid:
+        filt["tenantId"] = tid
+    content = (payload.get("content") or "").strip()
+    if content:
+        err = _validate_yara_syntax(content)
+        if err:
+            raise HTTPException(status_code=422, detail=f"Invalid YARA syntax: {err}")
+    updates: dict = {"updatedAt": datetime.now(timezone.utc).isoformat()}
+    for key in ("name", "content", "description", "enabled"):
+        if key in payload:
+            updates[key] = payload[key]
+    result = await db.custom_yara_rules.update_one(filt, {"$set": updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    rule = await db.custom_yara_rules.find_one(filt, {"_id": 0})
+    return rule
+
+
+@router.delete("/yara-rules/{rule_id}")
+async def delete_yara_rule(
+    rule_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    if getattr(current_user, "role", None) not in _YARA_WRITE_ROLES:
+        raise HTTPException(status_code=403, detail="Security Analyst or Admin role required")
+    db = get_database()
+    tid = getattr(current_user, "tenant_id", None)
+    filt: dict = {"id": rule_id}
+    if tid:
+        filt["tenantId"] = tid
+    await db.custom_yara_rules.delete_one(filt)
+    return {"success": True}
+
+
+@router.post("/yara-rules/validate")
+async def validate_yara_rule(
+    payload: dict = Body(...),
+    _current_user: TokenData = Depends(get_current_user),
+):
+    content = (payload.get("content") or "").strip()
+    err = _validate_yara_syntax(content)
+    return {"valid": err is None, "error": err}
 

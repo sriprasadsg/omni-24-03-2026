@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface KBDoc {
   id: string;
@@ -72,7 +73,7 @@ export default function KnowledgeBaseDashboard() {
         setIngestForm({ title: '', content: '', source: '', tags: '' });
       } else {
         const d = await r.json();
-        alert(d.detail || 'Failed to ingest');
+        showToast(d.detail || 'Failed to ingest', 'error');
       }
     } finally { setIngesting(false); }
   }

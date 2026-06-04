@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
           changeOrigin: true,
+          ws: true,       // proxy WebSocket upgrades for /api/tunnel/* and /api/ws/*
           rewrite: (path) => path.replace(/^\/api/, '/api'),
         },
         '/static': {
@@ -46,6 +47,11 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       }
+    },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/__tests__/setup.ts'],
     }
   };
 });

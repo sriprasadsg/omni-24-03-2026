@@ -1,9 +1,8 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from streaming_service import broker, processor
 import asyncio
-import json
 from database import get_database
 from siem_engine import get_siem_engine
 

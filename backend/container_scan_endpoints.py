@@ -2,7 +2,6 @@
 from __future__ import annotations
 import time
 from fastapi import APIRouter, HTTPException, Depends
-from auth_utils import get_current_user
 from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/container-scan", tags=["Container Scan"])

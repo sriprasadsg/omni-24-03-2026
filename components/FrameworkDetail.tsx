@@ -6,11 +6,13 @@ import { AssetComplianceList } from './AssetComplianceList';
 import { PaperclipIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon, FilterIcon, HeartPulseIcon, CreditCardIcon, BookOpenCheckIcon, BinocularsIcon, ShieldIcon, SirenIcon, MessageSquareWarningIcon, HeartHandshakeIcon, BuildingIcon, ClipboardListIcon, ShieldLockIcon, PlusIcon, UploadIcon, XIcon, BrainCircuitIcon, ScaleIcon, DatabaseIcon, LayersIcon, ActivityIcon, RefreshCwIcon, UsersIcon, FileTextIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface FrameworkDetailProps {
   framework: ComplianceFramework;
   assets: Asset[];
   assetComplianceData: AssetCompliance[];
+  onRefresh?: () => void;
 }
 
 const AddControlModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: () => void; onAdd: (data: any) => void }) => {
@@ -78,7 +80,7 @@ const ReportsModal = ({ isOpen, onClose, frameworkId }: { isOpen: boolean; onClo
       await api.downloadComplianceReport(report.filename);
     } catch (error) {
       console.error('Download error:', error);
-      alert('Failed to download file. Please try again.');
+      showToast('Failed to download file. Please try again.', 'error');
     } finally {
       setDownloading(null);
     }
@@ -200,7 +202,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
 
 const statusOptions: (ControlStatus | 'All')[] = ['All', 'Implemented', 'In Progress', 'At Risk', 'Not Implemented'];
 
-export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, assets, assetComplianceData }) => {
+export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, assets, assetComplianceData, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ControlStatus | 'All'>('All');
   const [expandedControlId, setExpandedControlId] = useState<string | null>(null);
@@ -215,21 +217,24 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
   const handleAddControl = async (data: any) => {
     try {
       await api.addComplianceControl(framework.id, data);
-      alert('Control added successfully! Please refresh to see changes.'); // In real app, we'd refetch
+      showToast('Control added successfully!', 'success');
       setIsAddControlModalOpen(false);
     } catch (e) {
-      alert('Failed to add control');
+      showToast('Failed to add control', 'error');
     }
   };
 
-  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
       try {
-        const res = await api.importComplianceControls(framework.id, e.target.files[0]);
-        alert(`Successfully imported ${res.count} controls! Please refresh.`);
-      } catch (err) {
-        alert('Import failed');
+        const res = await api.importComplianceControls(framework.id, file);
+        showToast(`Successfully imported ${res.count} controls from ${file.name}`, 'success');
+      } catch (err: any) {
+        showToast(`Import failed: ${err?.message ?? 'Unknown error'}`, 'error');
       }
+      // Reset so the same file can be re-uploaded
+      e.target.value = '';
     }
   };
 
@@ -238,12 +243,12 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
       // @ts-ignore
       const res = await api.triggerFrameworkScan(framework.id);
       if (res.success) {
-        alert(`Scan initiated! ${res.message}`);
+        showToast(`Scan initiated! ${res.message}`, 'success');
       } else {
-        alert(`Failed to start scan: ${res.message}`);
+        showToast(`Failed to start scan: ${res.message}`, 'error');
       }
     } catch (e) {
-      alert('Error triggering scan.');
+      showToast('Error triggering scan.', 'error');
       console.error(e);
     }
   };
@@ -261,13 +266,13 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
       }
 
       if (res?.filename) {
-        alert(`${reportFormat.toUpperCase()} report generated successfully!`);
+        showToast(`${reportFormat.toUpperCase()} report generated successfully!`, 'success');
         setIsReportsModalOpen(true);
       } else {
-        alert('Report generation returned an unexpected response.');
+        showToast('Report generation returned an unexpected response.', 'error');
       }
     } catch (e: any) {
-      alert(`Failed to generate report: ${e?.message || 'Unknown error'}`);
+      showToast(`Failed to generate report: ${e?.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -316,10 +321,11 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
+                title="Import controls from CSV, Excel (.xlsx), PDF, or Word (.docx)"
                 className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 <UploadIcon size={14} className="mr-1.5" />
-                Import CSV
+                Import Controls
               </button>
               {/* Format Selector */}
               <select
@@ -350,10 +356,10 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                   if (confirm('Run local AI Auditor evaluation on all evidence for this framework? (This may take a few minutes depending on hardware)')) {
                     try {
                       const res = await api.runAIAuditor(framework.id);
-                      alert(res.message);
-                      window.location.reload(); // Reload to pick up the new ai_evaluations
+                      showToast(res.message, 'success');
+                      if (onRefresh) onRefresh();
                     } catch (e) {
-                      alert('Failed to run AI Audit.');
+                      showToast('Failed to run AI Audit.', 'error');
                     }
                   }
                 }}
@@ -373,8 +379,8 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
-                accept=".csv"
-                onChange={handleImportCSV}
+                accept=".csv,.xlsx,.xls,.pdf,.docx"
+                onChange={handleImportDoc}
               />
             </div>
           </div>
@@ -576,12 +582,11 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                           try {
                             const res = await api.uploadComplianceEvidence(assetId, control.id, file);
                             if (res.success) {
-                              alert(`Successfully uploaded evidence: ${file.name}`);
-                              // Ideally trigger a refresh of the list here
+                              showToast(`Successfully uploaded evidence: ${file.name}`, 'success');
                             }
                           } catch (e) {
                             console.error("Upload Error", e);
-                            alert("Failed to upload evidence.");
+                            showToast("Failed to upload evidence.", 'error');
                           }
                         }}
                         onIngestEvidence={async (assetId, fileName, content) => {
@@ -598,7 +603,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                             }
                           } catch (e) {
                             console.error("Ingest Exception", e);
-                            alert('Error ingesting evidence.');
+                            showToast('Error ingesting evidence.', 'error');
                           }
                         }}
                       />

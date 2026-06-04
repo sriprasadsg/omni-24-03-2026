@@ -1,4 +1,6 @@
-import asyncio, bcrypt, os
+import asyncio
+import bcrypt
+import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 load_dotenv()

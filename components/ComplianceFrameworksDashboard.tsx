@@ -98,20 +98,24 @@ export function ComplianceFrameworksDashboard() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
-  const fetchSummary = useCallback(async () => {
+  const fetchSummary = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await authFetch(`${API}/summary`);
+      const res = await authFetch(`${API}/summary`, { signal });
       if (res.ok) setSummary(await res.json());
-    } catch (_) {}
+    } catch (e) {
+      if ((e as any)?.name !== 'AbortError') console.error('Failed to load compliance summary:', e);
+    }
     setLoading(false);
   }, []);
 
-  const fetchDetail = useCallback(async (fid: string) => {
+  const fetchDetail = useCallback(async (fid: string, signal?: AbortSignal) => {
     setDetailLoading(true);
     try {
-      const res = await authFetch(`${API}/${fid}`);
+      const res = await authFetch(`${API}/${fid}`, { signal });
       if (res.ok) setDetail(await res.json());
-    } catch (_) {}
+    } catch (e) {
+      if ((e as any)?.name !== 'AbortError') console.error('Failed to load compliance detail:', e);
+    }
     setDetailLoading(false);
   }, []);
 
@@ -135,8 +139,16 @@ export function ComplianceFrameworksDashboard() {
     }
   }, [selected, fetchSummary, fetchDetail]);
 
-  useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  useEffect(() => { fetchDetail(selected); }, [selected, fetchDetail]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchSummary(controller.signal);
+    return () => controller.abort();
+  }, [fetchSummary]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchDetail(selected, controller.signal);
+    return () => controller.abort();
+  }, [selected, fetchDetail]);
 
   const grouped = detail ? detail.controls.reduce((acc, ctrl) => {
     const group = ctrl.function || ctrl.theme || 'General';

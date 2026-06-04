@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangleIcon, ShieldAlertIcon, ActivityIcon, TrendingUpIcon } from './icons';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface Correlation {
     id: string;
@@ -102,6 +103,7 @@ export const CorrelationDashboard: React.FC<CorrelationDashboardProps> = ({ tena
             }
         } catch (error) {
             console.error('Failed to load correlations:', error);
+            showToast('Failed to load correlation data', 'error');
         } finally {
             setLoading(false);
         }

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from typing import List, Optional
+from fastapi import APIRouter, Depends, BackgroundTasks
+from typing import Optional
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user

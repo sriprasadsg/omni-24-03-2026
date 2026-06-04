@@ -10,7 +10,7 @@ Called from authentication_endpoints.py on each login and role-change event.
 """
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 from database import get_database
 
 logger = logging.getLogger(__name__)

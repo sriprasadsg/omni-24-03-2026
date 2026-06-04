@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { File, Download, Loader, Calendar } from 'lucide-react';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface Invoice {
     invoiceNumber: string;
@@ -59,7 +60,7 @@ export default function InvoiceList() {
             document.body.removeChild(a);
         } catch (error) {
             console.error('Download error:', error);
-            alert('Failed to download invoice PDF');
+            showToast('Failed to download invoice PDF', 'error');
         } finally {
             setDownloadingId(null);
         }

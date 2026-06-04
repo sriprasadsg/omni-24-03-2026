@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface DSR {
   id: string;
@@ -99,7 +100,7 @@ export default function PrivacyDashboard() {
         setDsrForm({ request_type: 'access', data_subject_name: '', data_subject_email: '', regulation: 'GDPR', description: '' });
       } else {
         const d = await r.json();
-        alert(d.detail || 'Failed to create DSR');
+        showToast(d.detail || 'Failed to create DSR', 'error');
       }
     } finally { setSaving(false); }
   }
@@ -118,7 +119,7 @@ export default function PrivacyDashboard() {
         setBreachForm({ description: '', risk_level: 'high', breach_type: 'unauthorized_access', estimated_subjects_affected: 0, notification_required: true });
       } else {
         const d = await r.json();
-        alert(d.detail || 'Failed to report breach');
+        showToast(d.detail || 'Failed to report breach', 'error');
       }
     } finally { setSaving(false); }
   }

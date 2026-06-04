@@ -15,6 +15,7 @@ export default function AgentRemoteControl({ agent, onClose }: AgentRemoteContro
     const [currentCommand, setCurrentCommand] = useState('');
     const [output, setOutput] = useState<Array<{ type: 'input' | 'output' | 'error' | 'system', text: string }>>([]);
     const [isConnected, setIsConnected] = useState(false);
+    const [isAgentOnline, setIsAgentOnline] = useState<boolean | null>(null); // null = checking
     const terminalRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -107,6 +108,24 @@ Type 'exit' to close this session
         };
     }, [agent]);
 
+    // Poll agent WebSocket connectivity (separate from the user→server WebSocket)
+    useEffect(() => {
+        const checkAgentStatus = async () => {
+            try {
+                const res = await authFetch(`/api/agents/remote/${agent.id}/status`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setIsAgentOnline(!!data.websocket_connected);
+                }
+            } catch {
+                setIsAgentOnline(false);
+            }
+        };
+        checkAgentStatus();
+        const timer = setInterval(checkAgentStatus, 10_000);
+        return () => clearInterval(timer);
+    }, [agent.id]);
+
     useEffect(() => {
         // Auto-scroll to bottom when output changes
         if (terminalRef.current) {
@@ -123,6 +142,14 @@ Type 'exit' to close this session
 
     const executeCommand = async () => {
         if (!currentCommand.trim() || !isConnected) return;
+        if (isAgentOnline === false) {
+            setOutput(prev => [...prev, {
+                type: 'error',
+                text: `⚠ Agent "${agent.hostname}" is not connected via WebSocket. Commands cannot be delivered until the agent reconnects.`
+            }]);
+            setCurrentCommand('');
+            return;
+        }
 
         const cmd = currentCommand.trim();
 
@@ -309,6 +336,29 @@ Examples:
                         </button>
                     </div>
                 </div>
+
+                {/* Agent connectivity banner */}
+                {isAgentOnline === null && (
+                    <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 text-xs text-gray-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-gray-500 animate-pulse inline-block" />
+                        Checking agent connectivity…
+                    </div>
+                )}
+                {isAgentOnline === false && (
+                    <div className="px-4 py-2 bg-red-900/30 border-b border-red-700/50 text-xs text-red-300 flex items-center gap-2">
+                        <WifiOff size={13} className="flex-shrink-0" />
+                        <span>
+                            <strong>Agent offline</strong> — {agent.hostname} is not connected via WebSocket.
+                            Commands will be rejected until the agent reconnects. Checking every 10s…
+                        </span>
+                    </div>
+                )}
+                {isAgentOnline === true && (
+                    <div className="px-4 py-2 bg-green-900/20 border-b border-green-700/30 text-xs text-green-400 flex items-center gap-2">
+                        <Wifi size={13} className="flex-shrink-0" />
+                        Agent connected via WebSocket — commands will be delivered immediately
+                    </div>
+                )}
 
                 {/* Terminal Output */}
                 <div

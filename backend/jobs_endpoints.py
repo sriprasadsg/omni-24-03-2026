@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Dict, Any, Optional
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData

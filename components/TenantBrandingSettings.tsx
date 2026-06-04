@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { UploadIcon, SaveIcon } from './icons';
+import { showToast } from '../utils/toast';
 
 interface BrandingConfig {
     logoUrl?: string;
@@ -39,7 +40,7 @@ export const TenantBrandingSettings: React.FC<TenantBrandingSettingsProps> = ({ 
             setTimeout(() => setSaved(false), 3000);
         } catch (error) {
             console.error("Failed to save branding", error);
-            alert("Failed to save configuration");
+            showToast("Failed to save configuration", 'error');
         } finally {
             setLoading(false);
         }

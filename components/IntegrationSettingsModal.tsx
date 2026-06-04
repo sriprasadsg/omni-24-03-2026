@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, Info, ExternalLink } from 'lucide-react';
+import { X, Save, Shield, Info, ExternalLink, Settings, RefreshCw } from 'lucide-react';
 import { Integration } from '../types';
 
 interface IntegrationSettingsModalProps {

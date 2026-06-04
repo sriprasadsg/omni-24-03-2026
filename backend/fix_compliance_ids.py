@@ -1,6 +1,5 @@
 
 import asyncio
-import os
 from database import connect_to_mongo, get_database
 
 async def fix_compliance_ids():

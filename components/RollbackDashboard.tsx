@@ -30,16 +30,22 @@ export function RollbackDashboard() {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const fetchCheckpoints = useCallback(async () => {
+  const fetchCheckpoints = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/rollback/checkpoints', { headers });
+      const res = await fetch('/api/rollback/checkpoints', { headers, signal });
       if (res.ok) setCheckpoints(await res.json());
-    } catch (_) {}
+    } catch (e) {
+      if ((e as any)?.name !== 'AbortError') console.error('Failed to load rollback checkpoints:', e);
+    }
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchCheckpoints(); }, [fetchCheckpoints]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCheckpoints(controller.signal);
+    return () => controller.abort();
+  }, [fetchCheckpoints]);
 
   const restore = useCallback(async (id: string) => {
     setRestoring(id);
@@ -75,7 +81,7 @@ export function RollbackDashboard() {
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Rollback & Checkpoints</h1>
           <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>System state checkpoints created before autonomous actions — restore any point</p>
         </div>
-        <button onClick={fetchCheckpoints}
+        <button onClick={() => { void fetchCheckpoints(); }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>

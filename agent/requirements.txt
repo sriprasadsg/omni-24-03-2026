@@ -6,6 +6,7 @@ wheel>=0.43.0
 
 # ── Core runtime ─────────────────────────────────────────────────────────────
 requests>=2.31.0
+pymongo>=4.6.0
 PyYAML>=6.0
 psutil>=7.0.0
 py-cpuinfo>=9.0.0
@@ -31,7 +32,8 @@ pywin32>=306; sys_platform=="win32"
 #            sudo dnf install python3-devel gcc            (Fedora/RHEL)
 scapy>=2.5.0            # network_discovery: ARP/ICMP scanning (pure Python, no build needed)
 mss>=9.0.0              # remote_access: screen capture
-Pillow>=10.0.0          # remote_access: screenshot encoding
+Pillow>=10.0.0          # remote_access: screenshot encoding + tray icon image
+pystray>=0.19.0         # tray_icon: system tray icon (Windows/Linux desktop)
 yara-python>=4.3.0      # yara_scanner: malware rule matching — C extension, needs build tools on 3.14
 # bcc                   # ebpf: Linux only — NOT pip-installable:
 #                       #   Ubuntu/Debian: apt install bpfcc-tools python3-bpfcc
