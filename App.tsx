@@ -47,6 +47,7 @@ const TenantManagementDashboard = lazy(() => import('./components/TenantManageme
 const LogExplorerDashboard = lazy(() => import('./components/LogExplorerDashboard').then(m => ({ default: m.LogExplorerDashboard })));
 const ThreatHuntingDashboard = lazy(() => import('./components/ThreatHuntingDashboard').then(m => ({ default: m.ThreatHuntingDashboard })));
 const ThreatIntelFeedEnhanced = lazy(() => import('./components/ThreatIntelFeedEnhanced').then(m => ({ default: m.ThreatIntelFeedEnhanced })));
+const SecurityIntelConnectors = lazy(() => import('./components/SecurityIntelConnectors').then(m => ({ default: m.SecurityIntelConnectors })));
 const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(m => ({ default: m.UserProfilePage })));
 const AutomationPoliciesDashboard = lazy(() => import('./components/AutomationPoliciesDashboard').then(m => ({ default: m.AutomationPoliciesDashboard })));
 const DevSecOpsDashboard = lazy(() => import('./components/DevSecOpsDashboard').then(m => ({ default: m.DevSecOpsDashboard })));
@@ -331,6 +332,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   changeManagement: 'manage:settings',
   ticketWebhooks: 'manage:settings',
   notificationPrefs: 'view:profile',
+  securityIntelConnectors: 'view:security',
 };
 
 
@@ -1640,6 +1642,11 @@ const App: React.FC = () => {
             </div>
             <ThreatIntelFeedEnhanced tenantId={activeTenantId ?? ''} />
           </div>
+        </ErrorBoundary>
+      );
+      case 'securityIntelConnectors': return (
+        <ErrorBoundary name="SecurityIntelConnectors">
+          <SecurityIntelConnectors />
         </ErrorBoundary>
       );
       case 'profile': return <ErrorBoundary name="UserProfilePage"><UserProfilePage onProfileUpdate={handleProfileUpdate} /></ErrorBoundary>;

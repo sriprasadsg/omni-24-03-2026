@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends, Request
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends, Request, Response
 from typing import Optional
 import asyncio
 import logging
@@ -50,6 +50,7 @@ def _sha256_file(path: str) -> str:
 @limiter.limit("10/hour")
 async def upload_manual_artifact(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     category: str = Form(..., description=f"One of: {', '.join(MANUAL_ARTIFACT_CATEGORIES)}"),
     control_ids: str = Form("", description="Comma-separated control IDs this artifact satisfies"),

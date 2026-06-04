@@ -1050,6 +1050,13 @@ class AgentCapabilityManager:
                 config = resp.json()
                 self.enabled_capabilities  = config.get("enabledCapabilities", [])
                 self.collection_intervals  = config.get("collectionIntervals", {})
+                # Apply per-capability settings pushed from the dashboard
+                capability_settings = config.get("capabilitySettings", {})
+                for cap_id, settings in capability_settings.items():
+                    instance = self.capability_instances.get(cap_id)
+                    if instance is not None and isinstance(settings, dict):
+                        instance.config.update(settings)
+                        logger.info(f"Applied server config to capability '{cap_id}': {list(settings.keys())}")
                 logger.info(f"✅ Configuration loaded: {len(self.enabled_capabilities)} capabilities enabled")
                 return True
             else:

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from typing import Dict, Any
 from ab_testing_service import ab_service
 from rbac_utils import require_permission
@@ -39,6 +39,7 @@ async def create_experiment(
 @limiter.limit("20/minute")
 async def get_variant(
     request: Request,
+    response: Response,
     experiment_id: str,
     user_id: str,
     current_user: dict = Depends(get_current_user),
@@ -60,6 +61,7 @@ async def get_variant(
 @limiter.limit("30/minute")
 async def track_conversion(
     request: Request,
+    response: Response,
     experiment_id: str,
     body: Dict[str, str],
     current_user: dict = Depends(get_current_user),

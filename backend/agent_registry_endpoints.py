@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request, Response
 from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user, create_access_token
@@ -14,7 +14,7 @@ logger = logging.getLogger("agent_registry_endpoints")
 
 @router.post("/register")
 @limiter.limit("10/minute")
-async def register_agent(request: Request, data: Dict[str, Any] = Body(...), background_tasks: BackgroundTasks = None):
+async def register_agent(request: Request, response: Response, data: Dict[str, Any] = Body(...), background_tasks: BackgroundTasks = None):
     """
     Register a new agent or update an existing one.
     Public endpoint, requires registrationKey.

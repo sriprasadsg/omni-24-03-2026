@@ -4,7 +4,7 @@ import shutil
 import logging
 from pathlib import Path
 from typing import List
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -40,6 +40,7 @@ def _safe_filename(raw: str) -> str:
 @limiter.limit("20/hour")
 async def upload_software(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
 ):

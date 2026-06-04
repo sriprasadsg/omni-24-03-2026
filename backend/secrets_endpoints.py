@@ -5,7 +5,7 @@ Provides API for centralized secrets management, rotation, and auditing.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request, Response
 from rate_limiter import limiter
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -166,6 +166,7 @@ async def get_secrets_stats(
 @router.get("/audit-log")
 async def get_audit_log(
     request: Request,
+    response: Response,
     secret_name: Optional[str] = None,
     limit: int = 100,
     db: AsyncIOMotorDatabase = Depends(get_database),
@@ -218,6 +219,7 @@ async def get_secret_metadata(
 @router.get("/{name}/value")
 async def get_secret_value(
     request: Request,
+    response: Response,
     name: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("read:secrets"))

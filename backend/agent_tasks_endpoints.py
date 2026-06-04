@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from database import get_database, mongodb
@@ -259,6 +259,7 @@ async def raise_ticket_via_agent(
 @limiter.limit("30/minute")
 async def report_network_scan_results(
     request: Request,
+    response: Response,
     agent_id: str,
     results: List[Dict[str, Any]] = Body(...),
     _tenant: Dict[str, Any] = Depends(verify_agent_key)

@@ -91,9 +91,16 @@ class IncidentAnalyzer:
                 self.provider = gemini
                 self.is_configured = True
                 return
-        if configured_provider == "Ollama (Local)":
+        if configured_provider in ("Ollama (Local)", "Local", "ollama"):
             ollama = OllamaProvider()
-            if await ollama.configure(settings):
+            if await ollama.configure({
+                **settings,
+                "ollamaUrl":   settings.get("ollamaUrl") or settings.get("ollama_url") or
+                               (f"http://{settings['host']}" if settings.get("host") else None) or
+                               os.getenv("OLLAMA_URL") or ollama_default_url(),
+                "ollamaModel": settings.get("ollamaModel") or settings.get("model") or
+                               os.getenv("OLLAMA_MODEL", os.getenv("LLM_MODEL", "llama3.2:3b")),
+            }):
                 self.provider = ollama
                 self.is_configured = True
                 return

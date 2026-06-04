@@ -397,13 +397,77 @@ export const fetchRoles = async () => {
 export const fetchTenants = async () => {
     return fetchWithCache('tenants', '/tenants', [], (data) => { TENANTS = data; });
 };
+const _METRIC_TYPE_MAP: Record<string, string> = {
+    cpu: 'cpu', 'sys-cpu': 'cpu',
+    memory: 'memory', mem: 'memory', 'sys-mem': 'memory',
+    disk: 'disk', 'sys-disk': 'disk',
+    network: 'network', net: 'network', 'sys-net': 'network',
+    security: 'security_event', security_event: 'security_event',
+};
+
+function _inferMetricType(raw: any): 'cpu' | 'memory' | 'disk' | 'network' | 'security_event' {
+    type MT = 'cpu' | 'memory' | 'disk' | 'network' | 'security_event';
+    const valid: MT[] = ['cpu', 'memory', 'disk', 'network', 'security_event'];
+    const resolve = (s: string): MT => valid.includes(s as MT) ? (s as MT) : 'cpu';
+    if (raw.type && _METRIC_TYPE_MAP[raw.type]) return resolve(_METRIC_TYPE_MAP[raw.type]);
+    const key = (raw.id ?? raw.name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    for (const [pattern, type] of Object.entries(_METRIC_TYPE_MAP)) {
+        if (key.includes(pattern)) return resolve(type);
+    }
+    return 'cpu';
+}
+
 export const fetchMetrics = async () => {
     try {
         const res = await authFetch(`${API_BASE}/metrics`);
         if (!res.ok) return [];
-        return await res.json();
+        const raw: any[] = await res.json();
+        return raw.map((m: any) => ({
+            id:         m.id ?? m.name,
+            title:      m.title ?? m.name ?? m.id,
+            value:      m.value != null ? `${m.value}${m.unit ?? ''}` : (m.formatted_value ?? '—'),
+            change:     m.change ?? m.delta ?? '0%',
+            changeType: m.changeType ?? (m.trend === 'up' ? 'increase' : 'decrease'),
+            type:       _inferMetricType(m),
+            data:       m.data ?? [],
+        }));
     } catch { return []; }
 };
+// ── Security Intelligence Connectors ─────────────────────────────────────────
+
+export const fetchSecurityIntelStatus = async () => {
+    const res = await authFetch(`${API_BASE}/security-intel/status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+};
+
+export const saveSecurityIntelConfig = async (provider: string, api_key: string) => {
+    const res = await authFetch(`${API_BASE}/security-intel/config`, {
+        method: 'POST',
+        body: JSON.stringify({ provider, api_key }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`); }
+    return res.json();
+};
+
+export const testSecurityIntelProvider = async (provider: string) => {
+    const res = await authFetch(`${API_BASE}/security-intel/test/${provider}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+};
+
+export const syncSecurityIntelProvider = async (provider: string) => {
+    const res = await authFetch(`${API_BASE}/security-intel/sync/${provider}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+};
+
+export const pushSecurityIntelToAgents = async () => {
+    const res = await authFetch(`${API_BASE}/security-intel/push-to-agents`, { method: 'POST' });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`); }
+    return res.json();
+};
+
 export const fetchAlerts = async (tenantId?: string) => {
     try {
         const res = await authFetch(`${API_BASE}/alerts`, { tenantId } as any);

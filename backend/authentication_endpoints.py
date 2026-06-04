@@ -1,5 +1,5 @@
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Response
 
 # Fields that must never appear in any user-facing API response
 _SENSITIVE_USER_FIELDS = frozenset({
@@ -7,7 +7,7 @@ _SENSITIVE_USER_FIELDS = frozenset({
     '_id', 'mfa',
     'reset_token', 'invite_token', 'api_key', 'secret',
 })
-from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, oauth2_scheme
+from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, oauth2_scheme, SECRET_KEY
 from database import get_database
 
 # WHY db._db.* IS USED IN THIS FILE
@@ -126,7 +126,7 @@ async def _run_ueba_analysis(db, user_id: str, ip_address: str, user_agent: str)
 
 @router.post("/login")
 @limiter.limit("10/minute")
-async def login_for_access_token(request: Request, login_request: LoginRequest):  # noqa: ARG001
+async def login_for_access_token(request: Request, response: Response, login_request: LoginRequest):  # noqa: ARG001
     db = get_database()
     identifier = login_request.get_identifier()
 
@@ -245,7 +245,7 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 
 @router.post("/signup")
 @limiter.limit("3/hour")
-async def signup(request: Request, data: dict[str, Any] = Body(...)):
+async def signup(request: Request, response: Response, data: dict[str, Any] = Body(...)):
     from datetime import datetime, timezone
     from tenant_context import set_tenant_id
     
@@ -381,7 +381,7 @@ async def signup(request: Request, data: dict[str, Any] = Body(...)):
 
 @router.post("/refresh")
 @limiter.limit("20/minute")
-async def refresh_access_token(request: Request, data: dict[str, Any] = Body(...)):
+async def refresh_access_token(request: Request, response: Response, data: dict[str, Any] = Body(...)):
     """Exchange a valid refresh token for a new access token and a rotated refresh token."""
     refresh_token = data.get("refresh_token", "")
     if not refresh_token:
@@ -422,7 +422,7 @@ async def refresh_access_token(request: Request, data: dict[str, Any] = Body(...
                 {"$setOnInsert": {
                     "jti": jti,
                     "type": "refresh",
-                    "revoked_at": datetime.now(timezone.utc).isoformat(),
+                    "revoked_at": datetime.datetime.now(timezone.utc).isoformat(),
                 }},
                 upsert=True,
                 return_document=False,
@@ -468,7 +468,7 @@ async def logout(
                 await db.revoked_tokens.insert_one({
                     "jti": jti,
                     "exp": exp,
-                    "revoked_at": datetime.now(timezone.utc).isoformat(),
+                    "revoked_at": datetime.datetime.now(timezone.utc).isoformat(),
                 })
             except Exception as db_err:
                 logger.warning("Token revocation DB write failed — token blocked in-process cache only: %s", db_err)

@@ -17,6 +17,7 @@ export type AppView =
   | 'vulnerabilityManagement'
   | 'softwareUpdates'
   | 'cloudSecurity'
+  | 'securityIntelConnectors'
   | 'security'
   | 'compliance'
   | 'aiGovernance'
@@ -1577,4 +1578,9 @@ export interface CustomYaraRule {
     createdBy?: string;
     createdAt?: string;
     updatedAt?: string;
+    source?: 'builtin' | 'custom';
+    category?: string;
+    severity?: string;
+    mitre?: string;
+    family?: string;
 }

@@ -60,6 +60,9 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "mfa_endpoints",            "router")
     _load(app, "sso_endpoints",            "router")
 
+    # ── Security Intelligence Connectors ─────────────────────────────────────
+    _load(app, "security_intel_status_endpoints", "router")
+
     # ── Security & Threat Management ──────────────────────────────────────────
     _load(app, "edr_telemetry_endpoints",  "router")
     _load(app, "response_endpoints",       "router")

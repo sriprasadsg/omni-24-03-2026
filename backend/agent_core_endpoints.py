@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Response
 from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
@@ -174,6 +174,7 @@ async def search_agents_route(
 @limiter.limit("10/minute")
 async def bulk_delete_agents_route(
     request: Request,
+    response: Response,
     ids: List[str] = Body(...),
     db=Depends(get_database),
     current_user=Depends(get_current_user),

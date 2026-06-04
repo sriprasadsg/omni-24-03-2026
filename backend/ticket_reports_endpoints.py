@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from authentication_service import get_current_user
@@ -62,6 +62,7 @@ def _base_filter(tenant_id: str, from_date: Optional[str], to_date: Optional[str
 @limiter.limit("30/minute")
 async def get_summary(
     request: Request,
+    response: Response,
     from_date: Optional[str] = Query(None, description="ISO date e.g. 2026-01-01"),
     to_date:   Optional[str] = Query(None),
     current_user=Depends(require_permission("view:dashboard")),
@@ -123,6 +124,7 @@ async def get_summary(
 @limiter.limit("20/minute")
 async def get_trends(
     request: Request,
+    response: Response,
     days:   int = Query(30, ge=7, le=365, description="Number of days to look back"),
     period: str = Query("daily", description="daily | weekly"),
     current_user=Depends(require_permission("view:dashboard")),
@@ -194,6 +196,7 @@ async def get_trends(
 @limiter.limit("20/minute")
 async def get_sla_report(
     request: Request,
+    response: Response,
     from_date: Optional[str] = Query(None),
     to_date:   Optional[str] = Query(None),
     current_user=Depends(require_permission("view:dashboard")),
@@ -243,6 +246,7 @@ async def get_sla_report(
 @limiter.limit("20/minute")
 async def get_resolution_report(
     request: Request,
+    response: Response,
     from_date: Optional[str] = Query(None),
     to_date:   Optional[str] = Query(None),
     current_user=Depends(require_permission("view:dashboard")),
@@ -340,6 +344,7 @@ async def get_resolution_report(
 @limiter.limit("20/minute")
 async def get_assignee_report(
     request: Request,
+    response: Response,
     from_date: Optional[str] = Query(None),
     to_date:   Optional[str] = Query(None),
     current_user=Depends(require_permission("view:dashboard")),
@@ -406,6 +411,7 @@ async def get_assignee_report(
 @limiter.limit("20/minute")
 async def get_ageing_report(
     request: Request,
+    response: Response,
     current_user=Depends(require_permission("view:dashboard")),
 ) -> Dict[str, Any]:
     """Open ticket count bucketed by age (how long they've been open)."""
@@ -453,6 +459,7 @@ async def get_ageing_report(
 @limiter.limit("5/minute")
 async def export_tickets_csv(
     request: Request,
+    response: Response,
     from_date:  Optional[str] = Query(None),
     to_date:    Optional[str] = Query(None),
     status:     Optional[str] = Query(None),

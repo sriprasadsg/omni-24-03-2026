@@ -14,7 +14,7 @@ load_dotenv()
 
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://127.0.0.1:27017").strip()
 DB_NAME = os.getenv("MONGODB_DB_NAME", "omni_platform")
-NEW_PASSWORD = "Admin@2030!"
+NEW_PASSWORD = os.getenv("SUPER_ADMIN_PASSWORD", "Admin@2030")
 
 
 def hash_pw(plain: str) -> str:
@@ -48,6 +48,11 @@ async def main():
         }
         await col.insert_one(doc)
         print("[OK] Super admin user created from scratch")
+
+    # Clear any login lockout so the account is immediately usable
+    result = await client[DB_NAME]["login_attempts"].delete_one({"identifier": "super@omni.ai"})
+    if result.deleted_count:
+        print("[OK] Cleared login lockout for super@omni.ai")
 
     # Verify
     updated = await col.find_one({"email": "super@omni.ai"})

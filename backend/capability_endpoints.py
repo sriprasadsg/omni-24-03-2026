@@ -268,17 +268,28 @@ async def get_agent_configuration(
     config = agent.get("capabilityConfig", {})
     enabled_capabilities = config.get("enabledCapabilities", list(CAPABILITY_DEFINITIONS.keys()))
     collection_intervals = config.get("collectionIntervals", {})
-    
+    capability_settings  = config.get("capabilitySettings", {})
+
     # Add default intervals for enabled capabilities that don't have custom intervals
     for cap_id in enabled_capabilities:
         if cap_id not in collection_intervals and cap_id in CAPABILITY_DEFINITIONS:
             default_interval = CAPABILITY_DEFINITIONS[cap_id]["default_interval"]
             if default_interval > 0:
                 collection_intervals[cap_id] = default_interval
-    
+
+    # Merge platform-level security intel settings into threat_intel capability config
+    # so agents can use the VT key distributed from the server dashboard.
+    from database import get_database as _gdb
+    _db = _gdb()
+    _vt_setting = await _db._db.security_intel_config.find_one({"provider": "virustotal"})
+    if _vt_setting and _vt_setting.get("api_key"):
+        capability_settings.setdefault("threat_intel", {})
+        capability_settings["threat_intel"]["virustotal_api_key"] = _vt_setting["api_key"]
+
     return {
         "enabledCapabilities": enabled_capabilities,
-        "collectionIntervals": collection_intervals
+        "collectionIntervals": collection_intervals,
+        "capabilitySettings":  capability_settings,
     }
 
 @router.post("/{agent_id}/capabilities/{capability_id}/data")

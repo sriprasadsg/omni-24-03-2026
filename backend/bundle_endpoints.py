@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from authentication_service import get_current_user
@@ -46,14 +46,14 @@ class UpdateTenantFeaturesRequest(BaseModel):
 
 @router.get("")
 @limiter.limit("60/minute")
-async def list_bundles(request: Request, _=Depends(get_current_user)):
+async def list_bundles(request: Request, response: Response, _=Depends(get_current_user)):
     """Return all predefined bundles with their feature lists."""
     return {"bundles": get_bundle_list(), "total": len(PREDEFINED_BUNDLES)}
 
 
 @router.get("/catalog")
 @limiter.limit("30/minute")
-async def list_feature_catalog(request: Request, _=Depends(get_current_user)):
+async def list_feature_catalog(request: Request, response: Response, _=Depends(get_current_user)):
     """Return the full feature catalog grouped by category."""
     features = get_feature_catalog()
     grouped: dict = {}
@@ -65,7 +65,7 @@ async def list_feature_catalog(request: Request, _=Depends(get_current_user)):
 
 @router.get("/{bundle_key}")
 @limiter.limit("60/minute")
-async def get_bundle(request: Request, bundle_key: str, _=Depends(get_current_user)):
+async def get_bundle(request: Request, response: Response, bundle_key: str, _=Depends(get_current_user)):
     """Return details for a single predefined bundle."""
     bundle = PREDEFINED_BUNDLES.get(bundle_key)
     if not bundle:
@@ -84,6 +84,7 @@ async def get_bundle(request: Request, bundle_key: str, _=Depends(get_current_us
 @limiter.limit("60/minute")
 async def get_tenant_features(
     request: Request,
+    response: Response,
     tenant_id: str,
     current_user=Depends(get_current_user),
 ):
@@ -120,6 +121,7 @@ async def get_tenant_features(
 @limiter.limit("20/minute")
 async def assign_bundles_to_tenant(
     request: Request,
+    response: Response,
     tenant_id: str,
     body: AssignBundlesRequest,
     _=Depends(require_permission("manage:tenants")),
@@ -169,6 +171,7 @@ async def assign_bundles_to_tenant(
 @limiter.limit("20/minute")
 async def patch_tenant_bundles(
     request: Request,
+    response: Response,
     tenant_id: str,
     body: UpdateTenantFeaturesRequest,
     _=Depends(require_permission("manage:tenants")),
@@ -212,6 +215,7 @@ async def patch_tenant_bundles(
 @limiter.limit("10/minute")
 async def clear_tenant_bundles(
     request: Request,
+    response: Response,
     tenant_id: str,
     _=Depends(require_permission("manage:tenants")),
 ):

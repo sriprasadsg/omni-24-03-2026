@@ -84,6 +84,72 @@ def _validate_startup_config() -> None:
         logger.info("[StartupConfig] ✅ Core configuration looks good.")
 
 
+async def _seed_yara_rules(raw_db) -> None:
+    """
+    Parse every .yar file in agent/capabilities/yara_rules/ and upsert each
+    individual rule block into the custom_yara_rules collection as a built-in
+    read-only sample visible to all tenants.
+    """
+    import re
+    from pathlib import Path
+
+    yara_dir = Path(__file__).resolve().parent.parent / "agent" / "capabilities" / "yara_rules"
+    if not yara_dir.is_dir():
+        logger.debug("[YARA] yara_rules directory not found at %s — skipping seed", yara_dir)
+        return
+
+    # Only seed if the collection has no built-in rules yet (idempotent)
+    existing = await raw_db.custom_yara_rules.count_documents({"source": "builtin"})
+    if existing > 0:
+        logger.debug("[YARA] %d built-in rules already present — skipping re-seed", existing)
+        return
+
+    rule_pattern = re.compile(
+        r'rule\s+(\w+)\s*(?::\s*[\w\s]+)?\{(.*?)\}',
+        re.DOTALL,
+    )
+    meta_field = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
+
+    seeded = 0
+    for yar_file in sorted(yara_dir.glob("*.yar")):
+        category = yar_file.stem  # e.g. "ransomware", "web_shells"
+        content = yar_file.read_text(encoding="utf-8", errors="replace")
+        for match in rule_pattern.finditer(content):
+            rule_name = match.group(1)
+            rule_body = f"rule {rule_name} {{{match.group(2)}}}"
+            # Parse meta block
+            meta_block_m = re.search(r'meta:\s*(.*?)(?:strings:|condition:)', rule_body, re.DOTALL)
+            meta: dict = {}
+            if meta_block_m:
+                for kv in meta_field.finditer(meta_block_m.group(1)):
+                    meta[kv.group(1)] = kv.group(2)
+
+            doc_id = f"builtin_{category}_{rule_name}".lower()
+            await raw_db.custom_yara_rules.update_one(
+                {"id": doc_id},
+                {"$setOnInsert": {
+                    "id":            doc_id,
+                    "name":          rule_name,
+                    "content":       rule_body.strip(),
+                    "description":   meta.get("description", f"Built-in {category} detection rule"),
+                    "severity":      meta.get("severity", "medium"),
+                    "mitre":         meta.get("mitre", ""),
+                    "family":        meta.get("family", ""),
+                    "category":      category,
+                    "source":        "builtin",
+                    "enabled":       True,
+                    "tenantId":      "platform-admin",
+                    "createdBy":     "system",
+                    "createdAt":     datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+            )
+            seeded += 1
+
+    if seeded:
+        logger.info("[YARA] Seeded %d built-in detection rules from %s", seeded, yara_dir)
+
+
 async def seed_database():
     """Create or refresh the super admin user and platform tenant."""
     try:
@@ -451,3 +517,28 @@ async def run_startup_services() -> None:
             logger.info("[KnowledgeBase] Seeded %d default security documents", _kb_count)
     except Exception as _e:
         logger.warning("[KnowledgeBase] Seeding failed: %s", _e)
+
+    try:
+        await _seed_yara_rules(db._db)
+    except Exception as _e:
+        logger.warning("[YARA] Rule seeding failed: %s", _e)
+
+    # Seed default LLM settings (Ollama local) if not yet configured
+    try:
+        from local_ip import ollama_default_url
+        import os as _os
+        existing_llm = await db._db.system_settings.find_one({"type": "llm"})
+        if not existing_llm:
+            await db._db.system_settings.insert_one({
+                "type":        "llm",
+                "provider":    "Local",
+                "ollamaUrl":   _os.getenv("OLLAMA_URL", ollama_default_url()),
+                "ollamaModel": _os.getenv("OLLAMA_MODEL", _os.getenv("LLM_MODEL", "llama3.2:3b")),
+                "model":       _os.getenv("OLLAMA_MODEL", _os.getenv("LLM_MODEL", "llama3.2:3b")),
+                "host":        _os.getenv("OLLAMA_URL", ollama_default_url()).replace("http://", ""),
+                "temperature": 0.7,
+                "timeout":     30,
+            })
+            logger.info("[LLM] Default Ollama settings seeded (provider=Local, url=%s)", ollama_default_url())
+    except Exception as _e:
+        logger.warning("[LLM] Default settings seeding failed: %s", _e)

@@ -48,42 +48,49 @@ const NavLink: React.FC<{
         onClick={locked ? undefined : onClick}
         disabled={disabled}
         title={locked ? `Requires ${locked} plan — click to upgrade` : (!isOpen ? label : undefined)}
-        className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 relative group
-            ${locked ? 'opacity-50 cursor-not-allowed' : ''}
+        className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200 relative group
+            ${locked ? 'opacity-40 cursor-not-allowed' : ''}
             ${active && !locked
-                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200'
-            } ${disabled && !locked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                ? 'text-primary-400'
+                : 'text-slate-500 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            } ${disabled && !locked ? 'opacity-40 cursor-not-allowed' : ''}`}
+        style={active && !locked ? {
+            background: 'linear-gradient(135deg, rgba(0,210,255,0.12) 0%, rgba(127,0,255,0.06) 100%)',
+            border: '1px solid rgba(0,210,255,0.18)',
+        } : undefined}
     >
-        {/* Icon — badge dot shown when sidebar is collapsed */}
-        <div className={`relative flex-shrink-0 transition-colors duration-200 ${active && !locked ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300'}`}>
+        {/* Icon */}
+        <div className={`relative flex-shrink-0 transition-all duration-200
+            ${active && !locked ? 'text-primary-400' : 'text-slate-500 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'}`}>
             {icon}
             {!isOpen && !!badge && badge > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white border border-gray-900">
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
                     {badge > 9 ? '9+' : badge}
                 </span>
             )}
         </div>
 
         {isOpen && (
-            <span className="ml-3 truncate flex-1 text-left">{label}</span>
+            <span className="ml-3 truncate flex-1 text-left tracking-tight">{label}</span>
         )}
 
         {isOpen && locked && (
-            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-700/40">
+            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                style={{ background: 'rgba(217,119,6,0.15)', color: '#fbbf24', border: '1px solid rgba(217,119,6,0.25)' }}>
                 <Lock size={9} />{locked}
             </span>
         )}
 
-        {/* Badge count — shown when sidebar is open and no tier lock */}
         {isOpen && !locked && !!badge && badge > 0 && (
             <span className="ml-auto flex-shrink-0 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white px-1">
                 {badge > 99 ? '99+' : badge}
             </span>
         )}
 
+        {/* Gradient active bar */}
         {!locked && active && (
-            <div className="absolute left-0 w-1 h-5 bg-primary-500 rounded-r-full -ml-3" />
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full -ml-3"
+                style={{ background: 'linear-gradient(to bottom, #00d2ff, #7f00ff)' }} />
         )}
     </button>
 );
@@ -258,6 +265,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'threatHunting', label: 'Threat Hunting', icon: <SearchIcon size={20} />, permission: 'view:threat_hunting', minTier: 'Pro', featureKey: 'threat_hunting' },
                 { view: 'siem', label: 'SIEM Dashboard (OCSF)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'threatIntelligence', label: 'Threat Intelligence', icon: <TargetIcon size={20} />, permission: 'view:threat_intel' },
+                { view: 'securityIntelConnectors', label: 'Intel Connectors', icon: <ZapIcon size={20} />, permission: 'view:security' },
                 { view: 'siemRules', label: 'SIEM Correlation Rules', icon: <ShieldIcon size={20} />, permission: 'view:security' },
                 { view: 'incidentResponse', label: 'Incident Response', icon: <AlertOctagonIcon size={20} />, permission: 'investigate:security' },
                 { view: 'incidentWarRoom', label: 'Incident War Room', icon: <AlertOctagonIcon size={20} />, permission: 'investigate:security' },

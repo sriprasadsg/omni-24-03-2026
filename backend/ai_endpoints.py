@@ -289,9 +289,11 @@ async def record_ai_feedback(
 from pydantic import BaseModel as _BM
 
 class TestConnectionBody(_BM):
-    provider: str
-    api_key:  str
-    model:    str = "gemini-2.0-flash"
+    provider:   str
+    api_key:    str = ""          # Not required for local/Ollama providers
+    model:      str = "gemini-2.0-flash"
+    ollama_url: str = ""          # For Ollama/local provider
+    ollamaUrl:  str = ""          # Alias — frontend may send either casing
 
 
 @router.post("/test-connection")
@@ -300,15 +302,64 @@ async def test_llm_connection(
     current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),
 ) -> Dict[str, Any]:
     """
-    Proxy a minimal LLM call to verify a user-supplied API key.
-    The key is never stored — it is used only for this single test request.
-    Supported providers: gemini, openai, anthropic.
+    Proxy a minimal LLM call to verify provider connectivity.
+    API keys are never stored — used only for this single test request.
+    Supported: ollama (local), gemini, openai, anthropic.
     """
-    provider = body.provider.lower()
+    provider = body.provider.lower().replace(" ", "_").replace("-", "_")
+    # Normalise provider aliases
+    if provider in ("local", "ollama_local", "omni_local"):
+        provider = "ollama"
+
     try:
         import httpx as _hx
         async with _hx.AsyncClient(timeout=15.0) as _client:
-            if provider in ("gemini", "google"):
+
+            # ── Ollama (local) ───────────────────────────────────────────────
+            if provider == "ollama":
+                from local_ip import ollama_default_url
+                import os as _os
+                base = (body.ollama_url or body.ollamaUrl or
+                        _os.getenv("OLLAMA_URL") or ollama_default_url()).rstrip("/")
+                model = body.model if body.model and ":" in body.model else (
+                    _os.getenv("OLLAMA_MODEL", _os.getenv("LLM_MODEL", "llama3.2:3b"))
+                )
+                # First check if Ollama is reachable (tags endpoint = lightweight)
+                try:
+                    tags_resp = await _client.get(f"{base}/api/tags", timeout=5.0)
+                    if tags_resp.status_code != 200:
+                        return {"success": False,
+                                "message": f"Ollama not reachable at {base} (HTTP {tags_resp.status_code}). Is Ollama running?"}
+                    available = [m["name"] for m in tags_resp.json().get("models", [])]
+                except Exception as e:
+                    return {"success": False,
+                            "message": f"Cannot reach Ollama at {base}: {e}. Start Ollama with `ollama serve`."}
+
+                if not available:
+                    return {"success": True,
+                            "message": f"Ollama is running at {base} but no models are pulled yet. Run: ollama pull {model}",
+                            "models": []}
+
+                if model not in available:
+                    return {"success": True,
+                            "message": f"Ollama running. Model '{model}' not found — available: {', '.join(available[:5])}. Pull with: ollama pull {model}",
+                            "models": available}
+
+                # Quick generate test
+                gen_resp = await _client.post(
+                    f"{base}/api/generate",
+                    json={"model": model, "prompt": "Reply with exactly: test_ok", "stream": False},
+                    timeout=30.0,
+                )
+                if gen_resp.status_code == 200:
+                    reply = gen_resp.json().get("response", "")
+                    return {"success": True,
+                            "message": f"Ollama connected — model '{model}' responded: {reply[:80]}",
+                            "models": available}
+                return {"success": False, "message": f"Ollama generate failed: HTTP {gen_resp.status_code}"}
+
+            # ── Gemini ───────────────────────────────────────────────────────
+            elif provider in ("gemini", "google"):
                 resp = await _client.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/{body.model}:generateContent",
                     params={"key": body.api_key},
@@ -318,6 +369,7 @@ async def test_llm_connection(
                 text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
                 return {"success": True, "response": text}
 
+            # ── OpenAI ───────────────────────────────────────────────────────
             elif provider == "openai":
                 resp = await _client.post(
                     "https://api.openai.com/v1/chat/completions",
@@ -328,18 +380,21 @@ async def test_llm_connection(
                 text = resp.json()["choices"][0]["message"]["content"]
                 return {"success": True, "response": text}
 
-            elif provider == "anthropic":
+            # ── Anthropic ────────────────────────────────────────────────────
+            elif provider in ("anthropic", "anthropic_claude"):
                 resp = await _client.post(
                     "https://api.anthropic.com/v1/messages",
                     headers={"x-api-key": body.api_key, "anthropic-version": "2023-06-01"},
-                    json={"model": body.model, "max_tokens": 10, "messages": [{"role": "user", "content": "Say 'test successful'"}]},
+                    json={"model": body.model, "max_tokens": 10,
+                          "messages": [{"role": "user", "content": "Say 'test successful'"}]},
                 )
                 resp.raise_for_status()
                 text = resp.json()["content"][0]["text"]
                 return {"success": True, "response": text}
 
             else:
-                return {"success": False, "error": f"Provider '{provider}' test not supported via this endpoint. Try saving and using the provider directly."}
+                return {"success": False,
+                        "error": f"Provider '{body.provider}' test not supported. Supported: ollama, gemini, openai, anthropic."}
 
     except Exception as exc:
         return {"success": False, "error": str(exc)}

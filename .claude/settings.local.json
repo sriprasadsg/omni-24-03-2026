@@ -13,7 +13,20 @@
       "PowerShell(& \"C:\\\\Users\\\\srihari\\\\AppData\\\\Roaming\\\\Python\\\\Python311\\\\Scripts\\\\playwright.exe\" install --list 2>&1)",
       "PowerShell(& \"C:\\\\Program Files\\\\Python311\\\\python.exe\" -m playwright install chromium 2>&1)",
       "Bash(git config *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(findstr \":8000\\\\|:3000\\\\|:5000\\\\|:8080\\\\|:443\\\\|:80\")",
+      "Bash(curl *)",
+      "Bash(venvScriptspython.exe -c ' *)",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(./venv/Scripts/python.exe *)",
+      "Bash(./venv/Scripts/pip show *)",
+      "Bash(python -c \"import sys,json; t=json.load\\(sys.stdin\\); print\\(t.get\\('access_token',''\\)[:40]+'...'\\)\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); metrics=data if isinstance\\(data,list\\) else data.get\\('metrics',data.get\\('data',[]\\)\\); [print\\(m.get\\('type','?'\\), m.get\\('title','?'\\)\\) for m in metrics[:20]]\")",
+      "Bash(python -c \"import sys,json; print\\(json.dumps\\(json.load\\(sys.stdin\\), indent=2\\)[:1000]\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(xargs grep -l \"capabilities/configuration\\\\|capabilitySettings\")"
     ]
   },
   "enabledMcpjsonServers": [

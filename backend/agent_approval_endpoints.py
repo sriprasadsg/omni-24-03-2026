@@ -3,7 +3,7 @@ Agent approval workflows, safety rules, and agentic decision endpoints.
 Routes are under the /api/agents prefix alongside agent_tasks_endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from database import get_database
@@ -161,6 +161,7 @@ async def get_pending_playbooks_for_agent(
 @limiter.limit("60/minute")
 async def ack_playbook(
     request: Request,
+    response: Response,
     agent_id: str,
     payload: Dict[str, Any] = Body(...),
     db=Depends(get_database),
