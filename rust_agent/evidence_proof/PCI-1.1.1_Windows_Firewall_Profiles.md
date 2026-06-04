@@ -10,20 +10,20 @@
 
 ## 2. Automated Command Output
 ```json
-[
-    {
-        "Name":  "Domain",
-        "Enabled":  1
-    },
-    {
-        "Name":  "Private",
-        "Enabled":  1
-    },
-    {
-        "Name":  "Public",
-        "Enabled":  1
-    }
-]
+[
+    {
+        "Name":  "Domain",
+        "Enabled":  1
+    },
+    {
+        "Name":  "Private",
+        "Enabled":  1
+    },
+    {
+        "Name":  "Public",
+        "Enabled":  1
+    }
+]
 
 ```
 

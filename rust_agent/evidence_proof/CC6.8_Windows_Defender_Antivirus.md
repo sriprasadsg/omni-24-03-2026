@@ -10,10 +10,10 @@
 
 ## 2. Automated Command Output
 ```json
-{
-    "AntivirusEnabled":  false,
-    "RealTimeProtectionEnabled":  false
-}
+{
+    "AntivirusEnabled":  false,
+    "RealTimeProtectionEnabled":  false
+}
 
 ```
 

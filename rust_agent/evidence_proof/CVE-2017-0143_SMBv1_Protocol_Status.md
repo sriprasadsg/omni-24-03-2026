@@ -10,9 +10,9 @@
 
 ## 2. Automated Command Output
 ```json
-{
-    "EnableSMB1Protocol":  false
-}
+{
+    "EnableSMB1Protocol":  false
+}
 
 ```
 

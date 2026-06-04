@@ -10,9 +10,9 @@
 
 ## 2. Automated Command Output
 ```json
-{
-    "EnableScriptBlockLogging":  1
-}
+{
+    "EnableScriptBlockLogging":  1
+}
 
 ```
 
