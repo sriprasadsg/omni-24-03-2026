@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, BackgroundTasks, Request, Response
 import logging
 from ueba_engine import ueba_engine
 from database import get_database
@@ -72,7 +72,7 @@ async def get_user_risk_history(user_id: str, tenant_id: str = Depends(get_tenan
 
 @router.post("/calculate-all", dependencies=[Depends(get_current_user)])
 @limiter.limit("2/hour")
-async def calculate_all_scores(request: Request, background_tasks: BackgroundTasks, tenant_id: str = Depends(get_tenant_id)):
+async def calculate_all_scores(request: Request, response: Response, background_tasks: BackgroundTasks, tenant_id: str = Depends(get_tenant_id)):
     """
     Triggers a manual recalculation of UEBA risk scores for all users in the tenant.
     Runs asynchronously.

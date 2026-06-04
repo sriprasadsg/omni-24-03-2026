@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, Response
 import logging
 from typing import Dict, Any, List, Optional
 from automl_service import automl_service
@@ -29,6 +29,7 @@ async def list_studies(
 @limiter.limit("10/minute")
 async def create_study(
     http_request: Request,
+    response: Response,
     request: Dict[str, str],
     current_user: dict = Depends(require_permission("manage:ai_models"))
 ):
@@ -60,6 +61,7 @@ async def get_study_details(
 @limiter.limit("5/minute")
 async def run_trials(
     http_request: Request,
+    response: Response,
     study_id: str,
     request: Dict[str, int],
     current_user: dict = Depends(require_permission("manage:ai_models"))
@@ -95,6 +97,7 @@ async def list_training_datasets(
 @limiter.limit("20/minute")
 async def register_training_dataset(
     request: Request,
+    response: Response,
     data: Dict[str, Any],
     current_user: dict = Depends(require_permission("manage:ai_models"))
 ):
@@ -124,6 +127,7 @@ async def register_training_dataset(
 @limiter.limit("10/minute")
 async def delete_training_dataset(
     request: Request,
+    response: Response,
     dataset_id: str,
     current_user: dict = Depends(require_permission("manage:ai_models"))
 ):
@@ -144,6 +148,7 @@ async def delete_training_dataset(
 @limiter.limit("5/minute")
 async def upload_training_dataset(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(""),

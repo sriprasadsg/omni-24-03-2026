@@ -12,20 +12,31 @@
     Tested on Windows 10 21H2+, Windows 11, Windows Server 2019/2022.
 
 .EXAMPLE
-    # Install with default settings (config.yaml must already be edited)
+    # Install with default settings (Ollama on localhost:11434)
     .\install_agent.ps1
 
-    # Install silently (skips interactive prompts)
-    .\install_agent.ps1 -Silent
+    # Install with VirusTotal key and custom Ollama model
+    .\install_agent.ps1 -VirusTotalKey "your-vt-key" -OllamaModel "mistral:7b"
 
-    # Install to a custom directory
-    .\install_agent.ps1 -InstallDir "D:\Security\OmniAgent"
+    # Install pointing to Ollama on another machine
+    .\install_agent.ps1 -OllamaUrl "http://192.168.1.50:11434" -OllamaModel "llama3.1:8b"
+
+    # Install using Gemini instead of Ollama (requires GEMINI_API_KEY env var on the server)
+    .\install_agent.ps1 -LlmProvider "gemini"
+
+    # Full example with all options
+    .\install_agent.ps1 -Silent -InstallDir "D:\Security\OmniAgent" `
+        -VirusTotalKey "vt-key" -OllamaUrl "http://127.0.0.1:11434" -OllamaModel "llama3.2:3b"
 #>
 
 param(
-    [string] $InstallDir   = "C:\Program Files\OmniAgent",
-    [string] $ServiceName  = "OmniAgent",
-    [string] $LogDir       = "C:\ProgramData\OmniAgent\logs",
+    [string] $InstallDir        = "C:\Program Files\OmniAgent",
+    [string] $ServiceName       = "OmniAgent",
+    [string] $LogDir            = "C:\ProgramData\OmniAgent\logs",
+    [string] $VirusTotalKey     = "",                       # Optional — can also be pushed from the dashboard
+    [string] $OllamaUrl         = "http://127.0.0.1:11434", # Local Ollama endpoint (default)
+    [string] $OllamaModel       = "llama3.2:3b",            # Default Ollama model
+    [string] $LlmProvider       = "ollama",                 # ollama | gemini | anthropic
     [switch] $Silent,
     [switch] $SkipDefenderExclusion,
     [switch] $SkipFirewallRule
@@ -210,9 +221,52 @@ if (-not (Test-Path $TargetCfg)) {
     }
 }
 
-# ── Environment variable for log dir ─────────────────────────────────────────
+# ── Environment variables ─────────────────────────────────────────────────────
+Write-Step "Setting environment variables"
+
 [System.Environment]::SetEnvironmentVariable(
     "OMNI_AGENT_LOG_DIR", $LogDir, [System.EnvironmentVariableTarget]::Machine)
+
+# LLM / Ollama configuration
+[System.Environment]::SetEnvironmentVariable(
+    "LLM_PROVIDER", $LlmProvider, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable(
+    "OLLAMA_URL", $OllamaUrl, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable(
+    "OLLAMA_MODEL", $OllamaModel, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable(
+    "LLM_MODEL", $OllamaModel, [System.EnvironmentVariableTarget]::Machine)
+Write-OK "LLM_PROVIDER=$LlmProvider"
+Write-OK "OLLAMA_URL=$OllamaUrl"
+Write-OK "OLLAMA_MODEL=$OllamaModel"
+
+# Check if Ollama is reachable
+Write-Step "Checking Ollama connectivity"
+try {
+    $ollamaResp = Invoke-WebRequest -Uri "$OllamaUrl/api/tags" -TimeoutSec 5 -ErrorAction Stop
+    $models = ($ollamaResp.Content | ConvertFrom-Json).models.name -join ", "
+    Write-OK "Ollama is running at $OllamaUrl"
+    if ($models) { Write-OK "Available models: $models" } else { Write-Warn "No models pulled yet. Run: ollama pull $OllamaModel" }
+    if ($models -notmatch [regex]::Escape($OllamaModel)) {
+        Write-Warn "Model '$OllamaModel' not found locally."
+        Write-Host "  Pull it:  ollama pull $OllamaModel"
+    }
+} catch {
+    Write-Warn "Ollama not reachable at $OllamaUrl — AI features will use rule-based fallback."
+    Write-Host "  Install:  winget install Ollama.Ollama"
+    Write-Host "  Start:    ollama serve"
+    Write-Host "  Pull:     ollama pull $OllamaModel"
+}
+
+# VirusTotal API key
+if ($VirusTotalKey -ne "") {
+    [System.Environment]::SetEnvironmentVariable(
+        "VIRUSTOTAL_API_KEY", $VirusTotalKey, [System.EnvironmentVariableTarget]::Machine)
+    Write-OK "VIRUSTOTAL_API_KEY set as system environment variable"
+} else {
+    Write-Warn "No -VirusTotalKey provided — VirusTotal key can be pushed from the dashboard."
+    Write-Host "  To set now:  [System.Environment]::SetEnvironmentVariable('VIRUSTOTAL_API_KEY', 'your-key', 'Machine')"
+}
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 Write-Host ""
@@ -222,6 +276,9 @@ Write-Host "╠═════════════════════�
 Write-Host "║  Install dir : $($InstallDir.PadRight(42)) ║" -ForegroundColor White
 Write-Host "║  Service     : $($ServiceName.PadRight(42)) ║" -ForegroundColor White
 Write-Host "║  Logs        : $($LogDir.PadRight(42)) ║" -ForegroundColor White
+Write-Host "║  LLM         : $($LlmProvider.PadRight(42)) ║" -ForegroundColor White
+Write-Host "║  Ollama URL  : $($OllamaUrl.PadRight(42)) ║" -ForegroundColor White
+Write-Host "║  Ollama model: $($OllamaModel.PadRight(42)) ║" -ForegroundColor White
 Write-Host "╠══════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
 Write-Host "║  Useful commands:                                         ║" -ForegroundColor Yellow
 Write-Host "║    Get-Service OmniAgent                                  ║" -ForegroundColor Yellow

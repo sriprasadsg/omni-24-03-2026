@@ -68,14 +68,22 @@ async def get_llm_settings(current_user: TokenData = Depends(get_current_user)):
     db = get_database()
     settings = await db.system_settings.find_one({"type": "llm"}, {"_id": 0})
     if not settings:
-        # New tenant: return auto-detected defaults so the UI is pre-populated
+        import os as _os
+        _url = _os.getenv("OLLAMA_URL", ollama_default_url())
+        _model = _os.getenv("OLLAMA_MODEL", _os.getenv("LLM_MODEL", "llama3.2:3b"))
         settings = {
-            "type": "llm",
-            "provider": "Ollama (Local)",
-            "ollamaUrl": ollama_default_url(),
-            "ollamaModel": "llama3.2:3b",
-            "model": "llama3.2:3b",
+            "type":        "llm",
+            "provider":    "Local",
+            "ollamaUrl":   _url,
+            "ollamaModel": _model,
+            "model":       _model,
+            "host":        _url.replace("http://", "").replace("https://", ""),
+            "temperature": 0.7,
+            "timeout":     30,
         }
+    # Normalise legacy "Ollama (Local)" label → "Local"
+    if settings.get("provider") == "Ollama (Local)":
+        settings["provider"] = "Local"
     return settings
 
 @router.post("/llm")

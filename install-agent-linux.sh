@@ -28,6 +28,9 @@ AGENT_TOKEN=""
 TENANT_ID=""
 REGISTRATION_KEY=""
 VIRUSTOTAL_API_KEY=""
+OLLAMA_URL="http://127.0.0.1:11434"
+OLLAMA_MODEL="llama3.2:3b"
+LLM_PROVIDER="ollama"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -38,11 +41,16 @@ while [[ $# -gt 0 ]]; do
         --registration-key) REGISTRATION_KEY="$2";   shift 2 ;;
         --install-path)     INSTALL_PATH="$2";       shift 2 ;;
         --virustotal-key)   VIRUSTOTAL_API_KEY="$2"; shift 2 ;;
+        --ollama-url)       OLLAMA_URL="$2";         shift 2 ;;
+        --ollama-model)     OLLAMA_MODEL="$2";       shift 2 ;;
+        --llm-provider)     LLM_PROVIDER="$2";       shift 2 ;;
         --as-service)       AS_SERVICE=true;         shift   ;;
         *)
             print_error "Unknown option: $1"
             echo "Usage: sudo $0 --backend-url URL [--token TOKEN] [--tenant-id ID]"
             echo "                       [--registration-key KEY] [--virustotal-key KEY]"
+            echo "                       [--ollama-url URL] [--ollama-model MODEL]"
+            echo "                       [--llm-provider ollama|gemini|anthropic]"
             echo "                       [--install-path PATH] [--as-service]"
             exit 1
             ;;
@@ -111,6 +119,21 @@ if curl -sf "$BACKEND_URL/api/health" >/dev/null 2>&1; then
     print_success "Backend is reachable"
 else
     print_warning "Cannot reach $BACKEND_URL — agent will retry connections at runtime"
+fi
+
+# Test Ollama connectivity
+print_info "Checking Ollama at $OLLAMA_URL..."
+if curl -sf "$OLLAMA_URL/api/tags" >/dev/null 2>&1; then
+    MODELS=$(curl -s "$OLLAMA_URL/api/tags" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\n' ' ')
+    print_success "Ollama is running. Available models: ${MODELS:-none pulled yet}"
+    if ! echo "$MODELS" | grep -qw "$OLLAMA_MODEL"; then
+        print_warning "Model '$OLLAMA_MODEL' not found. Pull it with: ollama pull $OLLAMA_MODEL"
+    fi
+else
+    print_warning "Ollama not running at $OLLAMA_URL. AI features will use fallback responses."
+    echo "  Install Ollama:  curl -fsSL https://ollama.com/install.sh | sh"
+    echo "  Start Ollama:    ollama serve &"
+    echo "  Pull model:      ollama pull $OLLAMA_MODEL"
 fi
 
 # ── Step 2: Resolve registration key ────────────────────────────────────────
@@ -232,6 +255,10 @@ WorkingDirectory=$INSTALL_PATH
 Environment="PATH=$INSTALL_PATH/venv/bin:/usr/bin:/bin"
 Environment="PYTHONPATH=$INSTALL_PATH"
 Environment="VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}"
+Environment="LLM_PROVIDER=${LLM_PROVIDER:-ollama}"
+Environment="OLLAMA_URL=${OLLAMA_URL:-http://127.0.0.1:11434}"
+Environment="OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}"
+Environment="LLM_MODEL=${OLLAMA_MODEL:-llama3.2:3b}"
 ExecStart=$INSTALL_PATH/venv/bin/python agent.py
 Restart=always
 RestartSec=10
@@ -252,12 +279,18 @@ EOF
         print_warning "Check status: sudo journalctl -u omni-agent -f"
     fi
 else
-    cat > "$INSTALL_PATH/start-agent.sh" <<'STARTEOF'
+    cat > "$INSTALL_PATH/start-agent.sh" <<STARTEOF
 #!/bin/bash
-cd "$(dirname "$0")"
-VENV="$(dirname "$0")/venv"
-if [ -d "$VENV" ]; then
-    "$VENV/bin/python" agent.py
+cd "\$(dirname "\$0")"
+VENV="\$(dirname "\$0")/venv"
+# LLM / Ollama configuration
+export LLM_PROVIDER="\${LLM_PROVIDER:-${LLM_PROVIDER:-ollama}}"
+export OLLAMA_URL="\${OLLAMA_URL:-${OLLAMA_URL:-http://127.0.0.1:11434}}"
+export OLLAMA_MODEL="\${OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.2:3b}}"
+export LLM_MODEL="\${LLM_MODEL:-${OLLAMA_MODEL:-llama3.2:3b}}"
+export VIRUSTOTAL_API_KEY="\${VIRUSTOTAL_API_KEY:-${VIRUSTOTAL_API_KEY:-}}"
+if [ -d "\$VENV" ]; then
+    "\$VENV/bin/python" agent.py
 else
     python3 agent.py
 fi
@@ -274,6 +307,7 @@ print_success "Agent:     $INSTALL_PATH"
 print_success "Config:    $INSTALL_PATH/config.yaml"
 print_success "Backend:   $BACKEND_URL"
 print_success "Tenant:    $TENANT_ID"
+print_success "LLM:       $LLM_PROVIDER ($OLLAMA_URL, model: $OLLAMA_MODEL)"
 echo ""
 if [ "$AS_SERVICE" = true ]; then
     echo "  Start:   sudo systemctl start omni-agent"

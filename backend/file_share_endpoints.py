@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from typing import List, Optional
 from file_share_service import file_share_service, SharedFile
 from authentication_service import get_current_user
@@ -39,7 +39,7 @@ def revoke_share(share_id: str, current_user=Depends(get_current_user)):
 
 @router.post("/access/{token}")
 @limiter.limit("20/minute")
-def access_share(request: Request, token: str, access: ShareAccess):
+def access_share(request: Request, response: Response, token: str, access: ShareAccess):
     """Public token-based access endpoint — no auth required, token IS the credential."""
     result = file_share_service.access_share(token, access.password)
     if "error" in result:

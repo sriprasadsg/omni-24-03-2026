@@ -4,7 +4,7 @@ Deception Technology Endpoints
 
 import json as _json
 import re
-from fastapi import APIRouter, Depends, HTTPException, Body, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response, Query
 from typing import Any, Dict, Optional
 import logging
 
@@ -86,7 +86,7 @@ async def honeytoken_types(current_user: TokenData = Depends(get_current_user)):
 
 @router.post("/webhook/trigger/{token_id}")
 @limiter.limit("10/minute")
-async def webhook_trigger(request: Request, token_id: str):
+async def webhook_trigger(request: Request, response: Response, token_id: str):
     """
     Publicly accessible webhook for external honeytoken callbacks.
     No auth required — this is called by attacker infrastructure.

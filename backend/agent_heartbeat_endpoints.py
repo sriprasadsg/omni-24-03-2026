@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request, Response
 from typing import Dict, Any
 from database import get_database
 from datetime import datetime, timezone
@@ -15,6 +15,7 @@ logger = logging.getLogger("agent_heartbeat_endpoints")
 @limiter.limit("60/minute")
 async def report_heartbeat(
     request: Request,
+    response: Response,
     agent_id: str,
     background_tasks: BackgroundTasks,
     payload: Dict[str, Any] = Body(...),

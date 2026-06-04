@@ -95,38 +95,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
     }
 
     return (
-        <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden">
-            {/* Animated Background Blobs */}
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-500/20 rounded-full blur-[120px] animate-pulse pointer-events-none"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] animate-pulse pointer-events-none" style={{ animationDelay: '2s' }}></div>
+        <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden aurora-bg" style={{ background: 'var(--bg-main)' }}>
+            {/* Aurora blobs */}
+            <div className="absolute top-[-15%] left-[-8%] w-[55%] h-[55%] rounded-full pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse, rgba(0,210,255,0.18) 0%, transparent 70%)', filter: 'blur(60px)', animation: 'pulse 6s ease-in-out infinite' }} />
+            <div className="absolute bottom-[-10%] right-[-8%] w-[50%] h-[50%] rounded-full pointer-events-none animation-delay-1000"
+                style={{ background: 'radial-gradient(ellipse, rgba(127,0,255,0.15) 0%, transparent 70%)', filter: 'blur(80px)', animation: 'pulse 8s ease-in-out infinite' }} />
+            <div className="absolute top-[40%] right-[15%] w-[30%] h-[30%] rounded-full pointer-events-none animation-delay-400"
+                style={{ background: 'radial-gradient(ellipse, rgba(58,123,213,0.12) 0%, transparent 70%)', filter: 'blur(50px)', animation: 'pulse 7s ease-in-out infinite' }} />
 
-            <div className="w-full max-w-md z-10 fade-in">
+            <div className="w-full max-w-md z-10 slide-up">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <BotIcon className="text-primary-400 mx-auto drop-shadow-[0_0_10px_rgba(0,210,255,0.5)]" size={64} />
-                    <h1 className="text-3xl font-bold mt-4 text-white drop-shadow-md">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
+                        style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(127,0,255,0.2))', border: '1px solid rgba(0,210,255,0.3)', boxShadow: '0 0 24px rgba(0,210,255,0.2)' }}>
+                        <BotIcon className="text-primary-400" size={36} />
+                    </div>
+                    <h1 className="text-4xl font-bold tracking-tight text-gradient">
                         Enterprise Omni-Agent
                     </h1>
-                    <p className="text-sm text-gray-300 mt-2">
+                    <p className="text-sm text-slate-400 mt-2 font-medium tracking-wide uppercase">
                         Future-Ready AI Platform
                     </p>
                 </div>
 
-                {/* Login Form */}
-                <div className="glass-panel rounded-xl p-8 backdrop-blur-xl">
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6">
-                        Sign In
+                {/* Login Card */}
+                <div className="rounded-2xl p-8" style={{
+                    background: 'rgba(12,12,32,0.75)',
+                    backdropFilter: 'blur(20px) saturate(160%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
+                }}>
+                    <h2 className="text-xl font-semibold text-white mb-6 tracking-tight">
+                        Welcome back
                     </h2>
 
-                    <form onSubmit={handleLogin} className="space-y-6">
+                    <form onSubmit={handleLogin} className="space-y-5">
                         {/* Email Field */}
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="email" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Email Address
                             </label>
                             <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <MailIcon size={20} className="text-gray-400" />
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <MailIcon size={16} className="text-slate-500" />
                                 </div>
                                 <input
                                     id="email"
@@ -134,8 +147,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    placeholder="Enter your email"
+                                    className="block w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder-slate-500 transition-all outline-none"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                    }}
+                                    onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,210,255,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,210,255,0.12)'; }}
+                                    onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                    placeholder="you@company.com"
                                     autoComplete="email"
                                 />
                             </div>
@@ -143,12 +162,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
 
                         {/* Password Field */}
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="password" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Password
                             </label>
                             <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <KeyIcon size={20} className="text-gray-400" />
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <KeyIcon size={16} className="text-slate-500" />
                                 </div>
                                 <input
                                     id="password"
@@ -156,8 +175,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    placeholder="Enter your password"
+                                    className="block w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder-slate-500 transition-all outline-none"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                    }}
+                                    onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,210,255,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,210,255,0.12)'; }}
+                                    onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                    placeholder="••••••••••••"
                                     autoComplete="current-password"
                                 />
                             </div>
@@ -165,8 +190,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
 
                         {/* Error Message */}
                         {error && (
-                            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-                                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                            <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                <span className="mt-0.5 text-red-400 flex-shrink-0">⚠</span>
+                                <p className="text-sm text-red-300">{error}</p>
                             </div>
                         )}
 
@@ -174,28 +200,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full py-3 px-4 bg-gradient-to-r from-flash-blue to-flash-purple hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-flash-blue/30 transition-all transform hover:scale-[1.02] active:scale-[0.98] outline-none"
+                            className="w-full py-3 px-4 text-white font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            style={{
+                                background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 50%, #7f00ff 100%)',
+                                boxShadow: isLoading ? 'none' : '0 4px 20px rgba(0,210,255,0.3)',
+                            }}
+                            onMouseEnter={e => { if (!isLoading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = ''; }}
+                            onMouseDown={e => { e.currentTarget.style.transform = 'translateY(1px)'; }}
+                            onMouseUp={e => { e.currentTarget.style.transform = ''; }}
                         >
-                            {isLoading ? 'Signing in...' : 'Sign In'}
+                            {isLoading ? (
+                                <>
+                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    Signing in…
+                                </>
+                            ) : 'Sign In'}
                         </button>
                     </form>
 
                     {/* SSO Divider + Google button */}
                     {ssoEnabled && (
                         <>
-                            <div className="mt-5 relative">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
-                                </div>
-                                <div className="relative flex justify-center text-sm">
-                                    <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">or continue with</span>
-                                </div>
+                            <div className="mt-5 flex items-center gap-3">
+                                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                                <span className="text-xs text-slate-500 font-medium">or continue with</span>
+                                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
                             </div>
                             <a
                                 href="/api/sso/google/login"
-                                className="mt-4 w-full flex items-center justify-center gap-3 py-3 px-4 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition-all"
+                                className="mt-4 w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl text-slate-200 text-sm font-medium transition-all"
+                                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                             >
-                                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4" viewBox="0 0 24 24">
                                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
@@ -207,34 +249,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                     )}
 
                     {/* Divider */}
-                    <div className="mt-6 relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                                Don't have an account?
-                            </span>
-                        </div>
+                    <div className="mt-6 flex items-center gap-3">
+                        <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                        <span className="text-xs text-slate-500 font-medium">New here?</span>
+                        <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
                     </div>
 
                     {/* Signup Link */}
                     <button
                         onClick={() => setShowSignup(true)}
-                        className="mt-4 w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium rounded-lg transition-all"
+                        className="mt-4 w-full py-3 px-4 rounded-xl text-slate-300 text-sm font-medium transition-all"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = ''; }}
                     >
-                        Create New Account
+                        Create Account
                     </button>
                 </div>
 
-                {/* Demo Credentials Info */}
-                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="text-xs text-blue-800 dark:text-blue-300 font-semibold mb-2">Demo Credentials:</p>
-                    <div className="space-y-1 text-xs text-blue-700 dark:text-blue-400">
-                        <p>• Super Admin: <span className="font-mono">super@omni.ai</span></p>
-                        <p>• Tenant Admin: <span className="font-mono">admin@acmecorp.com</span></p>
-                        <p>• Security Analyst: <span className="font-mono">analyst@acmecorp.com</span></p>
-                        <p className="mt-2 text-blue-600 dark:text-blue-500">Password: Check user data or use signup</p>
+                {/* Demo Credentials */}
+                <div className="mt-5 p-4 rounded-xl" style={{ background: 'rgba(0,210,255,0.06)', border: '1px solid rgba(0,210,255,0.15)' }}>
+                    <p className="text-xs font-semibold text-primary-400 mb-2 uppercase tracking-wider">Demo Credentials</p>
+                    <div className="space-y-1 text-xs text-slate-400">
+                        <p>Super Admin: <span className="font-mono text-slate-300">super@omni.ai</span></p>
+                        <p>Tenant Admin: <span className="font-mono text-slate-300">admin@acmecorp.com</span></p>
+                        <p>Analyst: <span className="font-mono text-slate-300">analyst@acmecorp.com</span></p>
                     </div>
                 </div>
             </div>

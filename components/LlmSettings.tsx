@@ -30,17 +30,28 @@ const anthropicModelDescriptions: Record<string, string> = {
 };
 
 const localModelDescriptions: Record<string, string> = {
-    'local/llama3-8b': 'A powerful, locally-hosted Llama3 model with 8 billion parameters, suitable for a wide range of tasks.',
-    'local/phi-3-mini': 'A lightweight, high-performance model from Microsoft, ideal for on-device and faster inference.',
-    'omni-llm-v1': 'Your custom-built Transformer model trained from scratch on the platform. Fully offline, no internet access.',
+    'llama3.2:3b':       'Llama 3.2 3B — fast, lightweight, great for chat and Q&A (recommended for most setups).',
+    'llama3.2:1b':       'Llama 3.2 1B — ultra-fast, very low RAM requirement (~800 MB).',
+    'llama3.1:8b':       'Llama 3.1 8B — strong reasoning and instruction following (~4.7 GB).',
+    'llama3.1:70b':      'Llama 3.1 70B — near-GPT-4 quality for complex tasks (~40 GB, needs powerful GPU).',
+    'mistral:7b':        'Mistral 7B — excellent coding and instruction following (~4 GB).',
+    'mistral-nemo:12b':  'Mistral Nemo 12B — multilingual, long-context (128k), strong on reasoning (~7 GB).',
+    'gemma2:9b':         'Google Gemma 2 9B — efficient, fast, great for on-prem security workloads (~5.4 GB).',
+    'gemma2:2b':         'Google Gemma 2 2B — very fast, minimal resources (~1.6 GB).',
+    'qwen2.5:7b':        'Qwen 2.5 7B — strong multilingual and coding capabilities (~4.4 GB).',
+    'deepseek-r1:7b':    'DeepSeek R1 7B — advanced reasoning with chain-of-thought (~4.7 GB).',
+    'phi4:14b':          'Microsoft Phi-4 14B — strong reasoning and math in a compact model (~8.9 GB).',
+    'codellama:13b':     'Code Llama 13B — specialized for code generation and analysis (~7.4 GB).',
+    'SecurityExpert:latest': 'Custom security-tuned model fine-tuned for threat analysis and SOC workflows.',
+    'omni-llm-v1':       'Your custom-built Transformer model trained from scratch on the platform. Fully offline.',
 };
 
 const availableGeminiModels = Object.keys(geminiModelDescriptions);
-const availableLocalModels = Object.keys(localModelDescriptions);
+const availableLocalModels  = Object.keys(localModelDescriptions);
 
 
 export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, settings, onSave }) => {
-    const [formData, setFormData] = useState<LlmSettingsType>({ ...settings, provider: settings.provider || 'Gemini' });
+    const [formData, setFormData] = useState<LlmSettingsType>({ ...settings, provider: settings.provider || 'Local' });
     const [showKey, setShowKey] = useState(false);
     const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
     const [testMessage, setTestMessage] = useState('');
@@ -50,7 +61,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
 
     useEffect(() => {
         if (isOpen) {
-            setFormData({ ...settings, provider: settings.provider || 'Gemini' });
+            setFormData({ ...settings, provider: settings.provider || 'Local' });
             setCustomModels(settings.customModels || []);
             setShowKey(false);
             setTestStatus('idle');
@@ -85,21 +96,21 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
 
         if (formData.provider === 'Local') {
             try {
-                if (!formData.host) {
-                    setTestStatus('failed');
-                    setTestMessage('Host is required for local provider. Example: 127.0.0.1:11434');
-                    return;
-                }
+                const ollamaUrl = formData.host
+                    ? (formData.host.startsWith('http') ? formData.host : `http://${formData.host}`)
+                    : 'http://127.0.0.1:11434';
                 const result = await testLlmConnection({
                     provider: 'ollama',
-                    ollamaUrl: `http://${formData.host}`,
+                    ollamaUrl,
+                    ollama_url: ollamaUrl,
+                    model: formData.model || 'llama3.2:3b',
                 });
                 if (result.success) {
                     setTestStatus('success');
-                    setTestMessage(result.message);
+                    setTestMessage(result.message || 'Ollama connected successfully');
                 } else {
                     setTestStatus('failed');
-                    setTestMessage(result.message);
+                    setTestMessage(result.message || result.error || 'Failed to reach Ollama');
                 }
             } catch (error: any) {
                 setTestStatus('failed');

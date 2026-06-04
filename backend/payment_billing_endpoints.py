@@ -2,7 +2,7 @@
 Payment billing endpoints: subscriptions, charges, invoices, webhooks, and usage.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header
 from pydantic import BaseModel
 from typing import Optional
 from authentication_service import get_current_user
@@ -170,6 +170,7 @@ async def cancel_subscription(current_user: TokenData = Depends(get_current_user
 @limiter.limit("60/minute")
 async def stripe_webhook(
     request: Request,
+    response: Response,
     stripe_signature: str = Header(None, alias="Stripe-Signature"),
 ):
     """Handle Stripe webhooks."""

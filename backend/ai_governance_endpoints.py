@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Body, Request
+from fastapi import APIRouter, HTTPException, Depends, Body, Request, Response
 import logging
 from typing import Dict, Any
 from ai_governance_service import get_ai_governance_service
@@ -27,7 +27,7 @@ async def list_policies(current_user: TokenData = Depends(get_current_user)):
 
 @router.post("/policies")
 @limiter.limit("10/minute")
-async def create_policy(request: Request, policy: AiPolicy, current_user: TokenData = Depends(get_current_user)):
+async def create_policy(request: Request, response: Response, policy: AiPolicy, current_user: TokenData = Depends(get_current_user)):
     db = get_database()
     service = get_ai_governance_service(db)
     policy.tenantId = get_tid(current_user)
@@ -37,6 +37,7 @@ async def create_policy(request: Request, policy: AiPolicy, current_user: TokenD
 @limiter.limit("20/minute")
 async def evaluate_policy_action(
     request: Request,
+    response: Response,
     body: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(get_current_user),
 ):
@@ -124,7 +125,7 @@ async def evaluate_policy_action(
 
 @router.post("/evaluate/{model_id}")
 @limiter.limit("20/minute")
-async def evaluate_model(request: Request, model_id: str, current_user: TokenData = Depends(get_current_user)):
+async def evaluate_model(request: Request, response: Response, model_id: str, current_user: TokenData = Depends(get_current_user)):
     db = get_database()
     service = get_ai_governance_service(db)
     report = await service.evaluate_model_compliance(model_id, get_tid(current_user))
@@ -134,7 +135,7 @@ async def evaluate_model(request: Request, model_id: str, current_user: TokenDat
 
 @router.post("/expert-evaluate/{model_id}")
 @limiter.limit("5/minute")
-async def expert_evaluate_model(request: Request, model_id: str, current_user: TokenData = Depends(get_current_user)):
+async def expert_evaluate_model(request: Request, response: Response, model_id: str, current_user: TokenData = Depends(get_current_user)):
     db = get_database()
     service = get_ai_governance_service(db)
     tid = get_tid(current_user)
@@ -159,7 +160,7 @@ async def governance_dashboard(current_user: TokenData = Depends(get_current_use
 
 @router.post("/register-model")
 @limiter.limit("10/minute")
-async def register_model(request: Request, model_data: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+async def register_model(request: Request, response: Response, model_data: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
     db = get_database()
     service = get_ai_governance_service(db)
     model_data["tenantId"] = get_tid(current_user)
@@ -185,6 +186,7 @@ async def get_bias_metrics(model_id: str, current_user: TokenData = Depends(get_
 @limiter.limit("100/minute")
 async def receive_shadow_ai_event(
     request: Request,
+    response: Response,
     event_data: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(get_current_user)
 ):

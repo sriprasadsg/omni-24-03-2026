@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
 from database import get_database, mongodb
@@ -94,7 +94,7 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
 
 @router.post("/lookup-key")
 @limiter.limit("3/minute")
-async def lookup_tenant_key(request: Request, payload: dict):
+async def lookup_tenant_key(request: Request, response: Response, payload: dict):
     """
     Lookup tenant ID by registration key.
     Public endpoint for agents/installers.

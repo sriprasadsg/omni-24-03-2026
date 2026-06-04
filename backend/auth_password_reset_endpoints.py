@@ -8,7 +8,7 @@ import uuid
 import logging
 from datetime import timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from database import get_database
@@ -35,7 +35,7 @@ _reset_tokens: dict[str, dict] = {}
 
 @router.post("/reset-password/request")
 @limiter.limit("3/minute")
-async def request_password_reset(request: Request, body: PasswordResetRequest):
+async def request_password_reset(request: Request, response: Response, body: PasswordResetRequest):
     """Issue a password-reset token (send via email in production)."""
     db = get_database()
     user = await db._db.users.find_one({"email": body.email})
@@ -66,7 +66,7 @@ async def request_password_reset(request: Request, body: PasswordResetRequest):
 
 @router.post("/reset-password/confirm")
 @limiter.limit("5/minute")
-async def confirm_password_reset(request: Request, body: PasswordResetConfirm):
+async def confirm_password_reset(request: Request, response: Response, body: PasswordResetConfirm):
     """Apply a new password using a valid reset token."""
     now = datetime.datetime.now(timezone.utc)
     entry = _reset_tokens.get(body.token)

@@ -19,29 +19,30 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ userName, setC
     }, []);
 
     return (
-        <div>
-            <div className="flex flex-col md:flex-row justify-between md:items-center space-y-4 md:space-y-0">
+        <div className="fade-in">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                        Welcome back, <span className="gradient-text">{(userName || 'User').split(' ')[0]}</span>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        Good day, <span className="text-gradient">{(userName || 'User').split(' ')[0]}</span>
                     </h2>
-                    <p className="text-sm font-medium text-gray-400 dark:text-gray-500 mt-1 flex items-center">
-                        <CalendarIcon size={14} className="mr-2" />
+                    <p className="text-sm text-slate-500 dark:text-slate-500 mt-1 flex items-center gap-1.5">
+                        <CalendarIcon size={13} />
                         {currentDate}
                     </p>
                 </div>
-                <div className="flex items-center space-x-3">
-                    <button className="flex items-center px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-200 glass dark:glass rounded-xl shadow-lg border border-white/20 dark:border-white/5 hover:bg-white/40 dark:hover:bg-white/10 transition-all active:scale-95">
-                        <CalendarIcon size={16} className="mr-2 text-primary-500" />
+                <div className="flex items-center gap-2">
+                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 glass rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]">
+                        <CalendarIcon size={15} className="text-primary-500" />
                         Last 24 Hours
                     </button>
-                    <button className="p-2.5 text-gray-700 dark:text-gray-200 glass dark:glass rounded-xl shadow-lg border border-white/20 dark:border-white/5 hover:bg-white/40 dark:hover:bg-white/10 transition-all active:scale-95">
-                        <RefreshCwIcon size={16} className="text-primary-500" />
+                    <button className="p-2 glass rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]">
+                        <RefreshCwIcon size={15} className="text-primary-500" />
                     </button>
                     <button
                         onClick={() => setCurrentView('reporting')}
-                        className="flex items-center px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-primary-600 to-indigo-600 rounded-xl shadow-lg shadow-primary-500/20 hover:shadow-primary-500/40 transition-all active:scale-95">
-                        <FileTextIcon size={18} className="mr-2" />
+                        className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        style={{ background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)', boxShadow: '0 4px 16px rgba(0,210,255,0.25)' }}>
+                        <FileTextIcon size={15} />
                         Generate Report
                     </button>
                 </div>

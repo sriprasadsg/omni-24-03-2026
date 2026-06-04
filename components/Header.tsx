@@ -27,26 +27,37 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
 
     return (
         <>
-        <header className="glass dark:glass shadow-sm z-50 sticky top-0 flex-shrink-0 border-b border-white/20 dark:border-white/5">
+        <header className="z-50 sticky top-0 flex-shrink-0" style={{
+            background: 'rgba(8,8,24,0.8)',
+            backdropFilter: 'blur(20px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            boxShadow: '0 1px 0 rgba(255,255,255,0.04)',
+        }}>
             <div className="w-full px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
+                <div className="flex items-center justify-between h-14">
                     <div className="flex items-center">
-                        <button onClick={onToggleSidebar} className="p-2 -ml-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 md:hidden">
-                            <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                        <button onClick={onToggleSidebar}
+                            className="p-2 -ml-1.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-all md:hidden">
+                            <svg className="h-5 w-5" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                             </svg>
                         </button>
-                        <div className="hidden md:flex items-center">
-                            <BotIcon className="text-primary-500" size={28} />
-                            <h1 className="text-xl font-bold ml-2 text-gray-800 dark:text-white">Omni-Agent AI</h1>
+                        <div className="hidden md:flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(127,0,255,0.2))', border: '1px solid rgba(0,210,255,0.3)' }}>
+                                <BotIcon className="text-primary-400" size={18} />
+                            </div>
+                            <h1 className="text-[15px] font-semibold text-gradient tracking-tight">Omni-Agent AI</h1>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2 sm:space-x-4">
+                    <div className="flex items-center gap-1 sm:gap-2">
                         <div className="hidden sm:block">
                             <select
                                 value={timeZone}
                                 onChange={(e) => setTimeZone(e.target.value)}
-                                className="text-xs bg-gray-100 dark:bg-gray-700 border-none rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500"
+                                className="text-[11px] rounded-lg px-2.5 py-1.5 text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500/50 cursor-pointer"
+                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
                                 aria-label="Select Timezone"
                             >
                                 {availableTimeZones.map(tz => (
@@ -55,22 +66,20 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                             </select>
                         </div>
 
-                        {/* Theme Selector Removed - Enforced Enterprise Blue */}
-
                         <button
                             onClick={toggleDarkMode}
-                            className={`p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 ${isDarkMode ? 'text-yellow-400' : 'text-gray-500'}`}
+                            className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-all"
                             aria-label="Toggle dark mode"
                         >
-                            {isDarkMode ? <MoonIcon size={20} /> : <SunIcon size={20} />}
+                            {isDarkMode ? <MoonIcon size={17} /> : <SunIcon size={17} />}
                         </button>
 
                         <button
                             onClick={onStartTour}
-                            className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-all"
                             aria-label="Start guided tour"
                         >
-                            <HelpCircleIcon size={20} />
+                            <HelpCircleIcon size={17} />
                         </button>
 
                         {onOpenSearch && (

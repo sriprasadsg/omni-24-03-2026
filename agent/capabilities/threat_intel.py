@@ -15,13 +15,21 @@ logger = logging.getLogger(__name__)
 _CACHE_TTL = 300  # seconds — don't re-query the same IOC within 5 minutes
 
 
-def _vt_headers() -> Dict[str, str]:
-    api_key = os.getenv("VIRUSTOTAL_API_KEY", "")
-    return {"x-apikey": api_key, "Accept": "application/json"}
+def _vt_key(config: Dict = None) -> str:
+    """Return VT API key — prefers server-pushed config over local env var."""
+    if config:
+        key = config.get("virustotal_api_key", "")
+        if key:
+            return key
+    return os.getenv("VIRUSTOTAL_API_KEY", "")
 
 
-def _is_vt_configured() -> bool:
-    return bool(os.getenv("VIRUSTOTAL_API_KEY", ""))
+def _vt_headers(config: Dict = None) -> Dict[str, str]:
+    return {"x-apikey": _vt_key(config), "Accept": "application/json"}
+
+
+def _is_vt_configured(config: Dict = None) -> bool:
+    return bool(_vt_key(config))
 
 
 def _parse_vt_response(data: Dict, artifact: str, artifact_type: str) -> Dict[str, Any]:
@@ -55,15 +63,15 @@ def _parse_vt_response(data: Dict, artifact: str, artifact_type: str) -> Dict[st
     }
 
 
-def lookup_ip(ip_address: str) -> Dict[str, Any]:
+def lookup_ip(ip_address: str, config: Dict = None) -> Dict[str, Any]:
     """Query VirusTotal for an IP address reputation."""
-    if not _is_vt_configured():
+    if not _is_vt_configured(config):
         return {"artifact": ip_address, "type": "ip", "verdict": "Unconfigured",
-                "error": "VIRUSTOTAL_API_KEY not set"}
+                "error": "VIRUSTOTAL_API_KEY not set on agent or server"}
     try:
         resp = requests.get(
             f"https://www.virustotal.com/api/v3/ip_addresses/{ip_address}",
-            headers=_vt_headers(), timeout=10
+            headers=_vt_headers(config), timeout=10
         )
         if resp.status_code == 200:
             return _parse_vt_response(resp.json(), ip_address, "ip")
@@ -76,15 +84,15 @@ def lookup_ip(ip_address: str) -> Dict[str, Any]:
         return {"artifact": ip_address, "type": "ip", "verdict": "Error", "error": str(e)}
 
 
-def lookup_domain(domain: str) -> Dict[str, Any]:
+def lookup_domain(domain: str, config: Dict = None) -> Dict[str, Any]:
     """Query VirusTotal for a domain reputation."""
-    if not _is_vt_configured():
+    if not _is_vt_configured(config):
         return {"artifact": domain, "type": "domain", "verdict": "Unconfigured",
-                "error": "VIRUSTOTAL_API_KEY not set"}
+                "error": "VIRUSTOTAL_API_KEY not set on agent or server"}
     try:
         resp = requests.get(
             f"https://www.virustotal.com/api/v3/domains/{domain}",
-            headers=_vt_headers(), timeout=10
+            headers=_vt_headers(config), timeout=10
         )
         if resp.status_code == 200:
             return _parse_vt_response(resp.json(), domain, "domain")
@@ -97,17 +105,17 @@ def lookup_domain(domain: str) -> Dict[str, Any]:
         return {"artifact": domain, "type": "domain", "verdict": "Error", "error": str(e)}
 
 
-def lookup_url(url: str) -> Dict[str, Any]:
+def lookup_url(url: str, config: Dict = None) -> Dict[str, Any]:
     """Query VirusTotal for a URL reputation."""
-    if not _is_vt_configured():
+    if not _is_vt_configured(config):
         return {"artifact": url, "type": "url", "verdict": "Unconfigured",
-                "error": "VIRUSTOTAL_API_KEY not set"}
+                "error": "VIRUSTOTAL_API_KEY not set on agent or server"}
     try:
         import base64
         url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
         resp = requests.get(
             f"https://www.virustotal.com/api/v3/urls/{url_id}",
-            headers=_vt_headers(), timeout=10
+            headers=_vt_headers(config), timeout=10
         )
         if resp.status_code == 200:
             return _parse_vt_response(resp.json(), url, "url")
@@ -120,15 +128,15 @@ def lookup_url(url: str) -> Dict[str, Any]:
         return {"artifact": url, "type": "url", "verdict": "Error", "error": str(e)}
 
 
-def lookup_hash(file_hash: str) -> Dict[str, Any]:
+def lookup_hash(file_hash: str, config: Dict = None) -> Dict[str, Any]:
     """Query VirusTotal for a file hash (MD5/SHA1/SHA256) reputation."""
-    if not _is_vt_configured():
+    if not _is_vt_configured(config):
         return {"artifact": file_hash, "type": "hash", "verdict": "Unconfigured",
-                "error": "VIRUSTOTAL_API_KEY not set"}
+                "error": "VIRUSTOTAL_API_KEY not set on agent or server"}
     try:
         resp = requests.get(
             f"https://www.virustotal.com/api/v3/files/{file_hash}",
-            headers=_vt_headers(), timeout=10
+            headers=_vt_headers(config), timeout=10
         )
         if resp.status_code == 200:
             return _parse_vt_response(resp.json(), file_hash, "hash")
@@ -164,11 +172,11 @@ class ThreatIntelCapability(BaseCapability):
         return "Threat Intelligence (VirusTotal)"
 
     def collect(self) -> Dict[str, Any]:
-        configured = _is_vt_configured()
+        configured = _is_vt_configured(self.config)
         if not configured:
             logger.warning(
-                "[ThreatIntel] VIRUSTOTAL_API_KEY is not set — threat intelligence lookups are disabled. "
-                "Set the environment variable to enable IOC enrichment."
+                "[ThreatIntel] VirusTotal API key not set (checked config + env). "
+                "Push the key from the Security Intelligence Connectors dashboard to enable IOC enrichment."
             )
         iocs: List[Dict[str, str]] = self.config.get("iocs", [])
 
@@ -180,7 +188,7 @@ class ThreatIntelCapability(BaseCapability):
             ioc_value = ioc.get("value", "").strip()
             if not ioc_value or ioc_type not in self._lookup_map:
                 continue
-            result = self._lookup_map[ioc_type](ioc_value)
+            result = self._lookup_map[ioc_type](ioc_value, self.config)
             results.append(result)
             if result.get("verdict") == "Malicious":
                 malicious_count += 1
