@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CloudShieldIcon, ActivityIcon, NetworkIcon } from './icons';
+import { authFetch } from '../services/apiService';
 
 const UnifiedFutureOpsDashboard: React.FC = () => {
     const [aiopsData, setAiopsData] = useState<any>(null);
@@ -18,18 +19,18 @@ const UnifiedFutureOpsDashboard: React.FC = () => {
     const fetchAllData = async () => {
         try {
             const [aiopsRes, streamingRes, multicloudRes, privacyRes, blockchainRes] = await Promise.all([
-                fetch('/api/aiops/capacity-predictions'),
-                fetch('/api/streaming/live-events'),
-                fetch('/api/multicloud/cost-optimization'),
-                fetch('/api/privacy/consent-tracking'),
-                fetch('/api/blockchain/audit-chain'),
+                authFetch('/api/aiops/capacity-predictions'),
+                authFetch('/api/streaming/live-events'),
+                authFetch('/api/multicloud/cost-optimization'),
+                authFetch('/api/privacy/consent-tracking'),
+                authFetch('/api/blockchain/audit-chain'),
             ]);
 
-            setAiopsData(await aiopsRes.json());
-            setStreaming(await streamingRes.json());
-            setMulticloud(await multicloudRes.json());
-            setPrivacy(await privacyRes.json());
-            setBlockchain(await blockchainRes.json());
+            if (aiopsRes.ok) setAiopsData(await aiopsRes.json());
+            if (streamingRes.ok) setStreaming(await streamingRes.json());
+            if (multicloudRes.ok) setMulticloud(await multicloudRes.json());
+            if (privacyRes.ok) setPrivacy(await privacyRes.json());
+            if (blockchainRes.ok) setBlockchain(await blockchainRes.json());
             setLoading(false);
         } catch (error) {
             console.error('Error fetching 2030 features data:', error);

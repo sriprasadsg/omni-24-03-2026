@@ -388,7 +388,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
         const userTier: string = (currentUser as any)?.subscriptionTier || 'Free';
 
         return navGroups
-            .filter(group => isSuperAdmin || group.title !== "Management & Settings")
             .map(group => ({
                 ...group,
                 items: group.items

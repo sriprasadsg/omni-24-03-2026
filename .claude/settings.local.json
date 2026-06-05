@@ -26,7 +26,10 @@
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); metrics=data if isinstance\\(data,list\\) else data.get\\('metrics',data.get\\('data',[]\\)\\); [print\\(m.get\\('type','?'\\), m.get\\('title','?'\\)\\) for m in metrics[:20]]\")",
       "Bash(python -c \"import sys,json; print\\(json.dumps\\(json.load\\(sys.stdin\\), indent=2\\)[:1000]\\)\")",
       "Bash(npx tsc *)",
-      "Bash(xargs grep -l \"capabilities/configuration\\\\|capabilitySettings\")"
+      "Bash(xargs grep -l \"capabilities/configuration\\\\|capabilitySettings\")",
+      "Bash(cd /d \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")",
+      "Bash(Get-ChildItem -Path . -Directory)",
+      "Bash(Select-Object Name)"
     ]
   },
   "enabledMcpjsonServers": [
