@@ -345,7 +345,9 @@ async def trigger_cloud_discovery(
         except Exception as e:
             logger.warning("Cloud provider poll failed for %s: %s", provider, e)
 
-    # Generate simulated discovered assets so the dashboard is never empty
+    # Generate simulated discovered assets so the dashboard is never empty.
+    # Non-cryptographic RNG is intentional — this produces demo/simulation data only,
+    # never used for secrets, tokens, or security decisions.
     rng = random.Random()
     regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]
     asset_types = [
