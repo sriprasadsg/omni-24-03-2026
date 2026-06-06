@@ -35,9 +35,13 @@ class LocalAIAuditor:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(f"Using device: {device}")
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+            # B615: supply-chain note — pin revision= to a specific commit hash in production
+            # to prevent model substitution on HuggingFace Hub between deployments.
+            model_revision = os.getenv("AI_AUDITOR_MODEL_REVISION")  # e.g. "abc1234"
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, revision=model_revision)
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_id,
+                revision=model_revision,
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 device_map="auto" if device == "cuda" else None,
                 low_cpu_mem_usage=True

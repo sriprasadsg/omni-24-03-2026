@@ -188,7 +188,7 @@ async def poll_gcp_chronicle(config: Dict[str, Any], omni_tenant_id: str) -> int
         url = f"{base_url}/detect/alerts?start_time={start_time.strftime('%Y-%m-%dT%H:%M:%SZ')}&end_time={end_time.strftime('%Y-%m-%dT%H:%M:%SZ')}&page_size=200"
 
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 — URL always https:// (hardcoded scheme from backstory.googleapis.com), never file:// or custom scheme
             data = _json.loads(resp.read())
 
         alerts = data.get("alerts", [])
