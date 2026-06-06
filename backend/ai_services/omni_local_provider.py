@@ -123,6 +123,9 @@ class OmniLocalProvider:
                 )
 
             logger.info("OmniLocalProvider: loading base model %s", BASE_MODEL_ID)
+            # B615: set OMNI_BASE_MODEL_REVISION env var to a specific HuggingFace
+            # commit hash in production to prevent model substitution between deployments.
+            _base_revision = os.environ.get("OMNI_BASE_MODEL_REVISION")
             tokenizer = AutoTokenizer.from_pretrained(
                 str(ADAPTER_PATH),  # tokenizer is saved alongside adapter
                 trust_remote_code=True,
@@ -131,6 +134,7 @@ class OmniLocalProvider:
 
             base = AutoModelForCausalLM.from_pretrained(
                 BASE_MODEL_ID,
+                revision=_base_revision,
                 cache_dir=str(BASE_CACHE_PATH),
                 quantization_config=bnb_cfg,
                 device_map="auto" if use_4bit else "cpu",

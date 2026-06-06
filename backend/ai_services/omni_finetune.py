@@ -150,9 +150,13 @@ class OmniFineTuner:
             )
 
         # ── 4. Load tokenizer + base model ──────────────────────────────
+        # B615: set OMNI_FINETUNE_MODEL_REVISION env var to a specific HuggingFace
+        # commit hash in production to prevent model substitution between runs.
+        _ft_revision = os.environ.get("OMNI_FINETUNE_MODEL_REVISION")
         self.base_cache_path.mkdir(parents=True, exist_ok=True)
         tokenizer = AutoTokenizer.from_pretrained(
             self.base_model_id,
+            revision=_ft_revision,
             cache_dir=str(self.base_cache_path),
             trust_remote_code=True,
         )
@@ -161,6 +165,7 @@ class OmniFineTuner:
 
         model = AutoModelForCausalLM.from_pretrained(
             self.base_model_id,
+            revision=_ft_revision,
             cache_dir=str(self.base_cache_path),
             quantization_config=bnb_cfg,
             device_map="auto" if use_4bit else "cpu",

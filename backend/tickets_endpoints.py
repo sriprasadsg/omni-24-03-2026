@@ -19,7 +19,16 @@ from database import mongodb, get_database
 
 router = APIRouter(prefix="/api/tickets", tags=["Internal Tickets"])
 
-_UPLOAD_DIR = os.getenv("TICKET_ATTACHMENT_DIR", "/tmp/ticket_attachments")
+_UPLOAD_DIR = os.getenv("TICKET_ATTACHMENT_DIR", "")
+if not _UPLOAD_DIR:
+    import tempfile
+    _UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "ticket_attachments")
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "TICKET_ATTACHMENT_DIR not set — using system temp dir %s. "
+        "Set this env var to a persistent, non-world-writable directory in production.",
+        _UPLOAD_DIR,
+    )
 os.makedirs(_UPLOAD_DIR, exist_ok=True)
 
 _VALID_TRANSITIONS: dict[str, set] = {
