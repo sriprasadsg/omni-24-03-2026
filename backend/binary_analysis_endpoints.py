@@ -57,10 +57,13 @@ async def analyze_file(
     if content_type and content_type not in EXACT_ALLOWED and not content_type.startswith("application/x-"):
         raise HTTPException(status_code=400, detail="Invalid file type for binary analysis")
 
+    from pathlib import PurePosixPath
+    safe_filename = PurePosixPath(file.filename or "upload").name or "upload"
+
     job_id = f"ANA-{uuid.uuid4().hex[:12]}"
     job = {
         "job_id": job_id,
-        "filename": file.filename,
+        "filename": safe_filename,
         "file_size": len(content),
         "submitted_by": current_user.username,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
@@ -73,7 +76,7 @@ async def analyze_file(
 
     # Run in background (pass tenant_id so custom YARA rules are scoped correctly)
     tenant_id = getattr(current_user, "tenant_id", None)
-    background_tasks.add_task(_run_analysis, job_id, content, file.filename, run_sandbox, tenant_id)
+    background_tasks.add_task(_run_analysis, job_id, content, safe_filename, run_sandbox, tenant_id)
 
     return {"status": "queued", "job_id": job_id, "filename": file.filename}
 

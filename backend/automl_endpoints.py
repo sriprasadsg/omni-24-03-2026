@@ -179,6 +179,20 @@ async def upload_training_dataset(
 
     raw = await file.read()
     size_bytes = len(raw)
+
+    # Magic-byte guard: reject binary file headers regardless of MIME/extension.
+    # Common binary signatures that must never appear in a text/CSV/JSON upload.
+    _BINARY_MAGIC = (
+        b"\x4d\x5a",           # MZ — Windows PE executable
+        b"\x7f\x45\x4c\x46",  # ELF — Linux executable
+        b"\x50\x4b\x03\x04",  # PK — ZIP / Office OOXML
+        b"\x25\x50\x44\x46",  # %PDF
+        b"\xff\xd8\xff",       # JPEG
+        b"\x89\x50\x4e\x47",  # PNG
+    )
+    if any(raw.startswith(sig) for sig in _BINARY_MAGIC):
+        raise HTTPException(status_code=400, detail="File content does not match a text/CSV/JSON format")
+
     records = 0
     columns: List[str] = []
 
