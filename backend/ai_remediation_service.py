@@ -1,5 +1,6 @@
 from ai_service import ai_service
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from authentication_service import get_current_user
 from database import get_database
 from datetime import datetime, timezone
@@ -7,14 +8,20 @@ import uuid
 
 router = APIRouter(prefix="/api/ai-remediation", tags=["AI Remediation"])
 
+
+class RemediationRequest(BaseModel):
+    system_id: str
+    risk_id: str
+
+
 @router.post("/run")
-async def run_ai_remediation(body: dict, current_user=Depends(get_current_user)):
+async def run_ai_remediation(body: RemediationRequest, current_user=Depends(get_current_user)):
     """
     Trigger autonomous remediation for a given AI system + risk pair.
     Generates a remediation plan via the AI service and records execution steps.
     """
-    system_id = body.get("system_id", "")
-    risk_id = body.get("risk_id", "")
+    system_id = body.system_id
+    risk_id = body.risk_id
     tenant_id = getattr(current_user, "tenant_id", None) or None
     if not tenant_id:
         from fastapi import HTTPException

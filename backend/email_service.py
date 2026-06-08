@@ -20,7 +20,13 @@ class EmailService:
     def __init__(self):
         # Generate or load encryption key for SMTP passwords
         self.encryption_key = self._get_or_create_encryption_key()
-        self.cipher = Fernet(self.encryption_key)
+        self._cipher: Fernet | None = None
+
+    @property
+    def cipher(self) -> Fernet:
+        if self._cipher is None:
+            self._cipher = Fernet(self.encryption_key)
+        return self._cipher
     
     def _get_or_create_encryption_key(self) -> bytes:
         """Load encryption key from environment variable (preferred) or legacy key file."""
@@ -40,11 +46,19 @@ class EmailService:
             with open(key_file, "rb") as f:
                 return f.read()
 
-        # No key found — generate ephemeral key and warn loudly
+        # No key found — fail-closed in production; ephemeral only in development
+        _env = os.environ.get("ENVIRONMENT", "development").lower()
+        _dev_envs = {"development", "dev", "local", "test"}
+        if _env not in _dev_envs:
+            raise RuntimeError(
+                "EMAIL_ENCRYPTION_KEY must be set in non-development environments. "
+                "Run: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
+                "and set the result as EMAIL_ENCRYPTION_KEY."
+            )
         new_key = Fernet.generate_key()
         logger.warning(
             "EMAIL_ENCRYPTION_KEY not set and no key file found. "
-            "Generated an ephemeral key — previously encrypted SMTP passwords are unrecoverable. "
+            "Generated an ephemeral key — previously encrypted SMTP passwords are unrecoverable on restart. "
             "Set EMAIL_ENCRYPTION_KEY=%s in your environment.", new_key.decode(),
         )
         return new_key

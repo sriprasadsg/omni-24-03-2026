@@ -48,8 +48,12 @@ class ModelRetrainingService:
 
     async def _ensure_seeded(self):
         db = self._db()
-        if await db.ml_models.count_documents({}) == 0:
-            await db.ml_models.insert_many(DEFAULT_MODELS)
+        for model in DEFAULT_MODELS:
+            await db.ml_models.update_one(
+                {"id": model["id"]},
+                {"$setOnInsert": model},
+                upsert=True,
+            )
 
     async def trigger_retraining(self, model_name: str, reason: str = "manual", tenant_id: str = None) -> str:
         db = self._db()
@@ -135,7 +139,15 @@ class ModelRetrainingService:
         if tenant_id:
             q = {"$or": [{"tenant_id": tenant_id}, {"tenant_id": None}, {"tenant_id": {"$exists": False}}]}
         cursor = db.ml_models.find(q, {"_id": 0}).sort("created_at", -1)
-        return await cursor.to_list(length=200)
+        rows = await cursor.to_list(length=200)
+        seen: set = set()
+        result = []
+        for row in rows:
+            rid = row.get("id")
+            if rid not in seen:
+                seen.add(rid)
+                result.append(row)
+        return result
 
     async def get_history(self, tenant_id: str = None) -> List[Dict[str, Any]]:
         db = self._db()

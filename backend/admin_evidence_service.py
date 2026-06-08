@@ -79,6 +79,16 @@ def _make_record(asset_id: str, hostname: str, control_id: str,
     }
 
 
+def _validate_hostname(hostname: str) -> str:
+    """Strict hostname validation — rejects anything that could inject into PowerShell commands."""
+    import re as _re
+    if not hostname or len(hostname) > 255:
+        raise ValueError(f"Invalid hostname length: {len(hostname)}")
+    if not _re.match(r'^[a-zA-Z0-9._-]+$', hostname):
+        raise ValueError(f"Hostname contains invalid characters: {hostname!r}")
+    return hostname
+
+
 def collect_evidence_for_host(hostname: str) -> list[tuple]:
     """
     Run all admin-level PowerShell checks for a given hostname.
@@ -242,6 +252,11 @@ async def run_evidence_collection_for_asset(hostname: str, db: AsyncIOMotorDatab
     Also updates the compliance_frameworks control statuses and progress.
     Called as a background task.
     """
+    try:
+        hostname = _validate_hostname(hostname)
+    except ValueError as e:
+        logger.error("[AdminEvidence] Rejected invalid hostname: %s", e)
+        return
     asset_id = f"asset-{hostname}"
     logger.info(f"[AdminEvidence] Starting collection for {hostname} ({asset_id})")
 

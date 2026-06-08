@@ -16,6 +16,28 @@ router = APIRouter()
 UPLOAD_DIR = "static/evidence"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+_ALLOWED_UPLOAD_EXTENSIONS: frozenset[str] = frozenset({
+    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp",
+    ".zip", ".tar", ".gz",
+    ".md", ".json", ".xml", ".html",
+})
+
+_ALLOWED_UPLOAD_MIME_PREFIXES: tuple[str, ...] = (
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats",
+    "application/vnd.ms-excel",
+    "application/zip",
+    "application/gzip",
+    "application/x-tar",
+    "application/json",
+    "application/xml",
+    "text/",
+    "image/",
+)
+
+
 MANUAL_ARTIFACT_CATEGORIES = [
     "pentest_report",
     "vulnerability_assessment",
@@ -74,6 +96,22 @@ async def upload_manual_artifact(
 
     original_name = os.path.basename(file.filename or "artifact")
     file_ext = os.path.splitext(original_name)[1].lower()
+
+    # Whitelist extension and MIME type — reject executables and scripts
+    if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
+    content_type = (file.content_type or "").split(";")[0].strip()
+    if content_type and not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
+        raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
+    # Validate asset_id belongs to caller's tenant
+    if asset_id:
+        _caller_tenant = getattr(current_user, "tenant_id", None)
+        if _caller_tenant:
+            _db = get_database()
+            _asset = await _db.assets.find_one({"id": asset_id, "tenantId": _caller_tenant})
+            if not _asset:
+                raise HTTPException(status_code=403, detail="Asset not found in your tenant")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     uploader = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
     safe_filename = f"artifact_{category}_{timestamp}{file_ext}"

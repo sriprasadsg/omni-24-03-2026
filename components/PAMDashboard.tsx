@@ -88,7 +88,7 @@ export function PAMDashboard() {
   const [loading, setLoading] = useState(true);
   const [rotating, setRotating] = useState<string | null>(null);
 
-  const token = sessionStorage.getItem('access_token');
+  const token = sessionStorage.getItem('token') || sessionStorage.getItem('access_token');
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchAll = useCallback(async () => {

@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from auth_utils import require_auth
 from database import get_db
 from insider_threat_service import InsiderThreatService
 
 router = APIRouter(prefix="/api/insider-threat", tags=["insider-threat"])
+
+
+class InsiderThreatAlertUpdate(BaseModel):
+    status: str = "open"
+    note: str = ""
 
 
 def get_svc(db=Depends(get_db)):
@@ -37,9 +43,9 @@ async def get_summary(user=Depends(require_auth), svc: InsiderThreatService = De
 
 
 @router.put("/alerts/{alert_id}")
-async def update_alert(alert_id: str, body: dict, user=Depends(require_auth),
+async def update_alert(alert_id: str, body: InsiderThreatAlertUpdate, user=Depends(require_auth),
                        svc: InsiderThreatService = Depends(get_svc)):
-    await svc.update_alert_status(alert_id, body.get("status", "open"), body.get("note", ""))
+    await svc.update_alert_status(alert_id, body.status, body.note)
     return {"updated": True}
 
 

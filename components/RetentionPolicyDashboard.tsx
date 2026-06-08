@@ -29,7 +29,9 @@ export default function RetentionPolicyDashboard() {
         authFetch('/api/retention/stats'),
       ]);
       const [p, s] = await Promise.all([pRes.json(), sRes.json()]);
-      setPolicies(p.policies || []);
+      const raw: Policy[] = p.policies || [];
+      const seen = new Set<string>();
+      setPolicies(raw.filter(pol => seen.has(pol.collection) ? false : (seen.add(pol.collection), true)));
       setStats(s);
     } catch (e) { console.error(e); }
   }

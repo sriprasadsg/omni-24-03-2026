@@ -159,7 +159,7 @@ async def update_pricing_bulk(
     pricing: List[Dict[str, Any]],
     current_user: dict = Depends(require_permission("manage:settings"))
 ):
-    """Bulk update service pricing."""
+    """Bulk update service pricing — persisted to MongoDB and reflected in-memory."""
     pricing = pricing[:500]
     _REQUIRED = {"id", "name", "price", "unit", "category"}
     for entry in pricing:
@@ -171,6 +171,16 @@ async def update_pricing_bulk(
                 raise ValueError
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="price must be a non-negative number")
+    # Persist to DB so changes survive server restarts
+    db = get_database()
+    now = datetime.now(timezone.utc).isoformat()
+    for entry in pricing:
+        await db.service_pricing.update_one(
+            {"id": entry["id"]},
+            {"$set": {**entry, "updated_at": now}},
+            upsert=True,
+        )
+    # Also update in-memory cache for current process
     finops_service.service_pricing = pricing
     return pricing
 

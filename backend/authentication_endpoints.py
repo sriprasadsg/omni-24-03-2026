@@ -269,26 +269,26 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     registration_key = f"reg_{uuid.uuid4().hex[:16]}"
     
     # 3. Create Tenant & User
-    # ALL enterprise features - matching TenantCreate in tenant_endpoints.py
-    enterprise_features = [
-        "view:dashboard", "view:cxo_dashboard", "view:profile", "view:insights", 
-        "view:tracing", "view:logs", "view:network", "view:agents", "view:assets", 
-        "view:patching", "view:security", "view:cloud_security", "view:threat_hunting", 
-        "view:dspm", "view:attack_path", "view:sbom", "view:persistence", 
-        "view:vulnerabilities", "view:devsecops", "view:dora_metrics", "view:service_catalog", 
-        "view:chaos", "view:compliance", "view:ai_governance", "view:security_audit", 
-        "view:audit_log", "view:reporting", "view:automation", "view:finops", 
-        "view:developer_hub", "view:advanced_bi", "view:llmops", "view:unified_ops", 
-        "view:swarm", "manage:settings" # No manage:tenants for regular tenant admin
+    # Free tier features — limited set available without a paid subscription.
+    # Upgrade to Pro/Enterprise unlocks advanced security, AI, cloud, and analytics features.
+    free_features = [
+        "view:dashboard", "view:profile",
+        "view:agents", "view:assets",
+        "view:patching", "view:security",
+        "view:compliance", "view:audit_log",
+        "view:logs", "view:reporting",
+        "view:automation", "view:finops",
+        "manage:settings",
     ]
 
     tenant_doc = {
-        "id": tenant_id, 
-        "name": company_name, 
-        "subscriptionTier": "Enterprise",
-        "registrationKey": registration_key, 
-        "apiKeys": [], 
-        "enabledFeatures": enterprise_features,
+        "id": tenant_id,
+        "name": company_name,
+        "subscriptionTier": "Free",
+        "maxAgents": 5,
+        "registrationKey": registration_key,
+        "apiKeys": [],
+        "enabledFeatures": free_features,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.tenants.insert_one(tenant_doc)
@@ -323,9 +323,9 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "name": name, 
         "role": "Tenant Admin", 
         "tenantId": tenant_id,
-        "status": "Active", 
-        "subscriptionTier": "Enterprise", 
-        "maxAgents": 5, 
+        "status": "Active",
+        "subscriptionTier": "Free",
+        "maxAgents": 5,
         "permissions": enterprise_permissions,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
@@ -372,9 +372,9 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "tenant": {
             "id": tenant_id,
             "name": company_name,
-            "subscriptionTier": "Enterprise",
+            "subscriptionTier": "Free",
             "maxAgents": 5,
-            "enabledFeatures": enterprise_features
+            "enabledFeatures": free_features
         }
     }
 

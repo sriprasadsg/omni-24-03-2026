@@ -29,12 +29,20 @@ class CacheService:
                 socket_timeout=2
             )
             # Test connection - fail fast if not available
-            self.redis_client.ping() 
+            self.redis_client.ping()
             self.enabled = True
             logger.info(f"[SUCCESS] Redis client initialized and verified: {host}:{port}")
         except (redis.ConnectionError, redis.TimeoutError):
-            logger.warning(f"[WARN] Redis not available at {host}:{port}. Caching disabled.")
-            self.enabled = False
+            logger.warning(f"[WARN] Redis not available at {host}:{port}. Falling back to in-process cache.")
+            try:
+                import fakeredis
+                _server = fakeredis.FakeServer()
+                self.redis_client = fakeredis.FakeRedis(server=_server, decode_responses=True)
+                self.enabled = True
+                logger.info("[INFO] Using fakeredis in-process cache (dev mode — not shared across workers).")
+            except ImportError:
+                logger.warning("[WARN] fakeredis not installed. Caching disabled. Run: pip install fakeredis")
+                self.enabled = False
         except Exception as e:
             logger.error(f"[ERROR] Redis initialization error: {e}. Caching disabled.")
             self.enabled = False

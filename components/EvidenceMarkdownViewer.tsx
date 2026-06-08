@@ -82,11 +82,12 @@ export const EvidenceMarkdownViewer: React.FC<EvidenceMarkdownViewerProps> = ({ 
 
     return (
         <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
-            >
-                <div className="flex items-center space-x-2 flex-grow overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center space-x-2 flex-grow overflow-hidden text-left min-w-0"
+                    aria-expanded={isExpanded}
+                >
                     {isExpanded ?
                         <ChevronDownIcon size={14} className="text-gray-500 flex-shrink-0" /> :
                         <ChevronDownIcon size={14} className="text-gray-500 flex-shrink-0 -rotate-90" />
@@ -94,24 +95,24 @@ export const EvidenceMarkdownViewer: React.FC<EvidenceMarkdownViewerProps> = ({ 
                     <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
                         {evidence.name}
                     </span>
-                </div>
+                </button>
                 <div className="flex items-center space-x-2 flex-shrink-0">
                     <button
-                        onClick={(e) => { e.stopPropagation(); handleCopy(); }}
+                        onClick={handleCopy}
                         className="p-1 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400"
                         title={copied ? "Copied!" : "Copy to clipboard"}
                     >
                         <CopyIcon size={12} />
                     </button>
                     <button
-                        onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                        onClick={handleDownload}
                         className="p-1 text-gray-500 hover:text-green-600 dark:hover:text-green-400"
                         title="Download as .md"
                     >
                         <DownloadIcon size={12} />
                     </button>
                 </div>
-            </button>
+            </div>
 
             {isExpanded && (
                 <div className="p-4 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 max-h-96 overflow-y-auto">

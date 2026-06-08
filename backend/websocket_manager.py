@@ -19,12 +19,15 @@ def _build_socketio_cors() -> list | str:
     env_val = os.getenv("SOCKETIO_CORS_ORIGINS", "").strip()
     if env_val:
         if env_val == "*":
+            logger.warning(
+                "SOCKETIO_CORS_ORIGINS=* allows any origin to connect via WebSocket. "
+                "Set a comma-separated allowlist in production."
+            )
             return "*"
         return [o.strip() for o in env_val.split(",") if o.strip()]
 
     is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
     if not is_production:
-        # Allow all origins in development — safe because :5000 is not public-facing
         return "*"
 
     return [

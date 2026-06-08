@@ -35,7 +35,7 @@ class APISecurityService:
 
     async def discover_endpoints(self, tenant_id: str):
         """Scan registered FastAPI routes and upsert into inventory."""
-        from app import _fastapi_app as fastapi_app
+        from app import app as fastapi_app
         discovered = []
         for route in fastapi_app.routes:
             if hasattr(route, "methods") and hasattr(route, "path"):

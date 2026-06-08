@@ -213,3 +213,146 @@ async def test_integration(
         return {"success": False, "message": f"Could not connect to {platform} endpoint. Check the URL and network access."}
     except Exception as e:
         return {"success": False, "message": f"Test failed: {str(e)}"}
+
+
+# ---------------------------------------------------------------------------
+# Ticketing / incident dispatch — Jira, ServiceNow, PagerDuty
+# ---------------------------------------------------------------------------
+
+_SEVERITY_PD = {"critical": "critical", "high": "error", "medium": "warning", "low": "info"}
+
+
+@router.post("/action")
+async def dispatch_integration_action(
+    request: dict,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """
+    Dispatch a create_ticket or create_incident action to a configured integration.
+
+    Body fields:
+      platform    – "jira" | "servicenow" | "pagerduty"
+      action      – "create_ticket" | "create_incident" (informational; both create)
+      title       – summary / title string
+      description – body text
+      severity    – "critical" | "high" | "medium" | "low"
+      case_id     – optional reference ID
+    """
+    platform = (request.get("platform") or "").lower()
+    title = request.get("title", "Omni-Agent Alert")
+    description = request.get("description", "")
+    severity = (request.get("severity") or "medium").lower()
+    case_id = request.get("case_id", "")
+
+    db = get_database()
+    config_doc = await db.integrations.find_one(
+        {"tenantId": current_user.tenant_id, "id": platform}, {"_id": 0}
+    ) or {}
+    config = config_doc.get("config", {})
+
+    try:
+        import httpx
+
+        # ── Jira ──────────────────────────────────────────────────────────────
+        if platform == "jira":
+            api_url = config.get("apiUrl") or config.get("base_url", "")
+            api_token = config.get("apiToken") or config.get("api_token", "")
+            email = config.get("email", "")
+            project_key = config.get("projectKey") or config.get("project_key", "SEC")
+            if not all([api_url, api_token]):
+                return {"success": False, "message": "Jira apiUrl and apiToken required"}
+            if not _validate_external_url(api_url):
+                return {"success": False, "message": "Invalid Jira URL"}
+            import base64
+            auth = base64.b64encode(f"{email}:{api_token}".encode()).decode()
+            payload = {
+                "fields": {
+                    "project": {"key": project_key},
+                    "summary": title,
+                    "description": {
+                        "version": 1, "type": "doc",
+                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": description}]}],
+                    },
+                    "issuetype": {"name": "Bug"},
+                    "priority": {"name": {"critical": "Highest", "high": "High", "medium": "Medium", "low": "Low"}.get(severity, "Medium")},
+                    "labels": [f"omni-agent", f"severity-{severity}"] + ([f"case-{case_id}"] if case_id else []),
+                }
+            }
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{api_url}/rest/api/3/issue",
+                    headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"},
+                    json=payload,
+                )
+            if resp.status_code == 201:
+                data = resp.json()
+                key = data.get("key", "")
+                return {"success": True, "platform": "jira", "ticket_id": key, "url": f"{api_url}/browse/{key}"}
+            return {"success": False, "message": f"Jira returned HTTP {resp.status_code}: {resp.text[:200]}"}
+
+        # ── ServiceNow ────────────────────────────────────────────────────────
+        if platform == "servicenow":
+            instance_url = (config.get("instanceUrl") or config.get("instance_url", "")).rstrip("/")
+            username = config.get("username", "")
+            password = config.get("password", "")
+            if not all([instance_url, username, password]):
+                return {"success": False, "message": "ServiceNow instanceUrl, username, and password required"}
+            if not _validate_external_url(instance_url):
+                return {"success": False, "message": "Invalid ServiceNow URL"}
+            urgency_map = {"critical": "1", "high": "2", "medium": "3", "low": "4"}
+            sn_payload = {
+                "short_description": title,
+                "description": f"{description}\n\nCase ID: {case_id}" if case_id else description,
+                "urgency": urgency_map.get(severity, "3"),
+                "impact": urgency_map.get(severity, "3"),
+                "category": "Security",
+                "subcategory": "Threat Detection",
+                "caller_id": username,
+            }
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{instance_url}/api/now/table/incident",
+                    auth=(username, password),
+                    headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    json=sn_payload,
+                )
+            if resp.status_code == 201:
+                data = resp.json().get("result", {})
+                sys_id = data.get("sys_id", "")
+                number = data.get("number", "")
+                return {"success": True, "platform": "servicenow", "incident_id": sys_id, "number": number, "url": f"{instance_url}/nav_to.do?uri=incident.do?sys_id={sys_id}"}
+            return {"success": False, "message": f"ServiceNow returned HTTP {resp.status_code}: {resp.text[:200]}"}
+
+        # ── PagerDuty ─────────────────────────────────────────────────────────
+        if platform == "pagerduty":
+            routing_key = config.get("routingKey") or config.get("routing_key") or config.get("apiKey", "")
+            if not routing_key:
+                return {"success": False, "message": "PagerDuty routingKey required"}
+            pd_payload = {
+                "routing_key": routing_key,
+                "event_action": "trigger",
+                "payload": {
+                    "summary": title,
+                    "severity": _SEVERITY_PD.get(severity, "warning"),
+                    "source": "omni-agent",
+                    "custom_details": {"description": description, "case_id": case_id},
+                },
+            }
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://events.pagerduty.com/v2/enqueue",
+                    headers={"Content-Type": "application/json"},
+                    json=pd_payload,
+                )
+            if resp.status_code == 202:
+                data = resp.json()
+                return {"success": True, "platform": "pagerduty", "dedup_key": data.get("dedup_key", ""), "message": data.get("message", "")}
+            return {"success": False, "message": f"PagerDuty returned HTTP {resp.status_code}: {resp.text[:200]}"}
+
+        return {"success": False, "message": f"Platform '{platform}' does not support action dispatch. Supported: jira, servicenow, pagerduty"}
+
+    except httpx.ConnectError:
+        return {"success": False, "message": f"Could not connect to {platform} endpoint."}
+    except Exception as e:
+        logger.error("Integration dispatch error (%s): %s", platform, e)
+        return {"success": False, "message": f"Dispatch failed: {str(e)}"}

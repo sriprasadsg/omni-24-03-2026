@@ -4,7 +4,7 @@ from database import get_database
 from datetime import datetime, timezone
 import re
 from agent_auth import verify_agent_key
-from rate_limiter import limiter
+from rate_limiter import limiter, agent_limiter
 import logging
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -12,7 +12,7 @@ logger = logging.getLogger("agent_heartbeat_endpoints")
 
 
 @router.post("/{agent_id}/heartbeat")
-@limiter.limit("60/minute")
+@agent_limiter.limit("60/minute")
 async def report_heartbeat(
     request: Request,
     response: Response,
@@ -34,7 +34,32 @@ async def report_heartbeat(
         _hb_agent_filter["tenantId"] = _hb_tenant_id
 
     existing_agent = await db.agents.find_one(_hb_agent_filter)
+
+    # ── Agent limit check — block new agents when tenant is at capacity ───────
+    if not existing_agent and _hb_tenant_id:
+        tenant_doc = await db.tenants.find_one({"id": _hb_tenant_id})
+        if tenant_doc:
+            agent_limit = tenant_doc.get("maxAgents", 5)
+            current_count = await db.agents.count_documents({"tenantId": _hb_tenant_id})
+            if current_count >= agent_limit:
+                logger.warning(
+                    "Heartbeat rejected: tenant %s at agent limit (%d/%d)",
+                    _hb_tenant_id, current_count, agent_limit,
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Agent limit reached ({agent_limit}). Please upgrade your plan to add more agents.",
+                )
+
     if existing_agent:
+        # ── Quarantine check — reject heartbeats from isolated agents ─────────
+        if existing_agent.get("quarantined"):
+            logger.warning("Heartbeat rejected: agent %s is quarantined", agent_id)
+            raise HTTPException(
+                status_code=403,
+                detail="Agent is quarantined. Contact your administrator to release it.",
+            )
+
         stored_device_id = existing_agent.get("deviceId")
         incoming_device_id = payload.get("device_id") or payload.get("deviceId")
         if stored_device_id and incoming_device_id and stored_device_id != incoming_device_id:

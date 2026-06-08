@@ -288,6 +288,36 @@ async def record_ai_feedback(
 
 from pydantic import BaseModel as _BM
 
+def _validate_ollama_url(url: str) -> str:
+    """Validate user-supplied Ollama URL — reject SSRF targets (RFC-1918, loopback, metadata)."""
+    import ipaddress
+    import socket as _sock
+    from urllib.parse import urlparse as _urlparse
+
+    if not url:
+        return url
+    parsed = _urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Ollama URL must use http or https scheme")
+    hostname = parsed.hostname or ""
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid Ollama URL: missing hostname")
+    # Allow loopback / private addresses only when explicitly set via server env var
+    # (the env-var path never goes through this validation)
+    try:
+        infos = _sock.getaddrinfo(hostname, None)
+    except _sock.gaierror:
+        raise HTTPException(status_code=400, detail=f"Cannot resolve Ollama hostname: {hostname}")
+    for info in infos:
+        addr = ipaddress.ip_address(info[4][0])
+        if addr.is_link_local or addr.is_reserved or addr.is_multicast:
+            raise HTTPException(status_code=400, detail="Ollama URL must not resolve to a reserved address")
+        # Block cloud metadata endpoints
+        if str(addr) in ("169.254.169.254", "fd00:ec2::254"):
+            raise HTTPException(status_code=400, detail="Ollama URL must not target cloud metadata services")
+    return url.rstrip("/")
+
+
 class TestConnectionBody(_BM):
     provider:   str
     api_key:    str = ""          # Not required for local/Ollama providers
@@ -319,8 +349,11 @@ async def test_llm_connection(
             if provider == "ollama":
                 from local_ip import ollama_default_url
                 import os as _os
-                base = (body.ollama_url or body.ollamaUrl or
-                        _os.getenv("OLLAMA_URL") or ollama_default_url()).rstrip("/")
+                _user_url = body.ollama_url or body.ollamaUrl or ""
+                if _user_url:
+                    base = _validate_ollama_url(_user_url)
+                else:
+                    base = (_os.getenv("OLLAMA_URL") or ollama_default_url()).rstrip("/")
                 model = body.model if body.model and ":" in body.model else (
                     _os.getenv("OLLAMA_MODEL", _os.getenv("LLM_MODEL", "llama3.2:3b"))
                 )
@@ -333,7 +366,7 @@ async def test_llm_connection(
                     available = [m["name"] for m in tags_resp.json().get("models", [])]
                 except Exception as e:
                     return {"success": False,
-                            "message": f"Cannot reach Ollama at {base}: {e}. Start Ollama with `ollama serve`."}
+                            "message": f"Cannot reach Ollama at {base}. Start Ollama with `ollama serve`."}
 
                 if not available:
                     return {"success": True,
@@ -396,5 +429,8 @@ async def test_llm_connection(
                 return {"success": False,
                         "error": f"Provider '{body.provider}' test not supported. Supported: ollama, gemini, openai, anthropic."}
 
+    except HTTPException:
+        raise
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.error("LLM test-connection error: %s", exc)
+        return {"success": False, "error": "Connection test failed. Check server logs for details."}

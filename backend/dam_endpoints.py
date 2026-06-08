@@ -1,9 +1,26 @@
 from fastapi import APIRouter, Depends, Query
+from typing import Optional
+from pydantic import BaseModel, Field
 from auth_utils import require_auth
 from database import get_db
 from dam_service import DAMService
 
 router = APIRouter(prefix="/api/dam", tags=["database-activity-monitoring"])
+
+
+class DAMQueryLog(BaseModel):
+    query: str = Field(..., min_length=1, max_length=10000)
+    database: Optional[str] = None
+    user: Optional[str] = None
+    duration_ms: Optional[float] = None
+    rows_affected: Optional[int] = None
+    query_type: Optional[str] = None
+
+
+class DAMAlertUpdate(BaseModel):
+    status: Optional[str] = None
+    note: Optional[str] = None
+    acknowledged: Optional[bool] = None
 
 
 def get_svc(db=Depends(get_db)):
@@ -31,9 +48,9 @@ async def get_alerts(severity: str = Query(None), limit: int = Query(50),
 
 
 @router.post("/queries")
-async def log_query(body: dict, user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
+async def log_query(body: DAMQueryLog, user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
-    doc = await svc.log_query(tenant_id, body)
+    doc = await svc.log_query(tenant_id, body.model_dump(exclude_none=True))
     doc["id"] = doc.pop("_id", doc.get("id"))
     return doc
 
@@ -52,10 +69,10 @@ async def seed_demo(user=Depends(require_auth), svc: DAMService = Depends(get_sv
 
 
 @router.put("/alerts/{alert_id}")
-async def update_alert(alert_id: str, body: dict, user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
+async def update_alert(alert_id: str, body: DAMAlertUpdate, user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     result = await svc.col_alerts.update_one(
-        {"_id": alert_id, "tenantId": tenant_id}, {"$set": body}
+        {"_id": alert_id, "tenantId": tenant_id}, {"$set": body.model_dump(exclude_none=True)}
     )
     if result.matched_count == 0:
         from fastapi import HTTPException

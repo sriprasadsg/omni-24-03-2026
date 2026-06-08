@@ -1825,6 +1825,7 @@ const App: React.FC = () => {
                   onOpenSearch={() => setIsGlobalSearchOpen(true)}
                   setCurrentView={handleSetCurrentView}
                   onStartTour={() => window.dispatchEvent(new Event('start-genesis-tour'))}
+                  currentView={currentView}
                 />
                 <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6'}`}>
                   <ErrorBoundary name="MainContent">

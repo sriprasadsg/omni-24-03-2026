@@ -1,13 +1,14 @@
 
 
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { useTheme, ThemeId } from '../contexts/ThemeProvider';
 import { useTimeZone } from '../contexts/TimeZoneContext';
-import { SunIcon, MoonIcon, BotIcon, HelpCircleIcon } from './icons';
+import { SunIcon, MoonIcon, BotIcon, HelpCircleIcon, InfoIcon } from './icons';
 import { User, Notification, AppView } from '../types';
 import { UserMenu } from './UserMenu';
 import NotificationCenter from './NotificationCenter';
 import ToastContainer from './ToastContainer';
+import { FeatureHelpModal } from './FeatureHelpModal';
 
 interface HeaderProps {
     allUsers: User[];
@@ -16,11 +17,13 @@ interface HeaderProps {
     onOpenSearch?: () => void;
     setCurrentView: (view: AppView) => void;
     onStartTour: () => void;
+    currentView?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpenCommandBar, onOpenSearch, setCurrentView, onStartTour }) => {
+export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpenCommandBar, onOpenSearch, setCurrentView, onStartTour, currentView = 'dashboard' }) => {
     const { themeId, setThemeId, isDarkMode, toggleDarkMode } = useTheme();
     const { timeZone, setTimeZone, availableTimeZones } = useTimeZone();
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
 
     // Theme selector removed
 
@@ -101,6 +104,15 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                             <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">⌘K</kbd>
                         </button>
 
+                        <button
+                            onClick={() => setIsHelpOpen(true)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-primary-400 hover:bg-primary-500/10 transition-all"
+                            aria-label="Feature help"
+                            title="What does this page do?"
+                        >
+                            <InfoIcon size={17} />
+                        </button>
+
                         <NotificationCenter />
 
                         <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
@@ -111,6 +123,11 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
             </div>
         </header>
         <ToastContainer />
+        <FeatureHelpModal
+            isOpen={isHelpOpen}
+            onClose={() => setIsHelpOpen(false)}
+            featureKey={currentView}
+        />
         </>
     );
 };

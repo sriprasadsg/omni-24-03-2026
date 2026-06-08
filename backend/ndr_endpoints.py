@@ -1,15 +1,33 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Optional
+from pydantic import BaseModel, Field
 from auth_utils import require_auth
 from database import get_db
 from ndr_service import NDRService
 
-_ANOMALY_ALLOWED_FIELDS = {"status", "note", "acknowledged"}
+
+class NetworkFlow(BaseModel):
+    src_ip: str = Field(..., min_length=7, max_length=45)
+    dst_ip: str = Field(..., min_length=7, max_length=45)
+    protocol: str = "tcp"
+    bytes_in: int = 0
+    bytes_out: int = 0
+    port: Optional[int] = None
+    action: str = "allowed"
+    duration_ms: Optional[float] = None
+
+
+class AnomalyUpdate(BaseModel):
+    status: Optional[str] = None
+    note: Optional[str] = None
+    acknowledged: Optional[bool] = None
 
 router = APIRouter(prefix="/api/ndr", tags=["network-detection-response"])
 
 
 def get_svc(db=Depends(get_db)):
     return NDRService(db)
+
 
 
 @router.get("/anomalies")
@@ -32,9 +50,9 @@ async def run_detection(user=Depends(require_auth), svc: NDRService = Depends(ge
 
 
 @router.post("/flows")
-async def ingest_flow(body: dict, user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
+async def ingest_flow(body: NetworkFlow, user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
-    doc = await svc.ingest_flow(tenant_id, body)
+    doc = await svc.ingest_flow(tenant_id, body.model_dump(exclude_none=True))
     doc["id"] = doc.pop("_id", doc.get("id"))
     return doc
 
@@ -53,9 +71,9 @@ async def seed(user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
 
 
 @router.put("/anomalies/{anomaly_id}")
-async def update_anomaly(anomaly_id: str, body: dict, user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
+async def update_anomaly(anomaly_id: str, body: AnomalyUpdate, user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
-    filtered = {k: v for k, v in body.items() if k in _ANOMALY_ALLOWED_FIELDS}
+    filtered = body.model_dump(exclude_none=True)
     if not filtered:
         raise HTTPException(status_code=400, detail="No valid fields to update")
     result = await svc.col_anomalies.update_one(

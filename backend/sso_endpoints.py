@@ -6,10 +6,12 @@ import os
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 from database import get_database
 from authentication_service import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from rate_limiter import limiter
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -21,11 +23,13 @@ GOOGLE_REDIRECT_URI = os.getenv("SSO_REDIRECT_URI", "http://localhost:5000/api/s
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 _env = os.getenv("ENVIRONMENT", "development").lower()
-if _env != "development" and GOOGLE_REDIRECT_URI.startswith("http://"):
-    raise RuntimeError(
-        f"SSO_REDIRECT_URI is set to a plain HTTP URL ({GOOGLE_REDIRECT_URI!r}). "
-        "OAuth authorisation codes must be delivered over HTTPS in non-development environments. "
-        "Set SSO_REDIRECT_URI to an https:// URL."
+_dev_envs = {"development", "dev", "local", "test"}
+if _env not in _dev_envs and GOOGLE_REDIRECT_URI.startswith("http://"):
+    logger.warning(
+        "SSO_REDIRECT_URI is set to a plain HTTP URL (%r). "
+        "OAuth authorisation codes must be delivered over HTTPS in production. "
+        "Set SSO_REDIRECT_URI to an https:// URL before enabling Google SSO.",
+        GOOGLE_REDIRECT_URI,
     )
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -168,11 +172,15 @@ async def google_callback(code: str, state: str = ""):
     return RedirectResponse(url=_safe_frontend_url(f"/sso-callback?code={exchange_code}&provider=google"))
 
 
+class SSOExchangeRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=256)
+
+
 @router.post("/exchange")
-async def exchange_sso_code(body: dict):
+@limiter.limit("10/minute")
+async def exchange_sso_code(request: Request, body: SSOExchangeRequest):
     """Redeem a one-time SSO exchange code for a JWT access token."""
-    code = body.get("code", "")
-    token = await _consume_sso_state(f"tok:{code}")
+    token = await _consume_sso_state(f"tok:{body.code}")
     if not token:
         raise HTTPException(status_code=401, detail="Invalid or expired SSO exchange code")
     return {"access_token": token, "token_type": "bearer"}

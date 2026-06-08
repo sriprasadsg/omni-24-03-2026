@@ -2019,6 +2019,41 @@ export const deleteAgent = async (agentId: string) => {
     }
 };
 
+export const quarantineAgent = async (agentId: string, reason: string) => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/quarantine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, notify: true }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to quarantine agent');
+    }
+    return res.json();
+};
+
+export const releaseAgent = async (agentId: string) => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/release`, { method: 'POST' });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to release agent');
+    }
+    return res.json();
+};
+
+export const setAgentSoftwareExclusion = async (agentId: string, exclude: boolean) => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/software-exclusion`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exclude }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update software exclusion');
+    }
+    return res.json();
+};
+
 export const runAgentDiagnostics = async (agentId: string): Promise<Agent> => {
     const res = await authFetch(`${API_BASE}/agents/${agentId}/diagnostics`, { method: 'POST' });
     if (!res.ok) throw new Error(`Diagnostics failed: ${res.status}`);

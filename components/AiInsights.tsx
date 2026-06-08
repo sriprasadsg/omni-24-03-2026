@@ -46,7 +46,7 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   const [history, setHistory] = useState<FeedbackLog[]>([]);
 
-  const isSecurityContext = securityEvents && securityEvents.length > 0;
+  const isSecurityContext = securityEvents !== undefined;
 
   useEffect(() => {
     try {
@@ -75,8 +75,8 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
     setFeedback(null);
     try {
       let result;
-      if (isSecurityContext && securityEvents) {
-        result = await fetchSecurityAnalysis(securityEvents);
+      if (isSecurityContext) {
+        result = await fetchSecurityAnalysis(securityEvents ?? []);
       } else if (metrics && alerts) {
         result = await fetchHealthAnalysis(metrics, alerts);
       } else {

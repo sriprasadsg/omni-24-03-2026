@@ -1,9 +1,15 @@
 import logging
 from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from tenant_context import set_tenant_id
 
 logger = logging.getLogger(__name__)
+
+# Paths exempt from IP-ban enforcement (auth flows must remain accessible
+# so admins can still log in to manage bans)
+_BAN_EXEMPT_PATHS = ["/health", "/api/health", "/docs", "/openapi.json", "/redoc", "/static"]
+
 
 class TenantMiddleware(BaseHTTPMiddleware):
     _PUBLIC_PATHS = [
@@ -21,6 +27,22 @@ class TenantMiddleware(BaseHTTPMiddleware):
     ]
 
     async def dispatch(self, request: Request, call_next):
+        # ── IP Ban check ──────────────────────────────────────────────────────
+        # Use request.client.host (actual TCP socket IP) — never the client-supplied
+        # X-Forwarded-For header, which can be trivially spoofed to bypass bans.
+        if not any(request.url.path.startswith(p) for p in _BAN_EXEMPT_PATHS):
+            client_ip = request.client.host if request.client else None
+            if client_ip:
+                try:
+                    from ip_ban_service import is_banned as _is_banned
+                    if await _is_banned(client_ip):
+                        logger.warning("Blocked banned IP: %s → %s", client_ip, request.url.path)
+                        return JSONResponse(
+                            status_code=403,
+                            content={"detail": "Access denied: your IP address has been blocked."},
+                        )
+                except Exception as _ban_err:
+                    logger.debug("IP ban check failed (non-fatal): %s", _ban_err)
         if any(request.url.path.startswith(p) for p in self._PUBLIC_PATHS):
             return await call_next(request)
 

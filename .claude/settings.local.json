@@ -29,7 +29,8 @@
       "Bash(xargs grep -l \"capabilities/configuration\\\\|capabilitySettings\")",
       "Bash(cd /d \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")",
       "Bash(Get-ChildItem -Path . -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(dir D:Downloadsenterprise-omni-agent-ai-platform *)"
     ]
   },
   "enabledMcpjsonServers": [

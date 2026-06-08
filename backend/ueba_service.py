@@ -2,7 +2,7 @@
 UEBA (User and Entity Behavior Analytics) Service
 Detects behavioral anomalies through multi-rule analysis.
 """
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -214,6 +214,29 @@ async def analyze_login(db, event: LoginEvent) -> Dict[str, Any]:
     # Cap at 100
     risk_score = min(risk_score, 100)
 
+    # ── Auto-ban IP on critical risk from brute force or known malicious IP ──
+    _AUTO_BAN_RULES = {"brute_force", "known_malicious_ip"}
+    if risk_score >= 80 and _AUTO_BAN_RULES.intersection(triggered_rules):
+        try:
+            from ip_ban_service import is_banned as _is_banned, ban_ip as _ban_ip
+            if not await _is_banned(event.ip_address):
+                ban_reason = f"Auto-banned by UEBA: risk_score={risk_score}, rules={triggered_rules}"
+                await _ban_ip(
+                    ip=event.ip_address,
+                    reason=ban_reason,
+                    banned_by="ueba_auto",
+                    auto=True,
+                    expires_hours=24,
+                )
+                await _persist_alert(
+                    db, "ip_auto_ban", "critical",
+                    f"IP Auto-Banned: {event.ip_address}",
+                    ban_reason,
+                    {"ip": event.ip_address, "user_id": event.user_id, "risk_score": risk_score},
+                )
+        except Exception as _ban_err:
+            logger.error("UEBA auto-ban failed (non-fatal): %s", _ban_err)
+
     result = {
         "user_id": event.user_id,
         "ip_address": event.ip_address,
@@ -223,6 +246,7 @@ async def analyze_login(db, event: LoginEvent) -> Dict[str, Any]:
         "reasons": reasons,
         "triggered_rules": triggered_rules,
         "is_anomalous": risk_score >= 30,
+        "ip_auto_banned": risk_score >= 80 and bool(_AUTO_BAN_RULES.intersection(triggered_rules)),
     }
     return result
 
@@ -293,11 +317,13 @@ async def analyze_event(
     body: Dict[str, Any],
     background_tasks: BackgroundTasks,
     db=Depends(get_database),
+    current_user=Depends(get_current_user),
 ):
     """
     Unified UEBA analyze endpoint.
     Routes to analyze_login or analyze_data_access based on event_type.
     Returns { risk_score, flags, recommendations, is_anomalous }.
+    Requires authentication — unauthenticated callers cannot trigger auto-ban.
     """
     now = datetime.now(timezone.utc).isoformat()
     event_type = body.get("event_type", "login")

@@ -195,6 +195,16 @@ async def bulk_delete_agents_route(
     return {"success": True, "deleted": result.deleted_count}
 
 
+# Fields that may be bulk-patched by non-super-admins.
+# Sensitive identity/security fields (tenantId, role, quarantined, deviceId, etc.)
+# are intentionally excluded to prevent mass-assignment privilege escalation.
+_BULK_PATCH_ALLOWED_FIELDS = frozenset({
+    "status", "hostname", "version", "ipAddress", "platform",
+    "availableCapabilities", "meta", "notes", "tags",
+    "excludeFromSoftwareOps", "softwareExclusionUpdatedAt", "softwareExclusionUpdatedBy",
+})
+
+
 @router.patch("/bulk")
 async def bulk_update_agents_route(
     body: Dict[str, Any] = Body(...),
@@ -206,8 +216,19 @@ async def bulk_update_agents_route(
     patch = body.get("patch", {})
     if not ids or not patch:
         raise HTTPException(status_code=400, detail="ids and patch are required")
-    patch.pop("id", None)
+
     user_role = getattr(current_user, "role", "user")
+
+    # Super admins may patch any field; regular users are restricted to the allowlist
+    # to prevent overwriting tenantId, role, quarantined, deviceId, or other sensitive fields.
+    if not is_super_admin(user_role):
+        patch = {k: v for k, v in patch.items() if k in _BULK_PATCH_ALLOWED_FIELDS}
+        if not patch:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No patchable fields provided. Allowed: {sorted(_BULK_PATCH_ALLOWED_FIELDS)}",
+            )
+
     query: Dict[str, Any] = {"id": {"$in": ids}}
     if not is_super_admin(user_role):
         _ac_tenant = getattr(current_user, "tenant_id", None) or None
@@ -263,6 +284,34 @@ async def get_agent_configuration(agent_id: str, _tenant: Dict[str, Any] = Depen
     return {"enabledCapabilities": capabilities, "collectionIntervals": intervals}
 
 
+
+
+@router.patch("/{agent_id}/software-exclusion")
+async def set_software_exclusion(
+    agent_id: str,
+    body: Dict[str, Any] = Body(...),
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+):
+    """Toggle whether an agent is excluded from software management operations."""
+    exclude = bool(body.get("exclude", False))
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)
+
+    query: Dict[str, Any] = {"id": agent_id}
+    if not is_super_admin(caller_role) and caller_tenant:
+        query["tenantId"] = caller_tenant
+
+    agent = await db.agents.find_one(query, {"_id": 0, "id": 1})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    await db.agents.update_one(query, {"$set": {
+        "excludeFromSoftwareOps": exclude,
+        "softwareExclusionUpdatedAt": datetime.now(timezone.utc).isoformat(),
+        "softwareExclusionUpdatedBy": getattr(current_user, "username", "admin"),
+    }})
+    return {"success": True, "agent_id": agent_id, "excludeFromSoftwareOps": exclude}
 
 
 @router.post("/{agent_id}/diagnostics")

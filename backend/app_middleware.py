@@ -72,7 +72,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # unsafe-inline needed for Vite dev; tighten in prod
+            "script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: https:; "
             "connect-src 'self' ws: wss:; "
@@ -87,10 +87,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
-        if request.url.scheme == "https":
-            response.headers.setdefault(
-                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-            )
+        # Set HSTS unconditionally — when behind a TLS-terminating reverse proxy
+        # the internal scheme is http but browsers receive the header over HTTPS.
+        # The header is harmless on plain-HTTP responses.
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
         return response
 
 

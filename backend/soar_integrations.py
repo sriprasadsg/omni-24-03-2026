@@ -108,10 +108,58 @@ class JiraConnector(IntegrationConnector):
             return {"status": "error", "message": str(e)}
 
     async def _update_ticket(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return {"status": "success", "message": "Ticket updated"}
+        base_url = self.config.get("base_url")
+        api_token = self.config.get("api_token")
+        email = self.config.get("email")
+        issue_key = params.get("issue_key")
+        if not all([base_url, api_token, email, issue_key]):
+            return {"status": "error", "message": "Missing required config or issue_key param"}
+        payload = {"fields": params.get("fields", {})}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.put(
+                    f"{base_url}/rest/api/3/issue/{issue_key}",
+                    auth=aiohttp.BasicAuth(email, api_token),
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    ssl=_SSL_VERIFY,
+                ) as response:
+                    if response.status in (200, 204):
+                        return {"status": "success", "issue_key": issue_key}
+                    return {"status": "error", "message": f"Jira returned {response.status}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     async def _add_comment(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return {"status": "success", "message": "Comment added"}
+        base_url = self.config.get("base_url")
+        api_token = self.config.get("api_token")
+        email = self.config.get("email")
+        issue_key = params.get("issue_key")
+        if not all([base_url, api_token, email, issue_key]):
+            return {"status": "error", "message": "Missing required config or issue_key param"}
+        comment_text = params.get("comment", "")
+        payload = {
+            "body": {
+                "version": 1,
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": [{"type": "text", "text": comment_text}]}],
+            }
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/rest/api/3/issue/{issue_key}/comment",
+                    auth=aiohttp.BasicAuth(email, api_token),
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    ssl=_SSL_VERIFY,
+                ) as response:
+                    if response.status == 201:
+                        data = await response.json()
+                        return {"status": "success", "comment_id": data.get("id")}
+                    return {"status": "error", "message": f"Jira returned {response.status}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
 
 class IntegrationManager:

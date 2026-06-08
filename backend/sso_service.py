@@ -14,8 +14,19 @@ import urllib.parse
 from datetime import datetime, timezone
 from database import get_database
 
-# In-memory OIDC state store (nonce → { provider, redirect_uri, expires })
+# In-memory OIDC state store (nonce → { provider, redirect_uri, expires_at })
+# States expire after 10 minutes; expired entries are pruned on each write.
 _oidc_states: dict = {}
+_OIDC_STATE_TTL_SECONDS = 600  # 10 minutes
+
+
+def _prune_oidc_states() -> None:
+    """Remove expired OIDC state entries to prevent unbounded memory growth."""
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc).timestamp()
+    expired = [k for k, v in _oidc_states.items() if v.get("expires_at", 0) < now]
+    for k in expired:
+        del _oidc_states[k]
 
 
 # ─── OIDC Provider Configs (well-known providers) ─────────────────────────────
@@ -92,7 +103,7 @@ async def save_sso_config(tenant_id: str, config: dict) -> dict:
         "client_secret": config.get("client_secret"),
         "okta_domain": config.get("okta_domain"),
         "azure_tenant_id": config.get("azure_tenant_id"),
-        "redirect_uri": config.get("redirect_uri", "http://localhost:3000/api/sso/oidc/callback"),
+        "redirect_uri": config.get("redirect_uri", "https://localhost:3000/api/sso/oidc/callback"),
     }
     await db.sso_configs.update_one(
         {"config_id": config_id, "tenant_id": tenant_id},
@@ -123,11 +134,14 @@ def build_oidc_auth_url(config: dict) -> str:
     elif provider_key == "okta":
         auth_endpoint = auth_endpoint.replace("{okta_domain}", config.get("okta_domain", ""))
     
+    from datetime import datetime as _dt, timezone as _tz
     state = secrets.token_urlsafe(32)
     nonce = secrets.token_urlsafe(16)
+    _prune_oidc_states()
     _oidc_states[state] = {
         "config_id": config.get("config_id"),
         "nonce": nonce,
+        "expires_at": _dt.now(_tz.utc).timestamp() + _OIDC_STATE_TTL_SECONDS,
     }
     
     params = {
@@ -146,8 +160,11 @@ async def handle_oidc_callback(code: str, state: str) -> dict:
     Exchange auth code for user info and provision/return user.
     Returns: { success, email, name, provider }
     """
+    from datetime import datetime as _dt, timezone as _tz
     state_data = _oidc_states.pop(state, None)
     if not state_data:
+        return {"success": False, "error": "Invalid or expired OAuth state"}
+    if state_data.get("expires_at", 0) < _dt.now(_tz.utc).timestamp():
         return {"success": False, "error": "Invalid or expired OAuth state"}
 
     db = get_database()
@@ -279,8 +296,15 @@ async def provision_sso_user(email: str, name: str, provider: str, tenant_id: st
     Returns the user document.
     """
     db = get_database()
+
+    # Validate that the requested tenant actually exists — prevents an attacker from
+    # provisioning themselves into an arbitrary tenant by supplying a forged tenant_id.
+    tenant_doc = await db.tenants.find_one({"id": tenant_id}, {"_id": 0, "id": 1})
+    if not tenant_doc:
+        raise ValueError(f"SSO provisioning rejected: tenant '{tenant_id}' does not exist.")
+
     user = await db.users.find_one({"email": email})
-    
+
     if not user:
         # First SSO login — provision the user
         import bcrypt
