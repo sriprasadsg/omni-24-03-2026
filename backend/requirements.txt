@@ -13,7 +13,7 @@ wheel>=0.43.0
 fastapi>=0.110.0,<1.0.0
 uvicorn[standard]>=0.28.0
 python-multipart>=0.0.9        # File upload parsing (multipart/form-data)
-starlette>=0.37.0              # FastAPI dependency
+starlette>=0.52.1              # FastAPI dependency
 urllib3>=2.6.3                  # CVE-2025-50181/50182/66418/66471/CVE-2026-21441 fixed in 2.6.3
 
 # ── Authentication & Security ────────────────────────────────────────────────
