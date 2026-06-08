@@ -1,5 +1,5 @@
 import React from 'react';
-import { SearchIcon, ServerIcon } from './icons';
+import { SearchIcon, ServerIcon, ShieldIcon } from './icons';
 import { Agent } from '../types';
 
 interface Props {
@@ -28,7 +28,14 @@ export function SoftwareAgentSelector({
                             className="w-full bg-slate-900 border border-slate-700/50 rounded pl-9 pr-4 py-1.5 focus:outline-none focus:border-blue-500/50"
                         />
                     </div>
-                    <div className="text-sm text-slate-400">Showing {filteredAgents.length} agents</div>
+                    <div className="text-sm text-slate-400">
+                        Showing {filteredAgents.filter(a => !(a as any).excludeFromSoftwareOps).length} eligible
+                        {filteredAgents.some(a => (a as any).excludeFromSoftwareOps) && (
+                            <span className="ml-2 text-amber-400/70 text-xs">
+                                · {filteredAgents.filter(a => (a as any).excludeFromSoftwareOps).length} excluded
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-left border-collapse">
@@ -49,25 +56,35 @@ export function SoftwareAgentSelector({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/50">
-                            {filteredAgents.map(agent => (
+                            {filteredAgents.map(agent => {
+                                const isExcluded = !!(agent as any).excludeFromSoftwareOps;
+                                return (
                                 <tr
                                     key={agent.id}
-                                    className={`hover:bg-slate-800/30 transition-colors cursor-pointer ${selectedAgentIds.has(agent.id) ? 'bg-blue-500/5' : ''}`}
-                                    onClick={() => onToggle(agent.id)}
+                                    className={`transition-colors ${isExcluded ? 'opacity-40 cursor-not-allowed bg-amber-500/5' : `hover:bg-slate-800/30 cursor-pointer ${selectedAgentIds.has(agent.id) ? 'bg-blue-500/5' : ''}`}`}
+                                    onClick={() => !isExcluded && onToggle(agent.id)}
+                                    title={isExcluded ? 'This agent is excluded from software operations' : undefined}
                                 >
                                     <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                                         <input
                                             type="checkbox"
-                                            checked={selectedAgentIds.has(agent.id)}
-                                            onChange={() => onToggle(agent.id)}
-                                            className="rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-0"
+                                            checked={!isExcluded && selectedAgentIds.has(agent.id)}
+                                            disabled={isExcluded}
+                                            onChange={() => !isExcluded && onToggle(agent.id)}
+                                            className="rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-0 disabled:cursor-not-allowed"
                                         />
                                     </td>
                                     <td className="p-4 flex items-center space-x-3">
-                                        <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center">
+                                        <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center relative">
                                             <ServerIcon className="w-4 h-4 text-slate-400" />
+                                            {isExcluded && (
+                                                <ShieldIcon size={10} className="absolute -top-1 -right-1 text-amber-400" />
+                                            )}
                                         </div>
                                         <span className="font-medium text-slate-200">{agent.hostname}</span>
+                                        {isExcluded && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">EXCLUDED</span>
+                                        )}
                                     </td>
                                     <td className="p-4 text-slate-300">{agent.platform}</td>
                                     <td className="p-4">
@@ -77,7 +94,8 @@ export function SoftwareAgentSelector({
                                     </td>
                                     <td className="p-4 text-slate-400 font-mono text-sm">{agent.ipAddress}</td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                             {filteredAgents.length === 0 && (
                                 <tr>
                                     <td colSpan={5} className="p-8 text-center text-slate-500">No agents found matching filter.</td>

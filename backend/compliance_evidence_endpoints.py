@@ -4,10 +4,11 @@ import asyncio
 import logging
 import os
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
-from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary
+from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,14 @@ async def upload_compliance_evidence(
             if not asset:
                 raise HTTPException(status_code=403, detail="Asset not found in your tenant")
 
-        file_ext = os.path.splitext(file.filename or "")[1]
+        file_ext = os.path.splitext(file.filename or "")[1].lower()
+        # Whitelist extension and MIME type
+        if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
+        content_type = (file.content_type or "").split(";")[0].strip()
+        if content_type and not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
         safe_filename = f"{uuid.uuid4().hex}{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
@@ -140,21 +148,19 @@ async def download_compliance_evidence(
         )
 
     file_url = evidence.get("url", "")
-    possible_filename = os.path.basename(file_url)
+    possible_filename = Path(file_url).name  # strip path components
     if not possible_filename or possible_filename.startswith("."):
         raise HTTPException(status_code=400, detail="Invalid evidence file reference")
 
-    file_path = os.path.join(UPLOAD_DIR, possible_filename)
+    # Resolve and confine to upload directory — prevent path traversal
+    _safe_dir = Path(UPLOAD_DIR).resolve()
+    file_path_resolved = (_safe_dir / possible_filename).resolve()
+    if not str(file_path_resolved).startswith(str(_safe_dir)):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    file_path = str(file_path_resolved)
+
     if not os.path.exists(file_path):
-        raw_name = evidence.get("name") or ""
-        safe_name = os.path.basename(raw_name)
-        if not safe_name or safe_name.startswith("."):
-            raise HTTPException(status_code=404, detail="Evidence file not found on server")
-        fallback_path = os.path.join(UPLOAD_DIR, safe_name)
-        if os.path.exists(fallback_path):
-            file_path = fallback_path
-        else:
-            raise HTTPException(status_code=404, detail="Evidence file not found on server")
+        raise HTTPException(status_code=404, detail="Evidence file not found on server")
 
     filename = os.path.basename(file_path)
     return FileResponse(

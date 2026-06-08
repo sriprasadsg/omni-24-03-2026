@@ -225,12 +225,16 @@ async def submit_task_feedback(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Submit execution feedback for a completed task."""
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    caller_role = getattr(current_user, "role", "")
     success = await orchestrator.record_feedback(
         task_id=task_id,
         success=feedback.success,
         false_positive=feedback.false_positive,
         message=feedback.message,
         reported_by=feedback.reported_by,
+        tenant_id=caller_tenant,
+        is_super_admin=caller_role in {"super_admin", "Super Admin", "superadmin", "platform-admin"},
     )
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")

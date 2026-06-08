@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from auth_utils import require_auth
 
 _RETENTION_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
@@ -7,6 +8,10 @@ from database import get_db, get_database
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/retention", tags=["retention"])
+
+
+class RetentionPolicyUpdate(BaseModel):
+    retention_days: int = Field(90, ge=1, le=3650)
 
 # Seed defaults used only when the DB collection is empty
 _POLICY_DEFAULTS = {
@@ -19,13 +24,17 @@ _POLICY_DEFAULTS = {
 
 
 async def _ensure_seeded(db):
-    """Seed default policies into DB if the collection is empty."""
-    if await db.retention_policies.count_documents({}) == 0:
-        docs = [
-            {"collection": k, **v, "updated_at": datetime.now(timezone.utc).isoformat()}
-            for k, v in _POLICY_DEFAULTS.items()
-        ]
-        await db.retention_policies.insert_many(docs)
+    """Upsert default policies so seeding is idempotent and race-safe."""
+    for collection_name, defaults in _POLICY_DEFAULTS.items():
+        await db.retention_policies.update_one(
+            {"collection": collection_name},
+            {"$setOnInsert": {
+                "collection": collection_name,
+                **defaults,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
 
 
 def get_svc(db=Depends(get_db)):
@@ -37,7 +46,13 @@ async def get_policies(user=Depends(require_auth)):
     db = get_database()
     await _ensure_seeded(db)
     docs = await db.retention_policies.find({}, {"_id": 0}).to_list(length=100)
-    return {"policies": docs}
+    seen: set = set()
+    unique_docs = []
+    for doc in docs:
+        if doc["collection"] not in seen:
+            seen.add(doc["collection"])
+            unique_docs.append(doc)
+    return {"policies": unique_docs}
 
 
 @router.post("/run")
@@ -57,7 +72,7 @@ async def run_cleanup(user=Depends(require_auth), svc: RetentionService = Depend
 
 
 @router.post("/policies/{collection}")
-async def update_policy(collection: str, body: dict, user=Depends(require_auth)):
+async def update_policy(collection: str, body: RetentionPolicyUpdate, user=Depends(require_auth)):
     if getattr(user, "role", None) not in _RETENTION_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin role required")
     db = get_database()
@@ -66,7 +81,7 @@ async def update_policy(collection: str, body: dict, user=Depends(require_auth))
     existing = {doc["collection"] for doc in await db.retention_policies.find({}, {"collection": 1, "_id": 0}).to_list(length=100)}
     if collection not in known and collection not in existing:
         return {"error": "Unknown collection"}, 404
-    days = int(body.get("retention_days", 90))
+    days = body.retention_days
     await db.retention_policies.update_one(
         {"collection": collection},
         {"$set": {"retention_days": days, "updated_at": datetime.now(timezone.utc).isoformat()}},

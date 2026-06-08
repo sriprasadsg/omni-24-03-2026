@@ -238,62 +238,37 @@ class BinaryAnalysisService:
 
     def _sandbox_observe(self, data: bytes, filename: str) -> Dict[str, Any]:
         """
-        Write binary to a temp file, spawn it in a subprocess with a 5s timeout,
-        and observe the processes created and files modified.
-        This is a SAFE observation-only sandbox — not a true hypervisor sandbox.
-        WARNING: Only call this for files unlikely to be network propagators.
+        Static-analysis-only sandbox: reports file size, entropy, and magic bytes
+        without executing the uploaded binary.  Actual execution is disabled —
+        running untrusted binaries on the host OS constitutes RCE.
         """
+        import math
         result: Dict[str, Any] = {
             "spawned": False,
             "exit_code": None,
             "child_processes": [],
             "files_created": [],
             "error": None,
-            "observation_seconds": 5,
+            "observation_seconds": 0,
+            "note": "Dynamic execution disabled for security. Static analysis only.",
         }
 
-        if platform.system() not in ("Windows", "Linux"):
-            result["error"] = "Sandbox observation only supported on Windows/Linux"
-            return result
-
-        # Snapshot before
-        before_procs = self._snapshot_processes()
-        tmpdir = tempfile.mkdtemp(prefix="omni_sandbox_")
-        tmpfile = os.path.join(tmpdir, filename)
-
         try:
-            with open(tmpfile, "wb") as f:
-                f.write(data)
+            # Byte-frequency entropy (Shannon)
+            if data:
+                freq = [0] * 256
+                for b in data:
+                    freq[b] += 1
+                entropy = -sum((c / len(data)) * math.log2(c / len(data))
+                               for c in freq if c)
+            else:
+                entropy = 0.0
+            result["static"] = {
+                "size_bytes": len(data),
+                "entropy": round(entropy, 4),
+                "magic_bytes": data[:16].hex() if data else "",
+            }
 
-            # Run with restricted privileges and short timeout
-            proc = subprocess.Popen(
-                [tmpfile],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                cwd=tmpdir,
-                shell=False,
-            )
-            result["spawned"] = True
-            try:
-                proc.wait(timeout=5)
-                result["exit_code"] = proc.returncode
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                result["exit_code"] = "timeout"
-
-            # Snapshot after
-            after_procs = self._snapshot_processes()
-            new_procs = after_procs - before_procs
-            result["child_processes"] = list(new_procs)[:10]
-
-            # Check for new files in tmpdir
-            for root, _, files in os.walk(tmpdir):
-                for fname in files:
-                    if fname != filename:
-                        result["files_created"].append(os.path.join(root, fname))
-
-        except PermissionError as e:
-            result["error"] = f"Permission denied — run with elevated privileges: {e}"
         except Exception as e:
             result["error"] = str(e)
         finally:

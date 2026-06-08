@@ -349,6 +349,46 @@ taskkill /PID <PID> /F
 
 ---
 
+## 🤖 Optional: Enable ML-Based Predictive Health
+
+By default the platform uses weighted heuristics for patch failure prediction.
+To enable the Random Forest + Isolation Forest ML models:
+
+```powershell
+cd backend
+python train_ml_models.py
+```
+
+The script tries to train on real MongoDB data first; if fewer than 50 deployment
+records exist it seeds with synthetic data so the ML path is active immediately.
+Restart the backend after training to load the saved models from `backend/models/`.
+
+---
+
+## 💳 Payment Gateway Configuration
+
+The platform supports Stripe, PayPal, and a **Manual / Bank-Transfer** gateway
+(used automatically when no Stripe or PayPal credentials are configured).
+
+### PayPal — Sandbox vs. Live
+
+PayPal mode is set per-tenant in the payment credentials stored in MongoDB.
+To switch a tenant to live mode, update their `paymentCredentials` document:
+
+```json
+{ "mode": "live", "client_id": "...", "client_secret": "..." }
+```
+
+The default is `"mode": "sandbox"` (safe for development/testing).
+
+### Manual Gateway
+
+Any tenant without Stripe or PayPal credentials automatically uses the Manual
+gateway. Invoices, subscriptions, and charges are persisted to MongoDB and marked
+`gateway: "manual"` — administrators reconcile payments offline.
+
+---
+
 ## 🚀 Production Deployment Checklist
 
 - [ ] Change default passwords
@@ -362,6 +402,8 @@ taskkill /PID <PID> /F
 - [ ] Configure backup strategy
 - [ ] Update `MONGODB_URL` in `.env` to production database
 - [ ] Set appropriate CORS origins in `backend/app.py`
+- [ ] Run `python train_ml_models.py` to enable ML-based predictive health
+- [ ] Set PayPal `mode` to `"live"` in tenant payment credentials for production billing
 
 ---
 

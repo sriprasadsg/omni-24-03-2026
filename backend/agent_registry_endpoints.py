@@ -125,7 +125,7 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         logger.warning("Evidence collection dispatch failed for host %s: %s", hostname, e)
 
     token_data = {"sub": agent_id, "role": "agent", "tenant_id": tenant["id"], "jti": str(uuid.uuid4())}
-    access_token = create_access_token(data=token_data, expires_delta=timedelta(days=3650))
+    access_token = create_access_token(data=token_data, expires_delta=timedelta(days=90))
     return {"success": True, "agentId": agent_id, "token": access_token}
 
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Agent, AgentPlatform, AgentStatus, AgentCapability, Asset, VulnerabilitySeverity, Tenant } from '../types';
-import { XIcon, ServerIcon, CheckIcon, XCircleIcon, AlertCircleIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, BarChart3Icon, ShieldSearchIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, CogIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, HistoryIcon, ShieldAlertIcon, TerminalSquareIcon, ArrowRightIcon, ZapIcon, SearchIcon, NetworkIcon, CloudShieldIcon, GlobeIcon, EyeIcon, BotIcon, PackageCheckIcon, BoxIcon, TestTubeIcon, ActivityIcon, SendIcon, RadarIcon, BinocularsIcon, ClipboardCheckIcon, HeartHandshakeIcon, DownloadIcon, WorkflowIcon, BrainCircuitIcon, RefreshCwIcon, DatabaseIcon, HardDriveIcon } from './icons';
+import { XIcon, ServerIcon, CheckIcon, XCircleIcon, AlertCircleIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, BarChart3Icon, ShieldSearchIcon, ShieldIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, CogIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, HistoryIcon, ShieldAlertIcon, TerminalSquareIcon, ArrowRightIcon, ZapIcon, SearchIcon, NetworkIcon, CloudShieldIcon, GlobeIcon, EyeIcon, BotIcon, PackageCheckIcon, BoxIcon, TestTubeIcon, ActivityIcon, SendIcon, RadarIcon, BinocularsIcon, ClipboardCheckIcon, HeartHandshakeIcon, DownloadIcon, WorkflowIcon, BrainCircuitIcon, RefreshCwIcon, DatabaseIcon, HardDriveIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { RuntimeSecurityTab } from './RuntimeSecurityTab';
@@ -30,6 +30,7 @@ const statusInfo: Record<AgentStatus, { icon: React.ReactNode; textClass: string
     Online: { icon: <CheckIcon size={16} />, textClass: 'text-green-600 dark:text-green-400' },
     Offline: { icon: <XCircleIcon size={16} />, textClass: 'text-gray-500' },
     Error: { icon: <AlertCircleIcon size={16} />, textClass: 'text-red-600 dark:text-red-400' },
+    Quarantined: { icon: <ShieldIcon size={16} />, textClass: 'text-amber-600 dark:text-amber-400' },
 };
 
 const platformIcons: Record<AgentPlatform, React.ReactNode> = {

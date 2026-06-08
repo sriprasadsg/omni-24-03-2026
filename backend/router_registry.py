@@ -66,6 +66,7 @@ def register_all_routers(app: FastAPI) -> None:
     # ── Security & Threat Management ──────────────────────────────────────────
     _load(app, "edr_telemetry_endpoints",  "router")
     _load(app, "response_endpoints",       "router")
+    _load(app, "mdr_endpoints",            "router")
     _load(app, "security_endpoints",       "router")
     _load(app, "vuln_endpoints",           "router")
     _load(app, "threat_endpoints",         "router")
@@ -77,8 +78,10 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "pentest_endpoints",        "router")
     _load(app, "zero_trust_service",       "router")
     _load(app, "trust_endpoints",          "router")
-    _load(app, "ueba_service",             "router")
-    _load(app, "persistence_endpoints",    "router")
+    _load(app, "ueba_service",                "router")
+    _load(app, "ip_ban_endpoints",            "router")
+    _load(app, "agent_quarantine_endpoints",  "router")
+    _load(app, "persistence_endpoints",       "router")
     _load(app, "mitre_endpoints",          "router")
     _load(app, "dast_service",             "router")
     _load(app, "sast_endpoints",           "router")
@@ -168,6 +171,10 @@ def register_all_routers(app: FastAPI) -> None:
     # ── Certificate / TLS Tracking ────────────────────────────────────────────
     _load(app, "certificate_endpoints",      "router")
 
+    # ── Post-Quantum Cryptography & Provenance ────────────────────────────────
+    _load(app, "pqc_endpoints",          "router")
+    _load(app, "provenance_endpoints",   "router")
+
     # ── Observability & Platform ──────────────────────────────────────────────
     _load(app, "network_endpoints",          "router")
     _load(app, "cloud_account_endpoints",    "router")
@@ -235,9 +242,9 @@ def register_all_routers(app: FastAPI) -> None:
         ("supply_chain_security_endpoints", {}),
         ("supply_chain_endpoints",          {}),
         ("code_review_graph_endpoints",     {}),
-        ("tickets_endpoints",               {}),
-        ("tickets_config_endpoints",        {}),
         ("tickets_workflow_endpoints",      {}),
+        ("tickets_config_endpoints",        {}),
+        ("tickets_endpoints",               {}),
         ("problem_management_endpoints",    {}),
         ("change_management_endpoints",     {}),
         ("support_endpoints",               {}),

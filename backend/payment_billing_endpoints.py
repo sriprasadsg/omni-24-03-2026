@@ -3,7 +3,7 @@ Payment billing endpoints: subscriptions, charges, invoices, webhooks, and usage
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -26,7 +26,7 @@ class SubscriptionCreate(BaseModel):
 
 
 class ChargeCreate(BaseModel):
-    amount: int
+    amount: int = Field(..., gt=0, description="Charge amount in smallest currency unit (e.g. cents). Must be positive.")
     currency: str = "USD"
     description: str
 
@@ -124,6 +124,9 @@ async def download_invoice_pdf(
     current_user: TokenData = Depends(get_current_user),
 ):
     """Generate and download invoice PDF."""
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z0-9_\-]{1,100}", invoice_id):
+        raise HTTPException(status_code=400, detail="Invalid invoice ID format")
     db = get_database()
     tenant_id = current_user.tenant_id
     invoice = await db.invoices.find_one({"invoiceNumber": invoice_id, "tenantId": tenant_id})
@@ -141,27 +144,38 @@ async def download_invoice_pdf(
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
 @router.post("/cancel-subscription")
 async def cancel_subscription(current_user: TokenData = Depends(get_current_user)):
-    """Cancel active subscription."""
+    """Cancel active subscription — atomic claim prevents double-cancellation."""
     db = get_database()
     tenant_id = current_user.tenant_id
-    subscription_doc = await db.subscriptions.find_one({"tenantId": tenant_id, "status": "active"})
+    # Atomically transition active → cancelling so concurrent requests are blocked
+    subscription_doc = await db.subscriptions.find_one_and_update(
+        {"tenantId": tenant_id, "status": "active"},
+        {"$set": {"status": "cancelling", "cancelRequestedAt": datetime.now(timezone.utc).isoformat()}},
+        return_document=True,
+    )
     if not subscription_doc:
         raise HTTPException(status_code=404, detail="No active subscription found")
     gateway, _ = await get_tenant_gateway(db, tenant_id)
-    result = await gateway.cancel_subscription(subscription_doc["gatewaySubscriptionId"])
-    await db.subscriptions.update_one(
-        {"_id": subscription_doc["_id"]},
-        {"$set": {
-            "status": "canceled",
-            "canceledAt": datetime.fromtimestamp(result["canceled_at"], tz=timezone.utc).isoformat(),
-        }},
-    )
+    try:
+        result = await gateway.cancel_subscription(subscription_doc["gatewaySubscriptionId"])
+        canceled_at = datetime.fromtimestamp(result.get("canceled_at", 0) or 0, tz=timezone.utc).isoformat()
+        await db.subscriptions.update_one(
+            {"_id": subscription_doc["_id"]},
+            {"$set": {"status": "canceled", "canceledAt": canceled_at}},
+        )
+    except Exception:
+        # Roll back to active if gateway call fails
+        await db.subscriptions.update_one(
+            {"_id": subscription_doc["_id"]},
+            {"$set": {"status": "active", "cancelRequestedAt": None}},
+        )
+        raise
     await db.tenants.update_one({"id": tenant_id}, {"$set": {"subscriptionTier": "Free"}})
     return {"success": True, "message": "Subscription canceled successfully"}
 

@@ -1,40 +1,50 @@
 import asyncio
+import os
+import secrets
 from database import get_database, connect_to_mongo
 from auth_utils import hash_password
 
 async def reset_super_admin_password():
     await connect_to_mongo()
     db = get_database()
-    
+
+    env_password = os.getenv("ADMIN_RESET_PASSWORD")
+    if env_password:
+        new_password = env_password
+        print("ℹ️  Using password from ADMIN_RESET_PASSWORD env var.")
+    else:
+        new_password = secrets.token_urlsafe(16)
+        print("⚠️  ADMIN_RESET_PASSWORD not set — generated a random password.")
+        print(f"   *** SAVE THIS PASSWORD NOW: {new_password} ***")
+
     # First, check if user exists
     user = await db.users.find_one({'email': 'super@omni.ai'})
-    
+
     if not user:
         print("❌ User super@omni.ai not found!")
         print("Creating new super admin user...")
-        
+
         new_user = {
             "email": "super@omni.ai",
             "name": "Super Admin",
             "role": "Super Admin",
-            "password": hash_password("admin123"),
+            "password": hash_password(new_password),
             "tenantId": "platform",
             "createdAt": "2025-12-19T13:30:00Z"
         }
-        
+
         result = await db.users.insert_one(new_user)
         print(f"✅ Created new super admin user with ID: {result.inserted_id}")
     else:
         print(f"✅ Found user: {user.get('email')}")
         print(f"   Role: {user.get('role')}")
-        
-        # Update password
-        new_hash = hash_password("admin123")
+
+        new_hash = hash_password(new_password)
         await db.users.update_one(
             {'email': 'super@omni.ai'},
             {'$set': {'password': new_hash}}
         )
-        print("✅ Password updated to: admin123")
+        print("✅ Password updated successfully.")
         print(f"   New hash starts with: {new_hash[:20]}...")
 
     # Verify the update worked

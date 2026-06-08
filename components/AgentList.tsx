@@ -32,6 +32,8 @@ interface AgentListProps {
     onRemoteControl: (agent: Agent) => void;
     filters: Filter[];
     onDeleteAgent?: (agent: Agent) => void;
+    onQuarantineAgent?: (agent: Agent) => void;
+    onToggleSoftwareExclusion?: (agent: Agent) => void;
 }
 
 const statusInfo: Record<AgentStatus, {
@@ -54,6 +56,11 @@ const statusInfo: Record<AgentStatus, {
         cardBorder: 'border-l-4 border-red-500',
         badgeClasses: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-bold',
     },
+    Quarantined: {
+        icon: <ShieldIcon size={14} className="mr-1.5" />,
+        cardBorder: 'border-l-4 border-amber-500',
+        badgeClasses: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 font-bold',
+    },
 };
 
 const platformIcons: Record<AgentPlatform, React.ReactNode> = {
@@ -65,7 +72,7 @@ const platformIcons: Record<AgentPlatform, React.ReactNode> = {
     'AWS EC2': <ServerIcon size={20} className="text-orange-500" />,
 };
 
-const statusOptions: ('All' | AgentStatus)[] = ['All', 'Online', 'Offline', 'Error'];
+const statusOptions: ('All' | AgentStatus)[] = ['All', 'Online', 'Offline', 'Error', 'Quarantined'];
 
 const parseLastSeen = (lastSeen: string): number => {
     // A more robust parser
@@ -107,8 +114,10 @@ const AgentCard: React.FC<{
     canRemediate: boolean;
     canViewLogs: boolean;
     onDeleteAgent?: (agent: Agent) => void;
+    onQuarantineAgent?: (agent: Agent) => void;
+    onToggleSoftwareExclusion?: (agent: Agent) => void;
     onRequestDelete: (agent: Agent) => void;
-}> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, onRemoteControl, canRemediate, canViewLogs, onDeleteAgent, onRequestDelete }) => {
+}> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, onRemoteControl, canRemediate, canViewLogs, onDeleteAgent, onQuarantineAgent, onToggleSoftwareExclusion, onRequestDelete }) => {
     const info = statusInfo[agent.status] || statusInfo.Offline;
     const { timeZone } = useTimeZone();
 
@@ -227,6 +236,24 @@ const AgentCard: React.FC<{
                                     <button disabled={isUpgrading || agent.status === 'Offline'} onClick={(e) => { e.stopPropagation(); onRemoteControl(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:text-gray-400 dark:hover:text-purple-400 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Remote Control Terminal"><TerminalSquareIcon size={16} /></button>
                                     <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRestartAgent(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Restart Agent"><RefreshCwIcon size={16} /></button>
                                     <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRunDiagnostics(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-green-600 hover:bg-green-50 dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Run Diagnostics"><TerminalSquareIcon size={16} /></button>
+                                    {onQuarantineAgent && agent.status !== 'Quarantined' && (
+                                        <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onQuarantineAgent(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:text-gray-400 dark:hover:text-amber-400 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Quarantine Agent"><ShieldIcon size={16} /></button>
+                                    )}
+                                    {onToggleSoftwareExclusion && (
+                                        <button
+                                            disabled={isUpgrading}
+                                            onClick={(e) => { e.stopPropagation(); onToggleSoftwareExclusion(agent); }}
+                                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${(agent as any).excludeFromSoftwareOps ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30 hover:text-amber-700' : 'text-gray-500 hover:text-amber-500 hover:bg-amber-50 dark:text-gray-400 dark:hover:text-amber-400 dark:hover:bg-amber-900/20'}`}
+                                            title={(agent as any).excludeFromSoftwareOps ? 'Remove software exclusion' : 'Exclude from software operations'}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                                                {(agent as any).excludeFromSoftwareOps && <line x1="4" y1="4" x2="20" y2="20" strokeWidth="2.5"></line>}
+                                            </svg>
+                                        </button>
+                                    )}
                                     {onDeleteAgent && (
                                         <button disabled={isUpgrading} onClick={handleDeleteClick} className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Delete Agent"><TrashIcon size={16} /></button>
                                     )}
@@ -396,6 +423,8 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                                     canRemediate={canRemediate}
                                     canViewLogs={canViewLogs}
                                     onDeleteAgent={props.onDeleteAgent}
+                                    onQuarantineAgent={props.onQuarantineAgent}
+                                    onToggleSoftwareExclusion={props.onToggleSoftwareExclusion}
                                     onRequestDelete={setAgentToDelete}
                                 />
                             ))}

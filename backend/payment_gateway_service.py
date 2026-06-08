@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
 from enum import Enum
+import uuid
+from datetime import datetime, timezone
 
 
 class PaymentGatewayType(str, Enum):
@@ -102,64 +104,161 @@ class PaymentGatewayInterface(ABC):
 
 
 class GenericGateway(PaymentGatewayInterface):
-    """Credential store for custom / third-party gateways with no built-in API client.
+    """Manual / bank-transfer payment gateway for tenants without Stripe or PayPal.
 
-    IMPORTANT — KNOWN GAP: All billing operations below are no-ops that return
-    stub/placeholder responses. The `SubscriptionManagement` and `InvoiceList` frontend
-    components will render empty data for any tenant configured with a Custom gateway.
-
-    To integrate a real gateway, subclass this and override the relevant methods,
-    then register the subclass in PaymentGatewayFactory below.
+    All operations are persisted to MongoDB using the same schema as the Stripe gateway,
+    so InvoiceList, SubscriptionManagement, and PaymentSettings render real data.
+    Records are tagged with ``gateway: "manual"`` for admin reconciliation.
     """
 
-    _warn_logged: set[str] = set()
+    _GATEWAY = "manual"
 
-    def _warn_noop(self, method: str) -> None:
-        import logging as _log
-        if method not in self._warn_logged:
-            _log.getLogger(__name__).warning(
-                "GenericGateway.%s called — this is a no-op stub. "
-                "Integrate a real payment gateway to enable this operation.", method
-            )
-            self._warn_logged.add(method)
+    def _now(self) -> str:
+        return datetime.now(timezone.utc).isoformat()
 
-    async def create_customer(self, email, name, metadata=None):
-        return {"id": f"cust_{email}", "email": email}
+    def _ts(self) -> int:
+        return int(datetime.now(timezone.utc).timestamp())
 
-    async def create_subscription(self, customer_id, price_id, metadata=None):
-        return {"id": f"sub_{customer_id}", "status": "active",
-                "current_period_start": 0, "current_period_end": 0,
-                "plan": {"amount": 0, "currency": "usd", "interval": "month"}}
+    async def _db(self):
+        from database import get_database
+        return get_database()
 
-    async def cancel_subscription(self, subscription_id):
-        return {"id": subscription_id, "canceled_at": 0}
+    async def create_customer(self, email: str, name: str, metadata=None):
+        cust_id = f"cust_{uuid.uuid4().hex[:12]}"
+        db = await self._db()
+        doc = {
+            "id": cust_id,
+            "email": email,
+            "name": name,
+            "gateway": self._GATEWAY,
+            "metadata": metadata or {},
+            "created_at": self._now(),
+        }
+        await db.payment_customers.update_one({"email": email}, {"$set": doc}, upsert=True)
+        return {"id": cust_id, "email": email, "name": name}
 
-    async def create_charge(self, customer_id, amount, currency, description, metadata=None):
-        return {"id": f"ch_{customer_id}", "amount": amount, "currency": currency,
-                "description": description, "status": "succeeded", "paid": True, "created": 0}
+    async def create_subscription(self, customer_id: str, price_id: str, metadata=None):
+        sub_id = f"sub_{uuid.uuid4().hex[:16]}"
+        now_ts = self._ts()
+        # One month from now
+        period_end = now_ts + 30 * 24 * 3600
+        db = await self._db()
+        doc = {
+            "id": sub_id,
+            "customer_id": customer_id,
+            "price_id": price_id,
+            "status": "active",
+            "gateway": self._GATEWAY,
+            "current_period_start": now_ts,
+            "current_period_end": period_end,
+            "plan": {"amount": 0, "currency": "usd", "interval": "month"},
+            "metadata": metadata or {},
+            "created_at": self._now(),
+        }
+        await db.subscriptions.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
 
-    async def create_refund(self, charge_id, amount=None):
-        return {"id": f"re_{charge_id}", "amount": amount}
+    async def cancel_subscription(self, subscription_id: str):
+        db = await self._db()
+        now = self._now()
+        await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "canceled", "canceled_at": now}},
+        )
+        return {"id": subscription_id, "status": "canceled", "canceled_at": now}
 
-    async def get_invoices(self, customer_id, limit=10):
-        self._warn_noop("get_invoices")
-        return []  # ← always empty; SubscriptionManagement/InvoiceList will show nothing
+    async def create_charge(self, customer_id: str, amount: int, currency: str, description: str, metadata=None):
+        charge_id = f"ch_{uuid.uuid4().hex[:16]}"
+        db = await self._db()
+        doc = {
+            "id": charge_id,
+            "customer_id": customer_id,
+            "amount": amount,
+            "currency": currency,
+            "description": description,
+            "status": "pending",
+            "paid": False,
+            "gateway": self._GATEWAY,
+            "metadata": metadata or {},
+            "created": self._ts(),
+            "created_at": self._now(),
+        }
+        await db.charges.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
 
-    async def verify_webhook(self, payload, signature, secret):
-        return False
+    async def create_refund(self, charge_id: str, amount=None):
+        refund_id = f"re_{uuid.uuid4().hex[:16]}"
+        db = await self._db()
+        doc = {
+            "id": refund_id,
+            "charge_id": charge_id,
+            "amount": amount,
+            "gateway": self._GATEWAY,
+            "status": "pending",
+            "created_at": self._now(),
+        }
+        await db.refunds.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
 
-    async def construct_webhook_event(self, payload, signature, secret):
-        raise NotImplementedError("Webhooks not supported for custom gateways")
+    async def get_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        db = await self._db()
+        docs = await db.invoices.find(
+            {"customer_id": customer_id, "gateway": self._GATEWAY},
+            {"_id": 0},
+        ).sort("created_at", -1).limit(limit).to_list(limit)
+        return docs
 
-    async def list_payment_methods(self, customer_id):
-        self._warn_noop("list_payment_methods")
-        return []  # ← always empty; Payment Settings page will show no saved cards
-
-    async def add_payment_method(self, customer_id, payment_method_id):
-        return {"id": payment_method_id}
-
-    async def delete_payment_method(self, payment_method_id):
+    async def verify_webhook(self, payload, signature, secret) -> bool:
+        # Manual gateway has no webhook signature to verify
         return True
+
+    async def construct_webhook_event(self, payload, signature, secret) -> Dict[str, Any]:
+        # Manual gateway: treat any incoming POST as a generic event
+        import json as _json
+        try:
+            data = _json.loads(payload) if isinstance(payload, (bytes, str)) else payload
+        except Exception:
+            data = {}
+        return {"type": "manual.event", "data": {"object": data}, "gateway": self._GATEWAY}
+
+    async def list_payment_methods(self, customer_id: str) -> List[Dict[str, Any]]:
+        # Always expose a single "Bank Transfer / Manual" entry so the UI is not empty
+        db = await self._db()
+        stored = await db.payment_methods.find(
+            {"customer_id": customer_id, "gateway": self._GATEWAY},
+            {"_id": 0},
+        ).to_list(20)
+        if stored:
+            return stored
+        return [{
+            "id": f"pm_manual_{customer_id}",
+            "type": "bank_transfer",
+            "gateway": self._GATEWAY,
+            "bank_transfer": {"bank_name": "Manual / Bank Transfer"},
+            "created_at": self._now(),
+        }]
+
+    async def add_payment_method(self, customer_id: str, payment_method_id: str):
+        db = await self._db()
+        doc = {
+            "id": payment_method_id,
+            "customer_id": customer_id,
+            "type": "bank_transfer",
+            "gateway": self._GATEWAY,
+            "created_at": self._now(),
+        }
+        await db.payment_methods.update_one(
+            {"id": payment_method_id}, {"$set": doc}, upsert=True
+        )
+        return doc
+
+    async def delete_payment_method(self, payment_method_id: str) -> bool:
+        db = await self._db()
+        result = await db.payment_methods.delete_one({"id": payment_method_id})
+        return result.deleted_count > 0
 
 
 class PaymentGatewayFactory:

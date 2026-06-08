@@ -48,6 +48,13 @@ const NotificationCenter: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Channel config form state
+    const [slackWebhook, setSlackWebhook] = useState('');
+    const [slackEnabled, setSlackEnabled] = useState(false);
+    const [emailEnabled, setEmailEnabled] = useState(true);
+    const [configSaving, setConfigSaving] = useState(false);
+    const [configMsg, setConfigMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
     const fetchAll = async () => {
         setLoading(true);
         const [notifs, cfgs] = await Promise.all([
@@ -56,7 +63,30 @@ const NotificationCenter: React.FC = () => {
         ]);
         setNotifications(notifs);
         setConfigs(cfgs);
+        // Populate config form from loaded data
+        const slackCfg = cfgs.find((c: NotificationConfig) => c.type === 'slack');
+        const emailCfg = cfgs.find((c: NotificationConfig) => c.type === 'email');
+        if (slackCfg) {
+            setSlackEnabled(slackCfg.enabled ?? false);
+            setSlackWebhook(slackCfg.webhook_url && slackCfg.webhook_url !== '***' ? slackCfg.webhook_url : '');
+        }
+        if (emailCfg) setEmailEnabled(emailCfg.enabled ?? true);
         setLoading(false);
+    };
+
+    const handleSaveConfig = async () => {
+        setConfigSaving(true);
+        setConfigMsg(null);
+        try {
+            await Promise.all([
+                updateNotificationConfig({ type: 'slack', enabled: slackEnabled, webhook_url: slackWebhook }),
+                updateNotificationConfig({ type: 'email', enabled: emailEnabled }),
+            ]);
+            setConfigMsg({ ok: true, text: 'Configuration saved.' });
+        } catch {
+            setConfigMsg({ ok: false, text: 'Failed to save. Please try again.' });
+        }
+        setConfigSaving(false);
     };
 
     useEffect(() => {
@@ -166,32 +196,56 @@ const NotificationCenter: React.FC = () => {
                                         <SlackIcon size={16} className="text-[#4A154B]" />
                                         Slack Webhook
                                     </div>
-                                    <input type="checkbox" className="toggle toggle-primary toggle-sm" />
+                                    <button
+                                        role="switch"
+                                        aria-checked={slackEnabled}
+                                        onClick={() => setSlackEnabled(v => !v)}
+                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${slackEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                                    >
+                                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${slackEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                                    </button>
                                 </div>
                                 <input
                                     type="text"
+                                    value={slackWebhook}
+                                    onChange={e => setSlackWebhook(e.target.value)}
                                     placeholder="https://hooks.slack.com/services/..."
-                                    className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-blue-500/50"
+                                    disabled={!slackEnabled}
+                                    className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-blue-500/50 disabled:opacity-40"
                                 />
                             </div>
 
                             {/* Email Config */}
-                            <div className="p-3 bg-white/5 rounded-lg border border-white/5 space-y-3">
+                            <div className="p-3 bg-white/5 rounded-lg border border-white/5 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 text-white text-sm">
                                         <MailIcon size={16} className="text-blue-400" />
                                         Email Alerts
                                     </div>
-                                    <input type="checkbox" className="toggle toggle-primary toggle-sm" defaultChecked />
+                                    <button
+                                        role="switch"
+                                        aria-checked={emailEnabled}
+                                        onClick={() => setEmailEnabled(v => !v)}
+                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${emailEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                                    >
+                                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${emailEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                                    </button>
                                 </div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Recipients</div>
-                                <div className="flex flex-wrap gap-1">
-                                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px]">admin@exafluence.com</span>
-                                </div>
+                                <p className="text-[10px] text-gray-500">Configure SMTP recipients in Settings → Email Notifications</p>
                             </div>
 
-                            <button className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors mt-4">
-                                Save Configuration
+                            {configMsg && (
+                                <p className={`text-xs px-2 py-1 rounded ${configMsg.ok ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    {configMsg.text}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={handleSaveConfig}
+                                disabled={configSaving}
+                                className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors mt-4"
+                            >
+                                {configSaving ? 'Saving…' : 'Save Configuration'}
                             </button>
                         </div>
                     ) : (

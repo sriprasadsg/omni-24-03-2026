@@ -536,7 +536,7 @@ export interface AiSystemDocumentationLink {
 }
 
 export type AgentPlatform = 'Linux' | 'Windows' | 'macOS' | 'Docker' | 'Kubernetes' | 'AWS EC2';
-export type AgentStatus = 'Online' | 'Offline' | 'Error';
+export type AgentStatus = 'Online' | 'Offline' | 'Error' | 'Quarantined';
 export type AgentCapability =
   // Core telemetry
   | 'metrics_collection'

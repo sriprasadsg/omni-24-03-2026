@@ -24,7 +24,7 @@ def _assert_tenant_access(current_user, tenant_id: str) -> None:
 
 class TenantCreate(BaseModel):
     name: str
-    subscriptionTier: str = "Enterprise"
+    subscriptionTier: str = "Free"
     enabledFeatures: List[str] = [
         "view:dashboard", "view:cxo_dashboard", "view:profile", "view:insights", 
         "view:tracing", "view:logs", "view:network", "view:agents", "view:assets", 
@@ -93,24 +93,25 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     return tenant_doc
 
 @router.post("/lookup-key")
-@limiter.limit("3/minute")
+@limiter.limit("5/minute")
 async def lookup_tenant_key(request: Request, response: Response, payload: dict):
     """
     Lookup tenant ID by registration key.
     Public endpoint for agents/installers.
+    Rate-limited to 5/minute per IP to limit key enumeration.
+    Returns generic error on failure to prevent distinguishing invalid vs non-existent keys.
     """
     key = payload.get("registrationKey")
     if not key or len(key) < 16:
         raise HTTPException(status_code=400, detail="Registration key required")
-        
-    # Public endpoint, no context issues usually, but safer to use raw
+
     tenant = await mongodb.db.tenants.find_one({"registrationKey": key})
-    
     if not tenant:
+        # Generic message — do not reveal whether the key format was valid
         raise HTTPException(status_code=404, detail="Invalid registration key")
-        
+
     return {
-        "success": True, 
+        "success": True,
         "tenantId": tenant["id"],
         "name": tenant["name"]
     }
@@ -128,16 +129,20 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
     Only Super Admin can update tenant configuration.
     """
     # Check permissions
-    if not is_super_admin(getattr(current_user, "role", "")):
-        # Tenant Admins can only update their own tenant's voiceBotSettings
-        if current_user.tenantId != tenant_id and current_user.role not in ("Admin", "Tenant Admin", "tenant_admin"):
+    caller_role = getattr(current_user, "role", "")
+    caller_tenant = getattr(current_user, "tenant_id", None)  # TokenData uses tenant_id (snake_case)
+
+    if not is_super_admin(caller_role):
+        # Non-super-admins may only update their own tenant
+        if caller_tenant != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
-        if current_user.tenantId != tenant_id:
-            raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
-        
-        # Ensure they are not trying to update restricted fields
-        if data.enabledFeatures is not None or data.subscriptionTier is not None:
-             raise HTTPException(status_code=403, detail="Only Super Admin can update features and subscription tier")
+
+        # Subscription tier and feature flags are billing-controlled — only super admin may change them
+        if data.subscriptionTier is not None or data.enabledFeatures is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Subscription tier and feature changes require Super Admin. Contact support to upgrade.",
+            )
              
     
     # Use raw mongodb.db
@@ -354,8 +359,30 @@ async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=D
     cfg = tenant.get("emailConfig", {})
     if not cfg.get("smtpHost"):
         return {"success": False, "message": "SMTP not configured — save a configuration first"}
-    # Stub: real SMTP send would go here
-    return {"success": True, "message": f"Test email sent to {data.get('testEmail', '')} via {cfg['smtpHost']}"}
+
+    from email_service import email_service as _es
+    smtp_cfg = {
+        "smtpHost": cfg.get("smtpHost", ""),
+        "smtpPort": int(cfg.get("smtpPort", 587)),
+        "smtpUser": cfg.get("smtpUser", ""),
+        "smtpPasswordEncrypted": cfg.get("smtpPassword", ""),
+        "useTLS": cfg.get("useTLS", True),
+    }
+    result = await _es.verify_smtp_config(smtp_cfg)
+    if not result.get("success"):
+        return result
+
+    # Optionally send a test message
+    test_email = data.get("testEmail", "")
+    if test_email:
+        send_cfg = {**smtp_cfg, "from_email": cfg.get("fromEmail", smtp_cfg["smtpUser"])}
+        await _es.send_email(
+            to_email=test_email,
+            subject="Omni-Agent SMTP Test",
+            html_content="<p>SMTP connectivity test from Omni-Agent platform. Your email configuration is working correctly.</p>",
+            smtp_config=send_cfg,
+        )
+    return {"success": True, "message": f"SMTP connection verified{' and test email sent to ' + test_email if test_email else ''} via {cfg['smtpHost']}"}
 
 
 @router.get("/{tenant_id}/email/preferences")

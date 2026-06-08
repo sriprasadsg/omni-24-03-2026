@@ -1,9 +1,20 @@
 from fastapi import APIRouter, Depends, Query
+from typing import Optional
+from pydantic import BaseModel, Field
 from auth_utils import require_auth
 from database import get_db
 from k8s_security_service import K8sSecurityService
 
 router = APIRouter(prefix="/api/k8s-security", tags=["k8s-security"])
+
+
+class ClusterRegistration(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    api_url: str = Field(..., min_length=1, max_length=500)
+    description: str = ""
+    namespace: str = "default"
+    auth_type: Optional[str] = None
+    tags: list = []
 
 
 def get_svc(db=Depends(get_db)):
@@ -20,9 +31,9 @@ async def list_clusters(user=Depends(require_auth), svc: K8sSecurityService = De
 
 
 @router.post("/clusters")
-async def register_cluster(body: dict, user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
+async def register_cluster(body: ClusterRegistration, user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
-    cluster = await svc.register_cluster(tenant_id, body)
+    cluster = await svc.register_cluster(tenant_id, body.model_dump())
     cluster["id"] = cluster.pop("_id", cluster.get("id"))
     return cluster
 

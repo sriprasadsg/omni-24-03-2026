@@ -4,7 +4,7 @@ import { ServerIcon, ZapIcon, CheckIcon, AlertTriangleIcon, CogIcon, PlusCircleI
 import { Agent, AgenticStep, LogEntry, Asset, AgentUpgradeJob, Filter, Tenant } from '../types';
 import { AgentLogsModal } from './AgentLogsModal';
 import { AgentInstallation } from './AgentInstallation';
-import { generateAgenticPlan, runAgentDiagnostics, restartAgent, deleteAgent } from '../services/apiService';
+import { generateAgenticPlan, runAgentDiagnostics, restartAgent, deleteAgent, quarantineAgent, setAgentSoftwareExclusion } from '../services/apiService';
 import { AutonomousOpsLog } from './AutonomousOpsLog';
 import { useUser } from '@/contexts/UserContext';
 import { AgentDetailModal } from './AgentDetailModal';
@@ -517,6 +517,33 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
           onRegisterAgent={onRegisterAgent}
           onRemoteControl={setRemoteControlAgent}
           onDeleteAgent={onDeleteAgent}
+          onQuarantineAgent={canRemediate ? async (agent: Agent) => {
+            const reason = window.prompt(`Quarantine reason for ${agent.hostname || agent.id}:`);
+            if (!reason) return;
+            try {
+              await quarantineAgent(agent.id, reason);
+              onUpdateAgent({ ...agent, status: 'Quarantined' as any });
+              showToast(`Agent ${agent.hostname || agent.id} quarantined.`, 'success');
+            } catch (e: any) {
+              showToast(e.message || 'Failed to quarantine agent', 'error');
+            }
+          } : undefined}
+          onToggleSoftwareExclusion={canRemediate ? async (agent: Agent) => {
+            const isExcluded = !!(agent as any).excludeFromSoftwareOps;
+            const label = agent.hostname || agent.id;
+            try {
+              await setAgentSoftwareExclusion(agent.id, !isExcluded);
+              onUpdateAgent({ ...agent, excludeFromSoftwareOps: !isExcluded } as any);
+              showToast(
+                isExcluded
+                  ? `${label} re-included in software operations.`
+                  : `${label} excluded from software operations.`,
+                'success'
+              );
+            } catch (e: any) {
+              showToast(e.message || 'Failed to update exclusion', 'error');
+            }
+          } : undefined}
           filters={filters}
         />
       </div>

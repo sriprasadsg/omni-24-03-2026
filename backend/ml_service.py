@@ -25,21 +25,45 @@ class MLPredictionService(MLPredictionMixin):
     def __init__(self, db):
         self.db = db
         self.model_version = "1.0.0"
-        self.model_path = os.path.join(os.path.dirname(__file__), "patch_model.joblib")
-        self.anomaly_model_path = os.path.join(os.path.dirname(__file__), "anomaly_model.joblib")
+        _models_dir = os.path.join(os.path.dirname(__file__), "models")
+        os.makedirs(_models_dir, exist_ok=True)
+        self.model_path = os.path.join(_models_dir, "patch_model.joblib")
+        self.anomaly_model_path = os.path.join(_models_dir, "anomaly_model.joblib")
         self.model = None
         self.anomaly_model = None
         if ML_AVAILABLE:
             if os.path.exists(self.model_path):
                 try:
-                    self.model = joblib.load(self.model_path)
+                    self.model = self._safe_load_model(self.model_path)
                 except Exception as e:
                     logger.warning("Failed to load patch ML model: %s", e)
             if os.path.exists(self.anomaly_model_path):
                 try:
-                    self.anomaly_model = joblib.load(self.anomaly_model_path)
+                    self.anomaly_model = self._safe_load_model(self.anomaly_model_path)
                 except Exception as e:
                     logger.warning("Failed to load anomaly ML model: %s", e)
+
+    @staticmethod
+    def _safe_load_model(model_path: str):
+        """Load a joblib model only after verifying its SHA-256 hash against a sidecar file."""
+        import hashlib as _hl
+        hash_path = model_path + ".sha256"
+        if not os.path.exists(hash_path):
+            raise ValueError(
+                f"No integrity hash file found at {hash_path}. "
+                "Refusing to load model without verification. "
+                "Generate with: sha256sum <model>.joblib > <model>.joblib.sha256"
+            )
+        with open(model_path, "rb") as f:
+            actual_hash = _hl.sha256(f.read()).hexdigest()
+        with open(hash_path) as f:
+            expected_hash = f.read().split()[0].strip()
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"Model integrity check FAILED for {model_path}. "
+                f"Expected {expected_hash}, got {actual_hash}. Model may have been tampered with."
+            )
+        return joblib.load(model_path)
     
     async def predict_patch_failure(
         self,

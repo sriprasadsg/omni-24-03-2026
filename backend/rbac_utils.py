@@ -6,7 +6,7 @@ from authentication_service import get_current_user
 from database import get_database
 
 # Single source of truth for elevated-admin role variants
-_SUPER_ADMIN_ROLES: frozenset[str] = frozenset({"super_admin", "Super Admin", "superadmin", "platform-admin", "admin"})
+_SUPER_ADMIN_ROLES: frozenset[str] = frozenset({"super_admin", "Super Admin", "superadmin", "platform-admin"})
 
 
 def is_super_admin(role: Optional[str]) -> bool:

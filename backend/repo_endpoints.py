@@ -36,10 +36,30 @@ async def upload_package(
         raise HTTPException(status_code=403, detail="Tenant context required")
     tenant_id = tenant_id or "global"
 
-    # Secure filename
-    filename = os.path.basename(file.filename)
+    # Secure filename with extension whitelist
+    filename = os.path.basename(file.filename or "")
     if not filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
+
+    _ALLOWED_PKG_EXTENSIONS = {
+        "pip": {".whl", ".tar.gz", ".zip", ".gz"},
+        "npm": {".tgz", ".tar.gz", ".zip"},
+        "apt": {".deb"},
+        "yum": {".rpm"},
+    }
+    _ext_lower = filename.lower()
+    allowed_exts = _ALLOWED_PKG_EXTENSIONS.get(pkg_type, set())
+    if allowed_exts and not any(_ext_lower.endswith(ext) for ext in allowed_exts):
+        raise HTTPException(status_code=400, detail=f"File type not allowed for pkg_type '{pkg_type}'.")
+
+    content_type = (file.content_type or "").split(";")[0].strip()
+    _ALLOWED_PKG_MIMES = {
+        "application/zip", "application/gzip", "application/x-gzip",
+        "application/x-tar", "application/x-debian-package",
+        "application/octet-stream",
+    }
+    if content_type and content_type not in _ALLOWED_PKG_MIMES:
+        raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed for package uploads.")
 
     # Extract package name and version from filename if possible
     # A simple parsing heuristic; for a real production system this would use pkg-specific parsers
@@ -145,12 +165,18 @@ async def download_package(
     if not pkg:
         raise HTTPException(status_code=404, detail="Package not found")
         
-    file_path = pkg.get("file_path")
-    if not file_path or not os.path.exists(file_path):
+    # Reconstruct path from trusted REPO_DIR + stored filename — never trust DB file_path directly
+    from pathlib import Path as _Path
+    _safe_dir = _Path(REPO_DIR).resolve()
+    _safe_filename = f"{tenantId}_{_Path(filename).name}"
+    _resolved = (_safe_dir / _safe_filename).resolve()
+    if not str(_resolved).startswith(str(_safe_dir)):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not _resolved.exists():
         raise HTTPException(status_code=404, detail="File missing on disk")
 
     return FileResponse(
-        path=file_path,
+        path=str(_resolved),
         filename=filename,
         media_type="application/octet-stream"
     )

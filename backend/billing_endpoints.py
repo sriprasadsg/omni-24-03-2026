@@ -83,6 +83,21 @@ async def generate_invoice_alias(
         if caller_role not in _SUPER and caller_tenant != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to generate invoices for this tenant")
         _stid(tenant_id)
+        # Audit log whenever a super admin acts on behalf of another tenant
+        if caller_role in _SUPER and caller_tenant != tenant_id:
+            try:
+                from database import get_database as _gdb
+                from datetime import datetime as _dt, timezone as _tz
+                _db = _gdb()
+                await _db.audit_logs.insert_one({
+                    "action": "super_admin_tenant_impersonation",
+                    "target_tenant_id": tenant_id,
+                    "performed_by": getattr(current_user, "username", str(current_user)),
+                    "performed_by_role": caller_role,
+                    "timestamp": _dt.now(_tz.utc).isoformat(),
+                })
+            except Exception:
+                pass
     return await generate_invoice(req or InvoiceRequest(), current_user)
 
 
@@ -153,17 +168,36 @@ async def download_invoice_pdf(invoice_id: str, current_user=Depends(get_current
 
 @router.post("/invoices/{invoice_id}/pay")
 async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_user)):
-    """Mark an invoice as paid (admin action)."""
+    """Mark an invoice as paid (admin action — requires invoice to currently be unpaid)."""
     if getattr(current_user, "role", None) not in _BILLING_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin role required")
     db = get_database()
     tenant_id = _tid(current_user)
+    caller = getattr(current_user, "username", "admin")
+    now = datetime.now(timezone.utc).isoformat()
+    # Atomically transition open→paid; prevents duplicate payment marking
     result = await db.invoices.update_one(
-        {"id": invoice_id, "tenantId": tenant_id},
-        {"$set": {"status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}}
+        {"id": invoice_id, "tenantId": tenant_id, "status": {"$in": ["open", "pending", "unpaid"]}},
+        {"$set": {"status": "paid", "paid_at": now, "paid_by": caller}}
     )
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Invoice not found")
+        existing = await db.invoices.find_one({"id": invoice_id, "tenantId": tenant_id}, {"_id": 0, "status": 1})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        if existing.get("status") == "paid":
+            raise HTTPException(status_code=409, detail="Invoice is already marked as paid")
+        raise HTTPException(status_code=400, detail=f"Invoice cannot be marked paid (status: {existing.get('status')})")
+    # Audit log
+    try:
+        await db.audit_logs.insert_one({
+            "action": "invoice_marked_paid",
+            "invoice_id": invoice_id,
+            "tenant_id": tenant_id,
+            "performed_by": caller,
+            "timestamp": now,
+        })
+    except Exception:
+        pass
     return {"success": True, "invoice_id": invoice_id, "status": "paid"}
 
 

@@ -28,6 +28,20 @@ class SoftwareFile(BaseModel):
     url: str
 
 
+_ALLOWED_SOFTWARE_EXTENSIONS: frozenset[str] = frozenset({
+    ".exe", ".msi", ".deb", ".rpm", ".pkg", ".dmg",
+    ".zip", ".tar", ".gz", ".tgz", ".tar.gz",
+    ".whl", ".nupkg", ".appx", ".msix",
+})
+
+_ALLOWED_SOFTWARE_MIME_PREFIXES: tuple[str, ...] = (
+    "application/zip", "application/gzip", "application/x-gzip",
+    "application/x-tar", "application/x-debian-package",
+    "application/vnd.ms-cab-compressed",
+    "application/octet-stream",
+)
+
+
 def _safe_filename(raw: str) -> str:
     """Strip directory components and reject names with unsafe characters."""
     name = os.path.basename(raw).strip()
@@ -47,6 +61,13 @@ async def upload_software(
     """Upload a software installer to the repository."""
     try:
         safe_name = _safe_filename(file.filename or "")
+        # Validate extension
+        _ext = Path(safe_name).suffix.lower()
+        if _ext and _ext not in _ALLOWED_SOFTWARE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"File extension '{_ext}' is not allowed for software uploads.")
+        content_type = (file.content_type or "").split(";")[0].strip()
+        if content_type and content_type not in _ALLOWED_SOFTWARE_MIME_PREFIXES:
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed for software uploads.")
         file_path = UPLOAD_DIR / safe_name
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -128,7 +149,7 @@ async def deploy_software(
         is_super_admin = getattr(current_user, "role", "") in _SUPER_ADMIN_ROLES
 
         # Batch-fetch all agents in one query instead of one find_one per agent_id
-        _batch_q: dict = {"id": {"$in": payload.agentIds[:100]}}
+        _batch_q: dict = {"id": {"$in": payload.agentIds[:100]}, "excludeFromSoftwareOps": {"$ne": True}}
         if not is_super_admin and caller_tenant:
             _batch_q["tenantId"] = caller_tenant
         _agent_docs = await db.agents.find(_batch_q, {"id": 1, "tenantId": 1}).to_list(length=100)
@@ -195,6 +216,63 @@ async def deploy_software(
     except Exception as e:
         logger.error("deploy_software error: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/inventory")
+async def get_software_inventory(current_user=Depends(get_current_user)):
+    """Return all installed software across all tenant agents, grouped by package name."""
+    from collections import defaultdict
+    db = _get_database()
+    role = getattr(current_user, "role", "")
+    query: dict = {}
+    if role not in _SUPER_ADMIN_ROLES:
+        tid = getattr(current_user, "tenant_id", None)
+        if tid:
+            query["tenant_id"] = tid
+
+    all_sw = await db.software_inventory.find(query, {"_id": 0}).to_list(length=10000)
+
+    # Build set of excluded agent IDs so they are filtered out of the inventory view
+    excl_q: dict = {"excludeFromSoftwareOps": True}
+    if query:
+        excl_q.update(query.get("tenant_id") and {"tenantId": query["tenant_id"]} or {})
+    excluded_agent_ids: set = {
+        a["id"] async for a in db.agents.find(
+            {**excl_q, "id": {"$exists": True}}, {"_id": 0, "id": 1}
+        )
+    }
+    if excluded_agent_ids:
+        all_sw = [s for s in all_sw if s.get("agent_id") not in excluded_agent_ids]
+
+    grouped: dict = defaultdict(list)
+    for sw in all_sw:
+        grouped[sw.get("name", "Unknown")].append(sw)
+
+    result = []
+    for name, records in grouped.items():
+        versions = list({r.get("current_version", "Unknown") for r in records})
+        result.append({
+            "name": name,
+            "agent_count": len(records),
+            "versions": versions,
+            "pkg_type": records[0].get("pkg_type", "unknown"),
+            "is_outdated": any(r.get("is_outdated", False) for r in records),
+            "agents": [
+                {
+                    "agent_id": r.get("agent_id", ""),
+                    "agent_name": r.get("agent_name", r.get("agent_id", "")),
+                    "version": r.get("current_version", "Unknown"),
+                    "latest_version": r.get("latest_version"),
+                    "is_outdated": r.get("is_outdated", False),
+                    "last_scanned": r.get("last_scanned", ""),
+                }
+                for r in records
+            ],
+            "last_scanned": max((r.get("last_scanned", "") for r in records), default=""),
+        })
+
+    result.sort(key=lambda x: x["name"].lower())
+    return result
 
 
 @router.post("/updates/deploy")

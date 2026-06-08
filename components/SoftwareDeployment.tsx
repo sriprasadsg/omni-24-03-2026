@@ -6,6 +6,7 @@ import { SoftwareDeploymentHistoryTab } from './SoftwareDeploymentHistoryTab';
 import { SoftwareDeployConfigPanel } from './SoftwareDeployConfigPanel';
 import { SoftwareAgentSelector } from './SoftwareAgentSelector';
 import { SoftwareDeployModal } from './SoftwareDeployModal';
+import { SoftwareInventoryTab } from './SoftwareInventoryTab';
 import { showToast } from '../utils/toast';
 
 export const SoftwareDeployment: React.FC = () => {
@@ -15,11 +16,13 @@ export const SoftwareDeployment: React.FC = () => {
     const [installArgs, setInstallArgs] = useState('');
     const [action, setAction] = useState<'install' | 'upgrade' | 'uninstall'>('install');
     const [isDeploying, setIsDeploying] = useState(false);
+    const [inventory, setInventory] = useState<any[]>([]);
+    const [inventoryLoading, setInventoryLoading] = useState(false);
     const [deployResult, setDeployResult] = useState<{ success: boolean; message: string; taskIds?: string[] } | null>(null);
     const [showDeployModal, setShowDeployModal] = useState(false);
     const [filter, setFilter] = useState('');
     const [confirmUninstall, setConfirmUninstall] = useState(false);
-    const [activeTab, setActiveTab] = useState<'store' | 'repo' | 'history'>('store');
+    const [activeTab, setActiveTab] = useState<'store' | 'repo' | 'history' | 'installed'>('store');
     const [repoFiles, setRepoFiles] = useState<any[]>([]);
     const [activeTaskIds, setActiveTaskIds] = useState<string[]>([]);
     const [taskStatuses, setTaskStatuses] = useState<Record<string, any>>({});
@@ -38,6 +41,7 @@ export const SoftwareDeployment: React.FC = () => {
         fetchAgents().then(data => { if (mounted) setAgents(data); });
         fetchRepoFiles(controller.signal);
         fetchDeployHistory(controller.signal);
+        fetchInventory();
         return () => { mounted = false; controller.abort(); };
     }, []);
 
@@ -77,6 +81,35 @@ export const SoftwareDeployment: React.FC = () => {
         const interval = setInterval(fetchDeployHistory, 4000);
         return () => clearInterval(interval);
     }, [deployHistory]);
+
+    const fetchInventory = async () => {
+        setInventoryLoading(true);
+        try {
+            const res = await authFetch('/api/software/inventory');
+            if (res.ok) setInventory(await res.json());
+        } catch (e) { console.error('Failed to load inventory', e); }
+        finally { setInventoryLoading(false); }
+    };
+
+    const handleInventoryUninstall = async (packageId: string, agentIds: string[]) => {
+        setIsDeploying(true);
+        try {
+            const res = await authFetch('/api/software/deploy', {
+                method: 'POST',
+                body: JSON.stringify({ agentIds, packageId, action: 'uninstall' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Uninstall dispatched to ${agentIds.length} agent(s)`, 'success');
+                if (data.taskIds) setActiveTaskIds(data.taskIds);
+                setTimeout(fetchDeployHistory, 800);
+                setTimeout(fetchInventory, 3000);
+            } else {
+                showToast(data.error || 'Uninstall failed', 'error');
+            }
+        } catch (e: any) { showToast(e.toString(), 'error'); }
+        finally { setIsDeploying(false); }
+    };
 
     const fetchDeployHistory = async (signal?: AbortSignal) => {
         try {
@@ -255,9 +288,27 @@ export const SoftwareDeployment: React.FC = () => {
                         </span>
                     )}
                 </button>
+                <button
+                    onClick={() => { setActiveTab('installed'); fetchInventory(); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${activeTab === 'installed' ? 'bg-green-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <span>Installed Software</span>
+                    {inventory.length > 0 && (
+                        <span className="bg-green-500/30 text-green-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
+                            {inventory.length}
+                        </span>
+                    )}
+                </button>
             </div>
 
-            {activeTab === 'history' ? (
+            {activeTab === 'installed' ? (
+                <SoftwareInventoryTab
+                    inventory={inventory}
+                    loading={inventoryLoading}
+                    onRefresh={fetchInventory}
+                    onUninstall={handleInventoryUninstall}
+                />
+            ) : activeTab === 'history' ? (
                 <SoftwareDeploymentHistoryTab
                     deployHistory={deployHistory}
                     activePendingCount={activePendingCount}

@@ -124,11 +124,13 @@ async def download_report(
     _current_user: TokenData = Depends(get_current_user),
 ):
     """Stream a previously generated report file as a download."""
-    # Reject path traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
+    # Confine to reports directory — resolve and compare to prevent path traversal
+    from pathlib import Path as _Path
+    _safe_dir = _Path(_REPORTS_DIR).resolve()
+    _resolved = (_safe_dir / filename).resolve()
+    if not str(_resolved).startswith(str(_safe_dir)):
         raise HTTPException(status_code=400, detail="Invalid filename")
-
-    file_path = os.path.join(_REPORTS_DIR, filename)
+    file_path = str(_resolved)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Report file not found")
 

@@ -49,6 +49,7 @@
 .chapter-slide{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
 
 .badge-roadmap{position:absolute;top:10px;right:10px;padding:2px 8px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:4px;color:var(--b2);font-size:.42em;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.badge-live{position:absolute;top:10px;right:10px;padding:2px 8px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:4px;color:var(--gr2);font-size:.42em;font-weight:800;letter-spacing:1px;text-transform:uppercase}
 .badge-vision{padding:4px 12px;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.3);border-radius:20px;color:var(--cy);font-size:.5em;font-weight:800;letter-spacing:1px;margin-bottom:15px;display:inline-block}
 </style>
 </head>
@@ -67,7 +68,7 @@
   <span style="font-size:.9em;font-weight:900;color:var(--mt)">OMNIAGENT PLATFORM</span>
 </div>
 <p class="hero" style="margin-bottom:20px">The Complete <span class="g-ib">Enterprise Engine.</span></p>
-<p class="lead" style="max-width:650px">34 modules covering Security, Compliance, Observability, and Future Ops. One unified workspace for the modern enterprise.</p>
+<p class="lead" style="max-width:650px">50+ capabilities across Security, Compliance, Observability, AI Operations, and FinOps. One unified workspace for the modern enterprise.</p>
 </div>
 </section>
 
@@ -79,6 +80,7 @@
       <h1 class="chapter-title" style="font-size:3.5em;color:var(--rd)">Security <span style="color:#fff">&amp; Threat Ops</span></h1>
     </div>
   </section>
+
   <section data-background-color="#040812">
     <div class="section">
       <h2 class="h2">Threat Operations <span class="small">(Usage &amp; Capabilities)</span></h2>
@@ -100,7 +102,7 @@
         <div class="card">
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Threat Intel Feed</div>
-            <div class="feature-desc">Automatic enrichment of alerts with IOCs from VirusTotal and AlienVault.</div>
+            <div class="feature-desc">Auto-enrichment with IOCs from URLhaus, MalwareBazaar, AlienVault OTX — refreshed every 6 hours.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Attack Path Analysis</div>
@@ -109,6 +111,78 @@
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--rd)"></div>Data Security (DSPM)</div>
             <div class="feature-desc">Scan S3, SQL, and NoSQL stores for sensitive PII data and unauthorized exposures.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Behavioral &amp; AI Defense <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--or)"></div>UEBA — 10 Detection Rules</div>
+            <div class="feature-desc">Brute force, impossible travel, mass download, shadow AI, lateral movement, dormant accounts, and more.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--or)"></div>MITRE ATT&amp;CK Correlation</div>
+            <div class="feature-desc">7 mapped attack patterns: credential access, ransomware, C2 beacons, privilege escalation, data exfiltration.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--or)"></div>IP Auto-Ban</div>
+            <div class="feature-desc">UEBA auto-bans attacker IPs (risk score ≥80) for 24 hours. Admin-manageable via security console.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--or)"></div>Agent Quarantine</div>
+            <div class="feature-desc">Instantly isolate compromised agents. Quarantined agent heartbeats rejected with 403 enforcement.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--or)"></div>AI Guardrails</div>
+            <div class="feature-desc">Prompt injection detection and PII masking applied to all AI model inputs and outputs platform-wide.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--or)"></div>SSRF Guards</div>
+            <div class="feature-desc">Blocks private IPs, loopback addresses, and non-HTTP schemes on all external URL inputs across the platform.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Cloud &amp; API Security <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>CSPM — Multi-Cloud Posture</div>
+            <div class="feature-desc">Continuous security posture monitoring across AWS, Azure, and GCP with automated finding remediation.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Cloud Account Integration</div>
+            <div class="feature-desc">Unified cloud account management and cross-cloud finding correlation in a single console.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Binary Analysis</div>
+            <div class="feature-desc">Deep binary scanning for embedded malware, suspicious strings, packed executables, and supply-chain threats.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>API Security Monitoring</div>
+            <div class="feature-desc">Per-endpoint threat detection, anomaly scoring, and automated rate enforcement.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Action Safety Gates</div>
+            <div class="feature-desc">Forbidden agent actions blocked 100%. High-blast-radius or low-confidence actions require human approval.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--yw)"></div>Pentest Integration</div>
+            <div class="feature-desc">Ingest and track external penetration test findings alongside internal detections in a unified queue.</div>
           </div>
         </div>
       </div>
@@ -124,6 +198,7 @@
       <h1 class="chapter-title" style="font-size:3.5em;color:var(--gr)">Governance <span style="color:#fff">&amp; Compliance</span></h1>
     </div>
   </section>
+
   <section data-background-color="#040812">
     <div class="section">
       <h2 class="h2">Continuous GRC <span class="small">(Usage &amp; Capabilities)</span></h2>
@@ -134,12 +209,12 @@
             <div class="feature-desc">Real-time posture monitoring for SOC2, ISO 27001, and HIPAA across all endpoints.</div>
           </div>
           <div class="feature-box">
-            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Audit Log Retention</div>
-            <div class="feature-desc">Immutable storage of every system action for forensic integrity and regulatory audits.</div>
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Immutable Audit Trail</div>
+            <div class="feature-desc">SHA-256 hash-chained tamper-evident ledger. Every system action recorded and forensically verifiable.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>AI Governance</div>
-            <div class="feature-desc">Registry for LLMs. Monitors for bias, hallucinations, and prompt-injection risks.</div>
+            <div class="feature-desc">Registry for all LLMs. Monitors for bias, hallucinations, and prompt-injection risks with model approval workflows.</div>
           </div>
         </div>
         <div class="card">
@@ -152,8 +227,44 @@
             <div class="feature-desc">Automated screenshots and log snippets collected 24/7 to prove compliance to auditors.</div>
           </div>
           <div class="feature-box">
-            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Manage AI Risks</div>
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>AI Risk Management</div>
             <div class="feature-desc">Risk assessments and mitigation tracking for every AI model deployed in the enterprise.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Risk &amp; Access Control <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Multi-Tenant RBAC</div>
+            <div class="feature-desc">Strict role isolation — Super Admin, Tenant Admin, Analyst. All actions are tenant-scoped with zero bleed.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Certificate Management</div>
+            <div class="feature-desc">PKI lifecycle tracking, renewal alerts, and expiry monitoring for all certificates fleet-wide.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Change Management</div>
+            <div class="feature-desc">Structured change lifecycle with approval workflows, rollback capability, and full audit trail.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Compliance Automation</div>
+            <div class="feature-desc">Automated control testing and evidence collection across SOC2, ISO 27001, and HIPAA frameworks.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>BAA &amp; SLA Management</div>
+            <div class="feature-desc">Track Business Associate Agreements and SLAs with breach alerting and compliance reporting.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--gr)"></div>Per-Tenant Rate Limiting</div>
+            <div class="feature-desc">200 req/min, 2,000 req/hr API rate controls enforced per tenant and per agent to prevent abuse.</div>
           </div>
         </div>
       </div>
@@ -169,6 +280,7 @@
       <h1 class="chapter-title" style="font-size:3.5em;color:var(--cy)">Observability <span style="color:#fff">&amp; Insights</span></h1>
     </div>
   </section>
+
   <section data-background-color="#040812">
     <div class="section">
       <h2 class="h2">Deep System Visibility <span class="small">(Usage &amp; Capabilities)</span></h2>
@@ -176,7 +288,7 @@
         <div class="card">
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Agent Fleet Management</div>
-            <div class="feature-desc">Centralized control of the OmniAgent (Rust/Go). Unified health, updates, and configuration.</div>
+            <div class="feature-desc">Centralized control of the OmniAgent. Unified health, remote updates, and configuration at scale.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Log Explorer</div>
@@ -184,21 +296,57 @@
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Distributed Tracing</div>
-            <div class="feature-desc">Visualizing request flow across microservices to identify failure points.</div>
+            <div class="feature-desc">Visualize request flow across microservices to identify failure points and latency bottlenecks.</div>
           </div>
         </div>
         <div class="card">
           <div class="feature-box">
-            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Proactive Insights</div>
-            <div class="feature-desc">AIOps engine that predicts system failures (e.g., Disk/CPU) 72 hours in advance.</div>
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>AIOps Predictive Health</div>
+            <div class="feature-desc">Predict disk, CPU, and memory failures 72 hours in advance. Capacity planning and rightsizing built-in.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Software Deployment Hub</div>
-            <div class="feature-desc">Bulk installation of enterprise software (MSI, PKG, DEB) via the agent.</div>
+            <div class="feature-desc">Bulk installation of enterprise software (MSI, PKG, DEB) via agent at fleet scale.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Asset Management</div>
-            <div class="feature-desc">Dynamic inventory of every hardware component and software package.</div>
+            <div class="feature-desc">Dynamic inventory of every hardware component and software package across the entire fleet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">Integrations &amp; Intelligence <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:15px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>SIEM Integration</div>
+            <div class="feature-desc">Native connectors for Splunk, ELK, Wazuh, and QRadar — push events and pull findings bidirectionally.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>APM — App Performance Monitoring</div>
+            <div class="feature-desc">Automatic baseline detection, latency tracking, and error rate alerting per service and endpoint.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Hardware Attestation</div>
+            <div class="feature-desc">Device ID verified on every agent connection. ID mismatch triggers an instant 403 block.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Agent Self-Healing</div>
+            <div class="feature-desc">Autonomous fault detection and self-repair. Agents resume operation without manual intervention.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Swarm P2P Protocol</div>
+            <div class="feature-desc">Gossip-based peer-to-peer agent coordination for resilient, decentralized fleet operations.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--cy)"></div>Real-time Streams</div>
+            <div class="feature-desc">WebSocket/SSE per-tenant alert channels plus a global security event feed for live dashboards.</div>
           </div>
         </div>
       </div>
@@ -214,6 +362,7 @@
       <h1 class="chapter-title" style="font-size:3.5em;color:var(--pu)">Platform <span style="color:#fff">&amp; DevTools</span></h1>
     </div>
   </section>
+
   <section data-background-color="#040812">
     <div class="section">
       <h2 class="h2">Modern Delivery <span class="small">(Usage &amp; Capabilities)</span></h2>
@@ -221,21 +370,57 @@
         <div class="card">
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Patch Management</div>
-            <div class="feature-desc">Vulnerability tracking and automated patching for Windows and Linux.</div>
+            <div class="feature-desc">Full CVE lifecycle — track, deploy, stage, roll back, and schedule patches for Windows and Linux.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>DevSecOps Dashboard</div>
-            <div class="feature-desc">SAST/DAST results, secret scanning, and pipeline health for every repo.</div>
+            <div class="feature-desc">SAST/DAST results, secret scanning, and pipeline health for every repo in a single view.</div>
           </div>
         </div>
         <div class="card">
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Service Catalog (IDP)</div>
-            <div class="feature-desc">Self-service portal for developers to provision secure infrastructure.</div>
+            <div class="feature-desc">Self-service portal for developers to provision secure, compliant infrastructure on demand.</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>DORA Metrics</div>
-            <div class="feature-desc">Track Deployment Frequency and Lead Time to measure engineering velocity.</div>
+            <div class="feature-desc">Track Deployment Frequency, Lead Time, MTTR, and Change Failure Rate for engineering velocity.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-background-color="#040812">
+    <div class="section">
+      <h2 class="h2">AI Platform &amp; Operations <span class="small">(Usage &amp; Capabilities)</span></h2>
+      <div class="g2" style="margin-top:20px">
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--b2)"></div>Sovereign AI <span style="color:var(--gr2);font-size:.85em">— Available Now</span></div>
+            <div class="feature-desc">Private LLMs running entirely within your VPC. Fine-tune on your data. Zero telemetry egress.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--b2)"></div>FinOps</div>
+            <div class="feature-desc">Cloud cost optimization with anomaly detection, rightsizing recommendations, and budget alerts.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--b2)"></div>AI Chat Assistant</div>
+            <div class="feature-desc">Natural language interface to platform data, alert triage, and one-click guided remediation.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--b2)"></div>Multi-Channel Notifications</div>
+            <div class="feature-desc">Email, SMS (Twilio), Slack, MS Teams, and PagerDuty — admin-targeted and per-user configurable.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--b2)"></div>AutoML</div>
+            <div class="feature-desc">Automated model training, evaluation, and deployment pipeline for custom threat and anomaly models.</div>
+          </div>
+          <div class="feature-box">
+            <div class="feature-title"><div class="f-dot" style="background:var(--b2)"></div>A/B Testing Framework</div>
+            <div class="feature-desc">Controlled feature rollouts with statistical analysis and real-time performance comparison.</div>
           </div>
         </div>
       </div>
@@ -260,11 +445,11 @@
           <div class="badge-roadmap">BETA 2026.Q4</div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Agentic AI Loops</div>
-            <div class="feature-desc">Autonomous agents that negotiate resource allocation and resolve conflicts.</div>
+            <div class="feature-desc">Autonomous agents that negotiate resource allocation, resolve conflicts, and self-optimize continuously.</div>
           </div>
           <div class="feature-box">
-            <div class="feature-title"><div class="f-dot" style="background:var(--b)"></div>Sovereign AI</div>
-            <div class="feature-desc">Private LLMs running entirely within your VPC. Available Today.</div>
+            <div class="feature-title"><div class="f-dot" style="background:var(--b)"></div>Digital Twin Simulation</div>
+            <div class="feature-desc">Mirror your production environment to safely test changes before fleet-wide rollout.</div>
           </div>
         </div>
         <div class="card">
@@ -282,7 +467,7 @@
           <div class="badge-roadmap">ROADMAP 2027.Q2</div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--pu)"></div>Confidential Computing</div>
-            <div class="feature-desc">Hardware-level protection for sensitive data-in-use (Intel SGX/AMD SEV).</div>
+            <div class="feature-desc">Hardware-level protection for sensitive data-in-use (Intel SGX / AMD SEV).</div>
           </div>
           <div class="feature-box">
             <div class="feature-title"><div class="f-dot" style="background:var(--b)"></div>Crypto-Agility (PQC)</div>
@@ -298,7 +483,7 @@
 <section data-background-color="#040812">
 <div class="section" style="text-align:center">
   <h1 class="hero" style="font-size:4.5em;margin-bottom:30px">Future-Proof.</h1>
-  <p class="lead" style="margin-bottom:40px">OmniAgent Platform: Built for 2027 and beyond.</p>
+  <p class="lead" style="margin-bottom:40px">OmniAgent Platform: 50+ capabilities. One platform. Built for 2027 and beyond.</p>
   <div style="display:inline-flex;gap:12px;background:linear-gradient(135deg,var(--b),var(--b3));color:#fff;border-radius:12px;padding:18px 45px;font-size:1.1em;font-weight:800;box-shadow:0 15px 50px rgba(99,102,241,.4)">
     Secure Your Future
   </div>

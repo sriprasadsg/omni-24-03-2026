@@ -48,10 +48,18 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       }
     },
+    build: {
+      chunkSizeWarningLimit: 1500,
+    },
     test: {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/__tests__/setup.ts'],
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        'code-review-graph-main/**',
+      ],
     }
   };
 });

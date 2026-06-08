@@ -139,7 +139,6 @@ async def run_correlation(
 @router.post("/false-positive/{correlation_id}")
 async def mark_false_positive(
     correlation_id: str,
-    body: dict = {},
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: dict = Depends(require_permission("manage:security_cases")),
 ):

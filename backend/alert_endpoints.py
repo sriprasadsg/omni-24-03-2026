@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
-from typing import List, Any
+from typing import List, Any, Optional
+from pydantic import BaseModel, Field
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -30,6 +31,9 @@ async def get_alerts(_current_user: TokenData = Depends(get_current_user)):
     return alerts
 
 
+_VALID_SEVERITIES: frozenset[str] = frozenset({"Critical", "High", "Medium", "Low", "Info", "critical", "high", "medium", "low", "info"})
+
+
 @router.get("/search")
 async def search_alerts(
     q: str = Query(..., min_length=1, description="Full-text search query"),
@@ -39,6 +43,8 @@ async def search_alerts(
 ):
     """Full-text search across alert description, type, and source fields."""
     q = q[:200]
+    if severity and severity not in _VALID_SEVERITIES:
+        raise HTTPException(status_code=400, detail=f"Invalid severity. Must be one of: {sorted(_VALID_SEVERITIES)}")
     db = get_database()
     tf = _tenant_filter(_current_user)
     alerts: list = []
@@ -63,18 +69,35 @@ async def search_alerts(
     return alerts
 
 
+_VALID_ALERT_SEVERITIES = frozenset({"Critical", "High", "Medium", "Low", "Info"})
+_VALID_ALERT_STATUSES = frozenset({"open", "acknowledged", "resolved", "false_positive"})
+
+
+class AlertCreate(BaseModel):
+    type: str = Field(..., max_length=100)
+    severity: str = Field("Medium", max_length=20)
+    title: str = Field(..., max_length=500)
+    description: str = Field("", max_length=5000)
+    source: Optional[dict] = None
+    metadata: Optional[dict] = None
+
+    model_config = {"extra": "forbid"}
+
+
 @router.post("")
 async def create_alert(
-    alert: dict = Body(...),
+    alert_in: AlertCreate,
     _current_user: TokenData = Depends(get_current_user),
 ):
     """Create a new alert and broadcast it to real-time subscribers."""
+    if alert_in.severity not in _VALID_ALERT_SEVERITIES:
+        raise HTTPException(status_code=400, detail=f"severity must be one of: {sorted(_VALID_ALERT_SEVERITIES)}")
     db = get_database()
     now = datetime.now(timezone.utc).isoformat()
-    alert.setdefault("id", str(uuid.uuid4()))
-    alert.setdefault("timestamp", now)
-    alert.setdefault("status", "open")
-    # Prevent tenantId injection — enforce from authenticated user
+    alert = alert_in.model_dump()
+    alert["id"] = str(uuid.uuid4())
+    alert["timestamp"] = now
+    alert["status"] = "open"
     user_tenant = getattr(_current_user, "tenant_id", None)
     if user_tenant:
         alert["tenantId"] = user_tenant
@@ -93,16 +116,18 @@ async def create_alert(
     return alert
 
 
+class AlertAssignRequest(BaseModel):
+    assigned_to: str = Field(..., min_length=1, max_length=320)
+
+
 @router.patch("/{alert_id}/assign")
 async def assign_alert(
     alert_id: str,
-    body: dict = Body(..., example={"assigned_to": "analyst@corp.com"}),
+    body: AlertAssignRequest,
     _current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Assign an alert to a specific user (tenant-scoped)."""
-    assigned_to = body.get("assigned_to")
-    if not assigned_to:
-        raise HTTPException(status_code=400, detail="assigned_to is required")
+    assigned_to = body.assigned_to
     db = get_database()
     now = datetime.now(timezone.utc).isoformat()
     result = await db.alerts.update_one(
