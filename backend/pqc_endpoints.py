@@ -1,5 +1,5 @@
-"""
-PQC Endpoints — Post-Quantum Cryptography REST API.
+﻿"""
+PQC Endpoints â€” Post-Quantum Cryptography REST API.
 
 Exposes the hybrid Kyber-768 / X25519 key exchange engine at /api/pqc/*.
 
@@ -80,3 +80,4 @@ async def list_sessions(current_user=Depends(get_current_user)):
         for sess in pqc_engine.active_sessions.values()
     ]
     return {"sessions": sessions, "count": len(sessions)}
+

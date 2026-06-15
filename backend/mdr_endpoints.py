@@ -1,5 +1,5 @@
-"""
-MDR Endpoints — Managed Detection & Response REST API.
+﻿"""
+MDR Endpoints â€” Managed Detection & Response REST API.
 
 Routes:
   GET  /api/mdr/dashboard      - KPI summary (active hunts, coverage, threats)
@@ -173,3 +173,4 @@ async def update_escalation(
 async def get_coverage(current_user: dict = Depends(get_current_user)):
     tf = _tenant_filter(current_user)
     return await svc.get_coverage(tf)
+

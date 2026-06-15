@@ -130,6 +130,7 @@ class TenantIsolatedDatabase:
             "response_policies",  # platform-level security policies, seeded globally
             "playbooks",          # platform-seeded playbooks shared across tenants
             "ip_bans",            # platform-wide IP block list, checked before tenant context is set
+            "crypto_inventory",   # platform-wide PQC inventory seeded at startup
         ]:
             return collection
         return TenantIsolatedCollection(collection)
@@ -146,6 +147,7 @@ class TenantIsolatedDatabase:
             "response_policies",  # platform-level security policies, seeded globally
             "playbooks",          # platform-seeded playbooks shared across tenants
             "ip_bans",            # platform-wide IP block list, checked before tenant context is set
+            "crypto_inventory",   # platform-wide PQC inventory seeded at startup
         ]:
             return self._db[name]
         return TenantIsolatedCollection(self._db[name])

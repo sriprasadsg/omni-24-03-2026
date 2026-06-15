@@ -147,6 +147,7 @@ class CorrelationEngineCoreMixin:
         correlations.extend(await self._correlate_by_time(events))
         correlations.extend(await self._correlate_by_entity(events))
         correlations.extend(await self._detect_attack_patterns(events))
+        correlations.extend(await self._evaluate_siem_rules(tenant_id, events))
 
         for correlation in correlations:
             correlation["tenant_id"] = tenant_id
@@ -255,3 +256,128 @@ class CorrelationEngineCoreMixin:
                         "severity": "critical", "mitre_attack": pattern_id,
                     })
         return correlations
+
+    async def _evaluate_siem_rules(self, tenant_id: str, events: List[Dict]) -> List[Dict]:
+        """
+        Evaluate tenant SIEM correlation rules against the current event window.
+        For each enabled rule whose conditions match at least one event:
+          - increments match_count in the siem_rules collection
+          - broadcasts a siem_rule_match WebSocket event to connected clients
+          - returns a correlation record for the main correlations collection
+        """
+        if not events:
+            return []
+
+        correlations: List[Dict] = []
+        now = datetime.now(timezone.utc).isoformat()
+
+        try:
+            rules = await self.db.siem_rules.find(
+                {"tenant_id": tenant_id, "enabled": True}, {"_id": 0}
+            ).to_list(length=500)
+        except Exception as exc:
+            logger.warning("[SIEMRules] Could not load rules for tenant %s: %s", tenant_id, exc)
+            return []
+
+        for rule in rules:
+            conditions: Dict[str, Any] = rule.get("conditions") or {}
+            if not conditions:
+                continue
+
+            # Match an event if ALL condition key→value pairs are satisfied.
+            # Values in conditions are either literals or lists of accepted values.
+            matched_events = []
+            for event in events:
+                if self._event_matches_conditions(event, conditions):
+                    matched_events.append(event)
+
+            if not matched_events:
+                continue
+
+            rule_id = rule.get("id", "")
+            rule_name = rule.get("name", "")
+
+            # Persist incremented match_count
+            try:
+                result = await self.db.siem_rules.find_one_and_update(
+                    {"id": rule_id, "tenant_id": tenant_id},
+                    {"$inc": {"match_count": len(matched_events)}, "$set": {"last_matched": now}},
+                    return_document=True,
+                    projection={"_id": 0, "match_count": 1},
+                )
+                new_count = (result or {}).get("match_count", len(matched_events))
+            except Exception as exc:
+                logger.warning("[SIEMRules] Failed to update match_count for rule %s: %s", rule_id, exc)
+                new_count = len(matched_events)
+
+            # WebSocket broadcast
+            try:
+                import websocket_manager
+                await websocket_manager.broadcast_siem_rule_match(
+                    tenant_id=tenant_id,
+                    rule_id=rule_id,
+                    rule_name=rule_name,
+                    severity=rule.get("severity", "Medium"),
+                    match_count=new_count,
+                    mitre_tactic=rule.get("mitre_tactic", ""),
+                    threat_actor=rule.get("threat_actor", ""),
+                )
+            except Exception as exc:
+                logger.debug("[SIEMRules] WS broadcast failed for rule %s: %s", rule_id, exc)
+
+            correlations.append({
+                "type": "siem_rule",
+                "rule_id": rule_id,
+                "pattern": rule_name,
+                "severity": rule.get("severity", "Medium").lower(),
+                "event_count": len(matched_events),
+                "mitre_attack": rule.get("mitre_tactic", ""),
+                "confidence": min(len(matched_events) * 0.3, 1.0),
+            })
+
+        return correlations
+
+    @staticmethod
+    def _event_matches_conditions(event: Dict, conditions: Dict) -> bool:
+        """
+        Return True if the event satisfies all conditions in the rule.
+        A condition key maps to a value that can be:
+          - str/int/bool: exact match against any common event field
+          - list: any element of the list matches
+        Special keys (threshold, pattern, etc.) are skipped — they are
+        metadata hints for the UI, not event-field matchers.
+        """
+        _SKIP_KEYS = {"threshold", "pattern", "group_by", "scope", "source_type",
+                      "outside_window", "remote_script", "query_types",
+                      "approval_window_seconds", "app_verified", "user_approved",
+                      "geo", "encryption", "flags", "ports", "query_rate",
+                      "subdomain_length", "ja3_match", "window_minutes",
+                      "distance_km", "ransom_note_dropped", "encryption_rate",
+                      "access_mask", "process_type", "user_type", "method",
+                      "forward_to", "command_line", "log", "event_id",
+                      "volume", "idp", "parent", "child", "binaries"}
+
+        # Flatten common event field names into a single lookup dict
+        lookup: Dict[str, Any] = {}
+        for k, v in event.items():
+            if isinstance(v, str):
+                lookup[k.lower()] = v.lower()
+            elif isinstance(v, (int, float, bool)):
+                lookup[k.lower()] = v
+
+        for cond_key, cond_val in conditions.items():
+            if cond_key in _SKIP_KEYS:
+                continue
+            # Normalise key and value
+            ck = cond_key.lower()
+            if isinstance(cond_val, list):
+                accepted = [str(v).lower() for v in cond_val]
+                if lookup.get(ck) not in accepted:
+                    return False
+            elif isinstance(cond_val, (str, int, float, bool)):
+                cv = str(cond_val).lower()
+                ev = str(lookup.get(ck, "")).lower()
+                # substring match to handle partial values (e.g. "login_failed" in "auth_login_failed")
+                if cv not in ev and ev not in cv:
+                    return False
+        return True

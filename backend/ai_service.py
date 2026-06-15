@@ -15,11 +15,79 @@ from circuit_breaker import ai_breaker, CircuitBreakerOpen
 logger = logging.getLogger(__name__)
 
 
+async def _create_provider_from_settings(settings: dict) -> Optional[AIProvider]:
+    """Instantiate and configure the right provider from a settings dict."""
+    configured_provider = settings.get("provider", "")
+    if configured_provider in ("Ollama (Local)", "Local", "ollama"):
+        ollama = OllamaProvider()
+        ollama_url = (
+            settings.get("ollamaUrl")
+            or settings.get("ollama_url")
+            or (f"http://{settings['host']}" if settings.get("host") else None)
+            or os.getenv("OLLAMA_URL")
+            or ollama_default_url()
+        )
+        if await ollama.configure({
+            **settings,
+            "ollamaUrl": ollama_url,
+            "ollamaModel": settings.get("ollamaModel") or settings.get("model") or
+                           os.getenv("OLLAMA_MODEL", os.getenv("LLM_MODEL", "llama3.2:3b")),
+        }):
+            return ollama
+    elif configured_provider == "Anthropic Claude":
+        anthropic = AnthropicProvider()
+        if await anthropic.configure(settings):
+            return anthropic
+    elif configured_provider == "Gemini":
+        gemini = GeminiProvider()
+        if await gemini.configure(settings):
+            return gemini
+    return None
+
+
 class IncidentAnalyzer:
     def __init__(self):
         self.provider: Optional[AIProvider] = None
         self.is_configured = False
         self.demo_sessions: dict = {}
+        self._tenant_providers: dict = {}  # cache: tenant_id → AIProvider
+
+    def invalidate_tenant_provider(self, tenant_id: Optional[str]) -> None:
+        """Evict cached provider so next request re-reads from DB."""
+        if tenant_id:
+            self._tenant_providers.pop(tenant_id, None)
+
+    async def get_provider_for_tenant(self, tenant_id: Optional[str]) -> Optional[AIProvider]:
+        """Return a provider configured for the given tenant, caching the result."""
+        if not tenant_id:
+            if not self.is_configured:
+                await self.initialize()
+            return self.provider
+
+        if tenant_id in self._tenant_providers:
+            return self._tenant_providers[tenant_id]
+
+        db = get_database()
+        if not db:
+            if not self.is_configured:
+                await self.initialize()
+            return self.provider
+        raw = db._db if hasattr(db, "_db") else db
+        settings = await raw.system_settings.find_one({"type": "llm", "tenantId": tenant_id})
+        if not settings:
+            # No tenant-specific config → fall back to global provider
+            if not self.is_configured:
+                await self.initialize()
+            return self.provider
+
+        provider = await _create_provider_from_settings(settings)
+        if provider:
+            self._tenant_providers[tenant_id] = provider
+            return provider
+
+        if not self.is_configured:
+            await self.initialize()
+        return self.provider
 
     async def initialize(self):
         """Initialize the AI Provider with fallback chain."""
@@ -134,23 +202,31 @@ class IncidentAnalyzer:
         policy = settings.get("policy", {})
         return scan_text(text, policy.get("block_pii", True), policy.get("block_injection", True))
 
-    async def generate_text(self, prompt: str, source: str = "generic", _retries: int = 3) -> str:
+    async def generate_text(
+        self,
+        prompt: str,
+        source: str = "generic",
+        _retries: int = 3,
+        provider: Optional[AIProvider] = None,
+    ) -> str:
         """Public generic generation method with guardrails and exponential-backoff retry."""
         import asyncio as _asyncio
-        if not self.is_configured:
-            await self.initialize()
+        if provider is None:
+            if not self.is_configured:
+                await self.initialize()
+            provider = self.provider
 
         scan = await guardrail_service.scan_and_log(prompt, f"{source}_input")
         if not scan.passed:
             return f"BLOCKED: Security policy violation in prompt. Findings: {', '.join(scan.findings)}"
 
-        if self.provider:
+        if provider:
             last_err: Exception = RuntimeError("provider not ready")
             response: str = ""
             for attempt in range(_retries):
                 try:
                     async with ai_breaker:
-                        response = await self.provider.generate(prompt)
+                        response = await provider.generate(prompt)
                     break
                 except CircuitBreakerOpen as cb_err:
                     last_err = cb_err
@@ -288,8 +364,8 @@ class IncidentAnalyzer:
 
     async def chat(self, message: str, context: dict):
         """Chat with the AI assistant."""
-        if not self.is_configured:
-            await self.initialize()
+        tenant_id = context.get("tenantId")
+        provider = await self.get_provider_for_tenant(tenant_id)
 
         if message.startswith("/"):
             return await self._dispatch_skill(message, context)
@@ -327,11 +403,11 @@ class IncidentAnalyzer:
                     return "That concludes our comprehensive platform tour! I hope that provided a clear view of how Genesis can secure and scale your enterprise. What else can I help you with? [NAVIGATE:dashboard]"
             if "more" in lower_msg or ("yes" in lower_msg and state == "awaiting_satisfaction"):
                 prompt = f"Using this project context: {PROJECT_DETAILS}\n\nThe user wants more details about: {session.get('last_question', 'their last question')}. Provide a more in-depth but concise explanation."
-                answer = await self.generate_text(prompt)
+                answer = await self.generate_text(prompt, provider=provider)
                 return f"{answer} Are you satisfied now, or should we continue the platform tour?"
             if "?" in message or any(kw in lower_msg for kw in ["how", "what", "why", "can you"]):
                 prompt = f"Using this project context: {PROJECT_DETAILS}\n\nAnswer this question concisely: {message}. Then ask if they are satisfied and want to continue the tour."
-                answer = await self.generate_text(prompt)
+                answer = await self.generate_text(prompt, provider=provider)
                 self.demo_sessions[user_id]["state"] = "awaiting_satisfaction"
                 self.demo_sessions[user_id]["last_question"] = message
                 return f"{answer} Does that answer satisfy you? If so, should we continue the platform tour?"
@@ -347,7 +423,7 @@ class IncidentAnalyzer:
             "Include EXACTLY ONE navigation tag at the end exactly formatted like [NAVIGATE:dashboard] without spaces."
         )
         try:
-            return await self.generate_text(prompt)
+            return await self.generate_text(prompt, provider=provider)
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -361,8 +437,8 @@ class IncidentAnalyzer:
         animates even when the model can't stream natively.
         """
         import asyncio as _asyncio
-        if not self.is_configured:
-            await self.initialize()
+        tenant_id = context.get("tenantId")
+        provider = await self.get_provider_for_tenant(tenant_id)
 
         # Skill commands: dispatch synchronously, yield full result
         if message.startswith("/"):
@@ -386,14 +462,14 @@ class IncidentAnalyzer:
             "Include EXACTLY ONE navigation tag at the end exactly formatted like [NAVIGATE:dashboard] without spaces."
         )
 
-        if not self.provider:
+        if not provider:
             yield "AI provider not configured."
             return
 
         # Try native streaming first
         native_failed = False
         try:
-            async for chunk in self.provider.generate_stream(prompt):
+            async for chunk in provider.generate_stream(prompt):
                 yield chunk
             return
         except OmniLowConfidenceError:
@@ -404,7 +480,7 @@ class IncidentAnalyzer:
         if native_failed:
             # generate_text handles OmniLocal fallback + all retry logic
             try:
-                text = await self.generate_text(prompt, source="chat_stream_fallback")
+                text = await self.generate_text(prompt, source="chat_stream_fallback", provider=provider)
                 if text:
                     words = text.split(" ")
                     for i, word in enumerate(words):

@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { LlmSettings as LlmSettingsType } from '../types';
+import { LlmSettings as LlmSettingsType, AiTool } from '../types';
 import { BrainCircuitIcon, XIcon, CogIcon, CheckIcon, AlertTriangleIcon, InfoIcon } from './icons';
 import { testLlmConnection } from '../services/apiService';
 
@@ -58,16 +58,22 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
     const [customModels, setCustomModels] = useState<string[]>(settings.customModels || []);
     const [isAddingModel, setIsAddingModel] = useState(false);
     const [newModelName, setNewModelName] = useState('');
+    const [customTools, setCustomTools] = useState<AiTool[]>(settings.customTools || []);
+    const [isAddingTool, setIsAddingTool] = useState(false);
+    const [newTool, setNewTool] = useState<Partial<AiTool>>({ type: 'ollama' });
 
     useEffect(() => {
         if (isOpen) {
             setFormData({ ...settings, provider: settings.provider || 'Local' });
             setCustomModels(settings.customModels || []);
+            setCustomTools(settings.customTools || []);
             setShowKey(false);
             setTestStatus('idle');
             setTestMessage('');
             setIsAddingModel(false);
             setNewModelName('');
+            setIsAddingTool(false);
+            setNewTool({ type: 'ollama' });
         }
     }, [settings, isOpen]);
 
@@ -78,7 +84,27 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
     };
 
     const handleSave = () => {
-        onSave({ ...formData, customModels });
+        onSave({ ...formData, customModels, customTools });
+    };
+
+    const handleAddTool = () => {
+        if (newTool.name && newTool.endpoint && newTool.model) {
+            const tool: AiTool = {
+                id: `tool-${Date.now()}`,
+                name: newTool.name,
+                type: newTool.type as AiTool['type'] || 'ollama',
+                endpoint: newTool.endpoint,
+                model: newTool.model,
+                apiKey: newTool.apiKey,
+            };
+            setCustomTools([...customTools, tool]);
+            setIsAddingTool(false);
+            setNewTool({ type: 'ollama' });
+        }
+    };
+
+    const handleRemoveTool = (id: string) => {
+        setCustomTools(customTools.filter(t => t.id !== id));
     };
 
     const handleAddModel = () => {
@@ -96,14 +122,15 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
 
         if (formData.provider === 'Local') {
             try {
-                const ollamaUrl = formData.host
-                    ? (formData.host.startsWith('http') ? formData.host : `http://${formData.host}`)
+                const raw = formData.ollamaUrl || formData.host || '';
+                const ollamaUrl = raw
+                    ? (raw.startsWith('http') ? raw : `http://${raw}`)
                     : 'http://127.0.0.1:11434';
                 const result = await testLlmConnection({
                     provider: 'ollama',
                     ollamaUrl,
                     ollama_url: ollamaUrl,
-                    model: formData.model || 'llama3.2:3b',
+                    model: formData.ollamaModel || formData.model || 'llama3.2:3b',
                 });
                 if (result.success) {
                     setTestStatus('success');
@@ -305,17 +332,21 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                     )}
                     {formData.provider === 'Local' && (
                         <div>
-                            <label htmlFor="host" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Local LLM Host</label>
+                            <label htmlFor="ollamaUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Ollama Server URL</label>
                             <input
                                 type="text"
-                                id="host" name="host"
-                                value={formData.host || ''}
-                                onChange={handleChange}
-                                placeholder="e.g., http://localhost:11434"
-                                className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm"
+                                id="ollamaUrl" name="ollamaUrl"
+                                value={formData.ollamaUrl || formData.host || ''}
+                                onChange={e => {
+                                    const v = e.target.value;
+                                    setFormData(prev => ({ ...prev, ollamaUrl: v, host: v.replace(/^https?:\/\//, '') }));
+                                    setTestStatus('idle');
+                                }}
+                                placeholder="http://192.168.1.100:11434"
+                                className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm font-mono"
                             />
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                Enter the full URL of your local LLM API endpoint (e.g., Ollama, LM Studio).
+                                Enter the full URL of your Ollama server. Use the server's LAN IP when Ollama runs on a different machine (e.g., <code className="font-mono bg-gray-100 dark:bg-gray-600 px-1 rounded">http://192.168.1.100:11434</code>).
                             </p>
                         </div>
                     )}
@@ -323,6 +354,97 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                         <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-md text-xs text-blue-700 dark:text-blue-300">
                             <p className="font-bold mb-1">🧠 Omni-LLM (Custom Transformer)</p>
                             <p>This model was trained from scratch on the platform. It runs entirely offline with no external API calls. Navigate to <strong>AI &gt; LLMOps &gt; Train Custom Model</strong> to start or monitor training.</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Custom AI Tools ─────────────────────────────────── */}
+                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Custom AI Tools</h3>
+                        {!isAddingTool && (
+                            <button
+                                type="button"
+                                onClick={() => setIsAddingTool(true)}
+                                className="text-xs px-2 py-1 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 rounded hover:bg-primary-200 dark:hover:bg-primary-900"
+                            >
+                                + Add Tool
+                            </button>
+                        )}
+                    </div>
+                    {customTools.length > 0 && (
+                        <ul className="space-y-2 mb-3">
+                            {customTools.map(tool => (
+                                <li key={tool.id} className="flex justify-between items-center text-xs bg-gray-50 dark:bg-gray-700/50 rounded px-3 py-2">
+                                    <div>
+                                        <span className="font-medium text-gray-800 dark:text-gray-100">{tool.name}</span>
+                                        <span className="ml-2 text-gray-500 dark:text-gray-400">({tool.type})</span>
+                                        <span className="ml-2 font-mono text-gray-500 dark:text-gray-400 truncate max-w-xs inline-block">{tool.endpoint}</span>
+                                        <span className="ml-2 text-gray-400">· {tool.model}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveTool(tool.id)}
+                                        className="ml-3 text-red-500 hover:text-red-700 flex-shrink-0"
+                                    >
+                                        <XIcon size={14} />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    {customTools.length === 0 && !isAddingTool && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500">No custom tools registered. Add an Ollama endpoint, OpenAI-compatible API, or any custom AI service.</p>
+                    )}
+                    {isAddingTool && (
+                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-md p-3 space-y-2 text-sm">
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Name</label>
+                                    <input type="text" placeholder="My Ollama Server" value={newTool.name || ''}
+                                        onChange={e => setNewTool(p => ({ ...p, name: e.target.value }))}
+                                        className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Type</label>
+                                    <select value={newTool.type || 'ollama'} onChange={e => setNewTool(p => ({ ...p, type: e.target.value as AiTool['type'] }))}
+                                        className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded">
+                                        <option value="ollama">Ollama</option>
+                                        <option value="openai_compatible">OpenAI-compatible</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Endpoint URL</label>
+                                <input type="text" placeholder="http://192.168.1.100:11434" value={newTool.endpoint || ''}
+                                    onChange={e => setNewTool(p => ({ ...p, endpoint: e.target.value }))}
+                                    className="w-full px-2 py-1.5 text-xs font-mono bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Model</label>
+                                    <input type="text" placeholder="llama3.2:3b" value={newTool.model || ''}
+                                        onChange={e => setNewTool(p => ({ ...p, model: e.target.value }))}
+                                        className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">API Key (optional)</label>
+                                    <input type="password" placeholder="sk-..." value={newTool.apiKey || ''}
+                                        onChange={e => setNewTool(p => ({ ...p, apiKey: e.target.value }))}
+                                        className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
+                                </div>
+                            </div>
+                            <div className="flex space-x-2 pt-1">
+                                <button type="button" onClick={handleAddTool}
+                                    className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700">
+                                    Add
+                                </button>
+                                <button type="button" onClick={() => { setIsAddingTool(false); setNewTool({ type: 'ollama' }); }}
+                                    className="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

@@ -128,18 +128,18 @@ async def create_deployment_job(
                 if key:
                     agent_map[key] = a
 
-        instructions_queued = 0
+        patch_identifiers = [_patch_identifier(d) for d in patch_docs if _patch_identifier(d)]
+        instruction_str = "Install Patches: " + " ".join(patch_identifiers) + f" Job: {job_id}"
+
+        # Build all instruction documents first, then insert in chunks of 1 000 to
+        # avoid MongoDB's 16 MiB document-batch limit and reduce round-trips at scale.
+        instr_docs: list[dict] = []
         for asset_id in request.asset_ids:
             agent = agent_map.get(asset_id)
-            if not agent:
+            if not agent or not patch_identifiers:
                 continue
-            agent_id = agent["id"]
-            patch_identifiers = [_patch_identifier(d) for d in patch_docs if _patch_identifier(d)]
-            if not patch_identifiers:
-                continue
-            instruction_str = "Install Patches: " + " ".join(patch_identifiers) + f" Job: {job_id}"
-            instr_doc: dict = {
-                "agent_id":    agent_id,
+            doc: dict = {
+                "agent_id":    agent["id"],
                 "instruction": instruction_str,
                 "status":      "pending",
                 "created_at":  now,
@@ -149,10 +149,17 @@ async def create_deployment_job(
                 "payload":     {},
             }
             if not is_immediate and request.schedule_time:
-                instr_doc["scheduledAt"] = request.schedule_time
-                instr_doc["status"] = "scheduled"
-            await db.agent_instructions.insert_one(instr_doc)
-            instructions_queued += 1
+                doc["scheduledAt"] = request.schedule_time
+                doc["status"] = "scheduled"
+            instr_docs.append(doc)
+
+        _CHUNK = 1_000
+        for i in range(0, len(instr_docs), _CHUNK):
+            chunk = instr_docs[i : i + _CHUNK]
+            if chunk:
+                await db.agent_instructions.insert_many(chunk, ordered=False)
+
+        instructions_queued = len(instr_docs)
 
         job["instructionsQueued"] = instructions_queued
 

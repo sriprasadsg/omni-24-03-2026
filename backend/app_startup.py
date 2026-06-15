@@ -228,7 +228,29 @@ async def seed_database():
             "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
             "view:chaos", "view:network", "manage:pricing", "view:software_updates",
             "view:zero_trust", "view:mdr", "view:xdr", "view:agent_capabilities",
-            "manage:agents", "admin:*",
+            "manage:agents", "view:autopilot", "manage:autopilot",
+            "view:conditional_access", "manage:conditional_access",
+            "view:mdm", "manage:mdm", "view:branch_sites", "manage:branch_sites",
+            "view:app_catalog", "manage:app_catalog",
+            "view:asset_intelligence", "manage:asset_intelligence",
+            "view:mam", "manage:mam",
+            "view:android_enterprise", "manage:android_enterprise",
+            "view:device_config_profiles", "manage:device_config_profiles",
+            "view:firmware_drivers", "manage:firmware_drivers",
+            "view:advanced_hunting", "manage:advanced_hunting",
+            "view:detection_rules", "manage:detection_rules",
+            "view:connectors_hub", "manage:connectors_hub",
+            "view:security_copilot",
+            "view:mssp", "manage:mssp",
+            "view:attack_timeline",
+            "view:geographic_map",
+            "view:retention_policies", "manage:retention_policies",
+            "view:sca", "manage:sca",
+            "view:agent_groups", "manage:agent_groups",
+            "view:config_drift", "manage:config_drift",
+            "view:fim", "manage:fim",
+            "view:active_response", "manage:active_response",
+            "admin:*",
         ]
         await db.roles.update_one(
             {"name": "Super Admin"},
@@ -264,6 +286,28 @@ async def seed_database():
             "manage:experiments", "view:xai", "view:governance", "manage:playbooks",
             "view:swarm", "view:mdr", "view:xdr", "view:agent_capabilities",
             "manage:pricing", "manage:agents", "view:integrations",
+            "view:autopilot", "manage:autopilot",
+            "view:conditional_access", "manage:conditional_access",
+            "view:mdm", "manage:mdm", "view:branch_sites", "manage:branch_sites",
+            "view:app_catalog", "manage:app_catalog",
+            "view:asset_intelligence", "manage:asset_intelligence",
+            "view:mam", "manage:mam",
+            "view:android_enterprise", "manage:android_enterprise",
+            "view:device_config_profiles", "manage:device_config_profiles",
+            "view:firmware_drivers", "manage:firmware_drivers",
+            "view:advanced_hunting", "manage:advanced_hunting",
+            "view:detection_rules", "manage:detection_rules",
+            "view:connectors_hub", "manage:connectors_hub",
+            "view:security_copilot",
+            "view:mssp", "manage:mssp",
+            "view:attack_timeline",
+            "view:geographic_map",
+            "view:retention_policies", "manage:retention_policies",
+            "view:sca", "manage:sca",
+            "view:agent_groups", "manage:agent_groups",
+            "view:config_drift", "manage:config_drift",
+            "view:fim", "manage:fim",
+            "view:active_response", "manage:active_response",
         ]
         await db.roles.update_one(
             {"name": "Tenant Admin"},
@@ -366,6 +410,46 @@ async def seed_database():
         logger.error("Database seeding error: %s", e)
 
 
+async def _prebuild_windows_agent() -> None:
+    """
+    Build the Rust Windows agent binary in the background at server startup.
+    Idempotent — skips if the binary already exists or cargo is not available.
+    """
+    from pathlib import Path as _Path
+    import shutil as _shutil
+
+    base_dir = _Path(__file__).parent.parent
+    exe_path = base_dir / "agent-install" / "omni-agent-rs" / "target" / "release" / "omni-agent.exe"
+    if exe_path.exists():
+        logger.debug("[WindowsAgent] Pre-built binary already present; skipping build")
+        return
+
+    src_dir = base_dir / "agent-install" / "omni-agent-rs"
+    cargo = _shutil.which("cargo")
+    if not src_dir.is_dir() or not cargo:
+        logger.debug("[WindowsAgent] cargo not found; skipping pre-build")
+        return
+
+    logger.info("[WindowsAgent] Pre-building Rust agent binary in background...")
+    proc = await asyncio.create_subprocess_exec(
+        cargo, "build", "--release",
+        cwd=str(src_dir),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=600)
+    except (asyncio.TimeoutError, TimeoutError):
+        logger.warning("[WindowsAgent] Pre-build timed out (>10 min)")
+        return
+
+    if proc.returncode == 0:
+        logger.info("[WindowsAgent] Pre-build complete — %s", exe_path)
+    else:
+        snippet = (stderr_bytes or b"").decode(errors="replace")[-300:]
+        logger.warning("[WindowsAgent] Pre-build failed: %s", snippet)
+
+
 async def _safe_bg_task(coro, name: str) -> None:
     """Run a background coroutine; log exceptions instead of silently dropping them."""
     try:
@@ -444,8 +528,9 @@ async def run_startup_services() -> None:
 
     asyncio.create_task(_approval_timeout_loop())
 
-    from app_background_tasks import monitor_agent_status
+    from app_background_tasks import monitor_agent_status, refresh_mitre_heatmap_loop
     asyncio.create_task(_safe_bg_task(monitor_agent_status(), "agent_status_monitor"))
+    asyncio.create_task(_safe_bg_task(refresh_mitre_heatmap_loop(), "mitre_heatmap_refresh"))
 
     try:
         from scheduler import start_scheduler as start_deployment_scheduler
@@ -542,3 +627,6 @@ async def run_startup_services() -> None:
             logger.info("[LLM] Default Ollama settings seeded (provider=Local, url=%s)", ollama_default_url())
     except Exception as _e:
         logger.warning("[LLM] Default settings seeding failed: %s", _e)
+
+    # Pre-build the Windows Rust agent in the background so the first tenant download is instant
+    asyncio.create_task(_safe_bg_task(_prebuild_windows_agent(), "windows_agent_prebuild"))

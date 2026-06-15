@@ -63,6 +63,11 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         "registeredAt": existing_agent.get("registeredAt") if existing_agent else datetime.now(timezone.utc).isoformat()
     }
 
+    reg_meta = data.get("meta", {})
+    available_caps = reg_meta.get("availableCapabilities") or reg_meta.get("capabilities") or []
+    if available_caps:
+        agent_data["availableCapabilities"] = available_caps
+
     await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
 
     metrics = data.get("meta", {})

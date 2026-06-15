@@ -82,3 +82,27 @@ async def _start_xdr_correlation_scanner() -> None:
             _log.error("XDR scanner cycle error: %s", _e)
 
         await asyncio.sleep(300)
+
+
+async def refresh_mitre_heatmap_loop():
+    """Recompute and broadcast MITRE ATT&CK heatmap to connected tenants every 60 seconds."""
+    import websocket_manager
+    from mitre_service import get_coverage_heatmap
+
+    _log = logging.getLogger(__name__ + ".mitre_refresh")
+    _log.info("MITRE heatmap auto-refresh loop started (interval=60s)")
+
+    while True:
+        await asyncio.sleep(60)
+        try:
+            tenant_ids = websocket_manager.get_connected_tenant_ids()
+            for tenant_id in tenant_ids:
+                if not tenant_id or tenant_id == "platform-admin":
+                    continue
+                try:
+                    heatmap = await get_coverage_heatmap(tenant_id)
+                    await websocket_manager.broadcast_mitre_heatmap(tenant_id, heatmap)
+                except Exception as _te:
+                    _log.debug("MITRE refresh failed for tenant %s: %s", tenant_id, _te)
+        except Exception as _e:
+            _log.error("MITRE heatmap refresh loop error: %s", _e)

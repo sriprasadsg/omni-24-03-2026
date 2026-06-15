@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      watch: {
+        // Exclude Rust build artifacts — Windows locks .exe files during compilation
+        // and chokidar throws EBUSY trying to watch them.
+        ignored: ['**/agent-install/omni-agent-rs/target/**'],
+      },
       hmr: {
         overlay: true,
         // Use a dedicated port for HMR WebSocket so it doesn't compete

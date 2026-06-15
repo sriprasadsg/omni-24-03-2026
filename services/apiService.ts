@@ -2638,6 +2638,27 @@ export const testLlmConnection = async (settings: Record<string, string>) => {
     return res.json();
 };
 
+export const fetchAiTools = async () => {
+    const res = await authFetch(`${API_BASE}/settings/ai-tools`);
+    return res.ok ? res.json() : [];
+};
+
+export const addAiTool = async (tool: Record<string, string>) => {
+    const res = await authFetch(`${API_BASE}/settings/ai-tools`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tool),
+    });
+    if (!res.ok) throw new Error('Failed to add AI tool');
+    return res.json();
+};
+
+export const deleteAiTool = async (toolId: string) => {
+    const res = await authFetch(`${API_BASE}/settings/ai-tools/${toolId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete AI tool');
+    return res.json();
+};
+
 export const testDatabaseConnection = async (settings: DatabaseSettings) => {
     const res = await authFetch(`${API_BASE}/settings/test-db-connection`, {
         method: 'POST',

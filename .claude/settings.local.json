@@ -30,12 +30,19 @@
       "Bash(cd /d \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")",
       "Bash(Get-ChildItem -Path . -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(dir D:Downloadsenterprise-omni-agent-ai-platform *)"
+      "Bash(dir D:Downloadsenterprise-omni-agent-ai-platform *)",
+      "Bash(npx -y ruv-swarm mcp start)",
+      "Bash(npx ruv-swarm *)",
+      "Bash(python3 -m uvicorn app:app --host 127.0.0.1 --port 5001)",
+      "Bash(echo \"Restart PID: $!\")",
+      "Bash(kill 3960)",
+      "Bash(kill 11680)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "claude-flow",
-    "ruv-swarm",
-    "flow-nexus"
+    "flow-nexus",
+    "ruv-swarm"
   ]
 }

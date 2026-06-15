@@ -24,6 +24,15 @@ interface AgentDetailModalProps {
     onViewLogs: (agent: Agent) => void;
     onRunDiagnostics?: (agent: Agent) => void;
     onDeleteAgent?: (agent: Agent) => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
+}
+
+function formatRelativeTime(date: Date): string {
+    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (secs < 5) return 'just now';
+    if (secs < 60) return `${secs}s ago`;
+    return `${Math.floor(secs / 60)}m ago`;
 }
 
 const statusInfo: Record<AgentStatus, { icon: React.ReactNode; textClass: string; }> = {
@@ -150,7 +159,7 @@ const CHECK_NAME_MAPPING: Record<string, string> = {
     'Guest Account': 'Guest Account Disabled'
 };
 
-export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent, asset, onManageCapabilities, onViewRemediationLogs, onViewLogs, onRunDiagnostics, onDeleteAgent }) => {
+export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent, asset, onManageCapabilities, onViewRemediationLogs, onViewLogs, onRunDiagnostics, onDeleteAgent, onRefresh, isRefreshing }) => {
     const { hasPermission, currentUser } = useUser();
     const canRemediate = hasPermission('remediate:agents');
     const canTriggerScan = currentUser?.role === 'Super Admin' || currentUser?.role === 'Tenant Admin';
@@ -160,6 +169,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software' | 'patching'>('overview');
     const [fetchedComplianceData, setFetchedComplianceData] = useState<ComplianceData | null>(null);
     const [tenantName, setTenantName] = useState<string>('Loading...');
+
+    const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+    React.useEffect(() => {
+        if (agent) setLastRefreshed(new Date());
+    }, [agent]);
+
+    React.useEffect(() => {
+        if (!isOpen || !onRefresh) return;
+        const id = setInterval(onRefresh, 30_000);
+        return () => clearInterval(id);
+    }, [isOpen, onRefresh]);
 
     // Clear compliance data whenever a different agent is opened so stale data
     // from the previous agent never shows while the new fetch is in flight.
@@ -392,6 +412,19 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                 <span>v{agent.version}</span>
                             </div>
                         </div>
+                    </div>
+                    <div className="flex items-center space-x-1 mr-2">
+                        <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            Updated {formatRelativeTime(lastRefreshed)}
+                        </span>
+                        <button
+                            onClick={onRefresh}
+                            disabled={isRefreshing || !onRefresh}
+                            title="Refresh now"
+                            className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 focus:outline-none"
+                        >
+                            <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                        </button>
                     </div>
                     <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
                         <XIcon size={20} />

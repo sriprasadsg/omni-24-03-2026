@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 import uuid
 import datetime
@@ -16,6 +16,27 @@ import httpx
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai-proxy", tags=["ai-governance"])
+
+
+async def _resolve_ollama_url(db, tenant_id: Optional[str]) -> str:
+    """Return the Ollama URL for this tenant, falling back to env/auto-detect."""
+    if tenant_id:
+        try:
+            raw = db._db if hasattr(db, "_db") else db
+            settings = await raw.system_settings.find_one(
+                {"type": "llm", "tenantId": tenant_id}
+            )
+            if settings:
+                url = (
+                    settings.get("ollamaUrl")
+                    or settings.get("ollama_url")
+                    or (f"http://{settings['host']}" if settings.get("host") else None)
+                )
+                if url:
+                    return url.rstrip("/")
+        except Exception as exc:
+            logger.debug("Failed to load tenant Ollama URL: %s", exc)
+    return (os.getenv("OLLAMA_URL") or ollama_default_url()).rstrip("/")
 
 class LlmPrompt(BaseModel):
     provider: str # "openai", "azure", "anthropic", "gemini" 
@@ -61,8 +82,8 @@ async def proxy_chat_completion(
     
     try:
         if provider == "ollama":
-            # Forward to local Ollama
-            ollama_url = os.getenv("OLLAMA_URL") or ollama_default_url()
+            # Forward to tenant-specific (or global fallback) Ollama
+            ollama_url = await _resolve_ollama_url(db, getattr(current_user, "tenant_id", None))
             async with httpx.AsyncClient(timeout=60.0) as client:
                 ollama_resp = await client.post(
                     f"{ollama_url}/api/chat",
@@ -107,7 +128,7 @@ async def proxy_chat_completion(
             configured_provider = os.getenv("LLM_PROVIDER", "gemini").lower()
             
             if configured_provider == "ollama":
-                ollama_url = os.getenv("OLLAMA_URL") or ollama_default_url()
+                ollama_url = await _resolve_ollama_url(db, getattr(current_user, "tenant_id", None))
                 model_name = prompt.model if "llama" in prompt.model or "mistral" in prompt.model else os.getenv("LLM_MODEL", "llama3.2:3b")
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     ollama_resp = await client.post(
@@ -240,7 +261,7 @@ async def test_guardrail_policy(
 
 
 @router.get("/audit-logs")
-async def get_audit_logs(current_user: TokenData = Depends(require_permission("manage:ai_governance"))):
+async def get_audit_logs(current_user: TokenData = Depends(require_permission("view:ai_governance"))):
     db = get_database()
     filt = {} if getattr(current_user, "role", "") in {"Super Admin", "super_admin", "platform-admin"} \
         else {"tenant_id": getattr(current_user, "tenant_id", None)}
@@ -280,7 +301,11 @@ async def ai_chat(req: ChatRequest, current_user: TokenData = Depends(require_pe
             # If context is a string summary, we still default view but keep context info
             view = "dashboard"
             
-        response_text = await ai_service.chat(req.message, {"currentView": view, "userId": current_user.username})
+        response_text = await ai_service.chat(req.message, {
+            "currentView": view,
+            "userId": current_user.username,
+            "tenantId": getattr(current_user, "tenant_id", None),
+        })
     except Exception as e:
         logger.error(f"AI Chat error: {e}")
         response_text = f"AI service temporarily unavailable. Error: {str(e)[:100]}"
@@ -308,12 +333,14 @@ async def ai_chat(req: ChatRequest, current_user: TokenData = Depends(require_pe
 @chat_router.get("/config")
 async def get_ai_config(current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Get current AI configuration status."""
+    db = get_database()
     gemini_key = os.getenv("GEMINI_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
+    tenant_ollama_url = await _resolve_ollama_url(db, getattr(current_user, "tenant_id", None))
     return {
-        "provider": os.getenv("LLM_PROVIDER", "gemini"),
-        "model": os.getenv("LLM_MODEL", "gemini-2.0-flash"),
+        "provider": os.getenv("LLM_PROVIDER", "ollama"),
+        "model": os.getenv("LLM_MODEL", "llama3.2:3b"),
         "gemini_configured": bool(gemini_key),
         "openai_configured": bool(openai_key),
-        "ollama_url": os.getenv("OLLAMA_URL") or ollama_default_url(),
+        "ollama_url": tenant_ollama_url,
     }

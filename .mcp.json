@@ -20,21 +20,6 @@
       },
       "autoStart": false
     },
-    "ruv-swarm": {
-      "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "ruv-swarm",
-        "mcp",
-        "start"
-      ],
-      "env": {
-        "npm_config_update_notifier": "false"
-      },
-      "optional": true
-    },
     "flow-nexus": {
       "command": "cmd",
       "args": [

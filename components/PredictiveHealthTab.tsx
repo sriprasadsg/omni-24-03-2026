@@ -16,7 +16,7 @@ interface PredictiveHealthTabProps {
 }
 
 export const PredictiveHealthTab: React.FC<PredictiveHealthTabProps> = ({ data }) => {
-    if (!data || !data.predictions || data.predictions.length === 0) {
+    if (!data || !Array.isArray(data.predictions) || data.predictions.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-16 px-4">
                 <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-full mb-6 relative">

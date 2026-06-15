@@ -104,6 +104,14 @@ class SocketService {
             console.log('[WebSocket] 🏓 Pong received:', data);
         });
 
+        this.socket.on('mitre_heatmap_update', (data) => {
+            this.emit('mitre_heatmap_update', data);
+        });
+
+        this.socket.on('siem_rule_match', (data) => {
+            this.emit('siem_rule_match', data);
+        });
+
         this.socket.on('support_message', (data) => {
             this.emit('support_message', data);
         });

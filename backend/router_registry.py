@@ -29,6 +29,9 @@ def _load(app: FastAPI, module_name: str, attr: str = "router", **kwargs) -> Non
 
 
 def register_all_routers(app: FastAPI) -> None:
+    # ── Route aliases — registered FIRST so exact paths beat /{param} routes ──
+    _load(app, "route_aliases", "router")
+
     # ── Core Infrastructure ───────────────────────────────────────────────────
     _load(app, "agent_endpoints", "router")
 
@@ -248,6 +251,27 @@ def register_all_routers(app: FastAPI) -> None:
         ("problem_management_endpoints",    {}),
         ("change_management_endpoints",     {}),
         ("support_endpoints",               {}),
+        ("autopilot_endpoints",             {}),
+        ("conditional_access_endpoints",    {}),
+        ("mdm_endpoints",                   {}),
+        ("branch_site_endpoints",           {}),
+        ("app_catalog_endpoints",           {}),
+        ("eol_rogue_endpoints",               {}),
+        ("mam_endpoints",                     {}),
+        ("android_enterprise_endpoints",      {}),
+        ("device_config_profiles_endpoints",  {}),
+        ("firmware_driver_endpoints",         {}),
+        ("advanced_hunting_endpoints",        {}),
+        ("detection_rules_endpoints",         {}),
+        ("connectors_hub_endpoints",          {}),
+        ("security_copilot_endpoints",        {}),
+        ("mssp_endpoints",                    {}),
+        ("retention_tiers_endpoints",         {}),
+        ("sca_endpoints",                     {}),
+        ("agent_group_endpoints",             {}),
+        ("config_drift_endpoints",            {}),
+        ("fim_endpoints",                     {}),
+        ("active_response_endpoints",         {}),
     ]
 
     seen: set[str] = set()

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import secrets
 import shutil
@@ -11,6 +12,9 @@ from database import mongodb
 from authentication_service import get_current_user, get_optional_user
 import yaml
 from typing import Optional, Dict, Any
+
+# Prevents concurrent `cargo build --release` runs when multiple users download simultaneously
+_rust_build_lock = asyncio.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +91,9 @@ async def download_tenant_agent(
     tenant_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    api_url: Optional[str] = Query(None, description="Backend API base URL to embed in agent config. If omitted, auto-detected from request or PLATFORM_URL env var."),
-    download_token: Optional[str] = Query(None, description="One-time token from POST /api/agent/download-token/{tenant_id}. Use instead of Bearer auth for direct browser navigation."),
+    api_url: Optional[str] = Query(None, description="Backend API base URL to embed in agent config."),
+    download_token: Optional[str] = Query(None, description="One-time token from POST /api/agent/download-token/{tenant_id}."),
+    platform: Optional[str] = Query("linux", description="Target platform: 'windows' or 'linux' (default)."),
     current_user=Depends(get_optional_user),
 ):
     """
@@ -173,7 +178,13 @@ async def download_tenant_agent(
 
     tenant_name = tenant.get("name", tenant_id)
 
-    # 4. Locate Source Agent Directory
+    # 4a. Windows EXE package path
+    if (platform or "linux").lower() == "windows":
+        return await _build_tenant_nsis_exe(
+            tenant_id, tenant_name, registration_key, resolved_url, background_tasks
+        )
+
+    # 4. Locate Source Agent Directory (Linux/Python fallback)
     base_dir = Path(__file__).parent.parent
     agent_src_dir = base_dir / "agent"
 
@@ -340,6 +351,293 @@ async def agent_deploy_command(
         "action": action,
         "status": "queued",
     }
+
+
+# ── Windows Per-Tenant Installer Builders ─────────────────────────────────────
+
+
+async def _ensure_windows_binary(exe_path: Path) -> None:
+    """
+    Build the Rust agent if the binary doesn't exist yet.
+    Uses a lock so only one compilation runs at a time.
+    On first download this takes ~2-5 minutes; subsequent downloads are instant.
+    """
+    if exe_path.exists():
+        return
+
+    async with _rust_build_lock:
+        if exe_path.exists():  # another request may have finished building while we waited
+            return
+
+        src_dir = exe_path.parent.parent.parent  # agent-install/omni-agent-rs
+        cargo = shutil.which("cargo")
+        if not src_dir.is_dir() or not cargo:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Windows agent binary not found and Rust toolchain (cargo) is not available "
+                    "on this server. Pre-build the binary with: "
+                    "cd agent-install/omni-agent-rs && cargo build --release"
+                ),
+            )
+
+        logger.info(
+            "Auto-building Windows agent binary (first download, ~2–5 min). "
+            "Subsequent downloads will be instant."
+        )
+        proc = await asyncio.create_subprocess_exec(
+            cargo, "build", "--release",
+            cwd=str(src_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=600)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(
+                status_code=503,
+                detail="Windows agent compilation timed out (>10 min). Try again or pre-build manually.",
+            )
+
+        if proc.returncode != 0:
+            snippet = (stderr_bytes or b"").decode(errors="replace")[-400:]
+            logger.error("cargo build --release failed:\n%s", snippet)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Windows agent compilation failed. Last error output: {snippet}",
+            )
+
+        if not exe_path.exists():
+            raise HTTPException(
+                status_code=503,
+                detail="Compilation succeeded but binary was not found at expected path.",
+            )
+
+        logger.info("Windows agent binary built successfully: %s", exe_path)
+
+
+async def _build_tenant_msi(
+    tenant_id: str,
+    tenant_name: str,
+    registration_key: str,
+    api_url: str,
+    background_tasks: BackgroundTasks,
+) -> Response:
+    """
+    Build a per-tenant MSI with tenant credentials baked in at WiX compile time.
+    Returns a single .msi file — no ZIP, no separate config.yaml required.
+    """
+    base_dir = Path(__file__).parent.parent
+    rs_dir = base_dir / "agent-install" / "omni-agent-rs"
+    exe_path = rs_dir / "target" / "release" / "omni-agent.exe"
+    wxs_path = rs_dir / "omni-agent.wxs"
+
+    await _ensure_windows_binary(exe_path)
+
+    wix = shutil.which("wix")
+    if not wix or not wxs_path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "WiX toolset not available on this server. "
+                "Install WiX 4 or pre-build the MSI manually: "
+                "cd agent-install/omni-agent-rs && wix build omni-agent.wxs"
+            ),
+        )
+
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_msi_{tenant_id}_"))
+    try:
+        config_data = {
+            "api_base_url": api_url,
+            "tenant_id": tenant_id,
+            "agent_id": "",
+            "agent_token": "",
+            "registration_key": registration_key,
+            "interval_seconds": 30,
+            "max_cpu_percent": 20,
+            "agentic_mode_enabled": False,
+        }
+        config_path = temp_dir / "config.yaml"
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(config_data, f, default_flow_style=False, sort_keys=True)
+
+        tenant_safe = tenant_name.replace(" ", "-").lower()
+        msi_filename = f"OmniAgent-{tenant_safe}-Setup.msi"
+        msi_out = temp_dir / msi_filename
+
+        logger.info("Building per-tenant MSI for %s (api_url=%s)...", tenant_id, api_url)
+        proc = await asyncio.create_subprocess_exec(
+            wix, "build", str(wxs_path),
+            "-d", f"ConfigSource={config_path}",
+            "-o", str(msi_out),
+            cwd=str(rs_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=600)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(status_code=503, detail="MSI build timed out (>10 min). Try again.")
+
+        if proc.returncode != 0:
+            snippet = (stderr_bytes or b"").decode(errors="replace")[-400:]
+            logger.error("wix build failed:\n%s", snippet)
+            raise HTTPException(status_code=503, detail=f"MSI build failed: {snippet}")
+
+        if not msi_out.exists():
+            raise HTTPException(status_code=503, detail="MSI build succeeded but output file not found.")
+
+        with open(msi_out, "rb") as f:
+            content = f.read()
+
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{msi_filename}"'},
+        )
+    except HTTPException:
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise
+    except Exception as e:
+        logger.error("Failed to build tenant MSI: %s", e)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise HTTPException(status_code=500, detail="Failed to build Windows MSI installer")
+
+
+async def _build_tenant_nsis_exe(
+    tenant_id: str,
+    tenant_name: str,
+    registration_key: str,
+    api_url: str,
+    background_tasks: BackgroundTasks,
+) -> Response:
+    """
+    Build a per-tenant NSIS EXE with credentials baked in via /D defines.
+    Falls back to a per-tenant WiX MSI when NSIS is not installed.
+    Returns a single .exe or .msi — no ZIP, no separate scripts required.
+    """
+    makensis = shutil.which("makensis")
+    if not makensis:
+        logger.info("NSIS not found; falling back to MSI for tenant %s", tenant_id)
+        return await _build_tenant_msi(tenant_id, tenant_name, registration_key, api_url, background_tasks)
+
+    base_dir = Path(__file__).parent.parent
+    nsi_path = base_dir / "agent-install" / "omni-agent.nsi"
+    exe_path = base_dir / "agent-install" / "omni-agent-rs" / "target" / "release" / "omni-agent.exe"
+
+    await _ensure_windows_binary(exe_path)
+
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_exe_{tenant_id}_"))
+    try:
+        tenant_safe = tenant_name.replace(" ", "-").lower()
+        exe_filename = f"OmniAgent-{tenant_safe}-Setup.exe"
+        exe_out = temp_dir / exe_filename
+
+        logger.info("Building per-tenant NSIS EXE for %s (api_url=%s)...", tenant_id, api_url)
+        proc = await asyncio.create_subprocess_exec(
+            makensis,
+            f"/DBAKED_API_URL={api_url}",
+            f"/DBAKED_TENANT_ID={tenant_id}",
+            f"/DBAKED_REG_KEY={registration_key}",
+            f"/DOUTFILE={exe_out}",
+            str(nsi_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=300)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(status_code=503, detail="EXE build timed out (>5 min). Try again.")
+
+        if proc.returncode != 0:
+            snippet = (stderr_bytes or b"").decode(errors="replace")[-400:]
+            logger.error("makensis failed:\n%s", snippet)
+            raise HTTPException(status_code=503, detail=f"EXE build failed: {snippet}")
+
+        if not exe_out.exists():
+            raise HTTPException(status_code=503, detail="NSIS build succeeded but output file not found.")
+
+        with open(exe_out, "rb") as f:
+            content = f.read()
+
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{exe_filename}"'},
+        )
+    except HTTPException:
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise
+    except Exception as e:
+        logger.error("Failed to build tenant EXE: %s", e)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise HTTPException(status_code=500, detail="Failed to build Windows EXE installer")
+
+
+@router.get("/download/{tenant_id}/msi")
+async def download_tenant_agent_msi(
+    tenant_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    api_url: Optional[str] = Query(None, description="Backend API base URL to embed in agent config."),
+    download_token: Optional[str] = Query(None),
+    current_user=Depends(get_optional_user),
+):
+    """
+    Build and return a per-tenant MSI with tenant credentials baked in.
+    Single .msi file — no ZIP, no separate config.yaml or scripts required.
+    On first download, compiles the Rust binary and builds the MSI on-demand.
+    """
+    if download_token:
+        await _cleanup_expired_tokens()
+        token_data = await mongodb.db.agent_download_tokens.find_one_and_delete(
+            {"token": download_token, "expires_at": {"$gt": datetime.now(timezone.utc).isoformat()}}
+        )
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Invalid or expired download token")
+        if token_data["tenant_id"] != tenant_id:
+            raise HTTPException(status_code=403, detail="Token tenant mismatch")
+        user_role = token_data["user_role"]
+        user_tenant = token_data["user_tenant"]
+    else:
+        user_role = getattr(current_user, "role", "")
+        user_tenant = getattr(current_user, "tenant_id", None)
+
+    _check_download_auth(tenant_id, user_role, user_tenant)
+
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    registration_key = tenant.get("registrationKey") or ""
+    if not registration_key:
+        registration_key = f"reg_{secrets.token_hex(16)}"
+        await mongodb.db.tenants.update_one({"id": tenant_id}, {"$set": {"registrationKey": registration_key}})
+
+    tenant_name = tenant.get("name", tenant_id)
+
+    if api_url:
+        from urllib.parse import urlparse as _up
+        _p = _up(api_url)
+        if _p.scheme not in {"http", "https"} or not _p.netloc:
+            raise HTTPException(status_code=400, detail="Invalid api_url: must be an absolute http/https URL")
+        platform_url = api_url.rstrip("/")
+    elif os.getenv("PLATFORM_URL"):
+        platform_url = os.getenv("PLATFORM_URL").rstrip("/")
+    else:
+        host = request.headers.get("host", "")
+        hostname = host.split(":")[0] if host else ""
+        if not hostname or hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot generate agent config: set PLATFORM_URL to the public backend address.",
+            )
+        platform_url = f"http://{hostname}:5000"
+
+    logger.info("MSI download requested for tenant %s (api_url=%s)", tenant_id, platform_url)
+    return await _build_tenant_msi(tenant_id, tenant_name, registration_key, platform_url, background_tasks)
 
 
 # ── Agent Install Instructions ─────────────────────────────────────────────────

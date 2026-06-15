@@ -1,6 +1,6 @@
-agent_id: ${AGENT_ID:-agent-default}
-agent_token: ${AGENT_TOKEN}
-api_base_url: ${API_BASE_URL:-http://127.0.0.1:5000}
+agent_id: agent-1ff7742092e744c0998018a04708fbe6
+agent_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ2VudC0xZmY3NzQyMDkyZTc0NGMwOTk4MDE4YTA0NzA4ZmJlNiIsInJvbGUiOiJhZ2VudCIsInRlbmFudF9pZCI6InRlbmFudF9leGFmbHVlbmNlIiwianRpIjoiYzJhYWNiYjMxOTlhNDExMzhmZTk4NmE4ZjhiMWRjODUiLCJleHAiOjE3ODg4ODE3NjR9.G3MdXGWScuK9Z0kpIV9g80lcrpWYOUR0l8mK7UPAQzM
+api_base_url: http://127.0.0.1:5000
 goals:
 - description: Reduce overall attack surface score by 40%
   name: reduce_attack_surface
@@ -39,5 +39,5 @@ integrations:
     source_allowlist: []
     udp_port: 5140
 interval_seconds: 5
-registration_key: ${REGISTRATION_KEY}
-tenant_id: ${TENANT_ID}
+registration_key: reg_cbd966cab97be43442f8bc01097f0310
+tenant_id: tenant_exafluence

@@ -194,16 +194,19 @@ Write-Host ""
 Write-Step "3" "Starting Backend (FastAPI/uvicorn on :$BACKEND_PORT)"
 
 $backendScript = @"
-`$env:MONGODB_URL          = '$MONGODB_URL'
-`$env:DATABASE_NAME        = '$DATABASE_NAME'
-`$env:CORS_ORIGINS         = '$CORS_ORIGINS'
-`$env:SUPER_ADMIN_PASSWORD = 'Admin@2030'
+`$env:MONGODB_URL             = '$MONGODB_URL'
+`$env:DATABASE_NAME           = '$DATABASE_NAME'
+`$env:CORS_ORIGINS            = '$CORS_ORIGINS'
+`$env:SUPER_ADMIN_PASSWORD    = 'Admin@2030'
+`$env:PLATFORM_URL            = 'http://127.0.0.1:$BACKEND_PORT'
+`$env:TICKET_ATTACHMENT_DIR   = "`$env:TEMP\ticket_attachments"
+`$env:REDIS_URL = 'redis://127.0.0.1:6379/0'
 Set-Location '$BACKEND_DIR'
 Write-Host ''
 Write-Host '  Omni-Agent Backend' -ForegroundColor Cyan
 Write-Host '  http://127.0.0.1:$BACKEND_PORT/health' -ForegroundColor Green
 Write-Host ''
-& '$BACKEND_PYTHON' -m uvicorn app:app --host 0.0.0.0 --port $BACKEND_PORT --log-level info
+& '$BACKEND_PYTHON' -m uvicorn app:socket_app --host 0.0.0.0 --port $BACKEND_PORT --log-level info
 "@
 
 Start-WindowedProcess "Omni-Backend :$BACKEND_PORT" $BACKEND_DIR $backendScript
