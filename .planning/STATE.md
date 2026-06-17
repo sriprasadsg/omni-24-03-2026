@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Checkpoint:human-verify after 01-02-PLAN.md Task 1
-last_updated: "2026-06-17T12:20:00.000Z"
+status: in_progress
+stopped_at: "02-01 complete — backend evidence upload gaps closed (EVID-01/02/04/05)"
+last_updated: "2026-06-17T14:20:00Z"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 20
+  total_plans: 4
+  completed_plans: 3
+  percent: 30
 ---
 
 # Project State
@@ -20,22 +20,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
-**Current focus:** Phase 01 — rust-agent-evidence-parity
+**Current focus:** Phase 02 — manual-evidence-uploads
 
 ## Current Phase
 
-**Phase 1: Rust Agent Evidence Parity**
+**Phase 2: Manual Evidence Uploads**
 
-Goal: Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent, producing evidence records visible in the frontend.
+Goal: Close the four backend gaps in the manual evidence upload flow — 25 MB cap, full metadata, DELETE endpoint, and magic-byte MIME validation.
 
-Status: In progress — Plan 01 complete, Plan 02 Task 1 complete (paused at checkpoint:human-verify)
+Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 (frontend UI) is next.
 
 ## Phases
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Rust Agent Evidence Parity | In progress (1/2 plans done) |
-| 2 | Manual Evidence Uploads | Not started |
+| 1 | Rust Agent Evidence Parity | Complete |
+| 2 | Manual Evidence Uploads | In progress (02-01 done, 02-02 next) |
 | 3 | Audit-Ready Export | Not started |
 | 4 | Remediation Workflow | Not started |
 | 5 | Integration and E2E Verification | Not started |
@@ -45,6 +45,9 @@ Status: In progress — Plan 01 complete, Plan 02 Task 1 complete (paused at che
 - agent_type added as trailing optional param (str | None = None) to preserve backward compatibility with all existing callers
 - Direct import from compliance_evidence_processor eliminates fragile transitive re-export via compliance_endpoints
 - Pytest unit test with AsyncMock DB chosen over live-server script for CI compatibility; __main__ live mode retained
+- 02-01: asyncio.run() used for async test cases (pytest-asyncio not installed); consistent with existing test_rust_heartbeat_parity.py pattern
+- 02-01: DELETE route is asset-scoped (/api/assets/{asset_id}/compliance/evidence/{evidence_id}) per plan phase decision
+- 02-01: Path-traversal guard uses str(resolved).startswith(str(_safe_dir) + os.sep) to prevent sibling-path bypass
 
 ## Performance Metrics
 
@@ -52,11 +55,12 @@ Status: In progress — Plan 01 complete, Plan 02 Task 1 complete (paused at che
 |-------|------|----------|-------|-------|
 | 01-rust-agent-evidence-parity | 01 | ~5m | 2 | 2 |
 | 01-rust-agent-evidence-parity | 02 | ~3m | 1 | 1 |
+| 02-manual-evidence-uploads | 01 | ~20m | 3 | 3 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-17
-- **Stopped at:** Checkpoint:human-verify — 01-02 Task 1 committed (9549aef), awaiting live backend verification
+- **Timestamp:** 2026-06-17T14:20:00Z
+- **Stopped at:** Completed 02-01 — backend evidence upload gaps (EVID-01/02/04/05)
 - **Resume file:** None
 
 ## Configuration
