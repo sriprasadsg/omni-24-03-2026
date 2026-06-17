@@ -79,6 +79,11 @@ export const uploadSbom = async (file: File): Promise<{ newSbom: Sbom, newCompon
 
 // Track active refresh request to prevent multiple simultaneous refreshes
 let refreshPromise: Promise<string> | null = null;
+// Backoff: after any refresh failure, skip proactive retries for 30 s
+let _lastRefreshFailTime = 0;
+// Once set, the session is dead — stop all refresh attempts
+let _sessionEnding = false;
+const _REFRESH_BACKOFF_MS = 30_000;
 
 // Decode JWT expiry without a library. Returns seconds until expiry (negative = already expired).
 function jwtSecondsUntilExpiry(token: string): number {
@@ -91,16 +96,29 @@ function jwtSecondsUntilExpiry(token: string): number {
     }
 }
 
+function _canAttemptRefresh(): boolean {
+    return !_sessionEnding && (Date.now() - _lastRefreshFailTime > _REFRESH_BACKOFF_MS);
+}
+
+function _expireSession(): void {
+    if (_sessionEnding) return;
+    _sessionEnding = true;
+    stopTokenRefreshCycle();
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refresh_token');
+    setTimeout(() => { window.location.href = '/login'; }, 50);
+}
+
 // Helper function to refresh the access token
 async function refreshAccessToken(): Promise<string> {
-    // If already refreshing, return existing promise
+    if (_sessionEnding) throw new Error('Session ended');
     if (refreshPromise) return refreshPromise;
 
     refreshPromise = (async () => {
         try {
             const refreshToken = sessionStorage.getItem('refresh_token');
-
             if (!refreshToken) {
+                _lastRefreshFailTime = Date.now();
                 throw new Error('No refresh token available');
             }
 
@@ -111,23 +129,27 @@ async function refreshAccessToken(): Promise<string> {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to refresh token');
+                _lastRefreshFailTime = Date.now();
+                if (response.status === 401 || response.status === 403) {
+                    // Refresh token is invalid or expired — end the session cleanly
+                    _expireSession();
+                }
+                throw new Error(`Refresh failed: ${response.status}`);
             }
 
             const data = await response.json();
-
             if (data.success && data.access_token) {
+                _lastRefreshFailTime = 0; // reset backoff on success
                 sessionStorage.setItem('token', data.access_token);
-                // Store the rotated refresh token so the next refresh cycle works
                 if (data.refresh_token) {
                     sessionStorage.setItem('refresh_token', data.refresh_token);
                 }
                 return data.access_token;
             }
 
+            _lastRefreshFailTime = Date.now();
             throw new Error('Invalid refresh response');
         } finally {
-            // Clear the promise after completion
             refreshPromise = null;
         }
     })();
@@ -141,7 +163,6 @@ let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Schedule a proactive token refresh ~5 minutes before the current token expires.
  * Call this after login and after each successful refresh so the cycle self-perpetuates.
- * Prevents 401 console noise from expired tokens hitting the backend.
  */
 export function startTokenRefreshCycle(): void {
     if (_refreshTimer !== null) {
@@ -152,16 +173,15 @@ export function startTokenRefreshCycle(): void {
     if (!token || !sessionStorage.getItem('refresh_token')) return;
 
     const secondsUntilExpiry = jwtSecondsUntilExpiry(token);
-    // Refresh 5 minutes before expiry; if already past that, refresh in 5 seconds
     const delayMs = Math.max((secondsUntilExpiry - 300) * 1000, 5000);
 
     _refreshTimer = setTimeout(async () => {
         _refreshTimer = null;
         try {
             await refreshAccessToken();
-            startTokenRefreshCycle(); // reschedule for the new token
+            startTokenRefreshCycle();
         } catch {
-            // Refresh failed (e.g. refresh token also expired) — let authFetch handle it on next request
+            // Refresh failed — _expireSession() already called if 401/403
         }
     }, delayMs);
 }
@@ -175,7 +195,12 @@ export function stopTokenRefreshCycle(): void {
 
 // Helper for Authenticated Requests
 export async function authFetch(url: string, options: RequestInit & { tenantId?: string } = {}): Promise<Response> {
-    const { tenantId, ...fetchOptions } = options;
+    if (_sessionEnding) throw new Error('Session ended');
+    const { tenantId, signal: rawSignal, ...restOptions } = options as RequestInit & { tenantId?: string };
+    // Guard: only forward signal if it is actually an AbortSignal (callers sometimes pass event objects)
+    const fetchOptions: RequestInit = rawSignal instanceof AbortSignal
+        ? { ...restOptions, signal: rawSignal }
+        : restOptions;
 
     const makeRequest = async (token: string | null) => {
         const isFormData = fetchOptions.body instanceof FormData;
@@ -185,34 +210,34 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
         } as HeadersInit;
-
         return await fetch(url, { ...fetchOptions, headers });
     };
 
     let token = sessionStorage.getItem('token');
 
-    // Proactively refresh if token expires within 5 minutes — avoids the 401 round-trip
-    // that causes noisy console errors when many requests fire simultaneously.
-    if (token && jwtSecondsUntilExpiry(token) < 300) {
+    // Proactively refresh if token expires within 5 minutes — but only when not in backoff
+    if (token && jwtSecondsUntilExpiry(token) < 300 && _canAttemptRefresh()) {
         try {
             token = await refreshAccessToken();
         } catch {
-            // Fall through — let the 401 handler below deal with it
+            // Backoff is set; fall through with the current token
         }
     }
 
     let response = await makeRequest(token);
 
-    // If 401, token may have just expired; try once more with a fresh token
+    // On 401, attempt one refresh (if allowed by backoff) then retry
     if (response.status === 401) {
+        if (!_canAttemptRefresh()) {
+            // Already know refresh is broken — end the session now
+            _expireSession();
+            throw new Error('Session expired');
+        }
         try {
             const newToken = await refreshAccessToken();
             response = await makeRequest(newToken);
-        } catch (error) {
-            // Refresh failed - clear storage and redirect to login
-            sessionStorage.removeItem('token');
-            sessionStorage.removeItem('refresh_token');
-            window.location.href = '/login';
+        } catch {
+            _expireSession();
             throw new Error('Session expired');
         }
     }
@@ -356,6 +381,9 @@ export const login = async (username: string, password: string): Promise<any> =>
 
     const data = await res.json();
     if (data.access_token) {
+        // Reset session-expiry flags so re-login within the same tab works
+        _sessionEnding = false;
+        _lastRefreshFailTime = 0;
         sessionStorage.setItem('token', data.access_token);
     }
     return data;
@@ -602,19 +630,28 @@ export const getJobs = async () => {
     }
 };
 
-export const uploadComplianceEvidence = async (assetId: string, controlId: string, file: File) => {
+export const uploadComplianceEvidence = async (assetId: string, controlId: string, file: File, description?: string) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('controlId', controlId);
+    if (description) {
+        formData.append('description', description);
+    }
 
     const res = await authFetch(`${API_BASE}/assets/${assetId}/compliance/evidence`, {
         method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data' },
         body: formData
     });
 
     if (!res.ok) throw new Error("Evidence upload failed");
     return await res.json();
+};
+
+export const deleteComplianceEvidence = async (assetId: string, controlId: string, evidenceId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/compliance/evidence/${evidenceId}`, {
+        method: 'DELETE'
+    });
+    if (!res.ok) throw new Error("Evidence delete failed");
 };
 
 export const fetchAiSystems = async () => {
@@ -2635,6 +2672,27 @@ export const testLlmConnection = async (settings: Record<string, string>) => {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || 'LLM connection test failed');
     }
+    return res.json();
+};
+
+export const fetchAiTools = async () => {
+    const res = await authFetch(`${API_BASE}/settings/ai-tools`);
+    return res.ok ? res.json() : [];
+};
+
+export const addAiTool = async (tool: Record<string, string>) => {
+    const res = await authFetch(`${API_BASE}/settings/ai-tools`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tool),
+    });
+    if (!res.ok) throw new Error('Failed to add AI tool');
+    return res.json();
+};
+
+export const deleteAiTool = async (toolId: string) => {
+    const res = await authFetch(`${API_BASE}/settings/ai-tools/${toolId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete AI tool');
     return res.json();
 };
 
