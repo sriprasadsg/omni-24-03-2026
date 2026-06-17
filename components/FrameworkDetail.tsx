@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { ComplianceFramework, ControlStatus, Asset, AssetCompliance } from '../types';
 import { AssetComplianceList } from './AssetComplianceList';
 // FIX: Replaced non-existent LockIcon with ShieldLockIcon.
@@ -202,7 +202,21 @@ const categoryIcons: Record<string, React.ReactNode> = {
 
 const statusOptions: (ControlStatus | 'All')[] = ['All', 'Implemented', 'In Progress', 'At Risk', 'Not Implemented'];
 
-export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, assets, assetComplianceData, onRefresh }) => {
+export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, assets, assetComplianceData: initialAssetComplianceData, onRefresh }) => {
+  const [localAssetCompliance, setLocalAssetCompliance] = useState(initialAssetComplianceData);
+  const assetComplianceData = localAssetCompliance;
+
+  const refreshAssetCompliance = useCallback(async (assetId: string) => {
+    const fresh = await api.fetchAssetCompliance(assetId);
+    if (fresh) {
+      setLocalAssetCompliance(prev => {
+        const filtered = prev.filter(ac => ac.assetId !== assetId);
+        return Array.isArray(fresh) ? [...filtered, ...fresh] : [...filtered, fresh];
+      });
+    }
+    if (onRefresh) onRefresh();
+  }, [onRefresh]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ControlStatus | 'All'>('All');
   const [expandedControlId, setExpandedControlId] = useState<string | null>(null);
@@ -578,11 +592,11 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                         complianceData={assetComplianceData}
                         onUpdateStatus={(assetId, status) => console.log('Update status', assetId, status)}
                         onUploadEvidence={async (assetId, file, description) => {
-                          console.log('Uploading evidence', assetId, file);
                           try {
                             const res = await api.uploadComplianceEvidence(assetId, control.id, file, description);
                             if (res.success) {
                               showToast(`Successfully uploaded evidence: ${file.name}`, 'success');
+                              await refreshAssetCompliance(assetId);
                             }
                           } catch (e) {
                             console.error("Upload Error", e);
@@ -610,7 +624,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                           try {
                             await api.deleteComplianceEvidence(assetId, controlId, evidenceId);
                             showToast('Evidence deleted.', 'success');
-                            if (onRefresh) onRefresh();
+                            await refreshAssetCompliance(assetId);
                           } catch (e) {
                             console.error("Delete Error", e);
                             showToast("Failed to delete evidence.", 'error');
