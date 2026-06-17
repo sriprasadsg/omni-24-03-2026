@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-02-PLAN.md — Phase 03 Audit-Ready Export complete
-last_updated: "2026-06-17T18:58:24.187Z"
+stopped_at: Completed 04-00-PLAN.md — Phase 04 Wave 0 foundation (test scaffold, Rust dispatch, broadcaster)
+last_updated: "2026-06-17T19:32:42Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 60
+  total_plans: 9
+  completed_plans: 7
+  percent: 67
 ---
 
 # Project State
@@ -20,15 +20,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
-**Current focus:** Phase 03 — audit-ready-export
+**Current focus:** Phase 04 — remediation-workflow
 
 ## Current Phase
 
-**Phase 3: Audit-Ready Export**
+**Phase 4: Remediation Workflow**
 
-Goal: Close AUDIT-01 through AUDIT-04 gaps — evidence source labelling, tenant isolation on export pipeline, PDF/XLSX header fields, and legacy download tenant check.
+Goal: Build compliance remediation task CRUD, agent re-scan dispatch, real-time WebSocket status push, and frontend dashboard (REM-01..REM-04).
 
-Status: Complete. 03-01 closed AUDIT-03/04 at data layer. 03-02 closed AUDIT-01/02 at PDF/XLSX renderer layer — tenant name, export date, and Auto/Manual evidence columns now rendered in both formats.
+Status: Wave 0 (04-00) complete. Test scaffold established (Nyquist floor), Rust dispatch patched for "Run Compliance Scan", broadcast_remediation_update added to websocket_manager.
 
 ## Phases
 
@@ -37,7 +37,7 @@ Status: Complete. 03-01 closed AUDIT-03/04 at data layer. 03-02 closed AUDIT-01/
 | 1 | Rust Agent Evidence Parity | Complete |
 | 2 | Manual Evidence Uploads | Complete |
 | 3 | Audit-Ready Export | Complete |
-| 4 | Remediation Workflow | Not started |
+| 4 | Remediation Workflow | In progress (Wave 0 complete) |
 | 5 | Integration and E2E Verification | Not started |
 
 ## Decisions
@@ -57,6 +57,9 @@ Status: Complete. 03-01 closed AUDIT-03/04 at data layer. 03-02 closed AUDIT-01/
 - 03-02: tenant_id added as trailing optional str=None to _generate_pdf/_generate_excel/_generate_all_excel for backward compatibility
 - 03-02: tenant name resolved via db.tenants.find_one({'id': tenant_id}) with fallback chain: doc.name -> tenant_id -> "Unknown Tenant"
 - 03-02: det_widths extended to 15 entries; two 0.6-inch slots for Auto Evidence and Manual Evidence columns in PDF
+- 04-00: "Run Compliance Scan" added to Rust dispatch arm alongside existing alternatives — resolves REM-03 string mismatch (Python uses "Run Compliance Scan"; Rust only matched "Run Compliance Check")
+- 04-00: broadcast_remediation_update placed after broadcast_compliance_alert, uses list() snapshot copy matching broadcast_mitre_heatmap pattern
+- 04-00: REM-04 test patches sio.emit with AsyncMock to avoid socketio runtime dependency in CI
 
 ## Performance Metrics
 
@@ -68,11 +71,12 @@ Status: Complete. 03-01 closed AUDIT-03/04 at data layer. 03-02 closed AUDIT-01/
 | 02-manual-evidence-uploads | 02 | ~15m | 2 | 3 |
 | 03-audit-ready-export | 01 | ~4m | 3 | 4 |
 | 03-audit-ready-export | 02 | ~3m | 2 | 4 |
+| 04-remediation-workflow | 00 | ~3m | 3 | 3 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-18T18:45:00Z
-- **Stopped at:** Completed 03-02-PLAN.md — Phase 03 Audit-Ready Export complete
+- **Timestamp:** 2026-06-17T19:32:42Z
+- **Stopped at:** Completed 04-00-PLAN.md — Phase 04 Wave 0 (test scaffold, Rust dispatch, broadcaster)
 - **Resume file:** None
 
 ## Configuration

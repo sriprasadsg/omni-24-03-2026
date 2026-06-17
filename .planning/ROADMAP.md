@@ -103,7 +103,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 **Wave 0**
 
-- [ ] 04-00-PLAN.md — Foundation: failing REM-01..04 test scaffold, Rust poll.rs "Run Compliance Scan" match-arm fix, broadcast_remediation_update added to websocket_manager
+- [x] 04-00-PLAN.md — Foundation: failing REM-01..04 test scaffold, Rust poll.rs "Run Compliance Scan" match-arm fix, broadcast_remediation_update added to websocket_manager
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
