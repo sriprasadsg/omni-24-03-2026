@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: In progress — Phase 01 Plan 01 complete
-last_updated: "2026-06-17T12:35:00.000Z"
+status: executing
+stopped_at: Checkpoint:human-verify after 01-02-PLAN.md Task 1
+last_updated: "2026-06-17T12:20:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 50
+  completed_plans: 2
+  percent: 20
 ---
 
 # Project State
@@ -27,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 Goal: Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent, producing evidence records visible in the frontend.
 
-Status: In progress — Plan 01 complete (2 tasks, 2 files modified)
+Status: In progress — Plan 01 complete, Plan 02 Task 1 complete (paused at checkpoint:human-verify)
 
 ## Phases
 
@@ -43,17 +44,19 @@ Status: In progress — Plan 01 complete (2 tasks, 2 files modified)
 
 - agent_type added as trailing optional param (str | None = None) to preserve backward compatibility with all existing callers
 - Direct import from compliance_evidence_processor eliminates fragile transitive re-export via compliance_endpoints
+- Pytest unit test with AsyncMock DB chosen over live-server script for CI compatibility; __main__ live mode retained
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 01-rust-agent-evidence-parity | 01 | ~5m | 2 | 2 |
+| 01-rust-agent-evidence-parity | 02 | ~3m | 1 | 1 |
 
 ## Last Session
 
 - **Timestamp:** 2026-06-17
-- **Stopped at:** Completed 01-01-PLAN.md
+- **Stopped at:** Checkpoint:human-verify — 01-02 Task 1 committed (9549aef), awaiting live backend verification
 - **Resume file:** None
 
 ## Configuration

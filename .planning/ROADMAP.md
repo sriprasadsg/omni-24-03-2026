@@ -36,7 +36,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Verify and simulate: write simulation test, run against live backend, assert agent_type in DB records
+- [x] 01-02-PLAN.md — Verify and simulate: write simulation test, run against live backend, assert agent_type in DB records (Task 1 committed; checkpoint:human-verify pending)
 
 **UI hint**: yes
 
@@ -104,7 +104,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rust Agent Evidence Parity | 1/2 | In progress | - |
+| 1. Rust Agent Evidence Parity | 2/2 tasks done | In Progress (checkpoint pending) | - |
 | 2. Manual Evidence Uploads | 0/? | Not started | - |
 | 3. Audit-Ready Export | 0/? | Not started | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
