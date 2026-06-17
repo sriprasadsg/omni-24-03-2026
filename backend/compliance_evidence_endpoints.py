@@ -231,3 +231,66 @@ async def get_asset_compliance(
         {"_id": 0},
     )
     return await cursor.to_list(length=1000)
+
+
+@router.delete("/api/assets/{asset_id}/compliance/evidence/{evidence_id}")
+async def delete_compliance_evidence(
+    asset_id: str,
+    evidence_id: str,
+    current_user=Depends(get_current_user),
+):
+    """Delete a manual evidence record with owner/admin RBAC and disk cleanup (EVID-04)."""
+    try:
+        db = get_database()
+        user_role = getattr(current_user, "role", "")
+        caller_tenant = getattr(current_user, "tenant_id", None)
+        caller_username = getattr(current_user, "username", "")
+        is_super = user_role in _SUPER_ROLES
+
+        # Lookup the evidence sub-document via aggregation pipeline
+        pipeline = [
+            {"$unwind": "$evidence"},
+            {"$match": {"assetId": asset_id, "evidence.id": evidence_id}},
+            {"$project": {"evidence": 1, "tenantId": 1, "_id": 0}},
+        ]
+        result = await db.asset_compliance.aggregate(pipeline).to_list(length=1)
+        if not result:
+            raise HTTPException(status_code=404, detail="Evidence not found")
+
+        ev = result[0]["evidence"]
+        doc_tenant = result[0].get("tenantId")
+
+        # Never allow deletion of automated evidence (EVID-04 / T-02-05)
+        if ev.get("systemGenerated"):
+            raise HTTPException(status_code=403, detail="Automated evidence cannot be deleted")
+
+        # Tenant isolation: non-super admins cannot delete other tenants' records (T-02-04)
+        if not is_super and caller_tenant and doc_tenant != caller_tenant:
+            raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
+
+        # Owner check: non-admins may only delete their own uploads (EVID-04 / T-02-03)
+        if not is_super and ev.get("uploaded_by") != caller_username:
+            raise HTTPException(status_code=403, detail="You can only delete your own evidence")
+
+        # Pull the sub-document from the evidence array
+        await db.asset_compliance.update_one(
+            {"assetId": asset_id, "evidence.id": evidence_id},
+            {"$pull": {"evidence": {"id": evidence_id}}},
+        )
+
+        # Disk cleanup with path-traversal guard (T-02-06)
+        file_url = ev.get("url", "")
+        fname = Path(file_url).name
+        if fname and not fname.startswith("."):
+            _safe_dir = Path(UPLOAD_DIR).resolve()
+            resolved = (_safe_dir / fname).resolve()
+            if str(resolved).startswith(str(_safe_dir) + os.sep) or resolved == _safe_dir:
+                resolved.unlink(missing_ok=True)
+
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Delete evidence error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
