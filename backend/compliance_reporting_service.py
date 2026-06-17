@@ -128,7 +128,7 @@ class ComplianceReportingService:
         return await _generate_csv(framework_id, self.reports_dir, tenant_id)
 
     async def generate_excel_report(self, tenant_id: str, framework_id: str) -> dict:
-        return await _generate_excel(framework_id, self.reports_dir)
+        return await _generate_excel(framework_id, self.reports_dir, tenant_id)
 
     async def generate_pdf_report(self, tenant_id: str, framework_id: str) -> dict:
         return await _generate_pdf(framework_id, self.reports_dir, tenant_id)
@@ -137,7 +137,7 @@ class ComplianceReportingService:
         return await _generate_all_csv(self.reports_dir, tenant_id)
 
     async def generate_all_excel_report(self, tenant_id: str) -> dict:
-        return await _generate_all_excel(self.reports_dir)
+        return await _generate_all_excel(self.reports_dir, tenant_id=tenant_id)
 
 
 compliance_reporting_service = ComplianceReportingService()

@@ -77,8 +77,15 @@ def _apply_url_hyperlink(ws, row_num, url_col, raw_urls):
 
 # ── Single-framework Excel ────────────────────────────────────────────────────
 
-async def _generate_excel(framework_id: str, reports_dir: str) -> dict:
-    framework, asset_summary, control_rows = await _build_report_data(framework_id)
+async def _generate_excel(framework_id: str, reports_dir: str, tenant_id: str = None) -> dict:
+    from database import get_database
+    db = get_database()
+    tenant_name = tenant_id or "Unknown Tenant"
+    if tenant_id:
+        tenant_doc = await db.tenants.find_one({"id": tenant_id})
+        tenant_name = tenant_doc.get("name", tenant_id) if tenant_doc else tenant_id
+
+    framework, asset_summary, control_rows = await _build_report_data(framework_id, tenant_id)
     fw_name = framework.get("name", framework_id)
     wb = openpyxl.Workbook()
 
@@ -87,7 +94,9 @@ async def _generate_excel(framework_id: str, reports_dir: str) -> dict:
     ws1.title = "Asset Summary"
     ws1.append([f"Compliance Report: {fw_name}"])
     ws1["A1"].font = Font(bold=True, size=14, color="1F3864")
+    ws1.append([f"Tenant: {tenant_name}"])
     ws1.append([f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"])
+    ws1.append([f"Export Date: {datetime.now().strftime('%Y-%m-%d')}"])
     ws1.append([])
     ws1.append(["ASSET COMPLIANCE SUMMARY"])
     ws1[f"A{ws1.max_row}"].fill = _SECTION_FILL
@@ -141,10 +150,16 @@ async def _generate_excel(framework_id: str, reports_dir: str) -> dict:
 
 # ── All-frameworks Excel ───────────────────────────────────────────────────────
 
-async def _generate_all_excel(reports_dir: str, db=None) -> dict:
+async def _generate_all_excel(reports_dir: str, tenant_id: str = None, db=None) -> dict:
     if db is None:
         from database import get_database
         db = get_database()
+
+    tenant_name = tenant_id or "Unknown Tenant"
+    if tenant_id:
+        tenant_doc = await db.tenants.find_one({"id": tenant_id})
+        tenant_name = tenant_doc.get("name", tenant_id) if tenant_doc else tenant_id
+
     frameworks = await db.compliance_frameworks.find(
         {}, {"id": 1, "name": 1}
     ).to_list(length=100)
@@ -159,6 +174,7 @@ async def _generate_all_excel(reports_dir: str, db=None) -> dict:
     ov.title = "Overview"
     ov.append(["All Compliance Frameworks — Overview"])
     ov["A1"].font = Font(bold=True, size=14, color="1F3864")
+    ov.append([f"Tenant: {tenant_name}"])
     ov.append([f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"])
     ov.append([])
     ov.append(["FRAMEWORK SUMMARY"])
@@ -176,7 +192,7 @@ async def _generate_all_excel(reports_dir: str, db=None) -> dict:
         fw_id = fw.get("id", "")
         fw_name = fw.get("name", fw_id)
         try:
-            _, asset_summary, control_rows = await _build_report_data(fw_id)
+            _, asset_summary, control_rows = await _build_report_data(fw_id, tenant_id)
         except Exception as exc:
             logger.warning("Skipping framework %s in combined report: %s", fw_name, exc)
             continue
