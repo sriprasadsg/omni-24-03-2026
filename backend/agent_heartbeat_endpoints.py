@@ -145,6 +145,11 @@ async def report_heartbeat(
                 asset_update["osVersion"] = os_ver
             if meta.get("installed_software"):
                 asset_update["installedSoftware"] = meta["installed_software"]
+            # Hoist software_management.installed_software if flat key not present
+            if not asset_update.get("installedSoftware"):
+                sw_mgmt = meta.get("software_management", {})
+                if isinstance(sw_mgmt, dict) and sw_mgmt.get("installed_software"):
+                    asset_update["installedSoftware"] = sw_mgmt["installed_software"]
             if meta.get("cpu_model") and meta["cpu_model"] not in ("Unknown", "Unknown CPU", ""):
                 asset_update["cpuModel"] = meta["cpu_model"]
             if meta.get("memory_gb") and meta["memory_gb"] not in ("Unknown", ""):
@@ -222,8 +227,13 @@ async def report_heartbeat(
 
     if "compliance_enforcement" in meta:
         try:
-            from compliance_endpoints import process_automated_evidence
-            await process_automated_evidence(payload.get("hostname", agent_id), meta["compliance_enforcement"], db)
+            from compliance_evidence_processor import process_automated_evidence
+            await process_automated_evidence(
+                payload.get("hostname", agent_id),
+                meta["compliance_enforcement"],
+                db,
+                agent_type=meta.get("agent_type"),
+            )
         except Exception as e:
             logger.error("ERROR processing compliance evidence: %s", e)
 
@@ -260,24 +270,32 @@ async def report_heartbeat(
         s_data = meta["shadow_ai"]
         if isinstance(s_data, dict) and s_data.get("ai_connections"):
             import uuid as _uuid
-            for conn in s_data["ai_connections"]:
-                event = {
-                    "id": _uuid.uuid4().hex, "tenantId": _hb_tenant_id,
-                    "agent_id": agent_id, "process": conn.get("process"),
-                    "remote_ip": conn.get("remote_ip"), "remote_host": conn.get("remote_host"),
-                    "timestamp": conn.get("timestamp", datetime.now(timezone.utc).isoformat())
-                }
-                await db.shadow_ai_events.insert_one(event)
+
+            async def _persist_shadow_ai(connections: list, _agent_id: str, _tenant_id: str) -> None:
+                events = [
+                    {
+                        "id": _uuid.uuid4().hex, "tenantId": _tenant_id,
+                        "agent_id": _agent_id, "process": c.get("process"),
+                        "remote_ip": c.get("remote_ip"), "remote_host": c.get("remote_host"),
+                        "timestamp": c.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                    }
+                    for c in connections
+                ]
+                if events:
+                    await db.shadow_ai_events.insert_many(events, ordered=False)
                 try:
                     from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="shadow_ai", severity="medium",
-                        title=f"Shadow AI Usage Detected: {conn.get('remote_host')}",
-                        description=f"Process '{conn.get('process')}' on agent {agent_id} connected to {conn.get('remote_host')}.",
-                        metadata=event
-                    )
+                    for evt in events:
+                        await persist_security_alert(
+                            db, alert_type="shadow_ai", severity="medium",
+                            title=f"Shadow AI Usage Detected: {evt.get('remote_host')}",
+                            description=f"Process '{evt.get('process')}' on agent {_agent_id} connected to {evt.get('remote_host')}.",
+                            metadata=evt,
+                        )
                 except ImportError:
                     pass
+
+            background_tasks.add_task(_persist_shadow_ai, s_data["ai_connections"], agent_id, _hb_tenant_id)
 
     if "ueba" in meta:
         u_data = meta["ueba"]
@@ -298,19 +316,32 @@ async def report_heartbeat(
     if "software_inventory" in meta:
         sw_list = meta["software_inventory"]
         if isinstance(sw_list, list) and sw_list:
-            for sw in sw_list:
-                await db.software_inventory.update_one(
-                    {"agent_id": agent_id, "name": sw.get("name")},
-                    {"$set": {
-                        "agent_id": agent_id, "agent_name": payload.get("hostname", agent_id),
-                        "tenant_id": _hb_tenant_id,
-                        "name": sw.get("name"), "current_version": sw.get("current_version"),
-                        "latest_version": sw.get("latest_version"), "pkg_type": sw.get("pkg_type", "unknown"),
-                        "is_outdated": sw.get("is_outdated", False),
-                        "last_scanned": datetime.now(timezone.utc).isoformat()
-                    }},
-                    upsert=True
-                )
+            hostname = payload.get("hostname", agent_id)
+
+            async def _upsert_software(items: list, _agent_id: str, _tenant_id: str, _hostname: str) -> None:
+                # Serial update_one() at 100-1000 items/heartbeat blocks the event loop.
+                # Use bulk_write() with Upsert operations instead — one round-trip for all items.
+                from pymongo import UpdateOne
+                scanned_at = datetime.now(timezone.utc).isoformat()
+                ops = [
+                    UpdateOne(
+                        {"agent_id": _agent_id, "name": sw.get("name")},
+                        {"$set": {
+                            "agent_id": _agent_id, "agent_name": _hostname,
+                            "tenant_id": _tenant_id,
+                            "name": sw.get("name"), "current_version": sw.get("current_version"),
+                            "latest_version": sw.get("latest_version"), "pkg_type": sw.get("pkg_type", "unknown"),
+                            "is_outdated": sw.get("is_outdated", False),
+                            "last_scanned": scanned_at,
+                        }},
+                        upsert=True,
+                    )
+                    for sw in items if sw.get("name")
+                ]
+                if ops:
+                    await db.software_inventory.bulk_write(ops, ordered=False)
+
+            background_tasks.add_task(_upsert_software, sw_list, agent_id, _hb_tenant_id, hostname)
 
     if "fim" in meta:
         fim_data = meta["fim"]
