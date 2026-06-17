@@ -6,6 +6,11 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+_REDIS_URL = os.getenv("REDIS_URL", "").strip()
+
+# Maximum WebSocket connections per tenant (prevents one tenant from starving others)
+MAX_CONNECTIONS_PER_TENANT = int(os.getenv("MAX_WS_CONNECTIONS_PER_TENANT", "5000"))
+
 
 def _build_socketio_cors() -> list | str:
     """
@@ -38,15 +43,32 @@ def _build_socketio_cors() -> list | str:
     ]
 
 
-# Create Socket.IO server — CORS origins are resolved at startup
-sio = socketio.AsyncServer(
-    async_mode='asgi',
-    cors_allowed_origins=_build_socketio_cors(),
-    logger=True,
-    engineio_logger=False
-)
+# Create Socket.IO server with Redis pub/sub when REDIS_URL is set.
+# Redis mode enables horizontal scaling across multiple app instances —
+# broadcasts reach clients on any server, not just the local one.
+def _make_socketio_server() -> socketio.AsyncServer:
+    kwargs: dict = {
+        "async_mode": "asgi",
+        "cors_allowed_origins": _build_socketio_cors(),
+        "logger": True,
+        "engineio_logger": False,
+    }
+    if _REDIS_URL:
+        try:
+            mgr = socketio.AsyncRedisManager(_REDIS_URL)
+            kwargs["client_manager"] = mgr
+            logger.info("[SocketIO] Redis pub/sub enabled: %s", _REDIS_URL.split("@")[-1])
+        except Exception as exc:
+            logger.warning("[SocketIO] Redis manager unavailable (%s); falling back to in-memory", exc)
+    else:
+        logger.info("[SocketIO] Redis not configured (REDIS_URL unset); using in-memory (single-instance only)")
+    return socketio.AsyncServer(**kwargs)
 
-# Track connected clients by tenant
+
+sio = _make_socketio_server()
+
+# Track connected clients by tenant (local to this process — authoritative in in-memory mode,
+# best-effort in Redis mode where other instances track their own clients)
 connected_clients: Dict[str, Set[str]] = {}  # {tenant_id: {sid1, sid2, ...}}
 
 # Track Agent SIDs specifically for direct messaging
@@ -94,6 +116,14 @@ async def connect(sid, environ, auth):
             return False
     except Exception as e:
         logger.warning("WebSocket rejected %s - invalid JWT: %s", sid, e)
+        return False
+
+    # Enforce per-tenant connection cap to prevent one tenant from starving others
+    if tenant_id in connected_clients and len(connected_clients[tenant_id]) >= MAX_CONNECTIONS_PER_TENANT:
+        logger.warning(
+            "WebSocket rejected %s — tenant %s at connection limit (%d)",
+            sid, tenant_id, MAX_CONNECTIONS_PER_TENANT,
+        )
         return False
 
     # Add to tenant's connected clients
@@ -258,11 +288,37 @@ async def broadcast_compliance_alert(tenant_id: str, alert: dict):
     """Broadcast compliance-related alert"""
     if tenant_id not in connected_clients:
         return
-    
+
     alert['timestamp'] = alert.get('timestamp', datetime.now(timezone.utc).isoformat())
-    
+
     for sid in connected_clients[tenant_id]:
         await sio.emit('compliance_alert', alert, room=sid)
+
+async def broadcast_remediation_update(tenant_id: str, payload: dict) -> None:
+    """
+    Broadcast a remediation task status update to all connected clients of a tenant.
+
+    Emits the 'remediation_update' Socket.IO event per REM-04.  Only emits to sids
+    belonging to tenant_id — never iterates across other tenants (T-04-01 mitigation).
+
+    Args:
+        tenant_id: The tenant whose clients should receive the update.
+        payload:   Arbitrary dict describing the task change (task_id, status, …).
+                   A 'timestamp' key is added automatically if absent.
+    """
+    if tenant_id not in connected_clients:
+        return
+
+    payload['timestamp'] = payload.get('timestamp', datetime.now(timezone.utc).isoformat())
+
+    for sid in list(connected_clients[tenant_id]):
+        await sio.emit('remediation_update', payload, room=sid)
+
+    logger.debug(
+        "broadcast_remediation_update: sent to %d client(s) for tenant %s",
+        len(connected_clients[tenant_id]),
+        tenant_id,
+    )
 
 async def broadcast_network_traffic(tenant_id: str, traffic_event: dict):
     """Broadcast network traffic event for the topology map"""
@@ -272,6 +328,42 @@ async def broadcast_network_traffic(tenant_id: str, traffic_event: dict):
     # payload: { source: "ip", target: "ip", protocol: "HTTPS", status: "allowed" }
     for sid in connected_clients[tenant_id]:
         await sio.emit('network_traffic', traffic_event, room=sid)
+
+async def broadcast_mitre_heatmap(tenant_id: str, heatmap: list):
+    """Push a fresh MITRE ATT&CK heatmap to all connected clients of a tenant."""
+    if tenant_id not in connected_clients:
+        return
+    payload = {
+        "heatmap": heatmap,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    for sid in list(connected_clients[tenant_id]):
+        await sio.emit("mitre_heatmap_update", payload, room=sid)
+    logger.debug("MITRE heatmap pushed to %d clients for tenant %s", len(connected_clients[tenant_id]), tenant_id)
+
+
+async def broadcast_siem_rule_match(tenant_id: str, rule_id: str, rule_name: str, severity: str, match_count: int, mitre_tactic: str = "", threat_actor: str = "") -> None:
+    """Push a SIEM correlation rule match to all connected clients of a tenant."""
+    if tenant_id not in connected_clients:
+        return
+    payload = {
+        "rule_id": rule_id,
+        "rule_name": rule_name,
+        "severity": severity,
+        "match_count": match_count,
+        "mitre_tactic": mitre_tactic,
+        "threat_actor": threat_actor,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    for sid in list(connected_clients[tenant_id]):
+        await sio.emit("siem_rule_match", payload, room=sid)
+    logger.debug("SIEM rule match broadcast: '%s' (count=%d) → tenant %s", rule_name, match_count, tenant_id)
+
+
+def get_connected_tenant_ids() -> list:
+    """Return list of tenant IDs that currently have at least one connected client."""
+    return [tid for tid, sids in connected_clients.items() if sids]
+
 
 # Health check
 async def get_connected_clients_count(tenant_id: str = None) -> int:
