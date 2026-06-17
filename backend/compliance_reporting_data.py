@@ -4,6 +4,19 @@ Compliance reporting: scoring helpers and shared data-fetching utilities.
 
 from database import get_database
 
+# Status vocabulary legend: maps current internal status values to auditor
+# standard vocabulary (Pass/Fail/Partial/No-Data) for Wave 2 renderers.
+STATUS_LEGEND = {
+    "Compliant":           "Pass",
+    "Implemented":         "Pass",
+    "Non-Compliant":       "Fail",
+    "Not Implemented":     "Fail",
+    "Warning":             "Partial",
+    "Partially Compliant": "Partial",
+    "In Progress":         "Partial",
+    "—":                   "No-Data",
+}
+
 
 def _score_status(status: str) -> str:
     """Normalise asset_compliance status to Compliant / Warning / Non-Compliant."""
@@ -33,15 +46,24 @@ def _overall_verdict(score: float) -> str:
 def _flatten_evidence(evidence_list: list) -> dict:
     """
     Extract display fields from a list of evidence/artifact records.
-    Returns: names, urls, descriptions, uploaded_ats, statuses, count.
+    Returns: names, urls, descriptions, uploaded_ats, statuses, count,
+             auto_count, manual_count.
+
+    Classification rule: automated when systemGenerated is True OR source is
+    None (absent); otherwise manual (source=='manual' or systemGenerated False).
+    Each name is prefixed with [Auto] or [Manual] for auditor readability.
     """
     names, urls, descs, dates, statuses = [], [], [], [], []
+    auto_count = 0
+    manual_count = 0
     seen_ids: set = set()
     for e in evidence_list:
         eid = e.get("id") or e.get("url") or e.get("name", "")
         if eid in seen_ids:
             continue
         seen_ids.add(eid)
+        is_auto = e.get("systemGenerated") is True or e.get("source") is None
+        label = "[Auto]" if is_auto else "[Manual]"
         name = e.get("name") or e.get("filename") or ""
         url  = e.get("url") or ""
         desc = e.get("description") or ""
@@ -51,7 +73,11 @@ def _flatten_evidence(evidence_list: list) -> dict:
             date = date[:10]
         status = e.get("status") or ""
         if name:
-            names.append(name)
+            names.append(f"{label} {name}")
+            if is_auto:
+                auto_count += 1
+            else:
+                manual_count += 1
         if url:
             urls.append(url)
         if desc:
@@ -63,10 +89,11 @@ def _flatten_evidence(evidence_list: list) -> dict:
     return {
         "names": names, "urls": urls, "descriptions": descs,
         "uploaded_ats": dates, "statuses": statuses, "count": len(seen_ids),
+        "auto_count": auto_count, "manual_count": manual_count,
     }
 
 
-async def _build_report_data(framework_id: str):
+async def _build_report_data(framework_id: str, tenant_id: str = None):
     """
     Returns:
         framework      – the framework document
@@ -144,6 +171,8 @@ async def _build_report_data(framework_id: str):
                 "Control Status": ctrl_status,
                 "Asset ID": "—", "Hostname": "—", "Asset Status": "—",
                 "Evidence Count": ev["count"],
+                "Auto Evidence": ev["auto_count"],
+                "Manual Evidence": ev["manual_count"],
                 "Evidence Names": ", ".join(ev["names"]) if ev["names"] else "None",
                 "Evidence URLs": ", ".join(ev["urls"]) if ev["urls"] else "—",
                 "Evidence Dates": ", ".join(ev["uploaded_ats"]) if ev["uploaded_ats"] else "—",
@@ -166,6 +195,8 @@ async def _build_report_data(framework_id: str):
                 "Hostname": hostname_map.get(aid, aid),
                 "Asset Status": _score_status(doc.get("status", "")),
                 "Evidence Count": ev["count"],
+                "Auto Evidence": ev["auto_count"],
+                "Manual Evidence": ev["manual_count"],
                 "Evidence Names": ", ".join(ev["names"]) if ev["names"] else "None",
                 "Evidence URLs": ", ".join(ev["urls"]) if ev["urls"] else "—",
                 "Evidence Dates": ", ".join(ev["uploaded_ats"]) if ev["uploaded_ats"] else "—",
