@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: "03-01 complete; 03-02 next"
-last_updated: "2026-06-18T00:00:00Z"
+stopped_at: "03-02 complete; Phase 03 done"
+last_updated: "2026-06-18T18:45:00Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 5
-  percent: 50
+  completed_plans: 6
+  percent: 71
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 Goal: Close AUDIT-01 through AUDIT-04 gaps — evidence source labelling, tenant isolation on export pipeline, PDF/XLSX header fields, and legacy download tenant check.
 
-Status: Plan 03-01 complete (data layer — AUDIT-03 evidence bucketing + AUDIT-04 tenant check + STATUS_LEGEND). Plan 03-02 next (PDF/XLSX renderer updates).
+Status: Complete. 03-01 closed AUDIT-03/04 at data layer. 03-02 closed AUDIT-01/02 at PDF/XLSX renderer layer — tenant name, export date, and Auto/Manual evidence columns now rendered in both formats.
 
 ## Phases
 
@@ -36,7 +36,7 @@ Status: Plan 03-01 complete (data layer — AUDIT-03 evidence bucketing + AUDIT-
 |-------|------|--------|
 | 1 | Rust Agent Evidence Parity | Complete |
 | 2 | Manual Evidence Uploads | Complete |
-| 3 | Audit-Ready Export | In progress (03-01 done, 03-02 next) |
+| 3 | Audit-Ready Export | Complete |
 | 4 | Remediation Workflow | Not started |
 | 5 | Integration and E2E Verification | Not started |
 
@@ -54,6 +54,9 @@ Status: Plan 03-01 complete (data layer — AUDIT-03 evidence bucketing + AUDIT-
 - 03-01: STATUS_LEGEND maps internal vocabulary to auditor standard Pass/Fail/Partial/No-Data for Wave 2 renderers
 - 03-01: tenant_id added as trailing optional str=None to _build_report_data/_generate_csv/_generate_all_csv for backward compatibility
 - 03-01: _SUPER_ADMIN_ROLES defined at module level in compliance_reports_endpoints.py matching authoritative route pattern
+- 03-02: tenant_id added as trailing optional str=None to _generate_pdf/_generate_excel/_generate_all_excel for backward compatibility
+- 03-02: tenant name resolved via db.tenants.find_one({'id': tenant_id}) with fallback chain: doc.name -> tenant_id -> "Unknown Tenant"
+- 03-02: det_widths extended to 15 entries; two 0.6-inch slots for Auto Evidence and Manual Evidence columns in PDF
 
 ## Performance Metrics
 
@@ -64,11 +67,12 @@ Status: Plan 03-01 complete (data layer — AUDIT-03 evidence bucketing + AUDIT-
 | 02-manual-evidence-uploads | 01 | ~20m | 3 | 3 |
 | 02-manual-evidence-uploads | 02 | ~15m | 2 | 3 |
 | 03-audit-ready-export | 01 | ~4m | 3 | 4 |
+| 03-audit-ready-export | 02 | ~3m | 2 | 4 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-18T00:00:00Z
-- **Stopped at:** 03-01 complete; 03-02 next (PDF/XLSX renderer updates)
+- **Timestamp:** 2026-06-18T18:45:00Z
+- **Stopped at:** Completed 03-02-PLAN.md — Phase 03 Audit-Ready Export complete
 - **Resume file:** None
 
 ## Configuration
