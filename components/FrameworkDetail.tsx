@@ -577,10 +577,10 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                         assets={assets}
                         complianceData={assetComplianceData}
                         onUpdateStatus={(assetId, status) => console.log('Update status', assetId, status)}
-                        onUploadEvidence={async (assetId, file) => {
+                        onUploadEvidence={async (assetId, file, description) => {
                           console.log('Uploading evidence', assetId, file);
                           try {
-                            const res = await api.uploadComplianceEvidence(assetId, control.id, file);
+                            const res = await api.uploadComplianceEvidence(assetId, control.id, file, description);
                             if (res.success) {
                               showToast(`Successfully uploaded evidence: ${file.name}`, 'success');
                             }
@@ -604,6 +604,16 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                           } catch (e) {
                             console.error("Ingest Exception", e);
                             showToast('Error ingesting evidence.', 'error');
+                          }
+                        }}
+                        onDeleteEvidence={async (assetId, controlId, evidenceId) => {
+                          try {
+                            await api.deleteComplianceEvidence(assetId, controlId, evidenceId);
+                            showToast('Evidence deleted.', 'success');
+                            if (onRefresh) onRefresh();
+                          } catch (e) {
+                            console.error("Delete Error", e);
+                            showToast("Failed to delete evidence.", 'error');
                           }
                         }}
                       />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Asset, AssetCompliance, Control } from '../types';
-import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircuitIcon } from './icons';
+import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircuitIcon, TrashIcon } from './icons';
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
 
 interface AssetComplianceListProps {
@@ -8,14 +8,17 @@ interface AssetComplianceListProps {
     assets: Asset[];
     complianceData: AssetCompliance[];
     onUpdateStatus: (assetId: string, status: AssetCompliance['status']) => void;
-    onUploadEvidence: (assetId: string, file: File) => void;
+    onUploadEvidence: (assetId: string, file: File, description?: string) => void;
     onIngestEvidence: (assetId: string, fileName: string, content: string) => Promise<void>;
+    onDeleteEvidence: (assetId: string, controlId: string, evidenceId: string) => Promise<void>;
 }
 
-export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ control, assets, complianceData, onUpdateStatus, onUploadEvidence, onIngestEvidence }) => {
+export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ control, assets, complianceData, onUpdateStatus, onUploadEvidence, onIngestEvidence, onDeleteEvidence }) => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
     const [ingestingMap, setIngestingMap] = useState<Record<string, boolean>>({});
+    const [descriptionMap, setDescriptionMap] = useState<Record<string, string>>({});
+    const [deletingMap, setDeletingMap] = useState<Record<string, boolean>>({});
 
     const handleUploadClick = (assetId: string) => {
         setSelectedAssetId(assetId);
@@ -26,8 +29,10 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
         const file = event.target.files?.[0];
         if (!file || !selectedAssetId) return;
 
-        // 1. Trigger the standard upload handler (UI update)
-        onUploadEvidence(selectedAssetId, file);
+        const description = descriptionMap[selectedAssetId] || undefined;
+
+        // 1. Trigger the standard upload handler (UI update + backend upload)
+        onUploadEvidence(selectedAssetId, file, description);
 
         // 2. Read content and trigger ingestion
         setIngestingMap(prev => ({ ...prev, [selectedAssetId]: true }));
@@ -38,8 +43,21 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
             console.error("Failed to read file for ingestion", error);
         } finally {
             setIngestingMap(prev => ({ ...prev, [selectedAssetId]: false }));
+            setDescriptionMap(prev => { const next = { ...prev }; delete next[selectedAssetId!]; return next; });
             setSelectedAssetId(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDeleteEvidence = async (assetId: string, evidenceId: string) => {
+        if (!window.confirm('Delete this evidence? This action cannot be undone.')) return;
+        setDeletingMap(prev => ({ ...prev, [evidenceId]: true }));
+        try {
+            await onDeleteEvidence(assetId, control.id, evidenceId);
+        } catch (error) {
+            console.error("Failed to delete evidence", error);
+        } finally {
+            setDeletingMap(prev => { const next = { ...prev }; delete next[evidenceId]; return next; });
         }
     };
 
@@ -88,31 +106,54 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                     {statusRecord?.evidence?.length ? (
                                         <div className="flex flex-col space-y-3">
-                                            {statusRecord.evidence.map((ev: any, idx: number) => (
-                                                <div key={`${ev.id || ev.evidence_id}-${idx}`}>
-                                                    {ev.systemGenerated || ev.url === '#' || ev.evidence_content || ev.content ? (
-                                                        // System-generated evidence with markdown content
-                                                        <EvidenceMarkdownViewer
-                                                            evidence={{
-                                                                id: ev.id || ev.evidence_id || String(idx),
-                                                                name: ev.name || ev.check_name || `Evidence ${idx + 1}`,
-                                                                content: ev.evidence_content || ev.content,
-                                                                details: ev.details
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        // File-based evidence with download link
-                                                        <a
-                                                            href={`/api/compliance/evidence/download/${ev.id || ev.evidence_id}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="flex items-center text-blue-600 hover:text-blue-500 text-xs"
-                                                        >
-                                                            <FileTextIcon size={12} className="mr-1" /> {ev.name || ev.check_name || "Evidence Document"}
-                                                        </a>
-                                                    )}
+                                            {statusRecord.evidence.map((ev: any, idx: number) => {
+                                                const isAutomated = ev.systemGenerated === true || ev.source === 'auto';
+                                                const evId = ev.id || ev.evidence_id || String(idx);
+                                                return (
+                                                <div key={`${evId}-${idx}`} className="flex items-start gap-2">
+                                                    <div className="flex-1">
+                                                        {isAutomated || ev.url === '#' || ev.evidence_content || ev.content ? (
+                                                            // System-generated evidence with markdown content
+                                                            <EvidenceMarkdownViewer
+                                                                evidence={{
+                                                                    id: evId,
+                                                                    name: ev.name || ev.check_name || `Evidence ${idx + 1}`,
+                                                                    content: ev.evidence_content || ev.content,
+                                                                    details: ev.details
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            // File-based evidence with download link
+                                                            <a
+                                                                href={`/api/compliance/evidence/download/${evId}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="flex items-center text-blue-600 hover:text-blue-500 text-xs"
+                                                            >
+                                                                <FileTextIcon size={12} className="mr-1" /> {ev.name || ev.check_name || "Evidence Document"}
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                        {isAutomated ? (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Automated</span>
+                                                        ) : (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Manual</span>
+                                                        )}
+                                                        {!isAutomated && (
+                                                            <button
+                                                                onClick={() => handleDeleteEvidence(asset.id, evId)}
+                                                                disabled={!!deletingMap[evId]}
+                                                                className="text-red-500 hover:text-red-700 disabled:opacity-40"
+                                                                title="Delete evidence"
+                                                            >
+                                                                <TrashIcon size={13} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            ))}
+                                                );
+                                            })}
 
                                             {/* AI Evaluation Block */}
                                             {statusRecord.ai_evaluation && (
@@ -136,17 +177,28 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                         <span className="text-gray-400 italic text-xs">No evidence attached</span>
                                     )}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                    <button onClick={() => onUpdateStatus(asset.id, 'Compliant')} className="text-green-600 hover:text-green-900" title="Mark Compliant"><CheckIcon size={18} /></button>
-                                    <button onClick={() => onUpdateStatus(asset.id, 'Non-Compliant')} className="text-red-600 hover:text-red-900" title="Mark Non-Compliant"><XIcon size={18} /></button>
-                                    <button
-                                        onClick={() => handleUploadClick(asset.id)}
-                                        className={`${ingestingMap[asset.id] ? 'text-purple-600 animate-pulse' : 'text-blue-600 hover:text-blue-900'}`}
-                                        title={ingestingMap[asset.id] ? "Ingesting to LLM..." : "Upload Evidence & Ingest"}
-                                        disabled={ingestingMap[asset.id]}
-                                    >
-                                        <UploadIcon size={18} />
-                                    </button>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div className="flex flex-col items-end gap-1">
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => onUpdateStatus(asset.id, 'Compliant')} className="text-green-600 hover:text-green-900" title="Mark Compliant"><CheckIcon size={18} /></button>
+                                            <button onClick={() => onUpdateStatus(asset.id, 'Non-Compliant')} className="text-red-600 hover:text-red-900" title="Mark Non-Compliant"><XIcon size={18} /></button>
+                                            <button
+                                                onClick={() => handleUploadClick(asset.id)}
+                                                className={`${ingestingMap[asset.id] ? 'text-purple-600 animate-pulse' : 'text-blue-600 hover:text-blue-900'}`}
+                                                title={ingestingMap[asset.id] ? "Ingesting to LLM..." : "Upload Evidence & Ingest"}
+                                                disabled={ingestingMap[asset.id]}
+                                            >
+                                                <UploadIcon size={18} />
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Description (optional)"
+                                            value={descriptionMap[asset.id] || ''}
+                                            onChange={e => setDescriptionMap(prev => ({ ...prev, [asset.id]: e.target.value }))}
+                                            className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 w-44 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                                        />
+                                    </div>
                                 </td>
                             </tr>
                         );
