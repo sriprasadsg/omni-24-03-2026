@@ -4207,4 +4207,58 @@ export const validateYaraRule = async (content: string): Promise<{ valid: boolea
     } catch { return { valid: false, error: 'Network error' }; }
 };
 
+// ── Compliance Remediation Tasks ──────────────────────────────────────────────
+
+export const createRemediationTask = async (body: {
+    title: string;
+    control_id?: string;
+    asset_id?: string;
+    framework_id?: string;
+    assignee?: string;
+    due_date?: string;
+    description?: string;
+    priority?: string;
+}) => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Failed to create remediation task: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const getRemediationTasks = async (status?: string): Promise<import('../types').RemediationTask[]> => {
+    try {
+        const url = status
+            ? `${API_BASE}/compliance-remediation/tasks?status=${encodeURIComponent(status)}`
+            : `${API_BASE}/compliance-remediation/tasks`;
+        const res = await authFetch(url);
+        if (!res.ok) return [];
+        return res.json();
+    } catch {
+        return [];
+    }
+};
+
+export const updateRemediationTask = async (
+    id: string,
+    updates: { status?: string; assignee?: string; due_date?: string; resolution_notes?: string; description?: string },
+) => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error(`Failed to update remediation task: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const suggestRemediation = async (taskId: string): Promise<{ suggestion: string }> => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks/${taskId}/suggest`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error(`Failed to get remediation suggestion: HTTP ${res.status}`);
+    return res.json();
+};
+
 

@@ -89,6 +89,7 @@ export type AppView =
   | 'yaraRules'
   | 'alertManagement'
   | 'complianceEvidence'
+  | 'remediationWorkflow'
   | 'mlops'
   | 'mitreAttack'
   | 'dlp'
@@ -150,7 +151,30 @@ export type AppView =
   | 'problemManagement'
   | 'changeManagement'
   | 'ticketWebhooks'
-  | 'notificationPrefs';
+  | 'notificationPrefs'
+  | 'windowsAutopilot'
+  | 'conditionalAccess'
+  | 'mobileDeviceManagement'
+  | 'branchSites'
+  | 'appCatalog'
+  | 'assetIntelligence'
+  | 'mobileAppManagement'
+  | 'androidEnterprise'
+  | 'deviceConfigProfiles'
+  | 'firmwareDriverUpdates'
+  | 'advancedHunting'
+  | 'detectionRules'
+  | 'connectorsHub'
+  | 'securityCopilot'
+  | 'msspMonitoring'
+  | 'attackTimeline'
+  | 'geographicMap'
+  | 'retentionPolicies'
+  | 'scaAssessment'
+  | 'agentGroups'
+  | 'configDrift'
+  | 'fimMonitoring'
+  | 'activeResponse';
 
 
 export type Permission =
@@ -225,9 +249,42 @@ export type Permission =
   | 'view:mdr'
   | 'view:xdr'
   | 'manage:agents'
+  | 'view:autopilot'
+  | 'manage:autopilot'
+  | 'view:conditional_access'
+  | 'manage:conditional_access'
+  | 'view:mdm'
+  | 'manage:mdm'
+  | 'view:branch_sites'
+  | 'manage:branch_sites'
+  | 'view:app_catalog'
+  | 'manage:app_catalog'
+  | 'view:asset_intelligence'
+  | 'manage:asset_intelligence'
+  | 'view:mam'
+  | 'manage:mam'
+  | 'view:android_enterprise'
+  | 'manage:android_enterprise'
+  | 'view:device_config_profiles'
+  | 'manage:device_config_profiles'
+  | 'view:firmware_drivers'
+  | 'manage:firmware_drivers'
   | 'view:predictive_health'
   | 'view:goal_system'
   | 'view:integrations'
+  | 'view:advanced_hunting' | 'manage:advanced_hunting'
+  | 'view:detection_rules' | 'manage:detection_rules'
+  | 'view:connectors_hub' | 'manage:connectors_hub'
+  | 'view:security_copilot'
+  | 'view:mssp' | 'manage:mssp'
+  | 'view:attack_timeline'
+  | 'view:geographic_map'
+  | 'view:retention_policies' | 'manage:retention_policies'
+  | 'view:sca' | 'manage:sca'
+  | 'view:agent_groups' | 'manage:agent_groups'
+  | 'view:config_drift' | 'manage:config_drift'
+  | 'view:fim' | 'manage:fim'
+  | 'view:active_response' | 'manage:active_response'
   | 'admin:*';
 
 
@@ -838,12 +895,24 @@ export interface VoiceBotSettings {
   rate: number;
 }
 
+export interface AiTool {
+  id: string;
+  name: string;
+  type: 'ollama' | 'openai_compatible' | 'custom';
+  endpoint: string;
+  model: string;
+  apiKey?: string;
+}
+
 export interface LlmSettings {
   provider: 'Gemini' | 'Local' | 'Omni-LLM-Scratch' | 'Anthropic Claude';
   apiKey: string;
   model: string;
   host?: string;
+  ollamaUrl?: string;
+  ollamaModel?: string;
   customModels?: string[];
+  customTools?: AiTool[];
   voiceBotSettings?: VoiceBotSettings;
 }
 
@@ -1583,4 +1652,24 @@ export interface CustomYaraRule {
     severity?: string;
     mitre?: string;
     family?: string;
+}
+
+export interface RemediationTask {
+    id: string;
+    title: string;
+    control_id: string;
+    framework_id: string;
+    asset_id?: string;
+    status: 'open' | 'in_progress' | 'resolved' | 'dismissed';
+    priority: 'low' | 'medium' | 'high' | 'critical';
+    assignee?: string;
+    due_date?: string;
+    description?: string;
+    resolution_notes?: string;
+    ai_suggestion?: string;
+    agent_id?: string;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+    tenantId: string;
 }
