@@ -1,5 +1,5 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends, Request, Response
+from fastapi.responses import FileResponse
 import asyncio
 import logging
 import os
@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
-from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES
+from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic
 
 logger = logging.getLogger(__name__)
 
@@ -17,49 +17,84 @@ router = APIRouter()
 
 _SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
+# Narrowed allowlists for manual evidence uploads (EVID-01 / EVID-05)
+_EVIDENCE_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
+    ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx"
+})
+_EVIDENCE_ALLOWED_MIME_PREFIXES: tuple[str, ...] = (
+    "application/pdf",
+    "application/vnd.openxmlformats",
+    "application/msword",
+    "application/vnd.ms-excel",
+    "image/png",
+    "image/jpeg",
+)
+
 
 @router.post("/api/assets/{asset_id}/compliance/evidence")
 async def upload_compliance_evidence(
+    request: Request,
+    response: Response,
     asset_id: str,
     file: UploadFile = File(...),
     control_id: str = Form(...),
+    description: str = Form("", max_length=1000),
     current_user=Depends(get_current_user),
 ):
     try:
-        # Verify the asset belongs to the caller's tenant (non-admins only)
+        # Derive caller identity from JWT
         user_role = getattr(current_user, "role", "")
+        uploader = getattr(current_user, "username", "unknown")
+        tenant_id = getattr(current_user, "tenant_id", None) or ""
+
+        # Verify the asset belongs to the caller's tenant (non-admins only)
         if user_role not in _SUPER_ROLES:
-            tenant_id = getattr(current_user, "tenant_id", None) or ""
             db = get_database()
             asset = await db.assets.find_one({"id": asset_id, "tenantId": tenant_id})
             if not asset:
                 raise HTTPException(status_code=403, detail="Asset not found in your tenant")
 
+        # Narrowed extension allowlist for manual evidence (EVID-01)
         file_ext = os.path.splitext(file.filename or "")[1].lower()
-        # Whitelist extension and MIME type
-        if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+        if not file_ext or file_ext not in _EVIDENCE_ALLOWED_EXTENSIONS:
             raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
+
+        # Narrowed MIME allowlist for manual evidence (EVID-01)
         content_type = (file.content_type or "").split(";")[0].strip()
-        if content_type and not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
+        if not content_type or not any(content_type.startswith(p) for p in _EVIDENCE_ALLOWED_MIME_PREFIXES):
             raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
+        # Read file content exactly once (RESEARCH Pitfall 6)
+        file_content = await file.read()
+
+        # Enforce 25 MB size cap (EVID-01)
+        if len(file_content) > 25 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File exceeds 25 MB limit")
+
+        # Magic-byte MIME validation using stdlib only (EVID-05)
+        if not _check_magic(file_content, file_ext):
+            raise HTTPException(status_code=400, detail="File content does not match extension")
 
         safe_filename = f"{uuid.uuid4().hex}{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
-
-        file_content = await file.read()
         await asyncio.to_thread(_write_binary, file_path, file_content)
 
         file_url = f"/static/evidence/{safe_filename}"
         timestamp = datetime.now(timezone.utc).isoformat()
 
         evidence_record = {
-            "id": f"ev-{timestamp}",
-            "name": file.filename,
+            "id": f"ev-manual-{uuid.uuid4().hex}",
+            "name": os.path.basename(file.filename or "evidence"),
             "url": file_url,
             "type": file.content_type,
             "uploadedAt": timestamp,
             "assetId": asset_id,
             "controlId": control_id,
+            "tenantId": tenant_id,
+            "uploaded_by": uploader,
+            "description": description,
+            "source": "manual",
+            "systemGenerated": False,
         }
 
         db = get_database()
@@ -69,6 +104,7 @@ async def upload_compliance_evidence(
                 "$set": {
                     "status": "Pending_Review",
                     "lastUpdated": timestamp,
+                    "tenantId": tenant_id,
                 },
                 "$push": {"evidence": evidence_record},
             },

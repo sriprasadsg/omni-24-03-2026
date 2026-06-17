@@ -55,6 +55,27 @@ MANUAL_ARTIFACT_CATEGORIES = [
 ]
 
 
+_MAGIC_SIGNATURES: dict[str, bytes] = {
+    ".pdf":  b"%PDF-",
+    ".png":  b"\x89PNG\r\n\x1a\n",
+    ".jpg":  b"\xFF\xD8\xFF",
+    ".jpeg": b"\xFF\xD8\xFF",
+    ".docx": b"PK\x03\x04",
+    ".xlsx": b"PK\x03\x04",
+}
+
+
+def _check_magic(content: bytes, ext: str) -> bool:
+    """Return True if file content leading bytes match the expected magic for ext.
+
+    Returns True for extensions with no defined signature (pass-through).
+    """
+    sig = _MAGIC_SIGNATURES.get(ext)
+    if sig is None:
+        return True
+    return content[:len(sig)] == sig
+
+
 def _write_binary(path: str, data: bytes) -> None:
     with open(path, "wb") as fh:
         fh.write(data)
