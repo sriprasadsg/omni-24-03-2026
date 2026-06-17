@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-00-PLAN.md — Phase 04 Wave 0 foundation (test scaffold, Rust dispatch, broadcaster)
-last_updated: "2026-06-17T19:32:42Z"
+stopped_at: Completed 04-01-PLAN.md — Phase 04 Wave 1 (compliance remediation service, endpoints, frontend contracts)
+last_updated: "2026-06-17T19:40:24Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 9
-  completed_plans: 7
-  percent: 67
+  completed_plans: 8
+  percent: 78
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 Goal: Build compliance remediation task CRUD, agent re-scan dispatch, real-time WebSocket status push, and frontend dashboard (REM-01..REM-04).
 
-Status: Wave 0 (04-00) complete. Test scaffold established (Nyquist floor), Rust dispatch patched for "Run Compliance Scan", broadcast_remediation_update added to websocket_manager.
+Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_remediation_endpoints, AI suggest_remediation, REM-04 broadcast hook, and frontend types/apiService helpers delivered. REM-01/02/03/04 tests pass.
 
 ## Phases
 
@@ -60,6 +60,10 @@ Status: Wave 0 (04-00) complete. Test scaffold established (Nyquist floor), Rust
 - 04-00: "Run Compliance Scan" added to Rust dispatch arm alongside existing alternatives — resolves REM-03 string mismatch (Python uses "Run Compliance Scan"; Rust only matched "Run Compliance Check")
 - 04-00: broadcast_remediation_update placed after broadcast_compliance_alert, uses list() snapshot copy matching broadcast_mitre_heatmap pattern
 - 04-00: REM-04 test patches sio.emit with AsyncMock to avoid socketio runtime dependency in CI
+- 04-01: compliance_remediation_tasks collection name avoids collision with remediation_tasks (continuous_compliance_service)
+- 04-01: Router prefix /api/compliance-remediation avoids collision with /api/remediation (vulnerability domain)
+- 04-01: suggest_remediation fits in 5 lines (def + docstring + 2-line f-string + return) keeping ai_service.py at 499 lines
+- 04-01: Two-stage broadcast: PATCH endpoint broadcasts on dispatch (optimistic UI); report_instruction_result broadcasts on evidence arrival
 
 ## Performance Metrics
 
@@ -72,11 +76,12 @@ Status: Wave 0 (04-00) complete. Test scaffold established (Nyquist floor), Rust
 | 03-audit-ready-export | 01 | ~4m | 3 | 4 |
 | 03-audit-ready-export | 02 | ~3m | 2 | 4 |
 | 04-remediation-workflow | 00 | ~3m | 3 | 3 |
+| 04-remediation-workflow | 01 | ~4m | 3 | 7 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-17T19:32:42Z
-- **Stopped at:** Completed 04-00-PLAN.md — Phase 04 Wave 0 (test scaffold, Rust dispatch, broadcaster)
+- **Timestamp:** 2026-06-17T19:40:24Z
+- **Stopped at:** Completed 04-01-PLAN.md — Phase 04 Wave 1 (compliance remediation service, endpoints, frontend contracts)
 - **Resume file:** None
 
 ## Configuration
@@ -98,4 +103,4 @@ Status: Wave 0 (04-00) complete. Test scaffold established (Nyquist floor), Rust
 - [Codebase map](.planning/codebase/)
 
 ---
-*Initialized: 2026-06-17 | Last updated: 2026-06-17 (Plan 01-01 complete)*
+*Initialized: 2026-06-17 | Last updated: 2026-06-17 (Plan 04-01 complete)*
