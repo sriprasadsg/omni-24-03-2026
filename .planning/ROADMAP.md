@@ -53,7 +53,16 @@ This roadmap completes the brownfield security compliance portal by verifying an
   4. A file owner can delete their own uploaded evidence; an admin can delete any tenant's uploaded evidence
   5. Uploading a file whose MIME type does not match its extension is rejected with a clear error message
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Backend evidence endpoint fixes: 25 MB size cap, full metadata (uploaded_by/description/tenantId/source/systemGenerated), asset-scoped DELETE with owner/admin RBAC, stdlib magic-byte MIME validation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — Frontend evidence UI: fix multipart Content-Type bug, add description input, Manual/Automated source badge, per-row delete button, deleteComplianceEvidence API wrapper
+
 **UI hint**: yes
 
 ### Phase 3: Audit-Ready Export
@@ -105,7 +114,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
-| 2. Manual Evidence Uploads | 0/? | Not started | - |
+| 2. Manual Evidence Uploads | 0/2 | Planned | - |
 | 3. Audit-Ready Export | 0/? | Not started | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
 | 5. Integration and E2E Verification | 0/? | Not started | - |
