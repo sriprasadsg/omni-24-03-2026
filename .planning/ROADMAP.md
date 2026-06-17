@@ -10,7 +10,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 ## Phases
 
 - [x] **Phase 1: Rust Agent Evidence Parity** - Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent (completed 2026-06-17)
-- [ ] **Phase 2: Manual Evidence Uploads** - Auditors can attach files to controls and view them alongside automated evidence
+- [x] **Phase 2: Manual Evidence Uploads** - Auditors can attach files to controls and view them alongside automated evidence (completed 2026-06-17)
 - [ ] **Phase 3: Audit-Ready Export** - Per-tenant, per-framework PDF and Excel reports are complete and auditor-ready
 - [ ] **Phase 4: Remediation Workflow** - Failed controls get assignable tasks; resolution triggers re-scan and evidence update
 - [ ] **Phase 5: Integration and E2E Verification** - All four capabilities work together end-to-end across the full pipeline
@@ -61,7 +61,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Frontend evidence UI: fix multipart Content-Type bug, add description input, Manual/Automated source badge, per-row delete button, deleteComplianceEvidence API wrapper
+- [x] 02-02-PLAN.md — Frontend evidence UI: fix multipart Content-Type bug, add description input, Manual/Automated source badge, per-row delete button, deleteComplianceEvidence API wrapper
 
 **UI hint**: yes
 
@@ -114,7 +114,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
-| 2. Manual Evidence Uploads | 1/2 | In progress | - |
+| 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
 | 3. Audit-Ready Export | 0/? | Not started | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
 | 5. Integration and E2E Verification | 0/? | Not started | - |
