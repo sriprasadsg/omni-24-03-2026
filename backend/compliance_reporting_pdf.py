@@ -39,8 +39,15 @@ def _find_status_rows(rows_data, col_idx: int):
     return cmds
 
 
-async def _generate_pdf(framework_id: str, reports_dir: str) -> dict:
-    framework, asset_summary, control_rows = await _build_report_data(framework_id)
+async def _generate_pdf(framework_id: str, reports_dir: str, tenant_id: str = None) -> dict:
+    from database import get_database
+    db = get_database()
+    tenant_name = tenant_id or "Unknown Tenant"
+    if tenant_id:
+        tenant_doc = await db.tenants.find_one({"id": tenant_id})
+        tenant_name = tenant_doc.get("name", tenant_id) if tenant_doc else tenant_id
+
+    framework, asset_summary, control_rows = await _build_report_data(framework_id, tenant_id)
     fw_name = framework.get("name", framework_id)
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -90,6 +97,8 @@ async def _generate_pdf(framework_id: str, reports_dir: str) -> dict:
     elements = []
     elements.append(Paragraph(f"{fw_name.upper()} Compliance Report", title_style))
     elements.append(Paragraph(
+        f"Tenant: {tenant_name} &nbsp;|&nbsp; "
+        f"Export Date: {datetime.now().strftime('%Y-%m-%d')} &nbsp;|&nbsp; "
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} &nbsp;|&nbsp; "
         f"Controls: {len(framework.get('controls', []))} &nbsp;|&nbsp; "
         f"Assets: {len(asset_summary)}",
@@ -119,7 +128,11 @@ async def _generate_pdf(framework_id: str, reports_dir: str) -> dict:
     if control_rows:
         det_headers = list(control_rows[0].keys())
         det_rows = [list(r.values()) for r in control_rows]
-        det_widths = [0.7, 1.6, 0.9, 0.9, 0.8, 0.9, 0.9, 0.5, 1.6, 1.4, 0.8, 1.2, 0.8]
+        # Columns (in order from _build_report_data):
+        # Control ID, Control Name, Category, Control Status, Asset ID, Hostname,
+        # Asset Status, Evidence Count, Auto Evidence, Manual Evidence,
+        # Evidence Names, Evidence URLs, Evidence Dates, Evidence Desc, Last Reviewed
+        det_widths = [0.7, 1.6, 0.9, 0.9, 0.8, 0.9, 0.9, 0.5, 0.6, 0.6, 1.6, 1.4, 0.8, 1.2, 0.8]
         det_widths = det_widths[:len(det_headers)]
         t2, base_cmds2 = make_table(det_headers, det_rows, det_widths)
         ctrl_idx  = det_headers.index("Control Status")
