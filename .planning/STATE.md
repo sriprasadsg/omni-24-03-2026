@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: "02-02 tasks 1-2 committed; checkpoint:human-verify (Task 3) awaiting visual sign-off"
-last_updated: "2026-06-17T14:25:37.642Z"
+status: in-progress
+stopped_at: "03-01 complete; 03-02 next"
+last_updated: "2026-06-18T00:00:00Z"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 40
+  total_plans: 7
+  completed_plans: 5
+  percent: 50
 ---
 
 # Project State
@@ -20,23 +20,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
-**Current focus:** Phase 02 — manual-evidence-uploads
+**Current focus:** Phase 03 — audit-ready-export
 
 ## Current Phase
 
-**Phase 2: Manual Evidence Uploads**
+**Phase 3: Audit-Ready Export**
 
-Goal: Close the four backend gaps in the manual evidence upload flow — 25 MB cap, full metadata, DELETE endpoint, and magic-byte MIME validation.
+Goal: Close AUDIT-01 through AUDIT-04 gaps — evidence source labelling, tenant isolation on export pipeline, PDF/XLSX header fields, and legacy download tenant check.
 
-Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 complete (frontend UI wired); awaiting human-verify checkpoint visual sign-off.
+Status: Plan 03-01 complete (data layer — AUDIT-03 evidence bucketing + AUDIT-04 tenant check + STATUS_LEGEND). Plan 03-02 next (PDF/XLSX renderer updates).
 
 ## Phases
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Rust Agent Evidence Parity | Complete |
-| 2 | Manual Evidence Uploads | In progress (02-01 done, 02-02 next) |
-| 3 | Audit-Ready Export | Not started |
+| 2 | Manual Evidence Uploads | Complete |
+| 3 | Audit-Ready Export | In progress (03-01 done, 03-02 next) |
 | 4 | Remediation Workflow | Not started |
 | 5 | Integration and E2E Verification | Not started |
 
@@ -51,6 +51,9 @@ Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 complete (frontend
 - 02-02: Removed explicit Content-Type from multipart FormData fetch so browser sets correct boundary (T-02-07)
 - 02-02: isAutomated check uses ev.systemGenerated===true OR ev.source==='auto' to handle both backend field conventions
 - 02-02: FrameworkDetail.tsx updated (Rule 3 fix) to satisfy new required onDeleteEvidence prop; calls onRefresh() after delete
+- 03-01: STATUS_LEGEND maps internal vocabulary to auditor standard Pass/Fail/Partial/No-Data for Wave 2 renderers
+- 03-01: tenant_id added as trailing optional str=None to _build_report_data/_generate_csv/_generate_all_csv for backward compatibility
+- 03-01: _SUPER_ADMIN_ROLES defined at module level in compliance_reports_endpoints.py matching authoritative route pattern
 
 ## Performance Metrics
 
@@ -60,11 +63,12 @@ Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 complete (frontend
 | 01-rust-agent-evidence-parity | 02 | ~3m | 1 | 1 |
 | 02-manual-evidence-uploads | 01 | ~20m | 3 | 3 |
 | 02-manual-evidence-uploads | 02 | ~15m | 2 | 3 |
+| 03-audit-ready-export | 01 | ~4m | 3 | 4 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-17T15:00:00Z
-- **Stopped at:** 02-02 tasks 1-2 committed; checkpoint:human-verify (Task 3) awaiting visual sign-off
+- **Timestamp:** 2026-06-18T00:00:00Z
+- **Stopped at:** 03-01 complete; 03-02 next (PDF/XLSX renderer updates)
 - **Resume file:** None
 
 ## Configuration

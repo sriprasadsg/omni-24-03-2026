@@ -81,7 +81,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Data layer: source-bucket evidence ([Auto]/[Manual] + auto/manual counts), legacy download tenant-ownership check, thread tenant_id through service→data chain
+- [x] 03-01-PLAN.md — Data layer: source-bucket evidence ([Auto]/[Manual] + auto/manual counts), legacy download tenant-ownership check, thread tenant_id through service→data chain
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -123,7 +123,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 |-------|----------------|--------|-----------|
 | 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
 | 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
-| 3. Audit-Ready Export | 0/2 | Planned | - |
+| 3. Audit-Ready Export | 1/2 | In progress | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
 | 5. Integration and E2E Verification | 0/? | Not started | - |
 
