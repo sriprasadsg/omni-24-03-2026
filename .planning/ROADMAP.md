@@ -27,7 +27,10 @@ This roadmap completes the brownfield security compliance portal by verifying an
   2. Evidence records written from Rust agent heartbeats share the same DB schema as Python agent evidence, with `agent_type: rust` preserved in metadata
   3. All 12 Rust agent compliance checks (Firewall Profiles, Windows Defender, BitLocker Encryption, UAC, RDP, SMBv1, Password Policy, Audit Logging, Windows Update, PowerShell Script Block Logging, WinRM, Secure Boot) produce evidence mapped to correct framework control IDs via `COMPLIANCE_CHECK_MAPPINGS`
   4. Sending a simulated Rust agent heartbeat payload to the heartbeat endpoint triggers `process_automated_evidence` and the resulting records are visible in the UI
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Fix backend: extend process_automated_evidence with agent_type; fix heartbeat import and kwarg passthrough
+- [ ] 01-02-PLAN.md — Verify and simulate: write simulation test, run against live backend, assert agent_type in DB records
 **UI hint**: yes
 
 ### Phase 2: Manual Evidence Uploads
@@ -86,7 +89,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rust Agent Evidence Parity | 0/? | Not started | - |
+| 1. Rust Agent Evidence Parity | 0/2 | Not started | - |
 | 2. Manual Evidence Uploads | 0/? | Not started | - |
 | 3. Audit-Ready Export | 0/? | Not started | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
