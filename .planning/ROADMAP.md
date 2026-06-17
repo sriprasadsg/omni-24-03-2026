@@ -123,7 +123,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 |-------|----------------|--------|-----------|
 | 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
 | 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
-| 3. Audit-Ready Export | 2/2 | Complete   | 2026-06-18 |
+| 3. Audit-Ready Export | 2/2 | Complete   | 2026-06-17 |
 | 4. Remediation Workflow | 0/? | Not started | - |
 | 5. Integration and E2E Verification | 0/? | Not started | - |
 
