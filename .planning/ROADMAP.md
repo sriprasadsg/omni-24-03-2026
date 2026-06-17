@@ -32,7 +32,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 **Plans**: 2 plansPlans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Fix backend: extend process_automated_evidence with agent_type; fix heartbeat import and kwarg passthrough
+- [x] 01-01-PLAN.md — Fix backend: extend process_automated_evidence with agent_type; fix heartbeat import and kwarg passthrough
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -104,7 +104,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rust Agent Evidence Parity | 0/2 | Not started | - |
+| 1. Rust Agent Evidence Parity | 1/2 | In progress | - |
 | 2. Manual Evidence Uploads | 0/? | Not started | - |
 | 3. Audit-Ready Export | 0/? | Not started | - |
 | 4. Remediation Workflow | 0/? | Not started | - |

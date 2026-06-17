@@ -7,9 +7,9 @@
 
 ### Rust Agent Evidence Parity
 
-- [ ] **RUST-01**: Rust agent heartbeat compliance data (`meta.compliance_enforcement`) is processed by `compliance_evidence_processor` with identical logic to the Python agent
-- [ ] **RUST-02**: Evidence records written by the Rust agent appear in the same DB schema and format as Python agent evidence, with `agent_type: rust` metadata preserved
-- [ ] **RUST-03**: All 12 compliance checks the Rust agent reports (Firewall Profiles, Windows Defender, BitLocker Encryption, User Access Control, Remote Desktop Service, SMBv1 Protocol Disabled, Password Policy, Audit Logging Policy, Windows Update Service, PowerShell Script Block Logging, WinRM Status, Secure Boot) produce evidence records mapped to the correct framework control IDs via `COMPLIANCE_CHECK_MAPPINGS`
+- [x] **RUST-01**: Rust agent heartbeat compliance data (`meta.compliance_enforcement`) is processed by `compliance_evidence_processor` with identical logic to the Python agent
+- [x] **RUST-02**: Evidence records written by the Rust agent appear in the same DB schema and format as Python agent evidence, with `agent_type: rust` metadata preserved
+- [x] **RUST-03**: All 12 compliance checks the Rust agent reports (Firewall Profiles, Windows Defender, BitLocker Encryption, User Access Control, Remote Desktop Service, SMBv1 Protocol Disabled, Password Policy, Audit Logging Policy, Windows Update Service, PowerShell Script Block Logging, WinRM Status, Secure Boot) produce evidence records mapped to the correct framework control IDs via `COMPLIANCE_CHECK_MAPPINGS`
 
 ### Manual Evidence Uploads
 
@@ -67,9 +67,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RUST-01 | Phase 1 | Pending |
-| RUST-02 | Phase 1 | Pending |
-| RUST-03 | Phase 1 | Pending |
+| RUST-01 | Phase 1 | Complete (01-01) |
+| RUST-02 | Phase 1 | Complete (01-01) |
+| RUST-03 | Phase 1 | Complete (01-01) |
 | EVID-01 | Phase 2 | Pending |
 | EVID-02 | Phase 2 | Pending |
 | EVID-03 | Phase 2 | Pending |
