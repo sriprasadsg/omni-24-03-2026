@@ -128,3 +128,50 @@ def test_legacy_download_allows_owner():
     assert response.status_code != 403, (
         f"Owner should not receive 403, got {response.status_code}"
     )
+
+
+# ---------------------------------------------------------------------------
+# AUDIT-01: PDF header completeness (Wave 2 — RED until _generate_pdf updated)
+# ---------------------------------------------------------------------------
+
+def test_pdf_header_fields():
+    """AUDIT-01/03: _generate_pdf must accept tenant_id and resolve tenant name from db.tenants."""
+    import inspect
+    from compliance_reporting_pdf import _generate_pdf
+
+    sig = inspect.signature(_generate_pdf)
+    params = sig.parameters
+
+    assert "tenant_id" in params, (
+        f"_generate_pdf missing 'tenant_id' parameter; found: {list(params.keys())}"
+    )
+    assert params["tenant_id"].default is None, (
+        f"'tenant_id' should default to None, got: {params['tenant_id'].default}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# AUDIT-02: XLSX header completeness (Wave 2 — RED until _generate_excel updated)
+# ---------------------------------------------------------------------------
+
+def test_xlsx_header_fields():
+    """AUDIT-02/03: _generate_excel must accept tenant_id and resolve tenant name from db.tenants."""
+    import inspect
+    from compliance_reporting_excel import _generate_excel, _generate_all_excel
+
+    sig_single = inspect.signature(_generate_excel)
+    params_single = sig_single.parameters
+
+    assert "tenant_id" in params_single, (
+        f"_generate_excel missing 'tenant_id' parameter; found: {list(params_single.keys())}"
+    )
+    assert params_single["tenant_id"].default is None, (
+        f"'tenant_id' in _generate_excel should default to None"
+    )
+
+    sig_all = inspect.signature(_generate_all_excel)
+    params_all = sig_all.parameters
+
+    assert "tenant_id" in params_all, (
+        f"_generate_all_excel missing 'tenant_id' parameter; found: {list(params_all.keys())}"
+    )
