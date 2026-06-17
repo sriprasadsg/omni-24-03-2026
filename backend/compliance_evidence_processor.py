@@ -196,7 +196,8 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
 
         for raw_control_id in target_controls:
             control_id = _strip_prefix(raw_control_id)
-            evidence_id = f"auto-ev-{agent_hostname}-{control_id}-{timestamp}"
+            check_slug = check_name.replace(" ", "-").lower()
+            evidence_id = f"auto-ev-{agent_hostname}-{control_id}-{check_slug}-{timestamp}"
 
             evidence_content = (
                 f"# System Compliance Evidence\n"

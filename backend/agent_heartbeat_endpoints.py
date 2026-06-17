@@ -213,7 +213,7 @@ async def report_heartbeat(
                     "cpu_percent": meta.get("current_cpu", 0),
                     "memory_percent": meta.get("current_memory", 0),
                     "disk_percent": meta.get("disk_usage", 0),
-                    "memory_used_mb": meta.get("current_cpu", 0) * (meta.get("total_memory_gb", 16) * 1024 / 100),
+                    "memory_used_mb": meta.get("current_memory", 0) * (meta.get("total_memory_gb", 16) * 1024 / 100),
                     "memory_total_mb": meta.get("total_memory_gb", 16) * 1024,
                     "disk_used_gb": meta.get("disk_used_gb", 0),
                     "disk_total_gb": meta.get("disk_total_gb", 500),
