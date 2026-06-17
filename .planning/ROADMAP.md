@@ -77,7 +77,15 @@ This roadmap completes the brownfield security compliance portal by verifying an
   3. Both PDF and Excel exports include automated evidence (agent-collected) and manual evidence (uploaded files) per control, each labelled by source
   4. A tenant user's export contains only their own compliance data; no other tenant's controls or evidence appear in the output
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Data layer: source-bucket evidence ([Auto]/[Manual] + auto/manual counts), legacy download tenant-ownership check, thread tenant_id through service→data chain
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — Renderers: tenant-name + export-date headers and Auto/Manual evidence columns in PDF and XLSX generators
 
 ### Phase 4: Remediation Workflow
 
@@ -115,7 +123,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 |-------|----------------|--------|-----------|
 | 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
 | 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
-| 3. Audit-Ready Export | 0/? | Not started | - |
+| 3. Audit-Ready Export | 0/2 | Planned | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
 | 5. Integration and E2E Verification | 0/? | Not started | - |
 
