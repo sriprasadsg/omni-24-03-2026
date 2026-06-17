@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: "02-01 complete — backend evidence upload gaps closed (EVID-01/02/04/05)"
-last_updated: "2026-06-17T14:20:00Z"
+stopped_at: "02-02 tasks 1-2 complete — awaiting checkpoint:human-verify (Task 3) for visual UI sign-off"
+last_updated: "2026-06-17T15:00:00Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 30
+  completed_plans: 4
+  percent: 40
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 Goal: Close the four backend gaps in the manual evidence upload flow — 25 MB cap, full metadata, DELETE endpoint, and magic-byte MIME validation.
 
-Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 (frontend UI) is next.
+Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 complete (frontend UI wired); awaiting human-verify checkpoint visual sign-off.
 
 ## Phases
 
@@ -48,6 +48,9 @@ Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 (frontend UI) is n
 - 02-01: asyncio.run() used for async test cases (pytest-asyncio not installed); consistent with existing test_rust_heartbeat_parity.py pattern
 - 02-01: DELETE route is asset-scoped (/api/assets/{asset_id}/compliance/evidence/{evidence_id}) per plan phase decision
 - 02-01: Path-traversal guard uses str(resolved).startswith(str(_safe_dir) + os.sep) to prevent sibling-path bypass
+- 02-02: Removed explicit Content-Type from multipart FormData fetch so browser sets correct boundary (T-02-07)
+- 02-02: isAutomated check uses ev.systemGenerated===true OR ev.source==='auto' to handle both backend field conventions
+- 02-02: FrameworkDetail.tsx updated (Rule 3 fix) to satisfy new required onDeleteEvidence prop; calls onRefresh() after delete
 
 ## Performance Metrics
 
@@ -56,11 +59,12 @@ Status: Plan 02-01 complete (backend gaps closed). Plan 02-02 (frontend UI) is n
 | 01-rust-agent-evidence-parity | 01 | ~5m | 2 | 2 |
 | 01-rust-agent-evidence-parity | 02 | ~3m | 1 | 1 |
 | 02-manual-evidence-uploads | 01 | ~20m | 3 | 3 |
+| 02-manual-evidence-uploads | 02 | ~15m | 2 | 3 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-17T14:20:00Z
-- **Stopped at:** Completed 02-01 — backend evidence upload gaps (EVID-01/02/04/05)
+- **Timestamp:** 2026-06-17T15:00:00Z
+- **Stopped at:** 02-02 tasks 1-2 committed; checkpoint:human-verify (Task 3) awaiting visual sign-off
 - **Resume file:** None
 
 ## Configuration
