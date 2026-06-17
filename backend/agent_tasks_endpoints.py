@@ -86,6 +86,27 @@ async def report_instruction_result(
         except Exception as e:
             logger.error("Failed to process compliance results: %s", e)
 
+        # REM-04: broadcast remediation_update for any open tasks matching these controls
+        try:
+            from websocket_manager import broadcast_remediation_update
+            tenant_id = _tenant.get("tenant_id") or _tenant.get("tenantId") or _tenant.get("id", "")
+            control_ids = [
+                c.get("control_id") or c.get("check") or c.get("name", "")
+                for c in result.get("compliance_checks", [])
+                if isinstance(c, dict)
+            ]
+            for ctrl_id in set(filter(None, control_ids)):
+                open_tasks = await db.compliance_remediation_tasks.find(
+                    {"control_id": ctrl_id, "tenantId": tenant_id, "status": {"$in": ["open", "in_progress"]}}
+                ).to_list(length=50)
+                for t in open_tasks:
+                    await broadcast_remediation_update(
+                        tenant_id,
+                        {"task_id": t.get("id", ""), "control_id": ctrl_id, "status": "evidence_updated"},
+                    )
+        except Exception as exc:
+            logger.warning("REM-04 broadcast failed (non-fatal): %s", exc)
+
     return {"status": "ok"}
 
 
