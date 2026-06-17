@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 # ── CSV ───────────────────────────────────────────────────────────────────────
 
-async def _generate_csv(framework_id: str, reports_dir: str) -> dict:
-    framework, asset_summary, control_rows = await _build_report_data(framework_id)
+async def _generate_csv(framework_id: str, reports_dir: str, tenant_id: str = None) -> dict:
+    framework, asset_summary, control_rows = await _build_report_data(framework_id, tenant_id)
     fw_name = framework.get("name", framework_id)
 
     output = io.StringIO()
@@ -60,7 +60,7 @@ async def _generate_csv(framework_id: str, reports_dir: str) -> dict:
     }
 
 
-async def _generate_all_csv(reports_dir: str) -> dict:
+async def _generate_all_csv(reports_dir: str, tenant_id: str = None) -> dict:
     db = get_database()
     frameworks = await db.compliance_frameworks.find(
         {}, {"id": 1, "name": 1}
@@ -79,7 +79,7 @@ async def _generate_all_csv(reports_dir: str) -> dict:
         fw_id = fw.get("id", "")
         fw_name = fw.get("name", fw_id)
         try:
-            _, asset_summary, control_rows = await _build_report_data(fw_id)
+            _, asset_summary, control_rows = await _build_report_data(fw_id, tenant_id)
         except Exception as exc:
             logger.warning("Skipping framework %s in combined report: %s", fw_name, exc)
             continue
@@ -125,7 +125,7 @@ class ComplianceReportingService:
         os.makedirs(self.reports_dir, exist_ok=True)
 
     async def generate_report(self, tenant_id: str, framework_id: str) -> dict:
-        return await _generate_csv(framework_id, self.reports_dir)
+        return await _generate_csv(framework_id, self.reports_dir, tenant_id)
 
     async def generate_excel_report(self, tenant_id: str, framework_id: str) -> dict:
         return await _generate_excel(framework_id, self.reports_dir)
@@ -134,7 +134,7 @@ class ComplianceReportingService:
         return await _generate_pdf(framework_id, self.reports_dir)
 
     async def generate_all_csv_report(self, tenant_id: str) -> dict:
-        return await _generate_all_csv(self.reports_dir)
+        return await _generate_all_csv(self.reports_dir, tenant_id)
 
     async def generate_all_excel_report(self, tenant_id: str) -> dict:
         return await _generate_all_excel(self.reports_dir)

@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from authentication_service import get_current_user
 from compliance_reporting_service import compliance_reporting_service
+from database import get_database
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,9 @@ async def generate_all_compliance_report(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+_SUPER_ADMIN_ROLES = {"Super Admin", "super_admin", "superadmin", "platform-admin"}
+
+
 @router.get("/api/compliance/reports/download/{filename}")
 async def download_compliance_report(filename: str, current_user=Depends(get_current_user)):
     """Download compliance report with proper Content-Disposition header."""
@@ -92,6 +96,15 @@ async def download_compliance_report(filename: str, current_user=Depends(get_cur
         raise HTTPException(status_code=404, detail="Report not found")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Report not found")
+
+    # Verify the report belongs to the caller's tenant (matches compliance_report_endpoints.py)
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    caller_role = getattr(current_user, "role", "")
+    if caller_role not in _SUPER_ADMIN_ROLES:
+        db = get_database()
+        report_meta = await db.compliance_reports.find_one({"filename": filename})
+        if not report_meta or report_meta.get("tenantId") != caller_tenant:
+            raise HTTPException(status_code=403, detail="Not authorized to access this report")
 
     if filename.endswith(".pdf"):
         media_type = "application/pdf"
