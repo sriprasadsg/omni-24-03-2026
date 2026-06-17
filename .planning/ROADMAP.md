@@ -9,7 +9,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 ## Phases
 
-- [ ] **Phase 1: Rust Agent Evidence Parity** - Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent
+- [x] **Phase 1: Rust Agent Evidence Parity** - Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent (completed 2026-06-17)
 - [ ] **Phase 2: Manual Evidence Uploads** - Auditors can attach files to controls and view them alongside automated evidence
 - [ ] **Phase 3: Audit-Ready Export** - Per-tenant, per-framework PDF and Excel reports are complete and auditor-ready
 - [ ] **Phase 4: Remediation Workflow** - Failed controls get assignable tasks; resolution triggers re-scan and evidence update
@@ -104,7 +104,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rust Agent Evidence Parity | 2/2 tasks done | In Progress (checkpoint pending) | - |
+| 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
 | 2. Manual Evidence Uploads | 0/? | Not started | - |
 | 3. Audit-Ready Export | 0/? | Not started | - |
 | 4. Remediation Workflow | 0/? | Not started | - |
