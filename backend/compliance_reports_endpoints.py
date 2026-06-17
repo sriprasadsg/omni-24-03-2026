@@ -97,10 +97,12 @@ async def download_compliance_report(filename: str, current_user=Depends(get_cur
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Report not found")
 
-    # Verify the report belongs to the caller's tenant (matches compliance_report_endpoints.py)
+    # Verify the report belongs to the caller's tenant
     caller_tenant = getattr(current_user, "tenant_id", None)
     caller_role = getattr(current_user, "role", "")
     if caller_role not in _SUPER_ADMIN_ROLES:
+        if not caller_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         db = get_database()
         report_meta = await db.compliance_reports.find_one({"filename": filename})
         if not report_meta or report_meta.get("tenantId") != caller_tenant:
@@ -115,12 +117,7 @@ async def download_compliance_report(filename: str, current_user=Depends(get_cur
     else:
         media_type = "application/octet-stream"
 
-    return FileResponse(
-        file_path,
-        media_type=media_type,
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return FileResponse(file_path, media_type=media_type, filename=filename)
 
 
 @router.get("/api/compliance/reports")

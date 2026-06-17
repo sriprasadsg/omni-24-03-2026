@@ -115,6 +115,18 @@ async def _generate_all_csv(reports_dir: str, tenant_id: str = None) -> dict:
     }
 
 
+# ── Report metadata persistence (enables tenant ownership check on download) ──
+
+async def _store_report_meta(filename: str, tenant_id: str | None) -> None:
+    db = get_database()
+    await db.compliance_reports.update_one(
+        {"filename": filename},
+        {"$set": {"filename": filename, "tenantId": tenant_id,
+                  "createdAt": datetime.now().isoformat()}},
+        upsert=True,
+    )
+
+
 # ── Service class (backwards-compatible API) ──────────────────────────────────
 
 class ComplianceReportingService:
@@ -125,19 +137,37 @@ class ComplianceReportingService:
         os.makedirs(self.reports_dir, exist_ok=True)
 
     async def generate_report(self, tenant_id: str, framework_id: str) -> dict:
-        return await _generate_csv(framework_id, self.reports_dir, tenant_id)
+        result = await _generate_csv(framework_id, self.reports_dir, tenant_id)
+        await _store_report_meta(result["filename"], tenant_id)
+        return result
 
     async def generate_excel_report(self, tenant_id: str, framework_id: str) -> dict:
-        return await _generate_excel(framework_id, self.reports_dir, tenant_id)
+        result = await _generate_excel(framework_id, self.reports_dir, tenant_id)
+        await _store_report_meta(result["filename"], tenant_id)
+        return result
 
     async def generate_pdf_report(self, tenant_id: str, framework_id: str) -> dict:
-        return await _generate_pdf(framework_id, self.reports_dir, tenant_id)
+        result = await _generate_pdf(framework_id, self.reports_dir, tenant_id)
+        await _store_report_meta(result["filename"], tenant_id)
+        return result
 
     async def generate_all_csv_report(self, tenant_id: str) -> dict:
-        return await _generate_all_csv(self.reports_dir, tenant_id)
+        result = await _generate_all_csv(self.reports_dir, tenant_id)
+        await _store_report_meta(result["filename"], tenant_id)
+        return result
 
     async def generate_all_excel_report(self, tenant_id: str) -> dict:
-        return await _generate_all_excel(self.reports_dir, tenant_id=tenant_id)
+        result = await _generate_all_excel(self.reports_dir, tenant_id=tenant_id)
+        await _store_report_meta(result["filename"], tenant_id)
+        return result
+
+    async def generate_all_frameworks_report(self, tenant_id: str, format: str) -> dict:
+        if format == "excel":
+            result = await _generate_all_excel(self.reports_dir, tenant_id=tenant_id)
+        else:
+            result = await _generate_all_csv(self.reports_dir, tenant_id)
+        await _store_report_meta(result["filename"], tenant_id)
+        return result
 
 
 compliance_reporting_service = ComplianceReportingService()
