@@ -176,7 +176,9 @@ async def download_compliance_evidence(
 
     if evidence.get("systemGenerated") or evidence.get("url") == "#":
         content = evidence.get("content") or evidence.get("details") or "No details available."
-        filename = f"{evidence['name'].replace(' ', '_').replace(':', '')}.md"
+        import re as _re
+        safe_name = _re.sub(r'[^A-Za-z0-9._-]', '_', evidence.get('name', 'evidence'))
+        filename = f"{safe_name}.md"
         return Response(
             content=content,
             media_type="text/markdown",
@@ -264,9 +266,12 @@ async def delete_compliance_evidence(
         if ev.get("systemGenerated"):
             raise HTTPException(status_code=403, detail="Automated evidence cannot be deleted")
 
-        # Tenant isolation: non-super admins cannot delete other tenants' records (T-02-04)
-        if not is_super and caller_tenant and doc_tenant != caller_tenant:
-            raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
+        # Tenant isolation: non-super callers must have a tenant_id and it must match (T-02-04)
+        if not is_super:
+            if not caller_tenant:
+                raise HTTPException(status_code=403, detail="Tenant context required")
+            if doc_tenant != caller_tenant:
+                raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
 
         # Owner check: non-admins may only delete their own uploads (EVID-04 / T-02-03)
         if not is_super and ev.get("uploaded_by") != caller_username:

@@ -143,8 +143,9 @@ async def upload_manual_artifact(
     sha256 = _sha256_file(file_path)
     control_list = [c.strip() for c in control_ids.split(",") if c.strip()]
 
+    import uuid as _uuid
     record = {
-        "id": f"artifact-{timestamp}",
+        "id": f"artifact-{_uuid.uuid4().hex}",
         "type": "manual_artifact",
         "category": category,
         "filename": original_name,
@@ -158,6 +159,7 @@ async def upload_manual_artifact(
         "asset_id": asset_id,
         "uploaded_by": uploader,
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "tenantId": getattr(current_user, "tenant_id", None),
         "status": "pending_review",
     }
 

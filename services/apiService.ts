@@ -603,7 +603,6 @@ export const importComplianceControls = async (frameworkId: string, file: File) 
 
     const res = await authFetch(`${API_BASE}/compliance/${frameworkId}/import`, {
         method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data' }, // authFetch will handle this or we can let browser do it
         body: formData
     });
 
@@ -633,7 +632,7 @@ export const getJobs = async () => {
 export const uploadComplianceEvidence = async (assetId: string, controlId: string, file: File, description?: string) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('controlId', controlId);
+    formData.append('control_id', controlId);
     if (description) {
         formData.append('description', description);
     }
