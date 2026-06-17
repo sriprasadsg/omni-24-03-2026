@@ -121,6 +121,14 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     "Admin Check: Guest Account Disabled": ["CISSP-5.1", "CISSP-5.4"],
     "Admin Check: Local Administrator Accounts": ["CISSP-5.4"],
     "Admin Check: Software Supply Chain Security": ["CISSP-8.4"],
+    # Extended agent checks (caps3.rs) — new check names not previously in mapping
+    "NTLM Authentication Level": ["A.5.15", "A.8.22", "PCI-8.1.1", "CC6.1", "CC6.6"],
+    "LSA Protection": ["A.5.15", "A.8.1", "PR.AC-1", "CC6.1"],
+    "WDigest Authentication": ["A.5.15", "A.8.22", "CC6.1"],
+    "Always Install Elevated": ["A.8.1", "A.8.3", "PR.AC-4", "CC6.8"],
+    "Remote Registry Service": ["A.8.22", "PCI-2.2", "PR.AC-5", "CC6.6"],
+    "AutoRun Disabled": ["A.7.10", "A.8.1", "CC6.6", "PCI-9.1.1"],
+    "Windows Script Host": ["A.8.22", "A.8.19", "CC6.8", "PR.IP-1"],
 }
 
 _FRAMEWORK_PREFIXES = [
@@ -136,7 +144,7 @@ def _strip_prefix(raw_control_id: str) -> str:
     return raw_control_id
 
 
-async def process_automated_evidence(agent_hostname: str, compliance_data: dict, db) -> None:
+async def process_automated_evidence(agent_hostname: str, compliance_data: dict, db, agent_type: str | None = None) -> None:
     """
     Called by agent heartbeat / task result handlers.
     Maps agent compliance checks to control IDs and auto-generates evidence records.
@@ -160,6 +168,10 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
         logger.warning("Failed to look up tenant ID for auto-compliance: %s", e)
     finally:
         set_tenant_id(old_tenant_id)
+
+    if not isinstance(compliance_data, dict):
+        logger.warning("process_automated_evidence: expected dict, got %s — skipping", type(compliance_data).__name__)
+        return
 
     if tenant_id:
         set_tenant_id(tenant_id)
@@ -229,6 +241,7 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                 "tenantId": tenant_id,
                 "systemGenerated": True,
                 "content": evidence_content,
+                "agent_type": agent_type,
             }
 
             await db.asset_compliance.update_one(
@@ -244,6 +257,7 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                         "checkName": check_name,
                         "lastUpdated": timestamp,
                         "lastAutomatedCheck": timestamp,
+                        "agent_type": agent_type,
                     },
                     "$push": {"evidence": evidence_record},
                 },
