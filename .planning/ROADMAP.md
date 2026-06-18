@@ -127,7 +127,16 @@ This roadmap completes the brownfield security compliance portal by verifying an
   3. All file upload rejections (wrong MIME, oversized) and export edge cases (no evidence, all-pass controls) produce clear, correct UI feedback
   4. No regressions in existing Python agent evidence flow
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 0**
+
+- [ ] 05-00-PLAN.md — Bug fixes: RED test scaffold + GAP-1 (_tenant_filter getattr on TokenData), GAP-2 (list_compliance_reports tenant filter via db.compliance_reports), GAP-3 (fallback_tenant_id to process_automated_evidence)
+
+**Wave 1** *(blocked on Wave 0 completion)*
+
+- [ ] 05-01-PLAN.md — Integration tests: golden-path (heartbeat→upload→export→remediation), cross-tenant isolation (upload/download/task CRUD), Python agent regression; mark Phase 5 complete
+
 **UI hint**: yes
 
 ## Progress Table
@@ -138,7 +147,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 | 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
 | 3. Audit-Ready Export | 2/2 | Complete   | 2026-06-17 |
 | 4. Remediation Workflow | 3/3 | Complete | 2026-06-18 |
-| 5. Integration and E2E Verification | 0/? | Not started | - |
+| 5. Integration and E2E Verification | 0/2 | Planned | - |
 
 ## Coverage
 
@@ -165,3 +174,4 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 ---
 *Roadmap created: 2026-06-17*
+*Last updated: 2026-06-18 (Phase 5 planned — 05-00 bug fixes, 05-01 integration tests)*
