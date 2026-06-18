@@ -144,7 +144,7 @@ def _strip_prefix(raw_control_id: str) -> str:
     return raw_control_id
 
 
-async def process_automated_evidence(agent_hostname: str, compliance_data: dict, db, agent_type: str | None = None) -> None:
+async def process_automated_evidence(agent_hostname: str, compliance_data: dict, db, agent_type: str | None = None, fallback_tenant_id: str | None = None) -> None:
     """
     Called by agent heartbeat / task result handlers.
     Maps agent compliance checks to control IDs and auto-generates evidence records.
@@ -168,6 +168,9 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
         logger.warning("Failed to look up tenant ID for auto-compliance: %s", e)
     finally:
         set_tenant_id(old_tenant_id)
+
+    if not tenant_id and fallback_tenant_id:
+        tenant_id = fallback_tenant_id
 
     if not isinstance(compliance_data, dict):
         logger.warning("process_automated_evidence: expected dict, got %s — skipping", type(compliance_data).__name__)

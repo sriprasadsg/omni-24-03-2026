@@ -233,6 +233,7 @@ async def report_heartbeat(
                 meta["compliance_enforcement"],
                 db,
                 agent_type=meta.get("agent_type"),
+                fallback_tenant_id=_hb_tenant_id,
             )
         except Exception as e:
             logger.error("ERROR processing compliance evidence: %s", e)
