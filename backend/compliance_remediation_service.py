@@ -30,12 +30,12 @@ def _strip_id(doc: Optional[dict]) -> Optional[dict]:
 async def create_task(db, data: dict, tenant_filter: dict, created_by: str) -> dict:
     """REM-01: Insert a new compliance remediation task; returns the persisted doc."""
     asset_id = data.get("asset_id", "")
-    agent_id = data.get("agent_id", "")
-
-    # Resolve agent_id from asset when not provided directly (Open Question 3)
-    if not agent_id and asset_id:
+    # CR-02/WR-03: never trust agent_id from user input — derive only from
+    # a tenant-scoped asset lookup so cross-tenant dispatch is impossible.
+    agent_id = ""
+    if asset_id:
         try:
-            asset_doc = await db.assets.find_one({"id": asset_id})
+            asset_doc = await db.assets.find_one({"id": asset_id, **tenant_filter})
             if asset_doc:
                 agent_id = asset_doc.get("agentId", "")
         except Exception as exc:
@@ -124,9 +124,13 @@ async def dispatch_rescan(db, task: dict, created_by: str) -> dict:
 
     if not agent_id:
         asset_id = task.get("asset_id", "")
+        tenant_id = task.get("tenantId", "")
+        asset_filter = {"id": asset_id}
+        if tenant_id:
+            asset_filter["tenantId"] = tenant_id  # WR-03: tenant-scope asset lookup
         if asset_id:
             try:
-                asset_doc = await db.assets.find_one({"id": asset_id})
+                asset_doc = await db.assets.find_one(asset_filter)
                 if asset_doc:
                     agent_id = asset_doc.get("agentId", "")
             except Exception as exc:
@@ -144,6 +148,7 @@ async def dispatch_rescan(db, task: dict, created_by: str) -> dict:
         "priority": "high",
         "control_id": task.get("control_id", ""),
         "remediation_task_id": task.get("id", ""),
+        "tenantId": task.get("tenantId", ""),  # CR-03: required by agent polling query
     }
     await db.agent_instructions.insert_one(instruction)
 

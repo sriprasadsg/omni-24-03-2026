@@ -22,8 +22,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
     frameworkId,
     onRefresh,
 }) => {
-    if (!isOpen) return null;
-
+    // CR-04: all hooks must be called unconditionally before any early return
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [assignee, setAssignee] = useState('');
@@ -35,6 +34,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
 
     // Initialize from task when editing
     useEffect(() => {
+        if (!isOpen) return;
         if (task) {
             setTitle(task.title || '');
             setDescription(task.description || '');
@@ -51,6 +51,8 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
             setPriority('medium');
         }
     }, [task, isOpen]);
+
+    if (!isOpen) return null;
 
     const effectiveControlId = task?.control_id || controlId || '';
 

@@ -154,10 +154,10 @@ async def suggest_remediation(
         asset_context=asset_context or asset_id,
     )
 
-    # Persist suggestion back to the task
+    # Persist suggestion back to the task (tenant-scoped write — CR-01)
     try:
         await db.compliance_remediation_tasks.update_one(
-            {"id": task_id},
+            {"id": task_id, **tf},
             {"$set": {"ai_suggestion": text}},
         )
     except Exception as exc:
