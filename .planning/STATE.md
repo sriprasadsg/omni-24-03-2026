@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-01-PLAN.md — Phase 04 Wave 1 (compliance remediation service, endpoints, frontend contracts)
-last_updated: "2026-06-17T19:40:24Z"
+stopped_at: Completed 04-02-PLAN.md — Phase 04 Wave 2 (compliance remediation frontend dashboard, modal, sidebar nav)
+last_updated: "2026-06-18T07:12:29Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
-  percent: 78
+  completed_plans: 9
+  percent: 89
 ---
 
 # Project State
@@ -37,7 +37,7 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 | 1 | Rust Agent Evidence Parity | Complete |
 | 2 | Manual Evidence Uploads | Complete |
 | 3 | Audit-Ready Export | Complete |
-| 4 | Remediation Workflow | In progress (Wave 0 complete) |
+| 4 | Remediation Workflow | Complete |
 | 5 | Integration and E2E Verification | Not started |
 
 ## Decisions
@@ -64,6 +64,9 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 - 04-01: Router prefix /api/compliance-remediation avoids collision with /api/remediation (vulnerability domain)
 - 04-01: suggest_remediation fits in 5 lines (def + docstring + 2-line f-string + return) keeping ai_service.py at 499 lines
 - 04-01: Two-stage broadcast: PATCH endpoint broadcasts on dispatch (optimistic UI); report_instruction_result broadcasts on evidence arrival
+- 04-02: Title field disabled when editing — immutable after creation to preserve audit trail; only description/assignee/due_date mutable on edit
+- 04-02: suggestRemediation requires persisted task.id; button shows tooltip when creating new task
+- 04-02: filterStatus in useCallback deps drives server-side status query param, not client-side filtering
 
 ## Performance Metrics
 
@@ -77,11 +80,12 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 | 03-audit-ready-export | 02 | ~3m | 2 | 4 |
 | 04-remediation-workflow | 00 | ~3m | 3 | 3 |
 | 04-remediation-workflow | 01 | ~4m | 3 | 7 |
+| 04-remediation-workflow | 02 | ~3m | 3 | 4 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-17T19:40:24Z
-- **Stopped at:** Completed 04-01-PLAN.md — Phase 04 Wave 1 (compliance remediation service, endpoints, frontend contracts)
+- **Timestamp:** 2026-06-18T07:12:29Z
+- **Stopped at:** Completed 04-02-PLAN.md — Phase 04 Wave 2 (compliance remediation frontend dashboard, modal, sidebar nav)
 - **Resume file:** None
 
 ## Configuration
@@ -103,4 +107,4 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 - [Codebase map](.planning/codebase/)
 
 ---
-*Initialized: 2026-06-17 | Last updated: 2026-06-17 (Plan 04-01 complete)*
+*Initialized: 2026-06-17 | Last updated: 2026-06-18 (Plan 04-02 complete — Phase 04 Remediation Workflow done)*

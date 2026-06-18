@@ -12,7 +12,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 - [x] **Phase 1: Rust Agent Evidence Parity** - Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent (completed 2026-06-17)
 - [x] **Phase 2: Manual Evidence Uploads** - Auditors can attach files to controls and view them alongside automated evidence (completed 2026-06-17)
 - [x] **Phase 3: Audit-Ready Export** - Per-tenant, per-framework PDF and Excel reports are complete and auditor-ready (completed 2026-06-18)
-- [ ] **Phase 4: Remediation Workflow** - Failed controls get assignable tasks; resolution triggers re-scan and evidence update
+- [x] **Phase 4: Remediation Workflow** - Failed controls get assignable tasks; resolution triggers re-scan and evidence update (completed 2026-06-18)
 - [ ] **Phase 5: Integration and E2E Verification** - All four capabilities work together end-to-end across the full pipeline
 
 ## Phase Details
@@ -107,11 +107,11 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
-- [ ] 04-01-PLAN.md — Backend: compliance_remediation_service + endpoints (CRUD, dispatch_rescan, AI suggest), router registration, REM-04 broadcast hook in report_instruction_result, RemediationTask type + apiService helpers
+- [x] 04-01-PLAN.md — Backend: compliance_remediation_service + endpoints (CRUD, dispatch_rescan, AI suggest), router registration, REM-04 broadcast hook in report_instruction_result, RemediationTask type + apiService helpers
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02-PLAN.md — Frontend: RemediationTaskModal, RemediationDashboard (filterable list + live remediation_update subscription), Sidebar nav item + App.tsx route
+- [x] 04-02-PLAN.md — Frontend: RemediationTaskModal, RemediationDashboard (filterable list + live remediation_update subscription), Sidebar nav item + App.tsx route
 
 **UI hint**: yes
 
@@ -137,7 +137,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 | 1. Rust Agent Evidence Parity | 2/2 | Complete   | 2026-06-17 |
 | 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
 | 3. Audit-Ready Export | 2/2 | Complete   | 2026-06-17 |
-| 4. Remediation Workflow | 0/3 | Planned | - |
+| 4. Remediation Workflow | 3/3 | Complete | 2026-06-18 |
 | 5. Integration and E2E Verification | 0/? | Not started | - |
 
 ## Coverage

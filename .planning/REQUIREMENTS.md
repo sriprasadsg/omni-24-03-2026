@@ -28,10 +28,10 @@
 
 ### Remediation Workflow
 
-- [ ] **REM-01**: A failed or non-compliant control can have a remediation task created, with title, assignee (agent or user), due date, and description
-- [ ] **REM-02**: Remediation tasks are listed in a dedicated view with filterable status: Open, In Progress, Resolved
-- [ ] **REM-03**: When a remediation task is marked Resolved, a re-scan instruction is dispatched to the assigned agent for the associated control
-- [ ] **REM-04**: Control compliance status updates automatically when new evidence arrives post-remediation, reflecting the latest agent check result
+- [x] **REM-01**: A failed or non-compliant control can have a remediation task created, with title, assignee (agent or user), due date, and description
+- [x] **REM-02**: Remediation tasks are listed in a dedicated view with filterable status: Open, In Progress, Resolved
+- [x] **REM-03**: When a remediation task is marked Resolved, a re-scan instruction is dispatched to the assigned agent for the associated control
+- [x] **REM-04**: Control compliance status updates automatically when new evidence arrives post-remediation, reflecting the latest agent check result
 
 ## v2 Requirements
 
@@ -79,10 +79,10 @@
 | AUDIT-02 | Phase 3 | Pending |
 | AUDIT-03 | Phase 3 | Pending |
 | AUDIT-04 | Phase 3 | Pending |
-| REM-01 | Phase 4 | Pending |
-| REM-02 | Phase 4 | Pending |
-| REM-03 | Phase 4 | Pending |
-| REM-04 | Phase 4 | Pending |
+| REM-01 | Phase 4 | Complete |
+| REM-02 | Phase 4 | Complete |
+| REM-03 | Phase 4 | Complete |
+| REM-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 16 total
