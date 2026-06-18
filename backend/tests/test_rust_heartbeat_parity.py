@@ -95,7 +95,7 @@ def test_rust01_processor_is_importable():
 
 
 def test_rust02_and_rust03_db_calls():
-    """RUST-02 + RUST-03: agent_type=rust in $set; all 9 control IDs written."""
+    """RUST-02 + RUST-03: agent_type=rust in $set AND $push evidence; all 9 control IDs written."""
     db = _mock_db()
     _run_processor(db)
 
@@ -106,16 +106,22 @@ def test_rust02_and_rust03_db_calls():
         args, _ = c
         if not args:
             continue
-        # RUST-02: every $set must carry agent_type=rust
+        # RUST-02a: every $set must carry agent_type=rust
         if len(args) >= 2 and "$set" in args[1]:
             assert args[1]["$set"].get("agent_type") == "rust", (
                 f"$set missing agent_type=rust: {args[1]['$set']}"
+            )
+        # RUST-02b: every $push evidence record must also carry agent_type=rust
+        if len(args) >= 2 and "$push" in args[1]:
+            pushed_ev = args[1]["$push"].get("evidence", {})
+            assert pushed_ev.get("agent_type") == "rust", (
+                f"$push.evidence missing agent_type=rust: {pushed_ev}"
             )
         # Collect control IDs for RUST-03
         if isinstance(args[0], dict) and "controlId" in args[0]:
             filters_seen.add(args[0]["controlId"])
 
-    print(f"[RUST-02] agent_type=rust in all $set calls: PASS")
+    print(f"[RUST-02] agent_type=rust in all $set and $push.evidence calls: PASS")
 
     missing = [ctrl for ctrl in CHECK_TO_CONTROL.values() if ctrl not in filters_seen]
     assert not missing, f"[RUST-03] Missing control IDs: {missing}"
