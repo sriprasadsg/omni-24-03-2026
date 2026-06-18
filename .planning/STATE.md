@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 05-00-PLAN.md — Phase 05 Wave 0 (integration gap fixes GAP-1/2/3 + RED test scaffold)
-last_updated: "2026-06-18T07:54:42Z"
+stopped_at: Completed 05-01-PLAN.md — Phase 05 Wave 1 (golden-path, cross-tenant isolation, regression tests; Phase 5 complete)
+last_updated: "2026-06-18T08:05:00Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 11
-  completed_plans: 10
-  percent: 88
+  completed_plans: 11
+  percent: 100
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 ## Current Phase
 
-**Phase 4: Remediation Workflow**
+**Phase 5: Integration and E2E Verification**
 
-Goal: Build compliance remediation task CRUD, agent re-scan dispatch, real-time WebSocket status push, and frontend dashboard (REM-01..REM-04).
+Goal: Prove all four capabilities compose into one coherent tenant-scoped portal with no tenant boundary leaks.
 
-Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_remediation_endpoints, AI suggest_remediation, REM-04 broadcast hook, and frontend types/apiService helpers delivered. REM-01/02/03/04 tests pass.
+Status: Complete. Wave 0 (05-00) delivered GAP-1/2/3 fixes. Wave 1 (05-01) delivered golden-path, cross-tenant isolation, and regression integration tests. All 12 tests in test_e2e_integration.py pass. Phase 5 regression suite: 56 passed, 1 skipped.
 
 ## Phases
 
@@ -38,7 +38,7 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 | 2 | Manual Evidence Uploads | Complete |
 | 3 | Audit-Ready Export | Complete |
 | 4 | Remediation Workflow | Complete |
-| 5 | Integration and E2E Verification | In Progress (Wave 0 complete) |
+| 5 | Integration and E2E Verification | Complete |
 
 ## Decisions
 
@@ -70,6 +70,9 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 - 05-00: GAP-1 fixed with getattr(user, 'role'/'tenant_id') in _tenant_filter; TokenData has no .get()
 - 05-00: GAP-2 fixed by querying db.compliance_reports.find({tenantId}) instead of os.listdir scan
 - 05-00: GAP-3 fixed by trailing fallback_tenant_id=None param on process_automated_evidence; heartbeat passes _hb_tenant_id
+- 05-01: golden-path test drives process_automated_evidence, _flatten_evidence, _tenant_filter, and create_task in a single tenant-a flow
+- 05-01: cross-tenant isolation verified for report download (403), report list (tenant-scoped), task list filter (tenant/super-admin), and evidence upload (403)
+- 05-01: regression test confirms 3-arg process_automated_evidence call still writes evidence (no Phase 4 regression)
 
 ## Performance Metrics
 
@@ -85,11 +88,12 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 | 04-remediation-workflow | 01 | ~4m | 3 | 7 |
 | 04-remediation-workflow | 02 | ~3m | 3 | 4 |
 | 05-integration-and-e2e-verification | 00 | ~3m | 4 | 5 |
+| 05-integration-and-e2e-verification | 01 | ~7m | 3 | 1 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-18T07:54:42Z
-- **Stopped at:** Completed 05-00-PLAN.md — Phase 05 Wave 0 (integration gap fixes GAP-1/2/3 + RED test scaffold)
+- **Timestamp:** 2026-06-18T08:05:00Z
+- **Stopped at:** Completed 05-01-PLAN.md — Phase 05 Wave 1 (golden-path, cross-tenant isolation, regression tests; all phases complete)
 - **Resume file:** None
 
 ## Configuration
@@ -111,4 +115,4 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 - [Codebase map](.planning/codebase/)
 
 ---
-*Initialized: 2026-06-17 | Last updated: 2026-06-18 (Plan 04-02 complete — Phase 04 Remediation Workflow done)*
+*Initialized: 2026-06-17 | Last updated: 2026-06-18 (Plan 05-01 complete — Phase 05 Integration and E2E Verification done; all 5 phases complete)*

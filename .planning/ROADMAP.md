@@ -13,7 +13,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 - [x] **Phase 2: Manual Evidence Uploads** - Auditors can attach files to controls and view them alongside automated evidence (completed 2026-06-17)
 - [x] **Phase 3: Audit-Ready Export** - Per-tenant, per-framework PDF and Excel reports are complete and auditor-ready (completed 2026-06-18)
 - [x] **Phase 4: Remediation Workflow** - Failed controls get assignable tasks; resolution triggers re-scan and evidence update (completed 2026-06-18)
-- [ ] **Phase 5: Integration and E2E Verification** - All four capabilities work together end-to-end across the full pipeline
+- [x] **Phase 5: Integration and E2E Verification** - All four capabilities work together end-to-end across the full pipeline (completed 2026-06-18)
 
 ## Phase Details
 
@@ -131,11 +131,11 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 **Wave 0**
 
-- [ ] 05-00-PLAN.md — Bug fixes: RED test scaffold + GAP-1 (_tenant_filter getattr on TokenData), GAP-2 (list_compliance_reports tenant filter via db.compliance_reports), GAP-3 (fallback_tenant_id to process_automated_evidence)
+- [x] 05-00-PLAN.md — Bug fixes: RED test scaffold + GAP-1 (_tenant_filter getattr on TokenData), GAP-2 (list_compliance_reports tenant filter via db.compliance_reports), GAP-3 (fallback_tenant_id to process_automated_evidence)
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
-- [ ] 05-01-PLAN.md — Integration tests: golden-path (heartbeat→upload→export→remediation), cross-tenant isolation (upload/download/task CRUD), Python agent regression; mark Phase 5 complete
+- [x] 05-01-PLAN.md — Integration tests: golden-path (heartbeat→upload→export→remediation), cross-tenant isolation (upload/download/task CRUD), Python agent regression; Phase 5 marked complete
 
 **UI hint**: yes
 
@@ -147,7 +147,7 @@ This roadmap completes the brownfield security compliance portal by verifying an
 | 2. Manual Evidence Uploads | 2/2 | Complete   | 2026-06-17 |
 | 3. Audit-Ready Export | 2/2 | Complete   | 2026-06-17 |
 | 4. Remediation Workflow | 3/3 | Complete | 2026-06-18 |
-| 5. Integration and E2E Verification | 0/2 | Planned | - |
+| 5. Integration and E2E Verification | 2/2 | Complete | 2026-06-18 |
 
 ## Coverage
 
@@ -174,4 +174,4 @@ This roadmap completes the brownfield security compliance portal by verifying an
 
 ---
 *Roadmap created: 2026-06-17*
-*Last updated: 2026-06-18 (Phase 5 planned — 05-00 bug fixes, 05-01 integration tests)*
+*Last updated: 2026-06-18 (Phase 5 complete — 05-00 bug fixes, 05-01 integration tests; all 5 phases complete)*
