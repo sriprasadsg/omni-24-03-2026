@@ -1,4 +1,3 @@
-from datetime import timezone
 """
 Admin Evidence Service
 ======================
@@ -8,11 +7,16 @@ and injects it into MongoDB asset_compliance + updates compliance_frameworks sta
 This is invoked:
   1. When "Collect Evidence" is clicked in the Compliance dashboard
   2. Automatically when a new agent registers in the tenant
+
+NOTE: PowerShell evidence collection only runs when the backend itself is Windows.
+On Linux, evidence is collected exclusively via agent heartbeats (System Check entries).
 """
 
+import platform
 import subprocess
 import datetime
 import hashlib
+from datetime import timezone
 import asyncio
 import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -93,7 +97,12 @@ def collect_evidence_for_host(hostname: str) -> list[tuple]:
     """
     Run all admin-level PowerShell checks for a given hostname.
     Returns a list of (control_id, check_name, status, details, raw_output) tuples.
+    Returns empty list on non-Windows — evidence comes from agent heartbeats instead.
     """
+    if platform.system() != "Windows":
+        logger.info("[AdminEvidence] Non-Windows backend — skipping server-side PS collection for %s (agent heartbeats provide evidence)", hostname)
+        return []
+
     checks = []
 
     # 1. BitLocker
@@ -285,6 +294,20 @@ async def run_evidence_collection_for_asset(hostname: str, db: AsyncIOMotorDatab
         # Run synchronous PowerShell in a threadpool so we don't block the event loop
         loop = asyncio.get_event_loop()
         checks = await loop.run_in_executor(None, collect_evidence_for_host, hostname)
+
+        # On non-Windows backends collect_evidence_for_host returns [].
+        # Remove any stale "Admin Check:" evidence left over from previous Windows runs
+        # so the UI shows only fresh agent-collected "System Check:" entries.
+        if not checks:
+            result = await db.asset_compliance.update_many(
+                {"assetId": asset_id, "evidence.name": {"$regex": "^Admin Check:"}},
+                {"$pull": {"evidence": {"name": {"$regex": "^Admin Check:"}}}},
+            )
+            logger.info(
+                "[AdminEvidence] Non-Windows backend — cleared stale Admin Check evidence "
+                "from %d records for %s", result.modified_count, hostname
+            )
+            return
 
         logger.info(f"[AdminEvidence] Collected {len(checks)} checks. Persisting to DB...")
 
