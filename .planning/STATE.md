@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-02-PLAN.md — Phase 04 Wave 2 (compliance remediation frontend dashboard, modal, sidebar nav)
-last_updated: "2026-06-18T07:22:26.227Z"
+stopped_at: Completed 05-00-PLAN.md — Phase 05 Wave 0 (integration gap fixes GAP-1/2/3 + RED test scaffold)
+last_updated: "2026-06-18T07:54:42Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
-  percent: 80
+  total_plans: 11
+  completed_plans: 10
+  percent: 88
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
-**Current focus:** Phase 04 — remediation-workflow
+**Current focus:** Phase 05 — integration-and-e2e-verification
 
 ## Current Phase
 
@@ -38,7 +38,7 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 | 2 | Manual Evidence Uploads | Complete |
 | 3 | Audit-Ready Export | Complete |
 | 4 | Remediation Workflow | Complete |
-| 5 | Integration and E2E Verification | Not started |
+| 5 | Integration and E2E Verification | In Progress (Wave 0 complete) |
 
 ## Decisions
 
@@ -67,6 +67,9 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 - 04-02: Title field disabled when editing — immutable after creation to preserve audit trail; only description/assignee/due_date mutable on edit
 - 04-02: suggestRemediation requires persisted task.id; button shows tooltip when creating new task
 - 04-02: filterStatus in useCallback deps drives server-side status query param, not client-side filtering
+- 05-00: GAP-1 fixed with getattr(user, 'role'/'tenant_id') in _tenant_filter; TokenData has no .get()
+- 05-00: GAP-2 fixed by querying db.compliance_reports.find({tenantId}) instead of os.listdir scan
+- 05-00: GAP-3 fixed by trailing fallback_tenant_id=None param on process_automated_evidence; heartbeat passes _hb_tenant_id
 
 ## Performance Metrics
 
@@ -81,11 +84,12 @@ Status: Wave 1 (04-01) complete. compliance_remediation_service, compliance_reme
 | 04-remediation-workflow | 00 | ~3m | 3 | 3 |
 | 04-remediation-workflow | 01 | ~4m | 3 | 7 |
 | 04-remediation-workflow | 02 | ~3m | 3 | 4 |
+| 05-integration-and-e2e-verification | 00 | ~3m | 4 | 5 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-18T07:12:29Z
-- **Stopped at:** Completed 04-02-PLAN.md — Phase 04 Wave 2 (compliance remediation frontend dashboard, modal, sidebar nav)
+- **Timestamp:** 2026-06-18T07:54:42Z
+- **Stopped at:** Completed 05-00-PLAN.md — Phase 05 Wave 0 (integration gap fixes GAP-1/2/3 + RED test scaffold)
 - **Resume file:** None
 
 ## Configuration
