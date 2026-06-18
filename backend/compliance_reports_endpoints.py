@@ -122,19 +122,40 @@ async def download_compliance_report(filename: str, current_user=Depends(get_cur
 
 @router.get("/api/compliance/reports")
 async def list_compliance_reports(current_user=Depends(get_current_user)):
-    """List all compliance reports (CSV, Excel, PDF)."""
-    if not os.path.exists(_REPORTS_DIR):
+    """List compliance reports for the caller's tenant (CSV, Excel, PDF).
+
+    Super-admins see all reports. Non-super-admins see only their own tenant's
+    reports, sourced from db.compliance_reports (not filesystem scan) to prevent
+    cross-tenant filename metadata leakage (GAP-2 / T-05-02).
+    """
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    caller_role = getattr(current_user, "role", "") or ""
+
+    if caller_role in _SUPER_ADMIN_ROLES:
+        query_filter: dict = {}
+    elif caller_tenant:
+        query_filter = {"tenantId": caller_tenant}
+    else:
         return []
 
+    db = get_database()
+    docs = await db.compliance_reports.find(query_filter).to_list(length=None)
+
     reports = []
-    for f in os.listdir(_REPORTS_DIR):
-        if f.endswith((".csv", ".xlsx", ".pdf")):
-            reports.append({
-                "filename": f,
-                "url": f"/api/compliance/reports/download/{f}",
-                "created": datetime.fromtimestamp(
-                    os.path.getctime(os.path.join(_REPORTS_DIR, f))
-                ).isoformat(),
-            })
-    reports.sort(key=lambda x: x["created"], reverse=True)
+    for doc in docs:
+        filename = doc.get("filename", "")
+        created = doc.get("created") or doc.get("generatedAt") or ""
+        if not created:
+            file_path = os.path.join(_REPORTS_DIR, filename)
+            if os.path.exists(file_path):
+                created = datetime.fromtimestamp(
+                    os.path.getctime(file_path)
+                ).isoformat()
+        reports.append({
+            "filename": filename,
+            "url": f"/api/compliance/reports/download/{filename}",
+            "created": created,
+        })
+
+    reports.sort(key=lambda x: x.get("created") or "", reverse=True)
     return reports
