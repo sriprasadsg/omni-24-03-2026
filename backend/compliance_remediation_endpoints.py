@@ -30,10 +30,11 @@ router = APIRouter(prefix="/api/compliance-remediation", tags=["Compliance Remed
 _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
 
-def _tenant_filter(user: dict) -> dict:
-    if user.get("role") in _SUPER_ADMIN_ROLES:
+def _tenant_filter(user) -> dict:
+    role = getattr(user, "role", "") or ""
+    if role in _SUPER_ADMIN_ROLES:
         return {}
-    tenant = user.get("tenantId") or user.get("tenant_id") or ""
+    tenant = getattr(user, "tenant_id", "") or ""
     return {"tenantId": tenant} if tenant else {}
 
 
@@ -71,7 +72,7 @@ async def create_task(
 ):
     """REM-01: Create a new compliance remediation task (tenant-scoped)."""
     tf = _tenant_filter(current_user)
-    created_by = current_user.get("email") or current_user.get("username") or "unknown"
+    created_by = getattr(current_user, "username", None) or "unknown"
     return await svc.create_task(get_database(), body.model_dump(), tenant_filter=tf, created_by=created_by)
 
 
@@ -94,7 +95,7 @@ async def update_task(
 ):
     """REM-03: Update task status/fields; dispatches rescan when status becomes 'resolved'."""
     tf = _tenant_filter(current_user)
-    created_by = current_user.get("email") or current_user.get("username") or "unknown"
+    created_by = getattr(current_user, "username", None) or "unknown"
     result = await svc.update_task(
         get_database(), task_id, body.model_dump(exclude_none=True), tf, created_by=created_by
     )
