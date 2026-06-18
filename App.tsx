@@ -112,6 +112,7 @@ const EDRDashboard = lazy(() => import('./components/EDRDashboard').then(m => ({
 const YaraRuleEditor = lazy(() => import('./components/YaraRuleEditor').then(m => ({ default: m.YaraRuleEditor })));
 const AlertManagementDashboard = lazy(() => import('./components/AlertManagementDashboard').then(m => ({ default: m.AlertManagementDashboard })));
 const ComplianceEvidenceStatusDashboard = lazy(() => import('./components/ComplianceEvidenceStatusDashboard').then(m => ({ default: m.ComplianceEvidenceStatusDashboard })));
+const RemediationDashboard = lazy(() => import('./components/RemediationDashboard').then(m => ({ default: m.RemediationDashboard })));
 const UEBADashboard = lazy(() => import('./components/UEBADashboard').then(m => ({ default: m.UEBADashboard })));
 const MDRDashboard = lazy(() => import('./components/MDRDashboard').then(m => ({ default: m.MDRDashboard })));
 const XDRDashboard = lazy(() => import('./components/XDRDashboard').then(m => ({ default: m.XDRDashboard })));
@@ -120,6 +121,29 @@ const AgentApprovalDashboard = lazy(() => import('./components/AgentApprovalDash
 const ThreatDashboard = lazy(() => import('./components/ThreatDashboard'));
 const CloudIntegrationsDashboard = lazy(() => import('./components/CloudIntegrationsDashboard'));
 const JITAccessDashboard = lazy(() => import('./components/JITAccessDashboard'));
+const AutopilotDashboard = lazy(() => import('./components/AutopilotDashboard'));
+const ConditionalAccessDashboard = lazy(() => import('./components/ConditionalAccessDashboard'));
+const MobileDashboard = lazy(() => import('./components/MobileDashboard'));
+const BranchSitesDashboard = lazy(() => import('./components/BranchSitesDashboard'));
+const AppCatalogDashboard = lazy(() => import('./components/AppCatalogDashboard'));
+const AssetIntelligenceDashboard = lazy(() => import('./components/AssetIntelligenceDashboard'));
+const MAMDashboard = lazy(() => import('./components/MAMDashboard'));
+const AndroidEnterpriseDashboard = lazy(() => import('./components/AndroidEnterpriseDashboard'));
+const DeviceConfigProfilesDashboard = lazy(() => import('./components/DeviceConfigProfilesDashboard'));
+const FirmwareDriverDashboard = lazy(() => import('./components/FirmwareDriverDashboard'));
+const AdvancedHuntingDashboard = lazy(() => import('./components/AdvancedHuntingDashboard'));
+const DetectionRulesDashboard = lazy(() => import('./components/DetectionRulesDashboard'));
+const ConnectorsHubDashboard = lazy(() => import('./components/ConnectorsHubDashboard'));
+const SecurityCopilotDashboard = lazy(() => import('./components/SecurityCopilotDashboard'));
+const MSSPDashboard = lazy(() => import('./components/MSSPDashboard'));
+const AttackTimelineDashboard = lazy(() => import('./components/AttackTimelineDashboard'));
+const GeographicAttackMap = lazy(() => import('./components/GeographicAttackMap'));
+const RetentionPoliciesDashboard = lazy(() => import('./components/RetentionPoliciesDashboard'));
+const SCADashboard = lazy(() => import('./components/SCADashboard'));
+const AgentGroupsDashboard = lazy(() => import('./components/AgentGroupsDashboard'));
+const ConfigDriftDashboard = lazy(() => import('./components/ConfigDriftDashboard'));
+const FIMDashboard = lazy(() => import('./components/FIMDashboard'));
+const ActiveResponseDashboard = lazy(() => import('./components/ActiveResponseDashboard'));
 const IncidentWarRoomDashboard = lazy(() => import('./components/IncidentWarRoomDashboard'));
 const PrivacyDashboard = lazy(() => import('./components/PrivacyDashboard'));
 const ScheduledReportsDashboard = lazy(() => import('./components/ScheduledReportsDashboard'));
@@ -285,6 +309,29 @@ const viewPermissionMap: Record<AppView, Permission> = {
   agentApproval: 'view:agents',
   cloudIntegrations: 'manage:settings',
   jitAccess: 'manage:settings',
+  windowsAutopilot: 'view:autopilot',
+  conditionalAccess: 'view:conditional_access',
+  mobileDeviceManagement: 'view:mdm',
+  branchSites: 'view:branch_sites',
+  appCatalog: 'view:app_catalog',
+  assetIntelligence: 'view:asset_intelligence',
+  mobileAppManagement: 'view:mam',
+  androidEnterprise: 'view:android_enterprise',
+  deviceConfigProfiles: 'view:device_config_profiles',
+  firmwareDriverUpdates: 'view:firmware_drivers',
+  advancedHunting: 'view:advanced_hunting',
+  detectionRules: 'view:detection_rules',
+  connectorsHub: 'view:connectors_hub',
+  securityCopilot: 'view:security_copilot',
+  msspMonitoring: 'view:mssp',
+  attackTimeline: 'view:attack_timeline',
+  geographicMap: 'view:geographic_map',
+  retentionPolicies: 'view:retention_policies',
+  scaAssessment: 'view:sca',
+  agentGroups: 'view:agent_groups',
+  configDrift: 'view:config_drift',
+  fimMonitoring: 'view:fim',
+  activeResponse: 'view:active_response',
   incidentWarRoom: 'investigate:security',
   privacy: 'view:compliance',
   scheduledReports: 'view:reporting',
@@ -328,6 +375,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   yaraRules: 'view:security',
   alertManagement: 'view:security',
   complianceEvidence: 'view:compliance',
+  remediationWorkflow: 'view:compliance',
   problemManagement: 'view:security',
   changeManagement: 'manage:settings',
   ticketWebhooks: 'manage:settings',
@@ -1727,6 +1775,7 @@ const App: React.FC = () => {
       case 'yaraRules': return <ErrorBoundary name="YaraRuleEditor"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading YARA Rule Editor...</div>}><YaraRuleEditor /></Suspense></ErrorBoundary>;
       case 'alertManagement': return <ErrorBoundary name="AlertManagementDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Alert Management...</div>}><AlertManagementDashboard /></Suspense></ErrorBoundary>;
       case 'complianceEvidence': return <ErrorBoundary name="ComplianceEvidenceStatusDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Evidence Status...</div>}><ComplianceEvidenceStatusDashboard agents={tenantData.agents} /></Suspense></ErrorBoundary>;
+      case 'remediationWorkflow': return <ErrorBoundary name="RemediationDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Remediation...</div>}><RemediationDashboard /></Suspense></ErrorBoundary>;
       case 'mdr': return <ErrorBoundary name="MDRDashboard"><MDRDashboard /></ErrorBoundary>;
       case 'xdr': return <ErrorBoundary name="XDRDashboard"><XDRDashboard /></ErrorBoundary>;
       case 'mitreAttack': return <ErrorBoundary name="MitreAttackHeatmap"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading MITRE ATT&CK...</div>}><MitreAttackHeatmap /></Suspense></ErrorBoundary>;
@@ -1739,6 +1788,29 @@ const App: React.FC = () => {
       case 'agentApproval': return <ErrorBoundary name="AgentApprovalDashboard"><AgentApprovalDashboard /></ErrorBoundary>;
       case 'cloudIntegrations': return <ErrorBoundary name="CloudIntegrationsDashboard"><CloudIntegrationsDashboard /></ErrorBoundary>;
       case 'jitAccess': return <ErrorBoundary name="JITAccessDashboard"><JITAccessDashboard /></ErrorBoundary>;
+      case 'windowsAutopilot': return <ErrorBoundary name="AutopilotDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Autopilot...</div>}><AutopilotDashboard /></Suspense></ErrorBoundary>;
+      case 'conditionalAccess': return <ErrorBoundary name="ConditionalAccessDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ConditionalAccessDashboard /></Suspense></ErrorBoundary>;
+      case 'mobileDeviceManagement': return <ErrorBoundary name="MobileDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MobileDashboard /></Suspense></ErrorBoundary>;
+      case 'branchSites': return <ErrorBoundary name="BranchSitesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><BranchSitesDashboard /></Suspense></ErrorBoundary>;
+      case 'appCatalog': return <ErrorBoundary name="AppCatalogDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AppCatalogDashboard /></Suspense></ErrorBoundary>;
+      case 'assetIntelligence': return <ErrorBoundary name="AssetIntelligenceDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AssetIntelligenceDashboard /></Suspense></ErrorBoundary>;
+      case 'mobileAppManagement': return <ErrorBoundary name="MAMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MAMDashboard /></Suspense></ErrorBoundary>;
+      case 'androidEnterprise': return <ErrorBoundary name="AndroidEnterpriseDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AndroidEnterpriseDashboard /></Suspense></ErrorBoundary>;
+      case 'deviceConfigProfiles': return <ErrorBoundary name="DeviceConfigProfilesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><DeviceConfigProfilesDashboard /></Suspense></ErrorBoundary>;
+      case 'firmwareDriverUpdates': return <ErrorBoundary name="FirmwareDriverDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><FirmwareDriverDashboard /></Suspense></ErrorBoundary>;
+      case 'advancedHunting': return <ErrorBoundary name="AdvancedHuntingDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AdvancedHuntingDashboard /></Suspense></ErrorBoundary>;
+      case 'detectionRules': return <ErrorBoundary name="DetectionRulesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><DetectionRulesDashboard /></Suspense></ErrorBoundary>;
+      case 'connectorsHub': return <ErrorBoundary name="ConnectorsHubDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ConnectorsHubDashboard /></Suspense></ErrorBoundary>;
+      case 'securityCopilot': return <ErrorBoundary name="SecurityCopilotDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SecurityCopilotDashboard /></Suspense></ErrorBoundary>;
+      case 'msspMonitoring': return <ErrorBoundary name="MSSPDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MSSPDashboard /></Suspense></ErrorBoundary>;
+      case 'attackTimeline': return <ErrorBoundary name="AttackTimelineDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AttackTimelineDashboard /></Suspense></ErrorBoundary>;
+      case 'geographicMap': return <ErrorBoundary name="GeographicAttackMap"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><GeographicAttackMap /></Suspense></ErrorBoundary>;
+      case 'retentionPolicies': return <ErrorBoundary name="RetentionPoliciesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><RetentionPoliciesDashboard /></Suspense></ErrorBoundary>;
+      case 'scaAssessment': return <ErrorBoundary name="SCADashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SCADashboard /></Suspense></ErrorBoundary>;
+      case 'agentGroups': return <ErrorBoundary name="AgentGroupsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AgentGroupsDashboard /></Suspense></ErrorBoundary>;
+      case 'configDrift': return <ErrorBoundary name="ConfigDriftDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ConfigDriftDashboard /></Suspense></ErrorBoundary>;
+      case 'fimMonitoring': return <ErrorBoundary name="FIMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><FIMDashboard /></Suspense></ErrorBoundary>;
+      case 'activeResponse': return <ErrorBoundary name="ActiveResponseDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ActiveResponseDashboard /></Suspense></ErrorBoundary>;
       case 'incidentWarRoom': return <ErrorBoundary name="IncidentWarRoomDashboard"><IncidentWarRoomDashboard /></ErrorBoundary>;
       case 'privacy': return <ErrorBoundary name="PrivacyDashboard"><PrivacyDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;

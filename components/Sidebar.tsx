@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon } from './icons';
-import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon } from 'lucide-react';
+import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useFeatures } from '../contexts/FeaturesContext';
@@ -243,6 +243,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'patchManagement', label: 'Patching', icon: <ShieldAlertIcon size={20} />, permission: 'view:patching' },
                 { view: 'softwareUpdates', label: 'Software Updates', icon: <ShieldAlertIcon size={20} />, permission: 'view:software_updates' },
                 { view: 'softwareDeployment', label: 'Software Deployment', icon: <BoxIcon size={20} />, permission: 'view:software_deployment' },
+                { view: 'windowsAutopilot', label: 'Windows Autopilot', icon: <MonitorIcon size={20} />, permission: 'view:autopilot' },
+                { view: 'mobileDeviceManagement', label: 'Mobile Device Mgmt', icon: <MonitorIcon size={20} />, permission: 'view:mdm' },
+                { view: 'mobileAppManagement', label: 'App Management (MAM)', icon: <BoxIcon size={20} />, permission: 'view:mam' },
+                { view: 'androidEnterprise', label: 'Android Enterprise', icon: <MonitorIcon size={20} />, permission: 'view:android_enterprise' },
+                { view: 'branchSites', label: 'Branch Sites', icon: <BuildingIcon size={20} />, permission: 'view:branch_sites' },
+                { view: 'appCatalog', label: 'App Catalog', icon: <BoxIcon size={20} />, permission: 'view:app_catalog' },
+                { view: 'assetIntelligence', label: 'Asset Intelligence', icon: <ShieldAlertIcon size={20} />, permission: 'view:asset_intelligence' },
+                { view: 'deviceConfigProfiles', label: 'Config Profiles', icon: <SettingsIcon size={20} />, permission: 'view:device_config_profiles' },
+                { view: 'firmwareDriverUpdates', label: 'Firmware & Drivers', icon: <ZapIcon size={20} />, permission: 'view:firmware_drivers' },
                 { view: 'serviceCatalog', label: 'Service Catalog (IDP)', icon: <PuzzleIcon size={20} />, permission: 'view:service_catalog' },
                 { view: 'jobs', label: 'Jobs', icon: <ClipboardListIcon size={20} />, permission: 'view:jobs' },
                 { view: 'remoteAccess', label: 'Remote Access', icon: <ActivityIcon size={20} />, permission: 'view:agents' },
@@ -290,6 +299,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'fim', label: 'File Integrity Monitor', icon: <ShieldCheckIcon size={20} />, permission: 'view:security' },
                 { view: 'runtimeSecurity', label: 'Runtime Security', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'pam', label: 'Privileged Access (PAM)', icon: <Lock size={20} />, permission: 'manage:settings' },
+                { view: 'advancedHunting', label: 'Advanced Hunting', icon: <SearchIcon size={20} />, permission: 'view:advanced_hunting' },
+                { view: 'detectionRules', label: 'Detection Rules', icon: <ShieldIcon size={20} />, permission: 'view:detection_rules' },
+                { view: 'connectorsHub', label: 'Connectors Hub', icon: <Share2Icon size={20} />, permission: 'view:connectors_hub' },
+                { view: 'securityCopilot', label: 'Security Copilot', icon: <BotIcon size={20} />, permission: 'view:security_copilot' },
+                { view: 'attackTimeline', label: 'Attack Timeline', icon: <ActivityIcon size={20} />, permission: 'view:attack_timeline' },
+                { view: 'geographicMap', label: 'Geographic Map', icon: <Globe size={20} />, permission: 'view:geographic_map' },
+                { view: 'scaAssessment', label: 'SCA Assessment', icon: <ShieldCheckIcon size={20} />, permission: 'view:sca' },
+                { view: 'agentGroups', label: 'Agent Groups', icon: <UsersIcon size={20} />, permission: 'view:agent_groups' },
+                { view: 'configDrift', label: 'Config Drift', icon: <ActivityIcon size={20} />, permission: 'view:config_drift' },
+                { view: 'fimMonitoring', label: 'FIM', icon: <ShieldCheckIcon size={20} />, permission: 'view:fim' },
+                { view: 'activeResponse', label: 'Active Response', icon: <ActivityIcon size={20} />, permission: 'view:active_response' },
             ]
         },
 
@@ -322,6 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             items: [
                 { view: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceEvidence', label: 'Evidence Collector', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
+                { view: 'remediationWorkflow', label: 'Remediation', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceFrameworks', label: 'Framework Evaluator', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'customFrameworks', label: 'Custom Frameworks', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceOracle', label: 'Compliance Oracle', icon: <BotIcon size={20} />, permission: 'view:compliance' },
@@ -345,6 +366,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'automation', label: 'Automation', icon: <WorkflowIcon size={20} />, permission: 'view:automation' },
                 { view: 'playbooks', label: 'Playbooks', icon: <BookKeyIcon size={20} />, permission: 'manage:playbooks' },
                 { view: 'jitAccess', label: 'JIT Privileged Access', icon: <Lock size={20} />, permission: 'manage:settings' },
+                { view: 'conditionalAccess', label: 'Conditional Access', icon: <ShieldCheckIcon size={20} />, permission: 'view:conditional_access' },
                 { view: 'scheduledReports', label: 'Scheduled Reports', icon: <ClipboardListIcon size={20} />, permission: 'view:reporting' },
                 { view: 'swarm', label: 'Autonomous Swarms', icon: <WorkflowIcon size={20} />, permission: 'view:swarm', minTier: 'Pro', featureKey: 'swarm' },
                 { view: 'agentApproval', label: 'Agent Approvals', icon: <ShieldCheckIcon size={20} />, permission: 'view:agents' },
@@ -369,6 +391,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'secretsManagement', label: 'Secrets Management', icon: <Lock size={20} />, permission: 'manage:settings' },
                 { view: 'hadr', label: 'HA/DR & Backups', icon: <ShieldCheckIcon size={20} />, permission: 'manage:settings', minTier: 'Enterprise', featureKey: 'hadr' },
                 { view: 'retentionPolicy', label: 'Data Retention', icon: <ClipboardListIcon size={20} />, permission: 'manage:settings' },
+                { view: 'retentionPolicies', label: 'Retention Tiers', icon: <DatabaseIcon size={20} />, permission: 'view:retention_policies' },
+                { view: 'msspMonitoring', label: 'MSSP Monitoring', icon: <BuildingIcon size={20} />, permission: 'view:mssp' },
                 { view: 'knowledgeBase', label: 'Knowledge Base (RAG)', icon: <BookKeyIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },
