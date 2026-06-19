@@ -139,9 +139,9 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                     </div>
                                                     <div className="flex items-center gap-1 flex-shrink-0">
                                                         {isAutomated ? (
-                                                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Automated</span>
+                                                            <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Automated</span>
                                                         ) : (
-                                                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Manual</span>
+                                                            <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Manual</span>
                                                         )}
                                                         {!isAutomated && (
                                                             <button
@@ -167,7 +167,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                             <BrainCircuitIcon size={14} className="mr-1.5" />
                                                             AI Auditor: {statusRecord.ai_evaluation.verified ? 'SUFFICIENT EVIDENCE' : 'INSUFFICIENT EVIDENCE'}
                                                         </div>
-                                                        <div className="opacity-70 text-[10px]">
+                                                        <div className="opacity-70 text-xs">
                                                             {statusRecord.ai_evaluation.model_used.split('/').pop()}
                                                         </div>
                                                     </div>
