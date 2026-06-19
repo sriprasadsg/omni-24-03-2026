@@ -149,6 +149,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                                 disabled={!!deletingMap[evId]}
                                                                 className="text-red-500 hover:text-red-700 disabled:opacity-40"
                                                                 title="Delete evidence"
+                                                                aria-label="Delete evidence"
                                                             >
                                                                 <TrashIcon size={13} />
                                                             </button>
@@ -183,12 +184,13 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex flex-col items-end gap-1">
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => onUpdateStatus(asset.id, 'Compliant')} className="text-green-600 hover:text-green-900" title="Mark Compliant"><CheckIcon size={18} /></button>
-                                            <button onClick={() => onUpdateStatus(asset.id, 'Non-Compliant')} className="text-red-600 hover:text-red-900" title="Mark Non-Compliant"><XIcon size={18} /></button>
+                                            <button onClick={() => onUpdateStatus(asset.id, 'Compliant')} className="text-green-600 hover:text-green-900" title="Mark Compliant" aria-label="Mark Compliant"><CheckIcon size={18} /></button>
+                                            <button onClick={() => onUpdateStatus(asset.id, 'Non-Compliant')} className="text-red-600 hover:text-red-900" title="Mark Non-Compliant" aria-label="Mark Non-Compliant"><XIcon size={18} /></button>
                                             <button
                                                 onClick={() => handleUploadClick(asset.id)}
                                                 className={`${ingestingMap[asset.id] ? 'text-purple-600 animate-pulse' : 'text-blue-600 hover:text-blue-900'}`}
                                                 title={ingestingMap[asset.id] ? "Ingesting to LLM..." : "Upload Evidence & Ingest"}
+                                                aria-label={ingestingMap[asset.id] ? "Ingesting to LLM..." : "Upload Evidence & Ingest"}
                                                 disabled={ingestingMap[asset.id]}
                                             >
                                                 <UploadIcon size={18} />
