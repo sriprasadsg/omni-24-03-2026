@@ -106,6 +106,8 @@ def register_all_routers(app: FastAPI) -> None:
 
     # ── Compliance & Governance ───────────────────────────────────────────────
     _load(app, "compliance_endpoints",      "router")
+    _load(app, "compliance_scans_endpoints", "router")  # direct load — resilient if compliance_endpoints fails
+    _load(app, "compliance_status_endpoints",  "router")
     _load(app, "ai_auditor_endpoints",      "router", prefix="/api/compliance", tags=["Compliance AI"])
     _load(app, "compliance_automation_api", "router")
     _load(app, "ai_governance_endpoints",   "router")
