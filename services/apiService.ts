@@ -653,6 +653,20 @@ export const deleteComplianceEvidence = async (assetId: string, controlId: strin
     if (!res.ok) throw new Error("Evidence delete failed");
 };
 
+export const updateAssetComplianceStatus = async (
+    assetId: string,
+    controlId: string,
+    status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence',
+    notes?: string
+): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/compliance/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ control_id: controlId, status, notes: notes ?? '' }),
+    });
+    if (!res.ok) throw new Error(`Failed to update compliance status: ${res.status}`);
+};
+
 export const uploadControlEvidence = async (controlId: string, file: File, description: string, department: string) => {
     const formData = new FormData();
     formData.append('file', file);
