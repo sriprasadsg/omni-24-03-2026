@@ -31,7 +31,7 @@
 
 ### UI Carry-forward (from v1.0 UI Audit)
 
-- [ ] **UI-01**: Source badges ("Automated" / "Manual") in the evidence table use `text-xs` (12px) instead of `text-[10px]` to meet WCAG AA contrast at their color values
+- [x] **UI-01**: Source badges ("Automated" / "Manual") in the evidence table use `text-xs` (12px) instead of `text-[10px]` to meet WCAG AA contrast at their color values
 
 ## Out of Scope
 
@@ -58,7 +58,7 @@
 | SCORE-01 | Phase 9 | Pending |
 | SCORE-02 | Phase 9 | Pending |
 | SCORE-03 | Phase 9 | Pending |
-| UI-01 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Complete |
 
 **Coverage:**
 
