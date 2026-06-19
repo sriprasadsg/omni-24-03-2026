@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SaveIcon, SparklesIcon } from 'lucide-react';
 import { RemediationTask } from '../types';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface RemediationTaskModalProps {
     isOpen: boolean;
@@ -66,6 +67,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
             }
         } catch (e) {
             console.error('AI suggestion failed:', e);
+            showToast('AI suggestion unavailable — please try again', 'error');
         } finally {
             setSuggesting(false);
         }
@@ -88,6 +90,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                     asset_id: assetId || undefined,
                     framework_id: frameworkId || undefined,
                     assignee: assignee || undefined,
+                    assignee_type: assigneeType,
                     due_date: dueDate || undefined,
                     description: description || undefined,
                     priority,
@@ -97,6 +100,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
             onRefresh();
         } catch (e) {
             console.error('Failed to save remediation task:', e);
+            showToast('Failed to save — please try again', 'error');
         } finally {
             setSaving(false);
         }

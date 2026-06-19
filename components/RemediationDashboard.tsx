@@ -4,6 +4,7 @@ import { RemediationTask } from '../types';
 import * as api from '../services/apiService';
 import { socketService } from '../services/socketService';
 import { RemediationTaskModal } from './RemediationTaskModal';
+import { showToast } from '../utils/toast';
 
 const STATUS_COLORS: Record<string, string> = {
     open:        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
@@ -34,6 +35,7 @@ export const RemediationDashboard: React.FC = () => {
             setTasks(data);
         } catch (e) {
             console.error('Failed to fetch remediation tasks:', e);
+            showToast('Failed to load tasks — check your connection and retry', 'error');
         } finally {
             setLoading(false);
         }
@@ -58,6 +60,7 @@ export const RemediationDashboard: React.FC = () => {
             fetchTasks();
         } catch (e) {
             console.error('Failed to resolve task:', e);
+            showToast('Failed to update task — please try again', 'error');
         }
     };
 

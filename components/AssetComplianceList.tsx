@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Asset, AssetCompliance, Control } from '../types';
 import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircuitIcon, TrashIcon } from './icons';
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
+import { showToast } from '../utils/toast';
 
 interface AssetComplianceListProps {
     control: Control;
@@ -41,6 +42,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
             await onIngestEvidence(selectedAssetId, file.name, text);
         } catch (error) {
             console.error("Failed to read file for ingestion", error);
+            showToast('Upload failed — please try again', 'error');
         } finally {
             setIngestingMap(prev => ({ ...prev, [selectedAssetId]: false }));
             setDescriptionMap(prev => { const next = { ...prev }; delete next[selectedAssetId!]; return next; });
@@ -56,6 +58,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
             await onDeleteEvidence(assetId, control.id, evidenceId);
         } catch (error) {
             console.error("Failed to delete evidence", error);
+            showToast('Could not delete evidence — please try again', 'error');
         } finally {
             setDeletingMap(prev => { const next = { ...prev }; delete next[evidenceId]; return next; });
         }
