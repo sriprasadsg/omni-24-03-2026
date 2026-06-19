@@ -6,6 +6,7 @@ import asyncio
 import sys
 import os
 from datetime import datetime, timezone, timedelta
+from itertools import cycle
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -59,7 +60,7 @@ class TestUpdateTicket:
         connector = _jira()
 
         with patch("soar_integrations.aiohttp.ClientSession", return_value=session):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 connector._update_ticket({"issue_key": "OPS-42", "fields": {"priority": {"name": "High"}}})
             )
 
@@ -75,7 +76,7 @@ class TestUpdateTicket:
         connector = _jira()
 
         with patch("soar_integrations.aiohttp.ClientSession", return_value=session):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 connector._update_ticket({"issue_key": "OPS-99", "fields": {}})
             )
 
@@ -84,7 +85,7 @@ class TestUpdateTicket:
 
     def test_update_ticket_missing_issue_key(self):
         connector = _jira()
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             connector._update_ticket({"fields": {"summary": "x"}})
         )
         assert result["status"] == "error"
@@ -96,7 +97,7 @@ class TestUpdateTicket:
 
         connector = _jira()
         with patch("soar_integrations.aiohttp.ClientSession", return_value=session):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 connector._update_ticket({"issue_key": "OPS-1", "fields": {}})
             )
         assert result["status"] == "error"
@@ -112,7 +113,7 @@ class TestAddComment:
         connector = _jira()
 
         with patch("soar_integrations.aiohttp.ClientSession", return_value=session):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 connector._add_comment({"issue_key": "OPS-42", "comment": "Resolved via playbook."})
             )
 
@@ -128,7 +129,7 @@ class TestAddComment:
         connector = _jira()
 
         with patch("soar_integrations.aiohttp.ClientSession", return_value=session):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 connector._add_comment({"issue_key": "OPS-1", "comment": "hello"})
             )
 
@@ -142,7 +143,7 @@ class TestAddComment:
         connector = _jira()
 
         with patch("soar_integrations.aiohttp.ClientSession", return_value=session):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 connector._add_comment({"issue_key": "OPS-1", "comment": "x"})
             )
 
@@ -151,7 +152,7 @@ class TestAddComment:
 
     def test_add_comment_missing_issue_key(self):
         connector = _jira()
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             connector._add_comment({"comment": "hello"})
         )
         assert result["status"] == "error"
@@ -179,8 +180,8 @@ def _make_db_mock(asset_created_days_ago=180, uptime_hours=48, total_deps=10, su
     db.patches.find_one = AsyncMock(return_value=patch_doc)
     # find_one for asset
     db.assets.find_one = AsyncMock(return_value=asset)
-    # count_documents for historical rate
-    db.patch_deployment_jobs.count_documents = AsyncMock(side_effect=[total_deps, success_deps])
+    # count_documents for historical rate — cycles for all 60 deployments
+    db.patch_deployment_jobs.count_documents = AsyncMock(side_effect=cycle([total_deps, success_deps]))
 
     return db
 
@@ -191,7 +192,7 @@ class TestMLFeatureExtraction:
 
         import train_ml_models
         with patch("train_ml_models.get_database", return_value=db):
-            X, y = asyncio.get_event_loop().run_until_complete(
+            X, y = asyncio.run(
                 train_ml_models._load_real_patch_data()
             )
 
@@ -204,7 +205,7 @@ class TestMLFeatureExtraction:
 
         import train_ml_models
         with patch("train_ml_models.get_database", return_value=db):
-            X, _ = asyncio.get_event_loop().run_until_complete(
+            X, _ = asyncio.run(
                 train_ml_models._load_real_patch_data()
             )
 
@@ -217,7 +218,7 @@ class TestMLFeatureExtraction:
 
         import train_ml_models
         with patch("train_ml_models.get_database", return_value=db):
-            X, _ = asyncio.get_event_loop().run_until_complete(
+            X, _ = asyncio.run(
                 train_ml_models._load_real_patch_data()
             )
 
@@ -233,7 +234,7 @@ class TestMLFeatureExtraction:
 
         import train_ml_models
         with patch("train_ml_models.get_database", return_value=db):
-            X, _ = asyncio.get_event_loop().run_until_complete(
+            X, _ = asyncio.run(
                 train_ml_models._load_real_patch_data()
             )
 

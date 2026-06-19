@@ -15,6 +15,39 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 # ---------------------------------------------------------------------------
+# Module-level isolation fixture
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module", autouse=True)
+def _restore_auth_module():
+    """Restore authentication_service's original function objects after all tests
+    in this module run.
+
+    importlib.reload() re-executes the module body, creating NEW function objects
+    for get_current_user, verify_token, etc. Other test files capture those
+    references at collection time (module-level imports). If we leave the reloaded
+    versions in place, endpoint modules imported inside later test methods get the
+    NEW references while the test helpers still hold the OLD ones, causing
+    dependency_overrides keys to mismatch and returning 401 instead of the
+    expected response.
+
+    Saving and restoring the original attributes here keeps everything consistent.
+    """
+    import authentication_service as _auth
+    _ATTRS = (
+        "get_current_user", "verify_token", "verify_token_async",
+        "create_access_token", "create_refresh_token",
+    )
+    saved = {k: getattr(_auth, k) for k in _ATTRS if hasattr(_auth, k)}
+    yield
+    for k, v in saved.items():
+        try:
+            setattr(_auth, k, v)
+        except (AttributeError, TypeError):
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
