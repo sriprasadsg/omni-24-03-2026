@@ -23,18 +23,21 @@ const FILTER_LABELS: { value: string; label: string }[] = [
 export const RemediationDashboard: React.FC = () => {
     const [tasks, setTasks] = useState<RemediationTask[]>([]);
     const [loading, setLoading] = useState(false);
+    const [fetchError, setFetchError] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [isCreating, setIsCreating] = useState(false);
     const [editingTask, setEditingTask] = useState<RemediationTask | null>(null);
 
     const fetchTasks = useCallback(async () => {
         setLoading(true);
+        setFetchError(false);
         try {
             const statusParam = filterStatus === 'all' ? undefined : filterStatus;
             const data = await api.getRemediationTasks(statusParam);
             setTasks(data);
         } catch (e) {
             console.error('Failed to fetch remediation tasks:', e);
+            setFetchError(true);
             showToast('Failed to load tasks — check your connection and retry', 'error');
         } finally {
             setLoading(false);
@@ -142,6 +145,12 @@ export const RemediationDashboard: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                 {loading ? (
                     <div className="p-8 text-center text-gray-400">Loading tasks...</div>
+                ) : fetchError ? (
+                    <div className="p-10 text-center">
+                        <p className="text-red-500 font-medium mb-2">Failed to load tasks</p>
+                        <p className="text-gray-500 text-sm mb-4">Check your connection and try again.</p>
+                        <button onClick={fetchTasks} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium underline">Retry</button>
+                    </div>
                 ) : (
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
