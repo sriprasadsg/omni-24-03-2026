@@ -17,7 +17,12 @@
 **Requirements:** STATUS-01, STATUS-02, UI-01
 
 **Plans:**
-- 06-01: Backend — `PATCH /api/assets/{asset_id}/compliance/status` endpoint, tenant-scoped, actor/timestamp/previous-status recorded
+
+- [x] 06-01-PLAN.md
+- [ ] 06-02-PLAN.md
+
+1/2 plans executed
+
 - 06-02: Frontend — wire `onUpdateStatus` in `AssetComplianceList.tsx` → API call + optimistic update; fix `text-[10px]` → `text-xs` (UI-01)
 
 ---
@@ -29,6 +34,7 @@
 **Requirements:** STALE-01, STALE-02, COC-01, COC-02
 
 **Plans:**
+
 - 07-01: Backend — staleness field on evidence records (default 7-day threshold, configurable per-tenant); chain-of-custody `evidence_audit_log` collection with actor/action/timestamp/snapshot
 - 07-02: Frontend — stale badge on evidence rows past threshold; CoC log panel in control detail (collapsible, audit-read permission gate)
 
@@ -41,6 +47,7 @@
 **Requirements:** BULK-01, BULK-02, BULK-03
 
 **Plans:**
+
 - 08-01: Backend — `POST /api/compliance/evidence/bulk` endpoint; unzip in temp dir; validate each file (MIME, magic bytes, ≤25 MB); commit or reject with per-file error report
 - 08-02: Frontend — bulk upload UI in control list header; zip + manifest upload form; per-file validation error display; success summary
 
@@ -53,5 +60,6 @@
 **Requirements:** SCORE-01, SCORE-02, SCORE-03
 
 **Plans:**
+
 - 09-01: Backend — `GET /api/compliance/score` endpoint; severity-weighted score calculation; per-framework breakdown; cached per tenant on evidence update
 - 09-02: Frontend — compliance score panel on dashboard; per-framework drill-down; severity weight legend tooltip

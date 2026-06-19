@@ -7,8 +7,8 @@
 
 ### Asset Compliance Status
 
-- [ ] **STATUS-01**: A user can manually mark an asset's compliance status for a specific control as Compliant or Non-Compliant from the control detail view; the change is persisted to the backend and immediately reflected in the UI
-- [ ] **STATUS-02**: Manual status overrides are scoped per-tenant and recorded with the actor's identity, timestamp, and the previous status (enabling reversal)
+- [x] **STATUS-01**: A user can manually mark an asset's compliance status for a specific control as Compliant or Non-Compliant from the control detail view; the change is persisted to the backend and immediately reflected in the UI
+- [x] **STATUS-02**: Manual status overrides are scoped per-tenant and recorded with the actor's identity, timestamp, and the previous status (enabling reversal)
 
 ### Evidence Lifecycle
 
@@ -46,8 +46,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATUS-01 | Phase 6 | Pending |
-| STATUS-02 | Phase 6 | Pending |
+| STATUS-01 | Phase 6 | Complete |
+| STATUS-02 | Phase 6 | Complete |
 | STALE-01 | Phase 7 | Pending |
 | STALE-02 | Phase 7 | Pending |
 | COC-01 | Phase 7 | Pending |
@@ -61,6 +61,7 @@
 | UI-01 | Phase 6 | Pending |
 
 **Coverage:**
+
 - v1.1 requirements: 13 total
 - Mapped to phases: 13
 - Unmapped: 0 ✓

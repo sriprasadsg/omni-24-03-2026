@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: Evidence Quality & Compliance Scoring
-status: planning
-stopped_at: Milestone defined — requirements and roadmap written; next step is /gsd-plan-phase 6
-last_updated: "2026-06-20T00:00:00.000Z"
+milestone_name: — Evidence Quality & Compliance Scoring
+status: executing
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-06-19T20:41:02.658Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** v1.1 planning — ready for Phase 06 (Asset Compliance Status + UI Fix)
+**Current focus:** Phase 06 — asset-compliance-status-ui-fix
 
 ## Current Phase
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 Goal: Wire Mark Compliant / Mark Non-Compliant buttons to a real backend endpoint so compliance status changes persist; fix source badge font-size WCAG violation from v1.0 UI audit.
 
-Status: Not started. Run `/gsd-plan-phase 6` to begin.
+Status: Executing Phase 06
 
 ## Phases
 
@@ -77,6 +77,9 @@ Status: Not started. Run `/gsd-plan-phase 6` to begin.
 - 05-01: golden-path test drives process_automated_evidence, _flatten_evidence, _tenant_filter, and create_task in a single tenant-a flow
 - 05-01: cross-tenant isolation verified for report download (403), report list (tenant-scoped), task list filter (tenant/super-admin), and evidence upload (403)
 - 05-01: regression test confirms 3-arg process_automated_evidence call still writes evidence (no Phase 4 regression)
+- [Phase ?]: 06-01: compliance_status_endpoints extracted to new file — compliance_evidence_endpoints.py at 447 lines; adding inline would breach 500-line CLAUDE.md limit
+- [Phase ?]: 06-01: upsert=True on asset_compliance handles both first-time status set and subsequent overrides without separate insert logic
+- [Phase ?]: 06-01: asyncio.run() used for async tests consistent with existing evidence upload test pattern
 
 ## Performance Metrics
 
@@ -93,11 +96,12 @@ Status: Not started. Run `/gsd-plan-phase 6` to begin.
 | 04-remediation-workflow | 02 | ~3m | 3 | 4 |
 | 05-integration-and-e2e-verification | 00 | ~3m | 4 | 5 |
 | 05-integration-and-e2e-verification | 01 | ~7m | 3 | 1 |
+| Phase 06-asset-compliance-status-ui-fix P01 | ~1m | 3 tasks | 3 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-06-20T00:00:00Z
-- **Stopped at:** v1.1 milestone defined — REQUIREMENTS.md (13 requirements), ROADMAP.md (phases 6–9) written; ready to plan Phase 6
+- **Stopped at:** Completed 06-01-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -120,3 +124,9 @@ Status: Not started. Run `/gsd-plan-phase 6` to begin.
 
 ---
 *Initialized: 2026-06-17 | Last updated: 2026-06-20 (v1.1 milestone started — Evidence Quality & Compliance Scoring; phases 6–9 defined)*
+
+## Session
+
+**Last session:** 2026-06-19T20:41:02.645Z
+**Stopped at:** Completed 06-01-PLAN.md
+**Resume file:** None
