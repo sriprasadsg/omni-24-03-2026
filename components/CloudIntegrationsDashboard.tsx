@@ -36,18 +36,32 @@ const PROVIDER_ICONS: Record<string, string> = {
   gcp_chronicle: '🟢',
   aws_guardduty: '🟠',
   aws_securityhub: '🟠',
+  oci_cloud_guard: '🔴',
+  ibm_qradar: '🟣',
+  alibaba_sas: '🟡',
+  digitalocean_alerts: '🩵',
+  cloudflare_zero_trust: '🟧',
+  huawei_hss: '🌸',
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
   azure: 'border-blue-500 bg-blue-900/10',
+  microsoft: 'border-blue-500 bg-blue-900/10',
   gcp: 'border-green-500 bg-green-900/10',
   aws: 'border-orange-500 bg-orange-900/10',
+  oci: 'border-red-500 bg-red-900/10',
+  ibm: 'border-indigo-500 bg-indigo-900/10',
+  alibaba: 'border-yellow-500 bg-yellow-900/10',
+  digitalocean: 'border-cyan-500 bg-cyan-900/10',
+  cloudflare: 'border-orange-400 bg-orange-900/10',
+  huawei: 'border-rose-500 bg-rose-900/10',
 };
 
 function providerColor(provider: string) {
-  if (provider.startsWith('azure') || provider.startsWith('microsoft')) return PROVIDER_COLORS.azure;
-  if (provider.startsWith('gcp')) return PROVIDER_COLORS.gcp;
-  return PROVIDER_COLORS.aws;
+  for (const key of Object.keys(PROVIDER_COLORS)) {
+    if (provider.startsWith(key)) return PROVIDER_COLORS[key];
+  }
+  return 'border-gray-500 bg-gray-900/10';
 }
 
 export default function CloudIntegrationsDashboard() {

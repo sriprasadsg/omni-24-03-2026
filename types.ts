@@ -950,7 +950,7 @@ export interface DataSource {
   lastTested: string | null;
 }
 
-export type CloudProvider = 'AWS' | 'GCP' | 'Azure';
+export type CloudProvider = 'AWS' | 'GCP' | 'Azure' | 'OCI' | 'IBM' | 'Alibaba' | 'DigitalOcean' | 'Cloudflare' | 'VMware' | 'Huawei';
 
 export interface CloudAccount {
   id: string;

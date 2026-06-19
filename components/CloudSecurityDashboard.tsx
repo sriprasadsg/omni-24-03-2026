@@ -13,11 +13,20 @@ interface CloudSecurityDashboardProps {
     onAddAccount: (accountData: Omit<CloudAccount, 'id' | 'tenantId' | 'status'>) => Promise<void>;
 }
 
-const providerColors: Record<CloudProvider, string> = {
+const PROVIDER_COLORS: Record<string, string> = {
     AWS: 'text-orange-500',
     GCP: 'text-blue-500',
     Azure: 'text-sky-500',
+    OCI: 'text-red-500',
+    IBM: 'text-indigo-500',
+    Alibaba: 'text-yellow-500',
+    DigitalOcean: 'text-cyan-500',
+    Cloudflare: 'text-orange-400',
+    VMware: 'text-slate-400',
+    Huawei: 'text-rose-500',
 };
+
+const providerColor = (p: CloudProvider): string => PROVIDER_COLORS[p] ?? 'text-gray-400';
 
 export const CloudSecurityDashboard: React.FC<CloudSecurityDashboardProps> = ({ cloudAccounts, findings, onAddAccount }) => {
     const [viewingFinding, setViewingFinding] = useState<CSPMFinding | null>(null);
@@ -73,7 +82,7 @@ export const CloudSecurityDashboard: React.FC<CloudSecurityDashboardProps> = ({ 
                                 <div key={account.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <p className={`font-bold ${providerColors[account.provider]}`}>{account.provider}</p>
+                                            <p className={`font-bold ${providerColor(account.provider)}`}>{account.provider}</p>
                                             <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{account.name}</p>
                                         </div>
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${account.status === 'Connected' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'}`}>

@@ -129,6 +129,48 @@ SUPPORTED_PROVIDERS = {
         "optional_fields": [],
         "description": "Aggregate and ingest findings from AWS Security Hub",
     },
+    "oci_cloud_guard": {
+        "name": "Oracle Cloud Guard",
+        "icon": "oci",
+        "required_fields": ["oci_tenancy_ocid", "oci_user_ocid", "oci_private_key", "oci_fingerprint", "oci_region"],
+        "optional_fields": ["compartment_id"],
+        "description": "Ingest security problems and recommendations from Oracle Cloud Guard",
+    },
+    "ibm_qradar": {
+        "name": "IBM QRadar SIEM",
+        "icon": "ibm",
+        "required_fields": ["qradar_host", "api_token"],
+        "optional_fields": ["qradar_port"],
+        "description": "Ingest offenses and events from IBM QRadar SIEM",
+    },
+    "alibaba_sas": {
+        "name": "Alibaba Cloud Security Center",
+        "icon": "alibaba",
+        "required_fields": ["access_key_id", "access_key_secret", "region_id"],
+        "optional_fields": [],
+        "description": "Ingest threat alerts from Alibaba Cloud Security Center (SAS)",
+    },
+    "digitalocean_alerts": {
+        "name": "DigitalOcean Monitoring",
+        "icon": "digitalocean",
+        "required_fields": ["do_api_token"],
+        "optional_fields": [],
+        "description": "Ingest resource alerts and policy violations from DigitalOcean",
+    },
+    "cloudflare_zero_trust": {
+        "name": "Cloudflare Zero Trust",
+        "icon": "cloudflare",
+        "required_fields": ["cf_account_id", "cf_api_token"],
+        "optional_fields": [],
+        "description": "Ingest gateway events and access logs from Cloudflare Zero Trust",
+    },
+    "huawei_hss": {
+        "name": "Huawei Host Security Service",
+        "icon": "huawei",
+        "required_fields": ["ak", "sk", "project_id", "region"],
+        "optional_fields": [],
+        "description": "Ingest security alerts from Huawei Cloud Host Security Service",
+    },
 }
 
 

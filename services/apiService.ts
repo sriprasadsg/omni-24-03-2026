@@ -653,6 +653,32 @@ export const deleteComplianceEvidence = async (assetId: string, controlId: strin
     if (!res.ok) throw new Error("Evidence delete failed");
 };
 
+export const uploadControlEvidence = async (controlId: string, file: File, description: string, department: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('description', description);
+    formData.append('department', department);
+    const res = await authFetch(`${API_BASE}/compliance/controls/${encodeURIComponent(controlId)}/evidence`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) throw new Error('Control evidence upload failed');
+    return res.json();
+};
+
+export const getControlEvidence = async (controlId: string) => {
+    const res = await authFetch(`${API_BASE}/compliance/controls/${encodeURIComponent(controlId)}/evidence`);
+    if (!res.ok) throw new Error('Failed to fetch control evidence');
+    return res.json();
+};
+
+export const deleteControlEvidence = async (controlId: string, evidenceId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/compliance/controls/${encodeURIComponent(controlId)}/evidence/${evidenceId}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Control evidence delete failed');
+};
+
 export const fetchAiSystems = async () => {
     try {
         const res = await authFetch(`${API_BASE}/ai-systems`);
@@ -2458,14 +2484,33 @@ export const addNetworkDevice = async (data: any, tenantId: string) => {
 };
 
 export const addCloudAccount = async (data: any, tenantId: string) => {
-    const newAccount: CloudAccount = {
-        id: `ca-${Date.now()}`,
-        tenantId,
-        ...data,
-        status: 'Connected'
-    };
-    CLOUD_ACCOUNTS.push(newAccount);
-    return newAccount;
+    try {
+        const res = await authFetch(`${API_BASE}/cloud-accounts`, {
+            method: 'POST',
+            body: JSON.stringify({
+                provider: (data.provider || 'aws').toLowerCase(),
+                name: data.name,
+                account_id: data.accountId,
+                credentials: data.credentials || {},
+            }),
+        });
+        if (res.ok) {
+            const saved = await res.json();
+            const account: CloudAccount = {
+                id: saved.id || `ca-${Date.now()}`,
+                tenantId: saved.tenantId || tenantId,
+                provider: data.provider,
+                name: saved.name || data.name,
+                accountId: data.accountId,
+                status: 'Connected',
+            };
+            CLOUD_ACCOUNTS.push(account);
+            return account;
+        }
+    } catch { /* backend offline — fall through to local */ }
+    const local: CloudAccount = { id: `ca-${Date.now()}`, tenantId, ...data, status: 'Connected' };
+    CLOUD_ACCOUNTS.push(local);
+    return local;
 };
 
 export const saveAlertRule = async (rule: AlertRule): Promise<AlertRule> => {

@@ -39,9 +39,13 @@ async def add_cloud_account(
     """
     db = get_database()
     _, tid = _resolve(current_user)
-    provider = body.get("provider", "aws")
-    if provider not in ("aws", "azure", "gcp"):
-        raise HTTPException(status_code=400, detail="provider must be aws, azure, or gcp")
+    SUPPORTED = {
+        "aws", "azure", "gcp", "oci", "ibm", "alibaba",
+        "digitalocean", "cloudflare", "vmware", "huawei",
+    }
+    provider = (body.get("provider") or "aws").lower().strip()
+    if provider not in SUPPORTED:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider '{provider}'. Supported: {sorted(SUPPORTED)}")
     account = {
         "id": f"cloud-{uuid.uuid4().hex[:12]}",
         "tenantId": tid,
