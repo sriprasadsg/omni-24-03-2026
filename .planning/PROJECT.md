@@ -8,68 +8,72 @@ An AI-powered, multi-tenant security and compliance management platform. Deploye
 
 Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
 
+## Current State
+
+**v1.0 shipped 2026-06-18 — all 4 new capabilities live:**
+
+- Rust agent evidence parity — heartbeats feed `compliance_evidence_processor` identically to the Python agent; `agent_type: rust` preserved in evidence records
+- Manual evidence uploads — auditors attach PDF/PNG/DOCX/XLSX (≤25 MB) to controls; magic-byte MIME validation; owner/admin delete with disk cleanup
+- Audit-ready export — per-tenant PDF and Excel reports with tenant name, export date, Auto/Manual evidence columns, and STATUS_LEGEND (Pass/Fail/Partial/No-Data)
+- Remediation workflow — failed control → assignable task → AI-suggested steps → mark Resolved → re-scan dispatch → real-time WebSocket status update
+- Test suite: 378 passed, 0 failed, 1 skipped (baseline for v1.1)
+- Cloud provider support expanded from 3 to 10 (AWS, GCP, Azure, OCI, IBM, Alibaba, DigitalOcean, Cloudflare, VMware, Huawei)
+
 ## Requirements
 
 ### Validated
 
-- ✓ Python agent collects compliance telemetry and sends heartbeats to backend — existing
-- ✓ `compliance_evidence_processor` maps agent check names to framework control IDs and writes evidence records — existing
-- ✓ 30+ compliance frameworks seeded in database (SOC 2, ISO 27001, PCI-DSS, HIPAA, NIST, CIS, GDPR, CMMC, FedRAMP, HITRUST, DORA, NIS2, and more) — existing
-- ✓ Multi-tenant architecture with per-tenant data isolation — existing
-- ✓ Compliance controls and evidence displayed in React frontend per control — existing
-- ✓ Compliance reporting endpoints (PDF, Excel) partially implemented — existing
-
-### Active
-
-- [ ] **Rust agent evidence parity** — Rust agent heartbeat data feeds through `compliance_evidence_processor` identically to the Python agent; every control the Python agent populates, the Rust agent populates too
-- [ ] **Manual evidence uploads** — Auditors can attach files, screenshots, and documents to individual controls for controls that cannot be auto-collected from endpoints
-- [ ] **Audit-ready export** — Per-tenant, per-framework PDF/Excel export with control status, evidence links, and metadata ready to hand to an auditor
-- [ ] **Remediation workflow** — Failed control triggers an assignable remediation task; task is tracked to resolution; re-scan is triggered; evidence is updated; control status advances to pass
+- ✓ Python agent collects compliance telemetry and sends heartbeats to backend
+- ✓ `compliance_evidence_processor` maps agent check names to framework control IDs and writes evidence records
+- ✓ 30+ compliance frameworks seeded in database (SOC 2, ISO 27001, PCI-DSS, HIPAA, NIST, CIS, GDPR, CMMC, FedRAMP, HITRUST, DORA, NIS2, and more)
+- ✓ Multi-tenant architecture with per-tenant data isolation
+- ✓ Compliance controls and evidence displayed in React frontend per control
+- ✓ Compliance reporting endpoints (PDF, Excel) with tenant headers and evidence source columns
+- ✓ **Rust agent evidence parity** — Rust heartbeat data feeds `compliance_evidence_processor` identically to Python; `agent_type: rust` preserved (Phase 1)
+- ✓ **Manual evidence uploads** — auditors attach files to controls; magic-byte MIME validation; owner/admin delete RBAC (Phase 2)
+- ✓ **Audit-ready export** — per-tenant PDF/Excel with tenant name, export date, auto/manual evidence columns (Phase 3)
+- ✓ **Remediation workflow** — task CRUD, AI suggest, re-scan dispatch, real-time WebSocket updates (Phase 4)
 
 ### Out of Scope
 
-- New compliance frameworks beyond those already seeded — the 30+ existing frameworks cover the stated scope; adding more is a future milestone
-- Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone is about evidence and compliance, not deployment
+- New compliance frameworks beyond those already seeded — 30+ existing frameworks cover stated scope; adding more is a future milestone
+- Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone was about evidence and compliance
 - Billing and subscription management — separate concern not related to compliance portal completeness
+
+## Next Milestone Goals
+
+Run `/gsd-new-milestone` to define v1.1 scope. Candidates from v2 backlog:
+
+- EVID-V2-01: Evidence expiry / staleness flagging
+- EVID-V2-03: Bulk evidence upload (zip + manifest)
+- AUDIT-V2-01: Scheduled report generation (auto-email)
+- REM-V2-01: External ticketing system integration (Jira/ServiceNow webhook)
+- REM-V2-02: SLA tracking for overdue remediation tasks
+- 10-provider CSPM posture scans (OCI, IBM, Alibaba, DigitalOcean, Cloudflare, Huawei, VMware now supported)
 
 ## Context
 
-**Codebase state:** The platform is a brownfield FastAPI (Python) backend + React/TypeScript frontend. The backend has extensive compliance infrastructure — `compliance_evidence_processor.py` with `COMPLIANCE_CHECK_MAPPINGS` (agent check names → control IDs), `admin_evidence_service.py`, `evidence_automation_service.py`, `compliance_automation_service.py`, and 30+ framework definition files under `backend/frameworks/`. The Python agent at `agent-install/agent/` works end-to-end. The Rust agent at `agent-rust/` reports the same 40+ capability checks via heartbeat but does not currently wire through the evidence processor on the backend side.
+**Codebase state (v1.0):** FastAPI (Python 3.12) backend + React/TypeScript frontend. All four compliance portal capabilities are live. `compliance_evidence_processor.py` with `COMPLIANCE_CHECK_MAPPINGS` maps 40+ check names to control IDs across 30+ frameworks. Both Python and Rust agents produce identically-structured evidence records. Manual upload endpoint at `/api/assets/{id}/compliance/evidence` with magic-byte validation. Compliance reporting at `/api/compliance-reports` generates PDF and XLSX with tenant headers and evidence source columns. Remediation workflow at `/api/compliance-remediation` with WebSocket real-time updates via `broadcast_remediation_update`. Integration test suite (`test_e2e_integration.py`) verifies all cross-tenant isolation boundaries.
 
-**Multi-tenant:** Each tenant has isolated data. Compliance posture, evidence, and reports are scoped per tenant. MSP operators manage multiple tenants.
+**Multi-tenant:** Each tenant has isolated data. Compliance posture, evidence, reports, and remediation tasks are scoped per tenant. Five cross-tenant isolation boundaries verified in integration tests (report download, report list, task CRUD, evidence upload, first-heartbeat tenant assignment).
 
-**Agent duality:** Two agents exist for the same purpose — Python agent (cross-platform, richer AI stack) and Rust agent (Windows-native service, lower footprint, no Python runtime). Both send heartbeats to the same backend endpoints. Evidence collection from the Python agent works; Rust agent compliance checks arrive in heartbeat `meta.compliance_enforcement` but backend processing parity is incomplete.
-
-**Evidence processor:** `COMPLIANCE_CHECK_MAPPINGS` already maps 40+ check names to framework control IDs across ISO 27001 (A.x.x), PCI-DSS (PCI-x.x), SOC 2 (CC6.x), NIST CSF (PR./DE./ID.), HIPAA (164.xxx), FedRAMP, HITRUST. The processor is called from `agent_heartbeat_endpoints.py`.
-
-**Codebase map:** `.planning/codebase/` contains full architecture, stack, conventions, and concerns analysis.
-
-## Constraints
-
-- **Tech stack**: FastAPI + SQLAlchemy + PostgreSQL backend; React + TypeScript + Vite frontend — no framework changes
-- **Compatibility**: Rust agent must produce evidence records in the same schema as the Python agent so the frontend and reporting layer need no agent-type-specific logic
-- **Security**: All evidence uploads must be scanned; file size limits enforced; tenant isolation must hold for uploaded files
-- **File size**: Backend files must stay under 500 lines (per project conventions)
+**Test baseline:** 378 passed, 0 failed, 1 skipped across 11 test files. 92 cross-test isolation failures from `importlib.reload()` contamination and Python 3.12 asyncio event-loop lifecycle fixed in post-milestone cleanup.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Rust agent evidence wired server-side (not client-side) | Backend already has `compliance_evidence_processor`; adding client-side mapping in Rust would duplicate and diverge | — Pending |
-| Manual evidence stored as tenant-scoped file uploads, linked to control ID | Auditors need attachments, not just text notes; file-based evidence is standard in GRC tools | — Pending |
-| Remediation tasks modelled as lightweight records (not full ticketing system) | Avoids scope creep; existing `ticket_reporter` capability can bridge to external ticketing | — Pending |
-| Audit export reuses existing PDF/Excel infrastructure | `compliance_reporting_pdf.py` and `compliance_reporting_excel.py` already exist; extend rather than replace | — Pending |
+| Rust agent evidence wired server-side (not client-side) | Backend already has `compliance_evidence_processor`; adding client-side mapping in Rust would duplicate and diverge | Done — `agent_type` kwarg passed from heartbeat endpoint; 0 Rust-side changes needed |
+| Manual evidence stored as tenant-scoped file uploads, linked to control ID | Auditors need attachments, not just text notes; file-based evidence is standard in GRC tools | Done — upload/delete endpoints, magic-byte MIME validation, disk cleanup |
+| Remediation tasks modelled as lightweight records (not full ticketing system) | Avoids scope creep; existing `ticket_reporter` capability can bridge to external ticketing | Done — `compliance_remediation_tasks` collection, CRUD + AI suggest; Jira bridge deferred to v1.1 |
+| Audit export reuses existing PDF/Excel infrastructure | `compliance_reporting_pdf.py` and `compliance_reporting_excel.py` already exist; extend rather than replace | Done — tenant header and Auto/Manual evidence columns added to both; STATUS_LEGEND constant |
+| asyncio.run() over pytest-asyncio in tests | pytest-asyncio not installed; asyncio.run() creates fresh loop per call, no Python 3.12 lifecycle issues | Done — consistent across all 7 test files added in v1.0 |
+| compliance_remediation_tasks collection name | Avoids collision with `remediation_tasks` used by continuous_compliance_service | Done |
+| broadcast_remediation_update list() snapshot copy | Prevents set-mutation-during-iteration; matches broadcast_mitre_heatmap pattern | Done |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
 1. Full review of all sections
@@ -78,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-17 after initialization*
+*Last updated: 2026-06-20 — v1.0 milestone archived*

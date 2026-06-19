@@ -13,18 +13,18 @@
 
 ### Manual Evidence Uploads
 
-- [ ] **EVID-01**: Authenticated user can upload a file (PDF, PNG, JPEG, DOCX, XLSX — max 25 MB) as evidence for a specific compliance control
-- [ ] **EVID-02**: Uploaded evidence is stored per-tenant with control ID, uploader identity, timestamp, and user-provided description
-- [ ] **EVID-03**: Uploaded evidence appears alongside automated (agent-collected) evidence in the control detail view in the frontend
-- [ ] **EVID-04**: User can delete their own uploaded evidence; admin can delete any tenant's uploaded evidence
-- [ ] **EVID-05**: File uploads are validated against an allowlist of MIME types and rejected if the type does not match the extension
+- [x] **EVID-01**: Authenticated user can upload a file (PDF, PNG, JPEG, DOCX, XLSX — max 25 MB) as evidence for a specific compliance control
+- [x] **EVID-02**: Uploaded evidence is stored per-tenant with control ID, uploader identity, timestamp, and user-provided description
+- [x] **EVID-03**: Uploaded evidence appears alongside automated (agent-collected) evidence in the control detail view in the frontend
+- [x] **EVID-04**: User can delete their own uploaded evidence; admin can delete any tenant's uploaded evidence
+- [x] **EVID-05**: File uploads are validated against an allowlist of MIME types and rejected if the type does not match the extension
 
 ### Audit-Ready Export
 
-- [ ] **AUDIT-01**: User can export a compliance report for a selected framework as PDF showing: framework name, tenant name, export date, list of controls with Pass/Fail/Partial/No-Data status, and evidence count per control
-- [ ] **AUDIT-02**: User can export the same report as Excel (XLSX) with one row per control and evidence summary in columns
-- [ ] **AUDIT-03**: Export includes both automated evidence (agent-collected) and manual evidence (uploaded files) per control, clearly labelled by source
-- [ ] **AUDIT-04**: Export is strictly scoped per-tenant — a tenant user only sees and exports their own compliance data; cross-tenant data never appears in an export
+- [x] **AUDIT-01**: User can export a compliance report for a selected framework as PDF showing: framework name, tenant name, export date, list of controls with Pass/Fail/Partial/No-Data status, and evidence count per control
+- [x] **AUDIT-02**: User can export the same report as Excel (XLSX) with one row per control and evidence summary in columns
+- [x] **AUDIT-03**: Export includes both automated evidence (agent-collected) and manual evidence (uploaded files) per control, clearly labelled by source
+- [x] **AUDIT-04**: Export is strictly scoped per-tenant — a tenant user only sees and exports their own compliance data; cross-tenant data never appears in an export
 
 ### Remediation Workflow
 
@@ -70,15 +70,15 @@
 | RUST-01 | Phase 1 | Complete (01-01) |
 | RUST-02 | Phase 1 | Complete (01-01) |
 | RUST-03 | Phase 1 | Complete (01-01) |
-| EVID-01 | Phase 2 | Pending |
-| EVID-02 | Phase 2 | Pending |
-| EVID-03 | Phase 2 | Pending |
-| EVID-04 | Phase 2 | Pending |
-| EVID-05 | Phase 2 | Pending |
-| AUDIT-01 | Phase 3 | Pending |
-| AUDIT-02 | Phase 3 | Pending |
-| AUDIT-03 | Phase 3 | Pending |
-| AUDIT-04 | Phase 3 | Pending |
+| EVID-01 | Phase 2 | Complete (02-01) |
+| EVID-02 | Phase 2 | Complete (02-01) |
+| EVID-03 | Phase 2 | Complete (02-02) |
+| EVID-04 | Phase 2 | Complete (02-01) |
+| EVID-05 | Phase 2 | Complete (02-01) |
+| AUDIT-01 | Phase 3 | Complete (03-02) |
+| AUDIT-02 | Phase 3 | Complete (03-02) |
+| AUDIT-03 | Phase 3 | Complete (03-01, 03-02) |
+| AUDIT-04 | Phase 3 | Complete (03-01) |
 | REM-01 | Phase 4 | Complete |
 | REM-02 | Phase 4 | Complete |
 | REM-03 | Phase 4 | Complete |
@@ -91,4 +91,4 @@
 
 ---
 *Requirements defined: 2026-06-17*
-*Last updated: 2026-06-17 after initial definition*
+*Last updated: 2026-06-20 — all 16 v1 requirements marked complete; milestone v1.0 archived*
