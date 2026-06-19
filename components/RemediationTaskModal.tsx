@@ -33,6 +33,14 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
     const [suggesting, setSuggesting] = useState(false);
     const [saving, setSaving] = useState(false);
 
+    // Escape key dismiss
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [isOpen, onClose]);
+
     // Initialize from task when editing
     useEffect(() => {
         if (!isOpen) return;
@@ -107,8 +115,8 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg" tabIndex={-1}>
                 <div className="p-6">
                     <h2 className="text-lg font-semibold mb-4 dark:text-white">
                         {task ? 'Edit Remediation Task' : 'Create Remediation Task'}
