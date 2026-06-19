@@ -58,6 +58,7 @@ export const RemediationDashboard: React.FC = () => {
     }, []);
 
     const handleMarkResolved = async (task: RemediationTask) => {
+        if (!window.confirm('Mark this task as resolved? This will be recorded in the audit trail.')) return;
         try {
             await api.updateRemediationTask(task.id, { status: 'resolved' });
             fetchTasks();
