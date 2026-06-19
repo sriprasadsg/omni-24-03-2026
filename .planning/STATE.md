@@ -1,44 +1,48 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: completed
-stopped_at: Completed 05-01-PLAN.md — Phase 05 Wave 1 (golden-path, cross-tenant isolation, regression tests; all phases complete)
-last_updated: "2026-06-18T08:10:32.176Z"
+milestone: v1.1
+milestone_name: Evidence Quality & Compliance Scoring
+status: planning
+stopped_at: Milestone defined — requirements and roadmap written; next step is /gsd-plan-phase 6
+last_updated: "2026-06-20T00:00:00.000Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-17)
+See: .planning/PROJECT.md (updated 2026-06-20)
 
-**Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
-**Current focus:** Phase 05 — integration-and-e2e-verification
+**Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
+**Current focus:** v1.1 planning — ready for Phase 06 (Asset Compliance Status + UI Fix)
 
 ## Current Phase
 
-**Phase 5: Integration and E2E Verification**
+**Next phase: Phase 6 — Asset Compliance Status + UI Fix**
 
-Goal: Prove all four capabilities compose into one coherent tenant-scoped portal with no tenant boundary leaks.
+Goal: Wire Mark Compliant / Mark Non-Compliant buttons to a real backend endpoint so compliance status changes persist; fix source badge font-size WCAG violation from v1.0 UI audit.
 
-Status: Complete. Wave 0 (05-00) delivered GAP-1/2/3 fixes. Wave 1 (05-01) delivered golden-path, cross-tenant isolation, and regression integration tests. All 12 tests in test_e2e_integration.py pass. Phase 5 regression suite: 56 passed, 1 skipped.
+Status: Not started. Run `/gsd-plan-phase 6` to begin.
 
 ## Phases
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Rust Agent Evidence Parity | Complete |
-| 2 | Manual Evidence Uploads | Complete |
-| 3 | Audit-Ready Export | Complete |
-| 4 | Remediation Workflow | Complete |
-| 5 | Integration and E2E Verification | Complete |
+| 1 | Rust Agent Evidence Parity | Complete (v1.0) |
+| 2 | Manual Evidence Uploads | Complete (v1.0) |
+| 3 | Audit-Ready Export | Complete (v1.0) |
+| 4 | Remediation Workflow | Complete (v1.0) |
+| 5 | Integration and E2E Verification | Complete (v1.0) |
+| 6 | Asset Compliance Status + UI Fix | Pending |
+| 7 | Evidence Lifecycle (Staleness + Chain-of-Custody) | Pending |
+| 8 | Bulk Evidence Upload | Pending |
+| 9 | Compliance Score Dashboard | Pending |
 
 ## Decisions
 
@@ -92,8 +96,8 @@ Status: Complete. Wave 0 (05-00) delivered GAP-1/2/3 fixes. Wave 1 (05-01) deliv
 
 ## Last Session
 
-- **Timestamp:** 2026-06-18T08:05:00Z
-- **Stopped at:** Completed 05-01-PLAN.md — Phase 05 Wave 1 (golden-path, cross-tenant isolation, regression tests; all phases complete)
+- **Timestamp:** 2026-06-20T00:00:00Z
+- **Stopped at:** v1.1 milestone defined — REQUIREMENTS.md (13 requirements), ROADMAP.md (phases 6–9) written; ready to plan Phase 6
 - **Resume file:** None
 
 ## Configuration
@@ -115,4 +119,4 @@ Status: Complete. Wave 0 (05-00) delivered GAP-1/2/3 fixes. Wave 1 (05-01) deliv
 - [Codebase map](.planning/codebase/)
 
 ---
-*Initialized: 2026-06-17 | Last updated: 2026-06-18 (Plan 05-01 complete — Phase 05 Integration and E2E Verification done; all 5 phases complete)*
+*Initialized: 2026-06-17 | Last updated: 2026-06-20 (v1.1 milestone started — Evidence Quality & Compliance Scoring; phases 6–9 defined)*

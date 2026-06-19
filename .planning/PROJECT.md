@@ -40,15 +40,32 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone was about evidence and compliance
 - Billing and subscription management — separate concern not related to compliance portal completeness
 
-## Next Milestone Goals
+## Current Milestone: v1.1 — Evidence Quality & Compliance Scoring
 
-Run `/gsd-new-milestone` to define v1.1 scope. Candidates from v2 backlog:
+**Status:** Planning | **Started:** 2026-06-20
 
-- EVID-V2-01: Evidence expiry / staleness flagging
-- EVID-V2-03: Bulk evidence upload (zip + manifest)
+**Goal:** Make the compliance evidence lifecycle trustworthy end-to-end — from first upload through audit export — by wiring the broken status buttons, adding staleness detection, bulk upload, an immutable audit trail, and a tenant-level compliance score operators can trust.
+
+**Target features (13 requirements, 4 phases):**
+- STATUS-01/02: Wire Mark Compliant / Mark Non-Compliant buttons to backend (`PATCH /api/assets/{id}/compliance/status`)
+- STALE-01/02: Flag automated evidence older than configurable threshold (default 7 days) as stale
+- COC-01/02: Immutable chain-of-custody log per evidence record (create/update/delete events)
+- BULK-01/02/03: Bulk evidence upload via zip file + JSON manifest mapping files to control IDs
+- SCORE-01/02/03: Tenant compliance score (severity-weighted %) with per-framework breakdown on dashboard
+- UI-01: Source badge `text-[10px]` → `text-xs` WCAG AA fix (carry-forward from v1.0 audit F-08)
+
+**Phase plan:** Phases 6–9 (continues v1.0 phase numbering)
+
+---
+
+## v2 Backlog Candidates
+
+Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Remaining candidates:
+
 - AUDIT-V2-01: Scheduled report generation (auto-email)
 - REM-V2-01: External ticketing system integration (Jira/ServiceNow webhook)
 - REM-V2-02: SLA tracking for overdue remediation tasks
+- Comment threads on controls
 - 10-provider CSPM posture scans (OCI, IBM, Alibaba, DigitalOcean, Cloudflare, Huawei, VMware now supported)
 
 ## Context
