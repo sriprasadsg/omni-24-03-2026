@@ -19,10 +19,19 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Test suite: 378 passed, 0 failed, 1 skipped (baseline for v1.1)
 - Cloud provider support expanded from 3 to 10 (AWS, GCP, Azure, OCI, IBM, Alibaba, DigitalOcean, Cloudflare, VMware, Huawei)
 
+**v1.1 Phase 6 shipped 2026-06-21:**
+
+- Compliance status override — `PATCH /api/assets/{id}/compliance/status` with tenant isolation, immutable `status_history` (changedBy/changedAt/previous_status), and `manual_override` flag
+- Frontend wired — "Mark Compliant / Mark Non-Compliant" buttons in `AssetComplianceList` call backend endpoint; success refreshes data, failure shows toast error
+- WCAG AA badge fix — evidence source badges use `text-xs` (previously non-standard `text-[10px]`)
+
 ## Requirements
 
 ### Validated
 
+- ✓ **Compliance status override** — PATCH endpoint persists status with immutable history, tenant isolation, manual_override flag (Phase 6)
+- ✓ **Frontend status buttons wired** — Mark Compliant/Non-Compliant call backend; toast on error; data refresh on success (Phase 6)
+- ✓ **WCAG AA source badges** — text-xs replaces text-[10px] for evidence source badges (Phase 6 / UI-01)
 - ✓ Python agent collects compliance telemetry and sends heartbeats to backend
 - ✓ `compliance_evidence_processor` maps agent check names to framework control IDs and writes evidence records
 - ✓ 30+ compliance frameworks seeded in database (SOC 2, ISO 27001, PCI-DSS, HIPAA, NIST, CIS, GDPR, CMMC, FedRAMP, HITRUST, DORA, NIS2, and more)
@@ -42,7 +51,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ## Current Milestone: v1.1 — Evidence Quality & Compliance Scoring
 
-**Status:** Planning | **Started:** 2026-06-20
+**Status:** In Progress (Phase 6 complete, Phase 7 next) | **Started:** 2026-06-20
 
 **Goal:** Make the compliance evidence lifecycle trustworthy end-to-end — from first upload through audit export — by wiring the broken status buttons, adding staleness detection, bulk upload, an immutable audit trail, and a tenant-level compliance score operators can trust.
 
@@ -99,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-20 — v1.0 milestone archived*
+*Last updated: 2026-06-21 after Phase 6 (asset-compliance-status-ui-fix)*

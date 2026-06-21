@@ -18,7 +18,7 @@
 
 **Plans:**
 
-- [x] 06-01-PLAN.md
+2/2 plans complete
 
 2/2 plans complete
 
