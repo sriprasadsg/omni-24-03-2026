@@ -1,10 +1,11 @@
 ---
 phase: 7
 slug: evidence-lifecycle-staleness-chain-of-custody
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-21
+reviewed_at: 2026-06-21
 ---
 
 # Phase 7 — UI Design Contract
