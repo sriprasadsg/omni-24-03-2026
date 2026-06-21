@@ -13,12 +13,21 @@ from fastapi import FastAPI, APIRouter, Depends
 
 logger = logging.getLogger(__name__)
 
+# Routers that MUST be present for the application to be usable.
+# A load failure for any of these will abort startup rather than
+# silently serve a broken app with missing endpoints.
+_REQUIRED_ROUTERS: frozenset[str] = frozenset({
+    "compliance_status_endpoints",
+})
+
 
 def _load(app: FastAPI, module_name: str, attr: str = "router", **kwargs) -> None:
     """Import *module_name*, then include ``getattr(module, attr)`` into *app*.
 
     Failures are logged at ERROR level and never propagate — every other router
-    still loads even if this one is broken.
+    still loads even if this one is broken.  For routers listed in
+    ``_REQUIRED_ROUTERS``, the exception is re-raised so startup fails fast
+    rather than running with a critical endpoint silently absent.
     """
     try:
         mod = importlib.import_module(module_name)
@@ -26,6 +35,8 @@ def _load(app: FastAPI, module_name: str, attr: str = "router", **kwargs) -> Non
         logger.debug("[Router] Loaded %s", module_name)
     except Exception as exc:
         logger.error("[Router] Failed to load %s: %s", module_name, exc)
+        if module_name in _REQUIRED_ROUTERS:
+            raise
 
 
 def register_all_routers(app: FastAPI) -> None:
