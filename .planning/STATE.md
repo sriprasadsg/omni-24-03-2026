@@ -4,13 +4,13 @@ milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 status: executing
 stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-06-22T00:00:00Z"
+last_updated: "2026-06-21T20:09:46.364Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 5
-  completed_plans: 2
-  percent: 30
+  completed_plans: 4
+  percent: 25
 ---
 
 # Project State
@@ -86,6 +86,9 @@ Status: Executing Phase 07
 - 07-01: Raw Motor db._db.evidence_audit_log used in _append_coc_entry to prevent TenantIsolatedCollection double-injecting tenantId from request context
 - 07-01: evidence_audit_log has no TTL index — compliance audit trails must be retained long-term per research Open Question 2
 - 07-01: compute_stale does not gate on systemGenerated/source — caller in 07-02 is responsible for filtering manual evidence before invoking it
+- 07-02: compliance_evidence_lifecycle_endpoints.py uses APIRouter() with NO prefix — serves both /api/settings and /api/compliance URL spaces
+- 07-02: _require_admin copied inline (not imported from settings_endpoints) to keep lifecycle endpoints file self-contained
+- 07-02: compliance_evidence_lifecycle_endpoints added to _REQUIRED_ROUTERS to fail startup fast on load error (T-07-09)
 
 ## Performance Metrics
 
@@ -105,6 +108,7 @@ Status: Executing Phase 07
 | Phase 06-asset-compliance-status-ui-fix P01 | ~1m | 3 tasks | 3 files |
 | Phase 06-asset-compliance-status-ui-fix P02 | ~2m | 3 tasks | 3 files |
 | 07-evidence-lifecycle-staleness-chain-of-custody | 01 | ~3m | 3 | 4 |
+| 07-evidence-lifecycle-staleness-chain-of-custody | 02 | ~5m | 3 | 4 |
 
 ## Last Session
 
@@ -135,6 +139,6 @@ Status: Executing Phase 07
 
 ## Session
 
-**Last session:** 2026-06-22T00:00:00Z
-**Stopped at:** Completed 07-01-PLAN.md
+**Last session:** 2026-06-21T20:09:46.353Z
+**Stopped at:** Completed 07-02-PLAN.md
 **Resume file:** None
