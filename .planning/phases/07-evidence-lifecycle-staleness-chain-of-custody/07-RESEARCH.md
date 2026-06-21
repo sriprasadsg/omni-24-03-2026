@@ -1,0 +1,686 @@
+# Phase 7: Evidence Lifecycle (Staleness + Chain-of-Custody) — Research
+
+**Researched:** 2026-06-21
+**Domain:** FastAPI/Python backend (MongoDB) + React/TypeScript/Tailwind frontend — compliance evidence staleness and immutable audit log
+**Confidence:** HIGH
+
+---
+
+<phase_requirements>
+## Phase Requirements
+
+| ID | Description | Research Support |
+|----|-------------|------------------|
+| STALE-01 | Automated evidence older than configurable threshold (default 7 days) flagged stale in control detail and compliance report | Read-time staleness computation on GET endpoints; `stale: bool` + `stale_days: int` added to evidence records in API responses |
+| STALE-02 | Staleness threshold configurable per-tenant via Settings page (min: 1, max: 365 days) | New `GET`/`PATCH` endpoints at `/api/settings/evidence-staleness`; stored as `{"type": "evidence_staleness", "thresholdDays": N, "tenantId": ...}` in `system_settings` |
+| COC-01 | Every create/update/delete of evidence appends an immutable entry to a per-evidence CoC log: actor, action type, timestamp, before/after snapshot | New `evidence_audit_log` MongoDB collection; helper `_append_coc_entry()` called from all 4 evidence create/delete entry points |
+| COC-02 | CoC log viewable from control detail view by users with `view:audit_log` permission | New `GET /api/compliance/evidence/{evidence_id}/audit-log` endpoint; CoC panel in `FrameworkDetail.tsx` gated on `hasPermission('view:audit_log')` |
+</phase_requirements>
+
+---
+
+## Summary
+
+Phase 7 adds two independent capabilities to the compliance evidence pipeline: staleness detection (STALE-01/02) and an immutable chain-of-custody log (COC-01/02). Both are self-contained and do not require changes to the existing evidence storage schema — they layer on top of it via read-time computation (staleness) and a new collection (CoC log).
+
+**Evidence storage is an embedded array.** The `asset_compliance` collection stores evidence as a subdocument array within each `{assetId, controlId}` document. The `control_evidence` collection stores direct-to-control evidence as top-level documents. Staleness applies to automated evidence (`systemGenerated: true` or `source: 'auto'`) keyed on `uploadedAt` timestamp. Manual evidence is explicitly excluded.
+
+**Staleness is read-time, not write-time.** Computing stale at read time (on GET) avoids a sweep job and is the correct architecture for a threshold that can be changed per-tenant at any time. The `stale` flag and `stale_days` are injected into API response payloads without mutating stored records.
+
+**CoC log is a new MongoDB collection.** An `evidence_audit_log` collection with an index on `evidenceId` + `tenantId` provides the immutable append-only pattern. `insert_one` only — no updates or deletes. The existing `audit.py` `AuditService` is a different collection (`audit_logs`) used for system-level events; the CoC log is evidence-specific and must be separate.
+
+**Primary recommendation:** New backend file `backend/compliance_evidence_lifecycle_endpoints.py` for the two settings endpoints + CoC GET endpoint (estimated ~120 lines). Staleness injection logic lives in a helper module `backend/evidence_staleness.py` (~40 lines). CoC write helper `_append_coc_entry()` lives in `backend/evidence_coc.py` (~30 lines), imported into `compliance_evidence_endpoints.py` and `compliance_status_endpoints.py`.
+
+---
+
+## Project Constraints (from CLAUDE.md)
+
+| Directive | Impact on Phase 7 |
+|-----------|-------------------|
+| Keep files under 500 lines | `compliance_evidence_endpoints.py` is at 447 lines — adding CoC write calls adds ~10 lines of helper invocations. Stays within limit if helper logic is extracted to `evidence_coc.py`. New endpoints go in `compliance_evidence_lifecycle_endpoints.py`. |
+| NEVER create files unless absolutely necessary — prefer editing existing files | CoC helper and staleness helper must be extracted to new files only because size constraint forces it. Settings endpoints and CoC GET endpoint go to a new file to avoid breaching the limit on `compliance_evidence_endpoints.py` and `settings_endpoints.py` (328 lines — safe to add ~40 lines there). |
+| NEVER commit secrets, credentials, or .env files | No impact |
+| Validate input at system boundaries | Staleness threshold PATCH endpoint must validate `thresholdDays`: integer, 1–365; reject with 422 if outside range |
+| ALWAYS run tests after code changes | Tests required: staleness computation logic unit test; CoC append integration test; settings GET/PATCH test |
+
+---
+
+## Architectural Responsibility Map
+
+| Capability | Primary Tier | Secondary Tier | Rationale |
+|------------|-------------|----------------|-----------|
+| Staleness threshold storage | API / Backend | Database / Storage | Tenant-specific setting stored in MongoDB `system_settings`; no client-side logic |
+| Staleness computation | API / Backend | — | Read-time computation on GET endpoints; frontend only renders the `stale` flag it receives |
+| Stale badge display | Browser / Client | — | Renders `ev.stale === true` — pure presentational, no computation |
+| CoC log writes | API / Backend | Database / Storage | `insert_one` on every evidence mutation; frontend never writes directly |
+| CoC log reads | API / Backend | Browser / Client | Backend exposes GET endpoint; frontend fetches on panel expand |
+| Settings UI (threshold) | Browser / Client | API / Backend | New "Evidence" tab in SettingsDashboard calls backend GET/PATCH |
+| CoC panel rendering | Browser / Client | — | Collapsible panel in expanded control row, gated on `view:audit_log` |
+
+---
+
+## Standard Stack
+
+### Core
+| Library | Version | Purpose | Why Standard |
+|---------|---------|---------|--------------|
+| FastAPI | (existing) | New staleness/CoC endpoints | Already used throughout backend |
+| Motor / PyMongo | (existing) | `insert_one` for CoC log; `find` for CoC GET | Already used; Motor is the async MongoDB driver |
+| Pydantic | v2 (existing) | Request body validation for threshold PATCH | Already used for all request models |
+| React + TypeScript | (existing) | Stale badge, CoC panel, Settings tab | Already used throughout frontend |
+| Tailwind CSS | (existing) | All new UI styling | Project-wide design system |
+
+No new packages are required. Phase 7 is implemented entirely using the existing stack.
+
+### Alternatives Considered
+| Instead of | Could Use | Tradeoff |
+|------------|-----------|----------|
+| Read-time staleness computation | Scheduled sweep job (background task) | Sweep adds infra complexity; breaks when threshold changes mid-flight. Read-time is correct and simpler. |
+| New `evidence_audit_log` collection | Embedding CoC in the evidence subdocument | Embedded array grows unboundedly with every update; separate collection allows indexed lookups and keeps evidence records lean |
+| Separate `evidence_coc.py` helper | Inline in `compliance_evidence_endpoints.py` | Inline would push the file past 500 lines |
+
+---
+
+## Package Legitimacy Audit
+
+No external packages are introduced in this phase. All implementation uses existing project dependencies.
+
+**Packages removed due to SLOP verdict:** none
+**Packages flagged as suspicious:** none
+
+---
+
+## Architecture Patterns
+
+### System Architecture Diagram
+
+```
+[Browser / React]
+    |
+    |-- GET /api/settings/evidence-staleness ──────────────────────────────────────┐
+    |-- PATCH /api/settings/evidence-staleness ────────────────────────────────────┤
+    |                                                                               ▼
+    |-- GET /api/compliance/evidence/{id}/audit-log ──────────────>  [FastAPI — compliance_evidence_lifecycle_endpoints.py]
+    |                                                                               |
+    |-- GET /api/compliance/evidence  (existing)                        system_settings collection (threshold)
+    |-- GET /api/assets/{id}/compliance (existing)                      evidence_audit_log collection (CoC)
+    |       |                                                            (tenant-isolated)
+    |       ▼
+    |   [FastAPI — compliance_evidence_endpoints.py]
+    |       |── reads asset_compliance / control_evidence
+    |       |── injects stale=bool, stale_days=int  ◄── evidence_staleness.py helper
+    |       |
+    |   POST upload / DELETE delete evidence
+    |       |── writes asset_compliance / control_evidence
+    |       └── _append_coc_entry()  ◄────────────────── evidence_coc.py helper
+    |                                                             |
+    |                                                             ▼
+    |                                               [evidence_audit_log collection]
+    |                                               {evidenceId, tenantId, actor, action_type,
+    |                                                timestamp, snapshot_before, snapshot_after}
+    |
+    |-- FrameworkDetail.tsx
+    |       |── expanded control row → CoC panel
+    |       |── fetches CoC on expand (lazy)
+    |       └── gated: hasPermission('view:audit_log')
+    |
+    └── SettingsDashboard.tsx → "Evidence" tab
+            └── GET/PATCH staleness threshold
+```
+
+### Recommended Project Structure
+
+```
+backend/
+├── compliance_evidence_endpoints.py      # Existing — add _append_coc_entry() calls (+~10 lines)
+├── compliance_status_endpoints.py        # Existing — add _append_coc_entry() calls (+~5 lines)
+├── evidence_staleness.py                 # NEW — staleness computation helper (~40 lines)
+├── evidence_coc.py                       # NEW — _append_coc_entry() helper (~30 lines)
+├── compliance_evidence_lifecycle_endpoints.py  # NEW — staleness settings + CoC GET endpoints (~120 lines)
+├── router_registry.py                    # Existing — add _load(..., "compliance_evidence_lifecycle_endpoints")
+├── database.py                           # Existing — add evidence_audit_log indexes
+
+components/
+├── AssetComplianceList.tsx               # Existing — add stale badge rendering
+├── FrameworkDetail.tsx                   # Existing — add CoC panel below AssetComplianceList
+├── SettingsDashboard.tsx                 # Existing — add 'evidence' to SettingsView type + tab + panel
+
+services/
+├── apiService.ts                         # Existing — add fetchStalenessThreshold, saveStalenessThreshold, fetchEvidenceAuditLog
+```
+
+### Pattern 1: Read-Time Staleness Injection
+
+**What:** A helper function computes `stale` and `stale_days` by comparing `uploadedAt` against `(now - threshold_days)`. Called in every GET path that returns evidence records.
+
+**When to use:** Any time evidence records are returned to the frontend.
+
+```python
+# Source: [ASSUMED] — based on existing project datetime patterns
+from datetime import datetime, timezone, timedelta
+
+def compute_stale(uploaded_at: str, threshold_days: int) -> dict:
+    """Return stale flag and days-old for an evidence record.
+    Only applies to automated evidence; manual evidence is never stale.
+    """
+    try:
+        dt = datetime.fromisoformat(uploaded_at.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return {"stale": False, "stale_days": 0}
+    now = datetime.now(timezone.utc)
+    age_days = (now - dt).days
+    stale = age_days >= threshold_days
+    return {"stale": stale, "stale_days": age_days}
+```
+
+**GET threshold for a tenant:**
+
+```python
+# Source: [ASSUMED] — follows existing system_settings pattern in settings_endpoints.py
+async def get_staleness_threshold(db, tenant_id: str | None) -> int:
+    """Fetch per-tenant staleness threshold, defaulting to 7 days."""
+    if tenant_id:
+        doc = await db._db.system_settings.find_one(
+            {"type": "evidence_staleness", "tenantId": tenant_id}
+        )
+        if doc and isinstance(doc.get("thresholdDays"), int):
+            return doc["thresholdDays"]
+    # Global fallback
+    doc = await db._db.system_settings.find_one(
+        {"type": "evidence_staleness", "tenantId": {"$exists": False}}
+    )
+    if doc and isinstance(doc.get("thresholdDays"), int):
+        return doc["thresholdDays"]
+    return 7  # default
+```
+
+### Pattern 2: Immutable CoC Append
+
+**What:** A standalone async helper that inserts one record into `evidence_audit_log`. Called after every successful evidence mutation. Never updates or deletes.
+
+**When to use:** After `upload_compliance_evidence`, `delete_compliance_evidence`, `upload_control_direct_evidence`, `delete_control_direct_evidence`, and any future evidence mutation endpoint.
+
+```python
+# Source: [ASSUMED] — pattern inferred from audit.py AuditService
+async def _append_coc_entry(
+    db,
+    evidence_id: str,
+    tenant_id: str,
+    actor: str,
+    action_type: str,   # "create" | "update" | "delete"
+    snapshot_before: dict | None,
+    snapshot_after: dict | None,
+) -> None:
+    """Append an immutable chain-of-custody entry. Fire-and-forget; never raises."""
+    try:
+        await db._db.evidence_audit_log.insert_one({
+            "evidenceId":      evidence_id,
+            "tenantId":        tenant_id,
+            "actor":           actor,
+            "action_type":     action_type,
+            "timestamp":       datetime.now(timezone.utc).isoformat(),
+            "snapshot_before": snapshot_before,
+            "snapshot_after":  snapshot_after,
+        })
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("CoC append failed: %s", e)
+```
+
+**Key design decision:** `_append_coc_entry` must use `db._db` (the raw Motor database object, bypassing `TenantIsolatedDatabase`) to avoid the `TenantIsolatedCollection.insert_one` auto-injecting `tenantId` from context — we set `tenantId` explicitly in the document, which is correct for an audit log. See Pattern 3 for the safe approach.
+
+**Alternatively (safer):** Call `db.evidence_audit_log.insert_one(...)` through the `TenantIsolatedDatabase` wrapper, which will automatically inject `tenantId` from context (this is the correct behavior since the endpoint has already authenticated the tenant). This avoids needing raw `db._db` access.
+
+### Pattern 3: Settings Endpoint Structure
+
+**What:** GET+PATCH at `/api/settings/evidence-staleness`. Follows the exact pattern of `GET/POST /api/settings/llm` in `settings_endpoints.py`.
+
+**Key difference from LLM settings:** The staleness settings endpoint is added to `compliance_evidence_lifecycle_endpoints.py`, NOT to `settings_endpoints.py`, because:
+- `settings_endpoints.py` is at 328 lines — safe to add there, but separation keeps domain concerns clean
+- The new file is registered in `router_registry.py` alongside `settings_endpoints`
+
+**Validation rule:** `thresholdDays` must be an integer 1–365. Use Pydantic `Field(ge=1, le=365)`.
+
+```python
+# Source: [ASSUMED] — follows existing PATCH patterns in compliance_status_endpoints.py
+from pydantic import BaseModel, Field
+
+class StalenessThresholdUpdate(BaseModel):
+    thresholdDays: int = Field(ge=1, le=365)
+```
+
+### Pattern 4: CoC GET Endpoint
+
+**What:** `GET /api/compliance/evidence/{evidence_id}/audit-log` returns all CoC entries for an evidence record, scoped by tenant.
+
+**Auth gate:** Requires `view:audit_log` permission, which is already defined in `types.ts` and granted to `admin`, `Tenant Admin`, `user`, `analyst`, `security_analyst` roles via `rbac_service.py`.
+
+```python
+# Source: [ASSUMED] — follows existing aggregation patterns in compliance_evidence_endpoints.py
+@router.get("/api/compliance/evidence/{evidence_id}/audit-log")
+async def get_evidence_audit_log(
+    evidence_id: str,
+    current_user=Depends(get_current_user),
+):
+    db = get_database()
+    user_role = getattr(current_user, "role", "")
+    is_super = user_role in _SUPER_ROLES
+    tenant_id = getattr(current_user, "tenant_id", None)
+
+    query: dict = {"evidenceId": evidence_id}
+    if not is_super:
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        query["tenantId"] = tenant_id
+
+    cursor = db._db.evidence_audit_log.find(query, {"_id": 0}).sort("timestamp", 1)
+    entries = await cursor.to_list(length=500)
+    return {"evidence_id": evidence_id, "entries": entries}
+```
+
+### Anti-Patterns to Avoid
+
+- **Adding CoC to the evidence subdocument array:** Evidence is an embedded array in `asset_compliance`. Embedding CoC there means unbounded growth per document and no indexed lookup. Use a separate collection.
+- **Write-time staleness flag:** Storing `stale: True` in the evidence record creates a stale flag that may be incorrect the moment the threshold changes. Always compute at read time.
+- **Using the general `audit_logs` collection for CoC:** The `audit_logs` collection has a 180-day TTL. CoC logs for compliance evidence should not expire on the same schedule. Use `evidence_audit_log` (no TTL, or a separate longer TTL to be defined by the planner).
+- **Applying staleness to manual evidence:** STALE-01 explicitly says "automated evidence." The `systemGenerated: True` or `source: 'auto'` check must gate all staleness logic.
+- **Using TenantIsolatedCollection for CoC reads without being careful:** When reading CoC in the GET endpoint, use `db._db.evidence_audit_log.find(...)` with explicit `tenantId` filter instead of going through `TenantIsolatedDatabase`, because the `aggregate()` wrapper injects a `$match` at the front which may conflict with the evidence_id filter ordering. Alternatively use `find()` through the wrapper (which calls `_inject_tenant_id`), but test that the `tenantId` field is correct in the query.
+
+---
+
+## Don't Hand-Roll
+
+| Problem | Don't Build | Use Instead | Why |
+|---------|-------------|-------------|-----|
+| Staleness age arithmetic | Custom time diff logic in each GET handler | `evidence_staleness.py` helper with `(now - dt).days` | Single test point; handles timezone-aware isoformat parsing correctly |
+| Per-tenant setting lookup with global fallback | Duplicated query patterns | `get_staleness_threshold(db, tenant_id)` helper | Follows existing `_get_raw_llm_settings` pattern exactly |
+| Audit log entry structure | Ad-hoc dict construction at call sites | `_append_coc_entry()` helper | Uniform schema; single place to add fields |
+| Frontend permission check for CoC panel | Manual role string comparison in TSX | `hasPermission('view:audit_log')` — already implemented in `App.tsx` | Pattern established at line 406 in `FrameworkDetail.tsx` |
+
+**Key insight:** The existing `TenantIsolatedDatabase` wrapper handles tenant isolation automatically on most collection operations. New collections (`evidence_audit_log`) automatically get tenant isolation when accessed via `db.evidence_audit_log` (not `db._db`). Confirm whether `_db.evidence_audit_log.insert_one` or `db.evidence_audit_log.insert_one` is correct for CoC writes based on whether the tenant context is set in the request lifecycle.
+
+---
+
+## Common Pitfalls
+
+### Pitfall 1: Staleness threshold fetched once but evidence list is large
+
+**What goes wrong:** If the GET endpoint for evidence fetches the staleness threshold inside a loop over evidence records, it makes N+1 database calls.
+
+**Why it happens:** Threshold must be fetched before processing the evidence list.
+
+**How to avoid:** Fetch the threshold once before iterating: `threshold = await get_staleness_threshold(db, tenant_id)` then pass it to `compute_stale(ev["uploadedAt"], threshold)` for each evidence item.
+
+**Warning signs:** Slow evidence GET responses when there are many evidence records.
+
+---
+
+### Pitfall 2: CoC called after a failed evidence operation
+
+**What goes wrong:** If `_append_coc_entry` is called before the evidence write completes, or if called in a `finally` block, it records an action that may not have happened.
+
+**Why it happens:** Misplacing the CoC call in the control flow.
+
+**How to avoid:** Always call `_append_coc_entry` only after the evidence mutation `await` returns successfully. For deletes, call it after the `$pull` succeeds.
+
+**Warning signs:** CoC log shows entries for evidence records that do not exist.
+
+---
+
+### Pitfall 3: `audit:read` vs `view:audit_log` — wrong permission string
+
+**What goes wrong:** The UI-SPEC says `hasPermission('audit:read')` but `types.ts` defines `'view:audit_log'` as the permission. Using `'audit:read'` results in `hasPermission` always returning `false` because the string is not in the `Permission` type union.
+
+**Why it happens:** UI-SPEC was written independently of the permission enum.
+
+**How to avoid:** Use `'view:audit_log'` as the permission string everywhere. This is already defined in `types.ts` at line 205 and granted to `admin`, `Tenant Admin`, `user`, `analyst`, `security_analyst` roles in `rbac_service.py`.
+
+**Warning signs:** CoC panel never appears even for admin users.
+
+---
+
+### Pitfall 4: `compliance_evidence_endpoints.py` exceeds 500 lines
+
+**What goes wrong:** Adding CoC calls and staleness injection inline pushes the file over the 500-line CLAUDE.md limit.
+
+**Why it happens:** File is currently at 447 lines. Each CoC call site adds ~2–3 lines; staleness injection in the GET handler adds ~10 lines. Total addition: ~20 lines, reaching ~467 lines. Safe, but only if helper logic is fully extracted.
+
+**How to avoid:** All staleness computation logic goes in `evidence_staleness.py`. All CoC document construction goes in `evidence_coc.py`. Only the call sites (`await _append_coc_entry(...)`) go in `compliance_evidence_endpoints.py`.
+
+**Warning signs:** Line count exceeds 500 during implementation.
+
+---
+
+### Pitfall 5: Missing index on `evidence_audit_log`
+
+**What goes wrong:** CoC GET queries scan the entire collection if no index exists on `evidenceId`.
+
+**Why it happens:** New collection is not added to `database.py` index creation block.
+
+**How to avoid:** Add indexes in `database.py` `connect_to_mongo()`:
+```python
+await mongodb.db.evidence_audit_log.create_index([("evidenceId", 1), ("tenantId", 1)])
+await mongodb.db.evidence_audit_log.create_index([("tenantId", 1), ("timestamp", -1)])
+```
+
+---
+
+### Pitfall 6: Staleness not applied to system-generated evidence in `control_evidence` collection
+
+**What goes wrong:** Staleness is applied to `asset_compliance` evidence but not to `control_evidence` (the direct-to-control upload collection used by `ControlEvidenceUploadModal`).
+
+**Why it happens:** There are two evidence storage paths. GET /api/compliance/controls/{control_id}/evidence returns both.
+
+**How to avoid:** Apply staleness injection to both the `manual_docs` (from `control_evidence`) and `system_docs` (from `asset_compliance`) returned by `get_control_evidence`. Note: manual evidence (`source: 'manual'`, `systemGenerated: False`) must never be flagged stale regardless of collection.
+
+---
+
+## Code Examples
+
+### Staleness Injection in GET Handler
+
+```python
+# Source: [ASSUMED] — pattern for injecting stale field into GET response
+async def _inject_staleness(evidence_list: list, threshold_days: int) -> list:
+    """Add stale/stale_days to each automated evidence item in-place."""
+    for ev in evidence_list:
+        is_automated = ev.get("systemGenerated") or ev.get("source") == "auto"
+        if is_automated:
+            uploaded_at = ev.get("uploadedAt") or ev.get("uploaded_at", "")
+            result = compute_stale(uploaded_at, threshold_days)
+            ev["stale"] = result["stale"]
+            ev["stale_days"] = result["stale_days"]
+        else:
+            ev["stale"] = False
+            ev["stale_days"] = 0
+    return evidence_list
+```
+
+### Stale Badge in AssetComplianceList.tsx
+
+```tsx
+{/* Source: [ASSUMED] — follows existing badge pattern at lines 152-155 in AssetComplianceList.tsx */}
+{isAutomated && ev.stale && (
+    <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 flex items-center gap-0.5">
+        <ClockIcon size={10} className="mr-0.5" />Stale
+    </span>
+)}
+```
+
+### CoC Panel Permission Gate in FrameworkDetail.tsx
+
+```tsx
+{/* Source: [ASSUMED] — follows existing canManageEvidence pattern at line 407 */}
+const canViewCoC = hasPermission('view:audit_log');
+// ... inside expanded control row, below <AssetComplianceList />:
+{canViewCoC && <ChainOfCustodyPanel controlId={control.id} assetId={...} />}
+```
+
+### Settings Endpoint Pattern
+
+```python
+# Source: [ASSUMED] — follows GET/POST /api/settings/llm pattern in settings_endpoints.py
+@router.get("/api/settings/evidence-staleness")
+async def get_evidence_staleness(current_user=Depends(get_current_user)):
+    db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    threshold = await get_staleness_threshold(db, tenant_id)
+    return {"thresholdDays": threshold}
+
+@router.patch("/api/settings/evidence-staleness")
+async def patch_evidence_staleness(
+    body: StalenessThresholdUpdate,
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    raw = db._db if hasattr(db, "_db") else db
+    doc = {"type": "evidence_staleness", "thresholdDays": body.thresholdDays}
+    if tenant_id:
+        doc["tenantId"] = tenant_id
+        await raw.system_settings.update_one(
+            {"type": "evidence_staleness", "tenantId": tenant_id},
+            {"$set": doc}, upsert=True,
+        )
+    else:
+        await raw.system_settings.update_one(
+            {"type": "evidence_staleness", "tenantId": {"$exists": False}},
+            {"$set": doc}, upsert=True,
+        )
+    return doc
+```
+
+---
+
+## Codebase Findings
+
+### Evidence Record Structure (Confirmed)
+
+**`asset_compliance` collection** — evidence stored as embedded array [VERIFIED: codebase grep]:
+
+```json
+{
+  "assetId": "asset-xxx",
+  "controlId": "A.8.22",
+  "tenantId": "tenant-abc",
+  "status": "Pending_Review",
+  "lastUpdated": "2026-06-21T10:00:00+00:00",
+  "evidence": [
+    {
+      "id": "ev-manual-abc123",
+      "name": "firewall-policy.pdf",
+      "url": "/static/evidence/abc.pdf",
+      "type": "application/pdf",
+      "uploadedAt": "2026-06-21T10:00:00+00:00",
+      "assetId": "asset-xxx",
+      "controlId": "A.8.22",
+      "tenantId": "tenant-abc",
+      "uploaded_by": "admin@tenant.com",
+      "description": "Firewall policy document",
+      "source": "manual",
+      "systemGenerated": false
+    }
+  ]
+}
+```
+
+**`control_evidence` collection** — evidence stored as top-level document [VERIFIED: codebase grep].
+
+### All Evidence Entry Points (for CoC-01 Interceptors)
+
+| Operation | File | Function | Action Type |
+|-----------|------|----------|-------------|
+| Asset-scoped upload | `compliance_evidence_endpoints.py` | `upload_compliance_evidence` (line 34) | `create` |
+| Asset-scoped delete | `compliance_evidence_endpoints.py` | `delete_compliance_evidence` (line 238) | `delete` |
+| Control-direct upload | `compliance_evidence_endpoints.py` | `upload_control_direct_evidence` (line 303) | `create` |
+| Control-direct delete | `compliance_evidence_endpoints.py` | `delete_control_direct_evidence` (line 416) | `delete` |
+| Status override (writes status history, not evidence itself) | `compliance_status_endpoints.py` | `patch_asset_compliance_status` | N/A — status, not evidence |
+
+There is **no update path** for evidence in the current codebase — evidence is created or deleted, never patched. COC-01 requires create+update+delete, but update does not currently exist. Plan should include `update` as an action type for future-proofing but only `create` and `delete` need interceptors now.
+
+### Tenant Settings Pattern (Confirmed)
+
+The settings pattern uses `system_settings` collection with a `type` discriminator and optional `tenantId` [VERIFIED: codebase grep]:
+
+- `{"type": "llm", "tenantId": "abc"}` — per-tenant
+- `{"type": "llm"}` — global default (no `tenantId` field)
+
+For staleness: `{"type": "evidence_staleness", "tenantId": "abc", "thresholdDays": 14}`.
+
+The `_require_admin` helper in `settings_endpoints.py` checks `_SETTINGS_ADMIN_ROLES` — use the same check for the new endpoint.
+
+### Permission System (Confirmed)
+
+`hasPermission('view:audit_log')` is the correct string [VERIFIED: codebase grep]:
+- Defined in `types.ts` at line 205
+- Granted to `admin`, `Tenant Admin`, `user`, `analyst`, `security_analyst`, `incident_responder` in `rbac_service.py`
+- Implemented in `App.tsx` lines 1042–1098 — checks `currentUser.permissions` array
+
+The UI-SPEC mistakenly says `'audit:read'` — the correct permission is `'view:audit_log'`.
+
+### SettingsDashboard Tab Pattern (Confirmed)
+
+`type SettingsView = 'users' | 'roles' | ...` at line 64 of `SettingsDashboard.tsx`. Add `'evidence'` to this union. The existing tab nav uses icon+label buttons — add a `ClockIcon` + "Evidence" tab. The `SettingsDashboard` is at 529 lines. Adding an "Evidence" tab inline (input + save button + fetch logic) will likely exceed 500 lines. **Recommend:** Extract to a standalone `EvidenceSettings.tsx` component (~60 lines) and import it.
+
+### File Size Budget
+
+| File | Current Lines | Expected Addition | New Total | Safe? |
+|------|---------------|-------------------|-----------|-------|
+| `compliance_evidence_endpoints.py` | 447 | +12 (CoC calls at 4 sites) | ~459 | Yes |
+| `settings_endpoints.py` | 328 | 0 (new file instead) | 328 | Yes |
+| `SettingsDashboard.tsx` | 529 | +30 (tab entry + import) | ~559 | NO — extract to `EvidenceSettings.tsx` |
+| `FrameworkDetail.tsx` | 854 | +50 (CoC panel import + mount) | ~904 | Already over 500 — existing violation; add only minimal mount code, extract panel to `ChainOfCustodyPanel.tsx` |
+| `AssetComplianceList.tsx` | 232 | +8 (stale badge) | ~240 | Yes |
+
+**Critical planning note:** `FrameworkDetail.tsx` is already at 854 lines — well over the 500-line limit but an existing violation. The CoC panel must be a separate component `ChainOfCustodyPanel.tsx` to keep the addition minimal.
+
+---
+
+## State of the Art
+
+| Old Approach | Current Approach | When Changed | Impact |
+|--------------|------------------|--------------|--------|
+| No staleness | Read-time staleness computation | Phase 7 | Evidence older than threshold is flagged in GET responses |
+| No CoC | Immutable `evidence_audit_log` collection | Phase 7 | Every create/delete logged |
+
+**No deprecated patterns apply.** This phase introduces new capabilities; no existing patterns are removed.
+
+---
+
+## Assumptions Log
+
+| # | Claim | Section | Risk if Wrong |
+|---|-------|---------|---------------|
+| A1 | `_append_coc_entry` should use `db._db.evidence_audit_log` (raw Motor) for writes to avoid double-tenantId injection | Code Examples / Pitfall 4 | CoC entries may have incorrect tenantId if `TenantIsolatedCollection.insert_one` auto-injects from context AND we also pass it explicitly. Use one path consistently. |
+| A2 | Staleness settings endpoint should go in new `compliance_evidence_lifecycle_endpoints.py` rather than `settings_endpoints.py` | Architecture Patterns | Could go in settings_endpoints.py (328 lines is safe) — planner can decide either way |
+| A3 | `FrameworkDetail.tsx` CoC panel mounts per-control (fetches CoC for all evidence of that control) | Architecture Patterns | If CoC is per-evidence-ID, the frontend needs to know which evidence IDs belong to the control — may need a different API shape |
+| A4 | `thresholdDays` stored as integer in `system_settings`; `get_staleness_threshold` returns int with default 7 | Code Examples | If stored as string by the PATCH handler, comparison fails silently |
+
+---
+
+## Open Questions (RESOLVED)
+
+1. **CoC granularity: per-evidence or per-control?** (RESOLVED — 07-02-T1)
+   - What we know: COC-02 says "the chain-of-custody log for a control's evidence" — implying per-control view
+   - What's unclear: The UI-SPEC shows `GET /api/compliance/evidence/{evidence_id}/audit-log` — per evidence ID. But the CoC panel sits on the control detail view, which shows multiple evidence items. Should the panel aggregate all evidence CoC entries for the control, or show per-evidence-ID CoC on demand?
+   - Recommendation: The planner should define the API as `GET /api/compliance/controls/{control_id}/audit-log?asset_id={asset_id}` to aggregate all CoC entries for a control's evidence, matching how the panel is positioned in the UI.
+   - **Resolution:** 07-02-T1 provides BOTH endpoints: per-evidence (`/api/compliance/evidence/{evidence_id}/audit-log`) AND control-level aggregation (`/api/compliance/controls/{control_id}/audit-log`). Panel uses control-level aggregation.
+
+2. **TTL for `evidence_audit_log`?** (RESOLVED — 07-01-T3)
+   - What we know: `audit_logs` has a 180-day TTL. `evidence_audit_log` has no TTL defined.
+   - What's unclear: Compliance audit trails should be immutable and long-lived (7+ years for some frameworks). A TTL may be inappropriate.
+   - Recommendation: No TTL for `evidence_audit_log`. Add a comment in `database.py` explaining the intentional absence.
+   - **Resolution:** 07-01-T3 enforces no TTL with acceptance criterion: `grep -c 'evidence_audit_log.*expireAfterSeconds' backend/database.py` returns 0.
+
+3. **Staleness in compliance reports (STALE-01 mentions "compliance report")?** (RESOLVED — deferred)
+   - What we know: STALE-01 says "flagged stale in the control detail view and in the compliance report." The compliance report is generated by `compliance_reports_endpoints.py`.
+   - What's unclear: Plan 07-01 mentions only backend staleness field. Should the PDF/Excel report also mark stale evidence?
+   - Recommendation: Out of scope for the planner unless STALE-01 is explicitly prioritized. The backend staleness computation helper can be reused by the report generator in a future phase.
+   - **Resolution:** Deferred to future phase. `compute_stale` helper is reusable. Phase 7 scope covers control detail view only.
+
+---
+
+## Environment Availability
+
+Step 2.6: SKIPPED — no external dependencies. Phase 7 uses only existing MongoDB and the existing FastAPI/React stack. No new CLIs, services, or runtimes required.
+
+---
+
+## Validation Architecture
+
+### Test Framework
+
+| Property | Value |
+|----------|-------|
+| Framework | pytest (existing) with `asyncio.run()` pattern for async tests |
+| Config file | No dedicated `pytest.ini` — tests run directly with `pytest` |
+| Quick run command | `pytest backend/tests/ -x -q` |
+| Full suite command | `pytest backend/tests/ -q` |
+
+### Phase Requirements → Test Map
+
+| Req ID | Behavior | Test Type | Automated Command | File Exists? |
+|--------|----------|-----------|-------------------|-------------|
+| STALE-01 | `compute_stale("2026-06-01T00:00:00+00:00", 7)` returns `{"stale": True, "stale_days": 20}` | unit | `pytest backend/tests/test_evidence_lifecycle.py::test_staleness_computation -x` | ❌ Wave 0 |
+| STALE-01 | `compute_stale(...)` on manual evidence never sets `stale: True` | unit | `pytest backend/tests/test_evidence_lifecycle.py::test_staleness_manual_excluded -x` | ❌ Wave 0 |
+| STALE-02 | `GET /api/settings/evidence-staleness` returns `{"thresholdDays": 7}` for new tenant | integration | `pytest backend/tests/test_evidence_lifecycle.py::test_get_staleness_threshold_default -x` | ❌ Wave 0 |
+| STALE-02 | `PATCH /api/settings/evidence-staleness` with `thresholdDays: 14` persists and is returned | integration | `pytest backend/tests/test_evidence_lifecycle.py::test_patch_staleness_threshold -x` | ❌ Wave 0 |
+| STALE-02 | `PATCH /api/settings/evidence-staleness` with `thresholdDays: 0` returns 422 | unit | `pytest backend/tests/test_evidence_lifecycle.py::test_staleness_threshold_validation -x` | ❌ Wave 0 |
+| COC-01 | Uploading evidence creates a CoC entry with `action_type: "create"` | integration | `pytest backend/tests/test_evidence_lifecycle.py::test_coc_create_entry -x` | ❌ Wave 0 |
+| COC-01 | Deleting evidence creates a CoC entry with `action_type: "delete"` | integration | `pytest backend/tests/test_evidence_lifecycle.py::test_coc_delete_entry -x` | ❌ Wave 0 |
+| COC-02 | `GET /api/compliance/evidence/{id}/audit-log` returns CoC entries for authorized user | integration | `pytest backend/tests/test_evidence_lifecycle.py::test_get_coc_log -x` | ❌ Wave 0 |
+| COC-02 | `GET /api/compliance/evidence/{id}/audit-log` returns 403 for wrong tenant | integration | `pytest backend/tests/test_evidence_lifecycle.py::test_coc_tenant_isolation -x` | ❌ Wave 0 |
+
+### Sampling Rate
+
+- **Per task commit:** `pytest backend/tests/test_evidence_lifecycle.py -x -q`
+- **Per wave merge:** `pytest backend/tests/ -q`
+- **Phase gate:** Full suite green before `/gsd-verify-work`
+
+### Wave 0 Gaps
+
+- [ ] `backend/tests/test_evidence_lifecycle.py` — covers all STALE and COC requirements
+- [ ] Framework: `asyncio.run()` pattern (existing; no install needed)
+- [ ] Mock DB: use `mongomock_motor.AsyncMongoMockClient` (existing pattern from test_alerts_and_ai.py)
+
+---
+
+## Security Domain
+
+### Applicable ASVS Categories
+
+| ASVS Category | Applies | Standard Control |
+|---------------|---------|-----------------|
+| V2 Authentication | no — endpoints use existing `Depends(get_current_user)` | — |
+| V3 Session Management | no | — |
+| V4 Access Control | yes — CoC GET requires `view:audit_log` permission; settings PATCH requires `_require_admin` | `hasPermission('view:audit_log')` + `_require_admin()` |
+| V5 Input Validation | yes — `thresholdDays` must be 1–365 | Pydantic `Field(ge=1, le=365)` |
+| V6 Cryptography | no | — |
+
+### Known Threat Patterns
+
+| Pattern | STRIDE | Standard Mitigation |
+|---------|--------|---------------------|
+| Cross-tenant CoC access | Information Disclosure | `tenantId` filter on every CoC query; non-super callers must have matching tenant |
+| CoC log tampering | Tampering | No UPDATE/DELETE routes for `evidence_audit_log`; use `insert_one` only |
+| Threshold value injection | Tampering | Pydantic validation; integer type enforced |
+| Unauthorized threshold read | Information Disclosure | No additional protection needed — staleness threshold is non-sensitive; GET is authenticated but not restricted to admin |
+
+---
+
+## Sources
+
+### Primary (HIGH confidence)
+- Codebase — `backend/compliance_evidence_endpoints.py` (all 447 lines read) — evidence schema, all create/delete entry points confirmed
+- Codebase — `backend/settings_endpoints.py` (all 328 lines read) — per-tenant settings pattern, `_require_admin`, `system_settings` collection usage
+- Codebase — `backend/database.py` (300 lines read) — `TenantIsolatedDatabase`, index creation pattern, `audit_logs` TTL
+- Codebase — `backend/audit.py` — existing `audit_logs` pattern (separate from CoC)
+- Codebase — `backend/rbac_service.py` — `view:audit_log` granted to which roles
+- Codebase — `types.ts` — `Permission` type union, `AssetCompliance` interface
+- Codebase — `components/AssetComplianceList.tsx` — badge rendering pattern, evidence row structure
+- Codebase — `components/FrameworkDetail.tsx` — `hasPermission` usage, accordion pattern, component line count
+- Codebase — `components/SettingsDashboard.tsx` — `SettingsView` type, line count, tab pattern
+- Codebase — `.planning/phases/07-.../07-UI-SPEC.md` — approved UI design contract
+- Codebase — `backend/router_registry.py` — how to register new router module
+- Codebase — `backend/compliance_status_endpoints.py` — precedent for extracting compliance endpoints to separate file
+
+### Secondary (MEDIUM confidence)
+- `REQUIREMENTS.md` — STALE-01/02, COC-01/02 requirements confirmed
+- `STATE.md` — phase 7 decisions and prior phase patterns
+
+### Tertiary (LOW confidence)
+- None
+
+---
+
+## Metadata
+
+**Confidence breakdown:**
+- Standard stack: HIGH — no new packages; existing stack confirmed
+- Architecture: HIGH — all file sizes, entry points, and collection patterns confirmed from codebase
+- Pitfalls: HIGH — line count limits, permission string mismatch, and collection design confirmed from code
+- CoC API shape: MEDIUM — per-evidence vs per-control question is an open question (A3)
+
+**Research date:** 2026-06-21
+**Valid until:** 2026-07-21 (stable stack)
