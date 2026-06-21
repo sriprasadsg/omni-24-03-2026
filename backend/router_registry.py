@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # silently serve a broken app with missing endpoints.
 _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     "compliance_status_endpoints",
+    "compliance_evidence_lifecycle_endpoints",
 })
 
 
@@ -126,6 +127,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "risk_endpoints",            "router")
     _load(app, "vendor_endpoints",          "router")
     _load(app, "compliance_remediation_endpoints", "router")
+    _load(app, "compliance_evidence_lifecycle_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
