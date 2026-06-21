@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { ComplianceFramework, ControlStatus, Asset, AssetCompliance } from '../types';
 import { AssetComplianceList } from './AssetComplianceList';
+import { ChainOfCustodyPanel } from './ChainOfCustodyPanel';
 // FIX: Replaced non-existent LockIcon with ShieldLockIcon.
 import { PaperclipIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon, FilterIcon, HeartPulseIcon, CreditCardIcon, BookOpenCheckIcon, BinocularsIcon, ShieldIcon, SirenIcon, MessageSquareWarningIcon, HeartHandshakeIcon, BuildingIcon, ClipboardListIcon, ShieldLockIcon, PlusIcon, UploadIcon, XIcon, BrainCircuitIcon, ScaleIcon, DatabaseIcon, LayersIcon, ActivityIcon, RefreshCwIcon, UsersIcon, FileTextIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
@@ -405,6 +406,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
 
   const { hasPermission } = useUser();
   const canManageEvidence = hasPermission('manage:compliance_evidence');
+  const canViewCoC = hasPermission('view:audit_log');
 
   const handleAddControl = async (data: any) => {
     try {
@@ -816,6 +818,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                           }
                         }}
                       />
+                      {canViewCoC && <ChainOfCustodyPanel controlId={control.id} />}
                     </td>
                   </tr>
                 )}
