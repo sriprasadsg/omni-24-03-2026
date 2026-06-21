@@ -55,12 +55,12 @@ Exceptions:
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Body | 14px (`text-sm`) | 400 (regular) | 1.5 |
-| Label | 12px (`text-xs`) | 500 (`font-medium`) | 1.4 |
-| Caption / Badge | 12px (`text-xs`) | 600 (`font-semibold`) | 1.3 |
-| Heading (panel title) | 14px (`text-sm`) | 700 (`font-bold`) | 1.2 |
+| Body / Label | 14px (`text-sm`) / 12px (`text-xs`) | 500 (`font-medium`) | 1.5 / 1.4 |
+| Caption / Badge / Panel heading | 12px (`text-xs`) / 14px (`text-sm`) | 600 (`font-semibold`) | 1.3 / 1.2 |
 
-Source: extracted from existing AssetComplianceList.tsx and FrameworkDetail.tsx patterns.
+Two weights only: **500 (medium)** for body text and labels; **600 (semibold)** for badges and panel headings. Panel heading "Chain of Custody" is visually differentiated from badges by size (`text-sm` vs `text-xs`), not by a third weight.
+
+Source: extracted from existing AssetComplianceList.tsx and FrameworkDetail.tsx patterns (font-semibold for badges, font-medium for labels).
 No new type sizes are introduced in this phase.
 
 ---
@@ -83,6 +83,8 @@ Accent (`primary-600`) reserved for:
 Stale amber reserved for:
 - Stale badge pill on automated evidence rows
 - Stale evidence indicator in compliance report (out-of-scope for UI phase — backend renders this)
+
+**Focal point:** Primary visual anchor is the amber "Stale" badge on automated evidence rows — it is the highest-contrast color change on the modified surface and draws the user's eye to evidence requiring attention.
 
 ---
 
@@ -125,7 +127,7 @@ Stale amber reserved for:
 **Control anatomy:**
 
 ```
-[ Evidence Quality ]          <- section heading, text-sm font-bold text-gray-900 dark:text-white
+[ Evidence Quality ]          <- section heading, text-sm font-semibold text-gray-900 dark:text-white
 
 Staleness Threshold
 How many days before automated evidence is flagged as stale.
@@ -187,7 +189,7 @@ Pattern matches existing `canManageEvidence` gate: `const canViewCoC = hasPermis
 **Header row:**
 - Container: `flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-700/50 rounded-t-md border border-gray-200 dark:border-gray-700 cursor-pointer`
 - Left: `<span class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><ClockIcon size={14} /> Chain of Custody <span class="text-xs font-normal text-gray-400">({count} events)</span></span>`
-- Right: chevron icon (`ChevronDownIcon` / `ChevronUpIcon`, size 14) indicating expand/collapse state
+- Right: chevron icon (`ChevronDownIcon` / `ChevronUpIcon`, size 14) indicating expand/collapse state; the toggle button must carry a dynamic `aria-label`: `"Expand chain of custody panel"` when collapsed, `"Collapse chain of custody panel"` when expanded
 - Clicking header toggles `isCoCExpanded` state (local `useState<boolean>(false)`)
 
 **Log body (visible when expanded):**
@@ -273,8 +275,8 @@ Pattern matches existing `canManageEvidence` gate: `const canViewCoC = hasPermis
 | Stale age parenthetical | "({N} days old)" |
 | CoC panel heading | "Chain of Custody" |
 | CoC event count | "({N} events)" |
-| CoC collapse toggle (expanded) | no text — chevron-up icon only |
-| CoC collapse toggle (collapsed) | no text — chevron-down icon only |
+| CoC collapse toggle (expanded) | no text — chevron-up icon only; `aria-label="Collapse chain of custody panel"` |
+| CoC collapse toggle (collapsed) | no text — chevron-down icon only; `aria-label="Expand chain of custody panel"` |
 | CoC create action label | "uploaded evidence" |
 | CoC update action label | "updated evidence" |
 | CoC delete action label | "deleted evidence" |
