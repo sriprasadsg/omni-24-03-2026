@@ -8,7 +8,7 @@ interface AssetComplianceListProps {
     control: Control;
     assets: Asset[];
     complianceData: AssetCompliance[];
-    onUpdateStatus: (assetId: string, status: AssetCompliance['status']) => void;
+    onUpdateStatus: (assetId: string, status: AssetCompliance['status']) => Promise<void>;
     onUploadEvidence: (assetId: string, file: File, description?: string) => void;
     onIngestEvidence: (assetId: string, fileName: string, content: string) => Promise<void>;
     onDeleteEvidence: (assetId: string, controlId: string, evidenceId: string) => Promise<void>;
@@ -20,6 +20,16 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
     const [ingestingMap, setIngestingMap] = useState<Record<string, boolean>>({});
     const [descriptionMap, setDescriptionMap] = useState<Record<string, string>>({});
     const [deletingMap, setDeletingMap] = useState<Record<string, boolean>>({});
+    const [updatingMap, setUpdatingMap] = useState<Record<string, boolean>>({});
+
+    const handleUpdateStatus = async (assetId: string, status: AssetCompliance['status']) => {
+        setUpdatingMap(prev => ({ ...prev, [assetId]: true }));
+        try {
+            await onUpdateStatus(assetId, status);
+        } finally {
+            setUpdatingMap(prev => ({ ...prev, [assetId]: false }));
+        }
+    };
 
     const handleUploadClick = (assetId: string) => {
         setSelectedAssetId(assetId);
@@ -184,8 +194,8 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex flex-col items-end gap-1">
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => onUpdateStatus(asset.id, 'Compliant')} className="text-green-600 hover:text-green-900" title="Mark Compliant" aria-label="Mark Compliant"><CheckIcon size={18} /></button>
-                                            <button onClick={() => onUpdateStatus(asset.id, 'Non-Compliant')} className="text-red-600 hover:text-red-900" title="Mark Non-Compliant" aria-label="Mark Non-Compliant"><XIcon size={18} /></button>
+                                            <button onClick={() => handleUpdateStatus(asset.id, 'Compliant')} disabled={!!updatingMap[asset.id]} className="text-green-600 hover:text-green-900 disabled:opacity-40" title="Mark Compliant" aria-label="Mark Compliant"><CheckIcon size={18} /></button>
+                                            <button onClick={() => handleUpdateStatus(asset.id, 'Non-Compliant')} disabled={!!updatingMap[asset.id]} className="text-red-600 hover:text-red-900 disabled:opacity-40" title="Mark Non-Compliant" aria-label="Mark Non-Compliant"><XIcon size={18} /></button>
                                             <button
                                                 onClick={() => handleUploadClick(asset.id)}
                                                 className={`${ingestingMap[asset.id] ? 'text-purple-600 animate-pulse' : 'text-blue-600 hover:text-blue-900'}`}
