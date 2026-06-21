@@ -36,10 +36,11 @@
 
 **Requirements:** STALE-01, STALE-02, COC-01, COC-02
 
-**Plans:**
+**Plans:** 3 plans
 
-- 07-01: Backend — staleness field on evidence records (default 7-day threshold, configurable per-tenant); chain-of-custody `evidence_audit_log` collection with actor/action/timestamp/snapshot
-- 07-02: Frontend — stale badge on evidence rows past threshold; CoC log panel in control detail (collapsible, audit-read permission gate)
+- [ ] 07-01-PLAN.md — Backend helpers: `evidence_staleness.py` (read-time staleness), `evidence_coc.py` (immutable CoC append), `evidence_audit_log` indexes, Wave-0 tests (STALE-01, COC-01 foundation)
+- [ ] 07-02-PLAN.md — Backend endpoints: staleness settings GET/PATCH + CoC read endpoints, 4 CoC interceptors, staleness injection into evidence GET, router registration, integration tests (STALE-01/02, COC-01/02)
+- [ ] 07-03-PLAN.md — Frontend: amber stale badge, Evidence settings tab, collapsible Chain-of-Custody panel gated on `view:audit_log`, API service functions (STALE-01/02, COC-02)
 
 ---
 
