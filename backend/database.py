@@ -130,6 +130,7 @@ class TenantIsolatedDatabase:
             "response_policies",  # platform-level security policies, seeded globally
             "playbooks",          # platform-seeded playbooks shared across tenants
             "ip_bans",            # platform-wide IP block list, checked before tenant context is set
+            "crypto_inventory",   # platform-wide PQC inventory seeded at startup
         ]:
             return collection
         return TenantIsolatedCollection(collection)
@@ -146,6 +147,7 @@ class TenantIsolatedDatabase:
             "response_policies",  # platform-level security policies, seeded globally
             "playbooks",          # platform-seeded playbooks shared across tenants
             "ip_bans",            # platform-wide IP block list, checked before tenant context is set
+            "crypto_inventory",   # platform-wide PQC inventory seeded at startup
         ]:
             return self._db[name]
         return TenantIsolatedCollection(self._db[name])
@@ -228,10 +230,8 @@ async def connect_to_mongo():
         await mongodb.db.vulnerabilities.create_index("assetId")
         await mongodb.db.patches.create_index("tenantId")
         await mongodb.db.security_events.create_index("tenantId")
-        await mongodb.db.security_events.create_index("timestamp")
         await mongodb.db.security_cases.create_index("tenantId")
         await mongodb.db.audit_logs.create_index("tenantId")
-        await mongodb.db.audit_logs.create_index("timestamp")
         await mongodb.db.tenants.create_index("id", unique=True)
         await mongodb.db.tenants.create_index("name", unique=True)
         await mongodb.db.users.create_index("email", unique=True)
@@ -262,6 +262,10 @@ async def connect_to_mongo():
         await mongodb.db.patches.create_index([("tenantId", 1), ("status", 1)])
         await mongodb.db.vulnerabilities.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.compliance_evidence.create_index([("tenantId", 1), ("controlId", 1)])
+        # evidence_audit_log: CoC collection — no expiry index; compliance audit trails
+        # must be retained long-term and must not be auto-purged.
+        await mongodb.db.evidence_audit_log.create_index([("evidenceId", 1), ("tenantId", 1)])
+        await mongodb.db.evidence_audit_log.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("status", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("created_at", -1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("priority", 1)])
@@ -282,7 +286,6 @@ async def connect_to_mongo():
         await mongodb.db.security_events.create_index("timestamp", expireAfterSeconds=7776000)   # 90 days
         await mongodb.db.audit_logs.create_index("timestamp", expireAfterSeconds=15552000)       # 180 days
         await mongodb.db.edr_telemetry.create_index("timestamp", expireAfterSeconds=2592000)     # 30 days
-        await mongodb.db.agent_metrics_history.create_index("timestamp", expireAfterSeconds=2592000)  # 30 days
         await mongodb.db.fim_events.create_index("timestamp", expireAfterSeconds=7776000)        # 90 days
 
         # TTL indexes for auth/security collections that previously grew unboundedly.
