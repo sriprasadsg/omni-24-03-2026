@@ -94,9 +94,9 @@ def test_patch_compliance_status_cross_tenant_403():
     from compliance_status_endpoints import patch_asset_compliance_status, ComplianceStatusUpdate
     from fastapi.exceptions import HTTPException
 
-    user = _make_user(tenant_id="tenant-b")  # asset belongs to tenant-a
-    # db.assets.find_one returns None — asset not in tenant-b
-    db = _make_db(asset_doc=None)
+    user = _make_user(tenant_id="tenant-b")  # caller is in tenant-b
+    # Asset exists in the DB but belongs to tenant-a — resolved_tenant_id != caller's tenant_id
+    db = _make_db(asset_doc={"id": "a1", "tenantId": "tenant-a"})
     body = ComplianceStatusUpdate(control_id="c1", status="Compliant")
 
     async def _run():

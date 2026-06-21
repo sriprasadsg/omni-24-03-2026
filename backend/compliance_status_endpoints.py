@@ -42,22 +42,29 @@ async def patch_asset_compliance_status(
 
     db = get_database()
 
-    # Tenant isolation: non-super-admin callers must own the asset
-    if user_role not in _SUPER_ROLES:
-        asset = await db.assets.find_one({"id": asset_id, "tenantId": tenant_id})
-        if not asset:
-            raise HTTPException(status_code=403, detail="Asset not found in your tenant")
+    # Always resolve the asset from the database to get its authoritative tenantId.
+    # This prevents a super-admin with no tenant_id (or the wrong one) from
+    # polluting the "" bucket or writing into another tenant's namespace.
+    asset = await db.assets.find_one({"id": asset_id})
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    resolved_tenant_id = asset.get("tenantId", "")
+
+    # Enforce tenant isolation: non-super-admin callers must own the asset
+    if user_role not in _SUPER_ROLES and resolved_tenant_id != tenant_id:
+        raise HTTPException(status_code=403, detail="Asset not found in your tenant")
 
     # Fetch current compliance doc to capture previous_status for STATUS-02
     doc = await db.asset_compliance.find_one(
-        {"assetId": asset_id, "controlId": body.control_id, "tenantId": tenant_id}
+        {"assetId": asset_id, "controlId": body.control_id, "tenantId": resolved_tenant_id}
     )
     previous_status = doc.get("status", "Unknown") if doc else "Unknown"
 
     now = datetime.now(timezone.utc)
 
     await db.asset_compliance.update_one(
-        {"assetId": asset_id, "controlId": body.control_id, "tenantId": tenant_id},
+        {"assetId": asset_id, "controlId": body.control_id, "tenantId": resolved_tenant_id},
         {
             "$set": {
                 "status": body.status,
