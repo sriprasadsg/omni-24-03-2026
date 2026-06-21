@@ -111,9 +111,9 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                         <div className="flex flex-col space-y-3">
                                             {statusRecord.evidence.map((ev: any, idx: number) => {
                                                 const isAutomated = ev.systemGenerated === true || ev.source === 'auto';
-                                                const evId = ev.id || ev.evidence_id || String(idx);
+                                                const evId = ev.id || ev.evidence_id;
                                                 return (
-                                                <div key={`${evId}-${idx}`} className="flex items-start gap-2">
+                                                <div key={evId ?? `idx-${idx}`} className="flex items-start gap-2">
                                                     <div className="flex-1">
                                                         {isAutomated || ev.url === '#' || ev.evidence_content || ev.content ? (
                                                             // System-generated evidence with markdown content
@@ -143,7 +143,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                         ) : (
                                                             <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Manual</span>
                                                         )}
-                                                        {!isAutomated && (
+                                                        {!isAutomated && evId && (
                                                             <button
                                                                 onClick={() => handleDeleteEvidence(asset.id, evId)}
                                                                 disabled={!!deletingMap[evId]}
