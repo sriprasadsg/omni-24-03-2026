@@ -12,9 +12,9 @@
 
 ### Evidence Lifecycle
 
-- [ ] **STALE-01**: Automated evidence (agent-collected) older than a configurable threshold (default: 7 days) is flagged as stale in the control detail view and in the compliance report
+- [x] **STALE-01**: Automated evidence (agent-collected) older than a configurable threshold (default: 7 days) is flagged as stale in the control detail view and in the compliance report
 - [ ] **STALE-02**: The staleness threshold is configurable per-tenant via the Settings page (minimum: 1 day, maximum: 365 days)
-- [ ] **COC-01**: Every create, update, and delete of an evidence record appends an immutable entry to a per-evidence chain-of-custody log: actor identity, action type, timestamp, and before/after snapshot
+- [x] **COC-01**: Every create, update, and delete of an evidence record appends an immutable entry to a per-evidence chain-of-custody log: actor identity, action type, timestamp, and before/after snapshot
 - [ ] **COC-02**: The chain-of-custody log for a control's evidence is viewable from the control detail view by users with audit-read permission
 
 ### Bulk Evidence Upload
@@ -48,9 +48,9 @@
 |-------------|-------|--------|
 | STATUS-01 | Phase 6 | Complete |
 | STATUS-02 | Phase 6 | Complete |
-| STALE-01 | Phase 7 | Pending |
+| STALE-01 | Phase 7 | Complete |
 | STALE-02 | Phase 7 | Pending |
-| COC-01 | Phase 7 | Pending |
+| COC-01 | Phase 7 | Complete |
 | COC-02 | Phase 7 | Pending |
 | BULK-01 | Phase 8 | Pending |
 | BULK-02 | Phase 8 | Pending |

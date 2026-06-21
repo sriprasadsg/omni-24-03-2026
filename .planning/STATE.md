@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-06-21T16:19:09.091Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-06-22T00:00:00Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
+  total_plans: 5
   completed_plans: 2
-  percent: 25
+  percent: 30
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 06 — asset-compliance-status-ui-fix
+**Current focus:** Phase 07 — evidence-lifecycle-staleness-chain-of-custody
 
 ## Current Phase
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 Goal: Wire Mark Compliant / Mark Non-Compliant buttons to a real backend endpoint so compliance status changes persist; fix source badge font-size WCAG violation from v1.0 UI audit.
 
-Status: Executing Phase 06
+Status: Executing Phase 07
 
 ## Phases
 
@@ -83,6 +83,9 @@ Status: Executing Phase 06
 - [Phase ?]: 06-02: updateAssetComplianceStatus placed after deleteComplianceEvidence for logical grouping with other compliance evidence helpers
 - [Phase ?]: 06-02: onUpdateStatus uses async arrow function capturing control.id from enclosing controls.map closure — no extra state needed
 - [Phase ?]: 06-02: text-xs replaces text-[10px] for WCAG AA compliance — Tailwind utility class avoids arbitrary value anti-pattern
+- 07-01: Raw Motor db._db.evidence_audit_log used in _append_coc_entry to prevent TenantIsolatedCollection double-injecting tenantId from request context
+- 07-01: evidence_audit_log has no TTL index — compliance audit trails must be retained long-term per research Open Question 2
+- 07-01: compute_stale does not gate on systemGenerated/source — caller in 07-02 is responsible for filtering manual evidence before invoking it
 
 ## Performance Metrics
 
@@ -101,12 +104,13 @@ Status: Executing Phase 06
 | 05-integration-and-e2e-verification | 01 | ~7m | 3 | 1 |
 | Phase 06-asset-compliance-status-ui-fix P01 | ~1m | 3 tasks | 3 files |
 | Phase 06-asset-compliance-status-ui-fix P02 | ~2m | 3 tasks | 3 files |
+| 07-evidence-lifecycle-staleness-chain-of-custody | 01 | ~3m | 3 | 4 |
 
 ## Last Session
 
 - **Timestamp:** 2026-06-21T00:00:00Z
-- **Stopped at:** Phase 06 complete, ready to plan Phase 07
-- **Resume file:** None
+- **Stopped at:** Phase 07 plans complete (3 plans, verified)
+- **Resume file:** .planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-01-PLAN.md
 
 ## Configuration
 
@@ -131,6 +135,6 @@ Status: Executing Phase 06
 
 ## Session
 
-**Last session:** 2026-06-19T20:45:11.864Z
-**Stopped at:** Completed 06-01-PLAN.md
+**Last session:** 2026-06-22T00:00:00Z
+**Stopped at:** Completed 07-01-PLAN.md
 **Resume file:** None
