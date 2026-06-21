@@ -12,6 +12,7 @@ import sys
 import os
 import asyncio
 import pytest
+from pydantic import ValidationError
 from unittest.mock import MagicMock, AsyncMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -117,6 +118,6 @@ def test_patch_compliance_status_invalid_status_422():
     """Pydantic rejects a status value outside the Literal enum."""
     from compliance_status_endpoints import ComplianceStatusUpdate
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         # "invalid" is not in Literal["Compliant", "Non-Compliant", "Pending_Evidence"]
         ComplianceStatusUpdate(control_id="c1", status="invalid")
