@@ -4320,4 +4320,42 @@ export const suggestRemediation = async (taskId: string): Promise<{ suggestion: 
     return res.json();
 };
 
+export const fetchStalenessThreshold = async (): Promise<{ thresholdDays: number }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/evidence-staleness`);
+        return await res.json();
+    } catch {
+        return { thresholdDays: 7 };
+    }
+};
+
+export const saveStalenessThreshold = async (thresholdDays: number): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/settings/evidence-staleness`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thresholdDays }),
+    });
+    if (!res.ok) throw new Error('Failed to save staleness threshold');
+};
+
+export const fetchEvidenceAuditLog = async (evidenceId: string): Promise<{ entries: any[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/evidence/${evidenceId}/audit-log`);
+        if (!res.ok) return { entries: [] };
+        return await res.json();
+    } catch {
+        return { entries: [] };
+    }
+};
+
+export const fetchControlAuditLog = async (controlId: string): Promise<{ entries: any[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/controls/${controlId}/audit-log`);
+        if (!res.ok) return { entries: [] };
+        return await res.json();
+    } catch {
+        return { entries: [] };
+    }
+};
+
 
