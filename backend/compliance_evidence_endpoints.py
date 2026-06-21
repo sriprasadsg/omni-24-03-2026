@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
 from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic
+from evidence_coc import _append_coc_entry
+from evidence_staleness import get_staleness_threshold, compute_stale
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +111,15 @@ async def upload_compliance_evidence(
                 "$push": {"evidence": evidence_record},
             },
             upsert=True,
+        )
+        await _append_coc_entry(
+            db=db,
+            evidence_id=evidence_record["id"],
+            tenant_id=tenant_id,
+            actor=uploader,
+            action_type="create",
+            snapshot_before=None,
+            snapshot_after=evidence_record,
         )
 
         return {"success": True, "evidence": evidence_record}
@@ -282,6 +293,15 @@ async def delete_compliance_evidence(
             {"assetId": asset_id, "evidence.id": evidence_id},
             {"$pull": {"evidence": {"id": evidence_id}}},
         )
+        await _append_coc_entry(
+            db=db,
+            evidence_id=evidence_id,
+            tenant_id=doc_tenant or caller_tenant or "",
+            actor=caller_username,
+            action_type="delete",
+            snapshot_before=ev,
+            snapshot_after=None,
+        )
 
         # Disk cleanup with path-traversal guard (T-02-06)
         file_url = ev.get("url", "")
@@ -298,4 +318,178 @@ async def delete_compliance_evidence(
         raise
     except Exception as e:
         logger.error("Delete evidence error: %s", e)
+
+
+@router.post("/api/compliance/controls/{control_id}/evidence")
+async def upload_control_direct_evidence(
+    control_id: str,
+    file: UploadFile = File(...),
+    description: str = Form("", max_length=1000),
+    department: str = Form("", max_length=100),
+    current_user=Depends(get_current_user),
+):
+    """Upload evidence directly to a compliance control (no asset required).
+    Used for organisational controls owned by HR, Finance, Legal, Management, etc.
+    Evidence is stored in the `control_evidence` collection and returned alongside
+    system-collected evidence by GET /api/compliance/controls/{control_id}/evidence.
+    """
+    try:
+        tenant_id = getattr(current_user, "tenant_id", None) or ""
+        uploader = getattr(current_user, "username", "unknown")
+
+        file_ext = os.path.splitext(file.filename or "")[1].lower()
+        if not file_ext or file_ext not in _EVIDENCE_ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"File type '{file_ext}' not allowed.")
+
+        content_type = (file.content_type or "").split(";")[0].strip()
+        if not content_type or not any(content_type.startswith(p) for p in _EVIDENCE_ALLOWED_MIME_PREFIXES):
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' not allowed.")
+
+        file_content = await file.read()
+        if len(file_content) > 25 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File exceeds 25 MB limit")
+        if not _check_magic(file_content, file_ext):
+            raise HTTPException(status_code=400, detail="File content does not match extension")
+
+        safe_filename = f"{uuid.uuid4().hex}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, safe_filename)
+        await asyncio.to_thread(_write_binary, file_path, file_content)
+
+        # AI validation — runs after saving so upload always succeeds regardless of verdict
+        from compliance_doc_validator import validate_document
+        validation = await validate_document(
+            file_content=file_content,
+            file_ext=file_ext,
+            filename=file.filename or "",
+            description=description,
+            control_id=control_id,
+            department=department or "General",
+        )
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        record = {
+            "id": f"cev-{uuid.uuid4().hex}",
+            "name": os.path.basename(file.filename or "evidence"),
+            "url": f"/static/evidence/{safe_filename}",
+            "type": file.content_type,
+            "uploadedAt": timestamp,
+            "controlId": control_id,
+            "tenantId": tenant_id,
+            "uploaded_by": uploader,
+            "department": department or "General",
+            "description": description,
+            "source": "manual",
+            "systemGenerated": False,
+            "ai_validation": validation,
+        }
+
+        db = get_database()
+        await db.control_evidence.insert_one({**record})
+        await _append_coc_entry(
+            db=db,
+            evidence_id=record["id"],
+            tenant_id=tenant_id,
+            actor=uploader,
+            action_type="create",
+            snapshot_before=None,
+            snapshot_after=record,
+        )
+        record.pop("_id", None)
+        return {"success": True, "evidence": record, "validation": validation}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Control evidence upload error: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/api/compliance/controls/{control_id}/evidence")
+async def get_control_evidence(
+    control_id: str,
+    current_user=Depends(get_current_user),
+):
+    """Return all evidence for a control: manually uploaded (control_evidence collection)
+    plus system-collected records from agent heartbeats (asset_compliance collection)."""
+    db = get_database()
+    tenant_id = getattr(current_user, "tenant_id", None)
+    user_role = getattr(current_user, "role", "")
+    is_super = user_role in _SUPER_ROLES
+
+    manual_query: dict = {"controlId": control_id}
+    if not is_super and tenant_id:
+        manual_query["tenantId"] = tenant_id
+
+    manual_docs = await db.control_evidence.find(manual_query, {"_id": 0}).to_list(length=500)
+
+    # Also pull system-generated evidence from asset_compliance
+    asset_query: dict = {"controlId": control_id}
+    if not is_super and tenant_id:
+        asset_query["tenantId"] = tenant_id
+
+    pipeline = [
+        {"$match": asset_query},
+        {"$unwind": "$evidence"},
+        {"$project": {"evidence": 1, "_id": 0}},
+        {"$limit": 200},
+    ]
+    system_docs = []
+    async for doc in db.asset_compliance.aggregate(pipeline):
+        ev = doc.get("evidence", {})
+        ev.pop("_id", None)
+        system_docs.append(ev)
+
+    # Staleness injection (STALE-01) — fetch threshold once, inject per record
+    threshold = await get_staleness_threshold(db, tenant_id)
+    for ev in system_docs:
+        is_auto = bool(ev.get("systemGenerated") or ev.get("source") == "auto")
+        if is_auto:
+            r = compute_stale(ev.get("uploadedAt") or ev.get("uploaded_at", ""), threshold)
+            ev["stale"] = r["stale"]
+            ev["stale_days"] = r["stale_days"]
+        else:
+            ev["stale"] = False
+            ev["stale_days"] = 0
+    for ev in manual_docs:
+        ev["stale"] = False
+        ev["stale_days"] = 0
+
+    return {"control_id": control_id, "manual": manual_docs, "system": system_docs}
+
+
+@router.delete("/api/compliance/controls/{control_id}/evidence/{evidence_id}")
+async def delete_control_direct_evidence(
+    control_id: str,
+    evidence_id: str,
+    current_user=Depends(get_current_user),
+):
+    """Delete a manually uploaded control-level evidence record."""
+    db = get_database()
+    user_role = getattr(current_user, "role", "")
+    is_super = user_role in _SUPER_ROLES
+    caller_tenant = getattr(current_user, "tenant_id", None)
+    caller_username = getattr(current_user, "username", "")
+
+    record = await db.control_evidence.find_one({"id": evidence_id, "controlId": control_id})
+    if not record:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if not is_super:
+        if record.get("tenantId") != caller_tenant:
+            raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
+        if record.get("uploaded_by") != caller_username:
+            raise HTTPException(status_code=403, detail="You can only delete your own evidence")
+
+    await db.control_evidence.delete_one({"id": evidence_id})
+    await _append_coc_entry(
+        db=db, evidence_id=evidence_id,
+        tenant_id=record.get("tenantId", ""), actor=caller_username,
+        action_type="delete", snapshot_before=record, snapshot_after=None,
+    )
+    fname = Path(record.get("url", "")).name
+    if fname and not fname.startswith("."):
+        _safe_dir = Path(UPLOAD_DIR).resolve()
+        resolved = (_safe_dir / fname).resolve()
+        if str(resolved).startswith(str(_safe_dir)):
+            resolved.unlink(missing_ok=True)
+
+    return {"success": True}
