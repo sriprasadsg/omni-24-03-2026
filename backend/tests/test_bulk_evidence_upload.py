@@ -336,7 +336,7 @@ def test_bulk_zip_bomb_guard():
             data={"manifest": manifest},
         )
 
-    assert resp.status_code == 400, resp.text
+    assert resp.status_code == 413, resp.text
     db_mock.control_evidence.insert_one.assert_not_awaited()
 
 
