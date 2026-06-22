@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
-status: executing
-stopped_at: Phase 08 complete — bulk evidence upload delivered (8/8 verified)
-last_updated: "2026-06-22T08:22:52.642Z"
+status: complete
+stopped_at: Phase 09 complete — compliance score dashboard delivered (9/9 verified)
+last_updated: "2026-06-22T18:00:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 8
-  percent: 75
+  completed_phases: 4
+  total_plans: 11
+  completed_plans: 11
+  percent: 100
 ---
 
 # Project State
@@ -20,15 +20,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 09 — compliance-score-dashboard
+**Current focus:** v1.1 milestone complete
 
 ## Current Phase
 
-**Next phase: Phase 6 — Asset Compliance Status + UI Fix**
+**Phase 09 — Compliance Score Dashboard: COMPLETE**
 
-Goal: Wire Mark Compliant / Mark Non-Compliant buttons to a real backend endpoint so compliance status changes persist; fix source badge font-size WCAG violation from v1.0 UI audit.
+Goal: Each tenant has a live compliance score (% controls passing, severity-weighted) visible on the main dashboard, broken down by framework.
 
-Status: Executing Phase 09
+Status: Complete — all 9 must-haves verified, 415 tests pass, no regression
 
 ## Phases
 
@@ -39,10 +39,10 @@ Status: Executing Phase 09
 | 3 | Audit-Ready Export | Complete (v1.0) |
 | 4 | Remediation Workflow | Complete (v1.0) |
 | 5 | Integration and E2E Verification | Complete (v1.0) |
-| 6 | Asset Compliance Status + UI Fix | Pending |
-| 7 | Evidence Lifecycle (Staleness + Chain-of-Custody) | Pending |
+| 6 | Asset Compliance Status + UI Fix | Complete |
+| 7 | Evidence Lifecycle (Staleness + Chain-of-Custody) | Complete |
 | 8 | Bulk Evidence Upload | Complete |
-| 9 | Compliance Score Dashboard | Pending |
+| 9 | Compliance Score Dashboard | Complete |
 
 ## Decisions
 
@@ -101,6 +101,8 @@ Status: Executing Phase 09
 - 09-01: invalidate_cache() is synchronous — called without await (cache_service.py def invalidate_cache, not async def; consistent with agent_registry_endpoints.py usage)
 - 09-01: _score_status() copied inline to compliance_score_endpoints.py — avoids circular import risk (Pitfall 5 in RESEARCH.md, precedent from 07-02 _require_admin)
 - 09-01: Category-based severity mapping — Access Control/Cryptography/Incident Response=Critical, Audit/Configuration/Vulnerability=High, Operations/Risk Management=Medium, default=Low
+- 09-02: ComplianceScorePanel.tsx at exactly 250 lines (plan limit); all UI states (loading/error/empty/normal) implemented
+- 09-02: invalidate_cache() called synchronously on success path only — not inside exception handlers
 
 ## Performance Metrics
 
@@ -122,12 +124,13 @@ Status: Executing Phase 09
 | 07-evidence-lifecycle-staleness-chain-of-custody | 01 | ~3m | 3 | 4 |
 | 07-evidence-lifecycle-staleness-chain-of-custody | 02 | ~5m | 3 | 4 |
 | 09-compliance-score-dashboard | 01 | ~7m | 3 | 5 |
+| 09-compliance-score-dashboard | 02 | ~5m | 2 | 4 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-22T00:00:00Z
-- **Stopped at:** Phase 08 complete — 2 plans, 12 tests passing, 8/8 verified; 3 code review findings open (CR-01 role check, CR-02 zip-bomb bypass, CR-03 no rollback)
-- **Resume file:** .planning/phases/09-compliance-score-dashboard/ (Phase 09)
+- **Timestamp:** 2026-06-22T18:00:00Z
+- **Stopped at:** Phase 09 complete — compliance score dashboard delivered, 9/9 verified, 415 tests pass
+- **Resume file:** None — v1.1 milestone complete
 
 ## Configuration
 
@@ -148,10 +151,10 @@ Status: Executing Phase 09
 - [Codebase map](.planning/codebase/)
 
 ---
-*Initialized: 2026-06-17 | Last updated: 2026-06-20 (v1.1 milestone started — Evidence Quality & Compliance Scoring; phases 6–9 defined)*
+*Initialized: 2026-06-17 | Last updated: 2026-06-22 (v1.1 milestone complete — Phase 09 compliance score dashboard verified)*
 
 ## Session
 
-**Last session:** 2026-06-22T08:22:52.631Z
-**Stopped at:** Completed 07-02-PLAN.md
+**Last session:** 2026-06-22T18:00:00Z
+**Stopped at:** Phase 09 verification complete
 **Resume file:** None
