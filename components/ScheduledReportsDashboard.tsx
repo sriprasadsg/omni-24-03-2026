@@ -91,6 +91,7 @@ export default function ScheduledReportsDashboard() {
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [historyLogs, setHistoryLogs] = useState<Record<string, DeliveryLog[]>>({});
   const [historyLoading, setHistoryLoading] = useState<Record<string, boolean>>({});
+  const [historyError, setHistoryError] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadReports();
@@ -166,7 +167,7 @@ export default function ScheduledReportsDashboard() {
         const r = await authFetch(`/api/reports/scheduled/${id}/history`);
         const d = await r.json();
         setHistoryLogs(prev => ({ ...prev, [id]: d.logs || [] }));
-      } catch { /* silently leave logs empty */ }
+      } catch { setHistoryError(prev => ({ ...prev, [id]: true })); }
       finally { setHistoryLoading(prev => ({ ...prev, [id]: false })); }
     }
   }
@@ -283,6 +284,10 @@ export default function ScheduledReportsDashboard() {
                 <div className="mt-3 border-t border-gray-700 pt-3">
                   {historyLoading[rep.id] ? (
                     <p className="text-xs text-gray-500">Loading...</p>
+                  ) : historyError[rep.id] ? (
+                    <p className="text-xs text-red-400">Failed to load history —{' '}
+                      <button className="underline" onClick={() => { setHistoryError(prev => ({ ...prev, [rep.id]: false })); setHistoryLogs(prev => { const n = {...prev}; delete n[rep.id]; return n; }); toggleHistory(rep.id); }}>Retry</button>
+                    </p>
                   ) : !historyLogs[rep.id]?.length ? (
                     <p className="text-xs text-gray-500">No delivery history yet</p>
                   ) : (
