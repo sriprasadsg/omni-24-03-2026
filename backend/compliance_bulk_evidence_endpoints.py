@@ -93,7 +93,7 @@ async def bulk_upload_evidence(
             total_uncompressed = sum(i.file_size for i in zf.infolist())
             if total_uncompressed > MAX_BULK_BYTES:
                 raise HTTPException(
-                    status_code=400, detail="Uncompressed content exceeds 200 MB"
+                    status_code=413, detail="Uncompressed content exceeds 200 MB limit"
                 )
 
             # --- Pass 1: validate all entries (no writes yet) ---
