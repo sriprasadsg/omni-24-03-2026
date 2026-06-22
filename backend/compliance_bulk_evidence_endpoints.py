@@ -27,6 +27,7 @@ router = APIRouter()
 
 MAX_BULK_FILES = 50
 MAX_BULK_BYTES = 200 * 1024 * 1024  # 200 MB
+MAX_ENTRY_BYTES = 25 * 1024 * 1024  # 25 MB per file
 
 _WRITE_ROLES: frozenset[str] = frozenset({
     "admin", "Admin", "Super Admin", "superadmin", "super_admin", "platform-admin"
@@ -118,7 +119,6 @@ async def bulk_upload_evidence(
 
                 # Read entry bytes using raw_name (as listed in zip) — bounded read
                 # to prevent zip-bomb decompression attacks (CR-02).
-                MAX_ENTRY_BYTES = 25 * 1024 * 1024
                 try:
                     buf = io.BytesIO()
                     with zf.open(raw_name) as entry_fh:
@@ -172,38 +172,48 @@ async def bulk_upload_evidence(
             timestamp = datetime.now(timezone.utc).isoformat()
             db = get_database()
             committed: list[dict] = []
+            written_paths: list[str] = []
 
-            for v in validated:
-                stored_name = f"{uuid.uuid4().hex}{v['ext']}"
-                file_path = os.path.join(UPLOAD_DIR, stored_name)
-                await asyncio.to_thread(_write_binary, file_path, v["bytes"])
+            try:
+                for v in validated:
+                    stored_name = f"{uuid.uuid4().hex}{v['ext']}"
+                    file_path = os.path.join(UPLOAD_DIR, stored_name)
+                    await asyncio.to_thread(_write_binary, file_path, v["bytes"])
+                    written_paths.append(file_path)
 
-                record: dict = {
-                    "id": f"cev-bulk-{uuid.uuid4().hex}",
-                    "name": v["original_name"],
-                    "url": f"/static/evidence/{stored_name}",
-                    "type": _EXT_TO_MIME.get(v["ext"], "application/octet-stream"),
-                    "uploadedAt": timestamp,
-                    "controlId": v["control_id"],
-                    "tenantId": tenant_id,
-                    "uploaded_by": uploader,
-                    "description": f"Bulk upload batch {batch_id}",
-                    "source": "manual",
-                    "systemGenerated": False,
-                    "bulk_batch_id": batch_id,
-                }
-                await db.control_evidence.insert_one({**record})
-                await _append_coc_entry(
-                    db=db,
-                    evidence_id=record["id"],
-                    tenant_id=tenant_id,
-                    actor=uploader,
-                    action_type="create",
-                    snapshot_before=None,
-                    snapshot_after=record,
-                )
-                record.pop("_id", None)
-                committed.append(record)
+                    record: dict = {
+                        "id": f"cev-bulk-{uuid.uuid4().hex}",
+                        "name": v["original_name"],
+                        "url": f"/static/evidence/{stored_name}",
+                        "type": _EXT_TO_MIME.get(v["ext"], "application/octet-stream"),
+                        "uploadedAt": timestamp,
+                        "controlId": v["control_id"],
+                        "tenantId": tenant_id,
+                        "uploaded_by": uploader,
+                        "description": f"Bulk upload batch {batch_id}",
+                        "source": "manual",
+                        "systemGenerated": False,
+                        "bulk_batch_id": batch_id,
+                    }
+                    await db.control_evidence.insert_one({**record})
+                    await _append_coc_entry(
+                        db=db,
+                        evidence_id=record["id"],
+                        tenant_id=tenant_id,
+                        actor=uploader,
+                        action_type="create",
+                        snapshot_before=None,
+                        snapshot_after=record,
+                    )
+                    record.pop("_id", None)
+                    committed.append(record)
+            except Exception:
+                for p in written_paths:
+                    try:
+                        await asyncio.to_thread(os.unlink, p)
+                    except OSError:
+                        pass
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         return {
             "success": True,
