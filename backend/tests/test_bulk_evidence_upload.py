@@ -377,3 +377,9 @@ def test_bulk_appears_in_control_evidence():
     assert "CC9.1" in control_ids
     assert sources == {"manual"}
     assert tenant_ids == {"tenant-b"}
+
+    # Assert CoC entries were written (one per committed file)
+    assert db_mock._db.evidence_audit_log.insert_one.await_count == 2
+    coc_calls = db_mock._db.evidence_audit_log.insert_one.call_args_list
+    assert all(c[0][0]["action_type"] == "create" for c in coc_calls)
+    assert all(c[0][0]["tenantId"] == "tenant-b" for c in coc_calls)
