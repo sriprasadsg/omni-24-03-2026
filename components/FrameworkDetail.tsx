@@ -523,14 +523,16 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                 <UploadIcon size={14} className="mr-1.5" />
                 Import Controls
               </button>
-              <button
-                onClick={() => setIsBulkUploadOpen(true)}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                aria-label="Open bulk evidence upload modal"
-              >
-                <UploadIcon size={14} className="mr-1.5" />
-                Bulk Upload Evidence
-              </button>
+              {canManageEvidence && (
+                <button
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                  aria-label="Open bulk evidence upload modal"
+                >
+                  <UploadIcon size={14} className="mr-1.5" />
+                  Bulk Upload Evidence
+                </button>
+              )}
               {/* Format Selector */}
               <select
                 value={reportFormat}
