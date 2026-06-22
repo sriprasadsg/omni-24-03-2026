@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 status: executing
-stopped_at: Phase 09 complete — compliance score dashboard delivered (9/9 verified)
-last_updated: "2026-06-22T13:21:59.612Z"
+stopped_at: Phase 10 Plan 02 complete — scheduled reports frontend (framework picker, runNow fix, history panel)
+last_updated: "2026-06-22T13:27:22Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 11
   percent: 100
 ---
 
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 ## Current Phase
 
-**Phase 09 — Compliance Score Dashboard: COMPLETE**
+**Phase 10 — Scheduled Reports: COMPLETE**
 
-Goal: Each tenant has a live compliance score (% controls passing, severity-weighted) visible on the main dashboard, broken down by framework.
+Goal: Tenant admins can schedule automated report delivery (email/webhook/Slack/Teams) with framework-specific compliance reports, delivery history, and run-now triggers.
 
-Status: Executing Phase 10
+Status: Phase 10 complete — both plans delivered
 
 ## Phases
 
@@ -104,6 +104,9 @@ Status: Executing Phase 10
 - 09-02: ComplianceScorePanel.tsx at exactly 250 lines (plan limit); all UI states (loading/error/empty/normal) implemented
 - 09-02: invalidate_cache() called synchronously on success path only — not inside exception handlers
 - [Phase ?]: 10-01: email_service imported at module level for testability; schedule_history_idx in database.py (not app_startup.py); ValueError maps to 422 for SMTP validation
+- 10-02: Inline approach (no ScheduleHistoryPanel.tsx split) — post-Task-1 line count was 342; adding history landed at 409 lines, under 500 threshold
+- 10-02: DeliveryLog interface defined inline in ScheduledReportsDashboard.tsx (not in types.ts) — component-local
+- 10-02: historyLogs cached by schedule id — avoids re-fetching on panel toggle; cleared on page reload
 
 ## Performance Metrics
 
@@ -127,11 +130,12 @@ Status: Executing Phase 10
 | 09-compliance-score-dashboard | 01 | ~7m | 3 | 5 |
 | 09-compliance-score-dashboard | 02 | ~5m | 2 | 4 |
 | Phase 10-scheduled-reports P01 | ~6m | 3 tasks | 5 files |
+| Phase 10-scheduled-reports P02 | ~4m | 2 tasks | 1 file |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-22T18:00:00Z
-- **Stopped at:** Phase 10 Plan 01 complete — scheduled reports PDF wiring, delivery logging, history endpoint
+- **Timestamp:** 2026-06-22T13:27:22Z
+- **Stopped at:** Phase 10 Plan 02 complete — framework picker, runNow fix, delivery history panel
 - **Resume file:** None
 
 ## Configuration

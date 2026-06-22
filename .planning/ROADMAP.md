@@ -88,9 +88,9 @@
 
 **Requirements:** SCHED-01, SCHED-02
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed — COMPLETE
 
 Plans:
 
 - [x] 10-01-PLAN.md — Backend TDD: framework_id schema, _generate_pdf wiring, delivery log collection, GET /history endpoint, SMTP validation (Wave 1)
-- [ ] 10-02-PLAN.md — Frontend: framework picker in create modal, run-now URL fix, per-card delivery history panel (Wave 2)
+- [x] 10-02-PLAN.md — Frontend: framework picker in create modal, run-now URL fix, per-card delivery history panel (Wave 2)
