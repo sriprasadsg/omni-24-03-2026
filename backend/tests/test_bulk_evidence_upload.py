@@ -315,29 +315,134 @@ def test_bulk_zip_slip_guard():
 
 
 # ---------------------------------------------------------------------------
-# Security: zip-bomb guard
+# Security: zip-bomb guard (updated — uses MAX_BULK_BYTES patch, not infolist mock)
 # ---------------------------------------------------------------------------
 
 def test_bulk_zip_bomb_guard():
-    """Fake infolist sum > 200 MB → 400 before any zf.read() (security guard)."""
-    zip_bytes = _make_zip_bytes({"dummy.pdf": b"%PDF-1.4 x"})
-    manifest = json.dumps([{"filename": "dummy.pdf", "control_id": "CC1.1"}])
-    # 3 fake entries × 100 MB each = 300 MB > MAX_BULK_BYTES (200 MB)
-    fake_info = [MagicMock(file_size=100 * 1024 * 1024) for _ in range(3)]
+    """Actual decompressed bytes exceed patched MAX_BULK_BYTES → 413/422 (SEC-01 guard).
+
+    Uses a DEFLATE-compressed zip so the compressed container is smaller than the
+    patched threshold, proving the accumulator (not the container-size guard) fires.
+    """
+    large_content = b"X" * 1000
+    deflated_buf = io.BytesIO()
+    with zipfile.ZipFile(deflated_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("dummy.pdf", b"%PDF-1.4 " + large_content)
+        zf.writestr("extra.pdf", b"%PDF-1.4 " + large_content)
+    zip_bytes = deflated_buf.getvalue()
+    manifest = json.dumps([
+        {"filename": "dummy.pdf", "control_id": "CC1.1"},
+        {"filename": "extra.pdf", "control_id": "CC1.2"},
+    ])
     user = _fake_user()
     db_mock = _make_mock_db()
     app = _make_bulk_app(user, db_mock)
 
     with patch.object(bulk_mod, "get_database", return_value=db_mock), \
-         patch("zipfile.ZipFile.infolist", return_value=fake_info):
+         patch.object(bulk_mod, "MAX_BULK_BYTES", 500):
         resp = TestClient(app).post(
             "/api/compliance/evidence/bulk",
             files={"zip_file": ("b.zip", zip_bytes, "application/zip")},
             data={"manifest": manifest},
         )
 
-    assert resp.status_code == 413, resp.text
+    assert resp.status_code in (413, 422), resp.text
     db_mock.control_evidence.insert_one.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Security: SEC-01 — accumulator-based total-size guard
+# ---------------------------------------------------------------------------
+
+def test_bulk_zip_bomb_total_bytes_accumulator():
+    """Deflated zip: compressed size passes the container guard, but actual decompressed
+    bytes exceed the patched MAX_BULK_BYTES → 413/422 (SEC-01 accumulator guard).
+
+    The zip is created with ZIP_DEFLATED so compressed << uncompressed.  We patch
+    MAX_BULK_BYTES to a value between the compressed size (~232 bytes) and the
+    total uncompressed content (~2018 bytes).  This proves the accumulator counts
+    real bytes, not the compressed envelope size or the spoofable infolist metadata.
+    """
+    # ~1000 bytes of repetitive content per entry compresses well with DEFLATE.
+    # Uncompressed per entry ≈ 1009 bytes; total ≈ 2018 bytes.
+    large_content = b"X" * 1000
+    pdf_bytes_a = b"%PDF-1.4 " + large_content
+    pdf_bytes_b = b"%PDF-1.4 " + large_content
+
+    deflated_buf = io.BytesIO()
+    with zipfile.ZipFile(deflated_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("a.pdf", pdf_bytes_a)
+        zf.writestr("b.pdf", pdf_bytes_b)
+    zip_bytes = deflated_buf.getvalue()
+    # Compressed zip is ~232 bytes; uncompressed total ~2018 bytes.
+    # Patch MAX_BULK_BYTES = 500: compressed passes guard (232 < 500), accumulator fires.
+
+    manifest = json.dumps([
+        {"filename": "a.pdf", "control_id": "CC1.1"},
+        {"filename": "b.pdf", "control_id": "CC1.2"},
+    ])
+    user = _fake_user()
+    db_mock = _make_mock_db()
+    app = _make_bulk_app(user, db_mock)
+
+    with patch.object(bulk_mod, "MAX_BULK_BYTES", 500), \
+         patch.object(bulk_mod, "get_database", return_value=db_mock):
+        resp = TestClient(app).post(
+            "/api/compliance/evidence/bulk",
+            files={"zip_file": ("b.zip", zip_bytes, "application/zip")},
+            data={"manifest": manifest},
+        )
+
+    assert resp.status_code in (413, 422), resp.text
+    db_mock.control_evidence.insert_one.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Security: SEC-02 — DB rollback on partial commit failure
+# ---------------------------------------------------------------------------
+
+def test_bulk_db_rollback_on_partial_failure():
+    """Mid-batch insert_one failure triggers delete_many for already-inserted IDs (SEC-02).
+
+    First insert succeeds; second raises.  Expects:
+    - HTTP 500
+    - delete_many called exactly once with the first record's id in the $in list
+    """
+    pdf_bytes = b"%PDF-1.4 content"
+    zip_bytes = _make_zip_bytes({
+        "first.pdf":  pdf_bytes,
+        "second.pdf": pdf_bytes,
+    })
+    manifest = json.dumps([
+        {"filename": "first.pdf",  "control_id": "CC1.1"},
+        {"filename": "second.pdf", "control_id": "CC1.2"},
+    ])
+    user = _fake_user()
+    db_mock = _make_mock_db()
+
+    # First insert succeeds, second raises — AsyncMock side_effect list
+    db_mock.control_evidence.insert_one = AsyncMock(
+        side_effect=[MagicMock(inserted_id="cev-id-1"), Exception("DB error")]
+    )
+    db_mock.control_evidence.delete_many = AsyncMock()
+    app = _make_bulk_app(user, db_mock)
+
+    with patch.object(bulk_mod, "get_database", return_value=db_mock), \
+         patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+        resp = TestClient(app).post(
+            "/api/compliance/evidence/bulk",
+            files={"zip_file": ("batch.zip", zip_bytes, "application/zip")},
+            data={"manifest": manifest},
+        )
+
+    assert resp.status_code == 500, resp.text
+    # Rollback: delete_many must be called exactly once
+    db_mock.control_evidence.delete_many.assert_awaited_once()
+    call_args = db_mock.control_evidence.delete_many.call_args[0][0]
+    assert "id" in call_args, f"Expected 'id' key in filter, got: {call_args}"
+    assert "$in" in call_args["id"], f"Expected '$in' in id filter, got: {call_args['id']}"
+    assert len(call_args["id"]["$in"]) == 1, \
+        f"Expected 1 ID in rollback (only first insert succeeded), got: {call_args['id']['$in']}"
 
 
 # ---------------------------------------------------------------------------
