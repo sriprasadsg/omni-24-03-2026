@@ -48,6 +48,15 @@
 - [x] **SEC-02**: The bulk evidence commit loop performs DB-level rollback (deletes already-inserted `control_evidence` records) on any mid-batch exception, so a partial batch failure never leaves orphaned evidence records in the database
 - [ ] **SEC-03**: The ContextVar tenant context (`tenant_context.py`) is cleaned up on exception paths — a request that errors mid-flight cannot leak its tenant ID into the next async task running on the same thread
 
+## v1.4 Requirements
+
+### Agentic AI Integration
+
+- [ ] **AI-01**: The backend agentic task endpoint uses Claude (claude-sonnet-4-6) with structured tool-calling to reason about the agent's security context and select which capability to invoke — replacing the current stub that ignores the LLM response
+- [ ] **AI-02**: Claude has access to ≥ 5 security capability tools (compliance check, vulnerability scan, threat hunt, persistence scan, process snapshot) defined as JSON tool schemas; the LLM-selected tool is dispatched to the agent via the existing instruction channel
+- [ ] **AI-03**: Each agentic LLM invocation is logged with reasoning chain, selected tool, input parameters, agent response, and outcome — stored in an `agent_ai_decisions` collection per-tenant for auditability
+- [ ] **AI-04**: The agentic task path degrades gracefully when the Claude API is unreachable — falls back to existing rule-based decisions rather than erroring or blocking the agent
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -75,17 +84,22 @@
 | UI-01 | Phase 6 | Complete |
 | SCHED-01 | Phase 10 | Complete |
 | SCHED-02 | Phase 10 | Complete |
-| SEC-01 | Phase 11 | Planned |
-| SEC-02 | Phase 11 | Planned |
+| SEC-01 | Phase 11 | Complete |
+| SEC-02 | Phase 11 | Complete |
 | SEC-03 | Phase 11 | Planned |
+| AI-01 | Phase 12 | Planned |
+| AI-02 | Phase 12 | Planned |
+| AI-03 | Phase 12 | Planned |
+| AI-04 | Phase 12 | Planned |
 
 **Coverage:**
 
 - v1.1 requirements: 13 total, all complete
 - v1.2 requirements: 2 total, all complete
-- v1.3 requirements: 3 total, 0 complete
+- v1.3 requirements: 3 total, 2 complete
+- v1.4 requirements: 4 total, 0 complete
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-20*
-*Last updated: 2026-06-22 after Phase 10 completion*
+*Last updated: 2026-06-22 after Phase 12 bootstrapped*

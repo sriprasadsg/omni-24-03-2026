@@ -86,7 +86,25 @@
 
 **Goal:** Close the 3 open security and data-integrity findings from the Phase 8 code review: zip-bomb metadata bypass, bulk upload partial-write without DB rollback, and ContextVar tenant context leak on exception paths.
 
+**Status:** Complete — Phase 11 delivered, SEC-01/02 verified
+
+---
+
+## v1.4 — Agentic AI Integration
+
+**Goal:** Wire Claude tool-calling into the existing agentic decision loop so the LLM can autonomously reason about security findings, select security capabilities, and execute remediation actions — replacing the current stub handler with real Claude-powered decision-making.
+
 **Status:** Planning
+
+---
+
+## Phase 12: Agentic AI Integration
+
+**Goal:** Wire Claude (claude-sonnet-4-6) tool-calling into the agentic_poller → execute_agentic_task path in the backend so the LLM can reason about live security findings, select from a defined tool set of security capabilities, and log each decision with reasoning and result for auditability. Graceful degradation to rule-based fallback when the API is unreachable.
+
+**Requirements:** AI-01, AI-02, AI-03, AI-04
+
+**Plans:** TBD
 
 ---
 
@@ -97,6 +115,10 @@
 **Requirements:** SEC-01, SEC-02, SEC-03
 
 **Plans:** 1/1 plans complete
+
+**Status:** Complete — Phase 11 delivered, SEC-01/02 verified
+
+- [x] 11-01-PLAN.md — Backend TDD: `total_actual_bytes` cross-entry accumulator inside chunk while-loop replacing spoofable infolist pre-check (SEC-01); compensating `delete_many` DB rollback with `inserted_ids` tracking in commit-loop except block (SEC-02); 3 new/updated tests (14 total pass)
 
 ---
 
@@ -109,8 +131,6 @@
 **Plans:** 2/2 plans executed — COMPLETE
 
 Plans:
-
-- [x] 11-01-PLAN.md
 
 - [x] 10-01-PLAN.md — Backend TDD: framework_id schema, _generate_pdf wiring, delivery log collection, GET /history endpoint, SMTP validation (Wave 1)
 - [x] 10-02-PLAN.md — Frontend: framework picker in create modal, run-now URL fix, per-card delivery history panel (Wave 2)
