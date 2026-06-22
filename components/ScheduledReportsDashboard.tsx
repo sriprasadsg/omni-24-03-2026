@@ -23,6 +23,16 @@ interface ScheduledReport {
   framework_name?: string | null;
 }
 
+interface DeliveryLog {
+  id: string;
+  run_at: string;
+  status: 'success' | 'failure';
+  recipients: string[];
+  error: string | null;
+  format: string;
+  filename: string | null;
+}
+
 function relativeTime(isoStr: string | null | undefined): string {
   if (!isoStr) return '—';
   const diff = Date.now() - new Date(isoStr).getTime();
@@ -78,6 +88,9 @@ export default function ScheduledReportsDashboard() {
   });
   const [saving, setSaving] = useState(false);
   const [frameworks, setFrameworks] = useState<ComplianceFramework[]>([]);
+  const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
+  const [historyLogs, setHistoryLogs] = useState<Record<string, DeliveryLog[]>>({});
+  const [historyLoading, setHistoryLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadReports();
@@ -142,6 +155,20 @@ export default function ScheduledReportsDashboard() {
     if (!confirm('Delete this scheduled report?')) return;
     await authFetch(`/api/reports/scheduled/${id}`, { method: 'DELETE' });
     loadReports();
+  }
+
+  async function toggleHistory(id: string) {
+    const opening = !historyOpen[id];
+    setHistoryOpen(prev => ({ ...prev, [id]: opening }));
+    if (opening && !historyLogs[id]) {
+      setHistoryLoading(prev => ({ ...prev, [id]: true }));
+      try {
+        const r = await authFetch(`/api/reports/scheduled/${id}/history`);
+        const d = await r.json();
+        setHistoryLogs(prev => ({ ...prev, [id]: d.logs || [] }));
+      } catch { /* silently leave logs empty */ }
+      finally { setHistoryLoading(prev => ({ ...prev, [id]: false })); }
+    }
   }
 
   return (
@@ -243,11 +270,51 @@ export default function ScheduledReportsDashboard() {
                   className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 px-3 py-1.5 rounded text-xs">
                   {running === rep.id ? 'Running...' : 'Run Now'}
                 </button>
+                <button onClick={() => toggleHistory(rep.id)}
+                  className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded text-xs">
+                  {historyOpen[rep.id] ? 'Hide' : 'History'}
+                </button>
                 <button onClick={() => deleteReport(rep.id)}
                   className="bg-red-900/40 hover:bg-red-900/70 px-3 py-1.5 rounded text-xs text-red-300">
                   Delete
                 </button>
               </div>
+              {historyOpen[rep.id] && (
+                <div className="mt-3 border-t border-gray-700 pt-3">
+                  {historyLoading[rep.id] ? (
+                    <p className="text-xs text-gray-500">Loading...</p>
+                  ) : !historyLogs[rep.id]?.length ? (
+                    <p className="text-xs text-gray-500">No delivery history yet</p>
+                  ) : (
+                    <table className="w-full text-xs text-gray-300">
+                      <thead>
+                        <tr className="text-gray-500 border-b border-gray-700">
+                          <th className="pb-1 text-left">Date / Time</th>
+                          <th className="pb-1 text-left">Status</th>
+                          <th className="pb-1 text-left">Recipients</th>
+                          <th className="pb-1 text-left">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyLogs[rep.id].map(log => (
+                          <tr key={log.id} className="border-b border-gray-800">
+                            <td className="py-1">{new Date(log.run_at).toLocaleString()}</td>
+                            <td className="py-1">
+                              {log.status === 'success'
+                                ? <span className="text-green-400 font-medium">Success</span>
+                                : <span className="text-red-400 font-medium">Failed</span>}
+                            </td>
+                            <td className="py-1">{log.recipients?.join(', ') || '—'}</td>
+                            <td className="py-1" title={log.error || ''}>
+                              {log.error ? log.error.slice(0, 60) + (log.error.length > 60 ? '…' : '') : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
