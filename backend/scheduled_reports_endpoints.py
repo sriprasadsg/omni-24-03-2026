@@ -60,8 +60,8 @@ async def create_schedule(
         schedule = await svc.create_schedule(_tid(current_user), _actor(current_user), payload)
         schedule.pop("_id", None)
         return {"schedule": schedule, "message": f"Report scheduled — next delivery: {schedule['next_run'][:10]}"}
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Bad request")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.put("/{schedule_id}")
@@ -87,6 +87,13 @@ async def delete_schedule(
     return {"message": "Schedule deleted"}
 
 
+@router.get("/{schedule_id}/history")
+async def get_delivery_history(schedule_id: str, current_user=Depends(get_current_user)):
+    logs = await svc.get_delivery_history(schedule_id, _tid(current_user), _role(current_user))
+    return {"logs": logs, "total": len(logs)}
+
+
+# Canonical route: POST /{schedule_id}/run-now — frontend must call /run-now not /run
 @router.post("/{schedule_id}/run-now")
 async def run_now(schedule_id: str, current_user=Depends(get_current_user)):
     try:

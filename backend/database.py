@@ -295,6 +295,11 @@ async def connect_to_mongo():
         await mongodb.db.password_reset_tokens.create_index("created_at", expireAfterSeconds=3600)
         # revoked_tokens: only needs to outlive the longest possible access-token TTL (24 h)
         await mongodb.db.revoked_tokens.create_index("revoked_at", expireAfterSeconds=86400)
+        # report_delivery_logs: compound index for per-schedule history queries (SCHED-02)
+        await mongodb.db.report_delivery_logs.create_index(
+            [("schedule_id", 1), ("run_at", -1)],
+            name="schedule_history_idx",
+        )
     except Exception as index_error:
         import logging as _logging
         _logging.getLogger(__name__).warning(
