@@ -236,7 +236,7 @@ export default function ScheduledReportsDashboard() {
               <div className="flex items-center gap-3 mb-3 text-sm">
                 <span className={`font-medium capitalize ${FREQ_COLORS[rep.frequency]}`}>{rep.frequency}</span>
                 <span className="text-gray-500">·</span>
-                <span>{CHANNEL_ICONS[rep.delivery_channel]} {rep.delivery_channel}</span>
+                <span><span aria-hidden="true">{CHANNEL_ICONS[rep.delivery_channel]}</span> {rep.delivery_channel}</span>
               </div>
 
               {rep.recipients.length > 0 && (
@@ -384,7 +384,7 @@ export default function ScheduledReportsDashboard() {
                       <label key={c} className={`flex items-center justify-center gap-1 p-2 rounded border cursor-pointer text-sm transition-colors ${form.delivery_channel === c ? 'border-blue-500 bg-blue-900/20 text-blue-300' : 'border-gray-600 text-gray-400 hover:border-gray-400'}`}>
                         <input type="radio" name="channel" value={c} checked={form.delivery_channel === c}
                           onChange={() => setForm(p => ({ ...p, delivery_channel: c }))} className="sr-only" />
-                        {CHANNEL_ICONS[c]} {c}
+                        <span aria-hidden="true">{CHANNEL_ICONS[c]}</span> {c}
                       </label>
                     ))}
                   </div>
