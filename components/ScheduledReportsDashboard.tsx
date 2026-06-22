@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { authFetch } from '../services/apiService';
+import { authFetch, fetchComplianceFrameworks } from '../services/apiService';
+import type { ComplianceFramework } from '../types';
 import { showToast } from '../utils/toast';
 
 interface ScheduledReport {
@@ -18,6 +19,8 @@ interface ScheduledReport {
   last_error?: string | null;
   created_at: string;
   run_count: number;
+  framework_id?: string | null;
+  framework_name?: string | null;
 }
 
 function relativeTime(isoStr: string | null | undefined): string {
@@ -40,6 +43,7 @@ function relativeTime(isoStr: string | null | undefined): string {
 const REPORT_TYPES = [
   'security_summary', 'vulnerability_report', 'compliance_status',
   'incident_report', 'agent_health', 'threat_intelligence', 'executive_summary',
+  'compliance_summary', 'custom_framework',
 ];
 
 const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly'];
@@ -70,10 +74,15 @@ export default function ScheduledReportsDashboard() {
     delivery_channel: 'email',
     recipients: '',
     webhook_url: '',
+    framework_id: '',
   });
   const [saving, setSaving] = useState(false);
+  const [frameworks, setFrameworks] = useState<ComplianceFramework[]>([]);
 
-  useEffect(() => { loadReports(); }, []);
+  useEffect(() => {
+    loadReports();
+    fetchComplianceFrameworks().then(setFrameworks);
+  }, []);
 
   async function loadReports() {
     try {
@@ -94,12 +103,20 @@ export default function ScheduledReportsDashboard() {
         recipients: form.recipients.split(',').map(s => s.trim()).filter(Boolean),
       };
       if (form.webhook_url) body.webhook_url = form.webhook_url;
+      if (form.framework_id) {
+        body.framework_id = form.framework_id;
+        body.framework_name = frameworks.find(f => f.id === form.framework_id)?.name ?? '';
+      }
       const r = await authFetch('/api/reports/scheduled', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (r.ok) { loadReports(); setShowCreate(false); setForm({ name: '', report_type: 'security_summary', frequency: 'weekly', delivery_channel: 'email', recipients: '', webhook_url: '' }); }
+      if (r.ok) {
+        loadReports();
+        setShowCreate(false);
+        setForm({ name: '', report_type: 'security_summary', frequency: 'weekly', delivery_channel: 'email', recipients: '', webhook_url: '', framework_id: '' });
+      }
       else { const d = await r.json(); showToast(d.detail || 'Failed', 'error'); }
     } finally { setSaving(false); }
   }
@@ -116,7 +133,7 @@ export default function ScheduledReportsDashboard() {
   async function runNow(id: string) {
     setRunning(id);
     try {
-      await authFetch(`/api/reports/scheduled/${id}/run`, { method: 'POST' });
+      await authFetch(`/api/reports/scheduled/${id}/run-now`, { method: 'POST' });
       loadReports();
     } finally { setRunning(null); }
   }
@@ -168,6 +185,9 @@ export default function ScheduledReportsDashboard() {
                 <div>
                   <h3 className="font-semibold">{rep.name}</h3>
                   <p className="text-xs text-gray-400 capitalize mt-0.5">{rep.report_type.replace(/_/g, ' ')}</p>
+                  {rep.framework_name && (
+                    <p className="text-xs text-gray-500 mt-0.5">{rep.framework_name}</p>
+                  )}
                 </div>
                 <button
                   onClick={() => toggleReport(rep.id, rep.enabled)}
@@ -255,6 +275,16 @@ export default function ScheduledReportsDashboard() {
                     {REPORT_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </select>
                 </div>
+                {(form.report_type === 'compliance_summary' || form.report_type === 'custom_framework') && (
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Compliance Framework</label>
+                    <select value={form.framework_id} onChange={e => setForm(p => ({ ...p, framework_id: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white">
+                      <option value="" disabled>Select framework...</option>
+                      {frameworks.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm text-gray-400 block mb-2">Frequency</label>
                   <div className="grid grid-cols-4 gap-2">
