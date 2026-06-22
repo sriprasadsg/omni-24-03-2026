@@ -3,6 +3,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { ComplianceFramework, ControlStatus, Asset, AssetCompliance } from '../types';
 import { AssetComplianceList } from './AssetComplianceList';
 import { ChainOfCustodyPanel } from './ChainOfCustodyPanel';
+import { BulkEvidenceUploadModal } from './BulkEvidenceUploadModal';
 // FIX: Replaced non-existent LockIcon with ShieldLockIcon.
 import { PaperclipIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon, FilterIcon, HeartPulseIcon, CreditCardIcon, BookOpenCheckIcon, BinocularsIcon, ShieldIcon, SirenIcon, MessageSquareWarningIcon, HeartHandshakeIcon, BuildingIcon, ClipboardListIcon, ShieldLockIcon, PlusIcon, UploadIcon, XIcon, BrainCircuitIcon, ScaleIcon, DatabaseIcon, LayersIcon, ActivityIcon, RefreshCwIcon, UsersIcon, FileTextIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
@@ -401,6 +402,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
   const [isAddControlModalOpen, setIsAddControlModalOpen] = useState(false);
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [evidenceUploadControlId, setEvidenceUploadControlId] = useState<string | null>(null);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [reportFormat, setReportFormat] = useState<'csv' | 'excel' | 'pdf'>('csv');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -520,6 +522,14 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
               >
                 <UploadIcon size={14} className="mr-1.5" />
                 Import Controls
+              </button>
+              <button
+                onClick={() => setIsBulkUploadOpen(true)}
+                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                aria-label="Open bulk evidence upload modal"
+              >
+                <UploadIcon size={14} className="mr-1.5" />
+                Bulk Upload Evidence
               </button>
               {/* Format Selector */}
               <select
@@ -850,6 +860,12 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
           controlId={evidenceUploadControlId}
           onClose={() => setEvidenceUploadControlId(null)}
           onUploaded={() => { if (onRefresh) onRefresh(); }}
+        />
+      )}
+      {isBulkUploadOpen && (
+        <BulkEvidenceUploadModal
+          onClose={() => setIsBulkUploadOpen(false)}
+          onUploaded={() => { setIsBulkUploadOpen(false); if (onRefresh) onRefresh(); }}
         />
       )}
     </div>
