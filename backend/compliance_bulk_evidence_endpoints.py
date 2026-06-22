@@ -91,15 +91,14 @@ async def bulk_upload_evidence(
             raise HTTPException(status_code=400, detail="Uploaded file is not a valid zip")
 
         with zipfile.ZipFile(io.BytesIO(zip_content)) as zf:
-            total_uncompressed = sum(i.file_size for i in zf.infolist())
-            if total_uncompressed > MAX_BULK_BYTES:
-                raise HTTPException(
-                    status_code=413, detail="Uncompressed content exceeds 200 MB limit"
-                )
+            # NOTE: Do NOT sum zf.infolist() file_size here — that metadata is
+            # spoofable (SEC-01). Total uncompressed size is tracked via actual
+            # bytes read in Pass 1 below.
 
             # --- Pass 1: validate all entries (no writes yet) ---
             errors: list[dict] = []
             validated: list[dict] = []
+            total_actual_bytes = 0  # SEC-01: cross-entry accumulator for real bytes
 
             for item in items:
                 raw_name: str = item["filename"]
@@ -129,8 +128,13 @@ async def bulk_upload_evidence(
                             if not chunk:
                                 break
                             read += len(chunk)
+                            total_actual_bytes += len(chunk)  # SEC-01: count real bytes
                             if read > MAX_ENTRY_BYTES:
                                 errors.append({"filename": raw_name, "error": "File exceeds 25 MB limit"})
+                                buf = None
+                                break
+                            if total_actual_bytes > MAX_BULK_BYTES:  # SEC-01: cross-entry guard
+                                errors.append({"filename": raw_name, "error": "Batch total exceeds 200 MB uncompressed limit"})
                                 buf = None
                                 break
                             buf.write(chunk)
@@ -174,6 +178,7 @@ async def bulk_upload_evidence(
             db = get_database()
             committed: list[dict] = []
             written_paths: list[str] = []
+            inserted_ids: list[str] = []  # SEC-02: track for rollback
 
             try:
                 for v in validated:
@@ -197,6 +202,7 @@ async def bulk_upload_evidence(
                         "bulk_batch_id": batch_id,
                     }
                     await db.control_evidence.insert_one({**record})
+                    inserted_ids.append(record["id"])  # SEC-02: record after successful insert
                     await _append_coc_entry(
                         db=db,
                         evidence_id=record["id"],
@@ -209,6 +215,12 @@ async def bulk_upload_evidence(
                     record.pop("_id", None)
                     committed.append(record)
             except Exception:
+                # SEC-02: DB rollback — delete any already-inserted records
+                if inserted_ids:
+                    try:
+                        await db.control_evidence.delete_many({"id": {"$in": inserted_ids}})
+                    except Exception as rollback_exc:
+                        logger.error("Bulk upload DB rollback failed: %s", rollback_exc)
                 for p in written_paths:
                     try:
                         await asyncio.to_thread(os.unlink, p)
