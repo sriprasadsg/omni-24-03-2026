@@ -20,6 +20,7 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     "compliance_status_endpoints",
     "compliance_evidence_lifecycle_endpoints",
     "compliance_bulk_evidence_endpoints",
+    "compliance_score_endpoints",
 })
 
 
@@ -130,6 +131,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "compliance_remediation_endpoints", "router")
     _load(app, "compliance_evidence_lifecycle_endpoints", "router")
     _load(app, "compliance_bulk_evidence_endpoints", "router")
+    _load(app, "compliance_score_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
