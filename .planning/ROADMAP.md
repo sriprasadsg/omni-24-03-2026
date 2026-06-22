@@ -78,7 +78,7 @@
 
 **Goal:** Tenant admins can schedule compliance reports to be auto-generated and emailed on a recurring cadence, and view delivery history.
 
-**Status:** Planning
+**Status:** Complete — Phase 10 delivered, SCHED-01/02 verified
 
 ---
 
