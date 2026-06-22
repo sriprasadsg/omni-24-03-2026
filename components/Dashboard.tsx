@@ -3,6 +3,7 @@ import { Metric, Alert, ComplianceFramework, AiSystem, User, AppView, Agent } fr
 import { MetricCard } from './MetricCard';
 import { AlertsPanel } from './AlertsPanel';
 import { ComplianceStatus } from './ComplianceStatus';
+import { ComplianceScorePanel } from './ComplianceScorePanel';
 import { AiInsights } from './AiInsights';
 import { AiSystemHealth } from './AiSystemHealth';
 import { DashboardHeader } from './DashboardHeader';
@@ -44,7 +45,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ metrics, alerts, complianc
         </div>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 space-y-6">
+        <ComplianceScorePanel />
         <ComplianceStatus frameworks={complianceFrameworks} />
       </div>
     </div>
