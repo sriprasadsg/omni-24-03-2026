@@ -109,7 +109,12 @@ export const BulkEvidenceUploadModal: React.FC<BulkEvidenceUploadModalProps> = (
                     {/* Section 2: Manifest */}
                     <div className="mb-4">
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">2. Select manifest JSON</p>
-                        <div onClick={() => manifestRef.current?.click()}
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Select manifest JSON file"
+                            onClick={() => manifestRef.current?.click()}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); manifestRef.current?.click(); } }}
                             className="border-2 border-dashed rounded-lg p-4 cursor-pointer text-sm border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400">
                             {manifestFileName ? <span className="text-gray-700 dark:text-gray-300">{manifestFileName}</span> : <span>Click to select manifest JSON file</span>}
                         </div>
