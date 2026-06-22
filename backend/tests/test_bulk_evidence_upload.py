@@ -1,6 +1,7 @@
 """Phase 8 bulk evidence upload tests — BULK-01, BULK-02, BULK-03, security guards.
 
-Uses asyncio.run() (pytest-asyncio not installed — project decision 02-01).
+All tests are synchronous (TestClient). asyncio.to_thread is patched where needed.
+(pytest-asyncio not installed — project decision 02-01)
 """
 import sys
 import os
