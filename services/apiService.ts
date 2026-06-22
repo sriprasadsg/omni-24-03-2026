@@ -693,6 +693,36 @@ export const deleteControlEvidence = async (controlId: string, evidenceId: strin
     if (!res.ok) throw new Error('Control evidence delete failed');
 };
 
+export interface ManifestEntry {
+    filename: string;
+    control_id: string;
+}
+
+export interface BulkUploadResult {
+    success: boolean;
+    committed: number;
+    batch_id: string;
+    evidence: any[];
+}
+
+export const uploadBulkEvidence = async (zipFile: File, manifest: ManifestEntry[]): Promise<BulkUploadResult> => {
+    const formData = new FormData();
+    formData.append('zip_file', zipFile);
+    formData.append('manifest', JSON.stringify(manifest));
+    const res = await authFetch(`${API_BASE}/compliance/evidence/bulk`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const err: any = new Error('Bulk evidence upload failed');
+        err.status = res.status;
+        err.detail = body.detail;
+        throw err;
+    }
+    return res.json();
+};
+
 export const fetchAiSystems = async () => {
     try {
         const res = await authFetch(`${API_BASE}/ai-systems`);
