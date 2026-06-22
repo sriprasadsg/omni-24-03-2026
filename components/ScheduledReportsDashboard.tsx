@@ -276,15 +276,15 @@ export default function ScheduledReportsDashboard() {
 
               <div className="flex gap-2">
                 <button onClick={() => runNow(rep.id)} disabled={running === rep.id}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 px-3 py-1.5 rounded text-xs">
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 px-3 py-2.5 rounded text-xs">
                   {running === rep.id ? 'Running...' : 'Run Now'}
                 </button>
                 <button onClick={() => toggleHistory(rep.id)}
-                  className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded text-xs">
+                  className="bg-gray-700 hover:bg-gray-600 px-3 py-2.5 rounded text-xs">
                   {historyOpen[rep.id] ? 'Hide' : 'History'}
                 </button>
                 <button onClick={() => deleteReport(rep.id)}
-                  className="bg-red-900/40 hover:bg-red-900/70 px-3 py-1.5 rounded text-xs text-red-300">
+                  className="bg-red-900/40 hover:bg-red-900/70 px-3 py-2.5 rounded text-xs text-red-300">
                   Delete
                 </button>
               </div>
