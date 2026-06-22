@@ -25,9 +25,9 @@
 
 ### Compliance Score
 
-- [ ] **SCORE-01**: Each tenant has a compliance score displayed on the main dashboard: percentage of controls passing across all monitored assets, computed at the time of the last evidence update
-- [ ] **SCORE-02**: The compliance score is severity-weighted — Critical and High controls failing count more than Medium and Low — with the weighting visible in a tooltip or legend
-- [ ] **SCORE-03**: The score is broken down by framework (e.g., SOC 2: 87%, ISO 27001: 72%) and can be expanded in a panel to show per-framework detail
+- [x] **SCORE-01**: Each tenant has a compliance score displayed on the main dashboard: percentage of controls passing across all monitored assets, computed at the time of the last evidence update
+- [x] **SCORE-02**: The compliance score is severity-weighted — Critical and High controls failing count more than Medium and Low — with the weighting visible in a tooltip or legend
+- [x] **SCORE-03**: The score is broken down by framework (e.g., SOC 2: 87%, ISO 27001: 72%) and can be expanded in a panel to show per-framework detail
 
 ### UI Carry-forward (from v1.0 UI Audit)
 
@@ -55,9 +55,9 @@
 | BULK-01 | Phase 8 | Complete |
 | BULK-02 | Phase 8 | Complete |
 | BULK-03 | Phase 8 | Complete |
-| SCORE-01 | Phase 9 | Pending |
-| SCORE-02 | Phase 9 | Pending |
-| SCORE-03 | Phase 9 | Pending |
+| SCORE-01 | Phase 9 | Complete |
+| SCORE-02 | Phase 9 | Complete |
+| SCORE-03 | Phase 9 | Complete |
 | UI-01 | Phase 6 | Complete |
 
 **Coverage:**

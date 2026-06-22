@@ -4,12 +4,12 @@ milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 status: executing
 stopped_at: Phase 08 complete — bulk evidence upload delivered (8/8 verified)
-last_updated: "2026-06-22T00:00:00.000Z"
+last_updated: "2026-06-22T08:22:52.642Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
   percent: 75
 ---
 
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 09 — compliance-score-dashboard (next)
+**Current focus:** Phase 09 — compliance-score-dashboard
 
 ## Current Phase
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 Goal: Wire Mark Compliant / Mark Non-Compliant buttons to a real backend endpoint so compliance status changes persist; fix source badge font-size WCAG violation from v1.0 UI audit.
 
-Status: Executing Phase 07
+Status: Executing Phase 09
 
 ## Phases
 
@@ -98,6 +98,9 @@ Status: Executing Phase 07
 - 08-01: stored filename for bulk entries is uuid4().hex+ext (same as single-file pattern) — safe_name used only as display/db label
 - 08-02: BulkEvidenceUploadModal.tsx is a new component — FrameworkDetail.tsx already at 857 lines; only import + state var + button + conditional render (≤4 lines net) added to host file
 - 08-02: uploadBulkEvidence() uses FormData with no explicit Content-Type header (browser sets boundary automatically, same as T-02-07 decision)
+- 09-01: invalidate_cache() is synchronous — called without await (cache_service.py def invalidate_cache, not async def; consistent with agent_registry_endpoints.py usage)
+- 09-01: _score_status() copied inline to compliance_score_endpoints.py — avoids circular import risk (Pitfall 5 in RESEARCH.md, precedent from 07-02 _require_admin)
+- 09-01: Category-based severity mapping — Access Control/Cryptography/Incident Response=Critical, Audit/Configuration/Vulnerability=High, Operations/Risk Management=Medium, default=Low
 
 ## Performance Metrics
 
@@ -118,6 +121,7 @@ Status: Executing Phase 07
 | Phase 06-asset-compliance-status-ui-fix P02 | ~2m | 3 tasks | 3 files |
 | 07-evidence-lifecycle-staleness-chain-of-custody | 01 | ~3m | 3 | 4 |
 | 07-evidence-lifecycle-staleness-chain-of-custody | 02 | ~5m | 3 | 4 |
+| 09-compliance-score-dashboard | 01 | ~7m | 3 | 5 |
 
 ## Last Session
 
@@ -148,6 +152,6 @@ Status: Executing Phase 07
 
 ## Session
 
-**Last session:** 2026-06-22T07:09:25.491Z
+**Last session:** 2026-06-22T08:22:52.631Z
 **Stopped at:** Completed 07-02-PLAN.md
 **Resume file:** None
