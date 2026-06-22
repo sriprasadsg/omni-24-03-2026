@@ -44,8 +44,8 @@
 
 ### Security Hardening
 
-- [ ] **SEC-01**: The bulk evidence zip upload endpoint validates total uncompressed size using bounded streaming reads (not spoofable ZipInfo metadata), so a crafted zip with falsified `file_size=0` entries cannot bypass the 200 MB uncompressed guard
-- [ ] **SEC-02**: The bulk evidence commit loop performs DB-level rollback (deletes already-inserted `control_evidence` records) on any mid-batch exception, so a partial batch failure never leaves orphaned evidence records in the database
+- [x] **SEC-01**: The bulk evidence zip upload endpoint validates total uncompressed size using bounded streaming reads (not spoofable ZipInfo metadata), so a crafted zip with falsified `file_size=0` entries cannot bypass the 200 MB uncompressed guard
+- [x] **SEC-02**: The bulk evidence commit loop performs DB-level rollback (deletes already-inserted `control_evidence` records) on any mid-batch exception, so a partial batch failure never leaves orphaned evidence records in the database
 - [ ] **SEC-03**: The ContextVar tenant context (`tenant_context.py`) is cleaned up on exception paths — a request that errors mid-flight cannot leak its tenant ID into the next async task running on the same thread
 
 ## Out of Scope

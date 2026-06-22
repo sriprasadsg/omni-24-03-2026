@@ -4,12 +4,12 @@ milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 status: executing
 stopped_at: Phase 10 Plan 02 complete — scheduled reports frontend (framework picker, runNow fix, history panel)
-last_updated: "2026-06-22T13:27:22Z"
+last_updated: "2026-06-22T18:12:30.771Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -161,6 +161,6 @@ Status: Phase 10 complete — both plans delivered
 
 ## Session
 
-**Last session:** 2026-06-22T13:21:59.600Z
+**Last session:** 2026-06-22T18:12:30.756Z
 **Stopped at:** Phase 09 verification complete
 **Resume file:** None
