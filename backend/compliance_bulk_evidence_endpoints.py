@@ -20,6 +20,7 @@ from compliance_evidence_endpoints import _EVIDENCE_ALLOWED_EXTENSIONS
 from evidence_coc import _append_coc_entry
 from database import get_database
 from authentication_service import get_current_user
+from cache_service import invalidate_cache
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,7 @@ async def bulk_upload_evidence(
                         pass
                 raise HTTPException(status_code=500, detail="Internal server error")
 
+        invalidate_cache(f"compliance:score:{tenant_id}")
         return {
             "success": True,
             "committed": len(committed),

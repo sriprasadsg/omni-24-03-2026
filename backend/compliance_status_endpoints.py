@@ -12,6 +12,7 @@ from typing import Literal
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from cache_service import invalidate_cache
 
 router = APIRouter()
 
@@ -86,4 +87,5 @@ async def patch_asset_compliance_status(
         upsert=True,
     )
 
+    invalidate_cache(f"compliance:score:{resolved_tenant_id}")
     return {"ok": True, "status": body.status, "previous_status": previous_status}
