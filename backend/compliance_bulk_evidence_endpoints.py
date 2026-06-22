@@ -116,20 +116,32 @@ async def bulk_upload_evidence(
                     )
                     continue
 
-                # Read entry bytes using raw_name (as listed in zip)
+                # Read entry bytes using raw_name (as listed in zip) — bounded read
+                # to prevent zip-bomb decompression attacks (CR-02).
+                MAX_ENTRY_BYTES = 25 * 1024 * 1024
                 try:
-                    entry_bytes = zf.read(raw_name)
+                    buf = io.BytesIO()
+                    with zf.open(raw_name) as entry_fh:
+                        read = 0
+                        while True:
+                            chunk = entry_fh.read(65536)
+                            if not chunk:
+                                break
+                            read += len(chunk)
+                            if read > MAX_ENTRY_BYTES:
+                                errors.append({"filename": raw_name, "error": "File exceeds 25 MB limit"})
+                                buf = None
+                                break
+                            buf.write(chunk)
                 except KeyError:
                     errors.append(
                         {"filename": raw_name, "error": "File not found in zip"}
                     )
                     continue
 
-                if len(entry_bytes) > 25 * 1024 * 1024:
-                    errors.append(
-                        {"filename": raw_name, "error": "File exceeds 25 MB limit"}
-                    )
+                if buf is None:
                     continue
+                entry_bytes = buf.getvalue()
 
                 if not _check_magic(entry_bytes, ext):
                     errors.append(
