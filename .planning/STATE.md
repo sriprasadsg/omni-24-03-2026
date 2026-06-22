@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
-status: complete
+status: executing
 stopped_at: Phase 09 complete — compliance score dashboard delivered (9/9 verified)
-last_updated: "2026-06-22T18:00:00.000Z"
+last_updated: "2026-06-22T13:21:59.612Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** v1.1 milestone complete
+**Current focus:** Phase 10 — scheduled-reports
 
 ## Current Phase
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 
 Goal: Each tenant has a live compliance score (% controls passing, severity-weighted) visible on the main dashboard, broken down by framework.
 
-Status: Complete — all 9 must-haves verified, 415 tests pass, no regression
+Status: Executing Phase 10
 
 ## Phases
 
@@ -103,6 +103,7 @@ Status: Complete — all 9 must-haves verified, 415 tests pass, no regression
 - 09-01: Category-based severity mapping — Access Control/Cryptography/Incident Response=Critical, Audit/Configuration/Vulnerability=High, Operations/Risk Management=Medium, default=Low
 - 09-02: ComplianceScorePanel.tsx at exactly 250 lines (plan limit); all UI states (loading/error/empty/normal) implemented
 - 09-02: invalidate_cache() called synchronously on success path only — not inside exception handlers
+- [Phase ?]: 10-01: email_service imported at module level for testability; schedule_history_idx in database.py (not app_startup.py); ValueError maps to 422 for SMTP validation
 
 ## Performance Metrics
 
@@ -125,12 +126,13 @@ Status: Complete — all 9 must-haves verified, 415 tests pass, no regression
 | 07-evidence-lifecycle-staleness-chain-of-custody | 02 | ~5m | 3 | 4 |
 | 09-compliance-score-dashboard | 01 | ~7m | 3 | 5 |
 | 09-compliance-score-dashboard | 02 | ~5m | 2 | 4 |
+| Phase 10-scheduled-reports P01 | ~6m | 3 tasks | 5 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-06-22T18:00:00Z
-- **Stopped at:** Phase 09 complete — compliance score dashboard delivered, 9/9 verified, 415 tests pass
-- **Resume file:** None — v1.1 milestone complete
+- **Stopped at:** Phase 10 Plan 01 complete — scheduled reports PDF wiring, delivery logging, history endpoint
+- **Resume file:** None
 
 ## Configuration
 
@@ -155,6 +157,6 @@ Status: Complete — all 9 must-haves verified, 415 tests pass, no regression
 
 ## Session
 
-**Last session:** 2026-06-22T18:00:00Z
+**Last session:** 2026-06-22T13:21:59.600Z
 **Stopped at:** Phase 09 verification complete
 **Resume file:** None

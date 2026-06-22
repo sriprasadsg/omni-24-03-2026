@@ -33,14 +33,20 @@
 
 - [x] **UI-01**: Source badges ("Automated" / "Manual") in the evidence table use `text-xs` (12px) instead of `text-[10px]` to meet WCAG AA contrast at their color values
 
+## v1.2 Requirements
+
+### Scheduled Reports
+
+- [x] **SCHED-01**: A tenant admin can configure a report schedule (daily / weekly / monthly) per framework; on each scheduled run the backend generates a PDF compliance report and emails it to one or more configured recipient addresses
+- [x] **SCHED-02**: The scheduled report delivery history (run timestamp, framework, recipient addresses, delivery status) is viewable from the Reports page; failed deliveries surface an error message
+
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Evidence version history (keeping old files on re-upload) | Storage complexity; chain-of-custody log provides the audit trail without full file versioning |
-| Comment threads on controls | Distinct feature with its own UI surface; deferred to v1.2 |
-| Scheduled auto-email reports | Requires email infrastructure not yet in scope |
-| Jira/ServiceNow webhook for remediation tasks | Deferred to v1.2 remediation enhancements milestone |
+| Comment threads on controls | Distinct feature with its own UI surface; deferred to v1.2+ |
+| Jira/ServiceNow webhook for remediation tasks | Deferred to a future milestone |
 
 ## Traceability
 
@@ -59,11 +65,13 @@
 | SCORE-02 | Phase 9 | Complete |
 | SCORE-03 | Phase 9 | Complete |
 | UI-01 | Phase 6 | Complete |
+| SCHED-01 | Phase 10 | Complete |
+| SCHED-02 | Phase 10 | Complete |
 
 **Coverage:**
 
-- v1.1 requirements: 13 total
-- Mapped to phases: 13
+- v1.1 requirements: 13 total, all complete
+- v1.2 requirements: 2 total, 0 complete
 - Unmapped: 0 ✓
 
 ---
