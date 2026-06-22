@@ -50,10 +50,10 @@
 
 **Requirements:** BULK-01, BULK-02, BULK-03
 
-**Plans:**
+**Plans:** 2/2 plans complete
 
-- 08-01: Backend — `POST /api/compliance/evidence/bulk` endpoint; unzip in temp dir; validate each file (MIME, magic bytes, ≤25 MB); commit or reject with per-file error report
-- 08-02: Frontend — bulk upload UI in control list header; zip + manifest upload form; per-file validation error display; success summary
+- [x] 08-01-PLAN.md — Backend: POST /api/compliance/evidence/bulk endpoint, validate-all-before-commit, zip-bomb/zip-slip guards, CoC integration, router registration, test suite (BULK-01, BULK-02, BULK-03)
+- [x] 08-02-PLAN.md — Frontend: BulkEvidenceUploadModal.tsx, FrameworkDetail trigger button, uploadBulkEvidence in apiService, per-file 422 error display, success summary (BULK-01, BULK-02, BULK-03)
 
 ---
 

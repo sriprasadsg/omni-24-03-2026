@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-06-21T20:26:31.359Z"
+stopped_at: Phase 08 plans created (08-01-PLAN.md, 08-02-PLAN.md)
+last_updated: "2026-06-22T07:09:25.504Z"
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 50
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
+  percent: 75
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 07 — evidence-lifecycle-staleness-chain-of-custody
+**Current focus:** Phase 08 — bulk-evidence-upload
 
 ## Current Phase
 
@@ -89,6 +89,15 @@ Status: Executing Phase 07
 - 07-02: compliance_evidence_lifecycle_endpoints.py uses APIRouter() with NO prefix — serves both /api/settings and /api/compliance URL spaces
 - 07-02: _require_admin copied inline (not imported from settings_endpoints) to keep lifecycle endpoints file self-contained
 - 07-02: compliance_evidence_lifecycle_endpoints added to _REQUIRED_ROUTERS to fail startup fast on load error (T-07-09)
+- 08-01: compliance_bulk_evidence_endpoints.py is a new file — compliance_evidence_endpoints.py at 495 lines would breach 500-line limit if bulk handler added inline
+- 08-01: Validate-all-before-commit two-pass design — pass 1 validates every zip entry; pass 2 commits atomically only if errors == []; no partial commits
+- 08-01: Manifest is a Form string (JSON) field, not a separate file upload — supports both hand-built and UI-built manifest flows
+- 08-01: Bulk evidence written to control_evidence collection (not asset_compliance) — BULK-03 satisfied for free via existing GET /api/compliance/controls/{id}/evidence
+- 08-01: MAX_BULK_FILES=50, MAX_BULK_BYTES=200 MB (uncompressed sum); per-file cap 25 MB; zip-bomb guard via sum(i.file_size for i in zf.infolist()) before any zf.read
+- 08-01: Zip-slip guard: os.path.basename(raw_name.replace("\\", "/")) + stored filename is uuid4().hex+ext (never derived from zip entry name)
+- 08-01: stored filename for bulk entries is uuid4().hex+ext (same as single-file pattern) — safe_name used only as display/db label
+- 08-02: BulkEvidenceUploadModal.tsx is a new component — FrameworkDetail.tsx already at 857 lines; only import + state var + button + conditional render (≤4 lines net) added to host file
+- 08-02: uploadBulkEvidence() uses FormData with no explicit Content-Type header (browser sets boundary automatically, same as T-02-07 decision)
 
 ## Performance Metrics
 
@@ -112,9 +121,9 @@ Status: Executing Phase 07
 
 ## Last Session
 
-- **Timestamp:** 2026-06-21T00:00:00Z
-- **Stopped at:** Phase 07 plans complete (3 plans, verified)
-- **Resume file:** .planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-01-PLAN.md
+- **Timestamp:** 2026-06-22T00:00:00Z
+- **Stopped at:** Phase 08 plans complete (2 plans, verified); ready to execute
+- **Resume file:** .planning/phases/08-bulk-evidence-upload/08-01-PLAN.md
 
 ## Configuration
 
@@ -139,6 +148,6 @@ Status: Executing Phase 07
 
 ## Session
 
-**Last session:** 2026-06-21T20:26:31.345Z
+**Last session:** 2026-06-22T07:09:25.491Z
 **Stopped at:** Completed 07-02-PLAN.md
 **Resume file:** None

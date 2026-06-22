@@ -19,9 +19,9 @@
 
 ### Bulk Evidence Upload
 
-- [ ] **BULK-01**: A user can upload a zip file containing multiple evidence files (PDF, PNG, JPEG, DOCX, XLSX) together with a JSON manifest that maps each file to a control ID
-- [ ] **BULK-02**: Files in the zip are extracted and validated individually (MIME type, size ≤ 25 MB per file, magic bytes) before any are stored; the entire batch is rejected with a per-file error report if any file fails validation
-- [ ] **BULK-03**: Successfully uploaded bulk evidence files appear in the same control detail view as individually uploaded evidence, with the same Manual badge and delete capability
+- [x] **BULK-01**: A user can upload a zip file containing multiple evidence files (PDF, PNG, JPEG, DOCX, XLSX) together with a JSON manifest that maps each file to a control ID
+- [x] **BULK-02**: Files in the zip are extracted and validated individually (MIME type, size ≤ 25 MB per file, magic bytes) before any are stored; the entire batch is rejected with a per-file error report if any file fails validation
+- [x] **BULK-03**: Successfully uploaded bulk evidence files appear in the same control detail view as individually uploaded evidence, with the same Manual badge and delete capability
 
 ### Compliance Score
 
@@ -52,9 +52,9 @@
 | STALE-02 | Phase 7 | Complete |
 | COC-01 | Phase 7 | Complete |
 | COC-02 | Phase 7 | Complete |
-| BULK-01 | Phase 8 | Pending |
-| BULK-02 | Phase 8 | Pending |
-| BULK-03 | Phase 8 | Pending |
+| BULK-01 | Phase 8 | Complete |
+| BULK-02 | Phase 8 | Complete |
+| BULK-03 | Phase 8 | Complete |
 | SCORE-01 | Phase 9 | Pending |
 | SCORE-02 | Phase 9 | Pending |
 | SCORE-03 | Phase 9 | Pending |
