@@ -3,6 +3,7 @@ Scheduled Report Delivery Service
 Schedules and delivers compliance, security, and executive reports via email and webhook.
 """
 
+import os
 import uuid
 import asyncio
 import logging
@@ -10,6 +11,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from database import get_database
+from tenant_context import set_tenant_id
+import compliance_reporting_pdf
+from compliance_reports_endpoints import _REPORTS_DIR
+from email_service import email_service
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +62,7 @@ DELIVERY_CHANNELS = ["email", "webhook", "slack", "teams"]
 
 
 async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    set_tenant_id(tenant_id)
     db = get_database()
 
     report_type = data.get("report_type", "compliance_summary")
@@ -73,6 +79,11 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
 
     if delivery_channel == "email" and not data.get("recipients"):
         raise ValueError("Email delivery requires at least one recipient")
+
+    if delivery_channel == "email":
+        smtp_cfg = await db.smtp_config.find_one({})
+        if not smtp_cfg:
+            raise ValueError("SMTP not configured")
 
     now = datetime.now(timezone.utc)
     next_run = _calculate_next_run(frequency, data.get("send_at_hour", 8))
@@ -96,6 +107,8 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
         "include_charts": data.get("include_charts", True),
         "format": data.get("format", "pdf"),  # pdf, html, json
         "filters": data.get("filters", {}),
+        "framework_id": data.get("framework_id") or None,
+        "framework_name": data.get("framework_name") or None,
         "enabled": True,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
@@ -136,7 +149,62 @@ def _calculate_next_run(frequency: str, hour: int = 8) -> datetime:
         return base.replace(year=next_year, month=next_month, day=1, hour=hour)
 
 
+async def _generate_pdf_for_schedule(schedule: Dict[str, Any], tenant_id: str, framework_id: str) -> Optional[bytes]:
+    """Call compliance_reporting_pdf._generate_pdf and return file bytes (ephemeral)."""
+    result = await compliance_reporting_pdf._generate_pdf(framework_id, _REPORTS_DIR, tenant_id)
+    filepath = os.path.join(_REPORTS_DIR, result["filename"])
+    try:
+        with open(filepath, "rb") as fh:
+            pdf_bytes = fh.read()
+    finally:
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+    return pdf_bytes
+
+
+async def _write_delivery_log(
+    db,
+    schedule: Dict[str, Any],
+    status: str,
+    error: Optional[str],
+    filename: Optional[str],
+) -> None:
+    """Insert one delivery log entry into report_delivery_logs."""
+    await db.report_delivery_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "schedule_id": schedule.get("id"),
+        "tenant_id": schedule.get("tenant_id"),
+        "framework_id": schedule.get("framework_id"),
+        "run_at": datetime.now(timezone.utc).isoformat(),
+        "recipients": schedule.get("recipients", []),
+        "status": status,
+        "error": error,
+        "format": schedule.get("format"),
+        "filename": filename,
+    })
+
+
+async def get_delivery_history(
+    schedule_id: str,
+    tenant_id: str,
+    role: str,
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """Return delivery log entries for a schedule, newest first."""
+    db = get_database()
+    query: Dict[str, Any] = {"schedule_id": schedule_id}
+    if role != "super_admin":
+        query["tenant_id"] = tenant_id
+    logs = await db.report_delivery_logs.find(query).sort("run_at", -1).to_list(length=limit)
+    for log in logs:
+        log.pop("_id", None)
+    return logs
+
+
 async def list_schedules(tenant_id: str, role: str) -> List[Dict[str, Any]]:
+    set_tenant_id(tenant_id)
     db = get_database()
     query = {} if role == "super_admin" else {"tenant_id": tenant_id}
     schedules = await db.report_schedules.find(query).sort("created_at", -1).to_list(length=200)
@@ -146,6 +214,7 @@ async def list_schedules(tenant_id: str, role: str) -> List[Dict[str, Any]]:
 
 
 async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dict[str, Any]) -> bool:
+    set_tenant_id(tenant_id)
     db = get_database()
     query = {"id": schedule_id}
     if role != "super_admin":
@@ -153,7 +222,8 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
 
     update = {"updated_at": datetime.now(timezone.utc).isoformat()}
     for field in ("name", "frequency", "send_at_hour", "recipients", "webhook_url",
-                  "slack_webhook", "teams_webhook", "include_charts", "format", "enabled", "filters"):
+                  "slack_webhook", "teams_webhook", "include_charts", "format", "enabled",
+                  "filters", "framework_id", "framework_name"):
         if field in data:
             update[field] = data[field]
 
@@ -165,6 +235,7 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
 
 
 async def delete_schedule(schedule_id: str, tenant_id: str, role: str) -> bool:
+    set_tenant_id(tenant_id)
     db = get_database()
     query = {"id": schedule_id}
     if role != "super_admin":
@@ -175,6 +246,7 @@ async def delete_schedule(schedule_id: str, tenant_id: str, role: str) -> bool:
 
 async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[str, Any]:
     """Generate and deliver report on-demand for the given schedule."""
+    set_tenant_id(tenant_id)
     db = get_database()
     query = {"id": schedule_id}
     if role != "super_admin":
@@ -184,8 +256,14 @@ async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[st
     if not schedule:
         raise ValueError("Schedule not found")
 
-    report_data = await _generate_report(schedule, schedule.get("tenant_id", tenant_id))
-    await _deliver_report(schedule, report_data)
+    eff_tenant_id = schedule.get("tenant_id", tenant_id)
+    report_data = await _generate_report(schedule, eff_tenant_id)
+    try:
+        filename = await _deliver_report(schedule, report_data, eff_tenant_id)
+        await _write_delivery_log(db, schedule, "success", None, filename)
+    except Exception as exc:
+        await _write_delivery_log(db, schedule, "failure", str(exc), None)
+        raise
 
     now = datetime.now(timezone.utc).isoformat()
     next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
@@ -198,6 +276,7 @@ async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[st
 
 
 async def _generate_report(schedule: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
+    set_tenant_id(tenant_id)
     db = get_database()
     report_type = schedule.get("report_type", "compliance_summary")
     now = datetime.now(timezone.utc)
@@ -318,32 +397,46 @@ def _build_html(report_data: Dict[str, Any]) -> str:
 </html>"""
 
 
-async def _deliver_report(schedule: Dict[str, Any], report_data: Dict[str, Any]) -> None:
+async def _deliver_report(
+    schedule: Dict[str, Any],
+    report_data: Dict[str, Any],
+    tenant_id: str = "",
+) -> Optional[str]:
+    """Deliver report via the configured channel. Returns filename or None."""
     channel = schedule.get("delivery_channel", "email")
     logger.info("[Reports] Delivering %s report via %s", schedule.get("report_type"), channel)
+    delivered_filename: Optional[str] = None
 
     if channel == "email":
-        try:
-            from email_service import email_service
-            fmt = schedule.get("format", "pdf")
-            attachments = None
-            if fmt == "pdf":
+        fmt = schedule.get("format", "pdf")
+        report_type = schedule.get("report_type", "")
+        attachments = None
+        if fmt == "pdf":
+            framework_id = schedule.get("framework_id")
+            if framework_id and report_type in ("compliance_summary", "custom_framework"):
+                pdf_bytes = await _generate_pdf_for_schedule(schedule, tenant_id, framework_id=framework_id)
+                attach_name = f"{schedule.get('name', 'report')}.pdf"
+            else:
                 pdf_bytes = _build_pdf(report_data)
-                if pdf_bytes:
-                    attachments = [{"filename": f"{schedule.get('name', 'report')}.pdf", "data": pdf_bytes}]
-            elif fmt == "html":
-                html_bytes = _build_html(report_data).encode("utf-8")
-                attachments = [{"filename": f"{schedule.get('name', 'report')}.html", "data": html_bytes}]
-            elif fmt == "json":
-                import json as _json
-                json_bytes = _json.dumps(report_data, indent=2).encode("utf-8")
-                attachments = [{"filename": f"{schedule.get('name', 'report')}.json", "data": json_bytes}]
-            for recipient in schedule.get("recipients", []):
-                await email_service.send_report(
-                    recipient, schedule.get("name", "Report"), report_data, attachments=attachments
-                )
-        except Exception as exc:
-            logger.warning("[Reports] Email delivery failed: %s", exc)
+                attach_name = f"{schedule.get('name', 'report')}.pdf"
+            if pdf_bytes:
+                attachments = [{"filename": attach_name, "data": pdf_bytes}]
+                delivered_filename = attach_name
+        elif fmt == "html":
+            html_bytes = _build_html(report_data).encode("utf-8")
+            attach_name = f"{schedule.get('name', 'report')}.html"
+            attachments = [{"filename": attach_name, "data": html_bytes}]
+            delivered_filename = attach_name
+        elif fmt == "json":
+            import json as _json
+            json_bytes = _json.dumps(report_data, indent=2).encode("utf-8")
+            attach_name = f"{schedule.get('name', 'report')}.json"
+            attachments = [{"filename": attach_name, "data": json_bytes}]
+            delivered_filename = attach_name
+        for recipient in schedule.get("recipients", []):
+            await email_service.send_report(
+                recipient, schedule.get("name", "Report"), report_data, attachments=attachments
+            )
 
     elif channel in ("webhook", "slack", "teams"):
         webhook_url = schedule.get(f"{channel}_webhook" if channel != "webhook" else "webhook_url", "")
@@ -354,6 +447,8 @@ async def _deliver_report(schedule: Dict[str, Any], report_data: Dict[str, Any])
                     await session.post(webhook_url, json=report_data, timeout=aiohttp.ClientTimeout(total=10))
             except Exception as exc:
                 logger.warning("[Reports] Webhook delivery failed: %s", exc)
+
+    return delivered_filename
 
 
 # ── Background scheduler loop ──────────────────────────────────────────────────
@@ -372,9 +467,10 @@ async def start_report_scheduler():
 
             for schedule in due_schedules:
                 try:
-                    tenant_id = schedule.get("tenant_id", "")
-                    report_data = await _generate_report(schedule, tenant_id)
-                    await _deliver_report(schedule, report_data)
+                    sched_tenant_id = schedule.get("tenant_id", "")
+                    report_data = await _generate_report(schedule, sched_tenant_id)
+                    filename = await _deliver_report(schedule, report_data, sched_tenant_id)
+                    await _write_delivery_log(db, schedule, "success", None, filename)
                     next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
                     await db.report_schedules.update_one(
                         {"id": schedule["id"]},
@@ -387,9 +483,10 @@ async def start_report_scheduler():
                             "$inc": {"run_count": 1},
                         },
                     )
-                    logger.info("[Reports] Delivered scheduled report '%s' for tenant %s", schedule.get("name"), tenant_id)
+                    logger.info("[Reports] Delivered scheduled report '%s' for tenant %s", schedule.get("name"), sched_tenant_id)
                 except Exception as exc:
                     logger.error("[Reports] Failed to deliver %s: %s", schedule.get("id"), exc)
+                    await _write_delivery_log(db, schedule, "failure", str(exc), None)
                     await db.report_schedules.update_one(
                         {"id": schedule["id"]},
                         {"$set": {"last_error": str(exc)}},

@@ -91,7 +91,9 @@ class TestScheduledReportFrameworkId:
         import scheduled_reports_service as svc
 
         db = _db_mock()
-        # Return the inserted document back via find_one (simulates DB read-back)
+        # Provide SMTP config so the validation passes (this test is about framework_id, not SMTP)
+        db.smtp_config.find_one = AsyncMock(return_value={"host": "smtp.example.com"})
+
         async def run():
             with patch("scheduled_reports_service.get_database", return_value=db):
                 schedule = await svc.create_schedule(
@@ -127,6 +129,8 @@ class TestScheduledReportFrameworkId:
         import scheduled_reports_service as svc
 
         db = _db_mock()
+        # Provide SMTP config so the validation passes (this test is about framework_id)
+        db.smtp_config.find_one = AsyncMock(return_value={"host": "smtp.example.com"})
 
         async def run():
             with patch("scheduled_reports_service.get_database", return_value=db):
