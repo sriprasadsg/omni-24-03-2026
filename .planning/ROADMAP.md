@@ -82,6 +82,24 @@
 
 ---
 
+## v1.3 — Security Hardening
+
+**Goal:** Close the 3 open security and data-integrity findings from the Phase 8 code review: zip-bomb metadata bypass, bulk upload partial-write without DB rollback, and ContextVar tenant context leak on exception paths.
+
+**Status:** Planning
+
+---
+
+## Phase 11: Security Hardening
+
+**Goal:** Fix three verified security/data-integrity gaps in the compliance evidence pipeline: replace spoofable ZipInfo metadata pre-check with bounded streaming, add DB-level rollback to the bulk evidence commit loop, and ensure ContextVar tenant context is cleaned up on exception paths.
+
+**Requirements:** SEC-01, SEC-02, SEC-03
+
+**Plans:** TBD
+
+---
+
 ## Phase 10: Scheduled Compliance Reports
 
 **Goal:** Tenant admins can configure a recurring report schedule (daily/weekly/monthly) per framework; the backend generates and emails a PDF compliance report to configured recipients on each run; delivery history is viewable from the Reports page.

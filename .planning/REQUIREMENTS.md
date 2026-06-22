@@ -40,6 +40,14 @@
 - [x] **SCHED-01**: A tenant admin can configure a report schedule (daily / weekly / monthly) per framework; on each scheduled run the backend generates a PDF compliance report and emails it to one or more configured recipient addresses
 - [x] **SCHED-02**: The scheduled report delivery history (run timestamp, framework, recipient addresses, delivery status) is viewable from the Reports page; failed deliveries surface an error message
 
+## v1.3 Requirements
+
+### Security Hardening
+
+- [ ] **SEC-01**: The bulk evidence zip upload endpoint validates total uncompressed size using bounded streaming reads (not spoofable ZipInfo metadata), so a crafted zip with falsified `file_size=0` entries cannot bypass the 200 MB uncompressed guard
+- [ ] **SEC-02**: The bulk evidence commit loop performs DB-level rollback (deletes already-inserted `control_evidence` records) on any mid-batch exception, so a partial batch failure never leaves orphaned evidence records in the database
+- [ ] **SEC-03**: The ContextVar tenant context (`tenant_context.py`) is cleaned up on exception paths — a request that errors mid-flight cannot leak its tenant ID into the next async task running on the same thread
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -67,11 +75,15 @@
 | UI-01 | Phase 6 | Complete |
 | SCHED-01 | Phase 10 | Complete |
 | SCHED-02 | Phase 10 | Complete |
+| SEC-01 | Phase 11 | Planned |
+| SEC-02 | Phase 11 | Planned |
+| SEC-03 | Phase 11 | Planned |
 
 **Coverage:**
 
 - v1.1 requirements: 13 total, all complete
 - v1.2 requirements: 2 total, all complete
+- v1.3 requirements: 3 total, 0 complete
 - Unmapped: 0 ✓
 
 ---
