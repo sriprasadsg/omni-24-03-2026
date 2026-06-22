@@ -28,6 +28,10 @@ router = APIRouter()
 MAX_BULK_FILES = 50
 MAX_BULK_BYTES = 200 * 1024 * 1024  # 200 MB
 
+_WRITE_ROLES: frozenset[str] = frozenset({
+    "admin", "Admin", "Super Admin", "superadmin", "super_admin", "platform-admin"
+})
+
 _EXT_TO_MIME: dict[str, str] = {
     ".pdf":  "application/pdf",
     ".png":  "image/png",
@@ -53,6 +57,10 @@ async def bulk_upload_evidence(
     try:
         tenant_id = getattr(current_user, "tenant_id", None) or ""
         uploader = getattr(current_user, "username", "unknown")
+
+        user_role = getattr(current_user, "role", "")
+        if user_role not in _WRITE_ROLES:
+            raise HTTPException(status_code=403, detail="Insufficient permissions to upload evidence")
 
         # --- Pass 0a: parse and validate manifest ---
         try:
