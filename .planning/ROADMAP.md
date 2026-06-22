@@ -63,7 +63,7 @@
 
 **Requirements:** SCORE-01, SCORE-02, SCORE-03
 
-**Plans:**
+**Plans:** 2 plans
 
-- 09-01: Backend — `GET /api/compliance/score` endpoint; severity-weighted score calculation; per-framework breakdown; cached per tenant on evidence update
-- 09-02: Frontend — compliance score panel on dashboard; per-framework drill-down; severity weight legend tooltip
+- [ ] 09-01-PLAN.md — Backend: compliance_score_endpoints.py, severity-weighted aggregation, cache invalidation on 6 write paths, router registration, 8-test suite (SCORE-01, SCORE-02, SCORE-03)
+- [ ] 09-02-PLAN.md — Frontend: ComplianceScorePanel.tsx with overall gauge, per-framework accordion, severity weight tooltip; Dashboard.tsx mount; fetchComplianceScore in apiService; FrameworkScore types (SCORE-01, SCORE-02, SCORE-03)
