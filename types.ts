@@ -1673,3 +1673,21 @@ export interface RemediationTask {
     updated_at: string;
     tenantId: string;
 }
+
+export interface FrameworkScore {
+    framework_id: string;
+    framework_name: string;
+    short_name: string;
+    score: number;
+    passing: number;
+    failing: number;
+    partial: number;
+    total_controls: number;
+}
+
+export interface ComplianceScorePayload {
+    overall_score: number;
+    frameworks: FrameworkScore[];
+    computed_at: string;
+    tenant_id: string;
+}

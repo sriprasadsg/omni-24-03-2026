@@ -9,7 +9,7 @@ import {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    Risk, Vendor, TrustProfile, AccessRequest
+    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload
 } from '../types';
 
 export type {
@@ -21,7 +21,8 @@ export type {
     AttackPath, ServiceTemplate, ProvisionedService, DoraMetrics, ChaosExperiment, ProactiveInsight,
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
-    AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings
+    AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
+    ComplianceScorePayload
 };
 // Helper to ensure severity strings are consistent (e.g., "critical" -> "Critical")
 const normalizeSeverity = (severity: any): any => {
@@ -721,6 +722,20 @@ export const uploadBulkEvidence = async (zipFile: File, manifest: ManifestEntry[
         throw err;
     }
     return res.json();
+};
+
+export const fetchComplianceScore = async (): Promise<ComplianceScorePayload | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/score`);
+        if (!res.ok) {
+            console.error(`[fetchComplianceScore] HTTP ${res.status}: ${res.statusText}`);
+            return null;
+        }
+        return await res.json() as ComplianceScorePayload;
+    } catch (err) {
+        console.error('[fetchComplianceScore] Request failed:', err);
+        return null;
+    }
 };
 
 export const fetchAiSystems = async () => {
