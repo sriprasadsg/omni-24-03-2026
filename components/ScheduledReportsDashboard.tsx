@@ -87,6 +87,7 @@ export default function ScheduledReportsDashboard() {
     framework_id: '',
   });
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [frameworks, setFrameworks] = useState<ComplianceFramework[]>([]);
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [historyLogs, setHistoryLogs] = useState<Record<string, DeliveryLog[]>>({});
@@ -103,7 +104,8 @@ export default function ScheduledReportsDashboard() {
       const r = await authFetch('/api/reports/scheduled');
       const d = await r.json();
       setReports(d.reports || []);
-    } catch (e) { console.error(e); }
+      setLoadError(false);
+    } catch (e) { console.error(e); setLoadError(true); }
   }
 
   async function createReport() {
@@ -184,6 +186,12 @@ export default function ScheduledReportsDashboard() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg flex items-center justify-between text-sm text-red-400">
+          <span>Failed to load scheduled reports.</span>
+          <button className="underline ml-2" onClick={() => loadReports()}>Retry</button>
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {FREQUENCIES.map(f => {
           const count = reports.filter(r => r.frequency === f).length;
