@@ -326,7 +326,7 @@ export default function ScheduledReportsDashboard() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-bold text-lg">Schedule New Report</h3>
-                <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-white">✕</button>
+                <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-white" aria-label="Close">✕</button>
               </div>
               <div className="space-y-4">
                 <div>
