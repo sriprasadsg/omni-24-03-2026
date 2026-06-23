@@ -159,17 +159,22 @@ export default function ScheduledReportsDashboard() {
     loadReports();
   }
 
+  async function fetchHistory(id: string) {
+    setHistoryLoading(prev => ({ ...prev, [id]: true }));
+    setHistoryError(prev => ({ ...prev, [id]: false }));
+    try {
+      const r = await authFetch(`/api/reports/scheduled/${id}/history`);
+      const d = await r.json();
+      setHistoryLogs(prev => ({ ...prev, [id]: d.logs || [] }));
+    } catch { setHistoryError(prev => ({ ...prev, [id]: true })); }
+    finally { setHistoryLoading(prev => ({ ...prev, [id]: false })); }
+  }
+
   async function toggleHistory(id: string) {
     const opening = !historyOpen[id];
     setHistoryOpen(prev => ({ ...prev, [id]: opening }));
     if (opening && !historyLogs[id]) {
-      setHistoryLoading(prev => ({ ...prev, [id]: true }));
-      try {
-        const r = await authFetch(`/api/reports/scheduled/${id}/history`);
-        const d = await r.json();
-        setHistoryLogs(prev => ({ ...prev, [id]: d.logs || [] }));
-      } catch { setHistoryError(prev => ({ ...prev, [id]: true })); }
-      finally { setHistoryLoading(prev => ({ ...prev, [id]: false })); }
+      await fetchHistory(id);
     }
   }
 
@@ -293,7 +298,7 @@ export default function ScheduledReportsDashboard() {
                     <p className="text-xs text-gray-500">Loading...</p>
                   ) : historyError[rep.id] ? (
                     <p className="text-xs text-red-400">Failed to load history —{' '}
-                      <button className="underline" onClick={() => { setHistoryError(prev => ({ ...prev, [rep.id]: false })); setHistoryLogs(prev => { const n = {...prev}; delete n[rep.id]; return n; }); toggleHistory(rep.id); }}>Retry</button>
+                      <button className="underline" onClick={() => fetchHistory(rep.id)}>Retry</button>
                     </p>
                   ) : !historyLogs[rep.id]?.length ? (
                     <p className="text-xs text-gray-500">No delivery history yet</p>
