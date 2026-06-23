@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: — Evidence Quality & Compliance Scoring
-status: executing
-stopped_at: Phase 10 Plan 02 complete — scheduled reports frontend (framework picker, runNow fix, history panel)
-last_updated: "2026-06-23T02:26:51.484Z"
+milestone: v2.0
+milestone_name: — GRC Feature Parity
+status: planned
+stopped_at: Phase 14 Plan 01 complete — SaaS OAuth evidence integration (GitHub, Jira, Okta, GWS, Slack)
+last_updated: "2026-06-23T17:45:23Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 10
+  completed_phases: 1
+  total_plans: 12
+  completed_plans: 2
+  percent: 10
 ---
 
 # Project State
@@ -20,15 +20,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 10 — scheduled-reports
+**Current focus:** Phase 14 — saas-evidence-integration (Plan 01 complete)
 
 ## Current Phase
 
-**Phase 10 — Scheduled Reports: COMPLETE**
+**v2.0 Milestone — GRC Feature Parity: PLANNED**
 
-Goal: Tenant admins can schedule automated report delivery (email/webhook/Slack/Teams) with framework-specific compliance reports, delivery history, and run-now triggers.
+Goal: Implement all 9 phases (14–22) identified in the June 2026 audit against Comp AI, Probo, OpenLane Core, and Prowler. Phases are ready for execution via `/gsd-execute-phase`.
 
-Status: Ready to execute
+Next phase to execute: Phase 14 (SaaS Evidence Integration)
 
 ## Phases
 
@@ -39,10 +39,23 @@ Status: Ready to execute
 | 3 | Audit-Ready Export | Complete (v1.0) |
 | 4 | Remediation Workflow | Complete (v1.0) |
 | 5 | Integration and E2E Verification | Complete (v1.0) |
-| 6 | Asset Compliance Status + UI Fix | Complete |
-| 7 | Evidence Lifecycle (Staleness + Chain-of-Custody) | Complete |
-| 8 | Bulk Evidence Upload | Complete |
-| 9 | Compliance Score Dashboard | Complete |
+| 6 | Asset Compliance Status + UI Fix | Complete (v1.1) |
+| 7 | Evidence Lifecycle (Staleness + Chain-of-Custody) | Complete (v1.1) |
+| 8 | Bulk Evidence Upload | Complete (v1.1) |
+| 9 | Compliance Score Dashboard | Complete (v1.1) |
+| 10 | Scheduled Compliance Reports | Complete (v1.2) |
+| 11 | Security Hardening | Complete (v1.3) |
+| 12 | Agentic AI Integration | Complete (v1.4) |
+| 13 | AI Compliance Narratives | Complete (v1.5) |
+| 14 | SaaS Evidence Integration | Planned (v2.0) |
+| 15 | Evidence Review Workflow | Planned (v2.0) |
+| 16 | Program Control Grouping | Planned (v2.0) |
+| 17 | Cloud Checks Expansion | Planned (v2.0) |
+| 18 | Privacy & Legal Modules | Planned (v2.0) |
+| 19 | Additional Compliance Frameworks | Planned (v2.0) |
+| 20 | Multi-Account Cloud Scanning | Planned (v2.0) |
+| 21 | Notification Routing & Domain Scanner | Planned (v2.0) |
+| 22 | API Extensions (MCP, OCSF, CLI, DO) | Planned (v2.0) |
 
 ## Decisions
 
@@ -107,6 +120,11 @@ Status: Ready to execute
 - 10-02: Inline approach (no ScheduleHistoryPanel.tsx split) — post-Task-1 line count was 342; adding history landed at 409 lines, under 500 threshold
 - 10-02: DeliveryLog interface defined inline in ScheduledReportsDashboard.tsx (not in types.ts) — component-local
 - 10-02: historyLogs cached by schedule id — avoids re-fetching on panel toggle; cleared on page reload
+- 14-01: access_token_enc/refresh_token_enc field names (not access_token/refresh_token) make encryption status explicit in schema
+- 14-01: _access_token_plain injection key in connection dict enables clean test mocking without Fernet round-trips in test setup
+- 14-01: pull_all_evidence stores partial evidence on API error — logs warning, never raises to caller
+- 14-01: OAuthProvider enum backed by str for JSON serialization compatibility with FastAPI
+- 14-01: Tenant isolation check in pull-evidence returns 403 (not 404) to avoid leaking connection existence to cross-tenant callers
 
 ## Performance Metrics
 
@@ -131,11 +149,12 @@ Status: Ready to execute
 | 09-compliance-score-dashboard | 02 | ~5m | 2 | 4 |
 | Phase 10-scheduled-reports P01 | ~6m | 3 tasks | 5 files |
 | Phase 10-scheduled-reports P02 | ~4m | 2 tasks | 1 file |
+| 14-saas-evidence-integration | 01 | ~4m | 4 | 4 |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-22T13:27:22Z
-- **Stopped at:** Phase 10 Plan 02 complete — framework picker, runNow fix, delivery history panel
+- **Timestamp:** 2026-06-23T17:45:23Z
+- **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration (GitHub, Jira, Okta, GWS, Slack)
 - **Resume file:** None
 
 ## Configuration
@@ -161,6 +180,6 @@ Status: Ready to execute
 
 ## Session
 
-**Last session:** 2026-06-22T18:12:30.756Z
-**Stopped at:** Phase 09 verification complete
+**Last session:** 2026-06-23T17:45:23Z
+**Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
 **Resume file:** None

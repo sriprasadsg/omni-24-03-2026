@@ -146,6 +146,139 @@
 
 ---
 
+---
+
+## v2.0 — GRC Feature Parity
+
+**Goal:** Close all feature gaps identified in the June 2026 audit against Comp AI, Probo, OpenLane Core, and Prowler. Add SaaS OAuth evidence, evidence review workflow, control grouping, privacy/legal modules, 14 new compliance frameworks, 300+ cloud checks, multi-account scanning, notification routing, domain scanning, and API extensions (MCP, OCSF, CLI, DigitalOcean).
+
+**Status:** Planned — phases 14–22 ready for execution
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 14 | SaaS Evidence Integration (GitHub, Jira, Okta, GWS, Slack OAuth) | In Progress (Plan 01 complete) |
+| 15 | Evidence Review Workflow (approve/reject/comment thread) | Planned |
+| 16 | Program Control Grouping (named programs + status rollup) | Planned |
+| 17 | Cloud Checks Expansion (67 → 300+ checks) | Planned |
+| 18 | Privacy & Legal Modules (TIA, LIA, Notices, Contracts) | Planned |
+| 19 | Additional Compliance Frameworks (14 new: FedRAMP High, ISO 27017/18, OWASP, BSI C5, etc.) | Planned |
+| 20 | Multi-Account Cloud Scanning (AWS Orgs, Azure Mgmt Groups, GCP Orgs) | Planned |
+| 21 | Notification Routing & Domain Scanner | Planned |
+| 22 | API Extensions (MCP server, OCSF, CLI, DigitalOcean checks) | Planned |
+
+---
+
+## Phase 22: API Extensions
+
+**Goal:** Expose compliance data via MCP protocol for AI assistant integrations, add OCSF-formatted output for SIEM ingestion, expand cloud checks to DigitalOcean, and ship a CLI tool.
+
+**Requirements:** API-01, API-02, API-03, API-04
+
+**Plans:** 1 plan
+
+- [ ] 22-01-PLAN.md — Backend: mcp_server_endpoints.py (/api/mcp), ocsf_endpoints.py (/api/ocsf), 10 DO checks, scripts/omni-cli.py (Click); Frontend: ApiExtensionsDashboard.tsx
+
+---
+
+## Phase 21: Notification Routing & Domain Scanner
+
+**Goal:** Route GRC event notifications to Slack/email/webhook channels via configurable rules; add a lightweight domain/subdomain scanner with TLS cert and DNS inspection.
+
+**Requirements:** NOTIF-01, NOTIF-02, SCAN-01, SCAN-02
+
+**Plans:** 1 plan
+
+- [ ] 21-01-PLAN.md — Backend: notification_service.py, notification_endpoints.py, domain_scanner_service.py, domain_scanner_endpoints.py, 7-test suite; Frontend: NotificationsDashboard.tsx
+
+---
+
+## Phase 20: Multi-Account Cloud Scanning
+
+**Goal:** Register and scan multiple cloud accounts across AWS Organizations, Azure Management Groups, and GCP organizations from a single platform with aggregated results.
+
+**Requirements:** CLD-01, CLD-02, CLD-03
+
+**Plans:** 1 plan
+
+- [ ] 20-01-PLAN.md — Backend: cloud_accounts_service.py, cloud_accounts_endpoints.py, 8-test suite; Frontend: CloudAccountsDashboard.tsx
+
+---
+
+## Phase 19: Additional Compliance Frameworks
+
+**Goal:** Add 14 new compliance framework JSON files (ENS, MAS TRM, IRAP, ISO 27017, ISO 27018, BSI C5, FFIEC, OWASP Top 10, TISAX, AWS Well-Architected, RBI CSF, TIC 3.0, KISA ISMS, FedRAMP High) to reach parity with Comp AI and Probo framework libraries.
+
+**Requirements:** FW-01
+
+**Plans:** 1 plan
+
+- [ ] 19-01-PLAN.md — 14 framework JSON files in backend/frameworks/
+
+---
+
+## Phase 18: Privacy & Legal Modules
+
+**Goal:** Add Transfer Impact Assessments, Legitimate Interest Assessments, Privacy Notice versioning, and Contract Lifecycle tracking for GDPR/CCPA GRC teams.
+
+**Requirements:** PRIV-01, PRIV-02, PRIV-03, PRIV-04
+
+**Plans:** 1 plan
+
+- [ ] 18-01-PLAN.md — Backend: privacy_service.py, privacy_endpoints.py, 8-test suite; Frontend: PrivacyLegalDashboard.tsx (4 tabs)
+
+---
+
+## Phase 17: Cloud Checks Expansion
+
+**Goal:** Expand cloud security check library from 67 to 300+ checks covering EKS, Lambda, CloudFront, WAF, SNS, SQS, ElasticSearch, Route53, ACM, Inspector, SSM, Backup, Azure App Service, ACR, AKS, GCP BigQuery, GKE.
+
+**Requirements:** CC-EXP-01, CC-EXP-02
+
+**Plans:** 1 plan
+
+- [ ] 17-01-PLAN.md — Expand CLOUD_CHECKS list; split into per-provider modules if needed to stay under 500 lines
+
+---
+
+## Phase 16: Program Control Grouping
+
+**Goal:** Group compliance controls into named programs (e.g., "Access Control Program") with live status rollup (compliant/at_risk/in_progress) based on control pass/fail rates.
+
+**Requirements:** PROG-01, PROG-02, PROG-03
+
+**Plans:** 1 plan
+
+- [ ] 16-01-PLAN.md — Backend: program_service.py, program_endpoints.py, 7-test suite; Frontend: ProgramsDashboard.tsx
+
+---
+
+## Phase 15: Evidence Review Workflow
+
+**Goal:** Per-evidence approval/reject/request-changes workflow with comment threads, so evidence must be reviewer-approved before counting toward the compliance score.
+
+**Requirements:** REV-01, REV-02, REV-03
+
+**Plans:** 1 plan
+
+- [ ] 15-01-PLAN.md — Backend: evidence_review_service.py, evidence_review_endpoints.py, 8-test suite; Frontend: EvidenceReviewPanel.tsx
+
+---
+
+## Phase 14: SaaS Evidence Integration
+
+**Goal:** Automatically pull compliance evidence from GitHub, Jira, Okta, Google Workspace, and Slack via OAuth 2.0 — eliminating manual upload burden for the most common SaaS-sourced control evidence.
+
+**Requirements:** SAAS-01, SAAS-02, SAAS-03, SAAS-04
+
+**Plans:** 2 plans
+
+- [x] 14-01-PLAN.md — Backend: saas_integration_service.py (OAuth + per-provider evidence pull), saas_integration_endpoints.py (/api/saas), 10-test suite
+- [ ] 14-02-PLAN.md — Frontend: SaaSIntegrationsDashboard.tsx (5 provider cards, OAuth popup flow); router registration
+
+---
+
 ## Phase 10: Scheduled Compliance Reports
 
 **Goal:** Tenant admins can configure a recurring report schedule (daily/weekly/monthly) per framework; the backend generates and emails a PDF compliance report to configured recipients on each run; delivery history is viewable from the Reports page.
