@@ -128,8 +128,11 @@ def test_rust02_and_rust03_db_calls():
     print(f"[RUST-03] All 9 representative control IDs present: PASS")
 
 def test_rust04_instruction_result_compliance_nesting():
-    """RUST-04: report_instruction_result processes compliance_checks from nested result.result
-    (the structure the Rust agent sends) as well as from the top-level dict."""
+    """RUST-04: report_instruction_result:
+    (a) processes compliance_checks nested inside result.result (Rust agent format),
+    (b) also accepts flat top-level compliance_checks (Python agent format),
+    (c) resolves the actual Windows hostname via agent doc lookup (UUID URL → hostname).
+    """
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -138,27 +141,33 @@ def test_rust04_instruction_result_compliance_nesting():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    # Build minimal agent_tasks router
     import agent_tasks_endpoints as mod
 
-    called_with: list = []
+    received: list = []  # (hostname, payload, fallback_tenant_id)
 
-    async def _fake_process_evidence(hostname, payload, db, **kw):
-        called_with.append(payload)
+    async def _fake_process_evidence(hostname, payload, db, fallback_tenant_id=None, **kw):
+        received.append({"hostname": hostname, "payload": payload, "tid": fallback_tenant_id})
+
+    # Agent doc: UUID id but "DESKTOP-WIN" hostname (simulates real Rust agent registration)
+    AGENT_UUID = "agent-uuid-001"
+    WIN_HOSTNAME = "DESKTOP-WIN"
+    agent_doc = {"id": AGENT_UUID, "hostname": WIN_HOSTNAME, "tenantId": "t1"}
 
     db = MagicMock()
     db.agent_instructions = MagicMock()
     db.agent_instructions.update_one = AsyncMock()
+    db.agents = MagicMock()
+    db.agents.find_one = AsyncMock(return_value=agent_doc)
     db.compliance_remediation_tasks = MagicMock()
     db.compliance_remediation_tasks.find = MagicMock()
     db.compliance_remediation_tasks.find.return_value.to_list = AsyncMock(return_value=[])
 
-    tenant = {"tenant_id": "t1", "id": "t1"}
+    tenant = {"id": "t1"}
     app = FastAPI()
     app.include_router(mod.router)
     app.dependency_overrides[mod.verify_agent_key] = lambda: tenant
 
-    # Rust agent format: compliance_checks nested inside result.result
+    # (a) Rust agent nested format — URL param is UUID, hostname resolved from DB
     nested_body = {
         "instruction_id": "i1",
         "task_id": "tid1",
@@ -174,14 +183,19 @@ def test_rust04_instruction_result_compliance_nesting():
     with patch("agent_tasks_endpoints.get_database", return_value=db), \
          patch("compliance_endpoints.process_automated_evidence", side_effect=_fake_process_evidence):
         with TestClient(app) as client:
-            resp = client.post("/api/agents/test-host/instructions/result", json=nested_body)
+            resp = client.post(f"/api/agents/{AGENT_UUID}/instructions/result", json=nested_body)
 
     assert resp.status_code == 200
-    assert len(called_with) == 1, "process_automated_evidence must be called for nested format"
-    assert "compliance_checks" in called_with[0], "payload must contain compliance_checks key"
+    assert len(received) == 1, "process_automated_evidence must be called (nested format)"
+    assert received[0]["hostname"] == WIN_HOSTNAME, (
+        f"Must use Windows hostname '{WIN_HOSTNAME}', not agent UUID. Got: {received[0]['hostname']}"
+    )
+    assert "compliance_checks" in received[0]["payload"]
+    assert received[0]["tid"] == "t1", "fallback_tenant_id must be populated from _tenant"
 
-    # Also verify the flat (non-Rust) format still works
-    called_with.clear()
+    # (b) Flat top-level format — agent doc returns None (hostname same as URL param)
+    received.clear()
+    db.agents.find_one = AsyncMock(return_value=None)
     flat_body = {
         "instruction_id": "i2",
         "task_id": "tid2",
@@ -197,8 +211,9 @@ def test_rust04_instruction_result_compliance_nesting():
             resp = client.post("/api/agents/test-host/instructions/result", json=flat_body)
 
     assert resp.status_code == 200
-    assert len(called_with) == 1, "process_automated_evidence must be called for flat format"
-    assert "compliance_checks" in called_with[0]
+    assert len(received) == 1, "process_automated_evidence must be called (flat format)"
+    assert received[0]["hostname"] == "test-host", "fallback to URL param when agent not in DB"
+    assert "compliance_checks" in received[0]["payload"]
 
 
 # ---------------------------------------------------------------------------

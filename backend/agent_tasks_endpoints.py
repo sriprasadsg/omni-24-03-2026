@@ -92,14 +92,26 @@ async def report_instruction_result(
     if compliance_payload:
         try:
             from compliance_endpoints import process_automated_evidence
-            await process_automated_evidence(hostname, compliance_payload, db)
+            # The URL param is the agent UUID (e.g. "agent-1ff7..."), not the Windows hostname.
+            # process_automated_evidence builds assetId as "asset-{hostname}" and must match the
+            # asset created at registration (asset-{windows_hostname}).  Resolve via agent doc.
+            _tid = _tenant.get("id") or ""
+            _q: dict = {"$or": [{"hostname": hostname}, {"id": hostname}]}
+            if _tid:
+                _q["tenantId"] = _tid
+            _agent_doc = await db.agents.find_one(_q)
+            _actual_hostname = (_agent_doc.get("hostname") if _agent_doc else None) or hostname
+            await process_automated_evidence(
+                _actual_hostname, compliance_payload, db,
+                fallback_tenant_id=_tid or None,
+            )
         except Exception as e:
             logger.error("Failed to process compliance results: %s", e)
 
         # REM-04: broadcast remediation_update for any open tasks matching these controls
         try:
             from websocket_manager import broadcast_remediation_update
-            tenant_id = _tenant.get("tenant_id") or _tenant.get("tenantId") or _tenant.get("id", "")
+            tenant_id = _tenant.get("id") or _tenant.get("tenant_id") or _tenant.get("tenantId") or ""
             control_ids = [
                 c.get("control_id") or c.get("check") or c.get("name", "")
                 for c in compliance_payload.get("compliance_checks", [])
