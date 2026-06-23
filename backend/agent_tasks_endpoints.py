@@ -66,13 +66,19 @@ async def report_instruction_result(
     if task_id:
         raw_status = result.get("status", "unknown")
         mapped = "SUCCESS" if raw_status == "success" else ("FAILURE" if raw_status == "error" else raw_status.upper())
+        nested = result.get("result") if isinstance(result.get("result"), dict) else {}
+        error_msg = result.get("error") or nested.get("error") or ""
+        message_text = (result.get("message") or result.get("details")
+                        or nested.get("output") or nested.get("message") or "")
+        if error_msg and "Unknown instruction" in error_msg:
+            error_msg = f"Agent binary is outdated — URL install requires agent v2.0+. Update the agent from the Agent Installation page. (detail: {error_msg})"
         await db.agent_instructions.update_one(
             {"id": task_id},
             {"$set": {
                 "status": mapped,
                 "result": {
-                    "message": result.get("message") or result.get("details", ""),
-                    "error": result.get("error"),
+                    "message": message_text,
+                    "error": error_msg,
                     "raw_status": raw_status,
                 },
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -155,6 +161,37 @@ async def get_task_status(task_id: str, current_user=Depends(get_current_user)):
         return task
 
     raise HTTPException(status_code=404, detail="Task not found")
+
+
+@router.post("/{agent_id}/update")
+async def trigger_agent_update(
+    agent_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """Dispatch a check_agent_update instruction so the agent self-updates to the latest binary."""
+    db = get_database()
+    caller_role = getattr(current_user, "role", None)
+    q: dict = {"id": agent_id}
+    if caller_role not in _TASK_SUPER_ROLES:
+        tid = getattr(current_user, "tenant_id", None)
+        if not tid:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        q["tenantId"] = tid
+    agent = await db.agents.find_one(q)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    instr_id = str(uuid.uuid4().hex)
+    await db.agent_instructions.insert_one({
+        "id": instr_id,
+        "agent_id": agent_id,
+        "tenantId": agent.get("tenantId", ""),
+        "instruction": "check_agent_update",
+        "payload": {},
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": getattr(current_user, "email", "unknown"),
+    })
+    return {"success": True, "instruction_id": instr_id, "message": "Update instruction dispatched"}
 
 
 @router.post("/{agent_id}/discovery/scan")
@@ -274,6 +311,42 @@ async def raise_ticket_via_agent(
         "instruction_id": instr_id,
         "message":        f"Ticket {ticket['ticket_number']} created successfully",
     }
+
+
+@router.post("/{agent_id}/ticket")
+async def create_ticket_from_agent(
+    agent_id: str,
+    body: RaiseTicketRequest,
+    _tenant: Dict[str, Any] = Depends(verify_agent_key),
+):
+    """Agent-key-authenticated ticket creation — called by Rust/Python endpoint agents."""
+    db = get_database()
+    tenant_id = _tenant.get("id", "")
+    agent = await db.agents.find_one({
+        "$or": [{"id": agent_id}, {"hostname": agent_id}],
+        "tenantId": tenant_id,
+    })
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent_hostname = agent.get("hostname") or agent.get("id", agent_id)
+    agent_real_id  = agent.get("id", agent_id)
+    ticket_data = {
+        "title":         body.title,
+        "description":   body.description or "",
+        "type":          body.type or "task",
+        "priority":      body.priority or "medium",
+        "tags":          (body.tags or []) + ["agent-raised"],
+        "endpoint_info": body.endpoint_info or {},
+        "agent_id":      agent_real_id,
+        "agent_hostname": agent_hostname,
+    }
+    ticket = await tickets_service.create_ticket(
+        data=ticket_data,
+        reporter=agent_real_id,
+        tenant_id=tenant_id,
+    )
+    logger.info("Ticket %s created by agent %s", ticket["ticket_number"], agent_id)
+    return {"success": True, "ticket_id": ticket["id"], "ticket_number": ticket["ticket_number"]}
 
 
 @router.post("/{agent_id}/discovery/results")

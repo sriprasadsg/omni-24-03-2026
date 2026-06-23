@@ -289,24 +289,49 @@ pub async fn dispatch_instruction(instr: &str, payload: &Value, client: &Client,
             json!({"status": "success", "software": r.get("software")})
         },
 
-        "install_software" => {
-            let pkg = payload.get("packageId").or(payload.get("package_id"))
-                .and_then(|v| v.as_str()).unwrap_or("");
+        s if s == "install_software" || s.starts_with("install_software:") => {
+            // Backend sends "install_software: <pkg>" — extract pkg from instruction or payload
+            let pkg_from_instr = if let Some(pos) = s.find(':') { s[pos+1..].trim() } else { "" };
+            let pkg = if !pkg_from_instr.is_empty() {
+                pkg_from_instr
+            } else {
+                payload.get("packageId").or(payload.get("package_id")).or(payload.get("package"))
+                    .and_then(|v| v.as_str()).unwrap_or("")
+            };
             if pkg.is_empty() { return json!({"status": "error", "error": "packageId required"}); }
-            caps::install_software(pkg).await
+            // If download_url is set (from repo/url install paths) use it directly
+            if let Some(url) = payload.get("download_url").and_then(|v| v.as_str()) {
+                caps::install_from_url(url, pkg).await
+            } else if pkg.starts_with("https://") || pkg.starts_with("http://") {
+                // pkg itself is a URL (old server path: action=install, packageId=URL)
+                let fname = pkg.split('/').last().unwrap_or("installer");
+                caps::install_from_url(pkg, fname).await
+            } else {
+                caps::install_software(pkg).await
+            }
         },
 
-        "uninstall_software" => {
-            let pkg = payload.get("packageId").or(payload.get("package_id"))
-                .and_then(|v| v.as_str()).unwrap_or("");
+        s if s == "uninstall_software" || s.starts_with("uninstall_software:") => {
+            let pkg_from_instr = if let Some(pos) = s.find(':') { s[pos+1..].trim() } else { "" };
+            let pkg = if !pkg_from_instr.is_empty() {
+                pkg_from_instr
+            } else {
+                payload.get("packageId").or(payload.get("package_id")).or(payload.get("package"))
+                    .and_then(|v| v.as_str()).unwrap_or("")
+            };
             if pkg.is_empty() { return json!({"status": "error", "error": "packageId required"}); }
             caps::uninstall_software(pkg).await
         },
 
-        "upgrade_software" => {
-            let pkg = payload.get("packageId").or(payload.get("package_id"))
-                .and_then(|v| v.as_str());
-            caps::upgrade_software(pkg).await
+        s if s == "upgrade_software" || s.starts_with("upgrade_software:") => {
+            let pkg_from_instr = if let Some(pos) = s.find(':') { s[pos+1..].trim() } else { "" };
+            let pkg_opt = if !pkg_from_instr.is_empty() {
+                Some(pkg_from_instr)
+            } else {
+                payload.get("packageId").or(payload.get("package_id")).or(payload.get("package"))
+                    .and_then(|v| v.as_str())
+            };
+            caps::upgrade_software(pkg_opt).await
         },
 
         "collect_logs" => {
@@ -392,7 +417,36 @@ pub async fn dispatch_instruction(instr: &str, payload: &Value, client: &Client,
             let title = payload.get("title").and_then(|v| v.as_str()).unwrap_or("Agent-generated ticket");
             let desc  = payload.get("description").and_then(|v| v.as_str()).unwrap_or("");
             let sev   = payload.get("severity").and_then(|v| v.as_str()).unwrap_or("medium");
-            crate::caps2::create_ticket(client, base, token, title, desc, sev).await
+            crate::caps2::create_ticket(client, base, id, token, title, desc, sev).await
+        },
+
+        "start_agent_chat" => {
+            let session_id = payload.get("session_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let sender     = payload.get("sender").and_then(|v| v.as_str()).unwrap_or("Administrator");
+            let subject    = payload.get("subject").and_then(|v| v.as_str()).unwrap_or("Chat Session");
+            eprintln!("[OmniAgent] Chat session {} started by {}: {}", session_id, sender, subject);
+            if !session_id.is_empty() {
+                let url = format!("{}/api/agent-chat/sessions/{}/user-message", base, session_id);
+                let auto_reply = format!(
+                    "Agent connected (headless mode). Chat session '{}' received. \
+                     This agent runs without a display — messages are logged on the endpoint. \
+                     To send a reply, use /gsd-execute or contact your administrator.",
+                    subject
+                );
+                let _ = client.post(&url).bearer_auth(token)
+                    .json(&json!({"content": auto_reply}))
+                    .send().await;
+            }
+            json!({"status": "success", "session_id": session_id, "mode": "headless"})
+        },
+
+        "agent_chat_message" => {
+            let session_id = payload.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+            let content    = payload.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let sender     = payload.get("sender").and_then(|v| v.as_str()).unwrap_or("Administrator");
+            let preview    = &content[..content.len().min(120)];
+            eprintln!("[OmniAgent] Chat [{}] from {}: {}", session_id, sender, preview);
+            json!({"status": "success", "received": true})
         },
 
         _ => json!({"status": "error", "error": format!("Unknown instruction: {}", instr)}),
