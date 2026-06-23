@@ -471,6 +471,7 @@ async def start_report_scheduler():
     while True:
         try:
             await asyncio.sleep(300)
+            set_tenant_id("platform-admin")  # allow cross-tenant query; per-schedule re-scope happens in _generate_report
             db = get_database()
             now = datetime.now(timezone.utc).isoformat()
             due_schedules = await db.report_schedules.find(
