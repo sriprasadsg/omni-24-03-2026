@@ -149,6 +149,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.error("[Router] Failed to load llm_proxy: %s", exc)
     _load(app, "model_retraining_endpoints", "router")
     _load(app, "automl_endpoints",           "router")
+    _load(app, "agentic_tasks_endpoints",    "router")
 
     # ── Operations & Automation ───────────────────────────────────────────────
     _load(app, "future_ops_endpoints",          "router")

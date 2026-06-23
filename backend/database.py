@@ -300,6 +300,24 @@ async def connect_to_mongo():
             [("schedule_id", 1), ("run_at", -1)],
             name="schedule_history_idx",
         )
+        # agent_ai_decisions: indexes for agentic AI audit log queries (AI-03)
+        # NO TTL index — SOC 2 CC6.1 requires audit records are not auto-purged
+        await mongodb.db.agent_ai_decisions.create_index(
+            [("agent_id", 1), ("started_at", -1)],
+            name="agent_ai_decisions_agent_time_idx",
+        )
+        await mongodb.db.agent_ai_decisions.create_index(
+            [("tool_name", 1)],
+            name="agent_ai_decisions_tool_idx",
+        )
+        await mongodb.db.agent_ai_decisions.create_index(
+            [("tenantId", 1), ("started_at", -1)],
+            name="agent_ai_decisions_tenant_time_idx",
+        )
+        await mongodb.db.agent_ai_decisions.create_index(
+            [("source", 1), ("started_at", -1)],
+            name="agent_ai_decisions_source_idx",
+        )
     except Exception as index_error:
         import logging as _logging
         _logging.getLogger(__name__).warning(
