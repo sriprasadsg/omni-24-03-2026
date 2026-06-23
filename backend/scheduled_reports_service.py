@@ -15,6 +15,11 @@ from tenant_context import set_tenant_id
 import compliance_reporting_pdf
 from compliance_reports_endpoints import _REPORTS_DIR
 from email_service import email_service
+try:
+    from compliance_narrative_service import enrich_report_data, _render_narratives
+except ImportError:  # pragma: no cover — safety fallback if narrative service fails to load
+    async def enrich_report_data(*_a, **_kw): pass  # type: ignore[assignment]
+    def _render_narratives(*_a, **_kw): pass  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +298,8 @@ async def _generate_report(schedule: Dict[str, Any], tenant_id: str) -> Dict[str
     if report_type == "compliance_summary":
         frameworks = await db.compliance_frameworks.find({"tenant_id": tenant_id}).to_list(length=20)
         data["frameworks"] = [{"name": f.get("name"), "score": f.get("compliance_score", 0)} for f in frameworks]
+        if not schedule.get("framework_id"):
+            await enrich_report_data(data, db, tenant_id)
 
     elif report_type == "security_posture":
         alert_count = await db.alerts.count_documents({"tenant_id": tenant_id, "status": "open"})
@@ -335,7 +342,10 @@ def _build_pdf(report_data: Dict[str, Any]) -> Optional[bytes]:
         ))
         story.append(Spacer(1, 24))
 
-        skip = {"report_type", "report_name", "generated_at", "tenant_id", "period_start", "period_end"}
+        _render_narratives(story, report_data, styles, section="executive")
+
+        skip = {"report_type", "report_name", "generated_at", "tenant_id", "period_start", "period_end",
+                "ai_executive_summary", "ai_framework_narratives", "top_failing_controls"}
         rows = [["Metric", "Value"]]
         for key, value in report_data.items():
             if key not in skip:
@@ -353,6 +363,8 @@ def _build_pdf(report_data: Dict[str, Any]) -> Optional[bytes]:
                 ("PADDING", (0, 0), (-1, -1), 8),
             ]))
             story.append(tbl)
+
+        _render_narratives(story, report_data, styles, section="frameworks")
 
         doc.build(story)
         return buf.getvalue()
