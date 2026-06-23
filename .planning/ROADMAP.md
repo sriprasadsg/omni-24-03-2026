@@ -272,10 +272,10 @@
 
 **Requirements:** SAAS-01, SAAS-02, SAAS-03, SAAS-04
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 - [x] 14-01-PLAN.md — Backend: saas_integration_service.py (OAuth + per-provider evidence pull), saas_integration_endpoints.py (/api/saas), 10-test suite
-- [ ] 14-02-PLAN.md — Frontend: SaaSIntegrationsDashboard.tsx (5 provider cards, OAuth popup flow); router registration
+- [x] 14-02-PLAN.md — Frontend: SaaSIntegrationsDashboard.tsx (5 provider cards, OAuth popup flow); router registration
 
 ---
 

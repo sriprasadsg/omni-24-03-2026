@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — GRC Feature Parity
 status: planned
-stopped_at: Phase 14 Plan 01 complete — SaaS OAuth evidence integration (GitHub, Jira, Okta, GWS, Slack)
-last_updated: "2026-06-23T17:45:23Z"
+stopped_at: Phase 14 Plan 02 complete — SaaSIntegrationsDashboard UI with OAuth popup and evidence pull
+last_updated: "2026-06-23T17:53:14.313Z"
 progress:
   total_phases: 10
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 12
-  completed_plans: 2
-  percent: 10
+  completed_plans: 4
+  percent: 20
 ---
 
 # Project State
@@ -125,6 +125,9 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 - 14-01: pull_all_evidence stores partial evidence on API error — logs warning, never raises to caller
 - 14-01: OAuthProvider enum backed by str for JSON serialization compatibility with FastAPI
 - 14-01: Tenant isolation check in pull-evidence returns 403 (not 404) to avoid leaking connection existence to cross-tenant callers
+- 14-02: router_registry.py saas_integration_endpoints already registered in wave 1 (line 142) — no change needed in wave 2
+- 14-02: OAuth popup cleanup uses setInterval poll on popup.closed to remove listener when user closes popup without completing auth
+- 14-02: pulling/disconnecting tracked as Record<string,boolean> keyed by connection ID to support independent per-provider loading states
 
 ## Performance Metrics
 
@@ -150,6 +153,7 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 | Phase 10-scheduled-reports P01 | ~6m | 3 tasks | 5 files |
 | Phase 10-scheduled-reports P02 | ~4m | 2 tasks | 1 file |
 | 14-saas-evidence-integration | 01 | ~4m | 4 | 4 |
+| Phase 14-saas-evidence-integration P02 | ~2m | 2 tasks | 1 files |
 
 ## Last Session
 
@@ -180,6 +184,6 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 
 ## Session
 
-**Last session:** 2026-06-23T17:45:23Z
+**Last session:** 2026-06-23T17:53:14.299Z
 **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
 **Resume file:** None
