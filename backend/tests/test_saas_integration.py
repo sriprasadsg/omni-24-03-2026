@@ -87,12 +87,15 @@ def test_pull_github_evidence_maps_to_control():
 
     svc = SaaSIntegrationService()
 
-    fake_prs = {"data": [{"number": 1, "title": "Fix vuln", "merged_at": "2026-06-01"}]}
-    fake_branch = {"protection": {"enabled": True}}
+    # GitHub Search API returns {"items": [...], "total_count": N}
+    fake_prs = {"items": [{"number": 1, "title": "Fix vuln", "merged_at": "2026-06-01"}], "total_count": 1}
+    # GitHub branch protection API returns the protection object directly (no wrapping "protection" key)
+    fake_branch = {"required_status_checks": {"strict": True, "contexts": []}, "enforce_admins": {"enabled": True}}
     fake_alerts = []
 
     async def run():
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with patch("httpx.AsyncClient") as mock_client_cls, \
+             patch.dict(os.environ, {"GITHUB_ORG": "test-org", "GITHUB_REPO": "test-repo"}):
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
