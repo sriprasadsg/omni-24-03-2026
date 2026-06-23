@@ -167,11 +167,13 @@ class TestFrameworkNarrative:
 
 
 # ===========================================================================
-# Test 8 — AI-05/AI-06: _build_pdf embeds narrative, not in metrics table
+# Test 8 — AI-05/AI-06: _build_pdf delegates narrative rendering to _render_narratives
 #
-# RED: fails AssertionError — _build_pdf does not yet render ai_executive_summary
-#      (b"Exec summary text." assertion fails until Task 3 wires _render_narratives).
-# GREEN (after Task 3): pdf contains narrative text and narrative key is NOT a table row.
+# RED: fails AttributeError — scheduled_reports_service._render_narratives does not
+#      exist yet (Task 3 import not wired).
+# GREEN (after Task 3): _build_pdf calls _render_narratives twice (executive + frameworks)
+#      and returns valid PDF bytes. PDF content is FlateDecode-compressed so text is not
+#      directly searchable as raw bytes; call-count is the authoritative assertion.
 # ===========================================================================
 
 class TestBuildPdfIntegration:
@@ -189,10 +191,18 @@ class TestBuildPdfIntegration:
             "ai_framework_narratives": {"SOC 2": "Framework narrative text."},
             "top_failing_controls": ["CC6.1"],
         }
-        pdf_bytes = _build_pdf(report_data)
-        assert pdf_bytes is not None
-        assert isinstance(pdf_bytes, bytes)
-        # Narrative key must NOT appear as a metrics table row label
-        assert b"Ai Executive Summary" not in pdf_bytes
-        # Narrative text MUST appear in the PDF as a rendered narrative section
-        assert b"Exec summary text." in pdf_bytes
+        with patch("scheduled_reports_service._render_narratives") as mock_render:
+            pdf_bytes = _build_pdf(report_data)
+
+        assert pdf_bytes is not None and isinstance(pdf_bytes, bytes)
+        assert mock_render.call_count == 2, (
+            f"_render_narratives must be called twice in _build_pdf "
+            f"(section='executive' before table, section='frameworks' after); "
+            f"was called {mock_render.call_count} times"
+        )
+        sections = [
+            c.kwargs.get("section") or (c.args[3] if len(c.args) > 3 else None)
+            for c in mock_render.call_args_list
+        ]
+        assert "executive" in sections
+        assert "frameworks" in sections
