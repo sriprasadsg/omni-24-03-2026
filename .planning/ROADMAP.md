@@ -94,7 +94,7 @@
 
 **Goal:** Wire Claude tool-calling into the existing agentic decision loop so the LLM can autonomously reason about security findings, select security capabilities, and execute remediation actions — replacing the current stub handler with real Claude-powered decision-making.
 
-**Status:** Planning
+**Status:** Complete — Phase 12 delivered, AI-01/02/03/04 verified
 
 ---
 
@@ -104,7 +104,10 @@
 
 **Requirements:** AI-01, AI-02, AI-03, AI-04
 
-**Plans:** TBD
+**Plans:** 2/2 plans complete
+
+- [x] 12-01-PLAN.md — Backend TDD: `agentic_service.py` (AgenticService, two-turn Claude tool-calling, 5 tool schemas, fallback), `agentic_tasks_endpoints.py` (GET agentic-tasks + POST result), `agent_ai_decisions` MongoDB collection + indexes, router registration, 8-test suite (AI-01, AI-02, AI-03, AI-04)
+- [x] 12-02-PLAN.md — Eval + Tracing: Arize Phoenix wiring in `app_startup.py`, Promptfoo eval harness with 5 reference fixtures and 0.85 pass threshold (AI-01, AI-02)
 
 ---
 
