@@ -11,19 +11,19 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import urllib.parse
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
 
 from authentication_service import get_current_user
 from database import get_db
 from saas_integration_service import (
     OAUTH_CONFIGS,
-    OAuthProvider,
-    _decrypt,
     saas_integration_service,
 )
 
@@ -95,6 +95,7 @@ async def list_connections(
 async def oauth_authorize(
     provider: str,
     current_user=Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """Start the OAuth authorization code flow for the given provider."""
     if provider not in OAUTH_CONFIGS:
@@ -107,13 +108,21 @@ async def oauth_authorize(
 
     callback_url = f"{_BASE_URL}/api/saas/callback/{provider}"
     tenant_id = getattr(current_user, "tenant_id", "")
-    state = urllib.parse.quote(tenant_id)
+
+    # Generate a cryptographically random nonce; store nonce→tenant_id server-side
+    nonce = secrets.token_urlsafe(32)
+    await db.oauth_states.insert_one({
+        "nonce": nonce,
+        "tenant_id": tenant_id,
+        "provider": provider,
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+    })
 
     params = {
         "client_id": client_id,
         "redirect_uri": callback_url,
         "scope": config["scopes"],
-        "state": state,
+        "state": nonce,
         "response_type": "code",
     }
     auth_url = config["auth_url"].replace("{domain}", os.environ.get("OKTA_DOMAIN", ""))
@@ -136,7 +145,12 @@ async def oauth_callback(
     if provider not in OAUTH_CONFIGS:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
-    tenant_id = urllib.parse.unquote(state or "")
+    # Validate CSRF nonce — look up and atomically delete the stored state entry
+    state_doc = await db.oauth_states.find_one_and_delete({"nonce": state or ""})
+    if not state_doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+    tenant_id = state_doc["tenant_id"]
+
     config = OAUTH_CONFIGS[provider]
     client_id = _CLIENT_IDS.get(provider, "")
     client_secret = {
@@ -147,10 +161,9 @@ async def oauth_callback(
         "okta": _OKTA_CLIENT_SECRET,
     }.get(provider, "")
 
-    import httpx as _httpx
     token_url = config["token_url"].replace("{domain}", os.environ.get("OKTA_DOMAIN", ""))
     try:
-        async with _httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
                 token_url,
                 data={
