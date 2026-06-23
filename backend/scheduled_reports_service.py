@@ -7,6 +7,7 @@ import os
 import uuid
 import asyncio
 import logging
+import html as _html
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -388,13 +389,13 @@ def _build_pdf(report_data: Dict[str, Any]) -> Optional[bytes]:
 
 def _build_html(report_data: Dict[str, Any]) -> str:
     """Generate a self-contained HTML report from report_data."""
-    title = report_data.get("report_name", "Security Report")
-    generated_at = report_data.get("generated_at", "")
-    period_start = report_data.get("period_start", "")
-    period_end = report_data.get("period_end", "")
+    title = _html.escape(report_data.get("report_name", "Security Report"))
+    generated_at = _html.escape(report_data.get("generated_at", ""))
+    period_start = _html.escape(report_data.get("period_start", ""))
+    period_end = _html.escape(report_data.get("period_end", ""))
     skip = {"report_type", "report_name", "generated_at", "tenant_id", "period_start", "period_end"}
     rows_html = "".join(
-        f"<tr><td>{k.replace('_', ' ').title()}</td><td>{v}</td></tr>"
+        f"<tr><td>{_html.escape(k.replace('_', ' ').title())}</td><td>{_html.escape(str(v))}</td></tr>"
         for k, v in report_data.items() if k not in skip
     )
     return f"""<!DOCTYPE html>
