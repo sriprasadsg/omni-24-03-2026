@@ -51,9 +51,8 @@ function relativeTime(isoStr: string | null | undefined): string {
 }
 
 const REPORT_TYPES = [
-  'security_summary', 'vulnerability_report', 'compliance_status',
-  'incident_report', 'agent_health', 'threat_intelligence', 'executive_summary',
-  'compliance_summary', 'custom_framework',
+  'compliance_summary', 'security_posture', 'executive_dashboard',
+  'incident_summary', 'agent_health', 'vendor_risk_summary', 'custom_framework',
 ];
 
 const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly'];
@@ -79,7 +78,7 @@ export default function ScheduledReportsDashboard() {
   const [running, setRunning] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
-    report_type: 'security_summary',
+    report_type: 'compliance_summary',
     frequency: 'weekly',
     delivery_channel: 'email',
     recipients: '',
@@ -131,7 +130,7 @@ export default function ScheduledReportsDashboard() {
       if (r.ok) {
         loadReports();
         setShowCreate(false);
-        setForm({ name: '', report_type: 'security_summary', frequency: 'weekly', delivery_channel: 'email', recipients: '', webhook_url: '', framework_id: '' });
+        setForm({ name: '', report_type: 'compliance_summary', frequency: 'weekly', delivery_channel: 'email', recipients: '', webhook_url: '', framework_id: '' });
       }
       else { const d = await r.json(); showToast(d.detail || 'Failed', 'error'); }
     } finally { setSaving(false); }
