@@ -1,0 +1,523 @@
+/*!
+ * Capability implementations for OmniAgent Rust edition.
+ * Windows-specific ops delegate to PowerShell; FIM uses sha2; PII uses regex.
+ */
+use serde_json::{json, Value};
+use sysinfo::System;
+use sha2::{Sha256, Digest};
+use std::fs;
+
+fn ps_json(s: &str) -> Value {
+    if s.is_empty() || s == "null" { return Value::Null; }
+    serde_json::from_str(s).unwrap_or(Value::String(s.to_string()))
+}
+
+// ── Process monitoring ─────────────────────────────────────────────────────────
+
+pub async fn collect_processes() -> Value {
+    let mut sys = System::new();
+    sys.refresh_processes();
+    let procs: Vec<Value> = sys.processes().values().take(250).map(|p| json!({
+        "pid":       p.pid().as_u32(),
+        "name":      p.name(),
+        "cpu":       p.cpu_usage(),
+        "memory_mb": p.memory() / 1_048_576,
+        "status":    format!("{:?}", p.status()),
+    })).collect();
+    json!({"status": "success", "count": procs.len(), "processes": procs})
+}
+
+// ── Software inventory ─────────────────────────────────────────────────────────
+
+pub async fn collect_software() -> Value {
+    let cmd = r"
+$items = @()
+foreach ($p in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+                  'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+    Get-ItemProperty $p -EA SilentlyContinue | Where-Object {$_.DisplayName} | ForEach-Object {
+        $items += [PSCustomObject]@{name=$_.DisplayName;version=$_.DisplayVersion;publisher=$_.Publisher}
+    }
+}
+$items | Sort-Object name -Unique | ConvertTo-Json -Compress -Depth 2
+";
+    let out = crate::http::run_ps(cmd).await;
+    json!({"status": "success", "software": ps_json(&out)})
+}
+
+// ── Hotfixes ───────────────────────────────────────────────────────────────────
+
+pub async fn collect_hotfixes() -> Value {
+    let cmd = "Get-HotFix | Select-Object @{N='id';E={$_.HotFixID}},@{N='description';E={$_.Description}},@{N='installed_on';E={if($_.InstalledOn){$_.InstalledOn.ToString('yyyy-MM-dd')}else{'unknown'}}} | ConvertTo-Json -Compress";
+    let out = crate::http::run_ps(cmd).await;
+    json!({"status": "success", "hotfixes": ps_json(&out)})
+}
+
+// ── Windows Event Logs ─────────────────────────────────────────────────────────
+
+pub async fn collect_logs(log_name: &str, max: u32) -> Value {
+    let cmd = format!(
+        "Get-WinEvent -LogName '{}' -MaxEvents {} -EA SilentlyContinue | Select-Object @{{N='time';E={{$_.TimeCreated.ToString('o')}}}},@{{N='id';E={{$_.Id}}}},@{{N='level';E={{$_.LevelDisplayName}}}},@{{N='message';E={{($_.Message -replace '\\r?\\n',' ').Substring(0,[Math]::Min($_.Message.Length,300))}}}} | ConvertTo-Json -Compress",
+        log_name, max
+    );
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"status": "success", "log_name": log_name, "events": ps_json(&out)})
+}
+
+// ── Persistence detection ──────────────────────────────────────────────────────
+
+pub async fn run_persistence_scan() -> Value {
+    // Avoid embedded double-quotes in the Rust string by building env paths via concatenation
+    let cmd = r#"
+$found = @()
+foreach ($key in @(
+    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
+    'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
+    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce',
+    'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce',
+    'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+)) {
+    try {
+        $props = Get-ItemProperty $key -EA SilentlyContinue
+        if ($props) {
+            $props.PSObject.Properties | Where-Object {$_.Name -notlike 'PS*'} | ForEach-Object {
+                $found += [PSCustomObject]@{source='registry';key=$key;name=$_.Name;value=$_.Value}
+            }
+        }
+    } catch {}
+}
+$su1 = $env:APPDATA + '\Microsoft\Windows\Start Menu\Programs\Startup'
+$su2 = $env:ALLUSERSPROFILE + '\Microsoft\Windows\Start Menu\Programs\Startup'
+foreach ($d in @($su1, $su2)) {
+    if (Test-Path $d) {
+        Get-ChildItem $d -EA SilentlyContinue | ForEach-Object {
+            $found += [PSCustomObject]@{source='startup_folder';key=$d;name=$_.Name;value=$_.FullName}
+        }
+    }
+}
+Get-ScheduledTask -EA SilentlyContinue | Where-Object {$_.TaskPath -notlike '\Microsoft\*'} | Select-Object -First 20 | ForEach-Object {
+    $found += [PSCustomObject]@{source='scheduled_task';key=$_.TaskPath;name=$_.TaskName;value=($_.Actions | ForEach-Object {$_.Execute} | Select-Object -First 1)}
+}
+$found | ConvertTo-Json -Compress -Depth 2
+"#;
+    let out = crate::http::run_ps(cmd).await;
+    let items = ps_json(&out);
+    let count = items.as_array().map(|a| a.len()).unwrap_or(0);
+    json!({"status": "success", "findings_count": count, "findings": items})
+}
+
+// ── Shadow AI detection ────────────────────────────────────────────────────────
+
+pub async fn run_shadow_ai_scan() -> Value {
+    let cmd = r"
+$ai = @('ChatGPT','Claude','Copilot','Ollama','LMStudio','GPT4All','Midjourney','Gemini','Perplexity','Cursor','Codeium','Tabnine','LocalAI','PrivateGPT','Stable Diffusion','ComfyUI','InvokeAI','OpenAI','Whisper','Continue','Aider','Tabby')
+$found_installed = @(); $found_running = @()
+foreach ($p in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+    Get-ItemProperty $p -EA SilentlyContinue | Where-Object {$_.DisplayName} | ForEach-Object {
+        $name = $_.DisplayName; foreach ($a in $ai) { if ($name -like ('*' + $a + '*')) { $found_installed += [PSCustomObject]@{name=$name;matched=$a} } }
+    }
+}
+Get-Process -EA SilentlyContinue | ForEach-Object {
+    $n = $_.Name; foreach ($a in $ai) { if ($n -like ('*' + $a + '*')) { $found_running += [PSCustomObject]@{name=$n;pid=$_.Id;matched=$a} } }
+}
+[PSCustomObject]@{installed=$found_installed;running=$found_running} | ConvertTo-Json -Compress -Depth 3
+";
+    let out = crate::http::run_ps(cmd).await;
+    let data = ps_json(&out);
+    let inst_count = data.get("installed").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let run_count  = data.get("running").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    json!({"status": "success", "shadow_ai_detected": (inst_count + run_count) > 0, "installed_count": inst_count, "running_count": run_count, "findings": data})
+}
+
+// ── Compliance checks ──────────────────────────────────────────────────────────
+
+/// Run the full compliance check script.
+/// Uses run_ps_admin so all checks (BitLocker, Defender, audit policy, firewall,
+/// Secure Boot, WinRM) receive the privileges they require.
+pub async fn run_compliance_check() -> Value {
+    // Output format matches backend COMPLIANCE_CHECK_MAPPINGS exactly so that
+    // process_automated_evidence() maps each check to its framework control IDs.
+    // Uses registry/WMI/exe approaches instead of optional PS modules (BitLocker,
+    // SmbShare, SecureBoot modules may not be present in Windows Service context).
+    let cmd = r#"
+$c = [System.Collections.Generic.List[object]]::new()
+function Add-Check($name,$status,$details){ $c.Add([PSCustomObject]@{check=$name;status=$status;details=$details}) }
+
+# 1. Windows Firewall Profiles — registry fallback if cmdlet unavailable
+try {
+    $fw = Get-NetFirewallProfile -EA SilentlyContinue
+    if ($fw) {
+        $d=($fw|Where-Object Name -eq 'Domain').Enabled; $p=($fw|Where-Object Name -eq 'Private').Enabled; $pu=($fw|Where-Object Name -eq 'Public').Enabled
+        $st = if($d -and $p -and $pu){'Pass'} elseif($d -or $p -or $pu){'Warning'} else{'Fail'}
+        Add-Check 'Windows Firewall Profiles' $st "Domain:$d Private:$p Public:$pu"
+    } else {
+        $reg='HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy'
+        $dom=(Get-ItemProperty "$reg\DomainProfile" -EA SilentlyContinue).EnableFirewall
+        $priv=(Get-ItemProperty "$reg\StandardProfile" -EA SilentlyContinue).EnableFirewall
+        $pub=(Get-ItemProperty "$reg\PublicProfile" -EA SilentlyContinue).EnableFirewall
+        $st = if($dom -and $priv -and $pub){'Pass'} elseif($dom -or $priv -or $pub){'Warning'} else{'Fail'}
+        Add-Check 'Windows Firewall Profiles' $st "Domain:$dom Private:$priv Public:$pub"
+    }
+} catch { Add-Check 'Windows Firewall Profiles' 'Warning' 'Unable to query firewall' }
+
+# 2. Windows Defender Antivirus
+try {
+    $wd = Get-MpComputerStatus -EA SilentlyContinue
+    if($wd){ $age=$wd.AntivirusSignatureAge; $ok=$wd.AntivirusEnabled -and $wd.RealTimeProtectionEnabled -and ($age -le 7)
+             $st=if($ok){'Pass'} elseif($wd.AntivirusEnabled){'Warning'} else{'Fail'}
+             Add-Check 'Windows Defender Antivirus' $st "Enabled:$($wd.AntivirusEnabled) RealTime:$($wd.RealTimeProtectionEnabled) SigAge:${age}d"
+    } else { Add-Check 'Windows Defender Antivirus' 'Warning' 'MpComputerStatus unavailable' }
+} catch { Add-Check 'Windows Defender Antivirus' 'Warning' 'Unable to query Defender' }
+
+# 3. BitLocker Encryption — Get-BitLockerVolume is authoritative; manage-bde as fallback
+try {
+    $bl = Get-BitLockerVolume -MountPoint 'C:' -EA SilentlyContinue
+    if ($bl) {
+        $on = ($bl.ProtectionStatus -eq 'On')
+        $st = if ($on) { 'Pass' } else { 'Warning' }
+        $detail = "ProtectionStatus:$($bl.ProtectionStatus) VolumeStatus:$($bl.VolumeStatus) Method:$($bl.EncryptionMethod)"
+        Add-Check 'BitLocker Encryption' $st $detail
+    } else {
+        # Fallback for older systems where Get-BitLockerVolume is unavailable
+        $bde = & cmd /c "manage-bde -status C: 2>&1" 2>&1
+        $on = ($bde -join '') -match 'Protection\s+On'
+        Add-Check 'BitLocker Encryption' (if($on){'Pass'} else{'Warning'}) (if($on){'BitLocker enabled on C:'}else{'BitLocker not detected on C:'})
+    }
+} catch { Add-Check 'BitLocker Encryption' 'Warning' 'Unable to query BitLocker' }
+
+# 4. User Access Control — registry
+try {
+    $uac = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -EA SilentlyContinue).EnableLUA
+    Add-Check 'User Access Control' (if($uac -ne 0){'Pass'} else{'Fail'}) (if($uac -ne 0){'UAC enabled'}else{'UAC disabled'})
+} catch { Add-Check 'User Access Control' 'Warning' 'Unable to query UAC' }
+
+# 5. Remote Desktop Service — registry
+try {
+    $rdp=(Get-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -EA SilentlyContinue).fDenyTSConnections
+    $enabled=($rdp -eq 0)
+    Add-Check 'Remote Desktop Service' (if(-not $enabled){'Pass'} else{'Warning'}) (if($enabled){'RDP enabled — verify NLA'}else{'RDP disabled'})
+} catch { Add-Check 'Remote Desktop Service' 'Warning' 'Unable to query RDP' }
+
+# 6. SMBv1 Protocol Disabled — registry (avoids SmbShare module dependency)
+try {
+    $smb1 = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -EA SilentlyContinue).SMB1
+    $drv  = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb10' -EA SilentlyContinue).Start
+    # Key absent on Win10 v1709+ means disabled by OS default; mrxsmb10 Start=4 confirms driver disabled.
+    $disabled = ($null -ne $smb1 -and $smb1 -eq 0) -or ($null -eq $smb1)
+    $detail = if($null -ne $smb1 -and $smb1 -eq 0){'SMBv1 disabled via registry'} elseif($drv -eq 4){'SMBv1 key absent + mrxsmb10 Start=4 (disabled by OS default)'}else{'SMBv1 key absent — disabled by OS default on Win10+ v1709+'}
+    Add-Check 'SMBv1 Protocol Disabled' (if($disabled){'Pass'}else{'Warning'}) $detail
+} catch { Add-Check 'SMBv1 Protocol Disabled' 'Warning' 'Unable to query SMB registry' }
+
+# 7. Password Policy — net accounts (external exe, no module needed)
+try {
+    $pp = & cmd /c "net accounts 2>&1" 2>&1
+    $ppStr = $pp -join "`n"
+    $minLLine = ($ppStr -split "`n" | Where-Object { $_ -match 'Minimum password length' } | Select-Object -First 1)
+    $minL = if ($minLLine -match ':\s*(\S+)') { $Matches[1] } else { '0' }
+    $lenVal = try { [int]$minL } catch { 0 }
+    $lenOk = $lenVal -ge 8
+    $lockLine = ($ppStr -split "`n" | Where-Object { $_ -match 'Lockout threshold' } | Select-Object -First 1)
+    $lock = if ($lockLine -match ':\s*(\S+)') { $Matches[1] } else { 'Never' }
+    Add-Check 'Password Policy (Min Length)' (if($lenOk){'Pass'} else{'Warning'}) "MinLen:$minL Lockout:$lock"
+} catch { Add-Check 'Password Policy (Min Length)' 'Warning' 'Unable to query password policy' }
+
+# 8. Audit Logging Policy — auditpol.exe (no module needed), locale-agnostic category scan
+try {
+    $ap = & cmd /c "auditpol /get /category:* 2>&1" 2>&1
+    $apStr = $ap -join ' '
+    $hasAudit = $apStr -match '(Success|Failure|Success and Failure)'
+    Add-Check 'Audit Logging Policy' (if($hasAudit){'Pass'} else{'Warning'}) (if($hasAudit){'Audit policies configured'}else{'No audit policies found'})
+} catch { Add-Check 'Audit Logging Policy' 'Warning' 'Unable to query audit policy' }
+
+# 9. Windows Update Service — sc query (works without module)
+try {
+    $sc = & cmd /c "sc query wuauserv 2>&1" 2>&1
+    $scStr = $sc -join ' '
+    $running = $scStr -match 'RUNNING'
+    $disabled = $scStr -match 'DISABLED'
+    $st = if($running){'Pass'} elseif($disabled){'Fail'} else{'Warning'}
+    $detail = if($running){'wuauserv Running'} elseif($disabled){'wuauserv Disabled — updates blocked'} else{'wuauserv Stopped'}
+    Add-Check 'Windows Update Service' $st $detail
+} catch { Add-Check 'Windows Update Service' 'Warning' 'Unable to query Windows Update' }
+
+# 10. PowerShell Script Block Logging — registry
+try {
+    $psl=(Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -EA SilentlyContinue)
+    $on=$psl -and $psl.EnableScriptBlockLogging -eq 1
+    Add-Check 'PowerShell Script Block Logging' (if($on){'Pass'} else{'Warning'}) (if($on){'Script block logging enabled'}else{'Not configured via GPO'})
+} catch { Add-Check 'PowerShell Script Block Logging' 'Warning' 'Unable to query PS logging' }
+
+# 11. WinRM Status — sc query
+try {
+    $sc = & cmd /c "sc query WinRM 2>&1" 2>&1
+    $running = ($sc -join ' ') -match 'RUNNING'
+    Add-Check 'WinRM Status' (if(-not $running){'Pass'} else{'Warning'}) (if($running){'WinRM running — verify firewall scope'}else{'WinRM not running'})
+} catch { Add-Check 'WinRM Status' 'Warning' 'Unable to query WinRM' }
+
+# 12. Secure Boot — registry (avoids Confirm-SecureBootUEFI module dependency)
+try {
+    $sbKey = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State' -EA SilentlyContinue
+    if ($sbKey) {
+        $on = $sbKey.UEFISecureBootEnabled -eq 1
+        Add-Check 'Secure Boot' (if($on){'Pass'} else{'Warning'}) (if($on){'Secure Boot enabled (UEFI)'}else{'Secure Boot disabled or legacy BIOS'})
+    } else {
+        Add-Check 'Secure Boot' 'Warning' 'Secure Boot registry key absent (may be legacy BIOS or VM)'
+    }
+} catch { Add-Check 'Secure Boot' 'Warning' 'Unable to query Secure Boot' }
+
+[PSCustomObject]@{compliance_checks=$c} | ConvertTo-Json -Compress -Depth 3
+"#;
+    // run_ps_admin: already-admin agents (SYSTEM service) run inline; others elevate.
+    let out = crate::http::run_ps_admin(cmd).await;
+    ps_json(&out)
+}
+
+// ── Network discovery ──────────────────────────────────────────────────────────
+
+pub async fn run_network_discovery() -> Value {
+    let cmd = r"
+$arp = arp -a 2>$null | Where-Object {$_ -match '^\s+\d+\.\d+'} | ForEach-Object {
+    $parts = $_.Trim() -split '\s+'
+    if ($parts.Count -ge 2) { [PSCustomObject]@{ip=$parts[0];mac=$parts[1];type=if($parts.Count -ge 3){$parts[2]}else{'unknown'}} }
+}
+$adapters = Get-NetAdapter -EA SilentlyContinue | Where-Object Status -eq Up | ForEach-Object {
+    $ip = (Get-NetIPAddress -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4 -EA SilentlyContinue).IPAddress
+    [PSCustomObject]@{name=$_.Name;mac=$_.MacAddress;speed=$_.LinkSpeed;ip=$ip}
+}
+[PSCustomObject]@{arp_hosts=$arp;adapters=$adapters} | ConvertTo-Json -Compress -Depth 3
+";
+    let out = crate::http::run_ps(cmd).await;
+    json!({"status": "success", "discovery": ps_json(&out)})
+}
+
+// ── Vulnerability scan ─────────────────────────────────────────────────────────
+
+pub async fn run_vuln_scan() -> Value {
+    let cmd = r"
+try {
+    $lines = winget upgrade --accept-source-agreements 2>&1 | Where-Object {$_ -notmatch 'Name\s+Id|---|winget|already installed|No applicable' -and $_.Trim().Length -gt 5}
+    $outdated = $lines | ForEach-Object { [PSCustomObject]@{software=$_.ToString().Trim();status='outdated_potentially_vulnerable'} }
+    $outdated | ConvertTo-Json -Compress
+} catch { '[]' }
+";
+    let out = crate::http::run_ps(cmd).await;
+    json!({"status": "success", "outdated_software": ps_json(&out), "note": "Outdated software may contain known CVEs. Run upgrade to remediate."})
+}
+
+// ── Patch management ───────────────────────────────────────────────────────────
+
+pub async fn run_patch_scan() -> Value {
+    let (hf_out, updates_out) = tokio::join!(
+        crate::http::run_ps("Get-HotFix | Select-Object @{N='id';E={$_.HotFixID}},@{N='description';E={$_.Description}},@{N='installed_on';E={if($_.InstalledOn){$_.InstalledOn.ToString('yyyy-MM-dd')}else{'unknown'}}} | ConvertTo-Json -Compress"),
+        crate::http::run_ps("try{winget upgrade --accept-source-agreements 2>&1 | Select-String '\\S' | Where-Object {$_ -notmatch 'Name|---'} | ForEach-Object {$_.Line.Trim()} | ConvertTo-Json -Compress}catch{'[]'}"),
+    );
+    json!({"status": "success", "installed_hotfixes": ps_json(&hf_out), "available_updates": ps_json(&updates_out)})
+}
+
+pub async fn install_patches(ids: &[String]) -> Value {
+    let mut results = vec![];
+    if ids.is_empty() {
+        let out = crate::http::run_ps("winget upgrade --all --accept-package-agreements --accept-source-agreements 2>&1").await;
+        results.push(json!({"type": "all_packages", "output": out}));
+    } else {
+        for id in ids {
+            let cmd = format!("winget upgrade --id {} --accept-package-agreements --accept-source-agreements 2>&1", id);
+            let out = crate::http::run_ps(&cmd).await;
+            results.push(json!({"package": id, "output": out}));
+        }
+    }
+    json!({"status": "success", "results": results})
+}
+
+// ── Software management ────────────────────────────────────────────────────────
+
+pub async fn install_software(package_id: &str) -> Value {
+    let cmd = format!("winget install --id {} -e --accept-package-agreements --accept-source-agreements 2>&1", package_id);
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"status": "success", "package_id": package_id, "output": out})
+}
+
+pub async fn uninstall_software(package_id: &str) -> Value {
+    let cmd = format!("winget uninstall --id {} -e 2>&1", package_id);
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"status": "success", "package_id": package_id, "output": out})
+}
+
+pub async fn install_from_url(url: &str, filename: &str) -> Value {
+    // Download installer to TEMP then execute silently via PowerShell
+    let safe_name = filename.split('/').last().unwrap_or(filename)
+        .replace(['\\', '"', '\'', ';', '&', '|', '`'], "_");
+    let cmd = format!(
+        r#"
+$dest = Join-Path $env:TEMP '{safe}'
+try {{
+    Invoke-WebRequest -Uri '{url}' -OutFile $dest -UseBasicParsing -TimeoutSec 300
+}} catch {{
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile('{url}', $dest)
+}}
+$ext = [System.IO.Path]::GetExtension($dest).ToLower()
+$result = switch ($ext) {{
+    '.exe' {{ & $dest /S /s /silent /quiet 2>&1 | Out-String }}
+    '.msi' {{ msiexec /i $dest /qn /norestart 2>&1 | Out-String }}
+    '.ps1' {{ & powershell -NonInteractive -ExecutionPolicy Bypass -File $dest 2>&1 | Out-String }}
+    '.bat' {{ cmd /c $dest 2>&1 | Out-String }}
+    '.cmd' {{ cmd /c $dest 2>&1 | Out-String }}
+    default {{ "Downloaded to $dest — manual install required for $ext" }}
+}}
+Remove-Item $dest -Force -ErrorAction SilentlyContinue
+$result
+"#,
+        safe = safe_name,
+        url = url,
+    );
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"status": "success", "url": url, "filename": safe_name, "output": out})
+}
+
+pub async fn upgrade_software(package_id: Option<&str>) -> Value {
+    let cmd = match package_id {
+        Some(id) => format!("winget upgrade --id {} --accept-package-agreements --accept-source-agreements 2>&1", id),
+        None => "winget upgrade --all --accept-package-agreements --accept-source-agreements 2>&1".into(),
+    };
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"status": "success", "output": out})
+}
+
+// ── File Integrity Monitoring ──────────────────────────────────────────────────
+
+pub async fn run_fim_scan(extra_paths: &[String]) -> Value {
+    let mut paths = vec![
+        r"C:\Windows\System32\drivers\etc\hosts".to_string(),
+        r"C:\Windows\System32\drivers\etc\services".to_string(),
+        r"C:\Windows\win.ini".to_string(),
+        r"C:\Windows\System32\cmd.exe".to_string(),
+        r"C:\Windows\System32\svchost.exe".to_string(),
+        r"C:\Windows\System32\lsass.exe".to_string(),
+    ];
+    paths.extend_from_slice(extra_paths);
+    let mut results = vec![];
+    for path in &paths {
+        match fs::read(path) {
+            Ok(data) => {
+                let mut h = Sha256::new();
+                h.update(&data);
+                results.push(json!({"path": path, "sha256": hex::encode(h.finalize()), "size_bytes": data.len()}));
+            }
+            Err(e) => results.push(json!({"path": path, "error": e.to_string()})),
+        }
+    }
+    json!({"status": "success", "files_checked": results.len(), "hashes": results})
+}
+
+// ── PII scanner ────────────────────────────────────────────────────────────────
+
+pub async fn run_pii_scan(dirs: &[String]) -> Value {
+    use regex::Regex;
+    use walkdir::WalkDir;
+    let patterns = [
+        ("ssn",         r"\b\d{3}-\d{2}-\d{4}\b"),
+        ("email",       r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"),
+        ("credit_card", r"\b(?:\d{4}[- ]?){3}\d{4}\b"),
+        ("phone_us",    r"\b\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b"),
+    ];
+    let compiled: Vec<(&str, Regex)> = patterns.iter()
+        .filter_map(|(t, r)| Regex::new(r).ok().map(|re| (*t, re))).collect();
+
+    let scan_dirs = if dirs.is_empty() { vec![r"C:\Users".to_string()] } else { dirs.to_vec() };
+    let mut findings = vec![];
+    let mut files_scanned = 0usize;
+    let text_exts = ["txt", "csv", "log", "json", "xml", "md", "conf", "ini", "yaml", "yml"];
+
+    'outer: for dir in &scan_dirs {
+        for entry in WalkDir::new(dir).max_depth(4).into_iter().filter_map(|e| e.ok()) {
+            if findings.len() >= 500 { break 'outer; }
+            if !entry.file_type().is_file() { continue; }
+            let path = entry.path();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if !text_exts.contains(&ext) { continue; }
+            if entry.metadata().map(|m| m.len()).unwrap_or(0) > 5 * 1_048_576 { continue; }
+            if let Ok(content) = fs::read_to_string(path) {
+                files_scanned += 1;
+                for (pii_type, re) in &compiled {
+                    if re.is_match(&content) {
+                        findings.push(json!({"path": path.to_string_lossy(), "pii_type": pii_type}));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    json!({"status": "success", "files_scanned": files_scanned, "findings_count": findings.len(), "findings": findings})
+}
+
+// ── Response actions ───────────────────────────────────────────────────────────
+
+pub async fn kill_process(pid: Option<u32>, name: Option<String>) -> Value {
+    let cmd = match (pid, name.as_deref()) {
+        (Some(p), _) => format!("Stop-Process -Id {} -Force -EA SilentlyContinue; Write-Output 'Killed PID {}'", p, p),
+        (_, Some(n)) => {
+            let safe = n.replace('"', "").replace('\'', "");
+            format!("Stop-Process -Name '{}' -Force -EA SilentlyContinue; Write-Output 'Killed {}'", safe, safe)
+        }
+        _ => return json!({"success": false, "message": "pid or name required"}),
+    };
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"success": true, "message": out})
+}
+
+pub async fn block_ip(ip: &str) -> Value {
+    let safe = ip.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == ':' || *c == '/').collect::<String>();
+    let cmd = format!(
+        "New-NetFirewallRule -DisplayName 'OmniBlock_{0}' -Direction Outbound -RemoteAddress '{0}' -Action Block -EA SilentlyContinue | Out-Null; New-NetFirewallRule -DisplayName 'OmniBlock_{0}_In' -Direction Inbound -RemoteAddress '{0}' -Action Block -EA SilentlyContinue | Out-Null; 'Blocked {0}'",
+        safe
+    );
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"success": true, "message": format!("IP {} blocked", ip), "output": out})
+}
+
+pub async fn isolate_network(platform_ip: &str) -> Value {
+    let safe = platform_ip.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == ':').collect::<String>();
+    let cmd = format!(r"
+New-NetFirewallRule -DisplayName 'OmniIsolate_BlockOut' -Direction Outbound -Action Block -Priority 200 -EA SilentlyContinue | Out-Null
+New-NetFirewallRule -DisplayName 'OmniIsolate_BlockIn'  -Direction Inbound  -Action Block -Priority 200 -EA SilentlyContinue | Out-Null
+New-NetFirewallRule -DisplayName 'OmniIsolate_AllowOut' -Direction Outbound -RemoteAddress '{0}' -Action Allow -Priority 100 -EA SilentlyContinue | Out-Null
+New-NetFirewallRule -DisplayName 'OmniIsolate_AllowIn'  -Direction Inbound  -RemoteAddress '{0}' -Action Allow -Priority 100 -EA SilentlyContinue | Out-Null
+'Host isolated — only {0} allowed'", safe);
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"success": true, "message": "Network isolated", "allowed_ip": safe, "output": out})
+}
+
+pub async fn restore_network() -> Value {
+    let cmd = r"Get-NetFirewallRule | Where-Object {$_.DisplayName -like 'OmniIsolate_*' -or $_.DisplayName -like 'OmniBlock_*'} | Remove-NetFirewallRule -EA SilentlyContinue; 'Firewall rules cleared'";
+    let out = crate::http::run_ps(cmd).await;
+    json!({"success": true, "message": "Network isolation and blocks removed", "output": out})
+}
+
+pub async fn quarantine_file(path: &str) -> Value {
+    let safe = path.replace('"', "").replace('\'', "");
+    let cmd = format!(
+        "New-Item -ItemType Directory -Force -Path 'C:\\ProgramData\\OmniAgent\\Quarantine' | Out-Null; Move-Item -Path '{}' -Destination 'C:\\ProgramData\\OmniAgent\\Quarantine' -Force -EA SilentlyContinue; 'Quarantined'",
+        safe
+    );
+    let out = crate::http::run_ps(&cmd).await;
+    json!({"success": true, "message": format!("Quarantined: {}", path), "output": out})
+}
+
+// ── Proactive threat hunt ──────────────────────────────────────────────────────
+
+pub async fn run_threat_hunt() -> Value {
+    let (persistence, shadow_ai, processes) = tokio::join!(
+        run_persistence_scan(),
+        run_shadow_ai_scan(),
+        collect_processes(),
+    );
+    json!({
+        "status": "success",
+        "triggered_by": "instruction",
+        "results": {
+            "persistence_detection": persistence,
+            "shadow_ai":             shadow_ai,
+            "process_monitor":       processes,
+        }
+    })
+}

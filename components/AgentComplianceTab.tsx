@@ -213,7 +213,7 @@ export const AgentComplianceTab: React.FC<AgentComplianceTabProps> = ({ data, ag
         const failed = rules.filter(r => r.status === 'failed').length;
         const warnings = rules.filter(r => r.status === 'warning').length;
         const total = rules.length;
-        return { score: total > 0 ? Math.round((passed / total) * 100) : 0, passed, failed, warnings, total };
+        return { score: total > 0 ? Math.round((passed + warnings * 0.5) / total * 100) : 0, passed, failed, warnings, total };
     }, [data, rules]);
 
     if (!data || (!data.rules && !data.compliance_checks)) {
@@ -294,7 +294,10 @@ export const AgentComplianceTab: React.FC<AgentComplianceTabProps> = ({ data, ag
                         </h3>
                         <div className="flex items-baseline space-x-3">
                             <div className="text-5xl font-bold text-primary-600 dark:text-primary-400">{stats.score}%</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{stats.passed} of {stats.total} checks passed</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {stats.passed} passed · {stats.warnings} warnings · {stats.failed} failed
+                                <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">(warnings = ½ credit)</span>
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">

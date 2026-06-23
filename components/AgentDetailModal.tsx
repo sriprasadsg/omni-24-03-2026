@@ -375,7 +375,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                         const failed = uniqueRules.filter((r: any) => r.status === 'failed').length;
                         const warnings = uniqueRules.filter((r: any) => r.status === 'warning').length;
                         const total = uniqueRules.length;
-                        const score = total > 0 ? Math.round((passed / total) * 100) : 0;
+                        // Warnings count as 0.5 credit: they represent "not explicitly hardened"
+                        // rather than a hard failure.  15 passed + 49 warnings → 62%, not 23%.
+                        const score = total > 0 ? Math.round((passed + warnings * 0.5) / total * 100) : 0;
 
                         setFetchedComplianceData({
                             score,
