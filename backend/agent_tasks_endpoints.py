@@ -85,10 +85,14 @@ async def report_instruction_result(
             }}
         )
 
-    if result.get("compliance_checks"):
+    # Rust agent wraps its result as {"result": {"compliance_checks": [...]}}; Python callers
+    # post compliance_checks at the top level. Accept both shapes.
+    _nested = result.get("result") if isinstance(result.get("result"), dict) else {}
+    compliance_payload = result if result.get("compliance_checks") else (_nested if _nested.get("compliance_checks") else None)
+    if compliance_payload:
         try:
             from compliance_endpoints import process_automated_evidence
-            await process_automated_evidence(hostname, result, db)
+            await process_automated_evidence(hostname, compliance_payload, db)
         except Exception as e:
             logger.error("Failed to process compliance results: %s", e)
 
@@ -98,7 +102,7 @@ async def report_instruction_result(
             tenant_id = _tenant.get("tenant_id") or _tenant.get("tenantId") or _tenant.get("id", "")
             control_ids = [
                 c.get("control_id") or c.get("check") or c.get("name", "")
-                for c in result.get("compliance_checks", [])
+                for c in compliance_payload.get("compliance_checks", [])
                 if isinstance(c, dict)
             ]
             for ctrl_id in set(filter(None, control_ids)):

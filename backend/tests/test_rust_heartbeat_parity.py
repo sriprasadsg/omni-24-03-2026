@@ -127,6 +127,80 @@ def test_rust02_and_rust03_db_calls():
     assert not missing, f"[RUST-03] Missing control IDs: {missing}"
     print(f"[RUST-03] All 9 representative control IDs present: PASS")
 
+def test_rust04_instruction_result_compliance_nesting():
+    """RUST-04: report_instruction_result processes compliance_checks from nested result.result
+    (the structure the Rust agent sends) as well as from the top-level dict."""
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    # Build minimal agent_tasks router
+    import agent_tasks_endpoints as mod
+
+    called_with: list = []
+
+    async def _fake_process_evidence(hostname, payload, db, **kw):
+        called_with.append(payload)
+
+    db = MagicMock()
+    db.agent_instructions = MagicMock()
+    db.agent_instructions.update_one = AsyncMock()
+    db.compliance_remediation_tasks = MagicMock()
+    db.compliance_remediation_tasks.find = MagicMock()
+    db.compliance_remediation_tasks.find.return_value.to_list = AsyncMock(return_value=[])
+
+    tenant = {"tenant_id": "t1", "id": "t1"}
+    app = FastAPI()
+    app.include_router(mod.router)
+    app.dependency_overrides[mod.verify_agent_key] = lambda: tenant
+
+    # Rust agent format: compliance_checks nested inside result.result
+    nested_body = {
+        "instruction_id": "i1",
+        "task_id": "tid1",
+        "type": "run_compliance_check",
+        "status": "success",
+        "result": {
+            "compliance_checks": [
+                {"check": "Windows Firewall Profiles", "status": "Pass", "details": "OK"}
+            ]
+        },
+    }
+
+    with patch("agent_tasks_endpoints.get_database", return_value=db), \
+         patch("compliance_endpoints.process_automated_evidence", side_effect=_fake_process_evidence):
+        with TestClient(app) as client:
+            resp = client.post("/api/agents/test-host/instructions/result", json=nested_body)
+
+    assert resp.status_code == 200
+    assert len(called_with) == 1, "process_automated_evidence must be called for nested format"
+    assert "compliance_checks" in called_with[0], "payload must contain compliance_checks key"
+
+    # Also verify the flat (non-Rust) format still works
+    called_with.clear()
+    flat_body = {
+        "instruction_id": "i2",
+        "task_id": "tid2",
+        "type": "run_compliance_check",
+        "status": "success",
+        "compliance_checks": [
+            {"check": "BitLocker Encryption", "status": "Warning", "details": "Off"}
+        ],
+    }
+    with patch("agent_tasks_endpoints.get_database", return_value=db), \
+         patch("compliance_endpoints.process_automated_evidence", side_effect=_fake_process_evidence):
+        with TestClient(app) as client:
+            resp = client.post("/api/agents/test-host/instructions/result", json=flat_body)
+
+    assert resp.status_code == 200
+    assert len(called_with) == 1, "process_automated_evidence must be called for flat format"
+    assert "compliance_checks" in called_with[0]
+
+
 # ---------------------------------------------------------------------------
 # Live-backend mode
 # ---------------------------------------------------------------------------

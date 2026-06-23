@@ -299,9 +299,10 @@ pub async fn dispatch_instruction(instr: &str, payload: &Value, client: &Client,
                     .and_then(|v| v.as_str()).unwrap_or("")
             };
             if pkg.is_empty() { return json!({"status": "error", "error": "packageId required"}); }
-            // If download_url is set (from repo/url install paths) use it directly
-            if let Some(url) = payload.get("download_url").and_then(|v| v.as_str()) {
-                caps::install_from_url(url, pkg).await
+            // If download_url is set (from repo/url install paths) use it; make relative paths absolute
+            if let Some(raw) = payload.get("download_url").and_then(|v| v.as_str()) {
+                let abs: String = if raw.starts_with('/') { format!("{}{}", base, raw) } else { raw.into() };
+                caps::install_from_url(&abs, pkg).await
             } else if pkg.starts_with("https://") || pkg.starts_with("http://") {
                 // pkg itself is a URL (old server path: action=install, packageId=URL)
                 let fname = pkg.split('/').last().unwrap_or("installer");
