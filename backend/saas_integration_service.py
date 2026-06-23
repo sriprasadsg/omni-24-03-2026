@@ -26,12 +26,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Encryption setup — key from env; generate throwaway key if not set (dev only)
 # ---------------------------------------------------------------------------
-_FERNET_KEY = os.environ.get("ENCRYPTION_KEY", "").encode()
-if not _FERNET_KEY:
-    _FERNET_KEY = Fernet.generate_key()
+_FERNET_KEY_RAW = os.environ.get("ENCRYPTION_KEY", "")
+if not _FERNET_KEY_RAW:
+    _ephemeral_key = Fernet.generate_key()
+    _FERNET = Fernet(_ephemeral_key)
     logger.warning("ENCRYPTION_KEY not set — using ephemeral key (tokens won't survive restart)")
-
-_FERNET = Fernet(_FERNET_KEY)
+else:
+    try:
+        _FERNET = Fernet(_FERNET_KEY_RAW.encode())
+    except Exception as exc:
+        raise RuntimeError(
+            f"ENCRYPTION_KEY is set but is not a valid Fernet key: {exc}. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        ) from exc
 
 
 def _encrypt(plaintext: str) -> str:
@@ -91,12 +98,10 @@ _CTRL_SEC_PATCH = "Security Patch Status"
 _CTRL_CHANGE_MGMT = "Change Management Simulation"
 _CTRL_AUDIT_LOG = "Audit Logging Extension Simulation"
 _CTRL_DATA_LEAKAGE = "Data Leakage Prevention Simulation"
-
 _OKTA_MFA_CTRL = "MFA for All Users"
 _GWS_ACCOUNT_SEC = "Account Security"
-
 _TIMEOUT = 10.0
-
+_ALLOWED_METADATA_KEYS = {"display_name", "domain", "org"}
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -133,8 +138,11 @@ class SaaSIntegrationService:
             "last_synced": None,
             "evidence_count": 0,
             "created_at": _now_iso(),
-            **(metadata or {}),
         }
+        # Only copy whitelisted metadata keys to prevent overwriting critical fields
+        for k, v in (metadata or {}).items():
+            if k in _ALLOWED_METADATA_KEYS:
+                doc[k] = v
         await db.saas_connections.insert_one(doc)
         return connection_id
 
@@ -160,47 +168,56 @@ class SaaSIntegrationService:
                 )
                 prs_resp.raise_for_status()
                 prs_data = prs_resp.json()
-                pr_count = len(prs_data.get("data", prs_data.get("items", [])))
+                # GitHub Search API returns {"items": [...], "total_count": N}
+                items = prs_data.get("items", [])
+                pr_count = len(items)
                 evidence.append({
                     "control_id": _CTRL_SECURE_DEV,
                     "source": "saas-github",
                     "tenant_id": tenant_id,
                     "collected_at": collected_at,
                     "content": f"GitHub: {pr_count} merged PRs to main branch found",
-                    "status": "pass" if pr_count >= 0 else "no-data",
+                    "status": "pass" if pr_count > 0 else "no-data",
                 })
 
                 # 2. Branch protection → Access to Source Code Simulation
-                bp_resp = await client.get(
-                    "https://api.github.com/repos/org/repo/branches/main/protection",
-                    headers=headers,
-                )
-                bp_data = bp_resp.json()
-                bp_enabled = bp_data.get("protection", {}).get("enabled", False)
-                evidence.append({
-                    "control_id": _CTRL_SOURCE_CODE,
-                    "source": "saas-github",
-                    "tenant_id": tenant_id,
-                    "collected_at": collected_at,
-                    "content": f"GitHub: Branch protection on main: {bp_enabled}",
-                    "status": "pass" if bp_enabled else "fail",
-                })
+                github_org = os.environ.get("GITHUB_ORG", "")
+                github_repo = os.environ.get("GITHUB_REPO", "")
+                if not github_org or not github_repo:
+                    logger.warning("GITHUB_ORG/GITHUB_REPO not configured; skipping branch protection check")
+                else:
+                    bp_resp = await client.get(
+                        f"https://api.github.com/repos/{github_org}/{github_repo}/branches/main/protection",
+                        headers=headers,
+                    )
+                    bp_data = bp_resp.json()
+                    # GitHub REST API returns the protection object directly (no wrapping "protection" key)
+                    bp_enabled = bool(bp_data.get("required_status_checks") or bp_data.get("enforce_admins"))
+                    evidence.append({
+                        "control_id": _CTRL_SOURCE_CODE,
+                        "source": "saas-github",
+                        "tenant_id": tenant_id,
+                        "collected_at": collected_at,
+                        "content": f"GitHub: Branch protection on main: {bp_enabled}",
+                        "status": "pass" if bp_enabled else "fail",
+                    })
 
-                # 3. Code scanning alerts → Security Patch Status
-                alerts_resp = await client.get(
-                    "https://api.github.com/repos/org/repo/code-scanning/alerts?state=open&severity=critical",
-                    headers=headers,
-                )
-                alerts_data = alerts_resp.json()
-                alert_count = len(alerts_data) if isinstance(alerts_data, list) else 0
-                evidence.append({
-                    "control_id": _CTRL_SEC_PATCH,
-                    "source": "saas-github",
-                    "tenant_id": tenant_id,
-                    "collected_at": collected_at,
-                    "content": f"GitHub: {alert_count} open critical code scanning alerts",
-                    "status": "pass" if alert_count == 0 else "fail",
-                })
+                    # 3. Code scanning alerts → Security Patch Status
+                    alerts_resp = await client.get(
+                        f"https://api.github.com/repos/{github_org}/{github_repo}/code-scanning/alerts",
+                        headers=headers,
+                        params={"state": "open", "severity": "critical"},
+                    )
+                    alerts_data = alerts_resp.json()
+                    alert_count = len(alerts_data) if isinstance(alerts_data, list) else 0
+                    evidence.append({
+                        "control_id": _CTRL_SEC_PATCH,
+                        "source": "saas-github",
+                        "tenant_id": tenant_id,
+                        "collected_at": collected_at,
+                        "content": f"GitHub: {alert_count} open critical code scanning alerts",
+                        "status": "pass" if alert_count == 0 else "fail",
+                    })
 
         except httpx.HTTPStatusError as exc:
             logger.warning("GitHub API HTTP error: %s", exc)
@@ -216,7 +233,10 @@ class SaaSIntegrationService:
         evidence: List[Dict] = []
         collected_at = _now_iso()
 
-        base_url = domain.rstrip("/") if domain else "https://your-org.atlassian.net"
+        if not domain:
+            logger.warning("Jira domain not configured for tenant %s; skipping evidence pull", tenant_id)
+            return evidence
+        base_url = domain.rstrip("/")
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
@@ -253,7 +273,10 @@ class SaaSIntegrationService:
         evidence: List[Dict] = []
         collected_at = _now_iso()
 
-        base_url = domain.rstrip("/") if domain else "https://your-org.okta.com"
+        if not domain:
+            logger.warning("Okta domain not configured for tenant %s; skipping evidence pull", tenant_id)
+            return evidence
+        base_url = domain.rstrip("/")
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 headers = {"Authorization": f"SSWS {token}", "Accept": "application/json"}
@@ -278,13 +301,16 @@ class SaaSIntegrationService:
                             f"{base_url}/api/v1/users/{uid}/factors",
                             headers=headers,
                         )
+                        factors_resp.raise_for_status()
                         factors = factors_resp.json()
                         if isinstance(factors, list) and any(
                             f.get("status") == "ACTIVE" for f in factors
                         ):
                             mfa_enrolled += 1
-                    except Exception:
-                        pass
+                    except httpx.HTTPStatusError as exc:
+                        logger.warning("Okta factor fetch failed for user %s: %s", uid, exc)
+                    except Exception as exc:
+                        logger.warning("Unexpected error fetching Okta factors for user %s: %s", uid, exc)
 
                 total = len(users)
                 pct = round(mfa_enrolled / total * 100, 1) if total > 0 else 0.0
@@ -382,6 +408,9 @@ class SaaSIntegrationService:
                 )
                 resp.raise_for_status()
                 data = resp.json()
+                if not data.get("ok", True):
+                    logger.warning("Slack API error: %s", data.get("error"))
+                    return evidence
                 channels = data.get("channels", [])
                 retention_set = sum(
                     1 for c in channels
