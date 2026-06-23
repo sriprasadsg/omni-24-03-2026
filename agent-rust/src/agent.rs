@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 use chrono::Utc;
 use crate::{agentic, caps, caps2, caps3, cissp, compliance_native, config, http, olog, poll, shell, ws, yara_scan};
 
-const VERSION:          &str = "2.0.0-rust";
+const VERSION:          &str = "2.0.1-rust";
 const DEFAULT_INTERVAL: u64  = 15;
 
 // ── Registration ───────────────────────────────────────────────────────────────

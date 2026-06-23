@@ -382,6 +382,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                         setFetchedComplianceData({
                             score,
                             total_rules: total,
+                            total_controls: rawData.length,
                             passed,
                             failed,
                             warnings,

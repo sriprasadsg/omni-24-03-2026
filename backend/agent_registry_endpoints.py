@@ -63,6 +63,11 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         "registeredAt": existing_agent.get("registeredAt") if existing_agent else datetime.now(timezone.utc).isoformat()
     }
 
+    reg_meta = data.get("meta", {})
+    available_caps = reg_meta.get("availableCapabilities") or reg_meta.get("capabilities") or []
+    if available_caps:
+        agent_data["availableCapabilities"] = available_caps
+
     await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
 
     metrics = data.get("meta", {})
@@ -319,3 +324,14 @@ async def update_agent(
 
     invalidate_cache("agents:*")
     return await db.agents.find_one({"id": agent_id}, {"_id": 0})
+
+
+@router.get("/version")
+async def get_agent_version():
+    """Return the current agent binary version and download URL. Polled by agent auto-update."""
+    return {
+        "version": "2.0.1-rust",
+        "download_url": "/static/omni-agent.exe",
+        "release_notes": "58 compliance checks, 175 control IDs, Collect Now runs all sources",
+        "min_version": "1.0.0",
+    }

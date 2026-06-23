@@ -11,6 +11,28 @@ router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
 
 
+@router.post("/heartbeat")
+@agent_limiter.limit("60/minute")
+async def report_heartbeat_legacy(
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    payload: Dict[str, Any] = Body(...),
+    _tenant: Dict[str, Any] = Depends(verify_agent_key),
+):
+    """Legacy flat heartbeat endpoint for older Python agent builds that call
+    POST /api/agents/heartbeat (no agent_id in path).
+    Extracts agent_id from the payload body and delegates to the main handler."""
+    agent_id = (
+        payload.get("agent_id")
+        or payload.get("agentId")
+        or payload.get("hostname")
+    )
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="agent_id required in payload for legacy heartbeat")
+    return await report_heartbeat(request, response, agent_id, background_tasks, payload, _tenant)
+
+
 @router.post("/{agent_id}/heartbeat")
 @agent_limiter.limit("60/minute")
 async def report_heartbeat(
@@ -96,6 +118,26 @@ async def report_heartbeat(
         {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
+
+    # Auto-push update instruction when the agent reports an outdated binary version.
+    _LATEST_AGENT_VERSION = "2.0.1-rust"
+    _reported_version = payload.get("version", "")
+    if _reported_version and _reported_version != _LATEST_AGENT_VERSION:
+        _pending = await db.agent_instructions.find_one(
+            {"agent_id": agent_id, "instruction": "agent_update", "status": "pending"}
+        )
+        if not _pending:
+            await db.agent_instructions.insert_one({
+                "agent_id": agent_id,
+                "instruction": "agent_update",
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": "auto_update",
+                "priority": "normal",
+            })
+            logger.info("Auto-pushed agent_update instruction to %s (reported %s < %s)",
+                        agent_id, _reported_version, _LATEST_AGENT_VERSION)
+
     _meta = payload.get("meta", {})
     if _meta.get("current_cpu") is not None or _meta.get("current_memory") is not None:
         _snapshot = {

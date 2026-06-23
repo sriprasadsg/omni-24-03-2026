@@ -16,6 +16,7 @@ export interface ComplianceRule {
 export interface ComplianceData {
     score: number;
     total_rules: number;
+    total_controls?: number;
     passed: number;
     failed: number;
     warnings: number;
@@ -297,6 +298,11 @@ export const AgentComplianceTab: React.FC<AgentComplianceTabProps> = ({ data, ag
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                                 {stats.passed} passed · {stats.warnings} warnings · {stats.failed} failed
                                 <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">(warnings = ½ credit)</span>
+                                {data?.total_controls && data.total_controls > stats.total && (
+                                    <span className="ml-2 text-xs text-primary-500 dark:text-primary-400">
+                                        · {stats.total} checks · {data.total_controls} control IDs
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
