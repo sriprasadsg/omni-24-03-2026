@@ -10,7 +10,7 @@ import { AgentOverviewTab } from './AgentOverviewTab';
 import { AgentSoftwareTab } from './AgentSoftwareTab';
 import { AgentPatchingTab } from './AgentPatchingTab';
 import { ConfirmationModal } from './ConfirmationModal';
-import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, fetchAssets } from '../services/apiService';
+import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, fetchAssets, authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 
 
@@ -24,6 +24,15 @@ interface AgentDetailModalProps {
     onViewLogs: (agent: Agent) => void;
     onRunDiagnostics?: (agent: Agent) => void;
     onDeleteAgent?: (agent: Agent) => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
+}
+
+function formatRelativeTime(date: Date): string {
+    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (secs < 5) return 'just now';
+    if (secs < 60) return `${secs}s ago`;
+    return `${Math.floor(secs / 60)}m ago`;
 }
 
 const statusInfo: Record<AgentStatus, { icon: React.ReactNode; textClass: string; }> = {
@@ -150,7 +159,19 @@ const CHECK_NAME_MAPPING: Record<string, string> = {
     'Guest Account': 'Guest Account Disabled'
 };
 
-export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent, asset, onManageCapabilities, onViewRemediationLogs, onViewLogs, onRunDiagnostics, onDeleteAgent }) => {
+function _checkCategory(checkName: string | undefined): string {
+    if (!checkName) return 'General';
+    const c = checkName.toLowerCase();
+    if (/firewall|smb|rdp|remote desktop|winrm|llmnr|netbios|port|network/.test(c)) return 'Network Security';
+    if (/defender|antivirus|malware|attack surface|folder access/.test(c)) return 'Malware Protection';
+    if (/bitlocker|tls|secure boot|encrypt|cryptograph/.test(c)) return 'Encryption';
+    if (/password|account|lockout|credential|uac|user access|admin|guest/.test(c)) return 'Access Control';
+    if (/audit|logging|log ship|siem|powershell log/.test(c)) return 'Audit & Logging';
+    if (/update|patch|autorun/.test(c)) return 'Patch Management';
+    return 'System Hardening';
+}
+
+export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent, asset, onManageCapabilities, onViewRemediationLogs, onViewLogs, onRunDiagnostics, onDeleteAgent, onRefresh, isRefreshing }) => {
     const { hasPermission, currentUser } = useUser();
     const canRemediate = hasPermission('remediate:agents');
     const canTriggerScan = currentUser?.role === 'Super Admin' || currentUser?.role === 'Tenant Admin';
@@ -160,6 +181,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software' | 'patching'>('overview');
     const [fetchedComplianceData, setFetchedComplianceData] = useState<ComplianceData | null>(null);
     const [tenantName, setTenantName] = useState<string>('Loading...');
+
+    const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+    React.useEffect(() => {
+        if (agent) setLastRefreshed(new Date());
+    }, [agent]);
+
+    React.useEffect(() => {
+        if (!isOpen || !onRefresh) return;
+        const id = setInterval(onRefresh, 30_000);
+        return () => clearInterval(id);
+    }, [isOpen, onRefresh]);
 
     // Clear compliance data whenever a different agent is opened so stale data
     // from the previous agent never shows while the new fetch is in flight.
@@ -222,25 +254,40 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const handleRefreshCompliance = async () => {
         if (!agent?.id) return;
         try {
-            console.log("Triggering compliance scan for agent:", agent.id);
             await runAgentComplianceScan(agent.id);
-            // Optionally we might want to wait a bit or poll, but for now just triggering re-fetch
-            // logic by "faking" a state update or better yet, just calling the fetch logic again.
-            // Since the fetch is in useEffect dependent on isOpen/activeTab, we can force a re-fetch
-            // But checking the useEffect, it depends on asset.id.
-            // Best way: extract fetch logic or just invoke it here.
-
-            // Re-fetch logic (duplicated from useEffect for simplicity in this context)
-            const id = asset?.id || agent?.assetId;
-            if (id) {
-                console.log('Refreshing compliance data for Asset ID:', id);
+            showToast("Scan instruction sent to agent.", 'success');
+        } catch (e: any) {
+            // Scan endpoint may be temporarily unavailable; still refresh the data view
+            console.warn("Scan instruction failed (will still refresh data):", e);
+        }
+        // Always refresh compliance data regardless of scan dispatch outcome
+        const id = asset?.id || agent?.assetId;
+        if (id) {
+            try {
                 await fetchAssetCompliance(id);
-                setRefreshTrigger(prev => prev + 1);
+            } catch {
+                /* ignore fetch error — state will show last known data */
             }
+            setRefreshTrigger(prev => prev + 1);
+        }
+    };
 
-        } catch (e) {
-            console.error("Failed to refresh compliance:", e);
-            showToast("Failed to trigger scan. Check console.", 'error');
+    const [isUpdating, setIsUpdating] = useState(false);
+    const handlePushUpdate = async () => {
+        if (!agent?.id) return;
+        setIsUpdating(true);
+        try {
+            const res = await authFetch(`/api/agents/${agent.id}/update`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Update instruction sent — agent will restart when download completes.', 'success');
+            } else {
+                showToast(data.detail || 'Update dispatch failed', 'error');
+            }
+        } catch (e: any) {
+            showToast('Failed to send update instruction: ' + (e.message || e), 'error');
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -260,68 +307,58 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                     // Transform raw API data (List of MongoDB docs) to ComplianceData format expected by Tab
                     if (Array.isArray(rawData) && rawData.length > 0) {
                         const rules = rawData.map((item: any) => {
-                            // Extract status
                             let status: 'passed' | 'failed' | 'warning' = 'warning';
                             if (item.status === 'Compliant') status = 'passed';
                             if (item.status === 'Non-Compliant') status = 'failed';
                             if (item.status === 'Warning') status = 'warning';
 
-                            // Extract Title from first evidence item if possible
                             const evidenceItem = item.evidence && item.evidence[0];
-                            const title = evidenceItem?.name || item.controlId;
-                            const category = (typeof item.controlId === 'string' ? item.controlId.split('-')[0] : 'General') || 'General';
 
-                            // Determine Remediation
+                            // Resolve check name: backend field → control ID mapping → evidence name (stripped)
+                            let checkNameRaw: string | undefined = item.checkName;
+                            if (!checkNameRaw && CHECK_NAME_MAPPING[item.controlId]) {
+                                checkNameRaw = CHECK_NAME_MAPPING[item.controlId];
+                            }
+                            if (!checkNameRaw && evidenceItem?.name) {
+                                checkNameRaw = evidenceItem.name.replace(/^(?:System|Admin) Check:\s*/, '');
+                            }
+
+                            const title = checkNameRaw || item.controlId;
+                            const category = _checkCategory(checkNameRaw);
+
                             let remediation = undefined;
                             if (status === 'failed') {
                                 remediation = REMEDIATION_STEPS[item.controlId];
-                                // Heuristic fallback if direct ID match fails but title implies something
                                 if (!remediation && title.includes('Firewall')) remediation = REMEDIATION_STEPS['PCI-1.1.1'];
                                 if (!remediation && title.includes('Defender')) remediation = REMEDIATION_STEPS['PCI-5.1'];
                                 if (!remediation && title.includes('Password')) remediation = REMEDIATION_STEPS['PCI-8.1.1'];
                             }
 
-                            // Extract Check Name for Auto-Fix
-                            // Priority 1: Direct field from backend (newly added)
-                            // Priority 2: Explicit Mapping from ID
-                            // Priority 3: Parse from Evidence Name "System Check: [Name]"
-                            let checkNameRaw = item.checkName;
-
-                            if (!checkNameRaw && CHECK_NAME_MAPPING[item.controlId]) {
-                                checkNameRaw = CHECK_NAME_MAPPING[item.controlId];
-                            }
-
-                            if (!checkNameRaw && evidenceItem?.name && evidenceItem.name.startsWith("System Check: ")) {
-                                checkNameRaw = evidenceItem.name.replace("System Check: ", "");
-                            }
-
                             return {
                                 id: item.controlId,
-                                title: title,
-                                checkName: checkNameRaw, // Inject checkName
-                                status: status,
-                                category: category,
+                                title,
+                                checkName: checkNameRaw,
+                                status,
+                                category,
                                 evidence: evidenceItem?.content,
                                 description: `Control ID: ${item.controlId}`,
-                                remediation: remediation // Inject Remediation
+                                remediation,
                             } as ComplianceRule;
                         });
 
-                        // Deduplicate Rules: Keep the "worst" status if duplicates exist
+                        // Deduplicate by check name: each agent check appears once regardless of
+                        // how many framework controls it maps to. Keep the worst status.
                         const uniqueRulesMap = new Map<string, ComplianceRule>();
 
                         rules.forEach((rule: any) => {
-                            const existing = uniqueRulesMap.get(rule.id);
+                            const key = (rule as any).checkName || rule.id;
+                            const existing = uniqueRulesMap.get(key);
                             if (!existing) {
-                                uniqueRulesMap.set(rule.id, rule);
+                                uniqueRulesMap.set(key, rule);
                             } else {
-                                // Merge Logic: Prioritize Failed > Warning > Passed
-                                const priority = { 'failed': 3, 'warning': 2, 'passed': 1 };
-                                const currentP = priority[existing.status] || 0;
-                                const newP = priority[rule.status] || 0;
-
-                                if (newP > currentP) {
-                                    uniqueRulesMap.set(rule.id, rule);
+                                const priority: Record<string, number> = { 'failed': 3, 'warning': 2, 'passed': 1 };
+                                if ((priority[rule.status] || 0) > (priority[existing.status] || 0)) {
+                                    uniqueRulesMap.set(key, rule);
                                 }
                             }
                         });
@@ -392,6 +429,19 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                 <span>v{agent.version}</span>
                             </div>
                         </div>
+                    </div>
+                    <div className="flex items-center space-x-1 mr-2">
+                        <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            Updated {formatRelativeTime(lastRefreshed)}
+                        </span>
+                        <button
+                            onClick={onRefresh}
+                            disabled={isRefreshing || !onRefresh}
+                            title="Refresh now"
+                            className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 focus:outline-none"
+                        >
+                            <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                        </button>
                     </div>
                     <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
                         <XIcon size={20} />
@@ -511,6 +561,15 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                     >
                                         <TerminalSquareIcon size={16} className="mr-2" />
                                         Run Diagnostics
+                                    </button>
+                                )}
+                                {agent.platform === 'windows' && (
+                                    <button type="button" onClick={handlePushUpdate} disabled={isUpdating}
+                                        className="flex items-center px-3 py-2 text-sm font-medium text-teal-700 bg-white dark:bg-gray-700 border border-teal-300 dark:border-teal-600 rounded-md shadow-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 focus:outline-none disabled:opacity-50"
+                                        title="Push agent binary update"
+                                    >
+                                        <DownloadIcon size={16} className="mr-2" />
+                                        {isUpdating ? 'Sending…' : 'Update Agent'}
                                     </button>
                                 )}
                             </>
