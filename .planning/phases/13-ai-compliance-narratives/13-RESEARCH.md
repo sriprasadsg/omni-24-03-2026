@@ -541,22 +541,22 @@ for fw_name, narrative in ai_fw_narratives.items():
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Failing controls query — exact collection and field names**
    - What we know: `compliance_score_endpoints.py` already performs failing-control aggregation for the score calculation
    - What's unclear: Exact collection name (`compliance_controls` vs `control_evidence` vs `asset_compliance`) and exact `status` field values for Non-Compliant controls
-   - Recommendation: Planner should read `compliance_score_endpoints.py` before writing the `_generate_report` task to confirm the right query
+   - RESOLVED — db.asset_compliance with status $in ["Non-Compliant", "Fail", "Failed", "Not Implemented", "fail", "failed"]; confirmed from compliance_score_endpoints.py _score_status() function (lines 39-46). Framework controls metadata is sourced from db._db.compliance_frameworks (raw Motor, global collection) by iterating fw["controls"] to build control_id_to_name and control_id_to_severity maps — matching the exact pattern at lines 82-93 of compliance_score_endpoints.py.
 
 2. **Should Path B (framework_id PDF) also get narratives?**
    - What we know: AI-SPEC says wire into `_build_pdf` — which is Path A only
    - What's unclear: Whether ROADMAP intention was to enrich ONLY the generic PDF or also the per-framework compliance report
-   - Recommendation: Phase 13 implements Path A only (consistent with AI-SPEC). Path B extension is a future phase.
+   - RESOLVED — Path A only per AI-SPEC Section 4. Path B (_generate_pdf_for_schedule) is out of scope for Phase 13; its PDF is generated independently and silently discards report_data. This silent discard is intentional scope deferral — acknowledged in the plan's Task 3 done criteria.
 
 3. **narrative_generation_logs collection — write or just log?**
    - What we know: AI-SPEC mentions logging failures at WARNING level; `agentic_service._log_decision` writes to MongoDB
    - What's unclear: Whether Phase 13 needs a `narrative_generation_logs` MongoDB collection or if `logger.warning()` suffices
-   - Recommendation: Keep it simple — WARNING log only. MongoDB collection adds write I/O on every narrative failure with no clear consumer. The Phoenix tracing already captures all `generate_text` call metadata.
+   - RESOLVED — WARNING-level logs only; no MongoDB collection. Phoenix/AnthropicInstrumentor already traces all generate_text calls via the existing instrumentation wired in app_startup.py.
 
 ---
 
