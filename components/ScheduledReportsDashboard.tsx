@@ -137,26 +137,34 @@ export default function ScheduledReportsDashboard() {
   }
 
   async function toggleReport(id: string, enabled: boolean) {
-    await authFetch(`/api/reports/scheduled/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: !enabled }),
-    });
-    loadReports();
+    try {
+      const r = await authFetch(`/api/reports/scheduled/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !enabled }),
+      });
+      if (!r.ok) { const d = await r.json(); showToast(d.detail || 'Update failed', 'error'); return; }
+      loadReports();
+    } catch { showToast('Network error', 'error'); }
   }
 
   async function runNow(id: string) {
     setRunning(id);
     try {
-      await authFetch(`/api/reports/scheduled/${id}/run-now`, { method: 'POST' });
+      const r = await authFetch(`/api/reports/scheduled/${id}/run-now`, { method: 'POST' });
+      if (!r.ok) { const d = await r.json(); showToast(d.detail || 'Run failed', 'error'); return; }
       loadReports();
-    } finally { setRunning(null); }
+    } catch { showToast('Network error', 'error'); }
+    finally { setRunning(null); }
   }
 
   async function deleteReport(id: string) {
     if (!confirm('Delete this scheduled report?')) return;
-    await authFetch(`/api/reports/scheduled/${id}`, { method: 'DELETE' });
-    loadReports();
+    try {
+      const r = await authFetch(`/api/reports/scheduled/${id}`, { method: 'DELETE' });
+      if (!r.ok) { const d = await r.json(); showToast(d.detail || 'Delete failed', 'error'); return; }
+      loadReports();
+    } catch { showToast('Network error', 'error'); }
   }
 
   async function fetchHistory(id: string) {
