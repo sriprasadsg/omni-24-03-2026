@@ -63,14 +63,14 @@ def test_store_connection_with_encrypted_token():
         )
         assert connection_id is not None
 
-        # Verify the doc written to DB has encrypted tokens
+        # Verify the doc written to DB has encrypted tokens (stored as *_enc fields)
         call_args = db.saas_connections.insert_one.call_args
         doc = call_args[0][0]
-        assert doc["access_token"] != "ghp_plaintext", "access_token must be encrypted"
-        assert doc["refresh_token"] != "refresh_plain", "refresh_token must be encrypted"
+        assert doc["access_token_enc"] != "ghp_plaintext", "access_token_enc must be encrypted"
+        assert doc["refresh_token_enc"] != "refresh_plain", "refresh_token_enc must be encrypted"
         # Verify decryption works
-        assert _decrypt(doc["access_token"]) == "ghp_plaintext"
-        assert _decrypt(doc["refresh_token"]) == "refresh_plain"
+        assert _decrypt(doc["access_token_enc"]) == "ghp_plaintext"
+        assert _decrypt(doc["refresh_token_enc"]) == "refresh_plain"
         assert doc["tenant_id"] == "tenant-a"
         assert doc["provider"] == "github"
 

@@ -128,10 +128,18 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "cissp_oracle_endpoints",    "router")
     _load(app, "risk_endpoints",            "router")
     _load(app, "vendor_endpoints",          "router")
+    _load(app, "soa_endpoints",             "router")
+    _load(app, "questionnaire_endpoints",   "router")
+    _load(app, "maturity_endpoints",        "router")
+    _load(app, "audit_program_endpoints",   "router")
+    _load(app, "cookie_consent_endpoints",  "router")
+    _load(app, "access_review_endpoints",   "router")
+    _load(app, "cloud_checks_endpoints",    "router")
     _load(app, "compliance_remediation_endpoints", "router")
     _load(app, "compliance_evidence_lifecycle_endpoints", "router")
     _load(app, "compliance_bulk_evidence_endpoints", "router")
     _load(app, "compliance_score_endpoints", "router")
+    _load(app, "saas_integration_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
