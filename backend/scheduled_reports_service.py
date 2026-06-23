@@ -4,6 +4,7 @@ Schedules and delivers compliance, security, and executive reports via email and
 """
 
 import os
+import re
 import uuid
 import asyncio
 import logging
@@ -66,6 +67,15 @@ SCHEDULE_FREQUENCIES = ["daily", "weekly", "monthly", "quarterly"]
 
 DELIVERY_CHANNELS = ["email", "webhook", "slack", "teams"]
 
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+def _validate_recipients(recipients: list) -> None:
+    """Raise ValueError if any recipient is not a valid email address."""
+    for r in recipients:
+        if not isinstance(r, str) or not _EMAIL_RE.match(r):
+            raise ValueError(f"Invalid email recipient: {r!r}")
+
 
 async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any]) -> Dict[str, Any]:
     set_tenant_id(tenant_id)
@@ -85,6 +95,9 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
 
     if delivery_channel == "email" and not data.get("recipients"):
         raise ValueError("Email delivery requires at least one recipient")
+
+    if delivery_channel == "email":
+        _validate_recipients(data.get("recipients", []))
 
     if delivery_channel == "email":
         smtp_cfg = await db.smtp_config.find_one({})
@@ -232,6 +245,9 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
     query = {"id": schedule_id}
     if role != "super_admin":
         query["tenant_id"] = tenant_id
+
+    if "recipients" in data:
+        _validate_recipients(data["recipients"])
 
     update = {"updated_at": datetime.now(timezone.utc).isoformat()}
     for field in ("name", "frequency", "send_at_hour", "recipients", "webhook_url",
