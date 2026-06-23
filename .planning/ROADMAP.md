@@ -98,6 +98,26 @@
 
 ---
 
+## v1.5 — AI Compliance Narratives
+
+**Goal:** Wire the existing LLM (`ai_service.py:generate_text`) into the Phase 10 scheduled PDF report generator to add AI-generated executive summaries, per-framework findings narratives, and remediation priorities to each compliance report.
+
+**Status:** Planned
+
+---
+
+## Phase 13: AI Compliance Report Narratives
+
+**Goal:** Add LLM-generated narrative sections to scheduled compliance PDF reports — an executive summary of the tenant's compliance posture, per-framework findings narrative with top failing controls, and a prioritised remediation paragraph — using the existing `ai_service.py:generate_text` API wired into `_build_pdf` in `scheduled_reports_service.py`.
+
+**Requirements:** AI-05, AI-06
+
+**Plans:**
+
+- [ ] 13-01-PLAN.md — Backend TDD: `compliance_narrative_service.py` (narrative generator with guardrails + fallback), wire into `_generate_report` / `_build_pdf`, `narrative_generation_logs` collection, 8-test suite (AI-05, AI-06)
+
+---
+
 ## Phase 12: Agentic AI Integration
 
 **Goal:** Wire Claude (claude-sonnet-4-6) tool-calling into the agentic_poller → execute_agentic_task path in the backend so the LLM can reason about live security findings, select from a defined tool set of security capabilities, and log each decision with reasoning and result for auditability. Graceful degradation to rule-based fallback when the API is unreachable.
