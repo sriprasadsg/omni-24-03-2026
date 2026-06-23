@@ -112,9 +112,9 @@
 
 **Requirements:** AI-05, AI-06
 
-**Plans:**
+**Plans:** 1 plan
 
-- [ ] 13-01-PLAN.md — Backend TDD: `compliance_narrative_service.py` (narrative generator with guardrails + fallback), wire into `_generate_report` / `_build_pdf`, `narrative_generation_logs` collection, 8-test suite (AI-05, AI-06)
+- [ ] 13-01-PLAN.md — Backend TDD: `compliance_narrative_service.py` (_sanitise, _trim_to_words, NarrativeOutput, generate_executive_summary, generate_framework_narrative, enrich_report_data), wire into `_generate_report` / `_build_pdf` in scheduled_reports_service.py, 8-test suite (AI-05, AI-06)
 
 ---
 
