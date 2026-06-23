@@ -566,6 +566,12 @@ export const runAgentComplianceScan = async (agentId: string) => {
     return await res.json();
 };
 
+export const triggerEvidenceCollection = async (): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/compliance/collect-all`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to trigger evidence collection');
+    return res.json();
+};
+
 export const fetchGlobalComplianceData = async (): Promise<any[]> => {
     try {
         const res = await authFetch(`${API_BASE}/compliance/evidence`);

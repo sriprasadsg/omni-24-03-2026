@@ -10,7 +10,7 @@ import { AgentOverviewTab } from './AgentOverviewTab';
 import { AgentSoftwareTab } from './AgentSoftwareTab';
 import { AgentPatchingTab } from './AgentPatchingTab';
 import { ConfirmationModal } from './ConfirmationModal';
-import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, fetchAssets, authFetch } from '../services/apiService';
+import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, triggerEvidenceCollection, fetchAssets, authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 
 
@@ -257,19 +257,25 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
             await runAgentComplianceScan(agent.id);
             showToast("Scan instruction sent to agent.", 'success');
         } catch (e: any) {
-            // Scan endpoint may be temporarily unavailable; still refresh the data view
             console.warn("Scan instruction failed (will still refresh data):", e);
         }
-        // Always refresh compliance data regardless of scan dispatch outcome
-        const id = asset?.id || agent?.assetId;
-        if (id) {
-            try {
-                await fetchAssetCompliance(id);
-            } catch {
-                /* ignore fetch error — state will show last known data */
-            }
-            setRefreshTrigger(prev => prev + 1);
+        // Re-fetch after a brief delay so the agent's response has time to arrive
+        setTimeout(() => setRefreshTrigger(prev => prev + 1), 3000);
+    };
+
+    const handleCollectEvidence = async () => {
+        if (!agent?.id) return;
+        try {
+            await Promise.all([
+                runAgentComplianceScan(agent.id),
+                triggerEvidenceCollection(),
+            ]);
+            showToast('Evidence collection dispatched. Data will refresh in 5 seconds…', 'success');
+        } catch (e: any) {
+            showToast('Collection failed: ' + (e?.message || String(e)), 'error');
         }
+        // Refresh after 5 seconds to allow agent check-in and evidence processing
+        setTimeout(() => setRefreshTrigger(prev => prev + 1), 5000);
     };
 
     const [isUpdating, setIsUpdating] = useState(false);
@@ -534,6 +540,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             data={fetchedComplianceData || complianceData}
                             agentId={agent.id}
                             onRefresh={canTriggerScan ? handleRefreshCompliance : undefined}
+                            onCollect={canTriggerScan ? handleCollectEvidence : undefined}
                         />
                     ) : activeTab === 'software' ? (
                         <AgentSoftwareTab agent={agent} asset={asset} />
