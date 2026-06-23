@@ -128,8 +128,13 @@ const SaaSIntegrationsDashboard: React.FC = () => {
       return;
     }
 
+    const expectedOrigin = window.location.origin;
+    let pollClosed: ReturnType<typeof setInterval>;
+
     const onMessage = (event: MessageEvent) => {
+      if (event.origin !== expectedOrigin) return;
       if (event.data === 'saas_connected') {
+        clearInterval(pollClosed);
         window.removeEventListener('message', onMessage);
         popup.close();
         showToast('Integration connected', 'success');
@@ -141,7 +146,7 @@ const SaaSIntegrationsDashboard: React.FC = () => {
     window.addEventListener('message', onMessage);
 
     // Cleanup listener if popup is closed without completing OAuth
-    const pollClosed = setInterval(() => {
+    pollClosed = setInterval(() => {
       if (popup.closed) {
         clearInterval(pollClosed);
         window.removeEventListener('message', onMessage);
