@@ -90,8 +90,15 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
         if not smtp_cfg:
             raise ValueError("SMTP not configured")
 
+    try:
+        send_at_hour = int(data.get("send_at_hour", 8))
+    except (TypeError, ValueError):
+        raise ValueError("send_at_hour must be an integer")
+    if not 0 <= send_at_hour <= 23:
+        raise ValueError("send_at_hour must be 0-23")
+
     now = datetime.now(timezone.utc)
-    next_run = _calculate_next_run(frequency, data.get("send_at_hour", 8))
+    next_run = _calculate_next_run(frequency, send_at_hour)
 
     schedule = {
         "id": str(uuid.uuid4()),
@@ -101,7 +108,7 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
         "report_type": report_type,
         "report_type_name": REPORT_TYPES[report_type]["name"],
         "frequency": frequency,
-        "send_at_hour": int(data.get("send_at_hour", 8)),
+        "send_at_hour": send_at_hour,
         "day_of_week": data.get("day_of_week", 1),  # Monday = 1
         "day_of_month": data.get("day_of_month", 1),
         "delivery_channel": delivery_channel,
@@ -233,7 +240,13 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
             update[field] = data[field]
 
     if "frequency" in data:
-        update["next_run"] = _calculate_next_run(data["frequency"], data.get("send_at_hour", 8)).isoformat()
+        try:
+            upd_hour = int(data.get("send_at_hour", 8))
+        except (TypeError, ValueError):
+            raise ValueError("send_at_hour must be an integer")
+        if not 0 <= upd_hour <= 23:
+            raise ValueError("send_at_hour must be 0-23")
+        update["next_run"] = _calculate_next_run(data["frequency"], upd_hour).isoformat()
 
     result = await db.report_schedules.update_one(query, {"$set": update})
     return result.modified_count > 0
