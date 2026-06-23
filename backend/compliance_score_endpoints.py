@@ -159,3 +159,105 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
     except Exception as exc:
         logger.error("compliance score computation error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ─── ThreatScore ──────────────────────────────────────────────────────────────
+# Weights for vulnerability severity burden
+_VULN_WEIGHTS = {"critical": 10, "high": 5, "medium": 2, "low": 1}
+_VULN_BURDEN_BASELINE = 100.0   # 100 weighted vuln units = full burden (component → 0)
+
+# Weights for asset criticality burden
+_ASSET_WEIGHTS = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+
+@router.get("/api/compliance/threat-score")
+async def get_threat_score(current_user=Depends(get_current_user)):
+    """Composite 0-1000 ThreatScore: compliance (40%) + vulnerability burden (40%) + asset criticality (20%)."""
+    try:
+        tenant_id = getattr(current_user, "tenant_id", None) or ""
+        user_role = getattr(current_user, "role", "")
+        is_super = user_role in _SUPER_ROLES
+
+        cache_key = "compliance:threat-score:__super__" if is_super else f"compliance:threat-score:{tenant_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        db = get_database()
+
+        # ── 1. Compliance component (0-400) ───────────────────────────────────
+        # Reuse the same asset_compliance → score logic
+        frameworks = [fw async for fw in db._db.compliance_frameworks.find({})]
+        control_meta: dict[str, dict] = {}
+        for fw in frameworks:
+            for c in fw.get("controls", []):
+                cid = c.get("id", "")
+                if cid:
+                    control_meta[cid] = {
+                        "severity": _CATEGORY_SEVERITY.get(c.get("category", ""), "Low"),
+                    }
+
+        ac_by_control: dict[str, str] = {}
+        query = {"controlId": {"$in": list(control_meta.keys())}} if control_meta else {}
+        async for doc in db.asset_compliance.find(query):
+            cid = doc.get("controlId", "")
+            if cid:
+                ac_by_control[cid] = doc.get("status", "")
+
+        all_evaluated = [
+            {"severity": control_meta[cid]["severity"], "status_norm": _score_status(st)}
+            for cid, st in ac_by_control.items() if cid in control_meta
+        ]
+        compliance_pct = _weighted_score(all_evaluated)  # 0-100
+        compliance_component = round(compliance_pct / 100 * 400, 1)
+
+        # ── 2. Vulnerability component (0-400) ────────────────────────────────
+        vuln_counts: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        async for doc in db.vulnerabilities.find({"status": {"$nin": ["closed", "resolved", "false_positive"]}}):
+            sev = (doc.get("severity") or "low").lower()
+            if sev in vuln_counts:
+                vuln_counts[sev] += 1
+
+        vuln_burden = sum(vuln_counts[s] * _VULN_WEIGHTS[s] for s in vuln_counts)
+        vuln_burden_ratio = min(1.0, vuln_burden / _VULN_BURDEN_BASELINE)
+        vuln_component = round((1.0 - vuln_burden_ratio) * 400, 1)
+
+        # ── 3. Asset criticality component (0-200) ────────────────────────────
+        asset_counts: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        total_assets = 0
+        async for doc in db.assets.find({}):
+            total_assets += 1
+            crit = (doc.get("criticality") or doc.get("risk_level") or "low").lower()
+            if crit in asset_counts:
+                asset_counts[crit] += 1
+
+        if total_assets > 0:
+            asset_burden = sum(asset_counts[s] * _ASSET_WEIGHTS[s] for s in asset_counts)
+            max_burden = total_assets * _ASSET_WEIGHTS["critical"]
+            asset_burden_ratio = asset_burden / max_burden if max_burden > 0 else 0.0
+            asset_component = round((1.0 - asset_burden_ratio) * 200, 1)
+        else:
+            asset_component = 100.0   # No assets → neutral contribution
+
+        threat_score = round(compliance_component + vuln_component + asset_component)
+
+        payload = {
+            "threat_score": threat_score,
+            "max_score": 1000,
+            "grade": "A" if threat_score >= 850 else "B" if threat_score >= 700 else "C" if threat_score >= 550 else "D" if threat_score >= 400 else "F",
+            "domains": {
+                "compliance": {"score": compliance_component, "max": 400, "pct": compliance_pct},
+                "vulnerabilities": {"score": vuln_component, "max": 400, "counts": vuln_counts, "burden": vuln_burden},
+                "asset_criticality": {"score": asset_component, "max": 200, "counts": asset_counts, "total": total_assets},
+            },
+            "computed_at": datetime.now(timezone.utc).isoformat(),
+            "tenant_id": tenant_id,
+        }
+        cache.set(cache_key, payload, ttl=300)
+        return payload
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("threat score computation error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
