@@ -359,6 +359,90 @@ try {
     Add-Check 'Audit Logging Extension Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){'Extended audit policies configured'}else{'No audit subcategories configured'})
 } catch { Add-Check 'Audit Logging Extension Simulation' 'Warning' 'Unable to query audit policy (elevation required)' }
 
+# 20. Security Patch Status
+try {
+    $kbs=Get-HotFix -EA SilentlyContinue | Sort-Object InstalledOn -Descending | Select-Object -First 1
+    $ok=$null -ne $kbs
+    Add-Check 'Security Patch Status' (if($ok){'Pass'}else{'Warning'}) (if($ok){"Latest patch: $($kbs.HotFixID) installed $($kbs.InstalledOn)"}else{'No installed patches found via WMI'})
+} catch { Add-Check 'Security Patch Status' 'Warning' 'Unable to query installed patches' }
+
+# 21. SIEM Forwarding
+try {
+    $wef=& cmd /c "sc query Wecsvc 2>&1" 2>&1 | Out-String
+    $sysmon=Get-Service Sysmon -EA SilentlyContinue
+    $ok=($wef -match 'RUNNING') -or ($null -ne $sysmon -and $sysmon.Status -eq 'Running')
+    Add-Check 'SIEM Forwarding' (if($ok){'Pass'}else{'Warning'}) (if($ok){'WEF/Sysmon event forwarding active'}else{'No SIEM forwarding agent detected'})
+} catch { Add-Check 'SIEM Forwarding' 'Warning' 'Unable to query SIEM forwarding' }
+
+# 22. Network Security & Segregation Simulation
+try {
+    $prof=Get-NetFirewallProfile -EA SilentlyContinue | Where-Object {$_.Enabled -eq $true}
+    $ok=$null -ne $prof -and ($prof | Where-Object {$_.Name -eq 'Domain'})
+    Add-Check 'Network Security & Segregation Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){"Active FW profiles: $(($prof.Name) -join ', ')"}else{'Domain firewall profile not active — network segmentation unverified'})
+} catch { Add-Check 'Network Security & Segregation Simulation' 'Warning' 'Unable to query firewall profiles' }
+
+# 23. Change Management Simulation
+try {
+    $au=Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -EA SilentlyContinue
+    $ok=$null -ne $au
+    Add-Check 'Change Management Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){'Windows Update GPO configured — patch change management enforced'}else{'No Windows Update GPO detected — patch change management unverified'})
+} catch { Add-Check 'Change Management Simulation' 'Warning' 'Unable to query Windows Update policy' }
+
+# 24. Information Deletion & Disposal Simulation
+try {
+    $bde=& cmd /c "manage-bde -status C: 2>&1" 2>&1 | Out-String
+    $pct=[regex]::Match($bde,'Percentage Encrypted:\s+(\d+(\.\d+)?)').Groups[1].Value
+    $ok=[double]$pct -ge 100
+    Add-Check 'Information Deletion & Disposal Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){'Drive C: 100% encrypted — secure deletion supported'}else{"Drive C: $pct% encrypted — data disposal risk"})
+} catch { Add-Check 'Information Deletion & Disposal Simulation' 'Warning' 'Unable to query BitLocker status' }
+
+# 25. Data Leakage Prevention Simulation
+try {
+    $dlp=Get-Service MDDiagnosticsService -EA SilentlyContinue
+    $ok=$null -ne $dlp
+    Add-Check 'Data Leakage Prevention Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){'Microsoft Purview/DLP service detected'}else{'No DLP solution detected — data leakage controls unverified'})
+} catch { Add-Check 'Data Leakage Prevention Simulation' 'Warning' 'Unable to query DLP services' }
+
+# 26. Utility Programs & Audit Tools Simulation
+try {
+    $tools=@('Sysmon','SysmonDrv','NxLog','WinCollect') | ForEach-Object {Get-Service $_ -EA SilentlyContinue}
+    $found=$tools | Where-Object {$_ -ne $null}
+    $ok=($found | Measure-Object).Count -gt 0
+    Add-Check 'Utility Programs & Audit Tools Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){"Audit tools running: $(($found.Name) -join ', ')"}else{'No known audit utility (Sysmon/NxLog) detected'})
+} catch { Add-Check 'Utility Programs & Audit Tools Simulation' 'Warning' 'Unable to query audit utilities' }
+
+# 27. Secure Development & Coding Simulation
+try {
+    $srp=Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\SrpV2' -EA SilentlyContinue
+    $ci=Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Config' -EA SilentlyContinue
+    $ok=$null -ne $srp -or ($null -ne $ci -and $ci.VeriEnabled -ge 1)
+    Add-Check 'Secure Development & Coding Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){'Application control policy (SRP/WDAC) detected'}else{'No app control policy — software supply chain controls unverified'})
+} catch { Add-Check 'Secure Development & Coding Simulation' 'Warning' 'Unable to query application control policy' }
+
+# 28. Access to Source Code Simulation
+try {
+    $vcs=@('git','svn') | ForEach-Object {Get-Command $_ -EA SilentlyContinue}
+    $found=$vcs | Where-Object {$_ -ne $null}
+    $ok=($found | Measure-Object).Count -gt 0
+    Add-Check 'Access to Source Code Simulation' (if($ok){'Pass'}else{'Warning'}) (if($ok){"VCS tools present: $(($found.Name) -join ', ') — verify repository access controls"}else{'No VCS tools detected — source code access not verified'})
+} catch { Add-Check 'Access to Source Code Simulation' 'Warning' 'Unable to query version control tools' }
+
+# 29. PII Data Discovery
+try {
+    $mip=Get-Command 'mipagent' -EA SilentlyContinue
+    $aip=Get-Service AIPScanner -EA SilentlyContinue
+    $ok=$null -ne $mip -or $null -ne $aip
+    Add-Check 'PII Data Discovery' (if($ok){'Pass'}else{'Warning'}) (if($ok){'PII/data classification tool detected'}else{'No PII scanning tool detected — personal data inventory unverified'})
+} catch { Add-Check 'PII Data Discovery' 'Warning' 'Unable to query PII discovery tools' }
+
+# 30. Unencrypted PII
+try {
+    $bde=& cmd /c "manage-bde -status C: 2>&1" 2>&1 | Out-String
+    $pct=[regex]::Match($bde,'Percentage Encrypted:\s+(\d+(\.\d+)?)').Groups[1].Value
+    $ok=[double]$pct -ge 100
+    Add-Check 'Unencrypted PII' (if($ok){'Pass'}else{'Warning'}) (if($ok){'Drive C: fully encrypted — PII at rest protected'}else{"Drive C: $pct% encrypted — potential unencrypted PII"})
+} catch { Add-Check 'Unencrypted PII' 'Warning' 'Unable to verify drive encryption for PII protection' }
+
 [PSCustomObject]@{compliance_checks=$c} | ConvertTo-Json -Compress -Depth 3
 "#;
     // ASR rules, Device Guard, bcdedit — all require Administrator.

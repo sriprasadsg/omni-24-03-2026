@@ -257,8 +257,20 @@ pub async fn dispatch_instruction(instr: &str, payload: &Value, client: &Client,
         "run_shadow_ai_scan" | "Run Shadow AI Scan" =>
             caps::run_shadow_ai_scan().await,
 
-        "run_compliance_check" | "Run Compliance Check" | "Run Compliance Scan" | "remediate_compliance" =>
-            caps::run_compliance_check().await,
+        "run_compliance_check" | "Run Compliance Check" | "Run Compliance Scan" | "remediate_compliance" => {
+            // Run all 3 sources in parallel (same as heartbeat loop) so Collect Now
+            // returns the full 47-check merged result, not just the 12 PS checks.
+            let (native, comp, comp_ext) = tokio::join!(
+                tokio::task::spawn_blocking(crate::compliance_native::run_native_compliance),
+                caps::run_compliance_check(),
+                crate::caps3::run_compliance_check_extended(),
+            );
+            let native = native.unwrap_or(serde_json::Value::Null);
+            crate::caps3::merge_compliance_checks(
+                crate::caps3::merge_compliance_checks(native, comp),
+                comp_ext,
+            )
+        },
 
         "run_process_scan" | "Run Process Scan" =>
             caps::collect_processes().await,

@@ -31,10 +31,10 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
         "A.5.15", "A.8.2", "PCI-8.1.1", "PR.AC-4", "CC6.1",
         "AC-2", "3.1.1", "CIS-5",
     ],
-    "Guest Account Status": ["A.5.15", "A.8.2", "AC-2", "3.1.1"],
+    "Guest Account Status": ["A.5.15", "A.8.2", "PCI-8.1.1", "PR.AC-4", "CC6.1", "AC-2", "3.1.1", "CIS-5", "CISSP-5.1", "CISSP-5.4"],
     "RDP NLA Required": [
         "A.5.15", "A.8.22", "PCI-2.2", "PR.AC-1", "CC6.6",
-        "AC-17", "3.1.12", "CIS-4", "SWIFT-5.4",
+        "AC-17", "3.1.12", "CIS-4", "SWIFT-5.4", "CISSP-4.3", "CISSP-5.2",
     ],
     "RDP Security": ["A.5.15", "A.8.22", "PCI-2.2", "PR.AC-1", "AC-17"],
     "BitLocker Encryption": [
@@ -47,7 +47,7 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     ],
     "Security Patch Status": [
         "A.8.8", "PCI-6.3.3", "PR.IP-12",
-        "CISSP-7.3", "SI-2", "3.14.1", "CIS-7", "SWIFT-2.2", "NIS2-21.1",
+        "CISSP-3.6", "CISSP-6.2", "CISSP-7.3", "SI-2", "3.14.1", "CIS-7", "SWIFT-2.2", "NIS2-21.1",
     ],
     "User Access Control": ["A.5.15", "A.8.2", "PR.AC-1", "CC6.1"],
     "Audit Logging Policy": [
@@ -57,14 +57,14 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
         "A.8.20", "A.8.22", "PCI-1.1", "PCI-1.2", "CC6.6", "PR.AC-5",
         "SC-7", "3.13.1", "CIS-12",
     ],
-    "Risky Ports (Telnet)": ["A.8.22", "PCI-1.1", "CC6.6"],
-    "Risky Ports (FTP)": ["A.8.22", "PCI-1.1", "CC6.6"],
+    "Risky Ports (Telnet)": ["A.8.20", "A.8.22", "PCI-1.1", "PCI-1.2", "CC6.6", "SC-7", "3.13.1", "CIS-12", "CISSP-4.2", "CISSP-4.4"],
+    "Risky Ports (FTP)": ["A.8.20", "A.8.22", "PCI-1.1", "PCI-1.2", "CC6.6", "SC-7", "3.13.1", "CIS-12", "CISSP-4.2", "CISSP-4.4"],
     "TLS Security Config": ["A.8.24", "PCI-4.1", "164.312(a)(2)(iv)", "CC6.7", "PR.DS-2"],
     "TLS Security Configuration": [
         "A.8.24", "PCI-4.1", "164.312(a)(2)(iv)", "CC6.7", "PR.DS-2",
         "SC-8", "NIS2-21.8", "SWIFT-2.6", "3.13.8",
     ],
-    "Prohibited Software": ["A.8.1", "A.8.19", "ID.AM-1", "CC6.8"],
+    "Prohibited Software": ["A.8.1", "A.8.19", "ID.AM-1", "CC6.8", "CISSP-8.4"],
     "Maximum Password Age": ["A.8.5", "PCI-8.2", "CC6.1"],
     "Account Lockout Policy": ["A.5.15", "A.8.5", "PCI-8.1.1", "CC6.1", "PR.AC-1"],
     "Password Complexity": ["A.8.5", "PCI-8.2", "CC6.1"],
@@ -73,14 +73,14 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     "Remote Desktop Service": ["A.8.22", "PCI-2.2", "PR.AC-3", "CC6.6"],
     "SMBv1 Protocol Disabled": [
         "A.8.8", "A.8.22", "PR.IP-1", "CC7.2",
-        "CIS-4", "3.4.2",
+        "CIS-4", "3.4.2", "CISSP-3.2", "CISSP-4.3",
     ],
     "SMBv1 Protocol Status": ["A.8.8", "A.8.22", "CIS-4"],
     "LLMNR/NetBIOS Protection": ["A.8.22", "PR.AC-5", "CC6.7"],
     "LLMNR Protection": ["A.8.22", "PR.AC-5", "CC6.7"],
     "PowerShell Script Block Logging": [
         "A.8.15", "A.8.16", "DE.CM-1", "CC9.2", "fedramp-AU-2",
-        "3.3.2", "CIS-8",
+        "3.3.2", "CIS-8", "CISSP-6.4", "CISSP-7.2",
     ],
     "PowerShell Logging": [
         "A.8.15", "A.8.16", "DE.CM-1", "CC9.2", "fedramp-AU-2",
@@ -99,7 +99,7 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     "Idle Timeout (Screensaver)": ["A.7.7", "A.8.11", "PR.AC-1", "CC6.1"],
     "USB Mass Storage Access": ["A.7.10", "A.8.3", "PCI-3.4", "CC6.6"],
     "Local Administrator Auditing": [
-        "A.5.15", "A.8.2", "PR.AC-4", "PCI-7.1", "CC6.1",
+        "A.5.15", "A.8.2", "PR.AC-4", "PCI-7.1", "CC6.1", "CISSP-5.4",
     ],
     "Local Administrator Accounts": [
         "A.5.15", "A.8.2", "PR.AC-4", "PCI-7.1", "CC6.1",
@@ -145,7 +145,7 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     "Data Backup & Recovery Simulation": [
         "iso9001-7.5", "RC.CO-2", "PR.IP-4", "A.8.13", "hitrust-09.0",
         "RC.CO-3", "RC.CO-1", "A.8.14", "PCI-9.5",
-        "CP-9", "3.8.9", "DORA-21.3", "CIS-11", "SOX-BR-1", "NIS2-21.3",
+        "CP-9", "3.8.9", "DORA-21.3", "CIS-11", "SOX-BR-1", "NIS2-21.3", "CISSP-7.4",
     ],
     "Information Deletion & Disposal Simulation": ["A.8.10", "ccpa-Privacy-2", "ccpa-Privacy-3", "PCI-9.1", "PR.DS-3", "PCI-3.1"],
     "Cryptographic Controls Extension Simulation": [
@@ -157,11 +157,11 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     "Change Management Simulation": ["A.8.32", "PCI-6.4", "CC8.1", "PR.IP-3"],
     "Clock Synchronization Simulation": [
         "A.8.17", "PCI-10.2", "PR.PT-1",
-        "AU-2", "3.3.1",
+        "AU-2", "3.3.1", "CISSP-7.2",
     ],
     "Capacity Management Simulation": [
         "CC7.2", "A.8.6", "PR.DS-4",
-        "CP-9", "3.8.9", "CIS-11",
+        "CP-9", "3.8.9", "CIS-11", "CISSP-7.4",
     ],
     "Network Security & Segregation Simulation": ["A.8.21", "PCI-1.3", "A.8.22", "A.8.20", "PCI-1.2", "PR.AC-5"],
     "Access to Source Code Simulation": ["PR.AC-4", "A.8.4"],
@@ -169,7 +169,7 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
     "Data Leakage Prevention Simulation": ["PCI-12.1", "PR.DS-5", "A.8.12"],
     "Audit Logging Extension Simulation": [
         "A.8.15", "A.5.33", "DE.AE-3", "dora-Art9", "fedramp-AU-2", "PCI-10.1",
-        "CISSP-6.4", "3.3.1", "CIS-8", "SOX-SA-4", "SWIFT-7.1",
+        "CISSP-6.4", "CISSP-7.2", "3.3.1", "CIS-8", "SOX-SA-4", "SWIFT-7.1",
     ],
     # CISSP-specific check mappings (kept for backward compat — also handled via base name above)
     "Admin Check: BitLocker Encryption": ["CISSP-3.3"],
@@ -249,8 +249,48 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
+    _NO_DATA_PREFIXES = (
+        "unable to", "secedit unavailable", "[elevation required",
+        "[run_ps_admin",
+    )
+
+    def _is_no_data(s: str) -> bool:
+        return not s or s.lower().startswith(_NO_DATA_PREFIXES)
+
+    def _status_rank(check: dict) -> int:
+        """Higher = better result. Used to prefer Pass over Warning when deduplicating."""
+        s = (check.get("status") or "").lower()
+        if s == "pass": return 2
+        if s == "warning": return 1
+        return 0
+
+    # Deduplicate: the agent sends the same check from both native Rust reader and
+    # PowerShell. Rules:
+    #   1. Never let "Unable to query" overwrite a real result.
+    #   2. When both have real data, keep the one with the better status (Pass > Warning).
+    seen_checks: dict[str, dict] = {}
+    for check in compliance_data.get("compliance_checks", []):
+        name = check.get("check")
+        if not name:
+            continue
+        details = check.get("details") or ""
+        if name in seen_checks:
+            existing = seen_checks[name]
+            existing_details = existing.get("details") or ""
+            incoming_empty = _is_no_data(details)
+            existing_empty  = _is_no_data(existing_details)
+            # Rule 1: skip if incoming has no data but existing does
+            if incoming_empty and not existing_empty:
+                continue
+            # Rule 2: prefer higher-ranked status when both have real data
+            if not incoming_empty and not existing_empty:
+                if _status_rank(check) <= _status_rank(existing):
+                    continue
+        seen_checks[name] = check
+    deduped_checks = list(seen_checks.values())
+
     try:
-        for check in compliance_data.get("compliance_checks", []):
+        for check in deduped_checks:
             check_name = check.get("check")
             status = check.get("status")
             details = check.get("details")
