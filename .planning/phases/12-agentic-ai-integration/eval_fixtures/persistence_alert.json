@@ -1,0 +1,22 @@
+{
+  "agent_id": "agt-fixture-01",
+  "findings": [],
+  "alerts": [
+    {
+      "category": "persistence",
+      "title": "New scheduled task registered",
+      "severity": "high",
+      "fired_at": "2026-06-23T00:20:00Z"
+    }
+  ],
+  "processes": [],
+  "last_compliance_run": "2026-06-22T13:20:00Z",
+  "last_vuln_scan": "2026-06-22T13:20:00Z",
+  "capabilities": [
+    "run_compliance_check",
+    "run_vulnerability_scan",
+    "run_threat_hunt",
+    "run_persistence_scan",
+    "collect_processes"
+  ]
+}

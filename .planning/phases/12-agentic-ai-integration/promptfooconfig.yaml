@@ -1,0 +1,275 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Promptfoo eval harness — Phase 12 Agentic AI Integration
+# Reference dataset: 5 critical-path scenarios (subset of 28-example target per AI-SPEC §5)
+#
+# Run locally (requires ANTHROPIC_API_KEY):
+#   npx promptfoo eval --config .planning/phases/12-agentic-ai-integration/promptfooconfig.yaml
+#
+# Skip in CI without an API key (either of):
+#   PROMPTFOO_SKIP_EVAL=1 npx promptfoo eval --config .planning/phases/12-agentic-ai-integration/promptfooconfig.yaml
+#   (or add a CI condition: if [ -n "$ANTHROPIC_API_KEY" ]; then npx promptfoo eval ...; fi)
+#
+# Security note (T-12-07): Phoenix OTLP span export includes raw LLM input/output.
+# Phoenix must be self-hosted on-prem or within tenant VPC — never send to a cloud
+# Phoenix SaaS instance for workloads containing endpoint security context data.
+#
+# Reference dataset target: 28 examples (AI-SPEC §5). These 5 are the critical-path subset
+# covering each of the 5 security capability tools. Expand to the full 28 before v1.1 GA.
+# ─────────────────────────────────────────────────────────────────────────────
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-6
+    config:
+      temperature: 0
+      max_tokens: 1024
+      tool_choice:
+        type: any
+      systemPrompt: |
+        You are a security operations AI integrated into the Omni-Agent platform.
+        You receive a structured JSON context describing an endpoint's current security
+        posture — active findings, last scan timestamps, agent capabilities, and recent
+        alerts. Based on this context, you MUST select exactly one tool that will have
+        the highest security impact right now. Do not ask clarifying questions.
+        Do not select a tool that is not in the provided list.
+        The agent_id is always present in the context; always pass it to the chosen tool.
+      tools:
+        - name: run_compliance_check
+          description: >-
+            Trigger a CIS/NIST compliance scan on the target agent.
+            Use when compliance findings are stale (>24h) or missing entirely.
+          input_schema:
+            type: object
+            properties:
+              agent_id:
+                type: string
+                description: Target agent UUID
+              framework:
+                type: string
+                enum: [CIS, NIST, ISO27001]
+                description: Compliance framework to evaluate against
+            required: [agent_id]
+        - name: run_vulnerability_scan
+          description: >-
+            Run a software vulnerability scan on the target agent.
+            Use when CVE findings are absent or the last scan is >72h old.
+          input_schema:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              severity_threshold:
+                type: string
+                enum: [low, medium, high, critical]
+                default: medium
+            required: [agent_id]
+        - name: run_threat_hunt
+          description: >-
+            Execute a MITRE ATT&CK-aligned threat hunt on the agent.
+            Use when anomalous process or network behavior is detected.
+          input_schema:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              hunt_profile:
+                type: string
+                enum: [lateral_movement, credential_access, persistence, exfiltration]
+            required: [agent_id]
+        - name: run_persistence_scan
+          description: >-
+            Scan for persistence mechanisms (scheduled tasks, registry run keys, startup items).
+            Use when new software was installed or a persistence-category alert fired.
+          input_schema:
+            type: object
+            properties:
+              agent_id:
+                type: string
+            required: [agent_id]
+        - name: collect_processes
+          description: >-
+            Collect a live process snapshot from the agent.
+            Use as a baseline step before threat hunting or when process anomalies are suspected.
+          input_schema:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              include_network:
+                type: boolean
+                description: Whether to include open network connections per process
+                default: false
+            required: [agent_id]
+
+prompts:
+  - "Security context for agent {{agent_id}}:\n{{security_context_json}}\n\nSelect the most impactful security tool to run now."
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: |
+        const VALID_TOOLS = [
+          'run_compliance_check', 'run_vulnerability_scan',
+          'run_threat_hunt', 'run_persistence_scan', 'collect_processes'
+        ];
+        const toolName = output?.tool_use?.name || output?.content?.find?.(b => b.type === 'tool_use')?.name;
+        return VALID_TOOLS.includes(toolName);
+      threshold: 1.0
+
+tests:
+  - description: "Compliance check when last_compliance_run is 73h ago"
+    vars:
+      agent_id: "agt-fixture-01"
+      security_context_json: |
+        {
+          "agent_id": "agt-fixture-01",
+          "findings": [],
+          "alerts": [],
+          "processes": [],
+          "last_compliance_run": "2026-06-20T00:20:00Z",
+          "last_vuln_scan": "2026-06-22T13:20:00Z",
+          "capabilities": [
+            "run_compliance_check",
+            "run_vulnerability_scan",
+            "run_threat_hunt",
+            "run_persistence_scan",
+            "collect_processes"
+          ]
+        }
+    assert:
+      - type: javascript
+        value: |
+          const toolName = output?.tool_use?.name
+            || output?.content?.find?.(b => b.type === 'tool_use')?.name;
+          return toolName === 'run_compliance_check';
+    metadata:
+      expected_tool: run_compliance_check
+
+  - description: "Vulnerability scan when last_vuln_scan is 97h ago"
+    vars:
+      agent_id: "agt-fixture-01"
+      security_context_json: |
+        {
+          "agent_id": "agt-fixture-01",
+          "findings": [],
+          "alerts": [],
+          "processes": [],
+          "last_compliance_run": "2026-06-22T19:20:00Z",
+          "last_vuln_scan": "2026-06-18T22:20:00Z",
+          "capabilities": [
+            "run_compliance_check",
+            "run_vulnerability_scan",
+            "run_threat_hunt",
+            "run_persistence_scan",
+            "collect_processes"
+          ]
+        }
+    assert:
+      - type: javascript
+        value: |
+          const toolName = output?.tool_use?.name
+            || output?.content?.find?.(b => b.type === 'tool_use')?.name;
+          return toolName === 'run_vulnerability_scan';
+    metadata:
+      expected_tool: run_vulnerability_scan
+
+  - description: "Threat hunt when svchost.exe spawned from cmd.exe (process anomaly)"
+    vars:
+      agent_id: "agt-fixture-01"
+      security_context_json: |
+        {
+          "agent_id": "agt-fixture-01",
+          "findings": [
+            {
+              "severity_score": 85,
+              "type": "process_anomaly",
+              "description": "svchost.exe spawned from cmd.exe — unusual parent process",
+              "mitre_technique": "T1055"
+            }
+          ],
+          "alerts": [],
+          "processes": [],
+          "last_compliance_run": "2026-06-22T13:20:00Z",
+          "last_vuln_scan": "2026-06-22T13:20:00Z",
+          "capabilities": [
+            "run_compliance_check",
+            "run_vulnerability_scan",
+            "run_threat_hunt",
+            "run_persistence_scan",
+            "collect_processes"
+          ]
+        }
+    assert:
+      - type: javascript
+        value: |
+          const toolName = output?.tool_use?.name
+            || output?.content?.find?.(b => b.type === 'tool_use')?.name;
+          return toolName === 'run_threat_hunt';
+    metadata:
+      expected_tool: run_threat_hunt
+
+  - description: "Persistence scan when high-severity persistence alert fired 1h ago"
+    vars:
+      agent_id: "agt-fixture-01"
+      security_context_json: |
+        {
+          "agent_id": "agt-fixture-01",
+          "findings": [],
+          "alerts": [
+            {
+              "category": "persistence",
+              "title": "New scheduled task registered",
+              "severity": "high",
+              "fired_at": "2026-06-23T00:20:00Z"
+            }
+          ],
+          "processes": [],
+          "last_compliance_run": "2026-06-22T13:20:00Z",
+          "last_vuln_scan": "2026-06-22T13:20:00Z",
+          "capabilities": [
+            "run_compliance_check",
+            "run_vulnerability_scan",
+            "run_threat_hunt",
+            "run_persistence_scan",
+            "collect_processes"
+          ]
+        }
+    assert:
+      - type: javascript
+        value: |
+          const toolName = output?.tool_use?.name
+            || output?.content?.find?.(b => b.type === 'tool_use')?.name;
+          return toolName === 'run_persistence_scan';
+    metadata:
+      expected_tool: run_persistence_scan
+
+  - description: "Collect processes when no process snapshot in 25h and no active alerts"
+    vars:
+      agent_id: "agt-fixture-01"
+      security_context_json: |
+        {
+          "agent_id": "agt-fixture-01",
+          "findings": [],
+          "alerts": [],
+          "processes": [],
+          "last_compliance_run": "2026-06-22T13:20:00Z",
+          "last_vuln_scan": "2026-06-22T13:20:00Z",
+          "last_process_snapshot": "2026-06-22T00:20:00Z",
+          "capabilities": [
+            "run_compliance_check",
+            "run_vulnerability_scan",
+            "run_threat_hunt",
+            "run_persistence_scan",
+            "collect_processes"
+          ]
+        }
+    assert:
+      - type: javascript
+        value: |
+          const toolName = output?.tool_use?.name
+            || output?.content?.find?.(b => b.type === 'tool_use')?.name;
+          return toolName === 'collect_processes';
+    metadata:
+      expected_tool: collect_processes
+
+commandLineOptions:
+  failureThreshold: 0.85

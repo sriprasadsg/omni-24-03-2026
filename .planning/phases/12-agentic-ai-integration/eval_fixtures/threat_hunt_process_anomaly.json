@@ -1,0 +1,22 @@
+{
+  "agent_id": "agt-fixture-01",
+  "findings": [
+    {
+      "severity_score": 85,
+      "type": "process_anomaly",
+      "description": "svchost.exe spawned from cmd.exe — unusual parent process",
+      "mitre_technique": "T1055"
+    }
+  ],
+  "alerts": [],
+  "processes": [],
+  "last_compliance_run": "2026-06-22T13:20:00Z",
+  "last_vuln_scan": "2026-06-22T13:20:00Z",
+  "capabilities": [
+    "run_compliance_check",
+    "run_vulnerability_scan",
+    "run_threat_hunt",
+    "run_persistence_scan",
+    "collect_processes"
+  ]
+}

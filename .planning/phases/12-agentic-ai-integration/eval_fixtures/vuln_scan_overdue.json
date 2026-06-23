@@ -1,0 +1,15 @@
+{
+  "agent_id": "agt-fixture-01",
+  "findings": [],
+  "alerts": [],
+  "processes": [],
+  "last_compliance_run": "2026-06-22T19:20:00Z",
+  "last_vuln_scan": "2026-06-18T22:20:00Z",
+  "capabilities": [
+    "run_compliance_check",
+    "run_vulnerability_scan",
+    "run_threat_hunt",
+    "run_persistence_scan",
+    "collect_processes"
+  ]
+}
