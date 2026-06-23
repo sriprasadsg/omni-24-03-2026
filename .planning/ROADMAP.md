@@ -112,9 +112,10 @@
 
 **Requirements:** AI-05, AI-06
 
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 - [x] 13-01-PLAN.md — Backend TDD: `compliance_narrative_service.py` (_sanitise, _trim_to_words, NarrativeOutput, generate_executive_summary, generate_framework_narrative, enrich_report_data), wire into `_generate_report` / `_build_pdf` in scheduled_reports_service.py, 8-test suite (AI-05, AI-06)
+- [ ] 13-02-PLAN.md — Verification fix: replace asyncio.get_event_loop() with asyncio.run() in 5 async tests (order-independence), extract _process_due_schedule helper to bring scheduled_reports_service.py under 500 lines (CLAUDE.md compliance)
 
 ---
 
