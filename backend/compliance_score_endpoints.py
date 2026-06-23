@@ -261,3 +261,48 @@ async def get_threat_score(current_user=Depends(get_current_user)):
     except Exception as exc:
         logger.error("threat score computation error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/api/compliance/score/history")
+async def get_score_history(days: int = 30, current_user=Depends(get_current_user)):
+    """Return daily compliance + ThreatScore snapshots for the last N days (max 365)."""
+    if days < 1 or days > 365:
+        raise HTTPException(status_code=422, detail="days must be between 1 and 365")
+
+    try:
+        tenant_id = getattr(current_user, "tenant_id", None) or ""
+        user_role = getattr(current_user, "role", "")
+        is_super = user_role in _SUPER_ROLES
+
+        db = get_database()
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = cutoff.strftime("%Y-%m-%d")
+
+        query: dict = {"date": {"$gte": cutoff_date}}
+        if not is_super:
+            query["tenant_id"] = tenant_id
+
+        snapshots = []
+        async for doc in db._db.compliance_score_history.find(
+            query, {"_id": 0}
+        ).sort("date", 1).limit(365):
+            snapshots.append({
+                "date": doc.get("date"),
+                "compliance_pct": doc.get("compliance_pct"),
+                "threat_score": doc.get("threat_score"),
+                "tenant_id": doc.get("tenant_id") if is_super else None,
+            })
+
+        return {
+            "history": snapshots,
+            "days_requested": days,
+            "count": len(snapshots),
+            "tenant_id": tenant_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("score history error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
