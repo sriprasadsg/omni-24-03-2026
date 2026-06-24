@@ -69,6 +69,14 @@ metrics:
 
 None — endpoint is fully wired; process_automated_evidence handles all 28 Windows check name mappings to control IDs via existing COMPLIANCE_CHECK_MAPPINGS.
 
+## Self-Check: PASSED
+
+- FOUND: backend/powershell_evidence_endpoints.py
+- FOUND: backend/tests/test_powershell_evidence.py
+- FOUND: .planning/phases/23-windows-powershell-evidence/23-01-SUMMARY.md
+- FOUND commit b29f30f: test(23-01): add failing tests for PowerShell evidence ingestion endpoint
+- FOUND commit 5a1fd3b: feat(windows): PowerShell evidence ingestion API — POST /api/powershell-evidence/submit (Phase 23-01)
+
 ## Threat Flags
 
 | Flag | File | Description |
