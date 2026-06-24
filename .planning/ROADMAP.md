@@ -5,6 +5,8 @@
 - **[v1.0](milestones/v1.0-ROADMAP.md)** — Security & Compliance Portal: Rust agent evidence parity, manual evidence uploads, audit-ready PDF/Excel export, remediation workflow. 5 phases, 11 plans, 16/16 requirements. Shipped 2026-06-18.
 - **v1.1** — Evidence Quality & Compliance Scoring: compliance status wiring, staleness detection, bulk upload, chain-of-custody audit trail, tenant compliance score. 4 phases, 11 plans, SCORE-01/02/03 + STATUS-01/02 + STALE-01/02 + COC-01/02 + BULK-01/02/03 + UI-01. Shipped 2026-06-22.
 - **v1.2** — Reporting Automation: scheduled compliance report generation and email delivery. 1 phase, SCHED-01/02.
+- **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Planned 2026-06-23.
+- **v2.1** — Windows PowerShell Evidence: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates. Phase 23.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -291,3 +293,26 @@ Plans:
 
 - [x] 10-01-PLAN.md — Backend TDD: framework_id schema, _generate_pdf wiring, delivery log collection, GET /history endpoint, SMTP validation (Wave 1)
 - [x] 10-02-PLAN.md — Frontend: framework picker in create modal, run-now URL fix, per-card delivery history panel (Wave 2)
+
+---
+
+## Phase 23: Windows PowerShell Evidence Collection
+
+**Milestone:** v2.1
+
+**Goal:** Rebuild all Windows installation files (PS1 scripts, EXE/Inno Setup installer)
+with comprehensive PowerShell evidence collection for all 28 Windows compliance checks.
+Evidence POSTs to a new `/api/powershell-evidence/submit` endpoint and appears in the
+existing compliance evidence pages. Adds an Inno Setup EXE installer for click-to-install
+deployment.
+
+**Requirements:** WIN-PS-01 (28 checks), WIN-PS-02 (POST to backend), WIN-PS-03 (display in evidence pages), WIN-PS-04 (EXE installer)
+
+**Plans:**
+
+- [x] 23-01-PLAN.md
+
+1/3 plans executed
+
+- [ ] 23-02-PLAN.md — PowerShell: rebuild win-install.ps1, new Collect-Evidence.ps1 (28 checks), rebuild agent/installer/*.ps1, new OmniAgent-Setup.iss (Inno Setup EXE)
+- [ ] 23-03-PLAN.md — Frontend: AgentInstallation.tsx Windows tab (3-step flow, 28 checks panel, EXE download link); PowerShell source badge

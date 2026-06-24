@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: — GRC Feature Parity
+milestone: v2.1
+milestone_name: — Windows PowerShell Evidence
 status: planned
 stopped_at: Phase 14 Plan 02 complete — SaaSIntegrationsDashboard UI with OAuth popup and evidence pull
-last_updated: "2026-06-23T17:53:14.313Z"
+last_updated: "2026-06-24T08:43:14.688Z"
 progress:
-  total_phases: 10
-  completed_phases: 2
-  total_plans: 12
-  completed_plans: 4
-  percent: 20
+  total_phases: 18
+  completed_phases: 8
+  total_plans: 29
+  completed_plans: 18
+  percent: 44
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 | 20 | Multi-Account Cloud Scanning | Planned (v2.0) |
 | 21 | Notification Routing & Domain Scanner | Planned (v2.0) |
 | 22 | API Extensions (MCP, OCSF, CLI, DO) | Planned (v2.0) |
+| 23 | Windows PowerShell Evidence Collection | Planned (v2.1) |
 
 ## Decisions
 
@@ -184,6 +185,6 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 
 ## Session
 
-**Last session:** 2026-06-23T17:53:14.299Z
+**Last session:** 2026-06-24T08:43:14.675Z
 **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
 **Resume file:** None
