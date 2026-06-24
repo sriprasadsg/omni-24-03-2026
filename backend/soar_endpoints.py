@@ -8,10 +8,9 @@ from soar_engine import soar_engine
 from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import get_tenant_id
+from auth_roles import SUPER_ROLES as _SOAR_SUPER_ROLES
 
 router = APIRouter()
-
-_SOAR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 class PlaybookNode(BaseModel):
     id: str

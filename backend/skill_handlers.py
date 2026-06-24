@@ -21,9 +21,9 @@ from skill_handlers_queries import (
     handle_cost_snapshot,
 )
 
-logger = logging.getLogger(__name__)
+from auth_roles import SUPER_AND_ADMIN_ROLES as _SKILL_SUPER_ROLES
 
-_SKILL_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+logger = logging.getLogger(__name__)
 
 
 async def handle_help() -> str:

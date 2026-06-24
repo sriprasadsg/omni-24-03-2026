@@ -9,51 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 from database import get_database
 import argparse
-
-
-# Comprehensive mapping of all 36 agent checks to compliance control IDs
-COMPLETE_MAPPINGS = {
-    # Windows Checks (28 checks)
-    "Windows Firewall Profiles": ["pci-dss-PCI-1.1.1", "nistcsf-PR.AC-1", "CC6.6", "PCI-1.1", "iso27001-A.13.1"],
-    "Windows Defender Antivirus": ["iso27001-A.12.2.1", "pci-dss-PCI-5.1", "CC6.8", "iso27001-A.8.7", "nistcsf-DE.CM-4"],
-    "Password Policy (Min Length)": ["iso27001-A.9.4.3", "pci-dss-PCI-8.1.1", "nistcsf-PR.AC-1", "iso27001-A.9.4.1", "CC6.1", "nistcsf-IA-5"],
-    "Guest Account Disabled": ["iso27001-A.9.2.1", "pci-dss-PCI-8.1.1", "nistcsf-PR.AC-4", "CC6.1"],
-    "RDP NLA Required": ["pci-dss-PCI-2.2.4", "nistcsf-PR.AC-1", "CC6.6", "iso27001-A.9.4.2"],
-    "BitLocker Encryption": ["hipaa-164.312(a)(2)(iv)", "pci-dss-PCI-3.4", "iso27001-A.8.12", "nistcsf-PR.DS-1", "PCI-3.4", "CC6.1"],
-    "Secure Boot": ["nistcsf-ID.AM-1", "iso27001-A.12.1.2", "CC7.2"],
-    "Windows Update Service": ["pci-dss-PCI-6.2", "iso27001-A.12.6.1", "nistcsf-ID.AM-1", "CC7.3", "iso27001-A.12.6.1", "nistcsf-DE.CM-8"],
-    "User Access Control": ["nistcsf-PR.AC-1", "iso27001-A.9.4.1", "CC6.1"],
-    "Audit Logging Policy": ["pci-dss-PCI-10.1", "nistcsf-DE.AE-1", "iso27001-A.12.4.1", "CC9.2", "PCI-10.1", "nistcsf-DE.CM-1", "nistcsf-AU-2"],
-    "Risky Network Ports": ["pci-dss-PCI-1.1", "iso27001-A.13.1", "CC6.6", "nistcsf-PR.AC-5"],
-    "TLS Security Config": ["pci-dss-PCI-4.1", "hipaa-164.312(a)(2)(iv)", "CC6.7", "PCI-4.1", "nistcsf-PR.DS-2", "iso27001-A.10.1"],
-    "Prohibited Software": ["iso27001-A.12.5", "iso27001-A.12.6.2", "nistcsf-ID.AM-1", "CC6.8"],
-    "Maximum Password Age": ["nistcsf-IA-5", "iso27001-A.8.5", "pci-dss-PCI-8.2.4", "CC6.1"],
-    "Account Lockout Policy": ["nistcsf-PR.AC-7", "pci-dss-PCI-8.1.6", "iso27001-A.9.4.2", "CC6.1", "nistcsf-AC-7"],
-    "Password Complexity": ["nistcsf-IA-5", "iso27001-A.8.5", "pci-dss-PCI-8.2.3", "CC6.1"],
-    "Password History": ["pci-dss-PCI-8.2.5", "nistcsf-IA-5", "iso27001-A.8.5", "CC6.1"],
-    "Minimum Password Age": ["nistcsf-IA-5", "iso27001-A.8.5", "CC6.1"],
-    "Remote Desktop Service": ["pci-dss-PCI-2.2.2", "nistcsf-PR.AC-3", "CC6.6"],
-    "SMBv1 Protocol Disabled": ["CVE-2017-0143", "nistcsf-PR.IP-1", "CC7.2", "iso27001-A.12.6.1"],
-    "LLMNR/NetBIOS Protection": ["nistcsf-PR.AC-5", "iso27001-A.13.1", "CC6.7"],
-    "PowerShell Script Block Logging": ["nistcsf-DE.CM-1", "iso27001-A.12.4.1", "CC9.2", "nistcsf-AU-2"],
-    "WinRM Service Status": ["pci-dss-PCI-2.2.2", "nistcsf-PR.AC-3"],
-    "Credential Guard": ["nistcsf-PR.AC-1", "CC6.1", "iso27001-A.9.4.1"],
-    "Device Guard/WDAC": ["nistcsf-PR.IP-1", "iso27001-A.12.5", "CC7.2"],
-    "Exploit Protection (DEP/ASLR)": ["nistcsf-PR.IP-1", "CC7.2", "iso27001-A.12.6.1"],
-    "Attack Surface Reduction": ["nistcsf-PR.IP-1", "CC7.2", "iso27001-A.12.2.1"],
-    "Controlled Folder Access": ["nistcsf-PR.DS-1", "CC6.1", "iso27001-A.12.3.1"],
-    
-    # Linux Checks (8 checks)
-    "UFW Firewall Enabled": ["pci-dss-PCI-1.1.1", "nistcsf-PR.AC-5", "CC6.6", "iso27001-A.13.1"],
-    "SSH Root Login Disabled": ["pci-dss-PCI-2.2.4", "nistcsf-PR.AC-4", "CC6.1", "iso27001-A.9.4.3"],
-    "Automatic Security Updates": ["pci-dss-PCI-6.2", "iso27001-A.12.6.1", "nistcsf-DE.CM-8", "CC7.3"],
-    "SELinux Status": ["nistcsf-PR.AC-4", "iso27001-A.9.4.1", "CC6.1"],
-    "AppArmor Status": ["nistcsf-PR.AC-4", "iso27001-A.9.4.1", "CC6.1"],
-    "Sudo Configuration": ["nistcsf-PR.AC-4", "iso27001-A.9.4.1", "CC6.1"],
-    "Cron Security": ["iso27001-A.12.5.1", "nistcsf-PR.AC-4", "CC6.1"],
-    "SSHD Hardening": ["pci-dss-PCI-2.2.4", "nistcsf-PR.AC-5", "CC6.6", "iso27001-A.13.1.1"],
-    "Filesystem Permissions": ["nistcsf-PR.AC-4", "iso27001-A.9.4.5", "CC6.1"],
-}
+from compliance_evidence_processor import COMPLIANCE_CHECK_MAPPINGS as COMPLETE_MAPPINGS
 
 
 async def evaluate_all_tenant_assets(tenant_id: str, framework_id: str = "all") -> Dict[str, Any]:

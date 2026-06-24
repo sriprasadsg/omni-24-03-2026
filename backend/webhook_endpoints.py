@@ -31,9 +31,9 @@ def _is_safe_webhook_url(url: str) -> bool:
     except Exception:
         return False
 
-router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
+from auth_roles import SUPER_ROLES as _WEBHOOK_SUPER_ROLES
 
-_WEBHOOK_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
 
 async def _verify_inbound_signature(request: Request, provider: str, db) -> bool:

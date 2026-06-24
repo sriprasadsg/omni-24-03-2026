@@ -8,12 +8,12 @@ from authentication_service import TokenData
 from rbac_service import rbac_service
 from problem_management_service import problem_service
 
+from auth_roles import SUPER_ROLES as _SUPER_ROLES
+
 router = APIRouter(prefix="/api/problems", tags=["Problem Management"])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-_SUPER_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
 
 def _actor(user: TokenData) -> str:

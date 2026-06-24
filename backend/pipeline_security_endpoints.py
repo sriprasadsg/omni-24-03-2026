@@ -3,10 +3,9 @@ from __future__ import annotations
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
+from auth_roles import SUPER_ROLES as _PIPELINE_SUPER_ROLES
 
 router = APIRouter(prefix="/api/pipeline-security", tags=["Pipeline Security"])
-
-_PIPELINE_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 
 async def _db():

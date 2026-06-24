@@ -13,13 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from database import get_database
 from authentication_service import get_current_user
 from cache_service import cache, invalidate_cache  # noqa: F401 (invalidate_cache imported for callers)
+from compliance_reporting_data import _score_status
+from auth_roles import SUPER_AND_ADMIN_ROLES as _SUPER_ROLES
 import logging
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
 SEVERITY_WEIGHTS = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
 
@@ -34,16 +34,6 @@ _CATEGORY_SEVERITY: dict[str, str] = {
     "Operations":        "Medium",
     "Risk Management":   "Medium",
 }
-
-
-def _score_status(status: str) -> str:
-    """Normalise asset_compliance status to Compliant / Non-Compliant / Warning."""
-    s = (status or "").strip()
-    if s in ("Compliant", "Pass", "Passed", "Implemented", "pass", "passed"):
-        return "Compliant"
-    if s in ("Non-Compliant", "Fail", "Failed", "Not Implemented", "fail", "failed"):
-        return "Non-Compliant"
-    return "Warning"
 
 
 def _weighted_score(controls_with_status: list[dict]) -> float:

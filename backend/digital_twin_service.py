@@ -15,9 +15,9 @@ from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
 
-router = APIRouter(prefix="/api/digital_twin", tags=["Digital Twin"])
+from auth_roles import SUPER_ROLES as _DT_SUPER_ROLES
 
-_DT_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+router = APIRouter(prefix="/api/digital_twin", tags=["Digital Twin"])
 
 
 class SimulationRequest(BaseModel):

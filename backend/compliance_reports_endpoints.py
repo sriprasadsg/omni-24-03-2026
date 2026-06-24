@@ -6,6 +6,7 @@ from datetime import datetime
 from authentication_service import get_current_user
 from compliance_reporting_service import compliance_reporting_service
 from database import get_database
+from auth_roles import SUPER_ROLES as _SUPER_ADMIN_ROLES
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,6 @@ async def generate_all_compliance_report(
         logger.error("Failed to generate all-frameworks report for tenant %s: %s", tenant_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
-
-_SUPER_ADMIN_ROLES = {"Super Admin", "super_admin", "superadmin", "platform-admin"}
 
 
 @router.get("/api/compliance/reports/download/{filename}")

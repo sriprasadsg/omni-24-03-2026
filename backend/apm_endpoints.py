@@ -14,8 +14,7 @@ from bson.errors import InvalidId
 from database import get_database
 from apm_service import get_apm_service
 from rbac_utils import require_permission
-
-_APM_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+from auth_roles import SUPER_ROLES as _APM_SUPER_ROLES
 
 router = APIRouter(prefix="/api/apm", tags=["APM"])
 

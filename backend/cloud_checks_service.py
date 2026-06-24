@@ -2,8 +2,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
-
-_CC_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+from auth_roles import SUPER_AND_ADMIN_ROLES as _CC_SUPER_ROLES
 
 # Check definitions: each entry is {id, name, description, provider, service, severity, frameworks, remediation}
 CLOUD_CHECKS: List[Dict[str, Any]] = [
