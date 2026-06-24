@@ -4,6 +4,7 @@ import { showToast } from '../utils/toast';
 import { CopyIcon, CheckIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, ChevronDownIcon, AlertTriangleIcon, DownloadIcon, InfoIcon, CodeIcon, BuildingIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { Tenant } from '../types';
+import { WindowsInstallTab } from './WindowsInstallTab';
 
 /** Dynamically resolve the backend base URL from the browser's current location.
  *  - On Ubuntu/production (nginx at port 80/443): returns '' so fetch uses relative /api/... paths via nginx proxy.
@@ -94,7 +95,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
 
     const commands = registrationKey ? {
         linux: `curl -sSL ${serverUrl}/static/linux-install.sh | sudo bash -s -- --registration-key ${registrationKey}`,
-        windows: `powershell -Command "Invoke-WebRequest -Uri '${serverUrl}/api/install-script' -OutFile 'install.ps1'; & './install.ps1' -RegistrationKey '${registrationKey}' -BackendUrl '${serverUrl}'; Remove-Item 'install.ps1'"`,
+        windows: `powershell -Command "Invoke-WebRequest -Uri '${serverUrl}/static/win-install.ps1' -OutFile 'install-service.ps1'; & './install-service.ps1' -ApiUrl '${serverUrl}' -RegistrationKey '${registrationKey}'; Remove-Item 'install-service.ps1'"`,
         python: `curl -sSL ${serverUrl}/static/omni-agent-install.py | python3 - --registration-key ${registrationKey} --api-url ${serverUrl}`,
         docker: `docker build -t omni-agent:latest ./agent\ndocker run -d --name omni-agent \\\n  -v /var/run/docker.sock:/var/run/docker.sock:ro \\\n  -e OMNI_REGISTRATION_KEY="${registrationKey}" \\\n  omni-agent:latest`,
         kubernetes: `helm install omni-agent ./backend/static/charts/omni-agent \\\n  --set registrationKey=${registrationKey} \\\n  --set clusterName=my-prod-cluster`,
@@ -119,34 +120,64 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
         }
     }
 
-    const [isDownloadingZip, setIsDownloadingZip] = React.useState(false);
+    const [isDownloadingZip,  setIsDownloadingZip]  = React.useState(false);
+    const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
+    const [isDownloadingRust, setIsDownloadingRust] = React.useState(false);
 
-    const handleDownloadAgentZip = async () => {
+    const _getDownloadToken = async (): Promise<string | null> => {
+        const tokenRes = await authFetch(`/api/agent/download-token/${tenantId}`, { method: 'POST' });
+        if (!tokenRes.ok) { showToast('Failed to initiate download. Please try again.', 'error'); return null; }
+        const { token } = await tokenRes.json();
+        return token;
+    };
+
+    const handleDownloadAgentZip = async (platform: 'linux' | 'windows' = 'linux') => {
         if (!tenantId) return;
         setIsDownloadingZip(true);
         try {
+            const downloadToken = await _getDownloadToken();
+            if (!downloadToken) return;
             const backendUrl = encodeURIComponent(serverUrl);
-
-            // Step 1: exchange the JWT for a short-lived (60s) one-time download token.
-            // This avoids the fetch()+blob+proxy pipeline that causes ERR_FAILED 200 on
-            // the Vite dev proxy (and some nginx configurations) for binary responses.
-            const tokenRes = await authFetch(`/api/agent/download-token/${tenantId}`, {
-                method: 'POST',
-            });
-            if (!tokenRes.ok) {
-                showToast('Failed to initiate download. Please try again.', 'error');
-                return;
-            }
-            const { token: downloadToken } = await tokenRes.json();
-
-            // Step 2: trigger a direct browser navigation so the download manager
-            // receives the ZIP — no JS body-reading, no proxy buffering issues.
-            window.location.href = `/api/agent/download/${tenantId}?download_token=${downloadToken}&api_url=${backendUrl}`;
-        } catch (e) {
+            window.location.href = `/api/agent/download/${tenantId}?download_token=${downloadToken}&api_url=${backendUrl}&platform=${platform}`;
+            // For Windows the first download compiles the Rust agent (~2–5 min); keep the
+            // button disabled for longer so users don't click repeatedly.
+            const resetDelay = platform === 'windows' ? 360_000 : 1500;
+            setTimeout(() => setIsDownloadingZip(false), resetDelay);
+        } catch {
             showToast('An error occurred while downloading the agent package.', 'error');
-        } finally {
-            // Give the browser a moment to initiate the download before clearing the spinner
-            setTimeout(() => setIsDownloadingZip(false), 1500);
+            setIsDownloadingZip(false);
+        }
+    };
+
+    const handleDownloadRustExe = async () => {
+        if (!tenantId) return;
+        setIsDownloadingRust(true);
+        try {
+            const downloadToken = await _getDownloadToken();
+            if (!downloadToken) return;
+            const backendUrl = encodeURIComponent(serverUrl);
+            window.location.href = `/api/agent/download/${tenantId}/rust-exe?download_token=${downloadToken}&api_url=${backendUrl}`;
+            // First download compiles Rust (~30 s); subsequent calls reuse cached binary (~5 s)
+            setTimeout(() => setIsDownloadingRust(false), 120_000);
+        } catch {
+            showToast('An error occurred while downloading the Rust installer.', 'error');
+            setIsDownloadingRust(false);
+        }
+    };
+
+    const handleDownloadMsi = async () => {
+        if (!tenantId) return;
+        setIsDownloadingMsi(true);
+        try {
+            const downloadToken = await _getDownloadToken();
+            if (!downloadToken) return;
+            const backendUrl = encodeURIComponent(serverUrl);
+            window.location.href = `/api/agent/download/${tenantId}/msi?download_token=${downloadToken}&api_url=${backendUrl}`;
+            // First download may trigger MSI build (~2-5 min); keep button disabled longer
+            setTimeout(() => setIsDownloadingMsi(false), 360_000);
+        } catch {
+            showToast('An error occurred while downloading the MSI installer.', 'error');
+            setIsDownloadingMsi(false);
         }
     };
 
@@ -279,13 +310,60 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                     </div>
 
                                     <div className="pt-4">
-                                        <CodeBlock command={commands[activeTab]} />
+                                        {activeTab === 'windows' ? (
+                                            <WindowsInstallTab
+                                                backendUrl={serverUrl}
+                                                registrationKey={registrationKey || ''}
+                                            />
+                                        ) : (
+                                            <CodeBlock command={commands[activeTab]} />
+                                        )}
 
-                                        {/* Download Agent Zip Button */}
-                                        {isFreeTierDownloadable && (
+                                        {/* Download buttons — Windows gets EXE zip + MSI, others get Python zip */}
+                                        {isFreeTierDownloadable && activeTab === 'windows' ? (
+                                            <div className="mt-4 flex flex-col gap-3">
+                                                <button
+                                                    onClick={() => handleDownloadAgentZip('windows')}
+                                                    disabled={isDownloadingZip}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                                                >
+                                                    <DownloadIcon size={16} />
+                                                    {isDownloadingZip ? 'Building installer... (may take a few minutes on first run)' : '⬇ Download Windows Installer (.exe)'}
+                                                </button>
+                                                <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                                                    Self-extracting NSIS installer — double-click to run the setup wizard. Installs OmniAgent as a Windows Service visible in <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">services.msc</code> and starts it automatically.
+                                                </p>
+                                                <button
+                                                    onClick={handleDownloadMsi}
+                                                    disabled={isDownloadingMsi}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                                                >
+                                                    <DownloadIcon size={16} />
+                                                    {isDownloadingMsi ? 'Building MSI installer...' : '⬇ Download MSI Installer (.msi)'}
+                                                </button>
+                                                <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                                                    Windows Installer (.msi) package — runs via standard Add/Remove Programs UI. Also registers OmniAgent as a Windows Service.
+                                                </p>
+
+                                                {/* Rust EXE — lightweight, no Python required */}
+                                                <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-1">
+                                                    <button
+                                                        onClick={handleDownloadRustExe}
+                                                        disabled={isDownloadingRust}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                                                    >
+                                                        <DownloadIcon size={16} />
+                                                        {isDownloadingRust ? 'Compiling Rust agent...' : '⬇ Download Rust Installer (.exe)'}
+                                                    </button>
+                                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">
+                                                        Lightweight Rust-compiled agent — <strong>~3 MB</strong>, no Python runtime required. Installs as a Windows Service in <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">services.msc</code>.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : isFreeTierDownloadable ? (
                                             <div className="mt-4">
                                                 <button
-                                                    onClick={handleDownloadAgentZip}
+                                                    onClick={() => handleDownloadAgentZip('linux')}
                                                     disabled={isDownloadingZip}
                                                     className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
                                                 >
@@ -293,10 +371,10 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                                     {isDownloadingZip ? 'Generating package...' : '⬇ Download Agent Package (.zip)'}
                                                 </button>
                                                 <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                                                    Pre-configured with your tenant's registration key — just extract and run <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">python agent.py</code>
+                                                    Pre-configured with your tenant's registration key — extract and run <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">python agent.py</code>
                                                 </p>
                                             </div>
-                                        )}
+                                        ) : null}
 
                                         <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                                             {activeTab === 'linux' && (
@@ -307,8 +385,8 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                             )}
                                             {activeTab === 'windows' && (
                                                 <div className="flex items-center">
-                                                    <DownloadIcon size={14} className="mr-2" />
-                                                    Alternatively, you can <a href={`${getBackendUrl()}/api/install-script`} download className="text-primary-600 dark:text-primary-400 hover:underline font-medium">download the installation script</a>.
+                                                    <InfoIcon size={14} className="mr-2" />
+                                                    The EXE is a self-extracting NSIS installer with a setup wizard. The MSI uses the Windows Installer engine (Add/Remove Programs). Both install OmniAgent as a Windows Service that starts automatically on boot and auto-registers with the platform.
                                                 </div>
                                             )}
                                             {activeTab === 'python' && (

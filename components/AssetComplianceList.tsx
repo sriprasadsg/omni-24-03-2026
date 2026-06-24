@@ -148,6 +148,11 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-1 flex-shrink-0">
+                                                        {ev.agent_type === 'powershell' && (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                                                PS
+                                                            </span>
+                                                        )}
                                                         {isAutomated ? (
                                                             <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Automated</span>
                                                         ) : (
