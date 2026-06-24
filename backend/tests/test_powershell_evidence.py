@@ -10,12 +10,10 @@ Tests:
 """
 import sys
 import os
-import asyncio
 import hashlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -52,19 +50,8 @@ def _make_user(tenant_id="tenant-a", role="User"):
     return user
 
 
-def _build_app_with_mocks(
-    tenant_doc=None,
-    current_user=None,
-    process_evidence_mock=None,
-):
-    """
-    Build a minimal FastAPI app with powershell_evidence_endpoints router mounted.
-    Patches database and process_automated_evidence at module level.
-    Returns (client, mock_process_evidence).
-    """
-    import importlib
-
-    # Build mock database
+def _make_mock_db(tenant_doc=None):
+    """Build the mock db object that mimics db._db.tenants.find_one behavior."""
     mock_tenants = MagicMock()
     mock_tenants.find_one = AsyncMock(return_value=tenant_doc)
 
@@ -73,29 +60,23 @@ def _build_app_with_mocks(
 
     mock_db = MagicMock()
     mock_db._db = mock_db_inner
+    return mock_db
 
-    if process_evidence_mock is None:
-        process_evidence_mock = AsyncMock(return_value=None)
 
-    # Force fresh module import with patches applied
-    with patch.dict("sys.modules", {}):
-        # Patch get_database
-        with patch("powershell_evidence_endpoints.get_database", return_value=mock_db):
-            # Patch process_automated_evidence
-            with patch(
-                "powershell_evidence_endpoints.process_automated_evidence",
-                process_evidence_mock,
-            ):
-                # Patch get_optional_user
-                with patch(
-                    "powershell_evidence_endpoints.get_optional_user",
-                    return_value=current_user,
-                ):
-                    import powershell_evidence_endpoints as mod
-                    app = FastAPI()
-                    app.include_router(mod.router)
-                    client = TestClient(app, raise_server_exceptions=False)
-                    return client, process_evidence_mock, mock_db
+def _build_client(mock_db, current_user, mock_process):
+    """Build test client with get_database and get_optional_user patched at module level."""
+    import powershell_evidence_endpoints as mod
+    from authentication_service import get_optional_user
+
+    app = FastAPI()
+    app.include_router(mod.router)
+    # Override JWT dep — no real JWT validation
+    app.dependency_overrides[get_optional_user] = lambda: current_user
+
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+        client = TestClient(app, raise_server_exceptions=True)
+        return client, mock_process
 
 
 # ---------------------------------------------------------------------------
@@ -104,31 +85,20 @@ def _build_app_with_mocks(
 
 def test_submit_via_registration_key():
     """POST with valid X-Registration-Key returns 200 and accepted count."""
-    import importlib
-    import powershell_evidence_endpoints as mod
-
-    tenant_doc = _make_tenant_doc("tenant-a")
-    mock_tenants = MagicMock()
-    mock_tenants.find_one = AsyncMock(return_value=tenant_doc)
-
-    mock_db_inner = MagicMock()
-    mock_db_inner.tenants = mock_tenants
-
-    mock_db = MagicMock()
-    mock_db._db = mock_db_inner
-
+    mock_db = _make_mock_db(tenant_doc=_make_tenant_doc("tenant-a"))
     mock_process = AsyncMock(return_value=None)
 
-    app = FastAPI()
-    app.include_router(mod.router)
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
 
-    # Override dependencies
-    from authentication_service import get_optional_user
-    app.dependency_overrides[get_optional_user] = lambda: None
-    app.dependency_overrides[mod.get_database] = lambda: mock_db
+        import powershell_evidence_endpoints as mod
+        from authentication_service import get_optional_user
 
-    with patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
-        client = TestClient(app, raise_server_exceptions=False)
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.dependency_overrides[get_optional_user] = lambda: None
+
+        client = TestClient(app, raise_server_exceptions=True)
         resp = client.post(
             "/api/powershell-evidence/submit",
             json=_minimal_payload(),
@@ -147,30 +117,21 @@ def test_submit_via_registration_key():
 
 def test_submit_via_jwt_bearer():
     """POST with valid JWT (get_optional_user) returns 200."""
-    import powershell_evidence_endpoints as mod
-
     user = _make_user("tenant-a", "User")
-
-    mock_tenants = MagicMock()
-    mock_tenants.find_one = AsyncMock(return_value=None)
-
-    mock_db_inner = MagicMock()
-    mock_db_inner.tenants = mock_tenants
-
-    mock_db = MagicMock()
-    mock_db._db = mock_db_inner
-
+    mock_db = _make_mock_db(tenant_doc=None)
     mock_process = AsyncMock(return_value=None)
 
-    app = FastAPI()
-    app.include_router(mod.router)
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
 
-    from authentication_service import get_optional_user
-    app.dependency_overrides[get_optional_user] = lambda: user
-    app.dependency_overrides[mod.get_database] = lambda: mock_db
+        import powershell_evidence_endpoints as mod
+        from authentication_service import get_optional_user
 
-    with patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
-        client = TestClient(app, raise_server_exceptions=False)
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.dependency_overrides[get_optional_user] = lambda: user
+
+        client = TestClient(app, raise_server_exceptions=True)
         resp = client.post(
             "/api/powershell-evidence/submit",
             json=_minimal_payload(),
@@ -188,32 +149,23 @@ def test_submit_via_jwt_bearer():
 
 def test_submit_calls_process_automated_evidence():
     """process_automated_evidence is invoked with agent_type='powershell' and correct hostname."""
-    import powershell_evidence_endpoints as mod
-
-    tenant_doc = _make_tenant_doc("tenant-b")
-    mock_tenants = MagicMock()
-    mock_tenants.find_one = AsyncMock(return_value=tenant_doc)
-
-    mock_db_inner = MagicMock()
-    mock_db_inner.tenants = mock_tenants
-
-    mock_db = MagicMock()
-    mock_db._db = mock_db_inner
-
+    mock_db = _make_mock_db(tenant_doc=_make_tenant_doc("tenant-b"))
     mock_process = AsyncMock(return_value=None)
 
     hostname = "WIN-SERVER-DC01"
     checks = [_make_check("Windows Firewall Profiles"), _make_check("Windows Defender Antivirus")]
 
-    app = FastAPI()
-    app.include_router(mod.router)
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
 
-    from authentication_service import get_optional_user
-    app.dependency_overrides[get_optional_user] = lambda: None
-    app.dependency_overrides[mod.get_database] = lambda: mock_db
+        import powershell_evidence_endpoints as mod
+        from authentication_service import get_optional_user
 
-    with patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
-        client = TestClient(app, raise_server_exceptions=False)
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.dependency_overrides[get_optional_user] = lambda: None
+
+        client = TestClient(app, raise_server_exceptions=True)
         resp = client.post(
             "/api/powershell-evidence/submit",
             json={"hostname": hostname, "checks": checks},
@@ -235,26 +187,19 @@ def test_submit_calls_process_automated_evidence():
 
 def test_submit_unknown_registration_key_returns_401():
     """find_one returns None for unknown key → 401 Unauthorized."""
-    import powershell_evidence_endpoints as mod
-
-    mock_tenants = MagicMock()
-    mock_tenants.find_one = AsyncMock(return_value=None)  # key not found
-
-    mock_db_inner = MagicMock()
-    mock_db_inner.tenants = mock_tenants
-
-    mock_db = MagicMock()
-    mock_db._db = mock_db_inner
-
-    app = FastAPI()
-    app.include_router(mod.router)
-
-    from authentication_service import get_optional_user
-    app.dependency_overrides[get_optional_user] = lambda: None
-    app.dependency_overrides[mod.get_database] = lambda: mock_db
-
+    mock_db = _make_mock_db(tenant_doc=None)  # key not found
     mock_process = AsyncMock(return_value=None)
-    with patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+
+        import powershell_evidence_endpoints as mod
+        from authentication_service import get_optional_user
+
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.dependency_overrides[get_optional_user] = lambda: None
+
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post(
             "/api/powershell-evidence/submit",
@@ -271,29 +216,20 @@ def test_submit_unknown_registration_key_returns_401():
 
 def test_submit_cross_tenant_rejected():
     """JWT tenant_id 'tenant-a' but key resolves to 'tenant-b' → 403."""
-    import powershell_evidence_endpoints as mod
-
-    tenant_doc = _make_tenant_doc("tenant-b")  # key belongs to tenant-b
-    mock_tenants = MagicMock()
-    mock_tenants.find_one = AsyncMock(return_value=tenant_doc)
-
-    mock_db_inner = MagicMock()
-    mock_db_inner.tenants = mock_tenants
-
-    mock_db = MagicMock()
-    mock_db._db = mock_db_inner
-
+    mock_db = _make_mock_db(tenant_doc=_make_tenant_doc("tenant-b"))  # key belongs to tenant-b
     user = _make_user("tenant-a", "User")  # JWT says tenant-a
-
-    app = FastAPI()
-    app.include_router(mod.router)
-
-    from authentication_service import get_optional_user
-    app.dependency_overrides[get_optional_user] = lambda: user
-    app.dependency_overrides[mod.get_database] = lambda: mock_db
-
     mock_process = AsyncMock(return_value=None)
-    with patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+
+        import powershell_evidence_endpoints as mod
+        from authentication_service import get_optional_user
+
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.dependency_overrides[get_optional_user] = lambda: user
+
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post(
             "/api/powershell-evidence/submit",
@@ -313,28 +249,20 @@ def test_submit_cross_tenant_rejected():
 
 def test_submit_empty_checks_returns_400():
     """checks: [] → 422 Unprocessable Entity from Pydantic min_length=1 validation."""
-    import powershell_evidence_endpoints as mod
-
-    mock_tenants = MagicMock()
-    mock_tenants.find_one = AsyncMock(return_value=_make_tenant_doc())
-
-    mock_db_inner = MagicMock()
-    mock_db_inner.tenants = mock_tenants
-
-    mock_db = MagicMock()
-    mock_db._db = mock_db_inner
-
+    mock_db = _make_mock_db(tenant_doc=_make_tenant_doc())
     user = _make_user("tenant-a", "User")
-
-    app = FastAPI()
-    app.include_router(mod.router)
-
-    from authentication_service import get_optional_user
-    app.dependency_overrides[get_optional_user] = lambda: user
-    app.dependency_overrides[mod.get_database] = lambda: mock_db
-
     mock_process = AsyncMock(return_value=None)
-    with patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+
+    with patch("powershell_evidence_endpoints.get_database", return_value=mock_db), \
+         patch("powershell_evidence_endpoints.process_automated_evidence", mock_process):
+
+        import powershell_evidence_endpoints as mod
+        from authentication_service import get_optional_user
+
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.dependency_overrides[get_optional_user] = lambda: user
+
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post(
             "/api/powershell-evidence/submit",

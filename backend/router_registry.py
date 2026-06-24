@@ -140,6 +140,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "compliance_bulk_evidence_endpoints", "router")
     _load(app, "compliance_score_endpoints", "router")
     _load(app, "saas_integration_endpoints", "router")
+    _load(app, "powershell_evidence_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
