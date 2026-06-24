@@ -203,6 +203,11 @@ tenant_key: $TenantKey
 # Heartbeat interval in seconds (default: 30)
 heartbeat_interval: 30
 
+# Evidence Collection
+evidence_collection: true
+evidence_interval_hours: 24
+evidence_submit_url: $ApiUrl/api/powershell-evidence/submit
+
 # Capabilities to enable (remove a line to disable that capability)
 enabled_capabilities:
   - metrics

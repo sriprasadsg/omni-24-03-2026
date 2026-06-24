@@ -1,7 +1,6 @@
 import os
 import secrets
 import shutil
-import tempfile
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -9,400 +8,417 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, R
 from fastapi.responses import Response
 from database import mongodb
 from authentication_service import get_current_user, get_optional_user
-import yaml
 from typing import Optional, Dict, Any
+import yaml
+
+from agent_installer_builders import (
+    build_exe, build_msi, build_windows_zip, cleanup_temp_dir,
+)
+from agent_rust_builder import build_rust_exe
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/agent", tags=["Agent Management"])
 
+_SUPER_ROLES = {"super admin", "superadmin", "super_admin", "platform-admin"}
+_TENANT_ROLES = {"tenant admin", "tenant_admin", "admin"}
+
+
+def _check_auth(tenant_id: str, role: str, user_tenant: Optional[str]) -> None:
+    r = (role or "").strip().lower()
+    if r not in _SUPER_ROLES and not (user_tenant == tenant_id and r in _TENANT_ROLES):
+        raise HTTPException(status_code=403, detail="Unauthorized to download agent for this tenant")
+
+
 async def _cleanup_expired_tokens() -> None:
-    """Remove expired tokens from the DB. Best-effort; failures are non-fatal."""
     try:
-        db = mongodb.db
-        await db.agent_download_tokens.delete_many(
+        await mongodb.db.agent_download_tokens.delete_many(
             {"expires_at": {"$lt": datetime.now(timezone.utc).isoformat()}}
         )
     except Exception:
         pass
 
 
-_DOWNLOAD_SUPER_ROLES = {"super admin", "superadmin", "super_admin", "platform-admin"}
-_DOWNLOAD_TENANT_ROLES = {"tenant admin", "tenant_admin", "admin"}
+async def _resolve_url(request: Request, api_url: Optional[str]) -> str:
+    if api_url:
+        from urllib.parse import urlparse
+        p = urlparse(api_url)
+        if p.scheme not in {"http", "https"} or not p.netloc:
+            raise HTTPException(status_code=400, detail="Invalid api_url: must be absolute http/https")
+        return api_url.rstrip("/")
+    if os.getenv("PLATFORM_URL"):
+        return os.getenv("PLATFORM_URL").rstrip("/")
+    host = request.headers.get("host", "")
+    hostname = host.split(":")[0] if host else ""
+    if not hostname or hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        raise HTTPException(
+            status_code=400,
+            detail="Set PLATFORM_URL to the public backend address before downloading agents.",
+        )
+    return f"http://{hostname}:5000"
 
-def _check_download_auth(tenant_id: str, user_role: str, user_tenant: Optional[str]) -> None:
-    """Raise 403 if user is not allowed to download the given tenant's agent."""
-    role_lower = (user_role or "").strip().lower()
-    is_super_admin = role_lower in _DOWNLOAD_SUPER_ROLES
-    is_own_tenant = (user_tenant == tenant_id) and (role_lower in _DOWNLOAD_TENANT_ROLES)
-    if not is_super_admin and not is_own_tenant:
-        raise HTTPException(status_code=403, detail="Unauthorized to download agent for this tenant")
 
+async def _auth_from_token(tenant_id: str, download_token: str):
+    await _cleanup_expired_tokens()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # Accept both snake_case (API-created) and camelCase (direct-insert) field names
+    tok = await mongodb.db.agent_download_tokens.find_one_and_delete({
+        "token": download_token,
+        "$or": [
+            {"expires_at": {"$gt": now_iso}},
+            {"expiresAt": {"$gt": datetime.now(timezone.utc)}},
+        ],
+    })
+    if not tok:
+        raise HTTPException(status_code=401, detail="Invalid or expired download token")
+    tok_tenant = tok.get("tenant_id") or tok.get("tenantId") or ""
+    if tok_tenant and tok_tenant != tenant_id:
+        raise HTTPException(status_code=403, detail="Token tenant mismatch")
+    return tok.get("user_role", "tenant_admin"), tok.get("user_tenant", tenant_id)
+
+
+async def _get_tenant(tenant_id: str):
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    reg_key = tenant.get("registrationKey") or ""
+    if not reg_key:
+        reg_key = f"reg_{secrets.token_hex(16)}"
+        await mongodb.db.tenants.update_one({"id": tenant_id}, {"$set": {"registrationKey": reg_key}})
+    return tenant.get("name", tenant_id), reg_key
+
+
+# ── One-time download token ────────────────────────────────────────────────────
 
 @router.post("/download-token/{tenant_id}")
-async def create_download_token(
-    tenant_id: str,
-    current_user=Depends(get_current_user),
-):
-    """
-    Returns a 60-second one-time token that can be used to trigger the
-    agent ZIP download via a direct browser navigation (window.location.href),
-    avoiding fetch()+blob proxy limitations in the Vite dev server.
-    """
-    user_role = getattr(current_user, "role", "")
-    user_tenant = getattr(current_user, "tenant_id", None)
-    _check_download_auth(tenant_id, user_role, user_tenant)
-
+async def create_download_token(tenant_id: str, current_user=Depends(get_current_user)):
+    role = getattr(current_user, "role", "")
+    ut = getattr(current_user, "tenant_id", None)
+    _check_auth(tenant_id, role, ut)
     await _cleanup_expired_tokens()
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=60)
     await mongodb.db.agent_download_tokens.insert_one({
-        "token": token,
-        "tenant_id": tenant_id,
-        "user_role": user_role,
-        "user_tenant": user_tenant,
-        "expires_at": expires_at.isoformat(),
+        "token": token, "tenant_id": tenant_id, "user_role": role,
+        "user_tenant": ut, "expires_at": expires_at.isoformat(),
     })
     return {"token": token}
 
-DEFAULT_PLATFORM_URL = os.getenv("PLATFORM_URL", "")
 
-if not DEFAULT_PLATFORM_URL:
-    logger.warning(
-        "[AgentDownload] PLATFORM_URL is not set. Agent config will use an auto-detected URL "
-        "which may resolve to localhost in some environments. Set PLATFORM_URL in your .env "
-        "to the public backend address (e.g. https://api.example.com) before distributing agents."
-    )
-
-def cleanup_temp_dir(dir_path: str):
-    """Background task to securely remove the temporary directory and zip archive."""
-    try:
-        shutil.rmtree(dir_path, ignore_errors=True)
-        logger.debug("Cleaned up temporary directory: %s", dir_path)
-    except Exception as e:
-        logger.error("Failed to clean up temp dir %s: %s", dir_path, e)
+# ── Main download endpoint (Linux ZIP / Windows EXE) ──────────────────────────
 
 @router.get("/download/{tenant_id}")
-async def download_tenant_agent(
-    tenant_id: str,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    api_url: Optional[str] = Query(None, description="Backend API base URL to embed in agent config. If omitted, auto-detected from request or PLATFORM_URL env var."),
-    download_token: Optional[str] = Query(None, description="One-time token from POST /api/agent/download-token/{tenant_id}. Use instead of Bearer auth for direct browser navigation."),
+async def download_agent(
+    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
+    api_url: Optional[str] = Query(None),
+    download_token: Optional[str] = Query(None),
+    platform: Optional[str] = Query("linux"),
     current_user=Depends(get_optional_user),
 ):
     """
-    Dynamically generates a `.zip` archive containing the `agent/` folder
-    with a customized `config.yaml` using the specified tenant's registration key.
-
-    Authentication: Bearer header (normal API call) or ?download_token=... (direct browser nav).
-    The `api_url` query parameter controls what backend URL the agent will point to.
-    Priority: api_url param > PLATFORM_URL env var > auto-detect from request origin > localhost fallback.
+    Download agent package.
+    - platform=linux  (default): Python agent ZIP
+    - platform=windows: Windows EXE installer (requires makensis on server)
     """
-    # 1. Verify authorization — accept either JWT bearer (current_user) or one-time download token
     if download_token:
-        await _cleanup_expired_tokens()
-        db = mongodb.db
-        token_data = await db.agent_download_tokens.find_one_and_delete(
-            {"token": download_token, "expires_at": {"$gt": datetime.now(timezone.utc).isoformat()}}
-        )
-        if not token_data:
-            raise HTTPException(status_code=401, detail="Invalid or expired download token")
-        if token_data["tenant_id"] != tenant_id:
-            raise HTTPException(status_code=403, detail="Token tenant mismatch")
-        user_role = token_data["user_role"]
-        user_tenant = token_data["user_tenant"]
+        role, ut = await _auth_from_token(tenant_id, download_token)
     else:
-        user_role = getattr(current_user, "role", "")
-        user_tenant = getattr(current_user, "tenant_id", None)
+        role = getattr(current_user, "role", "")
+        ut = getattr(current_user, "tenant_id", None)
+    _check_auth(tenant_id, role, ut)
 
-    _check_download_auth(tenant_id, user_role, user_tenant)
+    resolved_url = await _resolve_url(request, api_url)
+    tenant_name, reg_key = await _get_tenant(tenant_id)
 
-    # 2. Resolve the API Base URL to embed in config.yaml
-    if api_url:
-        from urllib.parse import urlparse as _urlparse
-        _parsed = _urlparse(api_url)
-        if _parsed.scheme not in {"http", "https"} or not _parsed.netloc:
-            raise HTTPException(status_code=400, detail="Invalid api_url: must be an absolute http/https URL")
-        resolved_url = api_url.rstrip("/")
-    elif os.getenv("PLATFORM_URL"):
-        resolved_url = os.getenv("PLATFORM_URL").rstrip("/")
-    else:
-        # Auto-detect from request host header
-        host = request.headers.get("host", "")
-        hostname = host.split(":")[0] if host else ""
-        if not hostname or hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Cannot generate agent config: PLATFORM_URL is not set and the request "
-                    "host resolves to localhost. Set PLATFORM_URL to the public backend address "
-                    "(e.g. https://api.example.com) in your environment before downloading agents."
-                ),
-            )
-        resolved_url = f"http://{hostname}:5000"
-
-    logger.info("Generating agent zip for tenant %s with api_base_url=%s", tenant_id, resolved_url)
-    # Audit log
     try:
-        from database import get_database as _get_db
-        _adb = _get_db()
-        await _adb.audit_logs.insert_one({
-            "action": "agent.downloaded",
-            "actor": user_role,
-            "target": tenant_id,
-            "tenant_id": user_tenant or tenant_id,
+        from database import get_database as _gdb
+        _db = _gdb()
+        await _db.audit_logs.insert_one({
+            "action": "agent.downloaded", "actor": role, "target": tenant_id,
+            "tenant_id": ut or tenant_id, "platform": platform or "linux",
             "ip": request.client.host if request.client else "unknown",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
-    except Exception as e:
-        logger.debug("Audit log write failed (non-fatal): %s", e)
+    except Exception as exc:
+        logger.debug("Audit log write failed: %s", exc)
 
-    # 3. Fetch Tenant Data
-    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
+    if (platform or "linux").lower() == "windows":
+        base_dir = Path(__file__).parent.parent
+        if shutil.which("makensis"):
+            return await build_exe(tenant_id, tenant_name, reg_key, resolved_url,
+                                   background_tasks, base_dir)
+        logger.warning("makensis not found; falling back to Windows ZIP for tenant %s", tenant_id)
+        return await build_windows_zip(tenant_id, tenant_name, reg_key, resolved_url,
+                                       background_tasks, base_dir)
 
-    registration_key = tenant.get("registrationKey") or ""
-    if not registration_key:
-        registration_key = f"reg_{secrets.token_hex(16)}"
-        await mongodb.db.tenants.update_one(
-            {"id": tenant_id},
-            {"$set": {"registrationKey": registration_key}},
-        )
-
-    tenant_name = tenant.get("name", tenant_id)
-
-    # 4. Locate Source Agent Directory
+    # Linux: Python agent ZIP
     base_dir = Path(__file__).parent.parent
-    agent_src_dir = base_dir / "agent"
-
-    if not agent_src_dir.exists() or not agent_src_dir.is_dir():
+    agent_src = base_dir / "agent"
+    if not agent_src.is_dir():
         raise HTTPException(status_code=500, detail="Source agent directory not found on server")
 
-    # 5. Create Temporary Workspace
+    import tempfile
     temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_agent_{tenant_id}_"))
-    agent_dest_dir = temp_dir / "agent"
-
+    agent_dest = temp_dir / "agent"
     try:
-        # 6. Copy Agent Files (Excluding existing configs/keys/db/pycache/venv)
-        shutil.copytree(
-            agent_src_dir,
-            agent_dest_dir,
-            ignore=shutil.ignore_patterns(
-                '__pycache__', '*.pyc', 'config.yaml', '*.key', '*.db',
-                '*.log', 'venv', '.venv', 'node_modules', 'buffer.db'
-            )
+        shutil.copytree(agent_src, agent_dest, ignore=shutil.ignore_patterns(
+            "__pycache__", "*.pyc", "config.yaml", "*.key", "*.db", "*.log",
+            "venv", ".venv", "node_modules", "buffer.db",
+        ))
+        from agent_installer_builders import _config_yaml
+        with open(agent_dest / "config.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(_config_yaml(resolved_url, reg_key), f, default_flow_style=False, sort_keys=True)
+
+        readme = (
+            f"# OmniAgent — {tenant_name}\n\n"
+            "1. cd agent\n"
+            "2. pip install -r requirements.txt\n"
+            "3. python agent.py\n\n"
+            f"API: {resolved_url}\n"
         )
+        (agent_dest / "README.md").write_text(readme)
 
-        # 7. Generate Tenant-Specific config.yaml
-        # agent_id and agent_token are null until the agent registers on first run;
-        # the agent writes them back to config.yaml after successful registration.
-        config_data = {
-            "agent_id": None,
-            "agent_token": None,
-            "api_base_url": resolved_url,
-            "interval_seconds": 5,
-            "registration_key": registration_key,
-        }
+        zip_name = f"omni-agent-{tenant_name.replace(' ', '-').lower()}"
+        zip_base = str(temp_dir / zip_name)
+        shutil.make_archive(zip_base, "zip", root_dir=str(temp_dir), base_dir="agent")
+        content = Path(f"{zip_base}.zip").read_bytes()
 
-        config_path = agent_dest_dir / "config.yaml"
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(config_data, f, default_flow_style=False, sort_keys=True)
-
-        # 8. Add a README with instructions
-        readme_content = f"""# OmniAgent — {tenant_name}
-
-Pre-configured agent package for tenant: **{tenant_name}**
-
-## Quick Start
-
-1. Ensure Python 3.9+ is installed on the target machine.
-2. Navigate into this folder:
-   ```
-   cd agent
-   ```
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Run the agent:
-   ```
-   python agent.py
-   ```
-
-The agent is pre-configured and will automatically register with the platform on its first run.
-- **API Base URL**: `{resolved_url}`
-
-⚠️  Keep this ZIP secure — it contains pre-configured credentials for your tenant.
-"""
-        readme_path = agent_dest_dir / "README.md"
-        with open(readme_path, "w", encoding="utf-8") as f:
-            f.write(readme_content)
-
-        # 9. Create Zip Archive
-        zip_filename = f"omni-agent-{tenant_name.replace(' ', '-').lower()}"
-        zip_base_name = temp_dir / zip_filename
-        shutil.make_archive(
-            base_name=str(zip_base_name),
-            format="zip",
-            root_dir=temp_dir,
-            base_dir="agent"
-        )
-
-        zip_file_path = f"{zip_base_name}.zip"
-
-        if not os.path.exists(zip_file_path):
-            raise Exception("Zip archive creation failed")
-
-        # 10. Read zip into memory
-        with open(zip_file_path, "rb") as f:
-            zip_content = f.read()
-
-        # 11. Dispatch Background Cleanup
         background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
-
-        # 12. Return File Stream
-        download_filename = f"{zip_filename}.zip"
-        return Response(
-            content=zip_content,
-            media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{download_filename}"'}
-        )
-
+        return Response(content=content, media_type="application/zip",
+                        headers={"Content-Disposition": f'attachment; filename="{zip_name}.zip"'})
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("Failed to package agent zip: %s", e)
+    except Exception as exc:
+        logger.error("Linux ZIP build failed: %s", exc)
         background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-# ── Agent Command Dispatch ─────────────────────────────────────────────────────
+# ── MSI download endpoint ─────────────────────────────────────────────────────
+
+@router.get("/download/{tenant_id}/msi")
+async def download_agent_msi(
+    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
+    api_url: Optional[str] = Query(None),
+    download_token: Optional[str] = Query(None),
+    current_user=Depends(get_optional_user),
+):
+    """Build and return a Windows MSI installer (requires wixl / msitools on server)."""
+    if download_token:
+        role, ut = await _auth_from_token(tenant_id, download_token)
+    else:
+        role = getattr(current_user, "role", "")
+        ut = getattr(current_user, "tenant_id", None)
+    _check_auth(tenant_id, role, ut)
+
+    resolved_url = await _resolve_url(request, api_url)
+    tenant_name, reg_key = await _get_tenant(tenant_id)
+    base_dir = Path(__file__).parent.parent
+
+    if shutil.which("wixl"):
+        return await build_msi(tenant_id, tenant_name, reg_key, resolved_url,
+                                background_tasks, base_dir)
+    # wixl not available — use NSIS EXE installer as fallback (still a proper installer)
+    if shutil.which("makensis"):
+        logger.info("wixl not found; using NSIS EXE for MSI endpoint for tenant %s", tenant_id)
+        return await build_exe(tenant_id, tenant_name, reg_key, resolved_url,
+                               background_tasks, base_dir)
+    logger.warning("Neither wixl nor makensis found; falling back to Windows ZIP for tenant %s", tenant_id)
+    return await build_windows_zip(tenant_id, tenant_name, reg_key, resolved_url,
+                                   background_tasks, base_dir)
+
+
+# ── Rust EXE download endpoint ────────────────────────────────────────────────
+
+@router.get("/download/{tenant_id}/rust-exe")
+async def download_rust_agent(
+    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
+    api_url: Optional[str] = Query(None),
+    download_token: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),            # alias — same as download_token
+    current_user=Depends(get_optional_user),
+):
+    """Build and return the Rust Windows EXE installer (~3–5 MB, no Python required)."""
+    tok = download_token or token
+    if tok:
+        role, ut = await _auth_from_token(tenant_id, tok)
+    else:
+        role = getattr(current_user, "role", "")
+        ut = getattr(current_user, "tenant_id", None)
+    _check_auth(tenant_id, role, ut)
+
+    resolved_url = await _resolve_url(request, api_url)
+    tenant_name, reg_key = await _get_tenant(tenant_id)
+    base_dir = Path(__file__).parent.parent
+
+    try:
+        from database import get_database as _gdb
+        await _gdb().audit_logs.insert_one({
+            "action": "agent.downloaded", "actor": role, "target": tenant_id,
+            "tenant_id": ut or tenant_id, "platform": "windows-rust",
+            "ip": request.client.host if request.client else "unknown",
+            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        logger.debug("Audit log write failed: %s", exc)
+
+    return await build_rust_exe(tenant_id, tenant_name, reg_key, resolved_url, background_tasks, base_dir)
+
+
+# ── Rust raw binary download (in-place update, preserves config.yaml) ────────
+
+@router.get("/download/{tenant_id}/rust-binary")
+async def download_rust_binary(
+    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
+    download_token: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),            # alias
+    current_user=Depends(get_optional_user),
+):
+    """Return just the raw omni-agent.exe for in-place updates.
+    Preserves the existing config.yaml on the endpoint — no re-registration needed."""
+    tok = download_token or token
+    if tok:
+        role, ut = await _auth_from_token(tenant_id, tok)
+    else:
+        role = getattr(current_user, "role", "")
+        ut = getattr(current_user, "tenant_id", None)
+    _check_auth(tenant_id, role, ut)
+
+    base_dir = Path(__file__).parent.parent
+    rust_src = base_dir / "agent-rust"
+    if not rust_src.is_dir():
+        raise HTTPException(status_code=503, detail="agent-rust source directory not found")
+
+    from agent_rust_builder import _ensure_rust_binary
+    binary = await _ensure_rust_binary(rust_src)
+    content = binary.read_bytes()
+
+    try:
+        from database import get_database as _gdb
+        await _gdb().audit_logs.insert_one({
+            "action": "agent.binary_downloaded", "actor": role, "target": tenant_id,
+            "tenant_id": ut or tenant_id, "platform": "windows-rust-raw",
+            "ip": request.client.host if request.client else "unknown",
+            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="omni-agent.exe"'},
+    )
+
+
+# ── Agent command dispatch ─────────────────────────────────────────────────────
 
 @router.post("/deploy")
-async def agent_deploy_command(
-    payload: Dict[str, Any],
-    current_user=Depends(get_current_user),
-):
-    """
-    Dispatch a command to one or more agents via the agent_instructions queue.
-    Used by AssetDetail (RDP enable/disable) and SoftwareDeployment.
-    Body: { agentIds: [...], action: str, packageId?: str, config?: dict }
-    """
+async def agent_deploy(payload: Dict[str, Any], current_user=Depends(get_current_user)):
+    """Dispatch a command to one or more agents via the agent_instructions queue."""
     from database import get_database
-    import uuid
+    import uuid as _uuid
 
     agent_ids = (payload.get("agentIds") or payload.get("agent_ids") or [])[:500]
     action = payload.get("action", "")
-    package_id = payload.get("packageId") or payload.get("package_id", "")
-
     if not agent_ids or not action:
         raise HTTPException(status_code=400, detail="agentIds and action are required")
 
     db = get_database()
     caller_role = getattr(current_user, "role", "")
     caller_tenant = getattr(current_user, "tenant_id", None)
-    _DEPLOY_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
-
-    task_id = f"deploy-{uuid.uuid4().hex[:10]}"
+    _SUPER = {"Super Admin", "super_admin", "platform-admin"}
+    task_id = f"deploy-{_uuid.uuid4().hex[:10]}"
     now = datetime.now(timezone.utc).isoformat()
 
-    # Batch-fetch all agents in one query instead of one find_one per agent_id
     batch_filter: dict = {"id": {"$in": agent_ids}}
-    if caller_role not in _DEPLOY_SUPER_ROLES and caller_tenant:
+    if caller_role not in _SUPER and caller_tenant:
         batch_filter["tenantId"] = caller_tenant
-    agent_docs = await db.agents.find(batch_filter, {"id": 1}).to_list(length=500)
-    valid_agent_ids = {doc["id"] for doc in agent_docs}
+    docs = await db.agents.find(batch_filter, {"id": 1}).to_list(length=500)
+    valid_ids = {d["id"] for d in docs}
 
-    instructions = []
-    for agent_id in agent_ids:
-        if agent_id not in valid_agent_ids:
-            continue  # skip agents not in caller's tenant
-        instructions.append({
-            "id": f"instr-{uuid.uuid4().hex[:10]}",
-            "task_id": task_id,
-            "agent_id": agent_id,
-            "instruction": action,
-            "package_id": package_id,
-            "config": payload.get("config", {}),
-            "status": "pending",
+    instructions = [
+        {
+            "id": f"instr-{_uuid.uuid4().hex[:10]}",
+            "task_id": task_id, "agent_id": aid, "instruction": action,
+            "package_id": payload.get("packageId") or payload.get("package_id", ""),
+            "config": payload.get("config", {}), "status": "pending",
             "created_at": now,
             "created_by": getattr(current_user, "username", str(current_user)),
-        })
-
+        }
+        for aid in agent_ids if aid in valid_ids
+    ]
     if instructions:
         await db.agent_instructions.insert_many(instructions)
 
-    return {
-        "task_id": task_id,
-        "agents_targeted": len(agent_ids),
-        "action": action,
-        "status": "queued",
-    }
+    return {"task_id": task_id, "agents_targeted": len(agent_ids), "action": action, "status": "queued"}
 
 
-# ── Agent Install Instructions ─────────────────────────────────────────────────
+# ── Windows PowerShell installer script ───────────────────────────────────────
+
+@router.get("/install-script")
+async def serve_install_script():
+    """Serve the Windows Rust service installer script (no auth required)."""
+    script_path = Path(__file__).parent / "static" / "win-install.ps1"
+    if not script_path.is_file():
+        raise HTTPException(status_code=503, detail="Installer script not found on server")
+    content = script_path.read_text(encoding="utf-8")
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="install-service.ps1"'},
+    )
+
+
+@router.get("/collect-evidence-script")
+async def serve_collect_evidence_script():
+    """Serve the Windows PowerShell evidence collector script (no auth required)."""
+    script_path = Path(__file__).parent / "static" / "Collect-Evidence.ps1"
+    if not script_path.is_file():
+        raise HTTPException(status_code=503, detail="Evidence collector script not found on server")
+    content = script_path.read_text(encoding="utf-8")
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="Collect-Evidence.ps1"'},
+    )
+
+
+# ── Install instructions ───────────────────────────────────────────────────────
 
 @router.get("/install/{tenant_id}")
-async def get_agent_install_instructions(
-    tenant_id: str,
-    request: Request,
-    current_user=Depends(get_optional_user),
+async def get_install_instructions(
+    tenant_id: str, request: Request, current_user=Depends(get_optional_user),
 ):
-    """
-    Return agent installation instructions for a tenant.
-    Includes the registration key, platform URL, and multi-platform install commands.
-    Tests: B8 — GET /api/agents/install/:tenant_id
-    """
-    _check_download_auth(
+    """Return multi-platform installation instructions for a tenant."""
+    _check_auth(
         tenant_id,
         getattr(current_user, "role", "") if current_user else "",
         getattr(current_user, "tenant_id", None) if current_user else None,
     )
-
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     reg_key = tenant.get("registrationKey") or ""
     if not reg_key:
-        # Tenant was created before registrationKey was introduced — generate and persist one now.
         reg_key = f"reg_{secrets.token_hex(16)}"
-        await mongodb.db.tenants.update_one(
-            {"id": tenant_id},
-            {"$set": {"registrationKey": reg_key}},
-        )
+        await mongodb.db.tenants.update_one({"id": tenant_id}, {"$set": {"registrationKey": reg_key}})
 
-    platform_url = os.getenv("PLATFORM_URL", "").rstrip("/") or f"http://{request.headers.get('host', 'localhost:5000')}"
-
-    download_url = f"{platform_url}/api/agent/download/{tenant_id}"
-    linux_install = (
-        f"curl -sSL {download_url} -o agent.zip && "
-        "unzip agent.zip && cd agent && "
-        f"python agent.py --api-url {platform_url} --registration-key {reg_key}"
-    )
-    windows_install = (
-        f"Invoke-WebRequest -Uri '{download_url}' -OutFile agent.zip; "
-        "Expand-Archive agent.zip -DestinationPath agent; "
-        f"cd agent; python agent.py --api-url {platform_url} --registration-key {reg_key}"
-    )
+    platform_url = os.getenv("PLATFORM_URL", "").rstrip("/") or \
+        f"http://{request.headers.get('host', 'localhost:5000')}"
+    dl = f"{platform_url}/api/agent/download/{tenant_id}"
 
     return {
         "tenant_id": tenant_id,
         "tenant_name": tenant.get("name", ""),
         "registration_key": reg_key,
         "platform_url": platform_url,
-        "download_url": download_url,
+        "download_url": dl,
         "instructions": {
-            "linux": linux_install,
-            "windows": windows_install,
-            "docker": (
-                f"docker run -d --name omni-agent "
-                f"-e PLATFORM_URL={platform_url} "
-                f"-e REGISTRATION_KEY={reg_key} "
-                "ghcr.io/omni-agent/agent:latest"
-            ),
+            "linux": f"curl -sSL {dl} -o agent.zip && unzip agent.zip && cd agent && pip install -r requirements.txt && python agent.py",
+            "windows": f"Invoke-WebRequest -Uri '{dl}?platform=windows' -OutFile OmniAgent-Setup.exe; .\\OmniAgent-Setup.exe",
+            "windows_msi": f"Invoke-WebRequest -Uri '{dl}/msi' -OutFile OmniAgent-Setup.msi; msiexec /i OmniAgent-Setup.msi /qn",
+            "docker": f"docker run -d --name omni-agent -e PLATFORM_URL={platform_url} -e REGISTRATION_KEY={reg_key} ghcr.io/omni-agent/agent:latest",
         },
         "requirements": ["Python 3.10+", "pip install -r requirements.txt"],
     }

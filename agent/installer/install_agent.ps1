@@ -221,6 +221,31 @@ if (-not (Test-Path $TargetCfg)) {
     }
 }
 
+# ── Evidence Collection Setup ──────────────────────────────────────────────────
+Write-Step "Setting up PowerShell evidence collection"
+
+$ApiUrl         = [System.Environment]::GetEnvironmentVariable("OMNI_API_URL", "Machine")
+$EvidenceScript = Join-Path $InstallDir "Collect-Evidence.ps1"
+# Copy from distribution folder if present, else download
+$DistEvidence = Join-Path (Split-Path -Parent $ScriptDir) "Collect-Evidence.ps1"
+if (Test-Path $DistEvidence) {
+    Copy-Item $DistEvidence $EvidenceScript -Force
+    Write-OK "Collect-Evidence.ps1 copied from distribution."
+} elseif ($ApiUrl) {
+    try {
+        Invoke-WebRequest -Uri "$ApiUrl/api/agent/collect-evidence-script" -OutFile $EvidenceScript -UseBasicParsing -ErrorAction Stop
+        Write-OK "Collect-Evidence.ps1 downloaded from platform."
+    } catch { Write-Warn "Could not obtain Collect-Evidence.ps1: $_" }
+}
+
+if (Test-Path $EvidenceScript) {
+    $action    = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$EvidenceScript`""
+    $trigger   = New-ScheduledTaskTrigger -Daily -At "06:00"
+    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+    Register-ScheduledTask -TaskName "OmniAgentEvidenceCollection" -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
+    Write-OK "Evidence collection scheduled (daily 06:00 SYSTEM)."
+}
+
 # ── Environment variables ─────────────────────────────────────────────────────
 Write-Step "Setting environment variables"
 

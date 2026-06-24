@@ -18,11 +18,9 @@
     Stop and remove the service and installation directory.
 
 .EXAMPLE
-    # Install
     .\install-service.ps1 -ApiUrl https://platform.example.com -RegistrationKey reg_abc123
 
 .EXAMPLE
-    # Uninstall
     .\install-service.ps1 -Uninstall
 #>
 
@@ -38,20 +36,18 @@ $ErrorActionPreference = "Stop"
 
 $ServiceName = "OmniAgentRust"
 $DisplayName = "Enterprise OmniAgent (Rust)"
-$Description = "Enterprise security compliance agent — collects evidence, runs CISSP/PCI/ISO checks."
+$Description = "Enterprise security compliance agent - collects evidence, runs CISSP/PCI/ISO checks."
 $InstallDir  = "$env:ProgramFiles\OmniAgent"
-$ExeName     = "enterprise-omni-agent.exe"
+$ExeName     = "omni-agent.exe"
 $ExeDst      = Join-Path $InstallDir $ExeName
 $ConfigDst   = Join-Path $InstallDir "config.yaml"
 $LogDir      = Join-Path $InstallDir "logs"
 
-# ── Helper ────────────────────────────────────────────────────────────────────
-
 function Write-Step([string]$msg) { Write-Host "  > $msg" -ForegroundColor Cyan }
-function Write-Ok([string]$msg)   { Write-Host "  ✓ $msg" -ForegroundColor Green }
+function Write-Ok([string]$msg)   { Write-Host "  + $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
 
-# ── Uninstall path ─────────────────────────────────────────────────────────────
+# --- Uninstall -----------------------------------------------------------
 
 if ($Uninstall) {
     Write-Host "`n[OmniAgent] Uninstalling service..." -ForegroundColor Magenta
@@ -65,7 +61,7 @@ if ($Uninstall) {
         & sc.exe delete $ServiceName | Out-Null
         Write-Ok "Service removed."
     } else {
-        Write-Warn "Service '$ServiceName' not found — skipping."
+        Write-Warn "Service '$ServiceName' not found - skipping."
     }
 
     if (Test-Path $InstallDir) {
@@ -78,26 +74,28 @@ if ($Uninstall) {
     exit 0
 }
 
-# ── Install path ───────────────────────────────────────────────────────────────
+# --- Install -------------------------------------------------------------
 
 Write-Host "`n[OmniAgent] Installing Windows service..." -ForegroundColor Magenta
 
 # 1. Locate the EXE next to this script (or in target\release\)
-$ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ExeSrc      = $null
-$candidates  = @(
-    Join-Path $ScriptDir $ExeName,
-    Join-Path $ScriptDir "target\release\$ExeName",
-    Join-Path $ScriptDir "target\x86_64-pc-windows-msvc\release\$ExeName"
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ExeSrc     = $null
+$candidates = @(
+    (Join-Path $ScriptDir $ExeName),
+    (Join-Path $ScriptDir "target\release\$ExeName"),
+    (Join-Path $ScriptDir "target\x86_64-pc-windows-msvc\release\$ExeName")
 )
 foreach ($c in $candidates) {
     if (Test-Path $c) { $ExeSrc = $c; break }
 }
 
 if (-not $ExeSrc) {
-    Write-Host "`nERROR: Cannot find $ExeName.`n  Looked in:`n" -ForegroundColor Red
+    Write-Host "`nERROR: Cannot find $ExeName." -ForegroundColor Red
+    Write-Host "  Looked in:" -ForegroundColor Red
     $candidates | ForEach-Object { Write-Host "    $_" }
-    Write-Host "`n  Build first:  cargo build --release`n  Then re-run this script.`n" -ForegroundColor Yellow
+    Write-Host "`n  Build first:  cargo build --release" -ForegroundColor Yellow
+    Write-Host "  Then re-run this script.`n" -ForegroundColor Yellow
     exit 1
 }
 
@@ -114,29 +112,53 @@ if ($existing) {
 
 # 3. Create install directory
 Write-Step "Creating $InstallDir ..."
-New-Item -ItemType Directory -Force -Path $InstallDir  | Out-Null
-New-Item -ItemType Directory -Force -Path $LogDir      | Out-Null
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+New-Item -ItemType Directory -Force -Path $LogDir     | Out-Null
 
 # 4. Copy binary
 Write-Step "Copying $ExeName ..."
 Copy-Item -Path $ExeSrc -Destination $ExeDst -Force
 Write-Ok "Binary installed: $ExeDst"
 
-# 5. Write config.yaml (next to EXE — matches config.rs path logic)
+# 5. Write config.yaml (next to EXE - matches config.rs path logic)
 if (-not (Test-Path $ConfigDst) -or $RegistrationKey) {
     Write-Step "Writing config.yaml ..."
-    $config = @"
+    Set-Content -Path $ConfigDst -Encoding UTF8 -Value @"
 api_base_url: $ApiUrl
 registration_key: $RegistrationKey
 interval_seconds: 60
+evidence_collection: true
+evidence_interval_hours: 24
 "@
-    Set-Content -Path $ConfigDst -Value $config -Encoding UTF8
     Write-Ok "Config written: $ConfigDst"
 } else {
-    Write-Warn "config.yaml already exists — skipping (use -RegistrationKey to overwrite)."
+    Write-Warn "config.yaml already exists - skipping (use -RegistrationKey to overwrite)."
 }
 
-# 6. Create service — LocalSystem = SYSTEM account (full admin, no PATH stripping issues)
+# 5b. Download Collect-Evidence.ps1 from platform
+$EvidenceScript = Join-Path $InstallDir "Collect-Evidence.ps1"
+Write-Step "Downloading Collect-Evidence.ps1..."
+try {
+    Invoke-WebRequest -Uri "$ApiUrl/api/agent/collect-evidence-script" `
+        -OutFile $EvidenceScript -UseBasicParsing -ErrorAction Stop
+    Write-Ok "Evidence collector installed: $EvidenceScript"
+} catch {
+    Write-Warn "Could not download Collect-Evidence.ps1: $_"
+}
+
+# 5c. Register daily scheduled task for evidence collection
+Write-Step "Registering scheduled task..."
+if (Test-Path $EvidenceScript) {
+    $action    = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$EvidenceScript`""
+    $trigger   = New-ScheduledTaskTrigger -Daily -At "06:00"
+    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+    $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 1) -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 5)
+    Register-ScheduledTask -TaskName "OmniAgentEvidenceCollection" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+    Write-Ok "Scheduled task registered (daily 06:00, SYSTEM)."
+}
+
+# 6. Create service - LocalSystem = SYSTEM account (full admin, no PATH stripping issues)
 Write-Step "Creating Windows service '$ServiceName' ..."
 & sc.exe create $ServiceName `
     binPath= "`"$ExeDst`"" `
@@ -144,7 +166,6 @@ Write-Step "Creating Windows service '$ServiceName' ..."
     obj= LocalSystem `
     DisplayName= $DisplayName | Out-Null
 
-# Set description
 & sc.exe description $ServiceName $Description | Out-Null
 
 # Configure failure recovery: restart after 5 s, 3 consecutive failures
@@ -161,9 +182,9 @@ Write-Ok "Delayed auto-start configured."
 Write-Step "Setting ACL on binary..."
 $acl = Get-Acl $ExeDst
 $acl.SetAccessRuleProtection($true, $false)
-$sysRule  = New-Object System.Security.AccessControl.FileSystemAccessRule(
+$sysRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
     "NT AUTHORITY\SYSTEM", "FullControl", "Allow")
-$admRule  = New-Object System.Security.AccessControl.FileSystemAccessRule(
+$admRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
     "BUILTIN\Administrators", "ReadAndExecute", "Allow")
 $acl.AddAccessRule($sysRule)
 $acl.AddAccessRule($admRule)
@@ -176,20 +197,20 @@ Start-Service -Name $ServiceName
 $svc = Get-Service -Name $ServiceName
 Write-Ok "Service status: $($svc.Status)"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# --- Summary -------------------------------------------------------------
 
-Write-Host @"
-
-[OmniAgent] Installation complete.
-
-  Service : $ServiceName
-  Account : LocalSystem (SYSTEM — full administrator privileges)
-  Binary  : $ExeDst
-  Config  : $ConfigDst
-  Logs    : $LogDir\omni-agent.log
-
-  To verify:  Get-Service $ServiceName
-  To view log: Get-Content "$LogDir\omni-agent.log" -Tail 50 -Wait
-  To uninstall: .\install-service.ps1 -Uninstall
-
-"@ -ForegroundColor Green
+Write-Host "`n[OmniAgent] Installation complete." -ForegroundColor Green
+Write-Host ""
+Write-Host "  Service  : $ServiceName"
+Write-Host "  Account  : LocalSystem (SYSTEM - full administrator privileges)"
+Write-Host "  Binary   : $ExeDst"
+Write-Host "  Config   : $ConfigDst"
+Write-Host "  Logs     : $LogDir\omni-agent.log"
+Write-Host "  Evidence : $EvidenceScript"
+Write-Host "  Task     : OmniAgentEvidenceCollection (daily 06:00 SYSTEM)"
+Write-Host ""
+Write-Host "  To verify      : Get-Service $ServiceName"
+Write-Host "  To collect now : powershell -File `"$EvidenceScript`""
+Write-Host "  To view log    : Get-Content '$LogDir\omni-agent.log' -Tail 50 -Wait"
+Write-Host "  To uninstall   : .\install-service.ps1 -Uninstall"
+Write-Host ""
