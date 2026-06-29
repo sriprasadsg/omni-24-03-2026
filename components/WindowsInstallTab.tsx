@@ -52,24 +52,110 @@ interface WindowsInstallTabProps {
 
 export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl, registrationKey }) => {
     const key = registrationKey || 'YOUR_REGISTRATION_KEY';
+    const [buildState, setBuildState] = React.useState<'idle'|'building'|'done'|'failed'>('idle');
+    const [buildError, setBuildError] = React.useState('');
+
+    // Hide EXE download card on non-Windows — backend build requires Windows toolchain
+    const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
+
+    // ── Build & Download handler ────────────────────────────────────────
+    // POST /build → poll /build/{task_id} until done → download
+    const handleBuildAndDownload = async () => {
+        setBuildState('building');
+        setBuildError('');
+        try {
+            // 1. Trigger the async build (runs Spyglass evidence collection + installer build)
+            const triggerRes = await fetch(`${backendUrl}/api/agent-updates/build`, { method: 'POST' });
+            if (!triggerRes.ok) {
+                const err = await triggerRes.json().catch(() => ({}));
+                setBuildError(err.detail || `HTTP ${triggerRes.status}`);
+                setBuildState('failed');
+                return;
+            }
+            const { task_id, poll_url } = await triggerRes.json();
+
+            // 2. Poll until build is done (max 30s)
+            let attempts = 0;
+            const maxAttempts = 60;  // 30s at 500ms intervals
+            let downloadUrl: string | null = null;
+
+            while (attempts < maxAttempts) {
+                await new Promise(r => setTimeout(r, 500));
+                attempts++;
+
+                const pollRes = await fetch(`${backendUrl}${poll_url}`);
+                const state = await pollRes.json();
+
+                if (state.status === 'done') {
+                    downloadUrl = `${backendUrl}/api/agent-updates/download/OmniAgent-Setup.exe`;
+                    break;
+                }
+                if (state.status === 'failed') {
+                    setBuildError(state.error || 'Build failed');
+                    setBuildState('failed');
+                    return;
+                }
+            }
+
+            if (!downloadUrl) {
+                setBuildError('Build timed out after 30s. Try again.');
+                setBuildState('failed');
+                return;
+            }
+
+            // 3. Trigger the download
+            setBuildState('done');
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = 'OmniAgent-Setup.exe';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err: any) {
+            setBuildError(err.message || 'Build failed');
+            setBuildState('failed');
+        }
+    };
 
     return (
         <div className="space-y-5">
-            {/* EXE Installer download card */}
+            {/* EXE Installer download card — Windows only */}
+            {isWindows ? (
             <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <DownloadIcon size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Windows Installer (EXE)</p>
                     <p className="text-xs text-blue-700 dark:text-blue-400">Click-to-install wizard — includes service + evidence collection</p>
+                    {buildState === 'building' && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            🔄 Building installer with Spyglass evidence collection… this may take 15–30s
+                        </p>
+                    )}
+                    {buildError && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">❌ {buildError}</p>
+                    )}
                 </div>
-                <a
-                    href={`${backendUrl}/api/agent-updates/download/OmniAgent-Setup.exe`}
-                    download
-                    className="flex-shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
+                <button
+                    onClick={handleBuildAndDownload}
+                    disabled={buildState === 'building'}
+                    className={`flex-shrink-0 px-3 py-1.5 text-white text-xs font-medium rounded-md transition-colors ${
+                        buildState === 'building'
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                 >
-                    Download .exe
-                </a>
+                    {buildState === 'building' ? '⏳ Building…' : buildState === 'done' ? '✅ Download .exe' : 'Download .exe'}
+                </button>
             </div>
+            ) : (
+            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-200 dark:border-gray-700">
+                <DownloadIcon size={20} className="text-gray-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Windows Installer (EXE)</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Available on Windows only — use the install commands below on target machines</p>
+                </div>
+            </div>
+            )}
 
             {/* Step 1 — Install Agent Service */}
             <div className="space-y-3">
