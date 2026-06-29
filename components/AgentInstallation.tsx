@@ -124,6 +124,8 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
     const [isDownloadingRust, setIsDownloadingRust] = React.useState(false);
 
+    const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
+
     const _getDownloadToken = async (): Promise<string | null> => {
         const tokenRes = await authFetch(`/api/agent/download-token/${tenantId}`, { method: 'POST' });
         if (!tokenRes.ok) { showToast('Failed to initiate download. Please try again.', 'error'); return null; }
@@ -320,7 +322,17 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                         )}
 
                                         {/* Download buttons — Windows gets EXE zip + MSI, others get Python zip */}
-                                        {isFreeTierDownloadable && activeTab === 'windows' ? (
+                                        {isFreeTierDownloadable && activeTab === 'windows' && !isWindows ? (
+                                            <div className="mt-4 flex flex-col gap-3">
+                                                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                    <DownloadIcon size={20} className="text-gray-400 flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Windows Installers</p>
+                                                        <p className="text-xs text-gray-400 dark:text-gray-500">Available on Windows only — use the PowerShell command above to install on target machines</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : isFreeTierDownloadable && activeTab === 'windows' ? (
                                             <div className="mt-4 flex flex-col gap-3">
                                                 <button
                                                     onClick={() => handleDownloadAgentZip('windows')}
