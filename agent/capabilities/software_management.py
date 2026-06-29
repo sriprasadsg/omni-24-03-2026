@@ -422,8 +422,10 @@ class SoftwareManagementCapability(BaseCapability):
                     cmd = ["msiexec", "/i", file_path] + flags
                 elif ext == ".ps1":
                     # -NonInteractive prevents any credential/confirm prompts
+                    # Use "powershell" (no .exe) — subprocess resolves PATHEXT on Windows,
+                    # and pwsh/powershell may be available on Linux too.
                     cmd = [
-                        "powershell.exe",
+                        "powershell",
                         "-ExecutionPolicy", "Bypass",
                         "-NonInteractive",
                         "-File", file_path,
