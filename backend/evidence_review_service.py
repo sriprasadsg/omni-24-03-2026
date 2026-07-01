@@ -176,6 +176,7 @@ async def get_pending_evidence(
         {"$match": {"tenantId": tenant_id}},
         {"$unwind": "$evidence"},
         {"$match": {"evidence.status": "pending_review"}},
+        {"$sort": {"evidence.review_updated_at": -1}},
         {
             "$project": {
                 "assetId": 1,
@@ -189,7 +190,6 @@ async def get_pending_evidence(
                 "evidence_agent_type": "$evidence.agent_type",
             }
         },
-        {"$sort": {"evidence.review_updated_at": -1}},
     ]
     cursor = db.asset_compliance.aggregate(pipeline)
     return await cursor.to_list(length=None)
