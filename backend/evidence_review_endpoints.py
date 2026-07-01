@@ -120,7 +120,10 @@ async def update_evidence_review(
         )
 
     db = get_database()
-    review = await update_review_decision(review_id, body.decision, body.comment, db, tenant_id)
+    try:
+        review = await update_review_decision(review_id, body.decision, body.comment, db, tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
     if review.get("evidenceId") != evidence_id:
