@@ -118,7 +118,7 @@ async def create_review(
         (e for e in existing.get("evidence", []) if e.get("id") == evidence_id), None
     )
     if not evidence_item or evidence_item.get("status") != "pending_review":
-        current_status = evidence_item.get("status") if evidence_item else "unknown"
+        current_status = (evidence_item.get("status") or "unset") if evidence_item else "unknown"
         raise ValueError(
             f"Evidence '{evidence_id}' is not pending review (current status: {current_status})"
         )
