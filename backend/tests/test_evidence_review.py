@@ -251,6 +251,32 @@ def test_tenant_isolation_patch_returns_404_for_cross_tenant_review():
     assert resp.status_code == 404, f"Expected 404 for cross-tenant review access, got {resp.status_code}: {resp.text}"
 
 
+def test_evidence_id_mismatch_same_tenant_returns_404_without_mutation():
+    """A PATCH whose URL evidence_id doesn't match the review's real evidenceId
+    (same tenant, different evidence) must be indistinguishable from 'not found'
+    (404) — the mismatch is part of the atomic lookup filter, so zero mutation
+    occurs and no audit log is written. Regression test for the exact class of
+    gap that caused the prior review's CR-01 (evidence-id-mismatch-before-
+    mutation), now fixed."""
+    db = _make_mock_db()
+
+    async def _scoped(query, *a, **kw):
+        if query.get("evidenceId") == "ev-1":
+            return {"id": "rev-abc", "evidenceId": "ev-1", "status": "pending", "tenantId": "tenant-a"}
+        return None
+
+    db._db.evidence_reviews.find_one_and_update = AsyncMock(side_effect=_scoped)
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-WRONG/review/rev-abc",
+        json={"decision": "approved", "comment": "x"},
+    )
+    assert resp.status_code == 404, f"Expected 404 for evidence-id mismatch, got {resp.status_code}: {resp.text}"
+    db.audit_logs.insert_one.assert_not_awaited()
+
+
 def test_non_reviewer_role_forbidden_from_decision():
     """A non-admin/non-reviewer role cannot make a review decision — 403."""
     db = _make_mock_db()
