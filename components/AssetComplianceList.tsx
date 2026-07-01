@@ -181,8 +181,15 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                       evidenceId={evId}
                                                       evidenceStatus={ev.status}
                                                       onStatusChange={() => {
-                                                        if (typeof onUpdateStatus === 'function') {
-                                                          onUpdateStatus(asset.id, statusRecord?.status || 'Pending_Evidence');
+                                                        // Only re-assert the compliance status when we actually have a
+                                                        // current record to read from — statusRecord is captured at
+                                                        // render time, so writing a guessed default here (as opposed
+                                                        // to skipping) risks reverting a concurrent status change made
+                                                        // between render and this callback firing. This intentionally
+                                                        // does not fall back to a default value (unlike line 101,
+                                                        // which is a read-only display default, not a write).
+                                                        if (typeof onUpdateStatus === 'function' && statusRecord?.status) {
+                                                          onUpdateStatus(asset.id, statusRecord.status);
                                                         }
                                                       }}
                                                     />
