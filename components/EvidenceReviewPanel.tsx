@@ -40,7 +40,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
   const [action, setAction] = useState<'approve' | 'reject' | 'changes' | ''>('');
 
   const isReviewer = currentUser && _REVIEWER_ROLES.includes(currentUser.role);
-  const canSubmitForReview = !evidenceStatus || evidenceStatus === 'needs_revision';
+  const canSubmitForReview = !evidenceStatus || evidenceStatus === 'needs_revision' || evidenceStatus === 'rejected';
 
   const statStyle = evidenceStatus ? STATUS_STYLES[evidenceStatus] : null;
 
