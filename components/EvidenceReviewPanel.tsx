@@ -90,7 +90,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
         method: 'POST',
         body: JSON.stringify({ comment: comment.trim() || 'Review' }),
       });
-      if (!reviewRes.ok) { showToast('Failed to create review', 'error'); return; }
+      if (!reviewRes.ok) { const d = await reviewRes.json().catch(() => ({})); showToast(d.detail || 'Failed to create review', 'error'); return; }
       const { review } = await reviewRes.json();
 
       const patchRes = await authFetch(`${API}/evidence/${evidenceId}/review/${review.id}`, {
