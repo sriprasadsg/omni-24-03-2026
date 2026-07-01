@@ -28,6 +28,12 @@ DO_CHECKS: List[Dict[str, Any]] = [
 # Combined check list: AWS (~145) + Azure (~80) + GCP (~75) + K8s (~20) + DO (~10) = ~330 checks
 CLOUD_CHECKS: List[Dict[str, Any]] = AWS_CHECKS + AZURE_CHECKS + GCP_CHECKS + K8S_CHECKS + DO_CHECKS
 
+# Providers actually reachable via POST /api/cloud-checks/run (cloud_checks_endpoints.py).
+# K8s and DigitalOcean checks are defined but never evaluated by run_checks(), so they must
+# be excluded from the coverage denominator or coverage could never reach 100%.
+RUNNABLE_PROVIDERS = ("aws", "azure", "gcp")
+_RUNNABLE_CHECKS_COUNT = len([c for c in CLOUD_CHECKS if c["provider"] in RUNNABLE_PROVIDERS])
+
 _CHECKS_BY_ID: Dict[str, Dict] = {c["id"]: c for c in CLOUD_CHECKS}
 
 
@@ -131,7 +137,7 @@ class CloudChecksService:
             "bySeverity": by_sev,
             "byProvider": by_prov,
             "byService": by_svc,
-            "coverage": round(total / len(CLOUD_CHECKS) * 100),
+            "coverage": round(total / max(_RUNNABLE_CHECKS_COUNT, 1) * 100),
         }
 
 
