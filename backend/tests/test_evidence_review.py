@@ -108,7 +108,10 @@ def test_create_review_record():
     data = resp.json()
     assert data["success"] is True
     assert "review" in data
-    db._db.evidence_reviews.insert_one.assert_awaited()
+    # WR-01: create_review now uses an atomic find_one_and_update(upsert=True)
+    # instead of a separate find_one + insert_one, to close the check-then-act
+    # race that could create duplicate pending review records.
+    db._db.evidence_reviews.find_one_and_update.assert_awaited()
 
 
 # ── Test 3: Approve evidence ───────────────────────────────────────────────────

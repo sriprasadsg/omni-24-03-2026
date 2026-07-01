@@ -101,6 +101,12 @@ async def create_review(
     'pending' review threads open against the same evidence item — any one of
     which can later be decided on its own, silently overwriting the evidence's
     current status without the evidence ever being resubmitted for review.
+
+    The dedup is implemented as a single atomic `find_one_and_update` with
+    `upsert=True` keyed on (tenantId, evidenceId, status="pending") rather than
+    a separate read-then-write (find_one then insert_one) — the latter is a
+    check-then-act race where two concurrent create-review calls can both
+    observe "no existing pending review" and both insert a duplicate record.
     """
     existing = await db.asset_compliance.find_one(
         {"tenantId": tenant_id, "evidence.id": evidence_id}
@@ -117,24 +123,24 @@ async def create_review(
             f"Evidence '{evidence_id}' is not pending review (current status: {current_status})"
         )
 
-    existing_pending = await db._db[_EVIDENCE_REVIEWS_COL].find_one(
-        {"evidenceId": evidence_id, "tenantId": tenant_id, "status": "pending"}
-    )
-    if existing_pending:
-        return existing_pending
-
     now = _now_iso()
-    review = {
-        "id": _generate_id(),
-        "tenantId": tenant_id,
-        "evidenceId": evidence_id,
-        "reviewer": reviewer,
-        "status": "pending",
-        "comment": comment,
-        "created_at": now,
-        "updated_at": now,
-    }
-    await db._db[_EVIDENCE_REVIEWS_COL].insert_one(review)
+    review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
+        {"tenantId": tenant_id, "evidenceId": evidence_id, "status": "pending"},
+        {
+            "$setOnInsert": {
+                "id": _generate_id(),
+                "tenantId": tenant_id,
+                "evidenceId": evidence_id,
+                "reviewer": reviewer,
+                "status": "pending",
+                "comment": comment,
+                "created_at": now,
+                "updated_at": now,
+            }
+        },
+        upsert=True,
+        return_document=True,
+    )
     return review
 
 
