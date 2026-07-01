@@ -95,6 +95,13 @@ async def create_review(
     Without this guard, a review thread could be opened against evidence
     that was never submitted for review, bypassing the documented lifecycle
     (Uploaded → submit-for-review → pending_review → decided).
+
+    Also reuses an existing 'pending' review record for the same evidence_id
+    instead of creating a duplicate. Without this dedup, a retried create call
+    (e.g. after a decide-request timed out) can leave multiple independent
+    'pending' review threads open against the same evidence item — any one of
+    which can later be decided on its own, silently overwriting the evidence's
+    current status without the evidence ever being resubmitted for review.
     """
     existing = await db.asset_compliance.find_one(
         {"tenantId": tenant_id, "evidence.id": evidence_id}
@@ -110,6 +117,12 @@ async def create_review(
         raise ValueError(
             f"Evidence '{evidence_id}' is not pending review (current status: {current_status})"
         )
+
+    existing_pending = await db._db[_EVIDENCE_REVIEWS_COL].find_one(
+        {"evidenceId": evidence_id, "tenantId": tenant_id, "status": "pending"}
+    )
+    if existing_pending:
+        return existing_pending
 
     now = _now_iso()
     review = {
@@ -191,14 +204,24 @@ async def update_review_decision(
     if not review:
         return None
 
-    # 2. Propagate status to evidence record in asset_compliance. The match
-    #    result is checked (unlike a fire-and-forget call) because the review
-    #    record above has already been updated at this point — if the evidence
-    #    item no longer exists at this id (e.g. deleted after the review was
-    #    created), the caller still gets a 200 + audit log, but we log a
-    #    warning so the discrepancy is at least observable.
+    # 2. Propagate status to evidence record in asset_compliance. Also require
+    #    the evidence to still be 'pending_review' at this exact moment — without
+    #    this, an orphaned/stale 'pending' review record (e.g. left behind by a
+    #    request that failed after step 1 but before step 2 on a prior attempt)
+    #    could later be decided independently and silently overwrite whatever
+    #    status the evidence has since moved to, without the evidence ever being
+    #    resubmitted for review. The match result is checked (unlike a
+    #    fire-and-forget call) because the review record above has already been
+    #    updated at this point — if the evidence item no longer exists at this id,
+    #    or is no longer pending_review, the caller still gets a 200 + audit log
+    #    for the review-record mutation, but we log a warning so the discrepancy
+    #    is at least observable rather than silently swallowed.
     result = await db.asset_compliance.update_one(
-        {"evidence.id": evidence_id, "tenantId": tenant_id},
+        {
+            "evidence.id": evidence_id,
+            "tenantId": tenant_id,
+            "evidence.status": "pending_review",
+        },
         {
             "$set": {
                 "evidence.$.status": evidence_status,
@@ -208,9 +231,9 @@ async def update_review_decision(
     )
     if result.modified_count == 0:
         logger.warning(
-            "evidence_review: review %s decided as '%s' but evidence propagation "
-            "matched no document (evidence_id=%s, tenant_id=%s) — evidence status "
-            "was not updated",
+            "evidence_review: review %s decided as '%s' but evidence %s was not "
+            "'pending_review' at decision time (stale/duplicate review record or "
+            "evidence deleted; tenant_id=%s) — evidence status was not changed",
             review_id, decision, evidence_id, tenant_id,
         )
 
