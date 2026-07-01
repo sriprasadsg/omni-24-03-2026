@@ -223,9 +223,13 @@ async def update_review_decision(
     #    is at least observable rather than silently swallowed.
     result = await db.asset_compliance.update_one(
         {
-            "evidence.id": evidence_id,
             "tenantId": tenant_id,
-            "evidence.status": "pending_review",
+            "evidence": {
+                "$elemMatch": {
+                    "id": evidence_id,
+                    "status": "pending_review",
+                }
+            },
         },
         {
             "$set": {
