@@ -25,7 +25,7 @@ DO_CHECKS: List[Dict[str, Any]] = [
     {"id": "do-app-001", "name": "DO App Platform Enforces HTTPS", "description": "DO App Platform apps should enforce HTTPS redirect", "provider": "digitalocean", "service": "appplatform", "severity": "high", "frameworks": ["NIST-SC-8", "PCI-4.1"], "remediation": "Enable HTTPS redirect on DO App Platform apps."},
 ]
 
-# Combined check list: AWS (~145) + Azure (~80) + GCP (~75) + K8s (~20) + DO (~10) = ~330 checks
+# Combined check list: AWS (147) + Azure (77) + GCP (69) + K8s (20) + DO (10) = 323 checks
 CLOUD_CHECKS: List[Dict[str, Any]] = AWS_CHECKS + AZURE_CHECKS + GCP_CHECKS + K8S_CHECKS + DO_CHECKS
 
 # Providers actually reachable via POST /api/cloud-checks/run (cloud_checks_endpoints.py).
