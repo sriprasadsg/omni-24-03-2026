@@ -41,6 +41,14 @@ def requires_comment(decision: str) -> bool:
 # ── Review lifecycle ───────────────────────────────────────────────────────────
 
 
+def _submittable_statuses() -> list:
+    """Statuses an evidence item may be in before it can be submitted for review.
+
+    None covers evidence that has never had a status set (unset/new).
+    """
+    return [None, "needs_revision", "rejected"]
+
+
 async def submit_for_review(
     evidence_id: str,
     db,
@@ -48,11 +56,21 @@ async def submit_for_review(
 ) -> bool:
     """Set evidence status to pending_review (no review record created yet).
 
+    Only allowed from an unset/needs_revision/rejected state — guards against
+    re-submitting evidence that is already approved or already pending review.
     Uses positional $ operator — evidence.id must be unique within the array.
     Returns True if a document was actually modified.
     """
     result = await db.asset_compliance.update_one(
-        {"evidence.id": evidence_id, "tenantId": tenant_id},
+        {
+            "tenantId": tenant_id,
+            "evidence": {
+                "$elemMatch": {
+                    "id": evidence_id,
+                    "status": {"$in": _submittable_statuses()},
+                }
+            },
+        },
         {
             "$set": {
                 "evidence.$.status": "pending_review",
@@ -70,7 +88,17 @@ async def create_review(
     db,
     tenant_id: str,
 ) -> dict:
-    """Create a new review record with status 'pending'."""
+    """Create a new review record with status 'pending'.
+
+    Validates the evidence item exists for tenant_id before inserting;
+    raises ValueError if no matching evidence is found.
+    """
+    existing = await db.asset_compliance.find_one(
+        {"tenantId": tenant_id, "evidence.id": evidence_id}
+    )
+    if not existing:
+        raise ValueError(f"Evidence '{evidence_id}' not found for tenant")
+
     now = _now_iso()
     review = {
         "id": _generate_id(),

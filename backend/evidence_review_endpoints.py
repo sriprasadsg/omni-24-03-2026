@@ -79,13 +79,16 @@ async def create_evidence_review(
         raise HTTPException(status_code=400, detail="No tenant context")
 
     db = get_database()
-    review = await create_review(
-        evidence_id=evidence_id,
-        reviewer=current_user.username or "unknown",
-        comment=body.comment,
-        db=db,
-        tenant_id=tenant_id,
-    )
+    try:
+        review = await create_review(
+            evidence_id=evidence_id,
+            reviewer=current_user.username or "unknown",
+            comment=body.comment,
+            db=db,
+            tenant_id=tenant_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     return {"success": True, "review": review}
 
 
