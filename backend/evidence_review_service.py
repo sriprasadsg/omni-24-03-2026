@@ -91,6 +91,7 @@ async def update_review_decision(
     decision: str,
     comment: str,
     db,
+    tenant_id: str,
 ) -> dict | None:
     """Update a review decision and propagate status to the evidence record.
 
@@ -101,6 +102,8 @@ async def update_review_decision(
       approved          → approved
       rejected          → rejected
       changes_requested → needs_revision
+
+    Scoped to tenant_id to prevent cross-tenant access to review records.
 
     Returns the updated review dict, or None if not found.
     """
@@ -117,7 +120,7 @@ async def update_review_decision(
 
     # 1. Update the review record
     review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
-        {"id": review_id},
+        {"id": review_id, "tenantId": tenant_id},
         {
             "$set": {
                 "status": decision,
@@ -134,7 +137,7 @@ async def update_review_decision(
     evidence_id = review.get("evidenceId", "")
     if evidence_id:
         await db.asset_compliance.update_one(
-            {"evidence.id": evidence_id},
+            {"evidence.id": evidence_id, "tenantId": tenant_id},
             {
                 "$set": {
                     "evidence.$.status": evidence_status,

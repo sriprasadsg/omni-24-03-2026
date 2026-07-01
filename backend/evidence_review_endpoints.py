@@ -106,6 +106,10 @@ async def update_evidence_review(
             detail="Only admins and compliance reviewers can make review decisions",
         )
 
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant context")
+
     if requires_comment(body.decision) and not body.comment.strip():
         raise HTTPException(
             status_code=422,
@@ -113,7 +117,7 @@ async def update_evidence_review(
         )
 
     db = get_database()
-    review = await update_review_decision(review_id, body.decision, body.comment, db)
+    review = await update_review_decision(review_id, body.decision, body.comment, db, tenant_id)
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
 
