@@ -120,6 +120,11 @@ async def update_evidence_review(
     review = await update_review_decision(review_id, body.decision, body.comment, db, tenant_id)
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
+    if review.get("evidenceId") != evidence_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Review does not belong to the specified evidence item",
+        )
 
     return {"success": True, "review": review}
 
