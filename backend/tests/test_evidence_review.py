@@ -37,6 +37,9 @@ def _make_mock_db():
     db.asset_compliance.aggregate = MagicMock(return_value=MagicMock(
         to_list=AsyncMock(return_value=[])
     ))
+    # audit_logs collection — written on every review decision (T-10 fix).
+    db.audit_logs = MagicMock()
+    db.audit_logs.insert_one = AsyncMock(return_value=MagicMock(inserted_id="log-1"))
 
     # evidence_reviews collection via _db — service code accesses it by subscript
     # (db._db[_EVIDENCE_REVIEWS_COL]), not by attribute, so __getitem__ must be

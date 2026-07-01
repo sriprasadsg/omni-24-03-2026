@@ -12,14 +12,16 @@ Role gating:
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
+from rate_limiter import limiter
 from evidence_review_service import (
     submit_for_review,
     create_review,
@@ -51,7 +53,10 @@ class UpdateDecisionRequest(BaseModel):
 
 
 @router.post("/api/evidence/{evidence_id}/submit-for-review")
+@limiter.limit("30/minute")
 async def submit_evidence_for_review(
+    request: Request,
+    response: Response,
     evidence_id: str,
     current_user: TokenData = Depends(get_current_user),
 ):
@@ -68,7 +73,10 @@ async def submit_evidence_for_review(
 
 
 @router.post("/api/evidence/{evidence_id}/review")
+@limiter.limit("30/minute")
 async def create_evidence_review(
+    request: Request,
+    response: Response,
     evidence_id: str,
     body: CreateReviewRequest,
     current_user: TokenData = Depends(get_current_user),
@@ -93,7 +101,10 @@ async def create_evidence_review(
 
 
 @router.patch("/api/evidence/{evidence_id}/review/{review_id}")
+@limiter.limit("30/minute")
 async def update_evidence_review(
+    request: Request,
+    response: Response,
     evidence_id: str,
     review_id: str,
     body: UpdateDecisionRequest,
@@ -131,6 +142,19 @@ async def update_evidence_review(
             status_code=404,
             detail="Review does not belong to the specified evidence item",
         )
+
+    # Non-repudiable audit trail for review decisions — the review record itself
+    # is mutable in place, so this is the only append-only record of who decided
+    # what and when (T-10).
+    await db.audit_logs.insert_one({
+        "action": "evidence_review_decision",
+        "tenantId": tenant_id,
+        "evidence_id": evidence_id,
+        "review_id": review_id,
+        "decision": body.decision,
+        "performed_by": current_user.username or "unknown",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
 
     return {"success": True, "review": review}
 
