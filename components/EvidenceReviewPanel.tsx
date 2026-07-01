@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { showToast } from '../utils/toast';
-import { API_BASE } from '../services/apiService';
+import { API_BASE, authFetch } from '../services/apiService';
 
 const API = API_BASE || '/api';
 
@@ -50,7 +50,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API}/evidence/${evidenceId}/reviews`);
+      const res = await authFetch(`${API}/evidence/${evidenceId}/reviews`);
       if (!res.ok) { setError(`HTTP ${res.status}`); return; }
       const data = await res.json();
       setReviews(data.reviews || []);
@@ -66,7 +66,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
   const handleSubmitForReview = async () => {
     setSubmitting(true);
     try {
-      const res = await fetch(`${API}/evidence/${evidenceId}/submit-for-review`, { method: 'POST' });
+      const res = await authFetch(`${API}/evidence/${evidenceId}/submit-for-review`, { method: 'POST' });
       if (!res.ok) { const d = await res.json().catch(() => ({})); showToast(d.detail || 'Submit failed', 'error'); return; }
       showToast('Evidence submitted for review', 'success');
       if (onStatusChange) onStatusChange();
@@ -86,15 +86,15 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
     }
     setSubmitting(true);
     try {
-      const reviewRes = await fetch(`${API}/evidence/${evidenceId}/review`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const reviewRes = await authFetch(`${API}/evidence/${evidenceId}/review`, {
+        method: 'POST',
         body: JSON.stringify({ comment: comment.trim() || 'Review' }),
       });
       if (!reviewRes.ok) { showToast('Failed to create review', 'error'); return; }
       const { review } = await reviewRes.json();
 
-      const patchRes = await fetch(`${API}/evidence/${evidenceId}/review/${review.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      const patchRes = await authFetch(`${API}/evidence/${evidenceId}/review/${review.id}`, {
+        method: 'PATCH',
         body: JSON.stringify({ decision, comment: comment.trim() || '' }),
       });
       if (!patchRes.ok) { const d = await patchRes.json().catch(() => ({})); showToast(d.detail || 'Decision failed', 'error'); return; }
