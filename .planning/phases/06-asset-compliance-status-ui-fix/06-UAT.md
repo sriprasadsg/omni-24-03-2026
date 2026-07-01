@@ -3,7 +3,7 @@ status: partial
 phase: 06-asset-compliance-status-ui-fix
 source: [06-VERIFICATION.md]
 started: 2026-06-21T00:00:00Z
-updated: 2026-06-21T16:10:00Z
+updated: 2026-07-02T00:00:00Z
 ---
 
 ## Current Test
@@ -18,7 +18,9 @@ expected: |
   controls visible. Stop/block the backend server (or force a 500). Click
   "Mark Non-Compliant" on any control. Confirm a toast error appears:
   "Failed to update compliance status — please try again"
-result: skipped
+result: blocked
+blocked_by: server
+reason: "backend server not running to test this"
 
 ## Summary
 
@@ -26,7 +28,7 @@ total: 1
 passed: 0
 issues: 0
 pending: 0
-skipped: 1
-blocked: 0
+skipped: 0
+blocked: 1
 
 ## Gaps
