@@ -116,6 +116,7 @@ async def create_review(
 
 async def update_review_decision(
     review_id: str,
+    evidence_id: str,
     decision: str,
     comment: str,
     db,
@@ -131,7 +132,11 @@ async def update_review_decision(
       rejected          → rejected
       changes_requested → needs_revision
 
-    Scoped to tenant_id to prevent cross-tenant access to review records.
+    Scoped to tenant_id AND evidence_id to prevent cross-tenant access to
+    review records *and* to guarantee a URL evidence_id that doesn't match
+    the review's real evidenceId naturally yields "not found" with zero side
+    effects — the mismatch is part of the same atomic lookup that performs
+    the mutation, not a check on the result of a call that already wrote.
 
     Returns the updated review dict, or None if not found.
     """
@@ -146,9 +151,11 @@ async def update_review_decision(
         "changes_requested": "needs_revision",
     }[decision]
 
-    # 1. Update the review record
+    # 1. Update the review record — evidence_id is part of the filter itself,
+    #    so a mismatched evidence_id is indistinguishable from "not found"
+    #    and never mutates anything.
     review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
-        {"id": review_id, "tenantId": tenant_id},
+        {"id": review_id, "evidenceId": evidence_id, "tenantId": tenant_id},
         {
             "$set": {
                 "status": decision,
@@ -162,17 +169,15 @@ async def update_review_decision(
         return None
 
     # 2. Propagate status to evidence record in asset_compliance
-    evidence_id = review.get("evidenceId", "")
-    if evidence_id:
-        await db.asset_compliance.update_one(
-            {"evidence.id": evidence_id, "tenantId": tenant_id},
-            {
-                "$set": {
-                    "evidence.$.status": evidence_status,
-                    "evidence.$.review_updated_at": now,
-                }
-            },
-        )
+    await db.asset_compliance.update_one(
+        {"evidence.id": evidence_id, "tenantId": tenant_id},
+        {
+            "$set": {
+                "evidence.$.status": evidence_status,
+                "evidence.$.review_updated_at": now,
+            }
+        },
+    )
 
     return review
 

@@ -132,15 +132,15 @@ async def update_evidence_review(
 
     db = get_database()
     try:
-        review = await update_review_decision(review_id, body.decision, body.comment, db, tenant_id)
+        review = await update_review_decision(
+            review_id, evidence_id, body.decision, body.comment, db, tenant_id
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
-    if review.get("evidenceId") != evidence_id:
         raise HTTPException(
             status_code=404,
-            detail="Review does not belong to the specified evidence item",
+            detail="Review not found or does not belong to the specified evidence item",
         )
 
     # Non-repudiable audit trail for review decisions — the review record itself
