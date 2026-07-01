@@ -90,14 +90,26 @@ async def create_review(
 ) -> dict:
     """Create a new review record with status 'pending'.
 
-    Validates the evidence item exists for tenant_id before inserting;
-    raises ValueError if no matching evidence is found.
+    Validates the evidence item exists for tenant_id and is currently in
+    'pending_review' status before inserting; raises ValueError otherwise.
+    Without this guard, a review thread could be opened against evidence
+    that was never submitted for review, bypassing the documented lifecycle
+    (Uploaded → submit-for-review → pending_review → decided).
     """
     existing = await db.asset_compliance.find_one(
         {"tenantId": tenant_id, "evidence.id": evidence_id}
     )
     if not existing:
         raise ValueError(f"Evidence '{evidence_id}' not found for tenant")
+
+    evidence_item = next(
+        (e for e in existing.get("evidence", []) if e.get("id") == evidence_id), None
+    )
+    if not evidence_item or evidence_item.get("status") != "pending_review":
+        current_status = evidence_item.get("status") if evidence_item else "unknown"
+        raise ValueError(
+            f"Evidence '{evidence_id}' is not pending review (current status: {current_status})"
+        )
 
     now = _now_iso()
     review = {
@@ -138,7 +150,12 @@ async def update_review_decision(
     effects — the mismatch is part of the same atomic lookup that performs
     the mutation, not a check on the result of a call that already wrote.
 
-    Returns the updated review dict, or None if not found.
+    Also scoped to status: "pending" so a review can only be decided once —
+    without this, a review already decided 'approved' could be PATCHed again
+    to 'rejected', silently flipping the evidence status back and forth with
+    no idempotency guard.
+
+    Returns the updated review dict, or None if not found / already decided.
     """
     now = _now_iso()
     decision = decision.lower()
@@ -151,11 +168,17 @@ async def update_review_decision(
         "changes_requested": "needs_revision",
     }[decision]
 
-    # 1. Update the review record — evidence_id is part of the filter itself,
-    #    so a mismatched evidence_id is indistinguishable from "not found"
-    #    and never mutates anything.
+    # 1. Update the review record — evidence_id and status: "pending" are
+    #    part of the filter itself, so a mismatched evidence_id or an
+    #    already-decided review is indistinguishable from "not found" and
+    #    never mutates anything.
     review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
-        {"id": review_id, "evidenceId": evidence_id, "tenantId": tenant_id},
+        {
+            "id": review_id,
+            "evidenceId": evidence_id,
+            "tenantId": tenant_id,
+            "status": "pending",
+        },
         {
             "$set": {
                 "status": decision,
