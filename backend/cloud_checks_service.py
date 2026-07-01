@@ -74,7 +74,9 @@ class CloudChecksService:
         for check in provider_checks:
             cid = check["id"]
             name_lower = check["name"].lower()
-            in_findings = cid.lower() in failing_ids or any(kw in finding_titles for kw in name_lower.split()[:3])
+            in_findings = cid.lower() in failing_ids or any(
+                kw in title for title in finding_titles for kw in name_lower.split()[:3] if len(kw) > 3
+            )
             result = "FAIL" if in_findings else "PASS"
             doc = {
                 "id": f"ccr-{uuid.uuid4().hex}",
