@@ -26,9 +26,21 @@ def _make_mock_db():
     # asset_compliance collection
     db.asset_compliance = MagicMock()
     db.asset_compliance.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-    db.asset_compliance.aggregate = AsyncMock(return_value=[])
+    # find_one() backs create_review()'s evidence-existence check (WR-04) — must
+    # resolve to a truthy dict or every create_review call raises ValueError.
+    db.asset_compliance.find_one = AsyncMock(return_value={
+        "id": "ac-1", "tenantId": "tenant-a", "evidence": [{"id": "ev-1", "status": "pending_review"}],
+    })
+    # aggregate() is synchronous on a real Motor collection — it returns a cursor
+    # object immediately; only cursor.to_list() is awaited. Mocking aggregate()
+    # itself as an AsyncMock makes the call return a coroutine with no .to_list.
+    db.asset_compliance.aggregate = MagicMock(return_value=MagicMock(
+        to_list=AsyncMock(return_value=[])
+    ))
 
-    # evidence_reviews collection via _db
+    # evidence_reviews collection via _db — service code accesses it by subscript
+    # (db._db[_EVIDENCE_REVIEWS_COL]), not by attribute, so __getitem__ must be
+    # wired to the same mock the assertions below reference.
     inner = MagicMock()
     inner.evidence_reviews = MagicMock()
     inner.evidence_reviews.insert_one = AsyncMock(return_value=MagicMock(inserted_id="rev-abc"))
@@ -43,6 +55,7 @@ def _make_mock_db():
             {"id": "rev-2", "evidenceId": "ev-1", "status": "pending", "comment": "Reviewing", "reviewer": "user1", "tenantId": "tenant-a", "created_at": "2026-06-27T11:00:00Z"},
         ])
     ))))
+    inner.__getitem__ = MagicMock(return_value=inner.evidence_reviews)
     db._db = inner
     return db
 
