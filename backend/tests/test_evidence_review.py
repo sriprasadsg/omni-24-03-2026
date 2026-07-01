@@ -47,10 +47,6 @@ def _make_mock_db():
     inner = MagicMock()
     inner.evidence_reviews = MagicMock()
     inner.evidence_reviews.insert_one = AsyncMock(return_value=MagicMock(inserted_id="rev-abc"))
-    # find_one() backs create_review()'s dedup guard (CR-01) — must resolve to
-    # None by default (no existing pending review) so create_review proceeds
-    # to insert a new record instead of short-circuiting on a phantom match.
-    inner.evidence_reviews.find_one = AsyncMock(return_value=None)
     inner.evidence_reviews.find_one_and_update = AsyncMock(return_value={
         "id": "rev-abc", "evidenceId": "ev-1", "status": "approved",
         "comment": "Looks good", "reviewer": "admin",
