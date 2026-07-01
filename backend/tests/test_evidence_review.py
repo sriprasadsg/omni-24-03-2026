@@ -291,3 +291,43 @@ def test_non_reviewer_role_forbidden_from_decision():
         json={"decision": "approved", "comment": "test"},
     )
     assert resp.status_code == 403, f"Expected 403 for non-admin PATCH, got {resp.status_code}"
+
+
+def test_create_review_dedup_returns_existing_pending_via_atomic_upsert():
+    """A retried create-review call for evidence that already has a pending
+    review must return that existing record via the atomic find_one_and_update
+    upsert, not insert a duplicate. Regression test for WR-01 (the prior
+    find_one-then-insert_one dedup was a check-then-act race)."""
+    db = _make_mock_db()
+    existing_review = {
+        "id": "rev-existing", "tenantId": "tenant-a", "evidenceId": "ev-1",
+        "reviewer": "reviewer1", "status": "pending", "comment": "first attempt",
+        "created_at": "2026-06-27T10:00:00Z", "updated_at": "2026-06-27T10:00:00Z",
+    }
+    db._db.evidence_reviews.find_one_and_update = AsyncMock(return_value=existing_review)
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.post("/api/evidence/ev-1/review", json={"comment": "retried after timeout"})
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["review"]["id"] == "rev-existing"
+    db._db.evidence_reviews.insert_one.assert_not_awaited()
+
+
+def test_repatch_already_decided_review_returns_404():
+    """PATCHing a review that has already been decided (status no longer
+    'pending') must 404 with no side effects, not silently re-decide it.
+    Regression test for the status: "pending" filter guard added in the
+    prior CR-01 fix (evidence_review_service.py update_review_decision)."""
+    db = _make_mock_db()
+    db._db.evidence_reviews.find_one_and_update = AsyncMock(return_value=None)
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "rejected", "comment": "trying to re-decide"},
+    )
+    assert resp.status_code == 404, f"Expected 404 for re-deciding an already-decided review, got {resp.status_code}: {resp.text}"
+    db.audit_logs.insert_one.assert_not_awaited()
