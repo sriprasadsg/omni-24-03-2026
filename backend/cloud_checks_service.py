@@ -34,8 +34,6 @@ CLOUD_CHECKS: List[Dict[str, Any]] = AWS_CHECKS + AZURE_CHECKS + GCP_CHECKS + K8
 RUNNABLE_PROVIDERS = ("aws", "azure", "gcp")
 _RUNNABLE_CHECKS_COUNT = len([c for c in CLOUD_CHECKS if c["provider"] in RUNNABLE_PROVIDERS])
 
-_CHECKS_BY_ID: Dict[str, Dict] = {c["id"]: c for c in CLOUD_CHECKS}
-
 
 class CloudChecksService:
     def _db(self):
