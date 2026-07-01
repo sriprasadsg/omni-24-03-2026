@@ -176,15 +176,17 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                         )}
                                                     </div>
                                                   </div>
-                                                  <EvidenceReviewPanel
-                                                    evidenceId={evId}
-                                                    evidenceStatus={ev.status}
-                                                    onStatusChange={() => {
-                                                      if (typeof onUpdateStatus === 'function') {
-                                                        onUpdateStatus(asset.id, statusRecord?.status || 'Pending_Evidence');
-                                                      }
-                                                    }}
-                                                  />
+                                                  {evId && (
+                                                    <EvidenceReviewPanel
+                                                      evidenceId={evId}
+                                                      evidenceStatus={ev.status}
+                                                      onStatusChange={() => {
+                                                        if (typeof onUpdateStatus === 'function') {
+                                                          onUpdateStatus(asset.id, statusRecord?.status || 'Pending_Evidence');
+                                                        }
+                                                      }}
+                                                    />
+                                                  )}
                                                 </React.Fragment>
                                                 );
                                             })}
