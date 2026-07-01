@@ -164,8 +164,12 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
             </div>
           ))}
 
-          {/* Reviewer actions */}
-          {isReviewer && (
+          {/* Reviewer actions — gated on pending_review to match the invariant
+              create_review actually enforces server-side; without this gate,
+              a reviewer could click Approve/Reject/Request-Changes on evidence
+              that was never submitted (or already decided), guaranteeing a
+              failed create_review call. */}
+          {isReviewer && evidenceStatus === 'pending_review' && (
             <div className="mt-2 space-y-2">
               {!action && (
                 <div className="flex gap-1">
