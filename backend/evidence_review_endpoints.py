@@ -144,16 +144,24 @@ async def update_evidence_review(
 
     # Non-repudiable audit trail for review decisions — the review record itself
     # is mutable in place, so this is the only append-only record of who decided
-    # what and when (T-10).
-    await db.audit_logs.insert_one({
-        "action": "evidence_review_decision",
-        "tenantId": tenant_id,
-        "evidence_id": evidence_id,
-        "review_id": review_id,
-        "decision": body.decision,
-        "performed_by": current_user.username or "unknown",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
+    # what and when (T-10). Wrapped in try/except: the review decision above has
+    # already been durably committed at this point, so a transient audit-log
+    # write failure must not surface as a 500 for an action that actually
+    # succeeded (WR-03).
+    try:
+        await db.audit_logs.insert_one({
+            "action": "evidence_review_decision",
+            "tenantId": tenant_id,
+            "evidence_id": evidence_id,
+            "review_id": review_id,
+            "decision": body.decision,
+            "performed_by": current_user.username or "unknown",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        logger.exception(
+            "evidence_review: failed to write audit log for review %s", review_id
+        )
 
     return {"success": True, "review": review}
 
