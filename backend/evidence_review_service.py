@@ -182,13 +182,18 @@ async def get_reviews(
     db,
     tenant_id: str,
 ) -> list[dict]:
-    """Return all review records for a given evidence item, newest first."""
+    """Return all review records for a given evidence item, newest first.
+
+    Capped at 500 — a single evidence item is not expected to accumulate more
+    review rounds than that; the cap bounds worst-case memory/response size
+    rather than reflecting a real expected volume.
+    """
     cursor = (
         db._db[_EVIDENCE_REVIEWS_COL]
         .find({"evidenceId": evidence_id, "tenantId": tenant_id})
         .sort("created_at", -1)
     )
-    return await cursor.to_list(length=None)
+    return await cursor.to_list(length=500)
 
 
 async def get_pending_evidence(
@@ -198,7 +203,9 @@ async def get_pending_evidence(
     """Return all asset compliance documents with pending_review evidence.
 
     Uses $unwind + $match aggregation to flatten the evidence array and
-    filter to only items with status === 'pending_review'.
+    filter to only items with status === 'pending_review'. Capped at 500
+    to bound worst-case memory/response size for tenants with a large
+    evidence backlog.
     """
     pipeline = [
         {"$match": {"tenantId": tenant_id}},
@@ -220,4 +227,4 @@ async def get_pending_evidence(
         },
     ]
     cursor = db.asset_compliance.aggregate(pipeline)
-    return await cursor.to_list(length=None)
+    return await cursor.to_list(length=500)
