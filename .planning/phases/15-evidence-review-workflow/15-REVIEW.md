@@ -12,9 +12,9 @@ files_reviewed_list:
   - components/AssetComplianceList.tsx
 findings:
   critical: 1
-  warning: 6
+  warning: 1
   info: 1
-  total: 8
+  total: 3
 status: issues_found
 ---
 
@@ -27,131 +27,107 @@ status: issues_found
 
 ## Summary
 
-This is a fresh standard-depth re-review of the evidence review workflow after the prior quick-depth pass (2026-07-01) and its fix commits (tenant scoping, `authFetch`, aggregation sort order, evidence-existence validation, 422-on-invalid-decision, T-10 audit logging, T-11 rate limiting, T-12 result-set capping). Those fixes are confirmed present and working in the current code. However, the WR-03 fix ("validate evidence_id path param matches review's evidenceId") was implemented incorrectly: the validation runs *after* the mutating database call it's supposed to guard, so a mismatched request still mutates state (and skips the audit log entirely) before being rejected with a 404. This is a genuine regression introduced by the "fix" itself and is classified as a new Critical finding below. Several additional workflow-integrity and frontend/backend consistency gaps were found that were not covered by the prior review.
+This is an independent re-review of the evidence review workflow against the current file contents, not a trust-the-changelog pass. I verified all 7 previously-fixed critical/warning findings (CR-01 evidence-id-mismatch-before-mutation, WR-01 unchecked propagation result, WR-02 missing workflow-state guards, WR-03 frontend resubmission gating, WR-04 missing `evId` guard, WR-05 stale-default write, WR-06 fake tenant-isolation test) directly against the current code and confirmed each is genuinely fixed as described — no regressions found in any of those seven areas. The one prior Info finding (unused `Optional` import) is still present and unresolved, as expected (documented as intentionally out of scope).
+
+Independent analysis of the *current* code surfaced one new Critical-severity gap that the WR-02 fix did not fully close: `create_review` has no protection against creating more than one `"pending"` review record for the same evidence item, and `update_review_decision` never re-verifies that the evidence's *current* status is still `pending_review` before propagating a decision onto it. Under a realistic failure mode (a decide-request that fails/times out after the review record was created but before the decision was applied), this leaves an orphaned `"pending"` review record that can be decided later — independently, and without the evidence ever being resubmitted — silently overwriting whatever status the evidence has moved to in the meantime. This bypasses the documented lifecycle invariant that a decision can only be applied to evidence currently `pending_review`, and is a genuine compliance/audit-integrity risk for a platform whose evidence status *is* the audit record. See CR-01 below (renumbered for this review; unrelated to the prior review's CR-01, which is confirmed fixed).
 
 ## Critical Issues
 
-### CR-01: Evidence-ID mismatch check runs after the mutating call — state changes without a matching audit log entry
+### CR-01: Orphaned "pending" review records can later be decided and silently corrupt evidence status without resubmission
 
-**File:** `backend/evidence_review_endpoints.py:134-159` (root cause in `backend/evidence_review_service.py:117-177`)
-**Issue:** `update_evidence_review` calls `update_review_decision(review_id, ...)` — which unconditionally updates the review record's status *and* propagates the new status onto the evidence array in `asset_compliance` — before it ever checks whether the URL's `evidence_id` matches the review's actual `evidenceId`:
+**File:** `backend/evidence_review_service.py:84-126` (`create_review`, no dedup guard), `backend/evidence_review_service.py:129-217` (`update_review_decision`, no evidence-current-status re-check)
+**Issue:** `create_review` only checks that the evidence item exists and is currently `pending_review` — it does not check whether a `"pending"` review record already exists for that `evidence_id`/`tenant_id`:
 
 ```python
-review = await update_review_decision(review_id, body.decision, body.comment, db, tenant_id)  # <- mutates DB here
+existing = await db.asset_compliance.find_one(...)
 ...
-if review.get("evidenceId") != evidence_id:   # <- checked AFTER the mutation
-    raise HTTPException(status_code=404, detail="Review does not belong to the specified evidence item")
-
-await db.audit_logs.insert_one({...})   # <- never reached on mismatch
+if not evidence_item or evidence_item.get("status") != "pending_review":
+    raise ValueError(...)
+# no check for an existing status:"pending" review before inserting a new one
+review = {... "status": "pending", ...}
+await db._db[_EVIDENCE_REVIEWS_COL].insert_one(review)
 ```
 
-`update_review_decision` doesn't take `evidence_id` as an input at all — it derives the evidence to update from the review record it just fetched (`review.get("evidenceId", "")`), completely independent of what was in the URL. So when `evidence_id` (URL) and the review's real `evidenceId` diverge:
-1. The review record and the (real, different-from-URL) evidence item's status are both mutated for real.
-2. The caller receives a 404 ("Review does not belong to the specified evidence item"), which reads as "nothing happened" — misleading given a write actually occurred.
-3. The audit-log insert (added specifically for T-10 non-repudiation) is never reached, so this decision is applied with **no audit trail at all** — directly undermining the guarantee T-10 was written to provide.
+`update_review_decision` only guards against *re-deciding the same review* (`status: "pending"` in its own filter) — it never re-checks that the evidence's *current* status is still `pending_review` before propagating:
 
-This is reachable by any user holding a reviewer role in their own tenant (no cross-tenant IDOR required — `review_id` need only belong to a *different* evidence item within the same tenant, which is plausible given `create_review` lets any user create reviews against arbitrary evidence IDs with no ownership check, see WR-02 below). No test in `test_evidence_review.py` exercises this path — every test's mocked `find_one_and_update` returns `"evidenceId": "ev-1"` and every test PATCHes `/api/evidence/ev-1/review/...`, so the mismatch branch is never hit and this was not caught before merge.
-
-**Fix:** Make the mismatch check part of the same atomic lookup, not a post-hoc check on the result of a call that already wrote. Pass `evidence_id` into `update_review_decision` and include it in the initial filter so a mismatch naturally yields "not found" with zero side effects:
 ```python
-async def update_review_decision(review_id, evidence_id, decision, comment, db, tenant_id):
-    ...
-    review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
-        {"id": review_id, "evidenceId": evidence_id, "tenantId": tenant_id},
-        {"$set": {"status": decision, "comment": comment, "updated_at": now}},
-        return_document=True,
-    )
-    if not review:
-        return None  # covers "not found" AND "belongs to a different evidence item"
-    ...
+result = await db.asset_compliance.update_one(
+    {"evidence.id": evidence_id, "tenantId": tenant_id},   # no "evidence.status": "pending_review" guard
+    {"$set": {"evidence.$.status": evidence_status, ...}},
+)
 ```
-And in the endpoint, drop the after-the-fact check and call with `evidence_id` up front, so the audit log is only ever skipped when nothing was actually mutated.
+
+These two gaps combine into a realistic, non-adversarial failure mode:
+
+1. Reviewer clicks "Approve". Frontend `handleReviewDecision` (`components/EvidenceReviewPanel.tsx:82-111`) does `POST /review` (creates review **A**, `status: "pending"`), then `PATCH /review/A`. If the PATCH fails or times out (network blip, backend hiccup) after the review was created but before the decision was applied, review **A** is left permanently in `status: "pending"` — evidence is still `pending_review` at this point, so nothing has "failed" from the evidence's perspective.
+2. The reviewer sees the error toast and retries. `POST /review` succeeds again (evidence is still `pending_review`, so `create_review`'s only guard passes) creating review **B**; `PATCH /review/B` succeeds this time → evidence becomes `approved`.
+3. Review **A** is now orphaned: `status: "pending"` forever, visible to any tenant user via `GET /api/evidence/{id}/reviews` (which returns *all* review records regardless of status). Any user holding a reviewer role can later call `PATCH /api/evidence/{id}/review/A` directly (no UI guard stops this — it's a plain authenticated API call) with any decision. `update_review_decision`'s filter (`id`, `evidenceId`, `tenantId`, `status: "pending"`) still matches review A, so the decision is applied and evidence is flipped to whatever A's decision was (e.g. `rejected`) — **even though the evidence is already `approved` and was never resubmitted for review.**
+
+This directly violates the documented lifecycle invariant (`Uploaded → submit-for-review → pending_review → decided`) and silently overwrites a real compliance status without the required `submit_for_review` step ever occurring — a serious integrity problem for a system whose evidence-approval status functions as the audit trail. This is the exact concern the prior review's WR-02 fix suggestion called out ("and/or verify the evidence's current status is `pending_review` before propagating") but the applied fix (commit `7cf96a4`) only implemented the review-side idempotency half, not the evidence-side re-check.
+
+**Fix:** Close the gap at the point of mutation (defensive, minimal) by requiring the evidence to still be `pending_review` when the decision is propagated, and treat a non-match as observable instead of a silent no-op:
+
+```python
+result = await db.asset_compliance.update_one(
+    {
+        "evidence.id": evidence_id,
+        "tenantId": tenant_id,
+        "evidence.status": "pending_review",
+    },
+    {
+        "$set": {
+            "evidence.$.status": evidence_status,
+            "evidence.$.review_updated_at": now,
+        }
+    },
+)
+if result.modified_count == 0:
+    logger.warning(
+        "evidence_review: review %s decided as '%s' but evidence %s was not "
+        "'pending_review' at decision time (stale/duplicate review record) — "
+        "evidence status was not changed",
+        review_id, decision, evidence_id,
+    )
+```
+
+Additionally fix the root cause in `create_review` so duplicate `"pending"` threads can't accumulate in the first place:
+
+```python
+existing_pending = await db._db[_EVIDENCE_REVIEWS_COL].find_one(
+    {"evidenceId": evidence_id, "tenantId": tenant_id, "status": "pending"}
+)
+if existing_pending:
+    return existing_pending  # reuse the existing thread instead of creating a duplicate
+```
 
 ## Warnings
 
-### WR-01: Evidence-status propagation ignores whether the update actually matched anything
+### WR-01: No regression test exercises the exact evidence-id-mismatch-within-same-tenant path that caused the prior CR-01
 
-**File:** `backend/evidence_review_service.py:164-175`
-**Issue:** After updating the review record, the evidence status propagation call is fire-and-forget:
+**File:** `backend/tests/test_evidence_review.py` (whole file)
+**Issue:** The prior review's CR-01 (now fixed, verified above) was specifically about a mismatch between the URL's `evidence_id` and a review's real `evidenceId` *within the same tenant* not being caught atomically before mutation. Every test in this file that exercises the PATCH decision path uses a consistent `evidence_id="ev-1"` matching the mocked review's `evidenceId`. The two "tenant isolation" tests (`test_tenant_isolation_get_excludes_cross_tenant_reviews`, `test_tenant_isolation_patch_returns_404_for_cross_tenant_review`) vary `tenantId` only, not evidence-id-mismatch-within-a-tenant. There is no test that does e.g. `PATCH /api/evidence/ev-2/review/{review_id_belonging_to_ev-1}` (same tenant, different evidence) and asserts a 404 with zero DB mutation. Since this exact class of gap already produced one real regression that shipped and was only caught in a subsequent manual re-review, leaving it untested risks the same class of bug reappearing silently on a future refactor of `update_review_decision`.
+**Fix:** Add a test that mocks `find_one_and_update` to only match when `evidenceId` equals the review's real evidence id, then asserts a 404 (and no audit-log write) when the PATCH URL's `evidence_id` doesn't match:
 ```python
-await db.asset_compliance.update_one(
-    {"evidence.id": evidence_id, "tenantId": tenant_id},
-    {"$set": {"evidence.$.status": evidence_status, "evidence.$.review_updated_at": now}},
-)
+def test_evidence_id_mismatch_same_tenant_returns_404_without_mutation():
+    db = _make_mock_db()
+    async def _scoped(query, *a, **kw):
+        if query.get("evidenceId") == "ev-1":
+            return {"id": "rev-abc", "evidenceId": "ev-1", "status": "pending", "tenantId": "tenant-a"}
+        return None
+    db._db.evidence_reviews.find_one_and_update = AsyncMock(side_effect=_scoped)
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+    resp = client.patch("/api/evidence/ev-WRONG/review/rev-abc", json={"decision": "approved", "comment": "x"})
+    assert resp.status_code == 404
+    db.audit_logs.insert_one.assert_not_awaited()
 ```
-The result (`modified_count`) is never checked. If the evidence item no longer exists at this `id` (e.g., deleted via `onDeleteEvidence` after the review was created, or the `evidence.id` was otherwise changed), this call silently matches nothing. `update_review_decision` still returns the updated review dict, the endpoint still returns `200 {"success": true}`, and an audit log entry is still written claiming the decision was applied — but the evidence record's badge/status was never actually changed. Contrast with `submit_for_review`, which correctly returns `False`/404 based on `modified_count`.
-**Fix:** Check `result.modified_count` and log a warning (or surface a non-fatal flag in the response) when the evidence propagation didn't match, so the discrepancy is at least observable.
-
-### WR-02: No workflow-state guard on `create_review` / `update_review_decision` — decisions can bypass `pending_review` and be re-applied indefinitely
-
-**File:** `backend/evidence_review_service.py:84-114` (`create_review`), `117-177` (`update_review_decision`)
-**Issue:** `submit_for_review` correctly restricts itself to evidence currently in `[None, "needs_revision", "rejected"]` via `_submittable_statuses()`. That guard is not mirrored anywhere else in the lifecycle:
-- `create_review` only checks that the evidence item *exists* for the tenant (`594f3622`'s WR-04 fix) — it does not check that the evidence is currently `pending_review`. Any authenticated user can open a review thread against evidence in any state.
-- `update_review_decision` applies `evidence_status` unconditionally to whatever the review's `evidenceId` currently is — it never checks that the evidence's current status is `pending_review`, nor that the review's own current status is still `pending` (i.e., a review that has already been decided `approved` can be PATCHed again to `rejected`, silently flipping the evidence status back and forth with no idempotency guard).
-
-Net effect: the documented lifecycle (`Uploaded → submit-for-review → pending_review → approved/rejected/needs_revision`) is only enforced at one edge (`submit_for_review`); a reviewer can approve/reject evidence that was never submitted for review, and repeated PATCH calls on the same `review_id` can re-decide it arbitrarily.
-**Fix:** In `create_review`, additionally check the matched evidence's `status == "pending_review"` (or accept it as an explicit "comment thread" concept if that's intentional — currently undocumented either way). In `update_review_decision`, filter the review lookup on `status: "pending"` so a review can only be decided once, and/or verify the evidence's current status is `pending_review` before propagating.
-
-### WR-03: Frontend "Submit for Review" gating doesn't match backend's submittable states
-
-**File:** `components/EvidenceReviewPanel.tsx:43`
-**Issue:**
-```tsx
-const canSubmitForReview = !evidenceStatus || evidenceStatus === 'needs_revision';
-```
-The backend's `_submittable_statuses()` (`backend/evidence_review_service.py:44-49`) explicitly allows resubmission from `[None, "needs_revision", "rejected"]`. The frontend condition omits `'rejected'`, so once evidence is rejected, the "Submit for Review" button disappears and the user has no UI path to resubmit — the evidence appears permanently stuck, even though the backend would accept the resubmission.
-**Fix:**
-```tsx
-const canSubmitForReview = !evidenceStatus || evidenceStatus === 'needs_revision' || evidenceStatus === 'rejected';
-```
-
-### WR-04: `EvidenceReviewPanel` is rendered with a possibly-`undefined` `evidenceId`, unlike the adjacent delete button
-
-**File:** `components/AssetComplianceList.tsx:125, 166, 179-187`
-**Issue:** `evId` is derived as `ev.id || ev.evidence_id`, which is `undefined` for evidence entries lacking both fields (this exact gap was already fixed for the delete button in commit `552d4e02`, which added an explicit `evId &&` guard: `{!isAutomated && evId && (<button onClick={() => handleDeleteEvidence(asset.id, evId)} .../>)}`). The newer `EvidenceReviewPanel` added in this phase has no equivalent guard:
-```tsx
-<EvidenceReviewPanel
-  evidenceId={evId}
-  evidenceStatus={ev.status}
-  onStatusChange={...}
-/>
-```
-When `evId` is `undefined`, the panel still renders, `fetchReviews`/`handleSubmitForReview`/`handleReviewDecision` all fire requests against literal URLs like `/api/evidence/undefined/reviews` and `/api/evidence/undefined/submit-for-review`.
-**Fix:** Guard the same way the delete button already does: `{evId && <EvidenceReviewPanel evidenceId={evId} .../>}`.
-
-### WR-05: `onStatusChange` callback overwrites compliance status with a stale value, using a default inconsistent with the rest of the file
-
-**File:** `components/AssetComplianceList.tsx:182-186` (compare with the default used at line 101)
-**Issue:**
-```tsx
-onStatusChange={() => {
-  if (typeof onUpdateStatus === 'function') {
-    onUpdateStatus(asset.id, statusRecord?.status || 'Pending_Evidence');
-  }
-}}
-```
-This is invoked after every review decision purely to trigger a parent refresh (`FrameworkDetail.tsx`'s `onUpdateStatus` handler calls `api.updateAssetComplianceStatus(...)` followed by `refreshAssetCompliance(assetId)`). Two problems:
-1. It writes the control-level compliance status back using `statusRecord?.status`, a value captured at render time — if another user changed the status concurrently between render and this callback firing, this call silently reverts it to the stale value (and `updateAssetComplianceStatus` is a real, side-effecting write, not a pure refresh).
-2. The fallback default here is `'Pending_Evidence'`, but the fallback used elsewhere in the same file for the same field (line 101: `const status = statusRecord?.status || 'Non-Compliant';`) is `'Non-Compliant'`. If `statusRecord` is `undefined` when a review decision completes, this callback actively sets the compliance status to `'Pending_Evidence'` — a value inconsistent with what the rest of the component treats as the "no record" default — causing a spurious, wrong status write.
-**Fix:** Don't reuse `onUpdateStatus` (a real write) to trigger a refresh. Either add a dedicated read-only refresh callback prop, or at minimum use the same default (`'Non-Compliant'`) as line 101 for consistency, and avoid firing the write when `statusRecord` is undefined.
-
-### WR-06: `test_tenant_isolation` does not test tenant isolation and cannot fail
-
-**File:** `backend/tests/test_evidence_review.py:193-208`
-**Issue:** The test is named and commented as verifying "tenant-a user cannot access tenant-b evidence reviews," but it only constructs a single tenant (`tenant-a`) and a nonexistent evidence id (`ev-other`) — there is no tenant-b user, no tenant-b data, and no assertion that cross-tenant data is actually excluded. The GET assertion is maximally permissive:
-```python
-resp = client.get("/api/evidence/ev-other/reviews")
-assert resp.status_code in (200, 403, 404), f"Got {resp.status_code}: {resp.text}"
-```
-Any of the three most likely response codes passes, so this assertion cannot distinguish correct tenant-scoped behavior from a broken one. This is precisely the class of bug the previous review's CR-01 (cross-tenant IDOR) was in, and it's also precisely the class of gap that let CR-01 (this review) go undetected — a real cross-tenant or cross-evidence fixture with a strict expected status code would have exercised the code path this review's CR-01 finding lives in.
-**Fix:** Build an actual second-tenant fixture (different `tenant_id` on the mock user, mock DB seeded to reflect a document that belongs only to tenant-b) and assert a single, specific expected status code (404, given tenant-scoped queries return "not found" for cross-tenant records in this codebase's convention).
 
 ## Info
 
-### IN-01: Unused `Optional` import
+### IN-01: Unused `Optional` import remains in both service and endpoint modules
 
 **File:** `backend/evidence_review_service.py:15`, `backend/evidence_review_endpoints.py:16`
-**Issue:** `from typing import Optional` is imported in both files but never referenced — no `Optional[...]` annotation appears in either file (both use `dict | None` PEP 604 syntax instead).
+**Issue:** `from typing import Optional` is imported in both files but never referenced anywhere in either — both files consistently use PEP 604 `X | None` syntax for optional types instead. Confirmed still present and unused as of the current file contents (previously flagged and explicitly left as out-of-scope).
 **Fix:** Remove the unused import from both files.
 
 ---
