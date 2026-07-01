@@ -190,19 +190,71 @@ def test_get_pending_returns_only_pending_review():
 
 # ── Test 8: Tenant isolation ───────────────────────────────────────────────────
 
-def test_tenant_isolation():
-    """tenant-a user cannot access tenant-b evidence reviews."""
+def test_tenant_isolation_get_excludes_cross_tenant_reviews():
+    """A tenant-a GET must never surface tenant-b's review records for the same
+    evidence id — the query is scoped on tenantId, not just evidenceId."""
     db = _make_mock_db()
 
-    # Make a regular user (not admin) — should still be able to view own reviews
+    def _find_side_effect(query):
+        # Mirror the real find() call shape: {"evidenceId": ..., "tenantId": ...}.
+        # Only "tenant-b" has data seeded here; a tenant-a query must come back
+        # empty even though a record exists for the same evidenceId.
+        if query.get("tenantId") == "tenant-b":
+            return MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[
+                {
+                    "id": "rev-b1", "evidenceId": "ev-1", "status": "approved",
+                    "comment": "tenant-b only", "reviewer": "b-admin",
+                    "tenantId": "tenant-b", "created_at": "2026-06-27T12:00:00Z",
+                },
+            ]))))
+        return MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[]))))
+
+    db._db.evidence_reviews.find = MagicMock(side_effect=_find_side_effect)
+
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.get("/api/evidence/ev-1/reviews")
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["count"] == 0, f"Expected 0 reviews for tenant-a, leaked tenant-b data: {data}"
+    assert data["reviews"] == []
+
+
+def test_tenant_isolation_patch_returns_404_for_cross_tenant_review():
+    """A tenant-a admin cannot decide (PATCH) a review record that only exists
+    for tenant-b — the lookup is tenant-scoped, so this must be indistinguishable
+    from 'not found' (404), not silently apply tenant-b's data."""
+    db = _make_mock_db()
+
+    async def _scoped_find_one_and_update(query, *args, **kwargs):
+        if query.get("tenantId") == "tenant-b":
+            return {
+                "id": "rev-b1", "evidenceId": "ev-1", "status": "approved",
+                "comment": "tenant-b review", "reviewer": "b-admin", "tenantId": "tenant-b",
+            }
+        return None
+
+    db._db.evidence_reviews.find_one_and_update = AsyncMock(side_effect=_scoped_find_one_and_update)
+
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-b1",
+        json={"decision": "approved", "comment": "trying to access tenant-b review"},
+    )
+    assert resp.status_code == 404, f"Expected 404 for cross-tenant review access, got {resp.status_code}: {resp.text}"
+
+
+def test_non_reviewer_role_forbidden_from_decision():
+    """A non-admin/non-reviewer role cannot make a review decision — 403."""
+    db = _make_mock_db()
     user = _make_user("tenant-a", "user")
     client = _build_client(db, user)
 
-    resp = client.get("/api/evidence/ev-other/reviews")
-    assert resp.status_code in (200, 403, 404), f"Got {resp.status_code}: {resp.text}"
-    # For non-admin user trying to make a review decision, PATCH should 403
-    resp2 = client.patch(
+    resp = client.patch(
         "/api/evidence/ev-1/review/rev-abc",
         json={"decision": "approved", "comment": "test"},
     )
-    assert resp2.status_code == 403, f"Expected 403 for non-admin PATCH, got {resp2.status_code}"
+    assert resp.status_code == 403, f"Expected 403 for non-admin PATCH, got {resp.status_code}"
