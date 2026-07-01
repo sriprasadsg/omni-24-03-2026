@@ -790,6 +790,12 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                                 showToast('Failed to update compliance status — please try again', 'error');
                             }
                         }}
+                        onEvidenceReviewed={(assetId) => {
+                          // Non-mutating refresh trigger (WR-04) — a review decision doesn't
+                          // change the asset's overall compliance status, so this refetches
+                          // directly instead of reusing onUpdateStatus's mutating write.
+                          refreshAssetCompliance(assetId);
+                        }}
                         onUploadEvidence={async (assetId, file, description) => {
                           try {
                             const res = await api.uploadComplianceEvidence(assetId, control.id, file, description);

@@ -13,9 +13,14 @@ interface AssetComplianceListProps {
     onUploadEvidence: (assetId: string, file: File, description?: string) => void;
     onIngestEvidence: (assetId: string, fileName: string, content: string) => Promise<void>;
     onDeleteEvidence: (assetId: string, controlId: string, evidenceId: string) => Promise<void>;
+    /** Non-mutating refresh trigger fired after an evidence review decision.
+     * Unlike onUpdateStatus (a real compliance-status write), this must not
+     * perform a mutation — it exists purely to let the parent refetch the
+     * asset's compliance data after a review changes evidence status. */
+    onEvidenceReviewed?: (assetId: string) => void;
 }
 
-export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ control, assets, complianceData, onUpdateStatus, onUploadEvidence, onIngestEvidence, onDeleteEvidence }) => {
+export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ control, assets, complianceData, onUpdateStatus, onUploadEvidence, onIngestEvidence, onDeleteEvidence, onEvidenceReviewed }) => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
     const [ingestingMap, setIngestingMap] = useState<Record<string, boolean>>({});
@@ -181,15 +186,15 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                       evidenceId={evId}
                                                       evidenceStatus={ev.status}
                                                       onStatusChange={() => {
-                                                        // Only re-assert the compliance status when we actually have a
-                                                        // current record to read from — statusRecord is captured at
-                                                        // render time, so writing a guessed default here (as opposed
-                                                        // to skipping) risks reverting a concurrent status change made
-                                                        // between render and this callback firing. This intentionally
-                                                        // does not fall back to a default value (unlike line 101,
-                                                        // which is a read-only display default, not a write).
-                                                        if (typeof onUpdateStatus === 'function' && statusRecord?.status) {
-                                                          onUpdateStatus(asset.id, statusRecord.status);
+                                                        // Refresh-only trigger (WR-04): a review decision
+                                                        // doesn't change the asset's overall compliance
+                                                        // status, so this must not call onUpdateStatus (a
+                                                        // real, mutating backend write) — that would
+                                                        // spuriously re-assert the unchanged status as if it
+                                                        // were a genuine transition. onEvidenceReviewed is a
+                                                        // dedicated, non-mutating refetch path instead.
+                                                        if (typeof onEvidenceReviewed === 'function') {
+                                                          onEvidenceReviewed(asset.id);
                                                         }
                                                       }}
                                                     />
