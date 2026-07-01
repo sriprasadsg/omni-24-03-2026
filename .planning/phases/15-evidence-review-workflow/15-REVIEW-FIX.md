@@ -1,74 +1,48 @@
 ---
 phase: 15-evidence-review-workflow
-fixed_at: 2026-07-01T21:44:27Z
+fixed_at: 2026-07-01T22:51:42Z
 review_path: .planning/phases/15-evidence-review-workflow/15-REVIEW.md
-iteration: 1
-findings_in_scope: 7
-fixed: 7
+iteration: 3
+findings_in_scope: 3
+fixed: 3
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 15: Code Review Fix Report
 
-**Fixed at:** 2026-07-01T21:44:27Z
+**Fixed at:** 2026-07-01T22:51:42Z
 **Source review:** .planning/phases/15-evidence-review-workflow/15-REVIEW.md
-**Iteration:** 1
+**Iteration:** 3
 
 **Summary:**
-- Findings in scope: 7 (1 Critical + 6 Warning; `fix_scope: critical_warning` — IN-01 excluded from scope)
-- Fixed: 7
+- Findings in scope: 3 (1 Critical + 0 Warning + 2 Info; `fix_scope: all`)
+- Fixed: 3
 - Skipped: 0
 
 ## Fixed Issues
 
-### CR-01: Evidence-ID mismatch check runs after the mutating call — state changes without a matching audit log entry
+### CR-01: Evidence-status propagation query is missing `$elemMatch`, allowing a decision to silently corrupt a *different* evidence item's status in the same document
 
-**Files modified:** `backend/evidence_review_service.py`, `backend/evidence_review_endpoints.py`
-**Commit:** `eec1abf`
-**Applied fix:** `update_review_decision` now accepts `evidence_id` as a parameter and includes it directly in the `find_one_and_update` filter (`{"id": review_id, "evidenceId": evidence_id, "tenantId": tenant_id}`), so a URL/review mismatch is indistinguishable from "not found" and never mutates the review record or the evidence's status. The endpoint now passes `evidence_id` into the call and no longer performs the post-hoc check that previously ran after the mutation; the audit-log insert (T-10) is now only ever skipped when nothing was actually written.
+**Files modified:** `backend/evidence_review_service.py`, `backend/tests/test_evidence_review.py`
+**Commits:** `7576fdf` (core fix), `ba89cc0` (regression test)
+**Applied fix:** Rewrote the filter in `update_review_decision`'s evidence-status-propagation `update_one(...)` call to use `"evidence": {"$elemMatch": {"id": evidence_id, "status": "pending_review"}}` instead of the two independent top-level conditions `"evidence.id": evidence_id` / `"evidence.status": "pending_review"`, matching the pattern already used by `submit_for_review` in the same file and `approval_service.py:74-79`. This guarantees both conditions are evaluated against the *same* array element, so the positional `$` operator can no longer resolve to an unrelated evidence item.
 
-### WR-01: Evidence-status propagation ignores whether the update actually matched anything
+**Empirical verification (live MongoDB, not just static reasoning):** Started a real `mongod` (v8.x) instance locally. Reproduced the exact bug first: seeded an `asset_compliance` document with `evidence: [{id: "ev-1", status: "needs_revision"}, {id: "ev-2", status: "pending_review"}]`, ran the *pre-fix* query targeting `ev-1`, and confirmed `ev-2` silently flipped to `approved` while `matched_count`/`modified_count` both reported `1` (no error surfaced). Applied the fix, re-ran the identical scenario, and confirmed `matched_count`/`modified_count` correctly came back `0`, neither evidence item was touched, and the existing `logger.warning(...)` branch fires as intended. Also confirmed the fixed query still correctly updates the *right* element when it genuinely is the target (`ev-2` pending_review, decided against `ev-2` — updates as expected, `ev-1` untouched).
 
-**Files modified:** `backend/evidence_review_service.py`
-**Commit:** `7f060a1`
-**Applied fix:** The `db.asset_compliance.update_one(...)` call in `update_review_decision` now captures its result and logs a warning (`logger.warning(...)`) including `review_id`, `decision`, `evidence_id`, and `tenant_id` when `modified_count == 0`, making the discrepancy observable instead of silently swallowed.
+Also added a regression test (`test_evidence_propagation_query_does_not_corrupt_unrelated_evidence_item` in `backend/tests/test_evidence_review.py`) per the review's recommendation, since the existing mock-based tests structurally cannot catch a query-*shape* bug (the mock unconditionally returns `modified_count=1` regardless of the filter passed in). The new test runs the real `update_review_decision` service function against a live MongoDB instance (connects via `MONGODB_URI`/`MONGO_URI` env var, defaulting to `mongodb://localhost:27017`; skips gracefully via `pytest.skip` if no Mongo is reachable), seeds the same two-evidence-item document, and asserts `ev-2` is never touched by a decision made against `ev-1`. Verified the test's discriminating power directly: temporarily reverted the source file to the pre-fix query and confirmed the new test **fails** with `AssertionError: CR-01 regression: ev-2 was corrupted...`; restored the fix and confirmed it **passes**. Full suite: `pytest backend/tests/test_evidence_review.py` — **14/14 passed** (13 pre-existing + 1 new).
 
-### WR-02: No workflow-state guard on `create_review` / `update_review_decision`
-
-**Files modified:** `backend/evidence_review_service.py`
-**Commit:** `7cf96a4`
-**Applied fix:** `create_review` now locates the matching evidence item in the fetched `asset_compliance` document and raises `ValueError` unless its status is `pending_review`. `update_review_decision`'s `find_one_and_update` filter now additionally requires `status: "pending"` on the review record, so an already-decided review can no longer be re-decided by a repeated PATCH.
-**Note:** This is a workflow/state-machine logic change, not just a syntax fix. All 10 existing/updated tests pass, but the underlying business-logic decision (e.g. whether "comment threads on non-pending-review evidence" should ever be a valid intentional use case, as the review's Fix section flagged as "undocumented either way") should be confirmed by a human before this is considered fully verified. Status: **fixed: requires human verification**.
-
-### WR-03: Frontend "Submit for Review" gating doesn't match backend's submittable states
-
-**Files modified:** `components/EvidenceReviewPanel.tsx`
-**Commit:** `d6e362d`
-**Applied fix:** `canSubmitForReview` now also includes `evidenceStatus === 'rejected'`, matching the backend's `_submittable_statuses()` (`[None, "needs_revision", "rejected"]`), so rejected evidence is no longer stuck with no UI path to resubmit.
-
-### WR-04: `EvidenceReviewPanel` is rendered with a possibly-`undefined` `evidenceId`
-
-**Files modified:** `components/AssetComplianceList.tsx`
-**Commit:** `0b52b10`
-**Applied fix:** Wrapped `<EvidenceReviewPanel .../>` in `{evId && (...)}`, matching the existing guard already used for the adjacent delete button, so the panel no longer fires requests against literal `/api/evidence/undefined/...` URLs when `evId` is undefined.
-
-### WR-05: `onStatusChange` callback overwrites compliance status with a stale value, using an inconsistent default
-
-**Files modified:** `components/AssetComplianceList.tsx`
-**Commit:** `63a53e9`
-**Applied fix:** The `onStatusChange` callback passed to `EvidenceReviewPanel` now only calls `onUpdateStatus` (a real, side-effecting write) when `statusRecord?.status` is present, and uses that actual value directly rather than falling back to a guessed default. This removes both problems flagged in the review: the inconsistent `'Pending_Evidence'` default (vs. `'Non-Compliant'` used elsewhere in the file) and the risk of reverting a concurrent status change with a stale render-time value.
-
-### WR-06: `test_tenant_isolation` does not test tenant isolation and cannot fail
+### IN-01: Stale comment and dead mock in test fixture no longer match the current `create_review` implementation
 
 **Files modified:** `backend/tests/test_evidence_review.py`
-**Commit:** `456773c`
-**Applied fix:** Replaced the single no-op `test_tenant_isolation` (which asserted `status_code in (200, 403, 404)` against a single-tenant fixture) with three focused tests using real two-tenant fixtures:
-- `test_tenant_isolation_get_excludes_cross_tenant_reviews` — seeds a tenant-b-only review record for the same `evidenceId`, asserts a tenant-a GET returns `count == 0` / `reviews == []` (strict, not permissive).
-- `test_tenant_isolation_patch_returns_404_for_cross_tenant_review` — seeds a review that only resolves for `tenantId == "tenant-b"`, asserts a tenant-a admin's PATCH against that review id returns exactly `404`.
-- `test_non_reviewer_role_forbidden_from_decision` — preserves the original 403-on-non-admin-PATCH assertion as its own focused test.
+**Commit:** `b78591a`
+**Applied fix:** Removed the unused `inner.evidence_reviews.find_one = AsyncMock(return_value=None)` line and its stale "backs `create_review()`'s dedup guard (CR-01)" comment from `_make_mock_db()`. Confirmed no test in the file references `evidence_reviews.find_one` (the dedup guard is fully implemented via `find_one_and_update(..., upsert=True)`, mocked separately a few lines below). Full suite re-run after removal: 14/14 passed.
 
-All 10 tests (8 original + 2 net-new from the WR-06 split) pass.
+### IN-02: `create_review`'s "not pending review" error message can render as "current status: None" instead of a human-readable state
+
+**Files modified:** `backend/evidence_review_service.py`
+**Commit:** `e82b8da`
+**Applied fix:** The current code already had `current_status = evidence_item.get("status") if evidence_item else "unknown"` (a prior partial fix handling the missing-evidence-item case), but the leaked-`None` case the reviewer flagged — an existing evidence item whose `status` key was never set — was still open, since `evidence_item.get("status")` returns `None` and that flowed straight into the f-string. Adapted the review's suggested fix to preserve the existing "unknown" (missing item) branch while adding an `or "unset"` fallback for the None-status-but-item-exists case: `current_status = (evidence_item.get("status") or "unset") if evidence_item else "unknown"`. Verified directly: calling `create_review` against an evidence item with no `status` key now raises `ValueError("Evidence 'ev-1' is not pending review (current status: unset)")` instead of `"... (current status: None)"`. Full suite: 14/14 passed.
 
 ## Skipped Issues
 
@@ -76,6 +50,6 @@ None — all in-scope findings were fixed.
 
 ---
 
-_Fixed: 2026-07-01T21:44:27Z_
+_Fixed: 2026-07-01T22:51:42Z_
 _Fixer: Claude (gsd-code-fixer)_
-_Iteration: 1_
+_Iteration: 3_
