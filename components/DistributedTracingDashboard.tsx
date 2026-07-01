@@ -17,6 +17,18 @@ export const DistributedTracingDashboard: React.FC<DistributedTracingDashboardPr
         )
     }
 
+    const node0 = serviceMap.nodes?.[0];
+    const node1 = serviceMap.nodes?.[1];
+    const node2 = serviceMap.nodes?.[2];
+
+    if (!node0 || !node1 || !node2) {
+        return (
+            <div className="container mx-auto text-center p-8">
+                <p className="text-gray-500 dark:text-gray-400">No service map data available yet.</p>
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
@@ -41,19 +53,19 @@ export const DistributedTracingDashboard: React.FC<DistributedTracingDashboardPr
                     <div className="p-8 h-96 relative overflow-hidden">
                         {/* Simplified visualization with glass blocks */}
                         <div className="absolute top-1/2 left-12 w-40 h-24 glass dark:glass border border-primary-500/30 rounded-2xl p-4 text-center shadow-lg transform hover:scale-105 transition-all">
-                            <strong className="text-primary-600 dark:text-primary-400 block mb-1">{serviceMap.nodes[0].id}</strong>
-                            <div className="text-sm font-semibold">{serviceMap.nodes[0].requestCount} reqs</div>
-                            <div className="text-xs text-gray-500">{serviceMap.nodes[0].avgLatency}ms avg</div>
+                            <strong className="text-primary-600 dark:text-primary-400 block mb-1">{node0.id}</strong>
+                            <div className="text-sm font-semibold">{node0.requestCount} reqs</div>
+                            <div className="text-xs text-gray-500">{node0.avgLatency}ms avg</div>
                         </div>
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-24 glass dark:glass border border-indigo-500/30 rounded-2xl p-4 text-center shadow-lg transform hover:scale-105 transition-all">
-                            <strong className="text-indigo-600 dark:text-indigo-400 block mb-1">{serviceMap.nodes[1].id}</strong>
-                            <div className="text-sm font-semibold">{serviceMap.nodes[1].requestCount} reqs</div>
-                            <div className="text-xs text-gray-500">{serviceMap.nodes[1].avgLatency}ms avg</div>
+                            <strong className="text-indigo-600 dark:text-indigo-400 block mb-1">{node1.id}</strong>
+                            <div className="text-sm font-semibold">{node1.requestCount} reqs</div>
+                            <div className="text-xs text-gray-500">{node1.avgLatency}ms avg</div>
                         </div>
                         <div className="absolute top-1/2 right-12 -translate-y-full w-40 h-24 glass dark:glass border border-accent-500/30 rounded-2xl p-4 text-center shadow-lg transform hover:scale-105 transition-all">
-                            <strong className="text-accent-600 dark:text-accent-400 block mb-1">{serviceMap.nodes[2].id}</strong>
-                            <div className="text-sm font-semibold">{serviceMap.nodes[2].requestCount} reqs</div>
-                            <div className="text-xs text-gray-500">{serviceMap.nodes[2].avgLatency}ms avg</div>
+                            <strong className="text-accent-600 dark:text-accent-400 block mb-1">{node2.id}</strong>
+                            <div className="text-sm font-semibold">{node2.requestCount} reqs</div>
+                            <div className="text-xs text-gray-500">{node2.avgLatency}ms avg</div>
                         </div>
                         {/* Connectors with gradient anim */}
                         <svg className="absolute inset-0 w-full h-full -z-10 opacity-30">

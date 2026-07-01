@@ -229,4 +229,6 @@ def register_tunnel_routes(app: FastAPI) -> None:
             await asyncio.wait([t_recv, t_send], return_when=asyncio.FIRST_COMPLETED)
         finally:
             t_send.cancel()
-            _tunnels.pop(session_id, None)
+            # Do NOT pop the tunnel here — the agent side owns cleanup.
+            # Popping here would orphan the agent's a2u writes if the viewer
+            # reconnects (e.g. browser refresh) while the agent is still streaming.

@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import sys
+from database import get_database
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger("train_ml_models")
@@ -93,7 +94,6 @@ def _seed_anomaly_data():
 async def _load_real_patch_data():
     """Try to load real patch deployment data from MongoDB."""
     try:
-        from database import get_database
         db = get_database()
         if db is None:
             return None, None
@@ -128,7 +128,7 @@ async def _load_real_patch_data():
 
                 uptime = asset.get("uptime_hours") or 72
 
-                if asset_id:
+                if asset_id and asset:
                     total_deps = await db.patch_deployment_jobs.count_documents({"asset_ids": asset_id})
                     success_deps = await db.patch_deployment_jobs.count_documents(
                         {"asset_ids": asset_id, "status": "completed"}
@@ -163,7 +163,6 @@ async def _load_real_patch_data():
 async def _load_real_anomaly_data():
     """Try to load real daily deployment stats from MongoDB."""
     try:
-        from database import get_database
         import numpy as np
         from collections import defaultdict
 

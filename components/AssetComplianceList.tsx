@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Asset, AssetCompliance, Control } from '../types';
 import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircuitIcon, TrashIcon } from './icons';
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
+import { EvidenceReviewPanel } from './EvidenceReviewPanel';
 import { showToast } from '../utils/toast';
 
 interface AssetComplianceListProps {
@@ -123,10 +124,10 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                 const isAutomated = ev.systemGenerated === true || ev.source === 'auto';
                                                 const evId = ev.id || ev.evidence_id;
                                                 return (
-                                                <div key={evId ?? `idx-${idx}`} className="flex items-start gap-2">
+                                                <React.Fragment key={evId ?? `idx-${idx}`}>
+                                                  <div className="flex items-start gap-2">
                                                     <div className="flex-1">
                                                         {isAutomated || ev.url === '#' || ev.evidence_content || ev.content ? (
-                                                            // System-generated evidence with markdown content
                                                             <EvidenceMarkdownViewer
                                                                 evidence={{
                                                                     id: evId,
@@ -136,7 +137,6 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                                 }}
                                                             />
                                                         ) : (
-                                                            // File-based evidence with download link
                                                             <a
                                                                 href={`/api/compliance/evidence/download/${evId}`}
                                                                 target="_blank"
@@ -175,7 +175,17 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                             </button>
                                                         )}
                                                     </div>
-                                                </div>
+                                                  </div>
+                                                  <EvidenceReviewPanel
+                                                    evidenceId={evId}
+                                                    evidenceStatus={ev.status}
+                                                    onStatusChange={() => {
+                                                      if (typeof onUpdateStatus === 'function') {
+                                                        onUpdateStatus(asset.id, statusRecord?.status || 'Pending_Evidence');
+                                                      }
+                                                    }}
+                                                  />
+                                                </React.Fragment>
                                                 );
                                             })}
 

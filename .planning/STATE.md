@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Windows PowerShell Evidence
-status: planned
-stopped_at: Phase 14 Plan 02 complete — SaaSIntegrationsDashboard UI with OAuth popup and evidence pull
-last_updated: "2026-06-24T08:58:21.617Z"
+status: completed
+stopped_at: Phase 23 complete — Windows PowerShell evidence collector (28 checks), rebuilt installers, Inno Setup EXE, frontend 3-step install tab
+last_updated: "2026-06-27T07:11:47.348Z"
 progress:
   total_phases: 18
   completed_phases: 9
@@ -56,7 +56,7 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 | 20 | Multi-Account Cloud Scanning | Planned (v2.0) |
 | 21 | Notification Routing & Domain Scanner | Planned (v2.0) |
 | 22 | API Extensions (MCP, OCSF, CLI, DO) | Planned (v2.0) |
-| 23 | Windows PowerShell Evidence Collection | Planned (v2.1) |
+| 23 | Windows PowerShell Evidence Collection | Complete (v2.1) |
 
 ## Decisions
 
@@ -160,7 +160,7 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 ## Last Session
 
 - **Timestamp:** 2026-06-23T17:45:23Z
-- **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration (GitHub, Jira, Okta, GWS, Slack)
+- **Stopped at:** context exhaustion at 84% (2026-06-27)
 - **Resume file:** None
 
 ## Configuration
@@ -186,6 +186,6 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 
 ## Session
 
-**Last session:** 2026-06-24T08:58:21.604Z
+**Last session:** 2026-06-27T07:11:47.336Z
 **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
 **Resume file:** None

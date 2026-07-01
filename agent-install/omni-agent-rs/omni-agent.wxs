@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package
+    Name="OmniAgent"
+    Version="2.0.0"
+    Manufacturer="Enterprise OmniAgent AI Platform"
+    UpgradeCode="B5E9A3F1-C8D2-4A6E-9F71-2B3C4D5E6F70"
+    Scope="perMachine"
+    InstallerVersion="500"
+    Compressed="yes">
+
+    <!-- Upgrade logic: block downgrades, silently remove older versions -->
+    <MajorUpgrade
+      AllowDowngrades="no"
+      DowngradeErrorMessage="A newer version of OmniAgent is already installed."
+      AllowSameVersionUpgrades="yes"
+      IgnoreRemoveFailure="yes" />
+
+    <!-- Embed all files in a single-file MSI -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Feature: single required feature containing everything -->
+    <Feature Id="ProductFeature" Title="OmniAgent" Level="1">
+      <ComponentGroupRef Id="OmniAgentComponents" />
+    </Feature>
+
+  </Package>
+
+  <!-- Directory tree -->
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="OmniAgent">
+        <Directory Id="SpyglassDir" Name=".spyglass">
+          <Directory Id="EvidenceDir" Name="evidence" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+  </Fragment>
+
+  <!-- Components -->
+  <Fragment>
+    <ComponentGroup Id="OmniAgentComponents" Directory="INSTALLFOLDER">
+
+      <!-- Agent binary + Windows Service registration -->
+      <Component Id="AgentBinary" Guid="C1A2B3D4-E5F6-7891-ABCD-EF1234567891">
+        <File Id="OmniAgentExe"
+              Source="target\release\omni-agent.exe"
+              Name="omni-agent.exe"
+              KeyPath="yes" />
+
+        <ServiceInstall
+          Id="OmniAgentServiceInstall"
+          Name="OmniAgent"
+          DisplayName="Enterprise Omni Agent"
+          Description="AI-Powered Enterprise Security Agent"
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Account="LocalSystem" />
+
+        <!-- Start on install, stop+delete on uninstall -->
+        <ServiceControl
+          Id="OmniAgentServiceControl"
+          Name="OmniAgent"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+
+      <!-- Tenant-specific config.yaml. Pass -d ConfigSource=<path> at build time.
+           Falls back to config.yaml.template only when no override is supplied. -->
+      <?ifndef ConfigSource ?>
+        <?define ConfigSource = "config.yaml.template" ?>
+      <?endif ?>
+      <Component Id="AgentConfig" Guid="D2B3C4E5-F6A7-8902-BCDE-F12345678902">
+        <File Id="ConfigYaml"
+              Source="$(var.ConfigSource)"
+              Name="config.yaml"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Spyglass evidence collection scripts -->
+      <Component Id="EvidenceScripts" Directory="EvidenceDir" Guid="A1B2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D">
+        <File Id="CollectEvidencePs1"
+              Source="..\agent\installer\Collect-Evidence.ps1"
+              Name="Collect-Evidence.ps1"
+              KeyPath="yes" />
+        <File Id="UnifiedCollectionPs1"
+              Source="..\build\spyglass\unified-collection.ps1"
+              Name="unified-collection.ps1" />
+      </Component>
+
+      <!-- Spyglass manifest -->
+      <Component Id="EvidenceManifest" Directory="EvidenceDir" Guid="B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E">
+        <File Id="SpyglassManifest"
+              Source="..\build\spyglass\spyglass.json"
+              Name="spyglass.json"
+              KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>

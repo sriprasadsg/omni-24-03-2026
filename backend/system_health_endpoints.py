@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter
 from database import get_database
+from tenant_context import set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ def _background_tasks() -> List[Dict[str, Any]]:
 @router.get("/health")
 async def system_health():
     """Comprehensive platform health snapshot."""
+    set_tenant_id("platform-admin")
     db = get_database()
     resources, db_stats, queues, fleet = await asyncio.gather(
         asyncio.get_event_loop().run_in_executor(None, _cpu_mem_disk),
@@ -191,6 +193,7 @@ async def list_services():
 @router.get("/queues")
 async def queue_depths():
     """Current queue depths for all async processing pipelines."""
+    set_tenant_id("platform-admin")
     db = get_database()
     depths = await _queue_depths(db)
     return {
@@ -207,6 +210,7 @@ async def queue_depths():
 @router.get("/fleet")
 async def agent_fleet():
     """Agent fleet health summary."""
+    set_tenant_id("platform-admin")
     db = get_database()
     fleet = await _agent_fleet(db)
 

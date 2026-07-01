@@ -10,6 +10,7 @@ interface RemoteDesktopProps {
 export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId: sessionIdProp }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [fps, setFps] = useState(0);
+    const [hasFrames, setHasFrames] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMsg, setStatusMsg] = useState('Requesting desktop session…');
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,13 +42,14 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
-            ws.onopen = () => { setIsConnected(true); setError(null); setStatusMsg(''); };
+            ws.onopen = () => { setIsConnected(true); setError(null); setStatusMsg('Waiting for agent to start streaming…'); };
 
             ws.onmessage = (event) => {
                 try {
                     const payload = JSON.parse(event.data);
                     if (payload.type === 'frame' && payload.data) {
                         renderFrame(payload.data);
+                        if (!hasFrames) { setHasFrames(true); setStatusMsg(''); }
                         frameCountRef.current++;
                         const now = Date.now();
                         if (now - lastFpsTimeRef.current >= 1000) {
@@ -101,7 +103,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                     </h3>
                 </div>
                 <div>
-                    {!isConnected && !error && statusMsg && (
+                    {!error && statusMsg && (
                         <span className="text-xs text-yellow-500 animate-pulse">{statusMsg}</span>
                     )}
                     {error && (
@@ -113,10 +115,13 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             </div>
 
             <div className="flex-1 bg-black rounded border border-slate-700 relative overflow-hidden flex items-center justify-center">
-                {!isConnected && !error && (
+                {!hasFrames && !error && (
                     <div className="text-center">
                         <MonitorIcon size={48} className="mx-auto text-slate-700 mb-2" />
                         <p className="text-slate-500 text-sm">{statusMsg || 'Waiting for video stream…'}</p>
+                        {isConnected && (
+                            <p className="text-slate-600 text-xs mt-1">Connected to relay — waiting for agent to open the stream.</p>
+                        )}
                     </div>
                 )}
                 {error && (
@@ -130,7 +135,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                     ref={canvasRef}
                     width={800}
                     height={600}
-                    className={`max-w-full max-h-full object-contain ${!isConnected ? 'hidden' : ''}`}
+                    className={`max-w-full max-h-full object-contain ${!hasFrames ? 'hidden' : ''}`}
                 />
             </div>
 

@@ -260,3 +260,47 @@ async def test_notification_channel(
     except Exception as exc:
         import logging as _l; _l.getLogger(__name__).error("Notification send error: %s", exc)
         return {"success": False, "message": "Notification delivery failed"}
+
+
+# ─── Channels ─────────────────────────────────────────────────────────────────
+
+
+@router.post("/channels")
+async def create_notification_channel(payload: dict = Body(...), current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
+    from database import get_database
+    db = get_database()
+    try:
+        ch = await notification_service.create_channel(db, get_tenant_id(), payload)
+        return {"channel": ch}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.get("/channels")
+async def list_notification_channels(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
+    from database import get_database
+    db = get_database()
+    items = await notification_service.list_channels(db, get_tenant_id())
+    return {"items": items, "count": len(items)}
+
+
+# ─── Rules ────────────────────────────────────────────────────────────────────
+
+
+@router.post("/rules")
+async def create_notification_rule(payload: dict = Body(...), current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
+    from database import get_database
+    db = get_database()
+    try:
+        rule = await notification_service.create_rule(db, get_tenant_id(), payload)
+        return {"rule": rule}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.get("/rules")
+async def list_notification_rules(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
+    from database import get_database
+    db = get_database()
+    items = await notification_service.list_rules(db, get_tenant_id())
+    return {"items": items, "count": len(items)}

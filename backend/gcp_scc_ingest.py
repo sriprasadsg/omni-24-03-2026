@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from database import get_database
+from tenant_context import set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,7 @@ async def poll_gcp_scc_findings(config: Dict[str, Any], omni_tenant_id: str) -> 
             logger.info("[GCPSCC] No findings for %s / tenant %s", parent, omni_tenant_id)
             return 0
 
+        set_tenant_id(omni_tenant_id)
         db = get_database()
         await db.security_events.insert_many(events)
         logger.info("[GCPSCC] Ingested %d findings for tenant %s", len(events), omni_tenant_id)
@@ -192,6 +194,7 @@ async def poll_gcp_chronicle(config: Dict[str, Any], omni_tenant_id: str) -> int
             data = _json.loads(resp.read())
 
         alerts = data.get("alerts", [])
+        set_tenant_id(omni_tenant_id)
         db = get_database()
         events = []
         for alert in alerts:
@@ -227,6 +230,7 @@ async def start_gcp_polling():
     while True:
         try:
             await asyncio.sleep(300)
+            set_tenant_id("platform-admin")
             db = get_database()
             integrations = await db.cloud_integrations.find(
                 {"provider": {"$in": ["gcp_scc", "gcp_chronicle"]}, "enabled": True}

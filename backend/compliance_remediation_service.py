@@ -51,6 +51,7 @@ async def create_task(db, data: dict, tenant_filter: dict, created_by: str) -> d
         "status": "open",
         "priority": data.get("priority", "medium"),
         "assignee": data.get("assignee", ""),
+        "assignee_type": data.get("assignee_type", "user"),
         "due_date": data.get("due_date"),
         "description": data.get("description", ""),
         "resolution_notes": None,

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Form, BackgroundTasks, Depends
+from fastapi import APIRouter, Form, BackgroundTasks, Depends, Query
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 from database import get_database
 from authentication_service import get_current_user
 
@@ -100,3 +101,54 @@ async def trigger_compliance_fix(
     })
     logger.info("Sent Fix Instruction to %s: %s", agent_id, check_name)
     return {"success": True, "message": f"Fix instruction sent for {check_name}"}
+
+
+@router.post("/api/compliance/collect-all")
+async def trigger_full_evidence_sweep(
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_user),
+):
+    """
+    Immediately dispatch a compliance evidence collection sweep to all active agents
+    for the calling user's tenant.  Agents will execute their compliance checks and
+    include the results in their next heartbeat.
+    """
+    from compliance_auto_evidence_service import dispatch_collection_sweep
+    db = get_database()
+
+    tenant_id = getattr(current_user, "tenant_id", None)
+    role = getattr(current_user, "role", "")
+    _SUPER = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+    if role in _SUPER:
+        tenant_id = None  # super-admin sweeps all tenants
+
+    result = await dispatch_collection_sweep(db, tenant_id=tenant_id)
+    return {
+        "success": True,
+        "message": f"Evidence collection sweep dispatched to {result.get('dispatched', 0)} agent(s). "
+                   "Results will appear after agents send their next heartbeat.",
+        **result,
+    }
+
+
+@router.get("/api/compliance/evidence-coverage")
+async def get_evidence_coverage(
+    framework_id: Optional[str] = Query(None, description="Filter by framework ID"),
+    since_days: int = Query(30, ge=1, le=365, description="Look-back window in days"),
+    current_user=Depends(get_current_user),
+):
+    """
+    Return a coverage report showing which compliance controls have recent evidence
+    and which are gaps.  Use `since_days` to adjust the look-back window (default 30 days).
+    """
+    from compliance_auto_evidence_service import get_coverage_gaps
+    db = get_database()
+
+    tenant_id = getattr(current_user, "tenant_id", None)
+    role = getattr(current_user, "role", "")
+    _SUPER = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+    if role in _SUPER:
+        tenant_id = None
+
+    report = await get_coverage_gaps(db, tenant_id=tenant_id, since_days=since_days, framework_id=framework_id)
+    return report

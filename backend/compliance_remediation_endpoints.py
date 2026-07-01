@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from authentication_service import get_current_user
 from database import get_database
@@ -35,7 +36,9 @@ def _tenant_filter(user) -> dict:
     if role in _SUPER_ADMIN_ROLES:
         return {}
     tenant = getattr(user, "tenant_id", "") or ""
-    return {"tenantId": tenant} if tenant else {}
+    if not tenant:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return {"tenantId": tenant}
 
 
 # ---------------------------------------------------------------------------
@@ -48,13 +51,14 @@ class TaskCreate(BaseModel):
     asset_id: str = ""
     framework_id: str = ""
     assignee: str = ""
+    assignee_type: str = "user"
     due_date: Optional[str] = None
     description: str = Field("", max_length=4000)
-    priority: str = "medium"
+    priority: Literal["low", "medium", "high", "critical"] = "medium"
 
 
 class TaskUpdate(BaseModel):
-    status: Optional[str] = None
+    status: Optional[Literal["open", "in_progress", "resolved"]] = None
     assignee: Optional[str] = None
     due_date: Optional[str] = None
     resolution_notes: Optional[str] = None

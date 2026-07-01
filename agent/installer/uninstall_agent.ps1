@@ -81,6 +81,15 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
     Write-Warn "Service not registered — nothing to remove."
 }
 
+# ── Remove scheduled task ─────────────────────────────────────────────────────
+Write-Step "Removing evidence collection scheduled task"
+try {
+    Unregister-ScheduledTask -TaskName "OmniAgentEvidenceCollection" -Confirm:$false -ErrorAction SilentlyContinue
+    Write-OK "Scheduled task removed"
+} catch {
+    Write-Warn "Could not remove scheduled task: $_"
+}
+
 # ── Remove firewall rule ──────────────────────────────────────────────────────
 Write-Step "Removing firewall rule"
 try {

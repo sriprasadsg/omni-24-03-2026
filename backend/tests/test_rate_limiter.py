@@ -51,11 +51,10 @@ class TestRateLimiterConfiguration:
 
     def test_limiter_has_per_minute_limit(self):
         """At least one default limit must include a per-minute rate."""
-        from rate_limiter import limiter
-        limits_as_str = [str(lim) for lim in limiter._default_limits]
-        has_per_minute = any("minute" in lim for lim in limits_as_str)
+        from rate_limiter import LIMITER_DEFAULT_LIMITS
+        has_per_minute = any("minute" in lim for lim in LIMITER_DEFAULT_LIMITS)
         assert has_per_minute, (
-            f"No per-minute limit found in default_limits: {limits_as_str}. "
+            f"No per-minute limit found in default_limits: {LIMITER_DEFAULT_LIMITS}. "
             "A per-minute limit is required to stop burst attacks."
         )
 

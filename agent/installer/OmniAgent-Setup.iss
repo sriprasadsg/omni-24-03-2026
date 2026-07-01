@@ -39,6 +39,9 @@ Source: "..\target\release\{#MyExeName}";  DestDir: "{app}"; Flags: ignoreversio
 Source: "Collect-Evidence.ps1";             DestDir: "{app}"; Flags: ignoreversion
 Source: "Configure-Agent.ps1";              DestDir: "{app}"; Flags: ignoreversion
 Source: "uninstall_agent.ps1";              DestDir: "{app}"; Flags: ignoreversion
+; Spyglass evidence collection
+Source: "..\build\spyglass\unified-collection.ps1"; DestDir: "{app}\.spyglass\evidence"; Flags: ignoreversion
+Source: "Collect-Evidence.ps1";             DestDir: "{app}\.spyglass\evidence"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Configure OmniAgent";    Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\Configure-Agent.ps1"""
@@ -97,7 +100,15 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\Collect-Evidence.ps1"""; \
   Flags: runhidden waituntilidle; StatusMsg: "Running initial evidence collection..."; Tasks: firstrun;
 
+; Run unified spyglass evidence collection (post-config)
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\.spyglass\evidence\unified-collection.ps1"" -BuildRoot ""{app}\.spyglass\evidence"""; \
+  Flags: runhidden waituntilidle; StatusMsg: "Running Spyglass evidence collection...";
+
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-NonInteractive -ExecutionPolicy Bypass -Command ""Stop-Service '{#MyServiceName}' -Force -EA SilentlyContinue; sc.exe delete '{#MyServiceName}' | Out-Null; Unregister-ScheduledTask -TaskName OmniAgentEvidenceCollection -Confirm:$false -EA SilentlyContinue"""; \
   Flags: runhidden;
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\.spyglass"

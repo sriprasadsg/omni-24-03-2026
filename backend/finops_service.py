@@ -255,6 +255,8 @@ class FinOpsService:
         """Insert a cost anomaly alert into the alerts collection."""
         try:
             import uuid as _uuid
+            from tenant_context import set_tenant_id
+            set_tenant_id(tenant_id)
             db = get_database()
             await db.alerts.insert_one({
                 "id": str(_uuid.uuid4()),

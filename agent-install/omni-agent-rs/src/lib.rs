@@ -1,0 +1,81 @@
+pub mod buffer;
+pub mod capabilities;
+pub mod config;
+pub mod heartbeat;
+pub mod instructions;
+pub mod registration;
+
+#[cfg(windows)]
+pub mod service;
+
+use buffer::MessageBuffer;
+use capabilities::CapabilityManager;
+use sysinfo::System;
+
+pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
+    let mut cfg = match config::load() {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("Failed to load config.yaml: {e}");
+            return;
+        }
+    };
+
+    let interval = std::time::Duration::from_secs(cfg.interval_seconds);
+    log::info!(
+        "Omni Agent v2.0 starting — interval {}s, host {}",
+        cfg.interval_seconds,
+        heartbeat::hostname_str()
+    );
+
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_default();
+    let buf = MessageBuffer::new(exe_dir.join("buffer.db"));
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("HTTP client build");
+
+    let cap_mgr = CapabilityManager::new();
+    registration::ensure_registered(&mut cfg, &client, &cap_mgr).await;
+    if cfg.agent_token.is_empty() {
+        log::warn!("No agent_token — heartbeats will be unauthenticated until registered");
+    }
+    log::info!("Capabilities loaded: {}", cap_mgr.ids().join(", "));
+
+    let mut sys = System::new_all();
+    let mut tick = 0u32;
+
+    loop {
+        if let Some(ref rx) = stop_rx {
+            if *rx.borrow() {
+                log::info!("Stop signal received, shutting down.");
+                break;
+            }
+        }
+
+        sys.refresh_all();
+        let self_pid = sysinfo::Pid::from(std::process::id() as usize);
+        if let Some(proc) = sys.process(self_pid) {
+            let agent_cpu = proc.cpu_usage();
+            if agent_cpu > cfg.max_cpu_percent {
+                log::warn!(
+                    "Agent CPU {agent_cpu:.1}% > limit {:.1}%, throttling 5s",
+                    cfg.max_cpu_percent
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                continue;
+            }
+        }
+        let payload = heartbeat::build_payload(&cfg, &sys, &cap_mgr);
+        heartbeat::send(&cfg, payload, &buf, &client).await;
+        instructions::poll(&cfg, &client).await;
+
+        tick += 1;
+        log::debug!("Tick {tick} complete");
+        tokio::time::sleep(interval).await;
+    }
+}

@@ -261,3 +261,172 @@ class TestVulnEndpoints:
             with TestClient(self.app) as client:
                 resp = client.post("/api/vulnerabilities/vuln-123/resolve")
         assert resp.status_code == 200
+
+
+# ===========================================================================
+# Patch instruction regression tests
+# Verifies fixes for:
+#   B1 — instruction docs include tenantId so agents can fetch them
+#   B2 — instruction string is "install_patches" (not embedded KB list)
+#   B3 — list_patches for super admin with no tenant param returns all patches
+# ===========================================================================
+
+class TestPatchInstructionFixes:
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tenant_user):
+        import patch_endpoints as mod
+        self.app = _app(mod.router, tenant_user)
+        self.db = _db(
+            "patches", "vulnerability_scan_jobs", "patch_deployment_jobs",
+            "agent_instructions", "agents", "local_repo", "software_inventory",
+        )
+        self.tenant_user = tenant_user
+
+    # ── B1 + B2: create_deployment_job stores tenantId and "install_patches" ──
+
+    @staticmethod
+    def _async_cursor(items):
+        """Return an object that supports `async for` iteration over items."""
+        class _AsyncIter:
+            def __init__(self, data):
+                self._iter = iter(data)
+            def __aiter__(self):
+                return self
+            async def __anext__(self):
+                try:
+                    return next(self._iter)
+                except StopIteration:
+                    raise StopAsyncIteration
+        return _AsyncIter(items)
+
+    def test_deploy_instruction_has_tenant_id_and_correct_format(self):
+        """create_deployment_job must store tenantId and instruction='install_patches' in every doc."""
+        captured: list[dict] = []
+
+        async def _insert_many(docs, **kw):
+            captured.extend(docs)
+            return MagicMock()
+
+        # patch_cursor uses `async for` (not .to_list), so we need a real async iterable
+        self.db.patches.find.return_value = self._async_cursor([])
+        # agent_cursor also uses `async for`
+        self.db.agents.find.return_value = self._async_cursor(
+            [{"id": "agent-1", "tenantId": "t1", "hostname": "host1", "assetId": None}]
+        )
+        self.db.agent_instructions.insert_many = AsyncMock(side_effect=_insert_many)
+
+        with patch("patch_core_endpoints.get_database", return_value=self.db), \
+             patch("patch_core_endpoints.asyncio.create_task"):
+            with TestClient(self.app) as client:
+                resp = client.post(
+                    "/api/patches/deploy",
+                    json={"patch_ids": ["KB001", "KB002"], "asset_ids": ["agent-1"],
+                          "deployment_type": "Immediate", "tenantId": "t1"},
+                )
+
+        assert resp.status_code == 200
+        assert captured, "No instruction docs were inserted"
+        doc = captured[0]
+        assert doc.get("tenantId") == "t1", f"tenantId missing or wrong: {doc}"
+        assert doc.get("instruction") == "install_patches", f"Wrong instruction: {doc.get('instruction')!r}"
+        payload = doc.get("payload", {})
+        assert "patch_ids" in payload, "patch_ids not in payload"
+        assert "job_id" in payload, "job_id not in payload"
+        assert "id" in doc, "instruction doc missing id field"
+
+    # ── B1: apply_os_patches stores tenantId and "install_patches" ────────────
+
+    def test_apply_os_patches_instruction_has_tenant_id_and_correct_format(self):
+        """apply_os_patches must store tenantId and instruction='install_patches'."""
+        captured: list[dict] = []
+
+        async def _insert_one(doc):
+            captured.append(doc)
+            return MagicMock(inserted_id="fake")
+
+        self.db.agents.find_one = AsyncMock(return_value={"id": "agent-1", "tenantId": "t1"})
+        self.db.agent_instructions.insert_one = AsyncMock(side_effect=_insert_one)
+
+        with patch("patch_software_endpoints.get_database", return_value=self.db):
+            with TestClient(self.app) as client:
+                resp = client.post(
+                    "/api/patches/apply-os-patches",
+                    json={"agent_id": "agent-1", "patch_ids": ["KB001", "KB002"]},
+                )
+
+        assert resp.status_code == 200
+        assert captured, "No instruction doc inserted"
+        doc = captured[0]
+        assert doc.get("tenantId") == "t1", f"tenantId missing: {doc}"
+        assert doc.get("instruction") == "install_patches", f"Wrong instruction: {doc.get('instruction')!r}"
+        payload = doc.get("payload", {})
+        assert "patch_ids" in payload, "patch_ids missing from payload"
+
+    # ── B1: apply_software_update stores tenantId ─────────────────────────────
+
+    def test_apply_software_update_instruction_has_tenant_id(self):
+        """apply_software_update must store tenantId so the agent can fetch it."""
+        captured: list[dict] = []
+
+        async def _insert_one(doc):
+            captured.append(doc)
+            return MagicMock(inserted_id="fake")
+
+        self.db.agents.find_one = AsyncMock(return_value={"id": "agent-1", "tenantId": "t1"})
+        self.db.local_repo.find_one = AsyncMock(return_value=None)
+        self.db.agent_instructions.insert_one = AsyncMock(side_effect=_insert_one)
+
+        with patch("patch_software_endpoints.get_database", return_value=self.db):
+            with TestClient(self.app) as client:
+                resp = client.post(
+                    "/api/patches/apply-software-update",
+                    json={"agent_id": "agent-1", "package_name": "openssl", "pkg_type": "apt"},
+                )
+
+        assert resp.status_code == 200
+        assert captured, "No instruction doc inserted"
+        doc = captured[0]
+        assert doc.get("tenantId") == "t1", f"tenantId missing: {doc}"
+        assert "upgrade_software:" in doc.get("instruction", "")
+
+    # ── B3: list_patches for super admin with no tenant param returns all ─────
+
+    def test_list_patches_super_admin_no_tenant_returns_all(self):
+        """Super admin without ?tenant_id should see patches from all tenants (empty filter)."""
+        from auth_types import TokenData
+        from authentication_service import get_current_user as _gcu
+        import patch_endpoints as mod
+
+        super_admin = TokenData(username="sa@platform.com", role="Super Admin", tenant_id=None)
+        app = _app(mod.router, super_admin)
+
+        all_patches = [
+            {"id": "p1", "tenantId": "tenant-a"},
+            {"id": "p2", "tenantId": "tenant-b"},
+        ]
+        db = _db("patches", "vulnerability_scan_jobs", "patch_deployment_jobs",
+                 "agent_instructions", "agents")
+        db.patches.find.return_value.to_list = AsyncMock(return_value=all_patches)
+
+        query_used: list[dict] = []
+        original_find = db.patches.find
+
+        def _tracking_find(q, *a, **kw):
+            query_used.append(q)
+            return original_find(q, *a, **kw)
+
+        db.patches.find = _tracking_find
+        db.patches.find.return_value = original_find.return_value
+
+        with patch("patch_core_endpoints.get_database", return_value=db):
+            with TestClient(app) as client:
+                resp = client.get("/api/patches")
+
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+        # The query must NOT filter by tenantId when super admin has no tenant param
+        if query_used:
+            assert "tenantId" not in query_used[0], (
+                f"Super admin should not have tenantId filter, got: {query_used[0]}"
+            )

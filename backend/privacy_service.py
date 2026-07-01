@@ -13,6 +13,14 @@ from database import get_database
 
 logger = logging.getLogger(__name__)
 
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _gen_id(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
 DSR_TYPES = {
     "access": {"name": "Right of Access (Art. 15 GDPR)", "sla_days": 30},
     "erasure": {"name": "Right to Erasure / Right to be Forgotten (Art. 17 GDPR / CCPA)", "sla_days": 30},
@@ -265,6 +273,87 @@ async def create_breach_notification(tenant_id: str, reported_by: str, data: Dic
     await db.breach_notifications.insert_one(breach)
     logger.warning("[Privacy] Breach notification %s created — 72h GDPR deadline: %s", breach["reference"], authority_deadline.isoformat())
     return breach
+
+
+# ─── Transfer Impact Assessments (TIA) ─────────────────────────────────────────
+
+
+async def create_tia(db, tenant_id: str, data: dict) -> dict:
+    doc = {"id": _gen_id("tia"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
+    if doc.get("risk_level") not in ("low", "medium", "high"):
+        raise ValueError("risk_level must be low/medium/high")
+    await db._db.privacy_tia.insert_one(doc)
+    return doc
+
+
+async def list_tia(db, tenant_id: str) -> list:
+    return await db._db.privacy_tia.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+
+
+# ─── Legitimate Interest Assessments (LIA) ─────────────────────────────────────
+
+
+async def create_lia(db, tenant_id: str, data: dict) -> dict:
+    doc = {"id": _gen_id("lia"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
+    await db._db.privacy_lia.insert_one(doc)
+    return doc
+
+
+async def list_lia(db, tenant_id: str) -> list:
+    return await db._db.privacy_lia.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+
+
+# ─── Privacy Notices ───────────────────────────────────────────────────────────
+
+
+async def create_notice(db, tenant_id: str, data: dict) -> dict:
+    notice_id = _gen_id("notice")
+    version = data.get("version", 1)
+    doc = {
+        "id": notice_id, "tenantId": tenant_id, "title": data.get("title", ""),
+        "effective_date": data.get("effective_date"), "applies_to": data.get("applies_to", ""),
+        "current_version": version,
+        "versions": [{"version": version, "content_html": data.get("content_html", ""), "published_at": _now_iso()}],
+        "created_at": _now_iso(), "updated_at": _now_iso(),
+    }
+    await db._db.privacy_notices.insert_one(doc)
+    return doc
+
+
+async def list_notices(db, tenant_id: str) -> list:
+    return await db._db.privacy_notices.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+
+
+async def get_notice_versions(db, notice_id: str, tenant_id: str) -> list:
+    notice = await db._db.privacy_notices.find_one({"id": notice_id, "tenantId": tenant_id}, {"_id": 0})
+    return sorted(notice.get("versions", []), key=lambda v: v.get("version", 0), reverse=True) if notice else []
+
+
+# ─── Contract Lifecycle ────────────────────────────────────────────────────────
+
+
+async def create_contract(db, tenant_id: str, data: dict) -> dict:
+    valid_types = {"DPA", "MSA", "NDA", "SCC"}
+    valid_statuses = {"draft", "review", "signed", "expired"}
+    if data.get("type") not in valid_types:
+        raise ValueError(f"type must be one of {valid_types}")
+    if data.get("status") not in valid_statuses:
+        raise ValueError(f"status must be one of {valid_statuses}")
+    doc = {"id": _gen_id("contract"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
+    await db._db.privacy_contracts.insert_one(doc)
+    return doc
+
+
+async def list_contracts(db, tenant_id: str) -> list:
+    return await db._db.privacy_contracts.find({"tenantId": tenant_id}, {"_id": 0}).sort("expiry_date", 1).to_list(length=100)
+
+
+async def get_expiring_contracts(db, tenant_id: str, within_days: int = 30) -> list:
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) + timedelta(days=within_days)).strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    query = {"tenantId": tenant_id, "expiry_date": {"$lte": cutoff, "$gte": today}}
+    return await db._db.privacy_contracts.find(query, {"_id": 0}).sort("expiry_date", 1).to_list(length=100)
 
 
 async def get_privacy_summary(tenant_id: str, role: str) -> Dict[str, Any]:

@@ -308,15 +308,24 @@ deployment.
 
 **Requirements:** WIN-PS-01 (28 checks), WIN-PS-02 (POST to backend), WIN-PS-03 (display in evidence pages), WIN-PS-04 (EXE installer)
 
-**Plans:**
+**Plans:** 3/3 plans complete — 3/3 executed
 
-- [x] 23-01-PLAN.md
-
-3/3 plans complete
-
-2/3 plans executed
-
-1/3 plans executed
-
+- [x] 23-01-PLAN.md — Backend: `POST /api/powershell-evidence/submit` endpoint + 6-test TDD suite
 - [x] 23-02-PLAN.md — PowerShell: rebuild win-install.ps1, new Collect-Evidence.ps1 (28 checks), rebuild agent/installer/*.ps1, new OmniAgent-Setup.iss (Inno Setup EXE)
 - [x] 23-03-PLAN.md — Frontend: AgentInstallation.tsx Windows tab (3-step flow, 28 checks panel, EXE download link); PowerShell source badge
+
+**Files created/modified:**
+- `backend/powershell_evidence_endpoints.py` — evidence ingestion API
+- `backend/tests/test_powershell_evidence.py` — 6 passing tests
+- `backend/static/win-install.ps1` — service install + evidence setup
+- `backend/static/Collect-Evidence.ps1` — 28-check collector
+- `backend/agent_download_endpoints.py` — `/api/agent/collect-evidence-script` endpoint
+- `agent-rust/install-service.ps1` — evidence collection + scheduled task
+- `agent/installer/install_agent.ps1` — evidence setup
+- `agent/installer/Configure-Agent.ps1` — evidence config fields
+- `agent/installer/Collect-Evidence.ps1` / `agent/dist/installer/Collect-Evidence.ps1` — bundled copies
+- `agent/installer/uninstall_agent.ps1` / `agent/dist/installer/uninstall_agent.ps1` — scheduled task cleanup
+- `agent/installer/OmniAgent-Setup.iss` — Inno Setup 6 EXE builder
+- `components/WindowsInstallTab.tsx` — 3-step install UI + 28-checks panel
+- `components/AssetComplianceList.tsx` — purple "PS" source badge
+- `components/AgentInstallation.tsx` — Windows tab integration

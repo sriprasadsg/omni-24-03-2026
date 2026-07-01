@@ -625,21 +625,19 @@ All dependencies are in-process; no new external services required.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should stale automated evidence count as Non-Compliant for the score?**
+1. **Should stale automated evidence count as Non-Compliant for the score?** (RESOLVED: No)
    - What we know: Phase 7 computes staleness at read-time in `evidence_staleness.py`; the score query reads `asset_compliance.status` which does NOT reflect staleness
-   - What's unclear: SCORE-01 says "% controls passing" — does a stale evidence record mean the control fails?
-   - Recommendation: For Phase 9, score uses recorded `status` only (ignoring staleness). Add a note in the score tooltip that stale evidence may affect real status. A future phase can add a `stale_controls` count to the score payload.
+   - **Resolution:** Score uses recorded `status` only (ignoring staleness). A tooltip note explains stale evidence may affect real compliance posture.
 
-2. **Should controls with no `asset_compliance` records count as failing or be excluded?**
+2. **Should controls with no `asset_compliance` records count as failing or be excluded?** (RESOLVED: Excluded)
    - What we know: `_build_report_data()` counts controls with no asset data separately; `_score()` in `compliance_frameworks_endpoints.py` only scores evaluated controls
-   - What's unclear: SCORE-01 says "% controls passing across all monitored assets" — "monitored" implies asset-evidence is required
-   - Recommendation: Controls with no `asset_compliance` record are excluded from the score denominator (consistent with the `_score()` function pattern). Document in the tooltip: "Score covers controls with monitored asset evidence only."
+   - **Resolution:** Controls with no `asset_compliance` record are excluded from the score denominator ("monitored assets only"). Tooltip documents: "Score covers controls with monitored asset evidence only."
 
-3. **Severity-to-weight mapping without DB severity field**
+3. **Severity-to-weight mapping without DB severity field** (RESOLVED: Static category-based lookup)
    - What we know: No `severity` field exists on control documents currently
-   - Recommendation: Use a static category-based lookup OR default all controls to weight=1 (unweighted simple percentage) for Phase 9, satisfying SCORE-02 visually via a legend that shows the weights applied by category. This avoids a schema migration. Lock this in the plan discussion.
+   - **Resolution:** Use static `_CATEGORY_SEVERITY` dict mapping control categories to Critical/High/Medium/Low; default to Medium (weight=2) for unknown categories. No schema migration required.
 
 ---
 

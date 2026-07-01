@@ -163,3 +163,101 @@ async def report_breach(
         "message": f"Breach {breach['reference']} recorded — GDPR supervisory authority notification deadline: {breach['authority_notification_deadline'][:19]} UTC",
         "warning": "72-hour notification window is active" if payload.get("notification_required", True) else None,
     }
+
+
+# ─── Transfer Impact Assessments (TIA) ─────────────────────────────────────────
+
+
+@router.post("/tia")
+async def create_tia(payload: dict = Body(...), current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    try:
+        tia = await svc.create_tia(db, _tid(current_user), payload)
+        return {"tia": tia}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.get("/tia")
+async def list_tia(current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    items = await svc.list_tia(db, _tid(current_user))
+    return {"items": items, "count": len(items)}
+
+
+# ─── Legitimate Interest Assessments (LIA) ─────────────────────────────────────
+
+
+@router.post("/lia")
+async def create_lia(payload: dict = Body(...), current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    lia = await svc.create_lia(db, _tid(current_user), payload)
+    return {"lia": lia}
+
+
+@router.get("/lia")
+async def list_lia(current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    items = await svc.list_lia(db, _tid(current_user))
+    return {"items": items, "count": len(items)}
+
+
+# ─── Privacy Notices ───────────────────────────────────────────────────────────
+
+
+@router.post("/notices")
+async def create_notice(payload: dict = Body(...), current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    notice = await svc.create_notice(db, _tid(current_user), payload)
+    return {"notice": notice}
+
+
+@router.get("/notices")
+async def list_notices(current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    items = await svc.list_notices(db, _tid(current_user))
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/notices/{notice_id}/versions")
+async def get_notice_versions(notice_id: str, current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    versions = await svc.get_notice_versions(db, notice_id, _tid(current_user))
+    return {"versions": versions, "count": len(versions)}
+
+
+# ─── Contracts ─────────────────────────────────────────────────────────────────
+
+
+@router.post("/contracts")
+async def create_contract(payload: dict = Body(...), current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    try:
+        contract = await svc.create_contract(db, _tid(current_user), payload)
+        return {"contract": contract}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.get("/contracts")
+async def list_contracts(current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    items = await svc.list_contracts(db, _tid(current_user))
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/contracts/expiring")
+async def get_expiring_contracts(current_user=Depends(get_current_user)):
+    from database import get_database
+    db = get_database()
+    items = await svc.get_expiring_contracts(db, _tid(current_user))
+    return {"items": items, "count": len(items)}

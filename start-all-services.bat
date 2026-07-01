@@ -165,7 +165,7 @@ echo.
 :: ── Backend ───────────────────────────────────────────────────────────────────
 echo [3] Starting Backend ^(FastAPI on port %BACKEND_PORT%^)...
 start "Omni-Backend :5000" /D "%BACKEND_DIR%" cmd /k ^
-    "set MONGODB_URL=%MONGODB_URL%& set DATABASE_NAME=%DATABASE_NAME%& set CORS_ORIGINS=%CORS_ORIGINS%& set SUPER_ADMIN_PASSWORD=Admin@2030& echo.& echo   Omni-Agent Backend  http://127.0.0.1:%BACKEND_PORT%& echo.& %BACKEND_PYTHON% -m uvicorn app:app --host 0.0.0.0 --port %BACKEND_PORT% --log-level info"
+    "set MONGODB_URL=%MONGODB_URL%& set DATABASE_NAME=%DATABASE_NAME%& set CORS_ORIGINS=%CORS_ORIGINS%& set SUPER_ADMIN_PASSWORD=Admin@2030& set PLATFORM_URL=http://127.0.0.1:%BACKEND_PORT%& set TICKET_ATTACHMENT_DIR=%TEMP%\ticket_attachments& echo.& echo   Omni-Agent Backend  http://127.0.0.1:%BACKEND_PORT%& echo.& %BACKEND_PYTHON% -m uvicorn app:socket_app --host 0.0.0.0 --port %BACKEND_PORT% --log-level info"
 
 echo   ... Waiting for backend to be ready (up to 90s)...
 set /a TRIES=0

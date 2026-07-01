@@ -457,6 +457,7 @@ export interface AssetComplianceEvidence {
   name: string;
   url: string;
   date: string;
+  status?: 'pending_review' | 'approved' | 'rejected' | 'needs_revision';
 }
 
 export interface AssetCompliance {

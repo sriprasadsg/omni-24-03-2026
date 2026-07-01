@@ -135,7 +135,14 @@ class TestSecurityScansEndpoints:
     @pytest.fixture(autouse=True)
     def setup(self, tenant_user):
         import security_scans_endpoints as mod
-        self.app = _app(mod.router, tenant_user)
+        import attack_path_endpoints as ap_mod
+        from fastapi import FastAPI
+        app = FastAPI()
+        app.include_router(mod.router)
+        app.include_router(ap_mod.router)
+        app.dependency_overrides[get_current_user] = lambda: tenant_user
+        self.app = app
+        self._user = tenant_user
         self.db = _db("vulnerability_scan_jobs", "assets", "attack_paths", "patches", "alerts")
 
     def test_schedule_scan_creates_job(self):
@@ -165,7 +172,11 @@ class TestSecurityScansEndpoints:
         assert resp.json()["success"] is True
 
     def test_get_attack_paths_returns_list(self):
-        with patch("security_scans_endpoints.get_database", return_value=self.db):
+        cursor = MagicMock()
+        cursor.sort = MagicMock(return_value=cursor)
+        cursor.to_list = AsyncMock(return_value=[])
+        self.db.attack_paths.find = MagicMock(return_value=cursor)
+        with patch("attack_path_endpoints.get_database", return_value=self.db):
             with TestClient(self.app) as client:
                 resp = client.get("/api/security/attack-paths")
         assert resp.status_code == 200

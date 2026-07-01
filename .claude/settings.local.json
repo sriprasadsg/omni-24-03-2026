@@ -30,12 +30,28 @@
       "Bash(cd /d \"D:\\\\Downloads\\\\enterprise-omni-agent-ai-platform\")",
       "Bash(Get-ChildItem -Path . -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(dir D:Downloadsenterprise-omni-agent-ai-platform *)"
+      "Bash(dir D:Downloadsenterprise-omni-agent-ai-platform *)",
+      "Bash(npx -y ruv-swarm mcp start)",
+      "Bash(npx ruv-swarm *)",
+      "Skill(gsd-audit-fix)",
+      "Bash(pip install *)",
+      "Bash(python3 -m pytest backend/tests/ -v)",
+      "Bash(python3 -m pytest backend/tests/)",
+      "Bash(python3 -m pytest backend/tests/test_ssrf_guards.py -v --tb=short)",
+      "Bash(python3 -m pytest backend/tests/test_ssrf_guards.py::TestIsWebhookUrlSafe -v --tb=long)",
+      "Bash(python3 -m pytest backend/tests/test_compliance_narrative_service.py -v --tb=short)",
+      "Bash(python3 -m pytest backend/tests/test_soar_and_ml.py::TestMLFeatureExtraction -v --tb=short)",
+      "Bash(npm --version)",
+      "Bash(npm test *)",
+      "Bash(npx vitest *)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "claude-flow",
-    "ruv-swarm",
-    "flow-nexus"
-  ]
+    "flow-nexus",
+    "ruv-swarm"
+  ],
+  "spinnerTipsEnabled": true,
+  "prefersReducedMotion": true
 }

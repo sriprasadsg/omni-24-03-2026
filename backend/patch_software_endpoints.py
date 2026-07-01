@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 import logging
+import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
@@ -43,7 +44,9 @@ async def apply_software_update(
             payload["download_url"] = f"/api/repo/download/{repo_pkg['filename']}"
 
         await db.agent_instructions.insert_one({
+            "id":          uuid.uuid4().hex,
             "agent_id":    request.agent_id,
+            "tenantId":    tenant_id,
             "instruction": f"upgrade_software: {request.package_name}",
             "status":      "pending",
             "created_at":  datetime.now(timezone.utc).isoformat(),
@@ -83,7 +86,9 @@ async def apply_bulk_software_update(
             if repo_pkg:
                 payload["download_url"] = f"/api/repo/download/{repo_pkg['filename']}?tenantId={tenant_id}"
             instructions.append({
+                "id":          uuid.uuid4().hex,
                 "agent_id":    update.agent_id,
+                "tenantId":    tenant_id,
                 "instruction": f"upgrade_software: {update.package_name}",
                 "status":      "pending",
                 "created_at":  datetime.now(timezone.utc).isoformat(),
@@ -116,12 +121,14 @@ async def apply_os_patches(
             raise HTTPException(status_code=404, detail="Agent not found")
 
         job_id = f"patch-job-{int(datetime.now(timezone.utc).timestamp())}"
-        patches_str = " ".join(request.patch_ids)
-        instruction_str = f"Install Patches: {patches_str} Job: {job_id}"
+        tenant_id = agent.get("tenantId") or None
 
         await db.agent_instructions.insert_one({
+            "id":          uuid.uuid4().hex,
             "agent_id":    request.agent_id,
-            "instruction": instruction_str,
+            "tenantId":    tenant_id,
+            "instruction": "install_patches",
+            "payload":     {"patch_ids": request.patch_ids, "job_id": job_id},
             "status":      "pending",
             "created_at":  datetime.now(timezone.utc).isoformat(),
             "type":        "os_patch_install",
@@ -162,7 +169,8 @@ async def trigger_live_software_scan(
 
         now = datetime.now(timezone.utc).isoformat()
         instructions = [
-            {"agent_id": a["id"], "instruction": "run_software_scan", "status": "pending",
+            {"id": uuid.uuid4().hex, "agent_id": a["id"], "tenantId": effective_tenant,
+             "instruction": "run_software_scan", "status": "pending",
              "created_at": now, "scan_type": "software_inventory"}
             for a in agents
         ]

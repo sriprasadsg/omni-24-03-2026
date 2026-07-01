@@ -120,6 +120,31 @@ class TestRemoteSessionEndpoints:
         assert captured.get("type") == "start_remote_session"
         assert captured.get("status") == "pending"
 
+    def test_start_session_instruction_has_id_and_instruction_fields(self):
+        """Instruction must have id (for result tracking) and instruction field (for Rust agent)."""
+        captured = {}
+
+        async def capture(doc):
+            captured.update(doc)
+            return MagicMock(inserted_id="instr-id")
+
+        self.db.agent_instructions.insert_one = capture
+
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with TestClient(self.app) as c:
+                c.post("/api/remote/session/start",
+                       json={"agent_id": "agent-xyz", "protocol": "vnc", "type": "desktop"})
+
+        assert captured.get("id"), "Instruction missing 'id' — result reporting update will never match"
+        assert captured.get("instruction") == "start_remote_session", (
+            "Missing 'instruction' field — Rust agent reads this for dispatch"
+        )
+        # Payload must include session_id and url so agent can start the stream
+        payload = captured.get("payload", {})
+        assert payload.get("session_id"), "Payload missing session_id"
+        assert payload.get("url", "").startswith("ws"), "Payload url must be a ws(s):// URL"
+        assert payload.get("type") == "desktop"
+
     def test_start_session_session_record_carries_tenant_id(self):
         """Session record must also carry tenantId for the tenant-scoped list endpoint."""
         captured = {}

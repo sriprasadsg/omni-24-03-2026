@@ -1,0 +1,60 @@
+"""
+Background worker: re-processes latest compliance heartbeat data for all agents
+using the deduplicated evidence processor. Runs independently of the uvicorn server.
+Start with:  python compliance_replay_worker.py
+"""
+import asyncio
+import logging
+import os
+import sys
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("replay_worker")
+
+INTERVAL_SECONDS = 20   # run 3x per heartbeat cycle so replay always wins the race
+
+
+async def replay_once(db):
+    """Replay compliance data for every agent that has compliance_enforcement in meta."""
+    from compliance_evidence_processor import process_automated_evidence
+
+    agents = await db.agents.find(
+        {"meta.compliance_enforcement": {"$exists": True}},
+        {"hostname": 1, "tenantId": 1, "meta.compliance_enforcement": 1, "meta.agent_type": 1},
+    ).to_list(500)
+
+    for agent in agents:
+        hostname = agent.get("hostname", "")
+        meta = agent.get("meta", {})
+        comp = meta.get("compliance_enforcement")
+        if not comp or not isinstance(comp, dict):
+            continue
+        try:
+            await process_automated_evidence(
+                hostname, comp, db,
+                agent_type=meta.get("agent_type"),
+                fallback_tenant_id=agent.get("tenantId"),
+            )
+            logger.info("Replayed compliance for %s", hostname)
+        except Exception as exc:
+            logger.warning("Replay failed for %s: %s", hostname, exc)
+
+
+async def main():
+    from motor.motor_asyncio import AsyncIOMotorClient
+    mongo_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+    client = AsyncIOMotorClient(mongo_url)
+    db = client["omni_platform"]
+
+    logger.info("Compliance replay worker started (interval=%ds)", INTERVAL_SECONDS)
+    while True:
+        try:
+            await replay_once(db)
+        except Exception as exc:
+            logger.error("Replay cycle error: %s", exc)
+        await asyncio.sleep(INTERVAL_SECONDS)
+
+
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(__file__))
+    asyncio.run(main())

@@ -187,6 +187,12 @@ TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments
 PLATFORM_URL=http://$SYSTEM_IP:5000
 SSO_REDIRECT_URI=http://$SYSTEM_IP:5000/api/sso/google/callback
 
+# === Scale / Horizontal Deployment (optional) ===
+# Set REDIS_URL to enable: Redis-backed Socket.IO pub/sub (multi-instance WebSocket),
+# distributed rate limiting, and Redis Celery broker.
+# Leave blank for single-instance deployments (MongoDB broker used instead).
+REDIS_URL=redis://127.0.0.1:6379/0
+
 # === Security: Backup Encryption (Fernet/AES-128) ===
 # Leave blank to auto-generate on first run; store the generated key safely
 BACKUP_ENCRYPTION_KEY=
@@ -509,6 +515,13 @@ echo -e "${GREEN}[✓] AutoML${NC} - /api/automl/studies"
 echo -e "${GREEN}[✓] Chaos Engineering${NC} - /api/chaos/experiments"
 echo -e "${GREEN}[✓] DORA Metrics${NC} - /api/dora/metrics"
 echo -e "${GREEN}[✓] Windows Agent${NC} - omni-agent.exe (PyInstaller, UAC admin, Windows Service)"
+echo -e "${GREEN}[✓] Asset Intelligence${NC} - EOL Detection + Rogue Asset Detection & Authorization"
+echo -e "${GREEN}[✓] Mobile App Management (MAM)${NC} - App Protection Policies, Config Policies, Selective Wipe"
+echo -e "${GREEN}[✓] Android Enterprise${NC} - Work Profile / Fully Managed / Dedicated + Samsung Knox"
+echo -e "${GREEN}[✓] Device Config Profiles${NC} - Wi-Fi, VPN, Browser, USB Control, Kiosk profiles"
+echo -e "${GREEN}[✓] Firmware & Driver Updates${NC} - Driver/Firmware inventory, update catalog, deployment jobs"
+echo -e "${GREEN}[✓] Enterprise Scale (5k–100k+ endpoints)${NC} - Redis Socket.IO pub/sub, distributed rate-limiting,"
+echo -e "    bulk insert_many, background_tasks bulk_write, compound+TTL indexes (migration 002), Redis Celery broker"
 print_info "==========================================================="
 
 # Backend Service (uses socket_app for Socket.IO support)
@@ -527,6 +540,8 @@ Environment="PATH=$PROJECT_DIR/backend/venv/bin"
 Environment="PLATFORM_URL=http://$SYSTEM_IP:5000"
 Environment="PYTHONPATH=$PROJECT_DIR/backend"
 Environment="TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments"
+# Uncomment and set REDIS_URL to enable Redis Socket.IO pub/sub + distributed rate limiting:
+# Environment="REDIS_URL=redis://localhost:6379/0"
 ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn app:socket_app --host 0.0.0.0 --port 5000 --log-level info
 Restart=always
 RestartSec=10
@@ -562,7 +577,9 @@ After=network.target mongod.service omni-backend.service
 [Service]
 User=$ACTUAL_USER
 WorkingDirectory=$PROJECT_DIR/backend
+EnvironmentFile=$PROJECT_DIR/backend/.env
 Environment="PATH=$PROJECT_DIR/backend/venv/bin"
+# When REDIS_URL is set in .env, Celery automatically uses it as the broker.
 ExecStart=$PROJECT_DIR/backend/venv/bin/celery -A celery_app worker --loglevel=info
 Restart=always
 
@@ -596,7 +613,7 @@ export MONGODB_DB_NAME="omni_platform"
 # Run master API verification from root project directory
 cd "$PROJECT_DIR"
 if python3 master_api_verify.py; then
-    print_success "Master API Verification PASSED (all 14 modules OK)"
+    print_success "Master API Verification PASSED (all 17 modules OK)"
 else
     print_warning "Some API modules returned non-200 — review logs above"
 fi

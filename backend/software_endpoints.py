@@ -32,6 +32,8 @@ _ALLOWED_SOFTWARE_EXTENSIONS: frozenset[str] = frozenset({
     ".exe", ".msi", ".deb", ".rpm", ".pkg", ".dmg",
     ".zip", ".tar", ".gz", ".tgz", ".tar.gz",
     ".whl", ".nupkg", ".appx", ".msix",
+    # Script installers (advertised in UI)
+    ".ps1", ".bat", ".cmd", ".sh", ".py", ".jar",
 })
 
 _ALLOWED_SOFTWARE_MIME_PREFIXES: tuple[str, ...] = (
@@ -124,7 +126,7 @@ import asyncio
 
 class DeployRequest(BaseModel):
     agentIds: List[str] = Field(..., max_items=500)
-    packageId: str = Field(..., max_length=255)
+    packageId: str = Field(..., max_length=2048)  # 2048 allows full HTTPS URLs
     action: str = Field("install", max_length=50)
     installArgs: str = Field(None, max_length=500)
 
@@ -135,7 +137,7 @@ async def deploy_software(
     current_user=Depends(get_current_user),
 ):
     """Dispatch a software action to one or more agents."""
-    valid_actions = {"install", "upgrade", "uninstall", "install_from_repo"}
+    valid_actions = {"install", "upgrade", "uninstall", "install_from_repo", "install_from_url"}
     if payload.action not in valid_actions:
         raise HTTPException(status_code=400, detail=f"Invalid action. Must be one of: {sorted(valid_actions)}")
 
@@ -165,7 +167,16 @@ async def deploy_software(
             agent_payload: dict = {"package": payload.packageId}
 
             if payload.action == "install":
-                task_description = f"install_software: {payload.packageId}"
+                if payload.packageId.startswith(("https://", "http://")):
+                    url = payload.packageId
+                    filename = url.split("?")[0].split("/")[-1] or "installer"
+                    task_description = f"install_software: {filename}"
+                    agent_payload["package"] = filename
+                    agent_payload["download_url"] = url
+                    if payload.installArgs:
+                        agent_payload["install_args"] = payload.installArgs
+                else:
+                    task_description = f"install_software: {payload.packageId}"
             elif payload.action == "upgrade":
                 task_description = f"upgrade_software: {payload.packageId}"
             elif payload.action == "uninstall":
@@ -186,6 +197,17 @@ async def deploy_software(
                     disk_path = UPLOAD_DIR / _safe_filename(payload.packageId)
                     if disk_path.exists():
                         agent_payload["download_url"] = f"/api/software/download/{payload.packageId}"
+                if payload.installArgs:
+                    agent_payload["install_args"] = payload.installArgs
+            elif payload.action == "install_from_url":
+                # packageId holds the external HTTPS URL; validate scheme before passing to agent
+                url = payload.packageId
+                if not (url.startswith("https://") or url.startswith("http://")):
+                    raise HTTPException(status_code=400, detail="install_from_url requires an http/https URL")
+                filename = url.split("?")[0].split("/")[-1] or "installer"
+                task_description = f"install_software: {filename}"
+                agent_payload["package"] = filename
+                agent_payload["download_url"] = url
                 if payload.installArgs:
                     agent_payload["install_args"] = payload.installArgs
             else:

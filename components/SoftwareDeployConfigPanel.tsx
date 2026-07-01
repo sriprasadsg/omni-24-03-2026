@@ -2,8 +2,9 @@ import React from 'react';
 import { RocketIcon, UploadIcon, AlertTriangleIcon } from './icons';
 
 interface Props {
-    activeTab: 'store' | 'repo' | 'history';
+    activeTab: 'store' | 'repo' | 'url' | 'history' | 'installed';
     packageId: string;
+    installUrl: string;
     action: 'install' | 'upgrade' | 'uninstall';
     installArgs: string;
     confirmUninstall: boolean;
@@ -13,6 +14,7 @@ interface Props {
     isDeployDisabled: boolean;
     taskStatuses: Record<string, any>;
     onPackageIdChange: (v: string) => void;
+    onInstallUrlChange: (v: string) => void;
     onActionChange: (a: 'install' | 'upgrade' | 'uninstall') => void;
     onInstallArgsChange: (v: string) => void;
     onConfirmUninstallChange: (v: boolean) => void;
@@ -24,15 +26,16 @@ interface Props {
 function deployButtonLabel(isDeploying: boolean, activeTab: string, action: string): string {
     if (isDeploying) return 'Dispatching…';
     if (activeTab === 'repo') return 'Deploy File';
+    if (activeTab === 'url') return 'Deploy from URL';
     if (action === 'install') return 'Deploy Software';
     if (action === 'upgrade') return 'Upgrade Software';
     return 'Uninstall from Fleet';
 }
 
 export function SoftwareDeployConfigPanel({
-    activeTab, packageId, action, installArgs, confirmUninstall,
+    activeTab, packageId, installUrl, action, installArgs, confirmUninstall,
     selectedAgentIds, repoFiles, isDeploying, isDeployDisabled, taskStatuses,
-    onPackageIdChange, onActionChange, onInstallArgsChange, onConfirmUninstallChange,
+    onPackageIdChange, onInstallUrlChange, onActionChange, onInstallArgsChange, onConfirmUninstallChange,
     onDeploy, onFileUpload, onRepoUpload
 }: Props) {
     const buttonLabel = deployButtonLabel(isDeploying, activeTab, action);
@@ -111,6 +114,39 @@ export function SoftwareDeployConfigPanel({
                             </div>
                         )}
                     </>
+                ) : activeTab === 'url' ? (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Installer URL</label>
+                            <input
+                                type="url"
+                                value={installUrl}
+                                onChange={(e) => onInstallUrlChange(e.target.value)}
+                                placeholder="https://example.com/setup.exe"
+                                className="w-full bg-slate-800/50 border border-slate-700/50 rounded px-4 py-2 focus:outline-none focus:border-teal-500/50 transition-colors font-mono text-sm"
+                            />
+                            <p className="text-xs text-slate-500">
+                                Direct HTTPS link to an installer (.exe, .msi, .ps1, .sh, etc.). The agent will download and execute it silently.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Install Arguments (Optional)</label>
+                            <input
+                                type="text"
+                                value={installArgs}
+                                onChange={(e) => onInstallArgsChange(e.target.value)}
+                                placeholder="e.g. /S /silent /quiet"
+                                className="w-full bg-slate-800/50 border border-slate-700/50 rounded px-4 py-2 focus:outline-none focus:border-teal-500/50 transition-colors font-mono text-sm"
+                            />
+                        </div>
+                        <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 text-xs text-teal-300/70 space-y-1">
+                            <p className="font-semibold text-teal-300">Supported formats</p>
+                            <p>.exe — runs with /S /s /silent /quiet flags</p>
+                            <p>.msi — runs with msiexec /qn /norestart</p>
+                            <p>.ps1 — runs via PowerShell -ExecutionPolicy Bypass</p>
+                            <p>.bat / .cmd — runs via cmd /c</p>
+                        </div>
+                    </div>
                 ) : (
                     <div className="space-y-4">
                         <div className="p-4 border border-dashed border-slate-600 rounded-lg flex flex-col items-center justify-center space-y-2 hover:bg-slate-800/30 transition-colors">
@@ -174,9 +210,11 @@ export function SoftwareDeployConfigPanel({
                         disabled={isDeployDisabled}
                         className={`w-full py-3 rounded font-medium flex justify-center items-center space-x-2 transition-all ${isDeployDisabled
                             ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                            : action === 'uninstall'
-                                ? 'bg-gradient-to-r from-red-700 to-red-600 hover:shadow-lg hover:shadow-red-500/20'
-                                : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:shadow-lg hover:shadow-blue-500/20'}`}
+                            : activeTab === 'url'
+                                ? 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:shadow-lg hover:shadow-teal-500/20'
+                                : action === 'uninstall'
+                                    ? 'bg-gradient-to-r from-red-700 to-red-600 hover:shadow-lg hover:shadow-red-500/20'
+                                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:shadow-lg hover:shadow-blue-500/20'}`}
                     >
                         {isDeploying ? (
                             <>

@@ -22,7 +22,8 @@ export const SoftwareDeployment: React.FC = () => {
     const [showDeployModal, setShowDeployModal] = useState(false);
     const [filter, setFilter] = useState('');
     const [confirmUninstall, setConfirmUninstall] = useState(false);
-    const [activeTab, setActiveTab] = useState<'store' | 'repo' | 'history' | 'installed'>('store');
+    const [activeTab, setActiveTab] = useState<'store' | 'repo' | 'url' | 'history' | 'installed'>('store');
+    const [installUrl, setInstallUrl] = useState('');
     const [repoFiles, setRepoFiles] = useState<any[]>([]);
     const [activeTaskIds, setActiveTaskIds] = useState<string[]>([]);
     const [taskStatuses, setTaskStatuses] = useState<Record<string, any>>({});
@@ -146,21 +147,29 @@ export const SoftwareDeployment: React.FC = () => {
     };
 
     const handleDeploy = async () => {
-        if (!packageId || selectedAgentIds.size === 0) return;
+        const urlInstall = activeTab === 'url';
+        const effectivePackageId = urlInstall ? installUrl : packageId;
+        if (!effectivePackageId || selectedAgentIds.size === 0) return;
         if (action === 'uninstall' && !confirmUninstall) return;
+        if (urlInstall && !installUrl.match(/^https?:\/\/.+/)) {
+            showToast('Please enter a valid http/https URL', 'error');
+            return;
+        }
         setIsDeploying(true);
         setDeployResult(null);
         setTaskStatuses({});
         setConfirmUninstall(false);
         try {
-            const effectiveAction = activeTab === 'repo' ? 'install_from_repo' : action;
+            const effectiveAction = activeTab === 'repo' ? 'install_from_repo'
+                : activeTab === 'url' ? 'install'
+                : action;
             const res = await authFetch('/api/software/deploy', {
                 method: 'POST',
                 body: JSON.stringify({
                     agentIds: Array.from(selectedAgentIds),
-                    packageId,
+                    packageId: effectivePackageId,
                     action: effectiveAction,
-                    installArgs: activeTab === 'repo' ? installArgs : undefined
+                    installArgs: (activeTab === 'repo' || activeTab === 'url') ? installArgs : undefined
                 })
             });
             const data = await res.json();
@@ -230,8 +239,10 @@ export const SoftwareDeployment: React.FC = () => {
         reader.readAsText(file);
     };
 
-    const isDeployDisabled = isDeploying || !packageId || selectedAgentIds.size === 0
-        || (action === 'uninstall' && !confirmUninstall);
+    const effectivePackageId = activeTab === 'url' ? installUrl : packageId;
+    const isDeployDisabled = isDeploying || !effectivePackageId || selectedAgentIds.size === 0
+        || (action === 'uninstall' && !confirmUninstall)
+        || (activeTab === 'url' && !installUrl.match(/^https?:\/\/.+/));
 
     const activePendingCount = deployHistory.filter(t => {
         const s = (t.status || '').toLowerCase();
@@ -278,6 +289,12 @@ export const SoftwareDeployment: React.FC = () => {
                     Custom Repository
                 </button>
                 <button
+                    onClick={() => { setActiveTab('url'); setConfirmUninstall(false); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'url' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    URL Install
+                </button>
+                <button
                     onClick={() => setActiveTab('history')}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${activeTab === 'history' ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                 >
@@ -315,13 +332,14 @@ export const SoftwareDeployment: React.FC = () => {
                     expandedRows={expandedRows}
                     now={now}
                     onToggleExpand={toggleExpand}
-                    onRefresh={fetchDeployHistory}
+                    onRefresh={() => fetchDeployHistory()}
                 />
             ) : (
                 <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
                     <SoftwareDeployConfigPanel
                         activeTab={activeTab}
                         packageId={packageId}
+                        installUrl={installUrl}
                         action={action}
                         installArgs={installArgs}
                         confirmUninstall={confirmUninstall}
@@ -331,6 +349,7 @@ export const SoftwareDeployment: React.FC = () => {
                         isDeployDisabled={isDeployDisabled}
                         taskStatuses={taskStatuses}
                         onPackageIdChange={setPackageId}
+                        onInstallUrlChange={setInstallUrl}
                         onActionChange={setAction}
                         onInstallArgsChange={setInstallArgs}
                         onConfirmUninstallChange={setConfirmUninstall}

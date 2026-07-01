@@ -410,3 +410,71 @@ View details in the dashboard.
 def get_notification_service(db):
     """Get notification service instance"""
     return NotificationService(db)
+
+
+# ─── Channel & Rule helpers (module-level, collection-based) ──────────────────
+import uuid
+from datetime import datetime, timezone
+
+
+def _now() -> str: return datetime.now(timezone.utc).isoformat()
+def _id(prefix: str) -> str: return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+VALID_EVENTS = {"finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"}
+VALID_CHANNEL_TYPES = {"slack", "email", "webhook"}
+
+
+async def create_channel(db, tenant_id: str, data: dict) -> dict:
+    typ = data.get("type")
+    if typ not in VALID_CHANNEL_TYPES:
+        raise ValueError(f"type must be one of {VALID_CHANNEL_TYPES}")
+    doc = {"id": _id("chan"), "tenantId": tenant_id, "created_at": _now(), **data}
+    await db._db.notification_channels.insert_one(doc)
+    return doc
+
+
+async def list_channels(db, tenant_id: str) -> list:
+    return await db._db.notification_channels.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+
+
+async def create_rule(db, tenant_id: str, data: dict) -> dict:
+    if data.get("event_type") not in VALID_EVENTS:
+        raise ValueError(f"event_type must be one of {VALID_EVENTS}")
+    doc = {"id": _id("rule"), "tenantId": tenant_id, "created_at": _now(), **data}
+    await db._db.notification_rules.insert_one(doc)
+    return doc
+
+
+async def list_rules(db, tenant_id: str) -> list:
+    return await db._db.notification_rules.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+
+
+async def send_notification(db, tenant_id: str, event_type: str, payload: dict) -> dict:
+    import httpx
+    rules = await db._db.notification_rules.find({"tenantId": tenant_id, "event_type": event_type}, {"_id": 0}).to_list(length=50)
+    severity = payload.get("severity", "medium")
+    matched = [r for r in rules if not r.get("severity_filter") or severity in r.get("severity_filter", [])]
+    results = []
+    for rule in matched:
+        channels = await db._db.notification_channels.find({"id": {"$in": rule.get("channel_ids", [])}, "tenantId": tenant_id}, {"_id": 0}).to_list(length=20)
+        for ch in channels:
+            try:
+                if ch["type"] == "slack":
+                    url = ch.get("config", {}).get("url", "")
+                    if url:
+                        async with httpx.AsyncClient() as cl:
+                            await cl.post(url, json={"text": f"[{event_type}] {payload.get('message', '')}"}, timeout=10)
+                elif ch["type"] == "webhook":
+                    url = ch.get("config", {}).get("webhook_url", "")
+                    if url:
+                        async with httpx.AsyncClient() as cl:
+                            await cl.post(url, json=payload, timeout=10, headers={"Content-Type": "application/json"})
+                else:
+                    import json, logging
+                    logging.getLogger(__name__).info("[NOTIF EMAIL] To: %s | Event: %s", ch.get("config", {}).get("email", "unknown"), event_type)
+                results.append({"channel_id": ch["id"], "status": "sent"})
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error("Notify send error: %s", e)
+                results.append({"channel_id": ch["id"], "status": "failed", "error": str(e)})
+    return {"matched_rules": len(matched), "sent": len([r for r in results if r["status"] == "sent"]), "results": results}

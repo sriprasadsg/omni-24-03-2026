@@ -141,6 +141,8 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "compliance_score_endpoints", "router")
     _load(app, "saas_integration_endpoints", "router")
     _load(app, "powershell_evidence_endpoints", "router")
+    _load(app, "program_endpoints",             "router")
+    _load(app, "evidence_review_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
@@ -211,9 +213,14 @@ def register_all_routers(app: FastAPI) -> None:
     # ── Observability & Platform ──────────────────────────────────────────────
     _load(app, "network_endpoints",          "router")
     _load(app, "cloud_account_endpoints",    "router")
+    _load(app, "iac_scanner_endpoints",       "router")
+    _load(app, "container_scanner_endpoints", "router")
     _load(app, "integrations_v2",            "router")
     _load(app, "webhook_endpoints",          "router")
     _load(app, "notification_endpoints",     "router")
+    _load(app, "domain_scanner_endpoints",   "router")
+    _load(app, "mcp_server_endpoints",       "router")
+    _load(app, "ocsf_endpoints",              "router")
     _load(app, "analytics_endpoints",        "router")
     _load(app, "settings_endpoints",         "router")
     _load(app, "log_endpoints",              "router")

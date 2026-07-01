@@ -1,6 +1,22 @@
 {
-  "enabledPlugins": {
-    "togetherai-skills@claude-plugins-official": true
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_FLOW_V3_ENABLED": "true",
+    "CLAUDE_FLOW_HOOKS_ENABLED": "true",
+
+    "ANTHROPIC_BASE_URL": "http://192.168.10.70:20128/v1",
+    "ANTHROPIC_API_KEY": "sk-e59d41ed97fcd8fc-i2uy7z-601cf16a",
+
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx @claude-flow*)",
+      "Bash(npx claude-flow*)",
+      "Bash(node .claude/*)",
+      "mcp__claude-flow__*",
+      "Skill(gsd-update)"
+    ]
   },
   "hooks": {
     "PreToolUse": [
@@ -160,17 +176,7 @@
       }
     ]
   },
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_FLOW_V3_ENABLED": "true",
-    "CLAUDE_FLOW_HOOKS_ENABLED": "true"
-  },
-  "permissions": {
-    "allow": [
-      "Bash(npx @claude-flow*)",
-      "Bash(npx claude-flow*)",
-      "Bash(node .claude/*)",
-      "mcp__claude-flow__*"
-    ]
+  "enabledPlugins": {
+    "togetherai-skills@claude-plugins-official": true
   }
 }

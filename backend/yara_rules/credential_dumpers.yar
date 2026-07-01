@@ -1,7 +1,5 @@
-"""
-YARA Rule: Credential Dumper Signatures
-Detects Mimikatz, LaZagne, and similar dual-use credential-extraction tools.
-"""
+// YARA Rule: Credential Dumper Signatures
+// Detects Mimikatz, LaZagne, and similar dual-use credential-extraction tools.
 
 rule MimikatzSignatures {
     meta:

@@ -1,0 +1,41 @@
+Compliance Report: CIS Controls v8.1
+Generated: 2026-06-23 16:48:52
+
+ASSET COMPLIANCE SUMMARY
+Asset ID,Hostname,Total Controls,Compliant,Warning,Non-Compliant,Score (%),Overall Status
+asset-EILT0020,EILT0020,8,2,6,0,25.0,Non-Compliant
+asset-EILT0155,EILT0155,4,2,2,0,50.0,Partially Compliant
+asset-EILT0197,EILT0197,8,4,4,0,50.0,Partially Compliant
+
+CONTROL DETAILS WITH EVIDENCE
+Control ID,Control Name,Category,Control Status,Asset ID,Hostname,Asset Status,Evidence Count,Auto Evidence,Manual Evidence,Evidence Names,Evidence URLs,Evidence Dates,Evidence Desc,Last Reviewed
+CIS-1,Inventory and Control of Enterprise Assets,Asset Management,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-2,Inventory and Control of Software Assets,Asset Management,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-3,Data Protection,Data Management,In Progress,asset-EILT0020,EILT0020,Warning,1,1,0,[Auto] System Check: BitLocker Encryption,#,2026-06-23,—,2026-06-17
+CIS-3,Data Protection,Data Management,In Progress,asset-EILT0197,EILT0197,Compliant,1,1,0,[Auto] System Check: BitLocker Encryption,#,2026-06-22,—,2026-06-17
+CIS-3,Data Protection,Data Management,In Progress,asset-EILT0155,EILT0155,Compliant,1,1,0,[Auto] System Check: BitLocker Encryption,#,2026-06-23,—,2026-06-17
+CIS-4,Secure Configuration of Enterprise Assets and Software,Secure Configuration,In Progress,asset-EILT0020,EILT0020,Warning,2,2,0,"[Auto] System Check: RDP NLA Required, [Auto] System Check: SMBv1 Protocol Disabled","#, #","2026-06-23, 2026-06-23",—,2026-06-17
+CIS-4,Secure Configuration of Enterprise Assets and Software,Secure Configuration,In Progress,asset-EILT0197,EILT0197,Warning,2,2,0,"[Auto] System Check: RDP NLA Required, [Auto] System Check: SMBv1 Protocol Disabled","#, #","2026-06-22, 2026-06-22",—,2026-06-17
+CIS-4,Secure Configuration of Enterprise Assets and Software,Secure Configuration,In Progress,asset-EILT0155,EILT0155,Warning,2,2,0,"[Auto] System Check: RDP NLA Required, [Auto] System Check: SMBv1 Protocol Disabled","#, #","2026-06-23, 2026-06-23",—,2026-06-17
+CIS-5,Account Management,Identity and Access Management,In Progress,asset-EILT0020,EILT0020,Warning,0,0,0,None,—,—,—,2026-06-17
+CIS-5,Account Management,Identity and Access Management,In Progress,asset-EILT0197,EILT0197,Warning,0,0,0,None,—,—,—,2026-06-17
+CIS-6,Access Control Management,Identity and Access Management,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-7,Continuous Vulnerability Management,Vulnerability Management,In Progress,asset-EILT0020,EILT0020,Warning,0,0,0,None,—,—,—,2026-06-17
+CIS-7,Continuous Vulnerability Management,Vulnerability Management,In Progress,asset-EILT0197,EILT0197,Warning,0,0,0,None,—,—,—,2026-06-17
+CIS-8,Audit Log Management,Audit and Logging,In Progress,asset-EILT0020,EILT0020,Warning,1,1,0,[Auto] System Check: PowerShell Script Block Logging,#,2026-06-23,—,2026-06-17
+CIS-8,Audit Log Management,Audit and Logging,In Progress,asset-EILT0197,EILT0197,Compliant,1,1,0,[Auto] System Check: PowerShell Script Block Logging,#,2026-06-22,—,2026-06-17
+CIS-8,Audit Log Management,Audit and Logging,In Progress,asset-EILT0155,EILT0155,Warning,1,1,0,[Auto] System Check: PowerShell Script Block Logging,#,2026-06-23,—,2026-06-17
+CIS-9,Email and Web Browser Protections,Browser and Email Security,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-10,Malware Defenses,Malware Defense,In Progress,asset-EILT0020,EILT0020,Compliant,1,1,0,[Auto] System Check: Windows Defender Antivirus,#,2026-06-23,—,2026-06-17
+CIS-10,Malware Defenses,Malware Defense,In Progress,asset-EILT0197,EILT0197,Compliant,1,1,0,[Auto] System Check: Windows Defender Antivirus,#,2026-06-22,—,2026-06-17
+CIS-10,Malware Defenses,Malware Defense,In Progress,asset-EILT0155,EILT0155,Compliant,1,1,0,[Auto] System Check: Windows Defender Antivirus,#,2026-06-23,—,2026-06-17
+CIS-11,Data Recovery,Data Recovery,In Progress,asset-EILT0020,EILT0020,Warning,0,0,0,None,—,—,—,2026-06-17
+CIS-11,Data Recovery,Data Recovery,In Progress,asset-EILT0197,EILT0197,Warning,0,0,0,None,—,—,—,2026-06-17
+CIS-12,Network Infrastructure Management,Network Security,Implemented,asset-EILT0020,EILT0020,Compliant,0,0,0,None,—,—,—,2026-06-17
+CIS-12,Network Infrastructure Management,Network Security,Implemented,asset-EILT0197,EILT0197,Compliant,0,0,0,None,—,—,—,2026-06-17
+CIS-13,Network Monitoring and Defense,Network Security,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-14,Security Awareness and Skills Training,Security Awareness,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-15,Service Provider Management,Third-Party Risk,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-16,Application Software Security,Application Security,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-17,Incident Response Management,Incident Response,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15
+CIS-18,Penetration Testing,Security Testing,Implemented,—,—,—,0,0,0,None,—,—,—,2024-01-15

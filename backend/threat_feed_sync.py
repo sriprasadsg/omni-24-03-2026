@@ -59,6 +59,9 @@ async def _fetch_urlhaus(session: aiohttp.ClientSession) -> List[Dict[str, Any]]
     try:
         async with session.post(URLHAUS_RECENT, data={"limit": MAX_PER_SOURCE},
                                 timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            if resp.status == 401:
+                logger.debug("[ThreatFeed] URLhaus blocked (HTTP 401) — IP may be rate-limited or blocked by abuse.ch")
+                return iocs
             if resp.status != 200:
                 logger.warning("[ThreatFeed] URLhaus returned HTTP %d", resp.status)
                 return iocs
@@ -92,6 +95,9 @@ async def _fetch_malwarebazaar(session: aiohttp.ClientSession) -> List[Dict[str,
             data={"query": "get_recent", "selector": "100"},
             timeout=aiohttp.ClientTimeout(total=30),
         ) as resp:
+            if resp.status == 401:
+                logger.debug("[ThreatFeed] MalwareBazaar blocked (HTTP 401) — IP may be rate-limited or blocked by abuse.ch")
+                return iocs
             if resp.status != 200:
                 logger.warning("[ThreatFeed] MalwareBazaar returned HTTP %d", resp.status)
                 return iocs

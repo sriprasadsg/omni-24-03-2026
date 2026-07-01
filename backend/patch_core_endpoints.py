@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
@@ -59,7 +60,8 @@ async def list_patches(
     if tenant_id and not is_admin and tenant_id != caller_tenant:
         raise HTTPException(status_code=403, detail="Not authorized to view patches for this tenant")
     effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
-    patches = await db.patches.find({"tenantId": effective_tenant}, {"_id": 0}).to_list(length=100)
+    query: dict = {} if (is_admin and not tenant_id) else {"tenantId": effective_tenant}
+    patches = await db.patches.find(query, {"_id": 0}).to_list(length=100)
     return patches
 
 
@@ -128,31 +130,39 @@ async def create_deployment_job(
                 if key:
                     agent_map[key] = a
 
-        instructions_queued = 0
+        patch_identifiers = [_patch_identifier(d) for d in patch_docs if _patch_identifier(d)]
+
+        # Build all instruction documents first, then insert in chunks of 1 000 to
+        # avoid MongoDB's 16 MiB document-batch limit and reduce round-trips at scale.
+        instr_docs: list[dict] = []
         for asset_id in request.asset_ids:
             agent = agent_map.get(asset_id)
-            if not agent:
+            if not agent or not patch_identifiers:
                 continue
-            agent_id = agent["id"]
-            patch_identifiers = [_patch_identifier(d) for d in patch_docs if _patch_identifier(d)]
-            if not patch_identifiers:
-                continue
-            instruction_str = "Install Patches: " + " ".join(patch_identifiers) + f" Job: {job_id}"
-            instr_doc: dict = {
-                "agent_id":    agent_id,
-                "instruction": instruction_str,
+            doc: dict = {
+                "id":          uuid.uuid4().hex,
+                "agent_id":    agent["id"],
+                "tenantId":    tenant_id,
+                "instruction": "install_patches",
+                "payload":     {"patch_ids": patch_identifiers, "job_id": job_id},
                 "status":      "pending",
                 "created_at":  now,
                 "type":        "os_patch_install",
                 "job_id":      job_id,
                 "metadata":    {"patches": patch_identifiers, "job_id": job_id},
-                "payload":     {},
             }
             if not is_immediate and request.schedule_time:
-                instr_doc["scheduledAt"] = request.schedule_time
-                instr_doc["status"] = "scheduled"
-            await db.agent_instructions.insert_one(instr_doc)
-            instructions_queued += 1
+                doc["scheduledAt"] = request.schedule_time
+                doc["status"] = "scheduled"
+            instr_docs.append(doc)
+
+        _CHUNK = 1_000
+        for i in range(0, len(instr_docs), _CHUNK):
+            chunk = instr_docs[i : i + _CHUNK]
+            if chunk:
+                await db.agent_instructions.insert_many(chunk, ordered=False)
+
+        instructions_queued = len(instr_docs)
 
         job["instructionsQueued"] = instructions_queued
 

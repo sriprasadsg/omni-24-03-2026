@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
@@ -7,6 +7,8 @@ from local_ip import ollama_default_url
 import asyncio
 import ipaddress
 import socket
+import uuid
+import datetime
 from urllib.parse import urlparse
 
 _BLOCKED_HOSTS = {
@@ -62,13 +64,32 @@ async def save_database_settings(settings: Dict[str, Any], current_user: TokenDa
     )
     return settings
 
+def _is_super_admin(user: TokenData) -> bool:
+    return getattr(user, "role", "") in {"Super Admin", "super_admin", "platform-admin"}
+
+
+async def _get_raw_llm_settings(db, tenant_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Fetch LLM settings: tenant-specific first, then global fallback."""
+    raw = db._db if hasattr(db, "_db") else db
+    if tenant_id:
+        doc = await raw.system_settings.find_one({"type": "llm", "tenantId": tenant_id}, {"_id": 0})
+        if doc:
+            return doc
+    # Global fallback (no tenantId field)
+    doc = await raw.system_settings.find_one(
+        {"type": "llm", "tenantId": {"$exists": False}}, {"_id": 0}
+    )
+    return doc
+
+
 @router.get("/llm")
 async def get_llm_settings(current_user: TokenData = Depends(get_current_user)):
-    """Get LLM settings — tenant-specific, with auto-detected defaults for new tenants"""
+    """Get LLM settings — tenant-specific with global fallback."""
+    import os as _os
     db = get_database()
-    settings = await db.system_settings.find_one({"type": "llm"}, {"_id": 0})
+    tenant_id = None if _is_super_admin(current_user) else getattr(current_user, "tenant_id", None)
+    settings = await _get_raw_llm_settings(db, tenant_id)
     if not settings:
-        import os as _os
         _url = _os.getenv("OLLAMA_URL", ollama_default_url())
         _model = _os.getenv("OLLAMA_MODEL", _os.getenv("LLM_MODEL", "llama3.2:3b"))
         settings = {
@@ -81,26 +102,49 @@ async def get_llm_settings(current_user: TokenData = Depends(get_current_user)):
             "temperature": 0.7,
             "timeout":     30,
         }
-    # Normalise legacy "Ollama (Local)" label → "Local"
     if settings.get("provider") == "Ollama (Local)":
         settings["provider"] = "Local"
+    # Always expose ollamaUrl and host consistently
+    if settings.get("ollamaUrl") and not settings.get("host"):
+        settings["host"] = settings["ollamaUrl"].replace("http://", "").replace("https://", "")
     return settings
+
 
 @router.post("/llm")
 async def save_llm_settings(settings: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
-    """Save LLM settings — admin only"""
+    """Save LLM settings — admin only. Tenant admins save per-tenant; Super Admins save globally."""
     _require_admin(current_user)
     db = get_database()
-    # Add type identifier
+    raw = db._db if hasattr(db, "_db") else db
+    tenant_id = getattr(current_user, "tenant_id", None)
+
     settings["type"] = "llm"
-    await db.system_settings.update_one(
-        {"type": "llm"},
-        {"$set": settings},
-        upsert=True
-    )
-    # Re-initialize AI service if possible (optional, but good practice)
+    # Sync host and ollamaUrl fields
+    if settings.get("ollamaUrl") and not settings.get("host"):
+        settings["host"] = settings["ollamaUrl"].replace("http://", "").replace("https://", "")
+    elif settings.get("host") and not settings.get("ollamaUrl"):
+        host = settings["host"]
+        settings["ollamaUrl"] = host if host.startswith("http") else f"http://{host}"
+
+    if _is_super_admin(current_user):
+        # Super Admin updates the platform-level global default (no tenantId)
+        await raw.system_settings.update_one(
+            {"type": "llm", "tenantId": {"$exists": False}},
+            {"$set": settings},
+            upsert=True,
+        )
+    else:
+        # Tenant Admin saves per-tenant settings
+        settings["tenantId"] = tenant_id
+        await raw.system_settings.update_one(
+            {"type": "llm", "tenantId": tenant_id},
+            {"$set": settings},
+            upsert=True,
+        )
+
+    # Invalidate per-tenant provider cache
     from ai_service import ai_service
-    await ai_service.initialize()
+    ai_service.invalidate_tenant_provider(tenant_id)
 
     return settings
 
@@ -224,3 +268,61 @@ async def test_llm_connection(
             return {"success": False, "message": f"Anthropic test failed: {exc}"}
 
     return {"success": False, "message": f"Unknown provider: {provider}"}
+
+
+# ── Custom AI Tools (per-tenant) ─────────────────────────────────────────────
+
+@router.get("/ai-tools")
+async def list_ai_tools(current_user: TokenData = Depends(get_current_user)):
+    """Return custom AI tools registered for this tenant."""
+    db = get_database()
+    raw = db._db if hasattr(db, "_db") else db
+    tenant_id = getattr(current_user, "tenant_id", None)
+    docs = await raw.ai_tools.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=100)
+    return docs
+
+
+@router.post("/ai-tools")
+async def add_ai_tool(tool: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
+    """Register a new custom AI tool/endpoint for this tenant."""
+    _require_admin(current_user)
+    db = get_database()
+    raw = db._db if hasattr(db, "_db") else db
+    tenant_id = getattr(current_user, "tenant_id", None)
+    tool.update({
+        "id": str(uuid.uuid4()),
+        "tenantId": tenant_id,
+        "createdAt": datetime.datetime.utcnow().isoformat(),
+    })
+    await raw.ai_tools.insert_one(tool)
+    tool.pop("_id", None)
+    return tool
+
+
+@router.put("/ai-tools/{tool_id}")
+async def update_ai_tool(
+    tool_id: str,
+    tool: Dict[str, Any],
+    current_user: TokenData = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    db = get_database()
+    raw = db._db if hasattr(db, "_db") else db
+    tenant_id = getattr(current_user, "tenant_id", None)
+    tool.pop("id", None)
+    tool.pop("tenantId", None)
+    await raw.ai_tools.update_one({"id": tool_id, "tenantId": tenant_id}, {"$set": tool})
+    return {"success": True}
+
+
+@router.delete("/ai-tools/{tool_id}")
+async def delete_ai_tool(
+    tool_id: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    db = get_database()
+    raw = db._db if hasattr(db, "_db") else db
+    tenant_id = getattr(current_user, "tenant_id", None)
+    await raw.ai_tools.delete_one({"id": tool_id, "tenantId": tenant_id})
+    return {"success": True}

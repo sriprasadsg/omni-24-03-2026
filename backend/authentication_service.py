@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from auth_types import TokenData  # Token re-exported by auth_types directly
+from tenant_context import set_tenant_id as _set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +87,14 @@ def verify_token(token: str) -> TokenData:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        return TokenData(
+        token_data = TokenData(
             username=username,
             role=role,
             tenant_id=tenant_id,
             mfa_verified=payload.get("mfa_verified", False),
         )
+        _set_tenant_id(tenant_id or "platform-admin")
+        return token_data
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -145,12 +148,14 @@ async def verify_token_async(token: str) -> TokenData:
                 # The in-process _revoked_jti_cache provides best-effort protection.
                 logger.warning("Token revocation DB check failed (fail-open): %s", _db_err)
 
-        return TokenData(
+        token_data = TokenData(
             username=username,
             role=role,
             tenant_id=tenant_id,
             mfa_verified=payload.get("mfa_verified", False),
         )
+        _set_tenant_id(tenant_id or "platform-admin")
+        return token_data
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

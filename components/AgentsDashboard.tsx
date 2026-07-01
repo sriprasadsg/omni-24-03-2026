@@ -4,7 +4,7 @@ import { ServerIcon, ZapIcon, CheckIcon, AlertTriangleIcon, CogIcon, PlusCircleI
 import { Agent, AgenticStep, LogEntry, Asset, AgentUpgradeJob, Filter, Tenant } from '../types';
 import { AgentLogsModal } from './AgentLogsModal';
 import { AgentInstallation } from './AgentInstallation';
-import { generateAgenticPlan, runAgentDiagnostics, restartAgent, deleteAgent, quarantineAgent, setAgentSoftwareExclusion } from '../services/apiService';
+import { generateAgenticPlan, runAgentDiagnostics, restartAgent, deleteAgent, quarantineAgent, setAgentSoftwareExclusion, fetchAgents } from '../services/apiService';
 import { AutonomousOpsLog } from './AutonomousOpsLog';
 import { useUser } from '@/contexts/UserContext';
 import { AgentDetailModal } from './AgentDetailModal';
@@ -134,6 +134,29 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     if (!viewingAgentDetails) return undefined;
     return assets.find(a => a.id === viewingAgentDetails.assetId);
   }, [viewingAgentDetails, assets]);
+
+  // Keep the open detail modal in sync with the 5s parent poll
+  useEffect(() => {
+    if (!viewingAgentDetails) return;
+    const updated = agents.find(a => a.id === viewingAgentDetails.id);
+    if (updated) setViewingAgentDetails(updated);
+  }, [agents]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [isRefreshingAgent, setIsRefreshingAgent] = useState(false);
+
+  const handleRefreshAgentDetails = async () => {
+    if (!viewingAgentDetails) return;
+    setIsRefreshingAgent(true);
+    try {
+      const freshAgents = await fetchAgents(viewingAgentDetails.tenantId);
+      const fresh = freshAgents.find((a: Agent) => a.id === viewingAgentDetails.id);
+      if (fresh) setViewingAgentDetails(fresh);
+    } catch (e) {
+      console.error('Failed to refresh agent details', e);
+    } finally {
+      setIsRefreshingAgent(false);
+    }
+  };
 
   const handleToggleSelection = (agentId: string) => {
     setSelectedAgentIds(prev => {
@@ -580,6 +603,8 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
         }}
         onRunDiagnostics={handleRunDiagnostics}
         onDeleteAgent={onDeleteAgent}
+        onRefresh={handleRefreshAgentDetails}
+        isRefreshing={isRefreshingAgent}
       />
       <RemediationLogsModal
         isOpen={!!viewingRemediationLogsForAgent}

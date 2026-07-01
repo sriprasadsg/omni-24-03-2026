@@ -127,17 +127,19 @@ async def start_remote_session(request: Request, payload: dict, current_user: Us
     agent_ws_base = _resolve_backend_ws_base(request)
 
     instruction = {
-        "agent_id": agent_id,
-        "type": "start_remote_session",
+        "id":          str(uuid.uuid4()),
+        "agent_id":    agent_id,
+        "instruction": "start_remote_session",
+        "type":        "start_remote_session",
         "payload": {
             "session_id": session_id,
-            "protocol": protocol,
-            "type": session_type,
-            "url": f"{agent_ws_base}/api/tunnel/{session_id}/agent",
+            "protocol":   protocol,
+            "type":       session_type,
+            "url":        f"{agent_ws_base}/api/tunnel/{session_id}/agent",
         },
-        "status": "pending",
-        "tenantId": agent_tenant_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status":      "pending",
+        "tenantId":    agent_tenant_id,
+        "created_at":  datetime.now(timezone.utc).isoformat(),
     }
     await db.agent_instructions.insert_one(instruction)
 

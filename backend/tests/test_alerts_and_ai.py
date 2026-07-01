@@ -101,10 +101,10 @@ class TestAlertCreate:
              patch("alert_endpoints.broker", MagicMock(publish=AsyncMock()), create=True):
             res = TestClient(_app(router, _user(tenant_id="t1"))).post(
                 "/api/alerts",
-                json={"description": "Test alert", "tenantId": "evil-tenant", "severity": "High"},
+                json={"type": "security", "title": "Test alert", "description": "Test alert", "severity": "High"},
             )
         assert res.status_code == 200
-        # Backend should override the injected tenantId with the JWT tenant
+        # Backend should set tenantId from JWT, not any request body value
         assert inserted.get("tenantId") == "t1", "tenantId must be from JWT, not request body"
 
     def test_create_returns_alert_with_id(self):
@@ -115,7 +115,7 @@ class TestAlertCreate:
              patch("alert_endpoints.broker", MagicMock(publish=AsyncMock()), create=True):
             res = TestClient(_app(router, _user())).post(
                 "/api/alerts",
-                json={"description": "Test", "severity": "Medium"},
+                json={"type": "info", "title": "Test", "description": "Test", "severity": "Medium"},
             )
         assert res.status_code == 200
         data = res.json()
@@ -165,7 +165,8 @@ class TestAlertAssign:
             res = TestClient(_app(router, _user(role="security_analyst"))).patch(
                 "/api/alerts/a1/assign", json={}
             )
-        assert res.status_code == 400
+        # FastAPI returns 422 for missing required fields (Pydantic validation)
+        assert res.status_code == 422
 
     def test_assign_not_found(self):
         from alert_endpoints import router

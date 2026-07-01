@@ -1,0 +1,8 @@
+agent_id: null
+agent_token: null
+api_base_url: http://YOUR_SERVER_IP:5000
+agentic_mode_enabled: false
+interval_seconds: 30
+max_cpu_percent: 20
+registration_key: YOUR_REGISTRATION_KEY
+tenant_id: YOUR_TENANT_ID

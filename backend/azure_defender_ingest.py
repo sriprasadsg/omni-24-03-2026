@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 from database import get_database
+from tenant_context import set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ async def poll_azure_defender_alerts(config: Dict[str, Any], omni_tenant_id: str
             logger.info("[AzureDefender] No alerts returned for subscription %s", subscription_id)
             return 0
 
+        set_tenant_id(omni_tenant_id)
         db = get_database()
         events = [_parse_defender_alert(a, omni_tenant_id) for a in alerts]
 
@@ -165,6 +167,7 @@ async def poll_sentinel_logs(config: Dict[str, Any], omni_tenant_id: str) -> int
             logger.warning("[Sentinel] Query returned non-success status: %s", response.status)
             return 0
 
+        set_tenant_id(omni_tenant_id)
         db = get_database()
         events = []
         for table in response.tables:
@@ -204,6 +207,7 @@ async def start_azure_polling():
     while True:
         try:
             await asyncio.sleep(300)
+            set_tenant_id("platform-admin")
             db = get_database()
             integrations = await db.cloud_integrations.find(
                 {"provider": {"$in": ["azure_defender", "microsoft_sentinel"]}, "enabled": True}

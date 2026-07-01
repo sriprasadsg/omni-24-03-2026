@@ -429,9 +429,10 @@ class IncidentAnalyzer:
 
 
     async def suggest_remediation(self, control_id: str, control_description: str, failure_reason: str, asset_context: str) -> str:
-        """Return 3-5 numbered remediation steps for a compliance control failure."""
-        prompt = (f"Control: {control_id} — {control_description}\nFailure: {failure_reason}\nAsset: {asset_context}\n"
-                  "Provide 3-5 numbered remediation steps. End with a verification step.")
+        prompt = f"Control: {control_id} — {control_description}\nFailure: {failure_reason}\nAsset: {asset_context}\nProvide 3-5 numbered remediation steps. End with a verification step."
+        scan = await self._check_policy(prompt)
+        if not scan.passed:
+            return f"Policy check blocked: {', '.join(scan.findings)}"
         return await self.generate_text(prompt, source="remediation_suggestion")
 
     async def chat_stream(self, message: str, context: dict) -> AsyncIterator[str]:

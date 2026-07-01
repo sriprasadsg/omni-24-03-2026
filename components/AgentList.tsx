@@ -118,7 +118,6 @@ const AgentCard: React.FC<{
     onToggleSoftwareExclusion?: (agent: Agent) => void;
     onRequestDelete: (agent: Agent) => void;
 }> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, onRemoteControl, canRemediate, canViewLogs, onDeleteAgent, onQuarantineAgent, onToggleSoftwareExclusion, onRequestDelete }) => {
-    const info = statusInfo[agent.status] || statusInfo.Offline;
     const { timeZone } = useTimeZone();
 
     const handleDeleteClick = (e: React.MouseEvent) => {
@@ -126,14 +125,18 @@ const AgentCard: React.FC<{
         onRequestDelete(agent);
     };
 
-    // Heartbeat staleness
+    // Heartbeat staleness — agent is effectively offline after 2 missed minutes (4× 30s heartbeat)
     const now = new Date().getTime();
     const lastSeenMs = agent.lastSeen ? new Date(agent.lastSeen).getTime() : 0;
     const staleSecs = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : Infinity;
-    const hearbeatColor = staleSecs < 120
+    const _OFFLINE_THRESHOLD = 120; // 2 minutes = 4 missed heartbeats
+    const effectiveStatus: AgentStatus =
+        agent.status === 'Online' && staleSecs > _OFFLINE_THRESHOLD ? 'Offline' : (agent.status as AgentStatus);
+    const info = statusInfo[effectiveStatus] || statusInfo.Offline;
+    const hearbeatColor = staleSecs < _OFFLINE_THRESHOLD
         ? 'text-green-500' : staleSecs < 600
         ? 'text-amber-400' : 'text-red-400';
-    const hearbeatDot = staleSecs < 120
+    const hearbeatDot = staleSecs < _OFFLINE_THRESHOLD
         ? 'bg-green-500 animate-pulse' : staleSecs < 600
         ? 'bg-amber-400' : 'bg-red-500';
     const lastSeenLabel = (() => {
@@ -185,7 +188,7 @@ const AgentCard: React.FC<{
                             )}
                             <span className={`flex items-center text-xs font-bold px-2.5 py-1 rounded-full ${info.badgeClasses} shadow-sm`}>
                                 {info.icon}
-                                <span>{agent.status}</span>
+                                <span>{effectiveStatus}</span>
                             </span>
                         </div>
                     </div>
