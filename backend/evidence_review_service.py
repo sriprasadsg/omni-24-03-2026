@@ -168,8 +168,13 @@ async def update_review_decision(
     if not review:
         return None
 
-    # 2. Propagate status to evidence record in asset_compliance
-    await db.asset_compliance.update_one(
+    # 2. Propagate status to evidence record in asset_compliance. The match
+    #    result is checked (unlike a fire-and-forget call) because the review
+    #    record above has already been updated at this point — if the evidence
+    #    item no longer exists at this id (e.g. deleted after the review was
+    #    created), the caller still gets a 200 + audit log, but we log a
+    #    warning so the discrepancy is at least observable.
+    result = await db.asset_compliance.update_one(
         {"evidence.id": evidence_id, "tenantId": tenant_id},
         {
             "$set": {
@@ -178,6 +183,13 @@ async def update_review_decision(
             }
         },
     )
+    if result.modified_count == 0:
+        logger.warning(
+            "evidence_review: review %s decided as '%s' but evidence propagation "
+            "matched no document (evidence_id=%s, tenant_id=%s) — evidence status "
+            "was not updated",
+            review_id, decision, evidence_id, tenant_id,
+        )
 
     return review
 
