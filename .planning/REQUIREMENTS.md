@@ -66,11 +66,78 @@
 
 ## v2.0 Requirements
 
-### Evidence Review Workflow
+**Implementation status note (added 2026-07-02):** Unlike v1.1–v1.5, none of phases 14/16–22 went through a documented execute→review→verify cycle before this backfill — ROADMAP.md still labels most of them "Planned" despite code already existing in the tree. Checking each phase's artifacts against its plan surfaced four different states, so checkboxes below reflect *verified* status, not just file presence: a requirement is only `[x]` when its code exists, is wired into `router_registry.py`, and its test suite actually passes. See the per-phase note under each subsection for what's actually missing.
+
+### Evidence Review Workflow (Phase 15)
 
 - [x] **REV-01**: Any authenticated user can submit an evidence item for review (`POST /api/evidence/{evidence_id}/submit-for-review`); a user with role `admin`, `super_admin`, or `compliance_reviewer` can then approve, reject, or request changes on it (`PATCH /api/evidence/{evidence_id}/review/{review_id}`), with a comment required for reject/request-changes decisions
 - [x] **REV-02**: A review decision updates the evidence's status accordingly — `approved` (counts toward compliance score), `rejected`, or `needs_revision` — and the full review thread (reviewer, decision, comment, timestamp) is retrievable via `GET /api/evidence/{evidence_id}/reviews`, sorted newest-first
 - [x] **REV-03**: A tenant's pending-review evidence queue is listable (`GET /api/evidence/pending-review`) and every review read/write is scoped to the acting user's own tenant — a reviewer in one tenant cannot view or decide on another tenant's review records
+
+### SaaS Evidence Integration (Phase 14)
+
+- [x] **SAAS-01**: OAuth 2.0 authorization code flow for GitHub, Jira, Okta, Google Workspace, and Slack, each with `/authorize` and `/callback` endpoints; access/refresh tokens stored Fernet-encrypted in `saas_connections`
+- [x] **SAAS-02**: Per-provider evidence pull (GitHub PRs/advisories/branch-protection/code-scanning, Jira compliance issues, Okta MFA/user list, Google Workspace 2SV/sharing, Slack retention policy) mapped via `COMPLIANCE_CHECK_MAPPINGS`; `POST /api/saas/connections/{id}/pull-evidence` writes to `control_evidence` with `source='saas-{provider}'`
+- [x] **SAAS-03**: `GET /api/saas/connections` lists tenant connections with status/last_synced/evidence_count; `DELETE /api/saas/connections/{id}` revokes the token and removes the record
+- [x] **SAAS-04**: `SaaSIntegrationsDashboard.tsx` shows all 5 provider cards with an OAuth popup connect flow, per-integration last-synced/evidence-count display, and a Pull Evidence Now action
+
+*Verified complete: `saas_integration_service.py`/`saas_integration_endpoints.py`/`SaaSIntegrationsDashboard.tsx` all exist, `saas_integration_endpoints` is registered in `router_registry.py`, and `pytest tests/test_saas_integration.py` passes 10/10. Only phase in this milestone with a `SUMMARY.md`/`REVIEW.md` on disk.*
+
+### Program Control Grouping (Phase 16)
+
+- [ ] **PROG-01**: `POST /api/programs` creates a named program (name, description, framework_id, owner, control_ids); `PUT /api/programs/{id}/controls` manages membership via `{add, remove}`
+- [ ] **PROG-02**: `GET /api/programs/{id}` returns the program with a computed `status_rollup` (total/passing/failing/not_assessed, with compliant ≥80%-passing / at_risk / in_progress thresholds); `GET /api/programs` lists all programs with rollup summaries
+- [ ] **PROG-03**: `DELETE /api/programs/{id}` removes the program document without deleting underlying evidence
+
+*Not verified: `program_service.py`/`program_endpoints.py`/`ProgramsDashboard.tsx` exist and `program_endpoints` is registered in `router_registry.py`, but `tests/test_program_service.py` fails to even collect (`ImportError: cannot import name 'TestClient' from 'fastapi'` — should be `from fastapi.testclient import TestClient`). The 7-test suite required by the plan has never actually run.*
+
+### Cloud Checks Expansion (Phase 17)
+
+- [ ] **CC-EXP-01**: Cloud check library expanded from 67 to 300+ checks across AWS (EKS, Lambda, CloudFront, WAF, SNS, SQS, ElasticSearch, Route53, ACM, Inspector, SSM, Backup), Azure (App Service, ACR, AKS), and GCP (BigQuery, GKE)
+- [ ] **CC-EXP-02**: Each new check carries `id`/`name`/`description`/`provider`/`service`/`severity`/`control_ids`/`remediation_steps`; checks organized into per-provider modules imported by `cloud_checks_service.py`
+
+*Partially verified: `cloud_checks_service.py` imports `cloud_checks_aws.py` (145 checks) + `cloud_checks_azure.py` (77) + `cloud_checks_gcp.py` (69) + `cloud_checks_k8s.py` (20) = 321 total, confirmed by direct import — the 300+ target (CC-EXP-01) is structurally met. Left unchecked because `tests/test_cloud_checks_expansion.py` exists but is a 0-line empty stub, so there is no automated coverage confirming check correctness (schema completeness per CC-EXP-02, no accidental removal of the original 67, etc.).*
+
+### Privacy & Legal Modules (Phase 18)
+
+- [ ] **PRIV-01**: Transfer Impact Assessments (`POST /api/privacy/tia`) and Legitimate Interest Assessments (`POST /api/privacy/lia`) with their respective required fields
+- [ ] **PRIV-02**: Privacy Notices with versioning — `GET`/`POST /api/privacy/notices`, `GET /api/privacy/notices/{id}/versions`
+- [ ] **PRIV-03**: Contract Lifecycle tracking — `POST /api/privacy/contracts`, `GET /api/privacy/contracts/expiring` (30-day window)
+- [ ] **PRIV-04**: `PrivacyLegalDashboard.tsx` with 4 tabs (TIA/LIA/Notices/Contracts), backed by a passing 8-test suite
+
+*Not verified: all files exist and `privacy_endpoints` is registered in `router_registry.py`, but `pytest tests/test_privacy_service.py` fails 8/8 with `AttributeError: module 'privacy_endpoints' does not have the attribute 'get_database'` — the test's mock-patching target doesn't match how the module actually imports its DB dependency. The endpoints have never been confirmed to work end-to-end.*
+
+### Additional Compliance Frameworks (Phase 19)
+
+- [ ] **FW-01**: 14 new compliance framework JSON files (ENS, MAS TRM, IRAP, ISO 27017, ISO 27018, BSI C5, FFIEC, OWASP Top 10, TISAX, AWS Well-Architected, RBI CSF, TIC 3.0, KISA ISMS, FedRAMP High) added to `backend/frameworks/`, following the existing `{id, name, version, description, controls[]}` schema
+
+*Not started: none of the 14 target JSON files exist in `backend/frameworks/` — this is the only v2.0 phase with no implementation artifacts at all, despite a `19-01-PLAN.md` on disk.*
+
+### Multi-Account Cloud Scanning (Phase 20)
+
+- [ ] **CLD-01**: `POST /api/cloud-accounts` registers a cloud account (provider, account_id, account_name, encrypted `credentials_ref`, environment); `GET /api/cloud-accounts` lists registered accounts
+- [ ] **CLD-02**: `POST /api/cloud-accounts/{id}/scan` triggers an async check run; `GET /api/cloud-accounts/{id}/results` returns per-account results
+- [ ] **CLD-03**: `GET /api/cloud-accounts/summary` returns an aggregated cross-account view; `POST /api/cloud-accounts/discover-org` discovers AWS Organizations member accounts
+
+*Partial: only `cloud_accounts_service.py` (business logic) and a `CloudAccountsDashboard.tsx` UI exist. `cloud_accounts_endpoints.py` — the FastAPI router every one of these requirements depends on — does not exist, and nothing named `cloud_accounts` appears anywhere in `router_registry.py`. The feature has no HTTP surface at all; the dashboard component would 404 against every API call it makes. Least-complete phase after FW-01.*
+
+### Notification Routing & Domain Scanner (Phase 21)
+
+- [ ] **NOTIF-01**: `POST /api/notifications/channels` creates a channel (slack/email/webhook); `POST /api/notifications/rules` creates a routing rule (event_type, channel_ids, severity_filter)
+- [ ] **NOTIF-02**: `notification_service.send_notification()` matches rules to channels and delivers via Slack webhook, logged email (SMTP deferred), or generic webhook POST
+- [ ] **SCAN-01**: `GET /api/domain-scanner/scan?domain=...` returns subdomains, open ports (common set), TLS cert info, and DNS record types
+- [ ] **SCAN-02**: `POST`/`GET /api/domain-scanner/scheduled` registers and lists domains for periodic scanning
+
+*Not verified: all files exist and both `notification_endpoints`/`domain_scanner_endpoints` are registered in `router_registry.py`, but `pytest tests/test_notification_service.py` fails 7/7 with `401 Not authenticated` — the test client isn't wired with valid auth, so no test actually exercises the endpoint logic. Notably the same failure class (missing/broken auth wiring) as Phase 15's WR-01 before that was fixed — worth checking whether the real frontend hits the same wall.*
+
+### API Extensions (Phase 22)
+
+- [ ] **API-01**: MCP protocol server — `GET /api/mcp/tools` lists tools (`list_frameworks`, `get_control_status`, `run_cloud_check`, `list_findings`, `get_compliance_score`); `POST /api/mcp/execute/{tool_name}` executes one
+- [ ] **API-02**: OCSF-formatted output — `GET /api/ocsf/findings` (`class_uid: 2004`) and `GET /api/ocsf/cloud-checks` (`class_uid: 5001`)
+- [ ] **API-03**: 10 DigitalOcean cloud checks added to `CLOUD_CHECKS` (firewall, managed DB encryption, Spaces public access, LB SSL, droplet monitoring, VPC isolation, DB backups, k8s auto-upgrade, App Platform HTTPS, snapshot retention)
+- [ ] **API-04**: CLI tool (`backend/scripts/omni-cli.py`, Click) with `frameworks`/`scan`/`findings`/`score` commands calling the local API
+
+*Not verified: all files exist, `mcp_server_endpoints`/`ocsf_endpoints` are registered in `router_registry.py`, and both import cleanly with no errors — the best-off of the unverified phases. No test suite was ever created for this phase (none listed in `22-01-PLAN.md`'s `files_modified`, and none found on disk), so there's no automated confirmation of correct behavior, only that the code loads.*
 
 ## Out of Scope
 
@@ -111,6 +178,31 @@
 | REV-01 | Phase 15 | Complete |
 | REV-02 | Phase 15 | Complete |
 | REV-03 | Phase 15 | Complete |
+| SAAS-01 | Phase 14 | Complete |
+| SAAS-02 | Phase 14 | Complete |
+| SAAS-03 | Phase 14 | Complete |
+| SAAS-04 | Phase 14 | Complete |
+| PROG-01 | Phase 16 | Implemented — test suite broken (collection error) |
+| PROG-02 | Phase 16 | Implemented — test suite broken (collection error) |
+| PROG-03 | Phase 16 | Implemented — test suite broken (collection error) |
+| CC-EXP-01 | Phase 17 | Implemented — untested (321 checks verified by direct inspection) |
+| CC-EXP-02 | Phase 17 | Implemented — untested (test file is an empty stub) |
+| PRIV-01 | Phase 18 | Implemented — tests failing (8/8) |
+| PRIV-02 | Phase 18 | Implemented — tests failing (8/8) |
+| PRIV-03 | Phase 18 | Implemented — tests failing (8/8) |
+| PRIV-04 | Phase 18 | Implemented — tests failing (8/8) |
+| FW-01 | Phase 19 | Not started (0/14 framework files exist) |
+| CLD-01 | Phase 20 | Not started (no API endpoints — service layer only) |
+| CLD-02 | Phase 20 | Not started (no API endpoints — service layer only) |
+| CLD-03 | Phase 20 | Not started (no API endpoints — service layer only) |
+| NOTIF-01 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
+| NOTIF-02 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
+| SCAN-01 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
+| SCAN-02 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
+| API-01 | Phase 22 | Implemented — untested (no test suite exists) |
+| API-02 | Phase 22 | Implemented — untested (no test suite exists) |
+| API-03 | Phase 22 | Implemented — untested (no test suite exists) |
+| API-04 | Phase 22 | Implemented — untested (no test suite exists) |
 
 **Coverage:**
 
@@ -119,9 +211,9 @@
 - v1.3 requirements: 3 total, 2 complete
 - v1.4 requirements: 4 total, all complete
 - v1.5 requirements: 2 total, 0 complete
-- v2.0 requirements: 3 total, all complete (REV-01/02/03 only — remaining v2.0 phases 14, 16–22 have requirement IDs in ROADMAP.md not yet backfilled into this file)
+- v2.0 requirements: 30 total, 7 complete (REV-01/02/03, SAAS-01..04), 19 implemented-but-unverified/broken, 4 not started (FW-01, CLD-01/02/03) — see per-phase notes above; ROADMAP.md still labels phases 16–22 "Planned" but code already exists on disk for all except Phase 19
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-20*
-*Last updated: 2026-07-02 after Phase 15 REV-01/02/03 backfilled*
+*Last updated: 2026-07-02 — Phase 15 REV-01/02/03 backfilled and verified complete; remaining v2.0 phases (14, 16–22) backfilled with as-found implementation status*
