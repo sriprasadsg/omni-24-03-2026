@@ -327,3 +327,96 @@ def test_repatch_already_decided_review_returns_404():
     )
     assert resp.status_code == 404, f"Expected 404 for re-deciding an already-decided review, got {resp.status_code}: {resp.text}"
     db.audit_logs.insert_one.assert_not_awaited()
+
+
+# ── Test: CR-01 regression — evidence-status propagation query shape ──────────
+#
+# A plain mock (see _make_mock_db above) always returns modified_count=1
+# regardless of the filter dict passed to update_one, so it structurally
+# cannot catch a query-shape bug like a missing $elemMatch. This test runs
+# the real query against a live MongoDB instance instead, seeding an
+# asset_compliance document with two evidence items so a missing $elemMatch
+# (which lets `evidence.id` and `evidence.status` match independent array
+# elements) would silently flip the *wrong* item's status.
+def test_evidence_propagation_query_does_not_corrupt_unrelated_evidence_item():
+    """Regression test for CR-01: deciding a review for ev-1 (which is NOT
+    'pending_review') must never touch ev-2 (which IS 'pending_review'), even
+    though both live in the same asset_compliance document. Without
+    $elemMatch tying "id" and "status" to the same array element, MongoDB's
+    positional $ operator can resolve to the wrong element and corrupt it."""
+    import motor.motor_asyncio
+    import evidence_review_service as svc
+
+    mongo_uri = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+
+    async def _run():
+        client = motor.motor_asyncio.AsyncIOMotorClient(
+            mongo_uri, serverSelectionTimeoutMS=1500
+        )
+        try:
+            await client.admin.command("ping")
+        except Exception:
+            client.close()
+            import pytest
+            pytest.skip(f"No live MongoDB reachable at {mongo_uri} for CR-01 regression test")
+            return
+
+        motor_db = client["evidence_review_cr01_test"]
+
+        class _RealDbWrapper:
+            """Minimal shim matching the (asset_compliance, _db[...]) surface
+            evidence_review_service expects, backed by a real Mongo database
+            instead of a mock."""
+            def __init__(self, mdb):
+                self.asset_compliance = mdb.asset_compliance
+                self._db = mdb
+
+        db = _RealDbWrapper(motor_db)
+
+        try:
+            await motor_db.asset_compliance.delete_many({"tenantId": "tenant-cr01"})
+            await motor_db.evidence_reviews.delete_many({"tenantId": "tenant-cr01"})
+
+            # Two evidence items in one document: ev-1 is NOT pending_review
+            # (stale/already-moved-on), ev-2 IS pending_review and must stay
+            # completely untouched by a decision made against ev-1.
+            await motor_db.asset_compliance.insert_one({
+                "tenantId": "tenant-cr01",
+                "evidence": [
+                    {"id": "ev-1", "status": "needs_revision"},
+                    {"id": "ev-2", "status": "pending_review"},
+                ],
+            })
+            await motor_db.evidence_reviews.insert_one({
+                "id": "rev-cr01", "tenantId": "tenant-cr01", "evidenceId": "ev-1",
+                "reviewer": "admin", "status": "pending", "comment": "initial",
+                "created_at": "2026-07-02T00:00:00Z", "updated_at": "2026-07-02T00:00:00Z",
+            })
+
+            result = await svc.update_review_decision(
+                review_id="rev-cr01",
+                evidence_id="ev-1",
+                decision="approved",
+                comment="approving ev-1",
+                db=db,
+                tenant_id="tenant-cr01",
+            )
+            assert result is not None, "review record should still be updated (step 1 unaffected)"
+
+            doc = await motor_db.asset_compliance.find_one({"tenantId": "tenant-cr01"})
+            evidence_by_id = {e["id"]: e for e in doc["evidence"]}
+            assert evidence_by_id["ev-2"]["status"] == "pending_review", (
+                f"CR-01 regression: ev-2 was corrupted by a decision made against ev-1 "
+                f"(got status={evidence_by_id['ev-2']['status']!r}) — the propagation "
+                f"query is missing $elemMatch"
+            )
+            assert evidence_by_id["ev-1"]["status"] == "needs_revision", (
+                "ev-1 was not actually pending_review at decision time, so its status "
+                "must remain unchanged too — only the warning branch should fire"
+            )
+        finally:
+            await motor_db.asset_compliance.delete_many({"tenantId": "tenant-cr01"})
+            await motor_db.evidence_reviews.delete_many({"tenantId": "tenant-cr01"})
+            client.close()
+
+    asyncio.run(_run())
