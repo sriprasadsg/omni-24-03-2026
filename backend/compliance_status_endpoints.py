@@ -66,15 +66,14 @@ async def patch_asset_compliance_status(
     if user_role not in _SUPER_ROLES and resolved_tenant_id != tenant_id:
         raise HTTPException(status_code=403, detail="Asset not found in your tenant")
 
-    # Fetch current compliance doc to capture previous_status for STATUS-02
-    doc = await db.asset_compliance.find_one(
-        {"assetId": asset_id, "controlId": body.control_id, "tenantId": resolved_tenant_id}
-    )
-    previous_status = doc.get("status", "Unknown") if doc else "Unknown"
-
     now = datetime.now(timezone.utc)
 
-    await db.asset_compliance.update_one(
+    # find_one_and_update returns the document as it existed *before* the
+    # update (return_document=BEFORE is the pymongo/motor default), making
+    # the previous_status capture atomic with the status write itself and
+    # eliminating the TOCTOU window that existed between a separate
+    # find_one() read and update_one() write (WR-03).
+    prior_doc = await db.asset_compliance.find_one_and_update(
         {"assetId": asset_id, "controlId": body.control_id, "tenantId": resolved_tenant_id},
         {
             "$set": {
@@ -84,6 +83,18 @@ async def patch_asset_compliance_status(
                 "overriddenBy": actor,
                 "overriddenAt": now.isoformat(),
             },
+        },
+        upsert=True,
+    )
+    previous_status = prior_doc.get("status", "Unknown") if prior_doc else "Unknown"
+
+    # Append the immutable history entry with the atomically-captured
+    # previous_status. This second write does not depend on document state,
+    # so it does not reintroduce a race: previous_status was already fixed
+    # correctly by the atomic operation above regardless of concurrent calls.
+    await db.asset_compliance.update_one(
+        {"assetId": asset_id, "controlId": body.control_id, "tenantId": resolved_tenant_id},
+        {
             "$push": {
                 "status_history": {
                     "status": body.status,
@@ -94,7 +105,6 @@ async def patch_asset_compliance_status(
                 }
             },
         },
-        upsert=True,
     )
 
     invalidate_cache(f"compliance:score:{resolved_tenant_id}")

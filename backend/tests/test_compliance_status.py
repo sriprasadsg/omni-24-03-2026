@@ -42,6 +42,9 @@ def _make_db(asset_doc="default", compliance_doc=None):
     # asset_compliance collection
     ac_col = MagicMock()
     ac_col.find_one = AsyncMock(return_value=compliance_doc)
+    # find_one_and_update returns the pre-update doc (return_document=BEFORE
+    # default), mirroring the atomic previous_status capture (WR-03).
+    ac_col.find_one_and_update = AsyncMock(return_value=compliance_doc)
     ac_col.update_one = AsyncMock(return_value=MagicMock(matched_count=1, modified_count=1))
     db.asset_compliance = ac_col
 
@@ -76,12 +79,16 @@ def test_patch_compliance_status_success():
     assert result["status"] == "Compliant"
     assert result["previous_status"] == "Non-Compliant"
 
-    # Verify update_one was called with $set and $push
+    # Verify find_one_and_update (atomic status write) was called with $set
+    faou_call_args = db.asset_compliance.find_one_and_update.call_args
+    set_doc = faou_call_args[0][1]
+    assert "status" in set_doc["$set"]
+    assert set_doc["$set"]["manual_override"] is True
+    assert set_doc["$set"]["overriddenBy"] == "analyst@tenant.com"
+
+    # Verify update_one (history append) was called with $push
     call_args = db.asset_compliance.update_one.call_args
     update_doc = call_args[0][1]
-    assert "status" in update_doc["$set"]
-    assert update_doc["$set"]["manual_override"] is True
-    assert update_doc["$set"]["overriddenBy"] == "analyst@tenant.com"
     assert "status_history" in update_doc["$push"]
     history_entry = update_doc["$push"]["status_history"]
     assert history_entry["previous_status"] == "Non-Compliant"
