@@ -140,6 +140,7 @@ async def create_review(
         },
         upsert=True,
         return_document=True,
+        projection={"_id": 0},
     )
     return review
 
@@ -205,6 +206,7 @@ async def update_review_decision(
             }
         },
         return_document=True,
+        projection={"_id": 0},
     )
     if not review:
         return None
@@ -262,7 +264,7 @@ async def get_reviews(
     """
     cursor = (
         db._db[_EVIDENCE_REVIEWS_COL]
-        .find({"evidenceId": evidence_id, "tenantId": tenant_id})
+        .find({"evidenceId": evidence_id, "tenantId": tenant_id}, {"_id": 0})
         .sort("created_at", -1)
     )
     return await cursor.to_list(length=500)
@@ -286,6 +288,7 @@ async def get_pending_evidence(
         {"$sort": {"evidence.review_updated_at": -1}},
         {
             "$project": {
+                "_id": 0,
                 "assetId": 1,
                 "controlId": 1,
                 "status": 1,
