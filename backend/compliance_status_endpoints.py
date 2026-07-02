@@ -7,7 +7,7 @@ Extracted to a separate file because compliance_evidence_endpoints.py is already
 447 lines; adding this endpoint inline would breach the 500-line CLAUDE.md limit.
 """
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Literal
 from datetime import datetime, timezone
 from database import get_database
@@ -29,7 +29,7 @@ _WRITE_ROLES: frozenset[str] = frozenset({
 class ComplianceStatusUpdate(BaseModel):
     control_id: str
     status: Literal["Compliant", "Non-Compliant", "Pending_Evidence"]
-    notes: str = ""
+    notes: str = Field("", max_length=2000)
 
 
 @router.patch("/api/assets/{asset_id}/compliance/status")

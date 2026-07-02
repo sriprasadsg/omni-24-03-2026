@@ -135,6 +135,18 @@ def test_patch_compliance_status_invalid_status_422():
         ComplianceStatusUpdate(control_id="c1", status="invalid")
 
 
+def test_patch_compliance_status_notes_length_bound_422():
+    """IN-02: notes longer than 2000 chars is rejected by Pydantic's max_length."""
+    from compliance_status_endpoints import ComplianceStatusUpdate
+
+    with pytest.raises(ValidationError):
+        ComplianceStatusUpdate(control_id="c1", status="Compliant", notes="x" * 2001)
+
+    # Exactly at the bound is still accepted.
+    ok = ComplianceStatusUpdate(control_id="c1", status="Compliant", notes="x" * 2000)
+    assert len(ok.notes) == 2000
+
+
 # ---------------------------------------------------------------------------
 # Test 4 — Insufficient permissions 403 (CR-04)
 # ---------------------------------------------------------------------------
