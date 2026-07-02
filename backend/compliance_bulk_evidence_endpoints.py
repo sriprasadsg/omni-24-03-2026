@@ -34,6 +34,12 @@ MAX_ENTRY_BYTES = 25 * 1024 * 1024  # 25 MB per file
 _WRITE_ROLES: frozenset[str] = frozenset({
     "admin", "Admin", "Super Admin", "superadmin", "super_admin", "platform-admin"
 })
+# WR-06: normalized (lower-cased, whitespace/separator-stripped) form of
+# _WRITE_ROLES used for comparison so role strings like "ADMIN" or
+# "SuperAdmin" aren't silently denied due to casing/spacing drift.
+_WRITE_ROLES_NORMALIZED: frozenset[str] = frozenset(
+    r.lower().replace(" ", "").replace("_", "").replace("-", "") for r in _WRITE_ROLES
+)
 
 _EXT_TO_MIME: dict[str, str] = {
     ".pdf":  "application/pdf",
@@ -62,7 +68,8 @@ async def bulk_upload_evidence(
         uploader = getattr(current_user, "username", "unknown")
 
         user_role = getattr(current_user, "role", "")
-        if user_role not in _WRITE_ROLES:
+        normalized_role = (user_role or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+        if normalized_role not in _WRITE_ROLES_NORMALIZED:
             raise HTTPException(status_code=403, detail="Insufficient permissions to upload evidence")
 
         # --- Pass 0a: parse and validate manifest ---
