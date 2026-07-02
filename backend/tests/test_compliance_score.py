@@ -306,3 +306,112 @@ def test_cache_invalidated_on_upload():
     assert "compliance:score:__super__" in invalidated_keys
     assert f"compliance:threat-score:tenant-a" in invalidated_keys
     assert "compliance:threat-score:__super__" in invalidated_keys
+
+
+# ---------------------------------------------------------------------------
+# CR-02/WR-04: real cache-key namespace — two role="admin" tenants must not collide
+# ---------------------------------------------------------------------------
+
+def test_score_cache_key_namespace_no_cross_tenant_collision():
+    """Two different tenants, both with role='admin' (the common tenant-scoped
+    admin role), must get independent cache entries — not the shared
+    'compliance:score:__super__' key. Exercises the REAL cache (not mocked),
+    unlike _score_get, so the key-namespace collision from CR-02 would be
+    caught here."""
+    fw = [{"id": "fw1", "name": "FW1", "shortName": "FW1",
+           "controls": [{"id": "C1", "category": "Audit"}]}]
+
+    key_a = "compliance:score:tenant-cache-a"
+    key_b = "compliance:score:tenant-cache-b"
+    key_super = "compliance:score:__super__"
+    score_mod.cache.delete(key_a)
+    score_mod.cache.delete(key_b)
+    score_mod.cache.delete(key_super)
+
+    try:
+        db_a = _make_full_db(fw, [{"controlId": "C1", "status": "Compliant", "tenantId": "tenant-cache-a"}])
+        db_b = _make_full_db(fw, [{"controlId": "C1", "status": "Non-Compliant", "tenantId": "tenant-cache-b"}])
+
+        app_a = _make_score_app(_fake_user(role="admin", tenant_id="tenant-cache-a"), db_a)
+        with patch.object(score_mod, "get_database", return_value=db_a):
+            resp_a = TestClient(app_a).get("/api/compliance/score")
+
+        app_b = _make_score_app(_fake_user(role="admin", tenant_id="tenant-cache-b"), db_b)
+        with patch.object(score_mod, "get_database", return_value=db_b):
+            resp_b = TestClient(app_b).get("/api/compliance/score")
+
+        assert resp_a.status_code == 200 and resp_b.status_code == 200
+        body_a, body_b = resp_a.json(), resp_b.json()
+
+        # Each tenant must have its own real cache entry under its own key.
+        assert score_mod.cache.get(key_a) is not None, "tenant-cache-a did not populate its own cache key"
+        assert score_mod.cache.get(key_b) is not None, "tenant-cache-b did not populate its own cache key"
+        # The shared super key must remain untouched by ordinary "admin" callers.
+        assert score_mod.cache.get(key_super) is None, (
+            "role='admin' caller wrote to the shared __super__ cache key — cross-tenant leak (CR-02)"
+        )
+        assert body_a["overall_score"] != body_b["overall_score"], (
+            "tenant-cache-b's response matches tenant-cache-a's — served from a collided cache key"
+        )
+    finally:
+        score_mod.cache.delete(key_a)
+        score_mod.cache.delete(key_b)
+        score_mod.cache.delete(key_super)
+
+
+# ---------------------------------------------------------------------------
+# CR-01: GET /api/compliance/score/history smoke test
+# ---------------------------------------------------------------------------
+
+class _HistoryCursor:
+    """Minimal async cursor stub supporting the .sort().limit() chain used by
+    get_score_history, then async iteration over the provided docs."""
+
+    def __init__(self, docs):
+        self._docs = docs
+
+    def sort(self, *args, **kwargs):
+        return self
+
+    def limit(self, *args, **kwargs):
+        return self
+
+    def __aiter__(self):
+        return self._agen()
+
+    async def _agen(self):
+        for doc in self._docs:
+            yield doc
+
+
+def _make_history_db(snapshots):
+    raw = MagicMock()
+    history_col = MagicMock()
+    history_col.find = MagicMock(return_value=_HistoryCursor(snapshots))
+    raw.compliance_score_history = history_col
+    db = MagicMock()
+    db._db = raw
+    return db
+
+
+def test_score_history_endpoint():
+    """GET /api/compliance/score/history returns 200 with the expected shape.
+    Regression test for CR-01 (missing timedelta import caused a guaranteed
+    NameError/500 on every call)."""
+    snapshots = [
+        {"date": "2026-06-01", "compliance_pct": 80.0, "threat_score": 700, "tenant_id": "tenant-a"},
+        {"date": "2026-06-02", "compliance_pct": 82.0, "threat_score": 710, "tenant_id": "tenant-a"},
+    ]
+    db_mock = _make_history_db(snapshots)
+    user = _fake_user(role="admin", tenant_id="tenant-a")
+    app = _make_score_app(user, db_mock)
+
+    with patch.object(score_mod, "get_database", return_value=db_mock):
+        resp = TestClient(app).get("/api/compliance/score/history?days=30")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["days_requested"] == 30
+    assert body["count"] == 2
+    assert len(body["history"]) == 2
+    assert body["tenant_id"] == "tenant-a"
