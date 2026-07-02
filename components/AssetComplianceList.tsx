@@ -51,11 +51,17 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
         // 1. Trigger the standard upload handler (UI update + backend upload)
         onUploadEvidence(selectedAssetId, file, description);
 
-        // 2. Read content and trigger ingestion
+        // 2. Read content and trigger ingestion — skip binary formats (PDF, images,
+        // DOCX, XLSX) since file.text() would garble them into replacement
+        // characters before the LLM auditor sees them (WR-04).
+        const INGESTIBLE_TEXT_TYPES = ['text/plain', 'text/markdown', 'application/json', 'text/csv'];
+        const isIngestibleText = INGESTIBLE_TEXT_TYPES.some(t => file.type.startsWith(t));
         setIngestingMap(prev => ({ ...prev, [selectedAssetId]: true }));
         try {
-            const text = await file.text(); // Basic text extraction
-            await onIngestEvidence(selectedAssetId, file.name, text);
+            if (isIngestibleText) {
+                const text = await file.text(); // Basic text extraction
+                await onIngestEvidence(selectedAssetId, file.name, text);
+            }
         } catch (error) {
             console.error("Failed to read file for ingestion", error);
             showToast('Upload failed — please try again', 'error');
