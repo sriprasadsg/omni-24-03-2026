@@ -36,7 +36,6 @@ class PSCheck(BaseModel):
 
 class PSEvidencePayload(BaseModel):
     hostname: str = Field(..., min_length=1, max_length=253)
-    asset_id: Optional[str] = None
     checks: List[PSCheck] = Field(..., min_length=1)
 
 
