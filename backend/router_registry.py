@@ -119,6 +119,10 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "ticket_reports_endpoints",  "router")
 
     # ── Compliance & Governance ───────────────────────────────────────────────
+    # compliance_evidence_endpoints.router is NOT loaded directly here — it is
+    # mounted via compliance_endpoints.router.include_router(evidence_router)
+    # (see compliance_endpoints.py). This is the alternate load path referenced
+    # by WR-01 in 07-REVIEW.md; keep this comment in sync if that wiring changes.
     _load(app, "compliance_endpoints",      "router")
     _load(app, "compliance_scans_endpoints", "router")  # direct load — resilient if compliance_endpoints fails
     _load(app, "compliance_status_endpoints",  "router")
