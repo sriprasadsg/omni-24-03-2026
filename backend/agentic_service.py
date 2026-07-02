@@ -445,6 +445,7 @@ class AgenticService:
             result["source"] = "rule_based_fallback"
 
         await self._log_decision(decision_id, agent_id, result, started_at)
+        result["decision_id"] = decision_id
         return result
 
     async def _log_decision(

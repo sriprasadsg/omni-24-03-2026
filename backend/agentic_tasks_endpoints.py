@@ -77,6 +77,7 @@ async def get_agentic_tasks(
         # Create a pending agent_tasks record so the result POST can link back
         task_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
+        decision_id = result.get("decision_id")
         task_doc = {
             "id": task_id,
             "type": result["tool_name"],
@@ -85,8 +86,16 @@ async def get_agentic_tasks(
             "status": "pending",
             "created_at": now,
             "context": result.get("tool_input", {}),
+            "decision_id": decision_id,
         }
         await db.agent_tasks.insert_one(task_doc)
+
+        # Correlate the audit record with this task so the result POST can
+        # find it (see CR-03 — agent_ai_decisions.task_id must be set here).
+        if decision_id:
+            await db.agent_ai_decisions.update_one(
+                {"_id": decision_id}, {"$set": {"task_id": task_id}}
+            )
 
         return [
             {
