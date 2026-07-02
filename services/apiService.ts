@@ -4375,6 +4375,7 @@ export const suggestRemediation = async (taskId: string): Promise<{ suggestion: 
 export const fetchStalenessThreshold = async (): Promise<{ thresholdDays: number }> => {
     try {
         const res = await authFetch(`${API_BASE}/settings/evidence-staleness`);
+        if (!res.ok) return { thresholdDays: 7 };
         return await res.json();
     } catch {
         return { thresholdDays: 7 };
