@@ -424,7 +424,7 @@ class AgenticService:
     async def run(self, agent_id: str, security_context: dict) -> dict:
         """Execute one agentic decision cycle. Logs result to agent_ai_decisions."""
         decision_id = str(uuid.uuid4())
-        started_at = datetime.datetime.utcnow()
+        started_at = datetime.datetime.now(datetime.timezone.utc)
 
         try:
             ctx = truncate_security_context(security_context)
@@ -477,7 +477,7 @@ class AgenticService:
             "rationale": result.get("rationale", ""),
             "model": "claude-sonnet-4-6" if result.get("source") == "agentic_ai" else None,
             "started_at": started_at.isoformat(),
-            "completed_at": datetime.datetime.utcnow().isoformat(),
+            "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "source": result.get("source", "agentic_ai"),
         }
 
