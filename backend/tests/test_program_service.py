@@ -7,11 +7,13 @@ from fastapi.testclient import TestClient
 def _mkuser(t="tenant-a", r="super_admin"): u = MagicMock(); u.tenant_id = t; u.role = r; return u
 
 def _mkdb(program_doc=None, asset_compliance_docs=None):
-    """Mock db matching the two real access patterns used by program_service:
-    db._db.programs (raw Motor access) and db.asset_compliance (the
-    tenant-isolated wrapper used by _compute_status_rollup). These must be
-    distinct mock objects — aliasing them causes configuring one to silently
-    clobber the other.
+    """Mock db matching program_service's raw db._db access pattern (both
+    programs and asset_compliance are read via db._db, bypassing the
+    tenant-isolated wrapper, so the explicit tenant_id argument threaded
+    through _compute_status_rollup is what actually scopes the query —
+    see WR-01). programs and asset_compliance must be distinct mock
+    objects — aliasing them causes configuring one to silently clobber
+    the other.
     """
     db = MagicMock()
     inner = MagicMock()
@@ -27,12 +29,14 @@ def _mkdb(program_doc=None, asset_compliance_docs=None):
     programs_col.update_one = AsyncMock(return_value=MagicMock())
     programs_col.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
     inner.programs = programs_col
-    db._db = inner
 
-    db.asset_compliance = MagicMock()
-    db.asset_compliance.find = MagicMock(return_value=MagicMock(
+    asset_compliance_col = MagicMock()
+    asset_compliance_col.find = MagicMock(return_value=MagicMock(
         to_list=AsyncMock(return_value=asset_compliance_docs or [])
     ))
+    inner.asset_compliance = asset_compliance_col
+
+    db._db = inner
     return db
 
 def _build(db, u):

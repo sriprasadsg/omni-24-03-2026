@@ -62,7 +62,7 @@ async def delete_program(db, program_id: str, tenant_id: str) -> bool:
 async def _compute_status_rollup(db, control_ids: list, tenant_id: str) -> dict:
     if not control_ids:
         return {"total": 0, "passing": 0, "failing": 0, "not_assessed": 0, "status": "in_progress"}
-    results = await db.asset_compliance.find(
+    results = await db._db.asset_compliance.find(
         {"controlId": {"$in": control_ids}, "tenantId": tenant_id},
         {"_id": 0, "status": 1, "controlId": 1},
     ).to_list(length=1000)
