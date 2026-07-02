@@ -62,11 +62,19 @@ begin
   ConfigPage.Values[0] := 'http://localhost:5000';
 end;
 
+function PSEscape(S: String): String;
+begin
+  { Escape single quotes for interpolation into a single-quoted PowerShell
+    string literal (CR-03): PowerShell escapes an embedded ' by doubling it. }
+  StringChangeEx(S, '''', '''''', True);
+  Result := S;
+end;
+
 function GetApiUrl(Param: String): String;
-begin Result := ConfigPage.Values[0]; end;
+begin Result := PSEscape(ConfigPage.Values[0]); end;
 
 function GetRegKey(Param: String): String;
-begin Result := ConfigPage.Values[1]; end;
+begin Result := PSEscape(ConfigPage.Values[1]); end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
