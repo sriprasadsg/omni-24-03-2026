@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import type { ComplianceFramework } from '../types';
 
 const STATUS_STYLES: Record<string, string> = { compliant: 'bg-green-100 text-green-800', at_risk: 'bg-red-100 text-red-800', in_progress: 'bg-amber-100 text-amber-800' };
+
+interface PickerControl { id: string; name: string; frameworkId: string; }
 
 export const ProgramsDashboard: React.FC = () => {
   const [programs, setPrograms] = useState<any[]>([]);
@@ -10,6 +13,11 @@ export const ProgramsDashboard: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
   const [editing, setEditing] = useState<string | null>(null);
+  const [initialControls, setInitialControls] = useState<string[]>([]);
+  const [selectedControls, setSelectedControls] = useState<Set<string>>(new Set());
+  const [pickerControls, setPickerControls] = useState<PickerControl[]>([]);
+  const [controlSearch, setControlSearch] = useState('');
+  const [savingControls, setSavingControls] = useState(false);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -34,6 +42,43 @@ export const ProgramsDashboard: React.FC = () => {
       if (!res.ok) throw new Error(await res.text());
       showToast('Deleted', 'success'); fetch();
     } catch { showToast('Delete failed', 'error'); }
+  };
+
+  const openControlsModal = async (p: any) => {
+    setEditing(p.id);
+    setInitialControls(p.control_ids || []);
+    setSelectedControls(new Set(p.control_ids || []));
+    setControlSearch('');
+    try {
+      const frameworks: ComplianceFramework[] = await (await authFetch('/api/compliance')).json();
+      const flat = (frameworks || []).flatMap(fw => (fw.controls || []).map(c => ({ id: c.id, name: c.name, frameworkId: fw.id })));
+      setPickerControls(flat);
+    } catch { showToast('Failed to load controls', 'error'); }
+  };
+
+  const closeControlsModal = () => { setEditing(null); setPickerControls([]); setControlSearch(''); };
+
+  const toggleControl = (id: string) => {
+    setSelectedControls(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const saveControls = async () => {
+    if (!editing) return;
+    setSavingControls(true);
+    try {
+      const add = [...selectedControls].filter(id => !initialControls.includes(id));
+      const remove = initialControls.filter(id => !selectedControls.has(id));
+      const res = await authFetch(`/api/programs/${editing}/controls`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ add, remove }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showToast('Controls updated', 'success'); closeControlsModal(); fetch();
+    } catch { showToast('Update failed', 'error'); }
+    finally { setSavingControls(false); }
   };
 
   return (
@@ -77,7 +122,7 @@ export const ProgramsDashboard: React.FC = () => {
                 </div>
               )}
               <div className="flex gap-1 pt-1">
-                <button onClick={() => setEditing(p.id)} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded">Controls</button>
+                <button onClick={() => openControlsModal(p)} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded">Controls</button>
                 <button onClick={() => del(p.id)} className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 rounded">Delete</button>
               </div>
             </div>
@@ -85,6 +130,40 @@ export const ProgramsDashboard: React.FC = () => {
         })}
       </div>
       {!loading && programs.length === 0 && <p className="text-xs text-gray-400 italic">No programs yet.</p>}
+
+      {editing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={closeControlsModal}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-4 m-4 text-xs" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-sm text-gray-900 dark:text-white">Manage Controls</h4>
+              <button onClick={closeControlsModal} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">✕</button>
+            </div>
+            <input
+              placeholder="Search controls..."
+              className="w-full p-1.5 border rounded dark:bg-gray-700 mb-2"
+              value={controlSearch}
+              onChange={e => setControlSearch(e.target.value)}
+            />
+            <div className="max-h-64 overflow-y-auto space-y-1 border border-gray-200 dark:border-gray-600 rounded p-2">
+              {pickerControls
+                .filter(c => `${c.id} ${c.name}`.toLowerCase().includes(controlSearch.toLowerCase()))
+                .map(c => (
+                  <label key={c.id} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                    <input type="checkbox" checked={selectedControls.has(c.id)} onChange={() => toggleControl(c.id)} />
+                    <span>{c.id} — {c.name}</span>
+                  </label>
+                ))}
+              {pickerControls.length === 0 && <p className="text-gray-400 italic">No controls found.</p>}
+            </div>
+            <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button onClick={closeControlsModal} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded">Cancel</button>
+              <button onClick={saveControls} disabled={savingControls} className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50">
+                {savingControls ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
