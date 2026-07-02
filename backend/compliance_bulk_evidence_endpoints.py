@@ -222,16 +222,27 @@ async def bulk_upload_evidence(
                     committed.append(record)
             except Exception:
                 # SEC-02: DB rollback — delete any already-inserted records
+                rollback_ok = True
                 if inserted_ids:
                     try:
                         await db.control_evidence.delete_many({"id": {"$in": inserted_ids}})
                     except Exception as rollback_exc:
-                        logger.error("Bulk upload DB rollback failed: %s", rollback_exc)
-                for p in written_paths:
-                    try:
-                        await asyncio.to_thread(os.unlink, p)
-                    except OSError:
-                        pass
+                        rollback_ok = False
+                        logger.error(
+                            "Bulk upload DB rollback failed for ids=%s: %s",
+                            inserted_ids, rollback_exc,
+                        )
+                if rollback_ok:
+                    for p in written_paths:
+                        try:
+                            await asyncio.to_thread(os.unlink, p)
+                        except OSError:
+                            pass
+                else:
+                    logger.error(
+                        "Bulk upload: skipping file cleanup for batch because DB rollback failed; "
+                        "files=%s require manual reconciliation", written_paths,
+                    )
                 raise HTTPException(status_code=500, detail="Internal server error")
 
         invalidate_cache(f"compliance:score:{tenant_id}")
