@@ -144,7 +144,7 @@ async def bulk_upload_evidence(
                         {"filename": raw_name, "error": "File not found in zip"}
                     )
                     continue
-                except (zipfile.BadZipFile, OSError, zlib.error) as exc:
+                except (zipfile.BadZipFile, OSError, zlib.error, RuntimeError) as exc:
                     errors.append(
                         {"filename": raw_name, "error": f"Could not read entry: {exc}"}
                     )
