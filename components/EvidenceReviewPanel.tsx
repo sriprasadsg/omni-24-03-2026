@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Check, X, MessageSquareWarning } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { showToast } from '../utils/toast';
 import { API_BASE, authFetch } from '../services/apiService';
@@ -38,6 +39,16 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
   needs_revision:    { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-300', label: 'Needs Revision' },
 };
 
+// Review-thread entry statuses use the same semantic bg/text pairing as
+// STATUS_STYLES (incl. dark mode) so a decided review's badge matches the
+// parent evidence badge instead of drifting into its own color system.
+const REVIEW_STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+  approved:          { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-300' },
+  rejected:          { bg: 'bg-red-100 dark:bg-red-900/30',     text: 'text-red-800 dark:text-red-300' },
+  changes_requested: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-300' },
+  pending:           { bg: 'bg-gray-100 dark:bg-gray-700',      text: 'text-gray-600 dark:text-gray-300' },
+};
+
 export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ evidenceId, evidenceStatus, onStatusChange }) => {
   const { currentUser } = useUser();
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -60,7 +71,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
     setError('');
     try {
       const res = await authFetch(`${API}/evidence/${evidenceId}/reviews`);
-      if (!res.ok) { setError(`HTTP ${res.status}`); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setError(_errorDetail(d, 'Failed to load reviews')); return; }
       const data = await res.json();
       setReviews(data.reviews || []);
     } catch (err: any) {
@@ -95,9 +106,13 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
     }
     setSubmitting(true);
     try {
+      // The create-review endpoint requires a non-empty comment (min_length=1).
+      // When the reviewer leaves the field blank, send an explicitly synthetic
+      // placeholder rather than a word ("Review") that reads as if the
+      // reviewer actually typed it into a permanent audit-trail entry.
       const reviewRes = await authFetch(`${API}/evidence/${evidenceId}/review`, {
         method: 'POST',
-        body: JSON.stringify({ comment: comment.trim() || 'Review' }),
+        body: JSON.stringify({ comment: comment.trim() || '(no comment provided)' }),
       });
       if (!reviewRes.ok) { const d = await reviewRes.json().catch(() => ({})); showToast(_errorDetail(d, 'Failed to create review'), 'error'); return; }
       const { review } = await reviewRes.json();
@@ -134,6 +149,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
         )}
         <button
           onClick={() => setOpen(!open)}
+          aria-expanded={open}
           className="text-xs text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
         >
           {open ? 'Hide reviews' : `Reviews (${reviews.length})`}
@@ -142,7 +158,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
           <button
             onClick={handleSubmitForReview}
             disabled={submitting}
-            className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            className="text-xs px-3 py-3.5 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Submit for Review'}
           </button>
@@ -161,12 +177,14 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
             <div key={rv.id} className="text-xs bg-gray-50 dark:bg-gray-800/50 rounded p-2">
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-medium text-gray-700 dark:text-gray-300">{rv.reviewer}</span>
-                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                  rv.status === 'approved' ? 'bg-green-100 text-green-700' :
-                  rv.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                  rv.status === 'changes_requested' ? 'bg-amber-100 text-amber-700' :
-                  'bg-gray-100 text-gray-600'
-                }`}>{rv.status.replace(/_/g, ' ')}</span>
+                {(() => {
+                  const rvStyle = REVIEW_STATUS_STYLES[rv.status] || REVIEW_STATUS_STYLES.pending;
+                  return (
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${rvStyle.bg} ${rvStyle.text}`}>
+                      {rv.status.replace(/_/g, ' ')}
+                    </span>
+                  );
+                })()}
                 <span className="text-gray-400 ml-auto">{rv.created_at ? new Date(rv.created_at).toLocaleDateString() : ''}</span>
               </div>
               {rv.comment && <p className="text-gray-600 dark:text-gray-400">{rv.comment}</p>}
@@ -181,10 +199,16 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
           {isReviewer && evidenceStatus === 'pending_review' && (
             <div className="mt-2 space-y-2">
               {!action && (
-                <div className="flex gap-1">
-                  <button onClick={() => setAction('approve')} className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white">Approve</button>
-                  <button onClick={() => setAction('reject')} className="px-2 py-1 text-xs rounded bg-red-600 hover:bg-red-700 text-white">Reject</button>
-                  <button onClick={() => setAction('changes')} className="px-2 py-1 text-xs rounded bg-amber-500 hover:bg-amber-600 text-white">Request Changes</button>
+                <div className="flex gap-2">
+                  <button onClick={() => setAction('approve')} className="flex items-center gap-1 px-3 py-3.5 text-xs rounded bg-green-600 hover:bg-green-700 text-white">
+                    <Check size={14} aria-hidden="true" /> Approve
+                  </button>
+                  <button onClick={() => setAction('reject')} className="flex items-center gap-1 px-3 py-3.5 text-xs rounded bg-red-600 hover:bg-red-700 text-white">
+                    <X size={14} aria-hidden="true" /> Reject
+                  </button>
+                  <button onClick={() => setAction('changes')} className="flex items-center gap-1 px-3 py-3.5 text-xs rounded bg-amber-500 hover:bg-amber-600 text-white">
+                    <MessageSquareWarning size={14} aria-hidden="true" /> Request Changes
+                  </button>
                 </div>
               )}
               {action && (
@@ -197,15 +221,20 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
                     value={comment}
                     onChange={e => setComment(e.target.value)}
                   />
-                  <div className="flex gap-1">
+                  {(action === 'reject' || action === 'changes') && (
+                    <p className="text-xs text-red-600 dark:text-red-400">
+                      This decision is recorded in the permanent audit trail and cannot be undone.
+                    </p>
+                  )}
+                  <div className="flex gap-2">
                     <button
                       onClick={() => handleReviewDecision(action === 'changes' ? 'changes_requested' : action)}
                       disabled={submitting}
-                      className="px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                      className="px-3 py-3.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                     >
-                      {submitting ? 'Saving...' : 'Confirm'}
+                      {submitting ? 'Saving...' : `Confirm ${action === 'approve' ? 'Approve' : action === 'reject' ? 'Reject' : 'Request Changes'}`}
                     </button>
-                    <button onClick={() => { setAction(''); setComment(''); }} className="px-2 py-1 text-xs rounded bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200">Cancel</button>
+                    <button onClick={() => { setAction(''); setComment(''); }} className="px-3 py-3.5 text-xs rounded bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200">Cancel</button>
                   </div>
                 </div>
               )}
