@@ -21,7 +21,10 @@ router = APIRouter()
 _SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin"}
 
 # Super roles — for CoC tenant-isolation gate
-_SUPER_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+# Kept in sync with compliance_evidence_endpoints._SUPER_ROLES (WR-02): both
+# files must treat the same set of roles as super/admin so a caller isn't
+# granted a tenant bypass in one endpoint file but denied in the other.
+_SUPER_ROLES = {"Super Admin", "superadmin", "super_admin", "admin", "platform-admin"}
 
 
 def _require_admin(user) -> None:
