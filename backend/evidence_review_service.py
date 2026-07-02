@@ -95,6 +95,20 @@ async def create_review(
     that was never submitted for review, bypassing the documented lifecycle
     (Uploaded → submit-for-review → pending_review → decided).
 
+    KNOWN RESIDUAL RACE (WR-02): the evidence-status validation above is a
+    separate read from the atomic upsert below — it is check-then-act, not
+    atomic. Another request can change the evidence's status in the window
+    between the validation read and the upsert, so this check does not
+    *fully* prevent a review record from being created/reused against
+    evidence that is no longer actually pending_review by the time the
+    write happens. The blast radius is limited: `update_review_decision`'s
+    own atomic re-check of evidence status at decision time (see its
+    docstring) means such an orphaned review record cannot silently
+    overwrite a since-changed evidence status — it only logs a warning.
+    Full correctness would require folding this validation into the same
+    atomic operation (e.g. a multi-document transaction spanning
+    asset_compliance and evidence_reviews), which has not been done here.
+
     Also reuses an existing 'pending' review record for the same evidence_id
     instead of creating a duplicate. Without this dedup, a retried create call
     (e.g. after a decide-request timed out) can leave multiple independent
