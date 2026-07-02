@@ -108,8 +108,9 @@ export const ChainOfCustodyPanel: React.FC<ChainOfCustodyPanelProps> = ({ contro
                             actionIcon = <TrashIcon size={14} className="text-red-500 dark:text-red-400" />;
                         }
 
+                        const entryKey = evidenceId && ts ? `${evidenceId}-${ts}` : `coc-${idx}`;
                         return (
-                            <div key={idx} className="px-4 py-3">
+                            <div key={entryKey} className="px-4 py-3">
                                 <div className="flex items-start gap-2">
                                     <div className="flex-shrink-0 mt-0.5">
                                         {actionIcon}
