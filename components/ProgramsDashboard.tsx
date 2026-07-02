@@ -37,6 +37,7 @@ export const ProgramsDashboard: React.FC = () => {
   };
 
   const del = async (id: string) => {
+    if (!window.confirm('Delete this program? This cannot be undone.')) return;
     try {
       const res = await authFetch(`/api/programs/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
