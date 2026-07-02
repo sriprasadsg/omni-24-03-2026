@@ -492,7 +492,7 @@ async def delete_control_direct_evidence(
     if fname and not fname.startswith("."):
         _safe_dir = Path(UPLOAD_DIR).resolve()
         resolved = (_safe_dir / fname).resolve()
-        if str(resolved).startswith(str(_safe_dir)):
+        if str(resolved).startswith(str(_safe_dir) + os.sep) or resolved == _safe_dir:
             resolved.unlink(missing_ok=True)
 
     return {"success": True}
