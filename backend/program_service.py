@@ -73,17 +73,24 @@ async def _compute_status_rollup(db, control_ids: list, tenant_id: str) -> dict:
     seen = set()
     passing = 0
     failing = 0
+    pending = 0
     for r in results:
         cid = r.get("controlId")
         if cid in seen:
             continue
         seen.add(cid)
-        if r.get("status") == "Compliant":
+        status_val = r.get("status")
+        if status_val == "Compliant":
             passing += 1
-        elif r.get("status") in ("Non-Compliant", "Pending_Evidence"):
+        elif status_val == "Non-Compliant":
             failing += 1
+        elif status_val == "Pending_Evidence":
+            # Evidence awaiting review is not a compliance failure — count it
+            # toward not_assessed rather than failing, so an "at_risk" badge
+            # only ever reflects an actual Non-Compliant control (WR-04).
+            pending += 1
     total = len(set(control_ids))
-    not_assessed = total - len(seen)
+    not_assessed = total - len(seen) + pending
     if passing >= total * 0.8 and failing == 0:
         status = "compliant"
     elif failing > 0:
