@@ -471,7 +471,7 @@ def init_agentic_tracing() -> None:
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
         from openinference.instrumentation.anthropic import AnthropicInstrumentor
 
-        endpoint = os.getenv("PHOENIX_OTLP_ENDPOINT", "http://localhost:4317")
+        endpoint = os.getenv("PHOENIX_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
         provider = TracerProvider()
         provider.add_span_processor(
             BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
