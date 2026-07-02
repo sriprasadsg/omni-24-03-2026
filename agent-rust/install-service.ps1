@@ -135,6 +135,22 @@ evidence_interval_hours: 24
     Write-Warn "config.yaml already exists - skipping (use -RegistrationKey to overwrite)."
 }
 
+# 5a. Restrict config.yaml (contains the plaintext registration_key) so only SYSTEM
+# and Administrators can read it — default Program Files ACLs otherwise grant
+# Users/Authenticated Users read access (WR-04).
+if (Test-Path $ConfigDst) {
+    $cfgAcl = Get-Acl $ConfigDst
+    $cfgAcl.SetAccessRuleProtection($true, $false)
+    $cfgSysRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "NT AUTHORITY\SYSTEM", "FullControl", "Allow")
+    $cfgAdmRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "BUILTIN\Administrators", "FullControl", "Allow")
+    $cfgAcl.AddAccessRule($cfgSysRule)
+    $cfgAcl.AddAccessRule($cfgAdmRule)
+    Set-Acl -Path $ConfigDst -AclObject $cfgAcl
+    Write-Ok "Secured config.yaml (SYSTEM + Administrators only)."
+}
+
 # 5b. Download Collect-Evidence.ps1 from platform
 $EvidenceScript = Join-Path $InstallDir "Collect-Evidence.ps1"
 Write-Step "Downloading Collect-Evidence.ps1..."

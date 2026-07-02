@@ -134,6 +134,22 @@ evidence_interval_hours: 24
 "@
 Write-Ok "Config written: $ConfigDst"
 
+# Restrict config.yaml (contains the plaintext registration_key) so only SYSTEM
+# and Administrators can read it — default Program Files ACLs otherwise grant
+# Users/Authenticated Users read access (WR-04).
+if (Test-Path $ConfigDst) {
+    $acl = Get-Acl $ConfigDst
+    $acl.SetAccessRuleProtection($true, $false)   # disable inheritance
+    $sysRule   = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "SYSTEM", "FullControl", "Allow")
+    $adminRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "Administrators", "FullControl", "Allow")
+    $acl.AddAccessRule($sysRule)
+    $acl.AddAccessRule($adminRule)
+    Set-Acl -Path $ConfigDst -AclObject $acl
+    Write-Ok "Secured config.yaml (SYSTEM + Administrators only)"
+}
+
 # 5. Download Collect-Evidence.ps1 from platform
 Write-Step "Downloading Collect-Evidence.ps1..."
 try {
