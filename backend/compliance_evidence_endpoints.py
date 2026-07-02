@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SUPER_ROLES: frozenset[str] = frozenset({
+    "Super Admin", "super_admin", "superadmin", "admin", "platform-admin"
+})
 
 # Narrowed allowlists for manual evidence uploads (EVID-01 / EVID-05)
 _EVIDENCE_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
@@ -136,7 +138,7 @@ async def get_all_compliance_evidence(current_user=Depends(get_current_user)):
     """Fetch AssetCompliance records. Super Admins see all; others see only their tenant's assets."""
     db = get_database()
     user_role = getattr(current_user, "role", "")
-    is_super_admin = user_role in {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+    is_super_admin = user_role in _SUPER_ROLES
 
     if is_super_admin:
         query: dict = {}
@@ -167,7 +169,7 @@ async def download_compliance_evidence(
 
     match_filter: dict = {"evidence.id": evidence_id}
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in _SUPER_ROLES:
         _tid = getattr(current_user, "tenant_id", None) or None
         if not _tid:
             raise HTTPException(status_code=403, detail="Tenant context required")
