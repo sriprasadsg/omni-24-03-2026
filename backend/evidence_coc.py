@@ -1,6 +1,12 @@
 from datetime import datetime, timezone
 import logging
 
+# Module-level counter of failed CoC writes since process start. Exposed so
+# a log-based or scrape-based alerting rule can detect sustained CoC write
+# failures (WR-03) — the compliance audit trail must not silently develop
+# gaps without anyone noticing.
+_coc_append_failure_count = 0
+
 
 async def _append_coc_entry(
     db,
@@ -42,4 +48,9 @@ async def _append_coc_entry(
             "snapshot_after":  snapshot_after,
         })
     except Exception as e:
-        logging.getLogger(__name__).error("CoC append failed: %s", e)
+        global _coc_append_failure_count
+        _coc_append_failure_count += 1
+        logging.getLogger(__name__).error(
+            "CoC append failed (process_total_failures=%d): %s",
+            _coc_append_failure_count, e,
+        )
