@@ -227,18 +227,23 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
     set_tenant_id("platform-admin")
     tenant_id = None
     try:
-        asset = await db.assets.find_one({"id": asset_id})
-        tenant_id = asset.get("tenantId") if asset else None
-        if not tenant_id:
-            agent = await db.agents.find_one({"hostname": agent_hostname})
-            tenant_id = agent.get("tenantId") if agent else None
+        if fallback_tenant_id:
+            # The caller was authenticated with a specific tenant context (e.g. via
+            # X-Registration-Key / JWT). That authenticated tenant must take priority
+            # over any hostname-derived lookup — otherwise a caller could inject
+            # evidence under a different tenant simply by choosing a colliding
+            # hostname (CR-02: cross-tenant evidence injection).
+            tenant_id = fallback_tenant_id
+        else:
+            asset = await db.assets.find_one({"id": asset_id})
+            tenant_id = asset.get("tenantId") if asset else None
+            if not tenant_id:
+                agent = await db.agents.find_one({"hostname": agent_hostname})
+                tenant_id = agent.get("tenantId") if agent else None
     except Exception as e:
         logger.warning("Failed to look up tenant ID for auto-compliance: %s", e)
     finally:
         set_tenant_id(old_tenant_id)
-
-    if not tenant_id and fallback_tenant_id:
-        tenant_id = fallback_tenant_id
 
     if not isinstance(compliance_data, dict):
         logger.warning("process_automated_evidence: expected dict, got %s — skipping", type(compliance_data).__name__)
