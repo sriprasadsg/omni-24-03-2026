@@ -127,20 +127,20 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
 
     const _getDownloadToken = async (): Promise<string | null> => {
-        const tokenRes = await authFetch(`/api/agent/download-token/${tenantId}`, { method: 'POST' });
+        const tokenRes = await authFetch(`/api/agent/download-token/${effectiveTenantId}`, { method: 'POST' });
         if (!tokenRes.ok) { showToast('Failed to initiate download. Please try again.', 'error'); return null; }
         const { token } = await tokenRes.json();
         return token;
     };
 
     const handleDownloadAgentZip = async (platform: 'linux' | 'windows' = 'linux') => {
-        if (!tenantId) return;
+        if (!effectiveTenantId) return;
         setIsDownloadingZip(true);
         try {
             const downloadToken = await _getDownloadToken();
             if (!downloadToken) return;
             const backendUrl = encodeURIComponent(serverUrl);
-            window.location.href = `/api/agent/download/${tenantId}?download_token=${downloadToken}&api_url=${backendUrl}&platform=${platform}`;
+            window.location.href = `/api/agent/download/${effectiveTenantId}?download_token=${downloadToken}&api_url=${backendUrl}&platform=${platform}`;
             // For Windows the first download compiles the Rust agent (~2–5 min); keep the
             // button disabled for longer so users don't click repeatedly.
             const resetDelay = platform === 'windows' ? 360_000 : 1500;
@@ -152,13 +152,13 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     };
 
     const handleDownloadRustExe = async () => {
-        if (!tenantId) return;
+        if (!effectiveTenantId) return;
         setIsDownloadingRust(true);
         try {
             const downloadToken = await _getDownloadToken();
             if (!downloadToken) return;
             const backendUrl = encodeURIComponent(serverUrl);
-            window.location.href = `/api/agent/download/${tenantId}/rust-exe?download_token=${downloadToken}&api_url=${backendUrl}`;
+            window.location.href = `/api/agent/download/${effectiveTenantId}/rust-exe?download_token=${downloadToken}&api_url=${backendUrl}`;
             // First download compiles Rust (~30 s); subsequent calls reuse cached binary (~5 s)
             setTimeout(() => setIsDownloadingRust(false), 120_000);
         } catch {
@@ -168,13 +168,13 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     };
 
     const handleDownloadMsi = async () => {
-        if (!tenantId) return;
+        if (!effectiveTenantId) return;
         setIsDownloadingMsi(true);
         try {
             const downloadToken = await _getDownloadToken();
             if (!downloadToken) return;
             const backendUrl = encodeURIComponent(serverUrl);
-            window.location.href = `/api/agent/download/${tenantId}/msi?download_token=${downloadToken}&api_url=${backendUrl}`;
+            window.location.href = `/api/agent/download/${effectiveTenantId}/msi?download_token=${downloadToken}&api_url=${backendUrl}`;
             // First download may trigger MSI build (~2-5 min); keep button disabled longer
             setTimeout(() => setIsDownloadingMsi(false), 360_000);
         } catch {
@@ -184,7 +184,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     };
 
 
-    const isFreeTierDownloadable = !!tenantId;
+    const isFreeTierDownloadable = !!effectiveTenantId;
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
