@@ -22,14 +22,18 @@ export const ProgramsDashboard: React.FC = () => {
 
   const submit = async () => {
     try {
-      await (await authFetch('/api/programs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) })).json();
+      const res = await authFetch('/api/programs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) });
+      if (!res.ok) throw new Error(await res.text());
       showToast('Program created', 'success'); setShowForm(false); setForm({}); fetch();
     } catch { showToast('Failed', 'error'); }
   };
 
   const del = async (id: string) => {
-    try { await authFetch(`/api/programs/${id}`, { method: 'DELETE' }); showToast('Deleted', 'success'); fetch(); }
-    catch { showToast('Delete failed', 'error'); }
+    try {
+      const res = await authFetch(`/api/programs/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
+      showToast('Deleted', 'success'); fetch();
+    } catch { showToast('Delete failed', 'error'); }
   };
 
   return (
