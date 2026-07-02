@@ -72,12 +72,12 @@ def _flatten_evidence(evidence_list: list) -> dict:
         if date and "T" in date:
             date = date[:10]
         status = e.get("status") or ""
+        if is_auto:
+            auto_count += 1
+        else:
+            manual_count += 1
         if name:
             names.append(f"{label} {name}")
-            if is_auto:
-                auto_count += 1
-            else:
-                manual_count += 1
         if url:
             urls.append(url)
         if desc:
