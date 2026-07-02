@@ -320,6 +320,7 @@ async def delete_compliance_evidence(
         raise
     except Exception as e:
         logger.error("Delete evidence error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/compliance/controls/{control_id}/evidence")
