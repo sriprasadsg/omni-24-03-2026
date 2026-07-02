@@ -1,7 +1,8 @@
 """Tests for Phase 20 — Multi-Account Cloud Scanning."""
 import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import FastAPI, TestClient
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 def _mkuser(t="tenant-a", r="admin"):
     u = MagicMock(); u.tenant_id = t; u.role = r; return u
@@ -15,7 +16,14 @@ def _mkdb():
         c.find_one = AsyncMock(return_value=None)
         c.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
         setattr(db._db, col, c)
-    db.cloud_check_results.find = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))
+    # get_results() chains .find(...).sort(...).to_list(...) while get_summary()
+    # calls .find(...).to_list(...) directly — the mock's .find() return value
+    # needs both a direct .to_list() and a .sort() that itself resolves to an
+    # awaitable .to_list() to satisfy both call shapes.
+    _find_result = MagicMock()
+    _find_result.to_list = AsyncMock(return_value=[])
+    _find_result.sort = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))
+    db.cloud_check_results.find = MagicMock(return_value=_find_result)
     db.cloud_check_results.find_one = AsyncMock(return_value=None)
     return db
 
