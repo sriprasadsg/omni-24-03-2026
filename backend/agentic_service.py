@@ -339,11 +339,25 @@ async def decide_and_execute(
             f"Valid tools: {list(TOOL_REGISTRY.keys())}"
         )
 
-    # Execute the selected tool via TOOL_REGISTRY dispatcher
+    # Guard: never dispatch using the model-echoed agent_id — the model's
+    # tool call is untrusted input (T-12: prompt-injection resistance).
+    # Always dispatch against the caller's trusted agent_id.
+    if decision.agent_id != agent_id:
+        logger.warning(
+            "[AgenticService] Model echoed agent_id=%r but caller requested "
+            "agent_id=%r — rejecting to prevent cross-agent dispatch.",
+            decision.agent_id, agent_id,
+        )
+        raise ValueError(
+            f"Model echoed agent_id={decision.agent_id!r} but caller requested "
+            f"agent_id={agent_id!r} — rejecting to prevent cross-agent dispatch."
+        )
+
+    # Execute the selected tool via TOOL_REGISTRY dispatcher — always using
+    # the trusted agent_id, never the model-echoed one.
     executor = TOOL_REGISTRY[decision.tool_name]
-    tool_result = await executor(
-        **decision.model_dump(exclude={"tool_name"}, exclude_none=True)
-    )
+    dispatch_kwargs = decision.model_dump(exclude={"tool_name", "agent_id"}, exclude_none=True)
+    tool_result = await executor(agent_id=agent_id, **dispatch_kwargs)
 
     # Turn 2: send tool result back, get rationale text for audit log
     rationale_response = await client.messages.create(
