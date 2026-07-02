@@ -460,10 +460,12 @@ class AgenticService:
         NEVER re-raises — logs "AUDIT WRITE FAILURE" at ERROR on exception (T-12-03).
         TenantIsolatedCollection auto-injects tenantId — do NOT set it manually (T-12-05).
         """
-        db = get_database()
-        if not db:
-            logger.warning(
-                "[AgenticService] DB unavailable; decision %s not logged.", decision_id
+        try:
+            db = get_database()
+        except Exception as exc:
+            logger.error(
+                "[AgenticService] AUDIT WRITE FAILURE for decision %s (db unavailable): %s",
+                decision_id, exc,
             )
             return
 
