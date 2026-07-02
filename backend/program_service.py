@@ -62,10 +62,14 @@ async def delete_program(db, program_id: str, tenant_id: str) -> bool:
 async def _compute_status_rollup(db, control_ids: list, tenant_id: str) -> dict:
     if not control_ids:
         return {"total": 0, "passing": 0, "failing": 0, "not_assessed": 0, "status": "in_progress"}
+    # Sort by lastUpdated descending so, when a control has multiple linked
+    # asset results, the first document encountered per controlId below is
+    # deterministically the *latest* one (per the plan's "latest compliance
+    # check result" requirement), not an arbitrary cursor-order pick.
     results = await db._db.asset_compliance.find(
         {"controlId": {"$in": control_ids}, "tenantId": tenant_id},
-        {"_id": 0, "status": 1, "controlId": 1},
-    ).to_list(length=1000)
+        {"_id": 0, "status": 1, "controlId": 1, "lastUpdated": 1},
+    ).sort("lastUpdated", -1).to_list(length=1000)
     seen = set()
     passing = 0
     failing = 0

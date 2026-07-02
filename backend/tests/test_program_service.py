@@ -32,7 +32,9 @@ def _mkdb(program_doc=None, asset_compliance_docs=None):
 
     asset_compliance_col = MagicMock()
     asset_compliance_col.find = MagicMock(return_value=MagicMock(
-        to_list=AsyncMock(return_value=asset_compliance_docs or [])
+        sort=MagicMock(return_value=MagicMock(
+            to_list=AsyncMock(return_value=asset_compliance_docs or [])
+        ))
     ))
     inner.asset_compliance = asset_compliance_col
 
