@@ -71,10 +71,14 @@ async def bulk_upload_evidence(
             if not isinstance(items, list) or not items:
                 raise ValueError("manifest must be a non-empty JSON array")
             for item in items:
+                if not isinstance(item, dict):
+                    raise ValueError("each manifest entry must be a JSON object")
                 if "filename" not in item or "control_id" not in item:
                     raise ValueError(
                         "each manifest entry must have 'filename' and 'control_id'"
                     )
+                if not isinstance(item.get("filename"), str) or not isinstance(item.get("control_id"), str):
+                    raise ValueError("'filename' and 'control_id' must be strings")
         except (json.JSONDecodeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=f"Invalid manifest: {exc}")
 
