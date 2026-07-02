@@ -60,6 +60,22 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
 
     // ── Build & Download handler ────────────────────────────────────────
     // POST /build → poll /build/{task_id} until done → download
+    //
+    // WR-07 (23-REVIEW.md): unlike AgentInstallation.tsx's three download handlers
+    // (_getDownloadToken → tenant-scoped one-time token → /api/agent/download/...),
+    // this flow calls /api/agent-updates/build and /api/agent-updates/download/... with
+    // no Authorization header and no download token. This is intentional, not an
+    // oversight: /api/agent-updates/* (backend/update_endpoints.py, outside this
+    // phase's reviewed file set) currently performs NO authentication or tenant
+    // scoping on ANY request — trigger_build()/get_build_status()/download_agent_binary()
+    // accept no credentials at all, and the built OmniAgent-Setup.exe has no
+    // registration key embedded (the wizard collects it interactively, see
+    // agent/installer/OmniAgent-Setup.iss). Threading a per-tenant download token
+    // through this call would be cosmetic only, since the server has nothing to
+    // validate it against. Fixing this properly requires adding real
+    // authentication/tenant-scoping to /api/agent-updates/* itself, which is a
+    // backend change outside this review's file set — tracked as a follow-up, not
+    // silently threaded through here.
     const handleBuildAndDownload = async () => {
         setBuildState('building');
         setBuildError('');
