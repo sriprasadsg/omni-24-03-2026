@@ -186,9 +186,10 @@ async def _dispatch_vulnerability_scan(
     agent_id: str, severity_threshold: str | None = None, **_
 ) -> dict:
     db = get_database()
-    payload = {"agent_id": agent_id}
-    if severity_threshold:
-        payload["severity_threshold"] = severity_threshold
+    # Apply the schema-advertised default explicitly — JSON Schema "default"
+    # values are documentation only; the Anthropic API never auto-fills them.
+    severity_threshold = severity_threshold or "medium"
+    payload = {"agent_id": agent_id, "severity_threshold": severity_threshold}
     await db.agent_instructions.insert_one(
         {"type": "run_vulnerability_scan", "agent_id": agent_id, "payload": payload, "status": "pending"}
     )
