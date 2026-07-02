@@ -475,7 +475,7 @@ class AgenticService:
             "tool_name": result.get("tool_name"),
             "tool_input": result.get("tool_input"),
             "rationale": result.get("rationale", ""),
-            "model": "claude-sonnet-4-6",
+            "model": "claude-sonnet-4-6" if result.get("source") == "agentic_ai" else None,
             "started_at": started_at.isoformat(),
             "completed_at": datetime.datetime.utcnow().isoformat(),
             "source": result.get("source", "agentic_ai"),
