@@ -18,6 +18,13 @@ router = APIRouter()
 
 _SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
+# Roles permitted to override compliance status (mirrors _WRITE_ROLES in
+# compliance_bulk_evidence_endpoints.py). Read-only tenant members (e.g.
+# "viewer", "analyst") must not be able to mutate compliance status.
+_WRITE_ROLES: frozenset[str] = frozenset({
+    "admin", "Admin", "Super Admin", "superadmin", "super_admin", "platform-admin"
+})
+
 
 class ComplianceStatusUpdate(BaseModel):
     control_id: str
@@ -40,6 +47,9 @@ async def patch_asset_compliance_status(
     user_role = getattr(current_user, "role", "")
     actor = getattr(current_user, "username", "unknown")
     tenant_id = getattr(current_user, "tenant_id", None) or ""
+
+    if user_role not in _WRITE_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to override compliance status")
 
     db = get_database()
 

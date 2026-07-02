@@ -5,6 +5,7 @@ Covers:
   - Happy path: 200, persists status, captures previous_status
   - Cross-tenant 403: non-admin caller with asset not in their tenant
   - Invalid status 422: Pydantic rejects values outside the Literal enum
+  - Insufficient permissions 403: read-only role cannot override status (CR-04)
 
 Uses asyncio.run() — pytest-asyncio is not installed in this project.
 """
@@ -56,7 +57,8 @@ def test_patch_compliance_status_success():
     from compliance_status_endpoints import patch_asset_compliance_status, ComplianceStatusUpdate
     from fastapi.exceptions import HTTPException
 
-    user = _make_user()
+    # role must be in _WRITE_ROLES (CR-04) — "Viewer" is a read-only role
+    user = _make_user(role="admin")
     # Existing compliance doc has status "Non-Compliant" — should be captured as previous_status
     db = _make_db(
         asset_doc={"id": "a1", "tenantId": "tenant-a"},
@@ -95,7 +97,10 @@ def test_patch_compliance_status_cross_tenant_403():
     from compliance_status_endpoints import patch_asset_compliance_status, ComplianceStatusUpdate
     from fastapi.exceptions import HTTPException
 
-    user = _make_user(tenant_id="tenant-b")  # caller is in tenant-b
+    # role="Admin" satisfies the CR-04 write-role gate but is not in the
+    # tenant-bypass _SUPER_ROLES set (case-sensitive, lowercase "admin" only),
+    # so this exercises the tenant-isolation check specifically.
+    user = _make_user(role="Admin", tenant_id="tenant-b")  # caller is in tenant-b
     # Asset exists in the DB but belongs to tenant-a — resolved_tenant_id != caller's tenant_id
     db = _make_db(asset_doc={"id": "a1", "tenantId": "tenant-a"})
     body = ComplianceStatusUpdate(control_id="c1", status="Compliant")
@@ -121,3 +126,28 @@ def test_patch_compliance_status_invalid_status_422():
     with pytest.raises(ValidationError):
         # "invalid" is not in Literal["Compliant", "Non-Compliant", "Pending_Evidence"]
         ComplianceStatusUpdate(control_id="c1", status="invalid")
+
+
+# ---------------------------------------------------------------------------
+# Test 4 — Insufficient permissions 403 (CR-04)
+# ---------------------------------------------------------------------------
+
+def test_patch_compliance_status_read_only_role_403():
+    """A read-only role (e.g. Viewer) cannot override compliance status, even
+    within its own tenant — write requires membership in _WRITE_ROLES."""
+    from compliance_status_endpoints import patch_asset_compliance_status, ComplianceStatusUpdate
+    from fastapi.exceptions import HTTPException
+
+    user = _make_user(role="Viewer", tenant_id="tenant-a")
+    db = _make_db(asset_doc={"id": "a1", "tenantId": "tenant-a"})
+    body = ComplianceStatusUpdate(control_id="c1", status="Compliant")
+
+    async def _run():
+        with patch("compliance_status_endpoints.get_database", return_value=db):
+            return await patch_asset_compliance_status("a1", body, current_user=user)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(_run())
+
+    assert exc_info.value.status_code == 403
+    assert "permission" in exc_info.value.detail.lower()
