@@ -42,16 +42,21 @@ async def get_staleness_threshold(db, tenant_id) -> int:
     Returns:
         int — threshold days (minimum 1, default 7).
     """
+    def _safe_threshold(raw_val: int) -> int:
+        """Enforce the documented minimum of 1 (defends against 0/negative
+        values written directly to the DB, bypassing the API's ge=1 validation)."""
+        return max(1, raw_val)
+
     raw = db._db if hasattr(db, "_db") else db
     if tenant_id:
         doc = await raw.system_settings.find_one(
             {"type": "evidence_staleness", "tenantId": tenant_id}
         )
         if doc and isinstance(doc.get("thresholdDays"), int):
-            return doc["thresholdDays"]
+            return _safe_threshold(doc["thresholdDays"])
     doc = await raw.system_settings.find_one(
         {"type": "evidence_staleness", "tenantId": {"$exists": False}}
     )
     if doc and isinstance(doc.get("thresholdDays"), int):
-        return doc["thresholdDays"]
+        return _safe_threshold(doc["thresholdDays"])
     return 7
