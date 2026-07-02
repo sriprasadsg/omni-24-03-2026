@@ -230,7 +230,10 @@ async def bulk_upload_evidence(
                     rollback_ok = True
                     if inserted_ids:
                         try:
-                            await db.control_evidence.delete_many({"id": {"$in": inserted_ids}})
+                            await db.control_evidence.delete_many({
+                                "id": {"$in": inserted_ids},
+                                "tenantId": tenant_id,
+                            })
                         except Exception as rollback_exc:
                             rollback_ok = False
                             logger.error(
