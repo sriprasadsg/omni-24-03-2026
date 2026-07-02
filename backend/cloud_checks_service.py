@@ -69,8 +69,9 @@ class CloudChecksService:
         findings_raw = await db.cloud_findings.find(
             {"accountId": account_id, "tenantId": tenant_id}, {"_id": 0}
         ).to_list(length=10000)
-        finding_titles = {f.get("title", "").lower() for f in findings_raw}
-        failing_ids = {f.get("checkId", "").lower() for f in findings_raw if f.get("severity") in ("critical", "high", "medium")}
+        significant_findings = [f for f in findings_raw if f.get("severity") in ("critical", "high", "medium")]
+        failing_titles = {f.get("title", "").lower() for f in significant_findings}
+        failing_ids = {f.get("checkId", "").lower() for f in significant_findings}
 
         now = datetime.now(timezone.utc).isoformat()
         upserted = 0
@@ -79,7 +80,7 @@ class CloudChecksService:
             cid = check["id"]
             name_lower = check["name"].lower()
             in_findings = cid.lower() in failing_ids or any(
-                kw in title for title in finding_titles for kw in name_lower.split()[:3] if len(kw) > 3
+                kw in title for title in failing_titles for kw in name_lower.split()[:3] if len(kw) > 3
             )
             result = "FAIL" if in_findings else "PASS"
             doc = {
