@@ -16,6 +16,7 @@ async def create_program(db, tenant_id: str, data: dict) -> dict:
         "created_at": _now(), "updated_at": _now(),
     }
     await db._db.programs.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
