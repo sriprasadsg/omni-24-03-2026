@@ -35,6 +35,27 @@ _CATEGORY_SEVERITY: dict[str, str] = {
     "Risk Management":   "Medium",
 }
 
+# IN-01: categories we've already warned about, so an unmapped/miscategorized
+# category logs once (rate-limited) instead of once per request.
+_unmapped_categories_warned: set[str] = set()
+
+
+def _category_severity(category: str) -> str:
+    """Map a control's category to severity, defaulting to 'Low' when the
+    category isn't found in _CATEGORY_SEVERITY. Logs a rate-limited warning
+    for unmapped categories so a typo'd, newly-added, or differently-cased
+    category doesn't silently under-weight a genuinely critical control."""
+    severity = _CATEGORY_SEVERITY.get(category)
+    if severity is None:
+        if category not in _unmapped_categories_warned:
+            _unmapped_categories_warned.add(category)
+            logger.warning(
+                "compliance score: unmapped control category %r defaults to 'Low' severity",
+                category,
+            )
+        severity = "Low"
+    return severity
+
 
 def _weighted_score(controls_with_status: list[dict]) -> float:
     """Compute severity-weighted compliance score from a list of {severity, status_norm}."""
@@ -78,7 +99,7 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
                 cid = c.get("id", "")
                 if cid:
                     control_meta[cid] = {
-                        "severity": _CATEGORY_SEVERITY.get(c.get("category", ""), "Low"),
+                        "severity": _category_severity(c.get("category", "")),
                         "fw_id": fw.get("id", ""),
                     }
 
@@ -104,7 +125,7 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
                 cid = c.get("id", "")
                 if cid not in ac_by_control:
                     continue  # No evidence — excluded from denominator (SCORE-01 resolution)
-                severity = _CATEGORY_SEVERITY.get(c.get("category", ""), "Low")
+                severity = _category_severity(c.get("category", ""))
                 sn = _score_status(ac_by_control[cid])
                 evaluated.append({"severity": severity, "status_norm": sn})
                 if sn == "Compliant":
@@ -184,7 +205,7 @@ async def get_threat_score(current_user=Depends(get_current_user)):
                 cid = c.get("id", "")
                 if cid:
                     control_meta[cid] = {
-                        "severity": _CATEGORY_SEVERITY.get(c.get("category", ""), "Low"),
+                        "severity": _category_severity(c.get("category", "")),
                     }
 
         ac_by_control: dict[str, str] = {}
