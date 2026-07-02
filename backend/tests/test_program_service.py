@@ -1,7 +1,8 @@
 """Tests for Phase 16 — Program Control Grouping."""
 import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import FastAPI, TestClient
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 def _mkuser(t="tenant-a", r="admin"): u = MagicMock(); u.tenant_id = t; u.role = r; return u
 
