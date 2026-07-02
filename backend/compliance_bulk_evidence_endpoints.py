@@ -257,8 +257,10 @@ async def bulk_upload_evidence(
                         for p in written_paths:
                             try:
                                 await asyncio.to_thread(os.unlink, p)
-                            except OSError:
-                                pass
+                            except OSError as unlink_exc:
+                                logger.error(
+                                    "Bulk upload cleanup: failed to remove %s: %s", p, unlink_exc
+                                )
                     else:
                         logger.error(
                             "Bulk upload: skipping file cleanup for batch because DB rollback failed; "
