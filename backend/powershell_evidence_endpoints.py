@@ -83,7 +83,7 @@ async def submit_powershell_evidence(
             detail="Authentication required: provide X-Registration-Key or Authorization header",
         )
 
-    compliance_data = {"checks": [c.model_dump() for c in payload.checks]}
+    compliance_data = {"compliance_checks": [c.model_dump() for c in payload.checks]}
     try:
         await process_automated_evidence(
             payload.hostname,

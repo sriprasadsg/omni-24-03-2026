@@ -7,10 +7,16 @@ Tests:
   4. test_submit_unknown_registration_key_returns_401 — bad key → 401
   5. test_submit_cross_tenant_rejected      — JWT tenant_id ≠ key tenant → 403
   6. test_submit_empty_checks_returns_400   — checks: [] → 422 (Pydantic validation)
+  7. test_real_process_automated_evidence_writes_asset_compliance — integration test using the
+     REAL (unmocked) process_automated_evidence with a PSEvidencePayload-shaped compliance_data
+     dict, asserting an asset_compliance record is actually written (regression guard for CR-01,
+     where the endpoint built the payload under the wrong dict key and every submission silently
+     wrote zero evidence records despite all mocked tests passing).
 """
 import sys
 import os
 import hashlib
+import asyncio
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -272,3 +278,57 @@ def test_submit_empty_checks_returns_400():
 
     # Pydantic min_length=1 on the list field returns 422
     assert resp.status_code == 422, f"Expected 422, got {resp.status_code}: {resp.text}"
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Real (unmocked) process_automated_evidence writes an asset_compliance
+# record from a PSEvidencePayload-shaped compliance_data dict — closes the
+# integration gap that let CR-01 (wrong dict key) ship with all-green tests.
+# ---------------------------------------------------------------------------
+
+def test_real_process_automated_evidence_writes_asset_compliance():
+    """The real process_automated_evidence, given the payload shape the endpoint
+    actually builds (`{"compliance_checks": [...]}`), must call asset_compliance
+    update_one with $push evidence — proving the endpoint's dict key matches the
+    key the shared processor reads."""
+    from compliance_evidence_processor import process_automated_evidence
+
+    hostname = "WIN-INTEGRATION-01"
+    checks = [_make_check("Windows Firewall Profiles", status="Pass", details="ok")]
+    # This is exactly the shape submit_powershell_evidence builds:
+    # {"compliance_checks": [c.model_dump() for c in payload.checks]}
+    compliance_data = {"compliance_checks": checks}
+
+    mock_db = MagicMock()
+    mock_db.assets = MagicMock()
+    mock_db.assets.find_one = AsyncMock(return_value=None)
+    mock_db.agents = MagicMock()
+    mock_db.agents.find_one = AsyncMock(return_value=None)
+    mock_db.asset_compliance = MagicMock()
+    mock_db.asset_compliance.update_one = AsyncMock(return_value=None)
+
+    asyncio.run(
+        process_automated_evidence(
+            hostname,
+            compliance_data,
+            mock_db,
+            agent_type="powershell",
+            fallback_tenant_id="tenant-integration",
+        )
+    )
+
+    # The $push update_one call (second call per control) must have been made —
+    # if the processor had read an empty list (the CR-01 bug), update_one would
+    # never be called at all.
+    assert mock_db.asset_compliance.update_one.await_count > 0, (
+        "process_automated_evidence did not write any asset_compliance record — "
+        "compliance_data key mismatch (CR-01 regression)"
+    )
+    push_calls = [
+        call for call in mock_db.asset_compliance.update_one.await_args_list
+        if "$push" in call.args[1]
+    ]
+    assert push_calls, "Expected at least one $push evidence update_one call"
+    pushed_evidence = push_calls[0].args[1]["$push"]["evidence"]
+    assert pushed_evidence["tenantId"] == "tenant-integration"
+    assert pushed_evidence["agent_type"] == "powershell"
