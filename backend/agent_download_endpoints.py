@@ -371,8 +371,13 @@ async def serve_install_script():
 
 @router.get("/collect-evidence-script")
 async def serve_collect_evidence_script():
-    """Serve the Windows PowerShell evidence collector script (no auth required)."""
-    script_path = Path(__file__).parent / "static" / "Collect-Evidence.ps1"
+    """Serve the Windows PowerShell evidence collector script (no auth required).
+
+    Reads from agent/installer/Collect-Evidence.ps1 — the single canonical copy also
+    used by the Spyglass build pipeline (update_endpoints.py AGENT_COLLECT_PS1) — so
+    this endpoint and the installer/MSI/EXE bundle can never drift out of sync (WR-01).
+    """
+    script_path = Path(__file__).parent.parent / "agent" / "installer" / "Collect-Evidence.ps1"
     if not script_path.is_file():
         raise HTTPException(status_code=503, detail="Evidence collector script not found on server")
     content = script_path.read_text(encoding="utf-8")
