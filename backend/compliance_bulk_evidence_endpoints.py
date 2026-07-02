@@ -195,8 +195,10 @@ async def bulk_upload_evidence(
                 for v in validated:
                     stored_name = f"{uuid.uuid4().hex}{v['ext']}"
                     file_path = os.path.join(UPLOAD_DIR, stored_name)
-                    await asyncio.to_thread(_write_binary, file_path, v["bytes"])
+                    # WR-04: track path before the write is attempted so a partial
+                    # write (e.g. disk full mid-write) is still picked up by cleanup.
                     written_paths.append(file_path)
+                    await asyncio.to_thread(_write_binary, file_path, v["bytes"])
 
                     record: dict = {
                         "id": f"cev-bulk-{uuid.uuid4().hex}",
