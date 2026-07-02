@@ -52,13 +52,13 @@ async def get_agentic_tasks(
         agent_doc = await db.agents.find_one({"id": agent_id, "tenantId": tenant_id})
         findings = await db.compliance_findings.find(
             {"agent_id": agent_id, "tenantId": tenant_id}
-        ).to_list(length=30) if db else []
+        ).to_list(length=30)
         alerts = await db.alerts.find(
             {"agent_id": agent_id, "tenantId": tenant_id}
-        ).sort("created_at", -1).to_list(length=10) if db else []
+        ).sort("created_at", -1).to_list(length=10)
         processes = await db.process_snapshots.find(
             {"agent_id": agent_id, "tenantId": tenant_id}
-        ).sort("collected_at", -1).to_list(length=30) if db else []
+        ).sort("collected_at", -1).to_list(length=30)
 
         security_context: dict = {
             "agent_id": agent_id,
