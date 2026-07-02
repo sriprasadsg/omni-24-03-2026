@@ -7,6 +7,15 @@ const API = API_BASE || '/api';
 
 const _REVIEWER_ROLES = ['admin', 'super_admin', 'compliance_reviewer'];
 
+/** Extracts a safe, user-displayable string from a fetch error response body.
+ * FastAPI's automatic validation-error responses put an *array* of error
+ * objects in `detail` (not a string) — passing that directly to a toast
+ * renderer that renders `{message}` as a JSX child crashes React entirely
+ * ("Objects are not valid as a React child") instead of showing any message
+ * (WR-03). */
+const _errorDetail = (d: any, fallback: string): string =>
+  typeof d?.detail === 'string' ? d.detail : fallback;
+
 interface Review {
   id: string;
   evidenceId: string;
@@ -67,7 +76,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
     setSubmitting(true);
     try {
       const res = await authFetch(`${API}/evidence/${evidenceId}/submit-for-review`, { method: 'POST' });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); showToast(d.detail || 'Submit failed', 'error'); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); showToast(_errorDetail(d, 'Submit failed'), 'error'); return; }
       showToast('Evidence submitted for review', 'success');
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
@@ -90,14 +99,14 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
         method: 'POST',
         body: JSON.stringify({ comment: comment.trim() || 'Review' }),
       });
-      if (!reviewRes.ok) { const d = await reviewRes.json().catch(() => ({})); showToast(d.detail || 'Failed to create review', 'error'); return; }
+      if (!reviewRes.ok) { const d = await reviewRes.json().catch(() => ({})); showToast(_errorDetail(d, 'Failed to create review'), 'error'); return; }
       const { review } = await reviewRes.json();
 
       const patchRes = await authFetch(`${API}/evidence/${evidenceId}/review/${review.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ decision, comment: comment.trim() || '' }),
       });
-      if (!patchRes.ok) { const d = await patchRes.json().catch(() => ({})); showToast(d.detail || 'Decision failed', 'error'); return; }
+      if (!patchRes.ok) { const d = await patchRes.json().catch(() => ({})); showToast(_errorDetail(d, 'Decision failed'), 'error'); return; }
       showToast(`Evidence ${decision}`, 'success');
       setComment('');
       setAction('');
@@ -183,6 +192,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
                   <textarea
                     className="w-full text-xs p-1.5 border rounded dark:bg-gray-700 dark:border-gray-600"
                     rows={2}
+                    maxLength={2000}
                     placeholder={action === 'approve' ? 'Optional comment...' : 'Comment (required)...'}
                     value={comment}
                     onChange={e => setComment(e.target.value)}
