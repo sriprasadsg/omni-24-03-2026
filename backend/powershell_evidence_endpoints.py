@@ -59,6 +59,12 @@ async def submit_powershell_evidence(
         if not tenant:
             raise HTTPException(status_code=401, detail="Invalid registration key")
         resolved_tenant_id = tenant.get("id", "")
+        if not resolved_tenant_id:
+            # A tenant document missing its "id" field must fail loudly here rather than
+            # silently propagating tenant_id="" -> falsy fallback_tenant_id, which would
+            # let evidence end up written with tenant_id=None (WR-08).
+            logger.error("Tenant record for registration key is missing 'id' field")
+            raise HTTPException(status_code=500, detail="Tenant record missing id")
 
         # Cross-tenant check: if JWT is also present, they must agree (unless super admin)
         if current_user:
