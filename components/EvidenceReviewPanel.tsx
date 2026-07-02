@@ -166,7 +166,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
                   rv.status === 'rejected' ? 'bg-red-100 text-red-700' :
                   rv.status === 'changes_requested' ? 'bg-amber-100 text-amber-700' :
                   'bg-gray-100 text-gray-600'
-                }`}>{rv.status.replace('_', ' ')}</span>
+                }`}>{rv.status.replace(/_/g, ' ')}</span>
                 <span className="text-gray-400 ml-auto">{rv.created_at ? new Date(rv.created_at).toLocaleDateString() : ''}</span>
               </div>
               {rv.comment && <p className="text-gray-600 dark:text-gray-400">{rv.comment}</p>}
