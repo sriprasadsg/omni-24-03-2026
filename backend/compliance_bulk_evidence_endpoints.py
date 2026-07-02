@@ -260,10 +260,16 @@ async def bulk_upload_evidence(
             if not committed_ok:
                 raise HTTPException(status_code=500, detail="Internal server error")
 
-        invalidate_cache(f"compliance:score:{tenant_id}")
-        invalidate_cache("compliance:score:__super__")
-        invalidate_cache(f"compliance:threat-score:{tenant_id}")
-        invalidate_cache("compliance:threat-score:__super__")
+        try:
+            invalidate_cache(f"compliance:score:{tenant_id}")
+            invalidate_cache("compliance:score:__super__")
+            invalidate_cache(f"compliance:threat-score:{tenant_id}")
+            invalidate_cache("compliance:threat-score:__super__")
+        except Exception as cache_exc:
+            # WR-05: cache invalidation failing after a successful commit must not be
+            # reported as a request failure — the client would retry and create
+            # duplicate evidence records (no idempotency key on the batch).
+            logger.error("Bulk upload: cache invalidation failed post-commit: %s", cache_exc)
         return {
             "success": True,
             "committed": len(committed),
