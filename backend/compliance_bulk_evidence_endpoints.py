@@ -5,6 +5,7 @@ before any file is written. Any single failure returns 422 with per-file errors
 and zero commits (BULK-02 validate-all-before-commit).
 """
 import zipfile
+import zlib
 import io
 import os
 import uuid
@@ -141,6 +142,11 @@ async def bulk_upload_evidence(
                 except KeyError:
                     errors.append(
                         {"filename": raw_name, "error": "File not found in zip"}
+                    )
+                    continue
+                except (zipfile.BadZipFile, OSError, zlib.error) as exc:
+                    errors.append(
+                        {"filename": raw_name, "error": f"Could not read entry: {exc}"}
                     )
                     continue
 
