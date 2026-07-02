@@ -152,6 +152,7 @@ async def update_review_decision(
     comment: str,
     db,
     tenant_id: str,
+    decided_by: str | None = None,
 ) -> dict | None:
     """Update a review decision and propagate status to the evidence record.
 
@@ -173,6 +174,13 @@ async def update_review_decision(
     without this, a review already decided 'approved' could be PATCHed again
     to 'rejected', silently flipping the evidence status back and forth with
     no idempotency guard.
+
+    decided_by records the identity of the user who actually made the
+    decision. The review's `reviewer` field is fixed at creation time (it can
+    belong to whoever first opened the pending thread — see the dedup upsert
+    in create_review) and is never overwritten here, so `decided_by` is the
+    only reliable record of who approved/rejected/requested changes when
+    that differs from the creator (WR-01).
 
     Returns the updated review dict, or None if not found / already decided.
     """
@@ -203,6 +211,7 @@ async def update_review_decision(
                 "status": decision,
                 "comment": comment,
                 "updated_at": now,
+                "decided_by": decided_by,
             }
         },
         return_document=True,
