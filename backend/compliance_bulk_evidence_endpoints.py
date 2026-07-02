@@ -229,6 +229,9 @@ async def bulk_upload_evidence(
                 raise HTTPException(status_code=500, detail="Internal server error")
 
         invalidate_cache(f"compliance:score:{tenant_id}")
+        invalidate_cache("compliance:score:__super__")
+        invalidate_cache(f"compliance:threat-score:{tenant_id}")
+        invalidate_cache("compliance:threat-score:__super__")
         return {
             "success": True,
             "committed": len(committed),

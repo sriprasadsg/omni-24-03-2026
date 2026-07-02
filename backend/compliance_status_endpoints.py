@@ -88,4 +88,7 @@ async def patch_asset_compliance_status(
     )
 
     invalidate_cache(f"compliance:score:{resolved_tenant_id}")
+    invalidate_cache("compliance:score:__super__")
+    invalidate_cache(f"compliance:threat-score:{resolved_tenant_id}")
+    invalidate_cache("compliance:threat-score:__super__")
     return {"ok": True, "status": body.status, "previous_status": previous_status}

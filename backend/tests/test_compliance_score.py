@@ -301,7 +301,8 @@ def test_cache_invalidated_on_upload():
         )
 
     assert resp.status_code == 200, resp.text
-    mock_inv.assert_called_once()
-    arg = mock_inv.call_args[0][0]
-    assert arg.startswith("compliance:score:"), f"Wrong cache key prefix: {arg}"
-    assert "tenant-a" in arg, f"tenant_id missing from cache key: {arg}"
+    invalidated_keys = [c.args[0] for c in mock_inv.call_args_list]
+    assert f"compliance:score:tenant-a" in invalidated_keys
+    assert "compliance:score:__super__" in invalidated_keys
+    assert f"compliance:threat-score:tenant-a" in invalidated_keys
+    assert "compliance:threat-score:__super__" in invalidated_keys
