@@ -6,6 +6,7 @@ import sys, os, asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -63,6 +64,14 @@ def _make_mock_db():
     return db
 
 
+
+# Every patcher started by _build_client is stopped by the _stop_patchers
+# autouse fixture below (WR-04). Without this, `patcher.start()` alone
+# leaves evidence_review_endpoints.get_database permanently monkey-patched
+# to the last test's mock_db for the rest of the pytest session.
+_active_patchers = []
+
+
 def _build_client(mock_db, current_user):
     import evidence_review_endpoints as mod
     from authentication_service import get_current_user
@@ -73,7 +82,18 @@ def _build_client(mock_db, current_user):
 
     patcher = patch("evidence_review_endpoints.get_database", return_value=mock_db)
     patcher.start()
+    _active_patchers.append(patcher)
     return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture(autouse=True)
+def _stop_patchers():
+    """Guarantees every patcher started via _build_client is stopped, even
+    if the test raises, so get_database is restored before the next test
+    or test module runs in the same pytest session (WR-04)."""
+    yield
+    while _active_patchers:
+        _active_patchers.pop().stop()
 
 
 # ── Test 1: Submit for review ──────────────────────────────────────────────────
@@ -198,8 +218,10 @@ def test_tenant_isolation_get_excludes_cross_tenant_reviews():
     evidence id — the query is scoped on tenantId, not just evidenceId."""
     db = _make_mock_db()
 
-    def _find_side_effect(query):
-        # Mirror the real find() call shape: {"evidenceId": ..., "tenantId": ...}.
+    def _find_side_effect(query, *args, **kwargs):
+        # Mirror the real find() call shape: {"evidenceId": ..., "tenantId": ...},
+        # plus the {"_id": 0} projection now passed as a second positional arg
+        # (CR-01 fix) — accept and ignore it here.
         # Only "tenant-b" has data seeded here; a tenant-a query must come back
         # empty even though a record exists for the same evidenceId.
         if query.get("tenantId") == "tenant-b":
