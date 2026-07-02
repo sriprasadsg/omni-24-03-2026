@@ -1,6 +1,6 @@
 ---
 phase: 15-evidence-review-workflow
-reviewed: 2026-07-02T00:00:00Z
+reviewed: 2026-07-02T08:04:38Z
 depth: standard
 files_reviewed: 6
 files_reviewed_list:
@@ -12,126 +12,169 @@ files_reviewed_list:
   - components/AssetComplianceList.tsx
 findings:
   critical: 1
-  warning: 1
-  info: 1
-  total: 3
+  warning: 4
+  info: 2
+  total: 7
 status: issues_found
 ---
 
 # Phase 15: Code Review Report
 
-**Reviewed:** 2026-07-02T00:00:00Z
+**Reviewed:** 2026-07-02T08:04:38Z
 **Depth:** standard
 **Files Reviewed:** 6
 **Status:** issues_found
 
 ## Summary
 
-This is an independent re-review of the evidence review workflow against the current file contents, not a trust-the-changelog pass. I verified all 7 previously-fixed critical/warning findings (CR-01 evidence-id-mismatch-before-mutation, WR-01 unchecked propagation result, WR-02 missing workflow-state guards, WR-03 frontend resubmission gating, WR-04 missing `evId` guard, WR-05 stale-default write, WR-06 fake tenant-isolation test) directly against the current code and confirmed each is genuinely fixed as described — no regressions found in any of those seven areas. The one prior Info finding (unused `Optional` import) is still present and unresolved, as expected (documented as intentionally out of scope).
+This is a fresh, independent pass, not a re-check of the prior two review iterations. I re-verified all previously reported findings (CR-01 `$elemMatch` propagation fix, WR-01 atomic-upsert dedup, WR-02 reviewer-button gating, WR-03 audit-log try/except, WR-04 non-mutating `onEvidenceReviewed` callback, IN-01/IN-02) directly against the current file contents and confirmed all six remain correctly applied — no regressions there.
 
-Independent analysis of the *current* code surfaced one new Critical-severity gap that the WR-02 fix did not fully close: `create_review` has no protection against creating more than one `"pending"` review record for the same evidence item, and `update_review_decision` never re-verifies that the evidence's *current* status is still `pending_review` before propagating a decision onto it. Under a realistic failure mode (a decide-request that fails/times out after the review record was created but before the decision was applied), this leaves an orphaned `"pending"` review record that can be decided later — independently, and without the evidence ever being resubmitted — silently overwriting whatever status the evidence has moved to in the meantime. This bypasses the documented lifecycle invariant that a decision can only be applied to evidence currently `pending_review`, and is a genuine compliance/audit-integrity risk for a platform whose evidence status *is* the audit record. See CR-01 below (renumbered for this review; unrelated to the prior review's CR-01, which is confirmed fixed).
+Independent analysis of the current code surfaced one new **Critical** bug that neither prior iteration caught, and it is not theoretical: I stood up a real local MongoDB instance, ran the actual service and endpoint code against it end-to-end (bypassing the unit tests' mocks entirely), and reproduced a **500 Internal Server Error on every endpoint in this feature that returns a Mongo document** — `POST /review`, `PATCH /review/{id}`, `GET /reviews`, and `GET /pending-review` all fail against real data. Only `POST /submit-for-review` (which returns a hand-built static dict, not a Mongo document) is unaffected. The existing unit test suite (13/13 "passing") never catches this because every mock in `test_evidence_review.py` hand-crafts its return dicts and never includes the `_id: ObjectId(...)` field that real MongoDB always injects — this is a clear case of "tests pass" masking a completely broken feature.
+
+Beyond that, this pass also found a data-integrity gap in review-record attribution (reviewer identity is fixed at creation time, not decision time), a narrower TOCTOU in `create_review`'s validation step, a frontend crash path when a validation error's `detail` is a non-string payload, and a test-hygiene issue (`mock.patch` never stopped) that can leak mocked state into other test modules in the same pytest session.
+
+Status is `issues_found` because of the Critical finding below.
 
 ## Critical Issues
 
-### CR-01: Orphaned "pending" review records can later be decided and silently corrupt evidence status without resubmission
+### CR-01: `_id` (a raw `bson.ObjectId`) is never stripped from Mongo documents before they're returned from the API — every document-returning endpoint in this feature 500s against real MongoDB
 
-**File:** `backend/evidence_review_service.py:84-126` (`create_review`, no dedup guard), `backend/evidence_review_service.py:129-217` (`update_review_decision`, no evidence-current-status re-check)
-**Issue:** `create_review` only checks that the evidence item exists and is currently `pending_review` — it does not check whether a `"pending"` review record already exists for that `evidence_id`/`tenant_id`:
+**File:** `backend/evidence_review_service.py:127-144` (`create_review`), `:193-208` (`update_review_decision`), `:252-268` (`get_reviews`), `:271-303` (`get_pending_evidence`); consumed directly in `backend/evidence_review_endpoints.py:99,166,181,195`
 
-```python
-existing = await db.asset_compliance.find_one(...)
-...
-if not evidence_item or evidence_item.get("status") != "pending_review":
-    raise ValueError(...)
-# no check for an existing status:"pending" review before inserting a new one
-review = {... "status": "pending", ...}
-await db._db[_EVIDENCE_REVIEWS_COL].insert_one(review)
+**Issue:** `create_review`'s `find_one_and_update(..., upsert=True, return_document=True)`, `update_review_decision`'s `find_one_and_update(...)`, `get_reviews`'s `cursor.to_list(...)`, and `get_pending_evidence`'s aggregation `$project` stage all return/emit the raw MongoDB document (or, for the aggregation, an inclusion-mode `$project` that keeps `_id` by default since it is never explicitly excluded with `"_id": 0`). None of these functions strip the `_id` field before the dict is handed back to the endpoint layer, which returns it directly in the JSON response body (`{"success": True, "review": review}`, `{"reviews": reviews, ...}`, `{"items": items, ...}`).
+
+`_id` on a real MongoDB document is a `bson.ObjectId`, which FastAPI's default `jsonable_encoder` cannot serialize:
+
+```pycon
+>>> from fastapi.encoders import jsonable_encoder
+>>> from bson import ObjectId
+>>> jsonable_encoder({'_id': ObjectId(), 'name': 'x'})
+ValueError: [TypeError("'ObjectId' object is not iterable"), TypeError('vars() argument must have __dict__ attribute')]
 ```
 
-`update_review_decision` only guards against *re-deciding the same review* (`status: "pending"` in its own filter) — it never re-checks that the evidence's *current* status is still `pending_review` before propagating:
+**Empirically reproduced end-to-end against a live local MongoDB** (not speculative — ran the real service + endpoint code, not the mocked unit tests):
+
+```
+CREATE: 500 Internal Server Error   # POST /api/evidence/{id}/review
+LIST:   500 Internal Server Error   # GET  /api/evidence/{id}/reviews
+PENDING:500 Internal Server Error   # GET  /api/evidence/pending-review
+```
+(`PATCH /review/{id}` shares the identical `find_one_and_update` → raw-dict-with-`_id` → `jsonable_encoder` path and fails the same way; not separately reproduced only because the prerequisite `CREATE` call above already fails before a `review_id` exists to PATCH.)
+
+This means the entire evidence review workflow — creating a review, deciding it, listing its history, and the pending-review queue — is non-functional against a real database. `POST /submit-for-review` is the *only* endpoint in this router unaffected, because it's the only one that returns a hand-built literal dict (`{"success": True, "status": "pending_review"}`) rather than a document read back from Mongo.
+
+The unit test suite passes (13/13) and gave false confidence here because `_make_mock_db()` in `test_evidence_review.py` hand-crafts every mocked return value (e.g. `{"id": "rev-abc", "evidenceId": "ev-1", "status": "approved", ...}`) — none of these fixtures include an `_id` key, since a `MagicMock`/`AsyncMock` has no way to know MongoDB would inject one. The gap between "what the mock returns" and "what a real `insert_one`/`find_one_and_update` call actually returns" is exactly the kind of thing that makes a green test suite an unreliable signal of correctness.
+
+**Fix:** Strip `_id` (or project it out) everywhere a document crosses the API boundary. Two options, pick one and apply consistently:
 
 ```python
-result = await db.asset_compliance.update_one(
-    {"evidence.id": evidence_id, "tenantId": tenant_id},   # no "evidence.status": "pending_review" guard
-    {"$set": {"evidence.$.status": evidence_status, ...}},
+# Option A: project it out at the query level
+review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
+    {...}, {...}, upsert=True, return_document=True,
+    projection={"_id": 0},
 )
+
+cursor = (
+    db._db[_EVIDENCE_REVIEWS_COL]
+    .find({"evidenceId": evidence_id, "tenantId": tenant_id}, {"_id": 0})
+    .sort("created_at", -1)
+)
+
+# aggregation $project stage:
+{"$project": {"_id": 0, "assetId": 1, "controlId": 1, ...}}
 ```
-
-These two gaps combine into a realistic, non-adversarial failure mode:
-
-1. Reviewer clicks "Approve". Frontend `handleReviewDecision` (`components/EvidenceReviewPanel.tsx:82-111`) does `POST /review` (creates review **A**, `status: "pending"`), then `PATCH /review/A`. If the PATCH fails or times out (network blip, backend hiccup) after the review was created but before the decision was applied, review **A** is left permanently in `status: "pending"` — evidence is still `pending_review` at this point, so nothing has "failed" from the evidence's perspective.
-2. The reviewer sees the error toast and retries. `POST /review` succeeds again (evidence is still `pending_review`, so `create_review`'s only guard passes) creating review **B**; `PATCH /review/B` succeeds this time → evidence becomes `approved`.
-3. Review **A** is now orphaned: `status: "pending"` forever, visible to any tenant user via `GET /api/evidence/{id}/reviews` (which returns *all* review records regardless of status). Any user holding a reviewer role can later call `PATCH /api/evidence/{id}/review/A` directly (no UI guard stops this — it's a plain authenticated API call) with any decision. `update_review_decision`'s filter (`id`, `evidenceId`, `tenantId`, `status: "pending"`) still matches review A, so the decision is applied and evidence is flipped to whatever A's decision was (e.g. `rejected`) — **even though the evidence is already `approved` and was never resubmitted for review.**
-
-This directly violates the documented lifecycle invariant (`Uploaded → submit-for-review → pending_review → decided`) and silently overwrites a real compliance status without the required `submit_for_review` step ever occurring — a serious integrity problem for a system whose evidence-approval status functions as the audit trail. This is the exact concern the prior review's WR-02 fix suggestion called out ("and/or verify the evidence's current status is `pending_review` before propagating") but the applied fix (commit `7cf96a4`) only implemented the review-side idempotency half, not the evidence-side re-check.
-
-**Fix:** Close the gap at the point of mutation (defensive, minimal) by requiring the evidence to still be `pending_review` when the decision is propagated, and treat a non-match as observable instead of a silent no-op:
 
 ```python
-result = await db.asset_compliance.update_one(
-    {
-        "evidence.id": evidence_id,
-        "tenantId": tenant_id,
-        "evidence.status": "pending_review",
-    },
-    {
-        "$set": {
-            "evidence.$.status": evidence_status,
-            "evidence.$.review_updated_at": now,
-        }
-    },
-)
-if result.modified_count == 0:
-    logger.warning(
-        "evidence_review: review %s decided as '%s' but evidence %s was not "
-        "'pending_review' at decision time (stale/duplicate review record) — "
-        "evidence status was not changed",
-        review_id, decision, evidence_id,
-    )
+# Option B: strip it after the fact, once, right before returning
+def _strip_id(doc: dict | None) -> dict | None:
+    if doc and "_id" in doc:
+        doc = {k: v for k, v in doc.items() if k != "_id"}
+    return doc
 ```
 
-Additionally fix the root cause in `create_review` so duplicate `"pending"` threads can't accumulate in the first place:
-
-```python
-existing_pending = await db._db[_EVIDENCE_REVIEWS_COL].find_one(
-    {"evidenceId": evidence_id, "tenantId": tenant_id, "status": "pending"}
-)
-if existing_pending:
-    return existing_pending  # reuse the existing thread instead of creating a duplicate
-```
+Recommend adding a regression test that exercises these code paths against a real (or embedded) MongoDB rather than a mock — exactly the pattern the existing CR-01 regression test (`test_evidence_propagation_query_does_not_corrupt_unrelated_evidence_item`) already establishes for this same reason (mocks can't catch structural/serialization bugs). That test's own `_RealDbWrapper` harness can be reused directly; it already skips cleanly when no MongoDB is reachable.
 
 ## Warnings
 
-### WR-01: No regression test exercises the exact evidence-id-mismatch-within-same-tenant path that caused the prior CR-01
+### WR-01: A review's `reviewer` field is fixed at creation time and never updated at decision time — the record can permanently misattribute who actually approved/rejected/requested changes
 
-**File:** `backend/tests/test_evidence_review.py` (whole file)
-**Issue:** The prior review's CR-01 (now fixed, verified above) was specifically about a mismatch between the URL's `evidence_id` and a review's real `evidenceId` *within the same tenant* not being caught atomically before mutation. Every test in this file that exercises the PATCH decision path uses a consistent `evidence_id="ev-1"` matching the mocked review's `evidenceId`. The two "tenant isolation" tests (`test_tenant_isolation_get_excludes_cross_tenant_reviews`, `test_tenant_isolation_patch_returns_404_for_cross_tenant_review`) vary `tenantId` only, not evidence-id-mismatch-within-a-tenant. There is no test that does e.g. `PATCH /api/evidence/ev-2/review/{review_id_belonging_to_ev-1}` (same tenant, different evidence) and asserts a 404 with zero DB mutation. Since this exact class of gap already produced one real regression that shipped and was only caught in a subsequent manual re-review, leaving it untested risks the same class of bug reappearing silently on a future refactor of `update_review_decision`.
-**Fix:** Add a test that mocks `find_one_and_update` to only match when `evidenceId` equals the review's real evidence id, then asserts a 404 (and no audit-log write) when the PATCH URL's `evidence_id` doesn't match:
+**File:** `backend/evidence_review_service.py:130-140` (creation sets `reviewer`), `:200-206` (decision `$set` never touches `reviewer`)
+**Issue:** `create_review`'s atomic upsert only sets `"reviewer": reviewer` inside `$setOnInsert` (line 134) — i.e. only on the *first* creation of a `pending` record for that `evidenceId`. If that dedup path is hit (an existing `pending` record is returned instead of a new one being inserted — exactly the scenario the WR-01 fix from the prior iteration was designed to handle), the returned `review.id` belongs to whoever created it first, and `current_user.username` passed into `create_review` by the *current* caller is silently discarded.
+
+`update_review_decision`'s `$set` clause (lines 200-206) then only updates `status`, `comment`, and `updated_at` — never `reviewer` — when the decision is actually made. So if reviewer A opens the panel and creates the pending review, and reviewer B (in a different tab/session) is the one who actually clicks Approve/Reject (their `POST /review` call dedups onto A's existing pending record via the atomic upsert, then their `PATCH .../review/{id}` decides it), the final review record shows `reviewer: "A"` even though B made the decision. `EvidenceReviewPanel.tsx:154` renders `rv.reviewer` prominently in the review thread, so this misattribution is directly user-visible, not just an internal detail. The separate `audit_logs` entry written in the endpoint (`evidence_review_endpoints.py:152-160`) does correctly capture `performed_by: current_user.username`, so there is a secondary correct record — but the primary, user-facing review document itself is wrong.
+
+**Fix:** Pass the deciding user's identity into `update_review_decision` and set it explicitly, e.g. add a `decided_by` field (or update `reviewer` if that's meant to represent "current owner of the decision" rather than "who opened the thread"):
+
 ```python
-def test_evidence_id_mismatch_same_tenant_returns_404_without_mutation():
-    db = _make_mock_db()
-    async def _scoped(query, *a, **kw):
-        if query.get("evidenceId") == "ev-1":
-            return {"id": "rev-abc", "evidenceId": "ev-1", "status": "pending", "tenantId": "tenant-a"}
-        return None
-    db._db.evidence_reviews.find_one_and_update = AsyncMock(side_effect=_scoped)
-    user = _make_user("tenant-a", "admin")
-    client = _build_client(db, user)
-    resp = client.patch("/api/evidence/ev-WRONG/review/rev-abc", json={"decision": "approved", "comment": "x"})
-    assert resp.status_code == 404
-    db.audit_logs.insert_one.assert_not_awaited()
+async def update_review_decision(review_id, evidence_id, decision, comment, db, tenant_id, decided_by: str):
+    ...
+    review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
+        {...},
+        {"$set": {"status": decision, "comment": comment, "updated_at": now, "decided_by": decided_by}},
+        return_document=True,
+    )
 ```
+and pass `current_user.username` through from `evidence_review_endpoints.py:134-136`.
+
+### WR-02: `create_review`'s "evidence must be pending_review" validation is check-then-act, not atomic — the guard can be stale by the time the review record is actually written
+
+**File:** `backend/evidence_review_service.py:111-144`
+**Issue:** The evidence-status validation (`find_one` + manual scan of the `evidence` array, lines 111-124) is a separate read from the atomic `find_one_and_update(upsert=True)` that follows it (lines 127-143). The upsert's own filter is only `{"tenantId": tenant_id, "evidenceId": evidence_id, "status": "pending"}` — it does not re-check that the evidence is still `pending_review` at the moment of the write. Between the validation read and the upsert, another request (e.g. a reviewer deciding the evidence in the same window) can change the evidence's status, and a new `pending` review record would still be created/reused against evidence that is no longer actually pending review. The downstream `update_review_decision` propagation guard (its own `"status": "pending_review"` re-check, lines 224-233) prevents this from corrupting the evidence record itself, but it does mean an orphaned review record can end up "decided" with no corresponding evidence-status change and only a server-side `logger.warning` (never surfaced to any user) marking the discrepancy.
+**Fix:** This is a narrow window and the downstream guard limits the blast radius, but for full correctness the validation should be folded into the same atomic operation, e.g. by re-reading evidence status inside a transaction, or by having the upsert's `$setOnInsert` path itself fail/no-op when evidence isn't pending_review (requires a multi-document transaction since `asset_compliance` and `evidence_reviews` are separate collections). At minimum, document the residual race explicitly next to the existing docstring, since the current docstring implies the check fully prevents this ("Validates the evidence item exists ... and is currently in 'pending_review' status before inserting").
+
+### WR-03: A non-string `detail` from a pydantic validation error (e.g. comment exceeding 2000 chars) crashes the toast renderer instead of showing a message
+
+**File:** `components/EvidenceReviewPanel.tsx:93,100,183-189`; confirmed via `components/ToastContainer.tsx:50`
+**Issue:** The comment `<textarea>` (lines 183-189) has no `maxLength` attribute, but the backend's `CreateReviewRequest.comment` and `UpdateDecisionRequest.comment` are capped at `max_length=2000` (`evidence_review_endpoints.py:43,48`). If a user pastes more than 2000 characters and submits, FastAPI's automatic request-validation handler returns a 422 whose `detail` is an **array** of error objects (`[{"type": ..., "loc": ..., "msg": ...}]`), not a string. `handleReviewDecision`'s error paths do:
+```tsx
+const d = await reviewRes.json().catch(() => ({}));
+showToast(d.detail || 'Failed to create review', 'error');
+```
+`d.detail` here is an array, which is truthy, so it gets passed directly as `showToast`'s `message` argument (typed `string`, but `d` is untyped `any` so TypeScript doesn't catch the mismatch). `ToastContainer.tsx:50` renders `{toast.message}` directly as a JSX child — passing an array of plain objects there causes React to throw ("Objects are not valid as a React child"), crashing the toast instead of showing any error message to the user.
+**Fix:** Add client-side `maxLength={2000}` to the textarea to prevent the condition in the common case, and harden the error-extraction helper to only use `detail` when it's actually a string:
+```tsx
+const detail = typeof d.detail === 'string' ? d.detail : 'Failed to create review';
+showToast(detail, 'error');
+```
+
+### WR-04: `mock.patch` is started but never stopped in every test, leaking the mocked `get_database` into the module for the rest of the pytest session
+
+**File:** `backend/tests/test_evidence_review.py:74-76`
+**Issue:** `_build_client()` is called by all 12 tests in this file and does:
+```python
+patcher = patch("evidence_review_endpoints.get_database", return_value=mock_db)
+patcher.start()
+return TestClient(app, raise_server_exceptions=False)
+```
+`patcher.stop()` is never called (no corresponding cleanup, no `try/finally`, no pytest fixture with `yield` + teardown, no `addCleanup`). Each `patch(...).start()` call replaces `evidence_review_endpoints.get_database` again but never restores the previous value, so after this test module runs, `evidence_review_endpoints.get_database` remains permanently monkey-patched to the *last* test's `mock_db` for the remainder of the pytest process — including any other test file that runs afterward in the same session and imports/exercises `evidence_review_endpoints` expecting the real function.
+**Fix:** Use `patch(...)` as a context manager or fixture with guaranteed teardown:
+```python
+def _build_client(mock_db, current_user):
+    ...
+    patcher = patch("evidence_review_endpoints.get_database", return_value=mock_db)
+    patcher.start()
+    client = TestClient(app, raise_server_exceptions=False)
+    client.addCleanup = None  # TestClient has no addCleanup; use a fixture instead
+    return client, patcher  # caller must call patcher.stop()
+```
+or, more idiomatically, convert `_build_client` into a pytest fixture that does `patcher.start()` then `yield client` then `patcher.stop()` in a `finally`/generator-teardown block.
 
 ## Info
 
-### IN-01: Unused `Optional` import remains in both service and endpoint modules
+### IN-01: Reviewer-role list is duplicated between frontend and backend with no shared source of truth
 
-**File:** `backend/evidence_review_service.py:15`, `backend/evidence_review_endpoints.py:16`
-**Issue:** `from typing import Optional` is imported in both files but never referenced anywhere in either — both files consistently use PEP 604 `X | None` syntax for optional types instead. Confirmed still present and unused as of the current file contents (previously flagged and explicitly left as out-of-scope).
-**Fix:** Remove the unused import from both files.
+**File:** `components/EvidenceReviewPanel.tsx:8` (`_REVIEWER_ROLES = ['admin', 'super_admin', 'compliance_reviewer']`) vs. `backend/evidence_review_endpoints.py:36` (`_REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer"}`)
+**Issue:** Both lists are hand-maintained independently. The backend value is authoritative (enforced via 403), so this isn't a security gap, but if the backend's reviewer-role set changes and the frontend copy isn't updated in lockstep, the UI will silently under- or over-show the Approve/Reject/Request-Changes controls relative to what the server will actually allow, producing either a hidden-but-available action or a visible-but-guaranteed-403 action.
+**Fix:** Not urgent, but consider exposing the reviewer-role set via a config/whoami endpoint or a shared constants module (if the frontend/backend already share any generated types) rather than two independently maintained literals.
+
+### IN-02: `rv.status.replace('_', ' ')` only replaces the first underscore, not all of them
+
+**File:** `components/EvidenceReviewPanel.tsx:160`
+**Issue:** `String.prototype.replace` with a string (non-regex) argument only replaces the first match. Every status value currently in use (`approved`, `rejected`, `changes_requested`, `pending`) has at most one underscore, so this doesn't currently produce a visibly wrong label, but it's a latent bug the moment a status with two or more underscores is introduced (e.g. a future `needs_more_evidence`).
+**Fix:** `rv.status.replace(/_/g, ' ')`.
 
 ---
 
-_Reviewed: 2026-07-02T00:00:00Z_
+_Reviewed: 2026-07-02T08:04:38Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
