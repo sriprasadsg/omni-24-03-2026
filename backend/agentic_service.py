@@ -245,12 +245,17 @@ TOOL_REGISTRY: dict[str, Callable[..., Awaitable[dict]]] = {
 
 def estimate_tokens(obj: dict) -> int:
     """Rough estimate: 1 token per 4 characters of JSON."""
-    return len(json.dumps(obj)) // 4
+    return len(json.dumps(obj, default=str)) // 4
 
 
 def truncate_security_context(ctx: dict, max_findings: int = 20) -> dict:
     """Return a bounded copy of ctx for LLM call — per AI-SPEC Section 4b.4."""
     c = copy.deepcopy(ctx)
+    # Strip non-JSON-safe Mongo fields (ObjectId/datetime) before anything else
+    for bucket in ("findings", "alerts", "processes"):
+        for item in c.get(bucket, []):
+            if isinstance(item, dict):
+                item.pop("_id", None)
     if "findings" in c:
         c["findings"] = sorted(
             c["findings"], key=lambda f: f.get("severity_score", 0), reverse=True
@@ -407,9 +412,8 @@ class AgenticService:
         decision_id = str(uuid.uuid4())
         started_at = datetime.datetime.utcnow()
 
-        ctx = truncate_security_context(security_context)
-
         try:
+            ctx = truncate_security_context(security_context)
             async with agentic_breaker:
                 result = await decide_and_execute(agent_id, ctx, self._client)
         except CircuitBreakerOpen:
