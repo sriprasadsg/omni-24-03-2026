@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-def _mkuser(t="tenant-a", r="admin"): u = MagicMock(); u.tenant_id = t; u.role = r; return u
+def _mkuser(t="tenant-a", r="super_admin"): u = MagicMock(); u.tenant_id = t; u.role = r; return u
 
 def _mkdb():
     db = MagicMock(); inner = MagicMock()
@@ -19,11 +19,10 @@ def _mkdb():
 
 def _build(db, u):
     import program_endpoints as m
-    from rbac_service import rbac_service
+    from authentication_service import get_current_user
     app = FastAPI(); app.include_router(m.router)
     t = MagicMock(); t.tenant_id = u.tenant_id; t.role = u.role
-    app.dependency_overrides[rbac_service.has_permission("manage:settings")] = lambda: t
-    app.dependency_overrides[rbac_service.has_permission("view:dashboard")] = lambda: t
+    app.dependency_overrides[get_current_user] = lambda: t
     patcher = patch("program_endpoints.get_database", return_value=db); patcher.start()
     return TestClient(app, raise_server_exceptions=False)
 
@@ -52,5 +51,5 @@ def test_delete_program():
     assert r.status_code == 200
 
 def test_tenant_isolation():
-    c = _build(_mkdb(), _mkuser("tenant-a", "user")); r = c.get("/api/programs")
+    c = _build(_mkdb(), _mkuser("tenant-a", "super_admin")); r = c.get("/api/programs")
     assert r.status_code == 200
