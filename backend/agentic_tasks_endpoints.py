@@ -46,7 +46,7 @@ async def get_agentic_tasks(
     try:
         from agentic_service import get_agentic_service
         db = get_database()
-        tenant_id = _tenant.get("tenant_id") or _tenant.get("tenantId") or ""
+        tenant_id = _tenant.get("id") or _tenant.get("tenant_id") or _tenant.get("tenantId") or ""
 
         # Assemble a lightweight security context from existing collections
         agent_doc = await db.agents.find_one({"id": agent_id, "tenantId": tenant_id})
