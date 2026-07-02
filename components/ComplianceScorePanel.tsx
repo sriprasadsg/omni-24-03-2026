@@ -92,6 +92,7 @@ export const ComplianceScorePanel: React.FC = () => {
   const totalPassing = data ? data.frameworks.reduce((s, f) => s + f.passing, 0) : 0;
   const totalFailing = data ? data.frameworks.reduce((s, f) => s + f.failing, 0) : 0;
   const totalPartial = data ? data.frameworks.reduce((s, f) => s + f.partial, 0) : 0;
+  const totalEvaluated = data ? data.frameworks.reduce((s, f) => s + f.total_controls, 0) : 0;
 
   const panelHeader = (
     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
@@ -144,7 +145,7 @@ export const ComplianceScorePanel: React.FC = () => {
     );
   }
 
-  if (data && data.frameworks.length === 0 && data.overall_score === 0) {
+  if (data && totalEvaluated === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         {panelHeader}
