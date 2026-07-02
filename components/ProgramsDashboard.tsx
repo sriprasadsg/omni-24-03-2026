@@ -19,20 +19,20 @@ export const ProgramsDashboard: React.FC = () => {
   const [controlSearch, setControlSearch] = useState('');
   const [savingControls, setSavingControls] = useState(false);
 
-  const fetch = useCallback(async () => {
+  const loadPrograms = useCallback(async () => {
     setLoading(true);
     try { const r = await (await authFetch('/api/programs')).json(); setPrograms(r.items || []); }
     catch { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { loadPrograms(); }, [loadPrograms]);
 
   const submit = async () => {
     try {
       const res = await authFetch('/api/programs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) });
       if (!res.ok) throw new Error(await res.text());
-      showToast('Program created', 'success'); setShowForm(false); setForm({}); fetch();
+      showToast('Program created', 'success'); setShowForm(false); setForm({}); loadPrograms();
     } catch { showToast('Failed', 'error'); }
   };
 
@@ -40,7 +40,7 @@ export const ProgramsDashboard: React.FC = () => {
     try {
       const res = await authFetch(`/api/programs/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
-      showToast('Deleted', 'success'); fetch();
+      showToast('Deleted', 'success'); loadPrograms();
     } catch { showToast('Delete failed', 'error'); }
   };
 
@@ -76,7 +76,7 @@ export const ProgramsDashboard: React.FC = () => {
         method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ add, remove }),
       });
       if (!res.ok) throw new Error(await res.text());
-      showToast('Controls updated', 'success'); closeControlsModal(); fetch();
+      showToast('Controls updated', 'success'); closeControlsModal(); loadPrograms();
     } catch { showToast('Update failed', 'error'); }
     finally { setSavingControls(false); }
   };
