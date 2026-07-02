@@ -48,7 +48,8 @@ function Prompt-Input ([string]$label, [string]$default = "", [switch]$Secret) {
         return [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
     }
     $value = Read-Host -Prompt "  $prompt"
-    return if ($value) { $value } else { $default }
+    if ($value) { return $value }
+    return $default
 }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
