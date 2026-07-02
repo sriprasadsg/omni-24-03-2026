@@ -206,7 +206,7 @@ async def download_compliance_evidence(
     # Resolve and confine to upload directory — prevent path traversal
     _safe_dir = Path(UPLOAD_DIR).resolve()
     file_path_resolved = (_safe_dir / possible_filename).resolve()
-    if not str(file_path_resolved).startswith(str(_safe_dir)):
+    if not str(file_path_resolved).startswith(str(_safe_dir) + os.sep):
         raise HTTPException(status_code=400, detail="Invalid file path")
     file_path = str(file_path_resolved)
 
