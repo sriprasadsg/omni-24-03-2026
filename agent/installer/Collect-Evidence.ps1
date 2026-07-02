@@ -38,7 +38,25 @@ function Get-SHA256([string]$text) {
     [BitConverter]::ToString($hash.ComputeHash($bytes)).Replace("-","").ToLower()
 }
 
+# Server caps evidence_content at 50000 chars (PSEvidencePayload.evidence_content in
+# powershell_evidence_endpoints.py) and Pydantic rejects the ENTIRE batch if any single
+# check exceeds it. Truncate client-side so one verbose check (e.g. secedit /export,
+# auditpol /get /category:*) can never drop the other 27 checks (WR-03).
+$Script:EvidenceContentMaxChars = 45000
+
+function Limit-EvidenceContent([string]$Content) {
+    if (-not $Content -or $Content.Length -le $Script:EvidenceContentMaxChars) { return $Content }
+    $half = [int]($Script:EvidenceContentMaxChars / 2)
+    $head = $Content.Substring(0, $half)
+    $tail = $Content.Substring($Content.Length - $half)
+    $omitted = $Content.Length - ($half * 2)
+    "$head`n...[TRUNCATED $omitted CHARS — output exceeded $($Script:EvidenceContentMaxChars)-char submission cap]...`n$tail"
+}
+
 function New-Check([string]$Name, [string]$Status, [string]$Details, [string]$Content) {
+    # Hash the (possibly truncated) content actually submitted, so the server-side
+    # content_hash comparison never reports a false "TAMPERING DETECTED".
+    $Content = Limit-EvidenceContent $Content
     @{
         check            = $Name
         status           = $Status
