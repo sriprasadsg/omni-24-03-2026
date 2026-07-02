@@ -38,7 +38,7 @@ async def list_programs(db, tenant_id: str) -> list:
 
 
 async def update_controls(db, program_id: str, tenant_id: str, add: list, remove: list) -> Optional[dict]:
-    doc = await db._db.programs.find_one({"id": program_id, "tenantId": tenant_id})
+    doc = await db._db.programs.find_one({"id": program_id, "tenantId": tenant_id}, {"_id": 0})
     if not doc:
         return None
     current = set(doc.get("control_ids", []))
