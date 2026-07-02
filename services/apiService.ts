@@ -4325,6 +4325,7 @@ export const createRemediationTask = async (body: {
     asset_id?: string;
     framework_id?: string;
     assignee?: string;
+    assignee_type?: string;
     due_date?: string;
     description?: string;
     priority?: string;

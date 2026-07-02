@@ -1664,6 +1664,7 @@ export interface RemediationTask {
     status: 'open' | 'in_progress' | 'resolved' | 'dismissed';
     priority: 'low' | 'medium' | 'high' | 'critical';
     assignee?: string;
+    assignee_type?: 'agent' | 'user';
     due_date?: string;
     description?: string;
     resolution_notes?: string;
