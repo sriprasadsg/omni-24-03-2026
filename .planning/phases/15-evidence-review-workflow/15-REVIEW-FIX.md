@@ -1,74 +1,75 @@
 ---
 phase: 15-evidence-review-workflow
-fixed_at: 2026-07-02T08:15:01Z
+fixed_at: 2026-07-03T08:22:33Z
 review_path: .planning/phases/15-evidence-review-workflow/15-REVIEW.md
 iteration: 1
 findings_in_scope: 7
-fixed: 6
-skipped: 1
-status: partial
+fixed: 7
+skipped: 0
+status: all_fixed
 ---
 
 # Phase 15: Code Review Fix Report
 
-**Fixed at:** 2026-07-02T08:15:01Z
+**Fixed at:** 2026-07-03T08:22:33Z
 **Source review:** .planning/phases/15-evidence-review-workflow/15-REVIEW.md
 **Iteration:** 1
 
 **Summary:**
 - Findings in scope: 7
-- Fixed: 6
-- Skipped: 1
+- Fixed: 7
+- Skipped: 0
 
 ## Fixed Issues
 
-### CR-01: `_id` (a raw `bson.ObjectId`) is never stripped from Mongo documents before they're returned from the API
-
-**Files modified:** `backend/evidence_review_service.py`
-**Commit:** 5f461a4
-**Applied fix:** Added `projection={"_id": 0}` to the `find_one_and_update` calls in `create_review` and `update_review_decision`, added `{"_id": 0}` as the projection argument to the `find()` call in `get_reviews`, and added `"_id": 0` to the `$project` aggregation stage in `get_pending_evidence`. This is Option A from the review (project `_id` out at the query level), applied consistently across all four document-returning functions so no raw `bson.ObjectId` ever reaches the API/JSON-encoding boundary.
-
-### WR-01: A review's `reviewer` field is fixed at creation time and never updated at decision time
-
-**Files modified:** `backend/evidence_review_service.py`, `backend/evidence_review_endpoints.py`
-**Commit:** f0ca5a3
-**Applied fix:** Added a `decided_by: str | None = None` parameter to `update_review_decision`, set via `$set` on the review document at decision time, and wired `current_user.username` through from the PATCH endpoint (`evidence_review_endpoints.py`). The `reviewer` field itself is left untouched (still records who opened the thread) per the review's suggested "add a `decided_by` field" option, rather than overwriting `reviewer`'s original semantics.
-**Note:** `components/EvidenceReviewPanel.tsx` still renders `rv.reviewer` in the review thread and was not changed to also surface `decided_by` — the review's own code snippet only covered the backend change. **Status: fixed: requires human verification** — a developer should confirm whether the frontend also needs a follow-up to display `decided_by` for the misattribution to be fully resolved from a user-visible standpoint.
-
-### WR-02: `create_review`'s evidence-status validation is check-then-act, not atomic
-
-**Files modified:** `backend/evidence_review_service.py`
-**Commit:** f28f797
-**Applied fix:** Per the review's own guidance ("at minimum, document the residual race explicitly next to the existing docstring"), added an explicit "KNOWN RESIDUAL RACE (WR-02)" section to `create_review`'s docstring describing the check-then-act window, why the blast radius is limited (the downstream atomic re-check in `update_review_decision`), and what a full fix would require (a cross-collection transaction). No behavioral/logic change was made — the review explicitly frames this as "narrow" and full remediation as optional given the existing downstream guard.
-
-### WR-03: A non-string `detail` from a pydantic validation error crashes the toast renderer
+### CR-01: Approve/Reject buttons send an invalid `decision` value — every decision except "Request Changes" fails with 422
 
 **Files modified:** `components/EvidenceReviewPanel.tsx`
-**Commit:** 7975d71
-**Applied fix:** Added a `_errorDetail(d, fallback)` helper that only returns `d.detail` when it is actually a `string`, otherwise returns the fallback message; replaced all three `d.detail || 'fallback'` call sites (`handleSubmitForReview`, and both error branches in `handleReviewDecision`) with `_errorDetail(d, 'fallback')`. Also added `maxLength={2000}` to the comment `<textarea>` to prevent the 422-with-array-detail condition from being triggered in the common case, matching the backend's `max_length=2000` cap.
+**Commit:** e47e63d
+**Applied fix:** Added a `DECISION_MAP` constant mapping the internal button-click state (`'approve' | 'reject' | 'changes'`) to the exact strings the backend's `UpdateDecisionRequest` pattern validates (`approved`, `rejected`, `changes_requested`), and changed the Confirm button's `onClick` to call `handleReviewDecision(DECISION_MAP[action])` instead of passing the unconverted `action` value through for approve/reject. This also fixes the downstream comment-required guard (`decision === 'rejected' || decision === 'changes_requested'`), which now receives the correctly mapped value and fires as intended.
 
-### WR-04: `mock.patch` is started but never stopped in every test
+### WR-01: File-picker `accept` attribute silently defeats the text-evidence ingestion gate added in the same change set
+
+**Files modified:** `components/AssetComplianceList.tsx`
+**Commit:** 05d48da
+**Applied fix:** Extended the `<input type="file">` `accept` attribute from `.pdf,.png,.jpg,.jpeg,.docx,.xlsx` to also include `.txt,.md,.json,.csv`, so the file picker's default filter now agrees with `INGESTIBLE_TEXT_TYPES` (`text/plain`, `text/markdown`, `application/json`, `text/csv`) that `isIngestibleText` checks against.
+
+### WR-02: Reviews-thread toggle shows a misleading "(0)" count before the panel is first opened
+
+**Files modified:** `components/EvidenceReviewPanel.tsx`
+**Commit:** ebfac27
+**Applied fix:** Added a `hasFetchedOnce` state flag, set `true` in `fetchReviews()`'s `finally` block (covering both success and error paths), and changed the toggle label to render `'Show reviews'` instead of `Reviews (0)` until the first fetch has actually completed.
+
+### WR-03: GET review endpoints are unprotected by rate limiting while every mutating endpoint in the same router is capped
+
+**Files modified:** `backend/evidence_review_endpoints.py`
+**Commit:** 6c972b0
+**Applied fix:** Added `@limiter.limit("60/minute")` plus the required `request: Request, response: Response` parameters to `list_evidence_reviews` and `list_pending_review_evidence`, matching the `request: Request, response: Response` signature convention already used by every other rate-limited endpoint in this codebase (e.g. `bundle_endpoints.py`), rather than only `request: Request` as shown in the review's illustrative snippet.
+
+### WR-04: The one regression test for the CR-01 `$elemMatch` propagation fix silently skips when no MongoDB is reachable
 
 **Files modified:** `backend/tests/test_evidence_review.py`
-**Commit:** 61ed400
-**Applied fix:** Added a module-level `_active_patchers` list that `_build_client` appends each started patcher to, plus an `@pytest.fixture(autouse=True)` `_stop_patchers` fixture that stops every active patcher after each test (success or failure), guaranteeing teardown without needing to touch all 12 existing test-function call sites. Also fixed a test regression surfaced by the CR-01 fix: `test_tenant_isolation_get_excludes_cross_tenant_reviews`'s `_find_side_effect` mock only accepted one positional argument, but the CR-01 fix now calls `.find(query, {"_id": 0})` with a second positional projection argument — updated the mock signature to `_find_side_effect(query, *args, **kwargs)`. Verified: all 14 tests in `backend/tests/test_evidence_review.py` pass after both changes (`python3 -m pytest tests/test_evidence_review.py -q` → `14 passed`).
+**Commit:** fb2e027
+**Applied fix:** Implemented both remediation options from the review: (1) gated the live-Mongo test's skip behind a `CI` env var check — in CI, an unreachable MongoDB now fails the test suite loudly via `pytest.fail(...)` instead of silently reporting "skipped"; locally, the skip is preserved for developer convenience. (2) Added a new always-running, mock-based companion test (`test_update_review_decision_propagation_filter_uses_elem_match`) that inspects the actual filter dict passed to `db.asset_compliance.update_one` via a `MagicMock`'s `await_args`, asserting it contains `evidence.$elemMatch` with both `id` and `status` tied together — giving first-class, non-optional coverage of the same invariant with no live-database dependency. Verified: full suite (15 tests) passes with 0 skips in this environment.
 
-### IN-02: `rv.status.replace('_', ' ')` only replaces the first underscore
+### IN-01: `ev: any` loosens type safety for the evidence array passed into `EvidenceReviewPanel`
 
-**Files modified:** `components/EvidenceReviewPanel.tsx`
-**Commit:** 7eb0cb7
-**Applied fix:** Changed `rv.status.replace('_', ' ')` to `rv.status.replace(/_/g, ' ')` exactly as suggested in the review.
+**Files modified:** `components/AssetComplianceList.tsx`
+**Commit:** 9573820
+**Applied fix:** Added a local `RenderedEvidence` interface extending the canonical `AssetComplianceEvidence` (imported from `../types`) with the ad-hoc, automated/AI-auditor-only fields the rendering path reads (`systemGenerated`, `source`, `evidence_id`, `evidence_content`, `content`, `details`, `check_name`, `stale`, `stale_days`, `agent_type`), and typed the `.map()` callback parameter as `RenderedEvidence` instead of `any`.
+
+### IN-02: `create_review`'s two distinct failure modes are both mapped to HTTP 404
+
+**Files modified:** `backend/evidence_review_service.py`, `backend/evidence_review_endpoints.py`
+**Commit:** ad5d4fa
+**Applied fix:** Added a new `EvidenceNotFoundError(ValueError)` subclass in `evidence_review_service.py`, raised specifically when the evidence item doesn't exist for the tenant at all (the "wrong status" case still raises a plain `ValueError`). Updated the `create_evidence_review` endpoint to catch `EvidenceNotFoundError` first (→ 404) and the remaining `ValueError` case second (→ 409 Conflict, consistent with how `update_review_decision`'s equivalent failure already maps to 422). Verified no existing test asserted 404 for the "wrong status" create-review path; full suite (15 tests) still passes.
 
 ## Skipped Issues
 
-### IN-01: Reviewer-role list is duplicated between frontend and backend with no shared source of truth
-
-**File:** `components/EvidenceReviewPanel.tsx:8`, `backend/evidence_review_endpoints.py:36`
-**Reason:** The review itself frames this as "not urgent" and offers only a prose suggestion ("consider exposing the reviewer-role set via a config/whoami endpoint or a shared constants module"), not a concrete patch. I checked the codebase for an existing shared-constants or config/whoami pattern between the Python backend and TypeScript frontend and found none (no `shared/` directory, no generated-types bridge, no whoami-style config endpoint). Introducing one is an architectural decision (new API surface or a cross-runtime build-time shared-constants mechanism) that goes beyond a narrow, safe code fix and risks touching unrelated infrastructure. Per critical_rules ("DO NOT modify files unrelated to the finding — scope each fix narrowly" and "DO NOT create new files unless the fix explicitly requires it"), this was left for a human to design and implement deliberately.
-**Original issue:** Both `_REVIEWER_ROLES` lists (frontend array, backend set) are hand-maintained independently; the backend value is authoritative (enforced via 403), so this is not a security gap, but the two copies can drift out of sync, producing either a hidden-but-available action or a visible-but-guaranteed-403 action in the UI.
+None — all findings were fixed.
 
 ---
 
-_Fixed: 2026-07-02T08:15:01Z_
+_Fixed: 2026-07-03T08:22:33Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
