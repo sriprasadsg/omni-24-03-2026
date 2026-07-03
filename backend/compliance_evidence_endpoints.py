@@ -262,10 +262,22 @@ async def delete_compliance_evidence(
         caller_username = getattr(current_user, "username", "")
         is_super = user_role in _SUPER_ROLES
 
-        # Lookup the evidence sub-document via aggregation pipeline
+        # Tenant isolation (T-02-04): non-super callers must have a tenant_id.
+        # Checked before touching the DB so this 403 never correlates with
+        # whether any specific evidence_id exists.
+        if not is_super and not caller_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+
+        # WR-02: scope the initial lookup by tenant for non-super callers so a
+        # cross-tenant evidence ID collapses into the same 404 as "not found",
+        # instead of leaking existence via a distinguishable 403-vs-404 response.
+        match_filter: dict = {"assetId": asset_id, "evidence.id": evidence_id}
+        if not is_super:
+            match_filter["tenantId"] = caller_tenant
+
         pipeline = [
             {"$unwind": "$evidence"},
-            {"$match": {"assetId": asset_id, "evidence.id": evidence_id}},
+            {"$match": match_filter},
             {"$project": {"evidence": 1, "tenantId": 1, "_id": 0}},
         ]
         result = await db.asset_compliance.aggregate(pipeline).to_list(length=1)
@@ -278,13 +290,6 @@ async def delete_compliance_evidence(
         # Never allow deletion of automated evidence (EVID-04 / T-02-05)
         if ev.get("systemGenerated"):
             raise HTTPException(status_code=403, detail="Automated evidence cannot be deleted")
-
-        # Tenant isolation: non-super callers must have a tenant_id and it must match (T-02-04)
-        if not is_super:
-            if not caller_tenant:
-                raise HTTPException(status_code=403, detail="Tenant context required")
-            if doc_tenant != caller_tenant:
-                raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
 
         # Owner check: non-admins may only delete their own uploads (EVID-04 / T-02-03)
         if not is_super and ev.get("uploaded_by") != caller_username:
