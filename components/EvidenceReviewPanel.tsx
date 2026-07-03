@@ -49,6 +49,17 @@ const REVIEW_STATUS_STYLES: Record<string, { bg: string; text: string }> = {
   pending:           { bg: 'bg-gray-100 dark:bg-gray-700',      text: 'text-gray-600 dark:text-gray-300' },
 };
 
+// Maps the internal button-click state (`action`) to the exact decision
+// strings `UpdateDecisionRequest` on the backend validates against
+// (`^(approved|rejected|changes_requested)$`). `action` itself must stay
+// as the short internal labels so the button-active/placeholder/label
+// logic elsewhere in this component keeps reading cleanly.
+const DECISION_MAP: Record<'approve' | 'reject' | 'changes', string> = {
+  approve: 'approved',
+  reject: 'rejected',
+  changes: 'changes_requested',
+};
+
 export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ evidenceId, evidenceStatus, onStatusChange }) => {
   const { currentUser } = useUser();
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -228,7 +239,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
                   )}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleReviewDecision(action === 'changes' ? 'changes_requested' : action)}
+                      onClick={() => action && handleReviewDecision(DECISION_MAP[action])}
                       disabled={submitting}
                       className="px-3 py-3.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                     >
