@@ -29,14 +29,20 @@ def _id() -> str: return f"acct-{uuid.uuid4().hex[:12]}"
 async def register_account(db, tenant_id: str, data: dict) -> dict:
     creds_raw = data.get("credentials_ref", "")
     creds_enc = _encrypt(creds_raw) if creds_raw else creds_raw
+    provider = data.get("provider", "")
+    account_id = data.get("account_id", "")
+    key = {"tenantId": tenant_id, "provider": provider, "account_id": account_id}
+    existing = await db._db.cloud_accounts.find_one(key)
     doc = {
-        "id": _id(), "tenantId": tenant_id,
-        "provider": data.get("provider", ""), "account_id": data.get("account_id", ""),
+        "id": existing["id"] if existing else _id(), "tenantId": tenant_id,
+        "provider": provider, "account_id": account_id,
         "account_name": data.get("account_name", ""), "environment": data.get("environment", "dev"),
         "credentials_ref": creds_enc, "region": data.get("region", "us-east-1"),
-        "last_scan": None, "scan_status": "idle", "created_at": _now(),
+        "last_scan": existing.get("last_scan") if existing else None,
+        "scan_status": existing.get("scan_status", "idle") if existing else "idle",
+        "created_at": existing["created_at"] if existing else _now(),
     }
-    await db._db.cloud_accounts.insert_one(doc)
+    await db._db.cloud_accounts.update_one(key, {"$set": doc}, upsert=True)
     return {k: v for k, v in doc.items() if k != "credentials_ref"}
 
 
@@ -94,8 +100,17 @@ async def discover_org_accounts(db, tenant_id: str, credentials: dict) -> dict:
     discovered = []
     for i in range(1, 4):
         aid = f"org-acct-{i}"
-        doc = {"id": _id(), "tenantId": tenant_id, "provider": "aws", "account_id": aid, "account_name": f"Member {i}", "environment": "prod", "credentials_ref": _encrypt(f"assume-role-{aid}"), "region": "us-east-1", "last_scan": None, "scan_status": "idle", "created_at": _now()}
-        await db._db.cloud_accounts.insert_one(doc)
+        key = {"tenantId": tenant_id, "provider": "aws", "account_id": aid}
+        existing = await db._db.cloud_accounts.find_one(key)
+        doc = {
+            "id": existing["id"] if existing else _id(), "tenantId": tenant_id,
+            "provider": "aws", "account_id": aid, "account_name": f"Member {i}", "environment": "prod",
+            "credentials_ref": _encrypt(f"assume-role-{aid}"), "region": "us-east-1",
+            "last_scan": existing.get("last_scan") if existing else None,
+            "scan_status": existing.get("scan_status", "idle") if existing else "idle",
+            "created_at": existing["created_at"] if existing else _now(),
+        }
+        await db._db.cloud_accounts.update_one(key, {"$set": doc}, upsert=True)
         discovered.append(aid)
     return {"discovered": len(discovered), "account_ids": discovered}
 
