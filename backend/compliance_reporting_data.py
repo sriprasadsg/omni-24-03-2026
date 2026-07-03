@@ -4,19 +4,6 @@ Compliance reporting: scoring helpers and shared data-fetching utilities.
 
 from database import get_database
 
-# Status vocabulary legend: maps current internal status values to auditor
-# standard vocabulary (Pass/Fail/Partial/No-Data) for Wave 2 renderers.
-STATUS_LEGEND = {
-    "Compliant":           "Pass",
-    "Implemented":         "Pass",
-    "Non-Compliant":       "Fail",
-    "Not Implemented":     "Fail",
-    "Warning":             "Partial",
-    "Partially Compliant": "Partial",
-    "In Progress":         "Partial",
-    "—":                   "No-Data",
-}
-
 
 _FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
 
