@@ -7,7 +7,19 @@ from cryptography.fernet import Fernet
 logger = logging.getLogger(__name__)
 
 _FERNET_KEY = os.environ.get("CLOUD_CREDENTIALS_KEY", "")
-_FERNET = Fernet(_FERNET_KEY.encode()) if _FERNET_KEY else None
+if not _FERNET_KEY:
+    if os.environ.get("APP_ENV", "development").lower() == "production":
+        raise RuntimeError(
+            "CLOUD_CREDENTIALS_KEY is not set. Refusing to start in production "
+            "without a stable encryption key for cloud account credentials. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+    logger.warning(
+        "CLOUD_CREDENTIALS_KEY not set — using ephemeral key (dev only). "
+        "Cloud account credentials will not survive restart."
+    )
+    _FERNET_KEY = Fernet.generate_key().decode()
+_FERNET = Fernet(_FERNET_KEY.encode())
 
 
 def _now() -> str: return datetime.now(timezone.utc).isoformat()
@@ -16,7 +28,7 @@ def _id() -> str: return f"acct-{uuid.uuid4().hex[:12]}"
 
 async def register_account(db, tenant_id: str, data: dict) -> dict:
     creds_raw = data.get("credentials_ref", "")
-    creds_enc = _encrypt(creds_raw) if _FERNET and creds_raw else creds_raw
+    creds_enc = _encrypt(creds_raw) if creds_raw else creds_raw
     doc = {
         "id": _id(), "tenantId": tenant_id,
         "provider": data.get("provider", ""), "account_id": data.get("account_id", ""),
@@ -74,13 +86,13 @@ async def discover_org_accounts(db, tenant_id: str, credentials: dict) -> dict:
     discovered = []
     for i in range(1, 4):
         aid = f"org-acct-{i}"
-        doc = {"id": _id(), "tenantId": tenant_id, "provider": "aws", "account_id": aid, "account_name": f"Member {i}", "environment": "prod", "credentials_ref": _encrypt(f"assume-role-{aid}") if _FERNET else f"assume-role-{aid}", "region": "us-east-1", "last_scan": None, "scan_status": "idle", "created_at": _now()}
+        doc = {"id": _id(), "tenantId": tenant_id, "provider": "aws", "account_id": aid, "account_name": f"Member {i}", "environment": "prod", "credentials_ref": _encrypt(f"assume-role-{aid}"), "region": "us-east-1", "last_scan": None, "scan_status": "idle", "created_at": _now()}
         await db._db.cloud_accounts.insert_one(doc)
         discovered.append(aid)
     return {"discovered": len(discovered), "account_ids": discovered}
 
 
 def _encrypt(plain: str) -> str:
-    if not _FERNET or not plain:
+    if not plain:
         return plain
     return _FERNET.encrypt(plain.encode()).decode()
