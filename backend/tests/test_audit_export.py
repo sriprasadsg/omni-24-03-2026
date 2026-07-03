@@ -9,6 +9,7 @@ import sys
 import os
 import asyncio
 import inspect
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -120,14 +121,22 @@ def test_legacy_download_allows_owner():
     app.include_router(compliance_reports_endpoints.router)
     app.dependency_overrides[get_current_user] = lambda: caller
 
-    with patch.object(compliance_reports_endpoints, "get_database", return_value=mock_db, create=True), \
-         patch("os.path.exists", return_value=False):
-        client = TestClient(app, raise_server_exceptions=False)
-        response = client.get("/api/compliance/reports/download/compliance_report_x_1.pdf")
+    # Serve a real file from a real reports dir (instead of mocking
+    # os.path.exists=False, which made the route 404 before ever reaching
+    # the tenant-ownership check at line 103 — see IN-02). This exercises
+    # the actual DB ownership lookup and lets the request complete with a
+    # genuine 200.
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        real_file = os.path.join(tmp_dir, "compliance_report_x_1.pdf")
+        with open(real_file, "wb") as f:
+            f.write(b"%PDF-1.4 fake pdf content for test")
 
-    assert response.status_code != 403, (
-        f"Owner should not receive 403, got {response.status_code}"
-    )
+        with patch.object(compliance_reports_endpoints, "get_database", return_value=mock_db, create=True), \
+             patch.object(compliance_reports_endpoints, "_REPORTS_DIR", tmp_dir):
+            client = TestClient(app, raise_server_exceptions=False)
+            response = client.get("/api/compliance/reports/download/compliance_report_x_1.pdf")
+
+    assert response.status_code == 200, f"Owner should receive 200, got {response.status_code}"
 
 
 # ---------------------------------------------------------------------------
