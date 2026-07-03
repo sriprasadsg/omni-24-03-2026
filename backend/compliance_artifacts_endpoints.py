@@ -146,10 +146,14 @@ async def upload_manual_artifact(
         if not _check_magic(file_content, file_ext):
             raise HTTPException(status_code=400, detail="File content does not match extension")
 
-        # Validate asset_id belongs to caller's tenant
+        # Validate asset_id belongs to caller's tenant. Fails closed (CR-04) when a
+        # non-super caller has no tenant_id, instead of skipping the check outright.
         if asset_id:
             _caller_tenant = getattr(current_user, "tenant_id", None)
-            if _caller_tenant:
+            _user_role = getattr(current_user, "role", "")
+            if _user_role not in _SUPER_ROLES:
+                if not _caller_tenant:
+                    raise HTTPException(status_code=403, detail="Tenant context required")
                 _db = get_database()
                 _asset = await _db.assets.find_one({"id": asset_id, "tenantId": _caller_tenant})
                 if not _asset:
