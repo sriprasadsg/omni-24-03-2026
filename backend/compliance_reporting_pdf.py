@@ -2,6 +2,7 @@
 Compliance reporting: PDF generation for a single framework.
 """
 
+import html
 import os
 from datetime import datetime
 
@@ -78,9 +79,9 @@ async def _generate_pdf(framework_id: str, reports_dir: str, tenant_id: str = No
         total_hint = sum(col_w_hints)
         scale = page_w / total_hint if total_hint > page_w else 1.0
         col_ws = [w * scale * inch for w in col_w_hints]
-        hdr_row = [Paragraph(h, hdr_style) for h in headers]
+        hdr_row = [Paragraph(html.escape(str(h), quote=False), hdr_style) for h in headers]
         table_data = [hdr_row] + [
-            [Paragraph(str(v), cell_style) for v in row]
+            [Paragraph(html.escape(str(v), quote=False), cell_style) for v in row]
             for row in rows_plain
         ]
         style_cmds = [
