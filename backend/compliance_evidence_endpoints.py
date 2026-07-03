@@ -327,7 +327,7 @@ async def upload_control_direct_evidence(
     file: UploadFile = File(...),
     description: str = Form("", max_length=1000),
     department: str = Form("", max_length=100),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance_evidence")),
 ):
     """Upload evidence directly to a compliance control (no asset required).
     Used for organisational controls owned by HR, Finance, Legal, Management, etc.
