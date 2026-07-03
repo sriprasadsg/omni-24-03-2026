@@ -20,8 +20,10 @@ const _REVIEWER_ROLES = ['admin', 'super_admin', 'compliance_reviewer'];
  * renderer that renders `{message}` as a JSX child crashes React entirely
  * ("Objects are not valid as a React child") instead of showing any message
  * (WR-03). */
-const _errorDetail = (d: any, fallback: string): string =>
-  typeof d?.detail === 'string' ? d.detail : fallback;
+const _errorDetail = (d: unknown, fallback: string): string => {
+  const detail = (d as { detail?: unknown } | null | undefined)?.detail;
+  return typeof detail === 'string' ? detail : fallback;
+};
 
 interface Review {
   id: string;
@@ -92,8 +94,8 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
       if (!res.ok) { const d = await res.json().catch(() => ({})); setError(_errorDetail(d, 'Failed to load reviews')); return; }
       const data = await res.json();
       setReviews(data.reviews || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load reviews');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load reviews');
     } finally {
       setLoading(false);
       setHasFetchedOnce(true);
@@ -109,8 +111,8 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
       if (!res.ok) { const d = await res.json().catch(() => ({})); showToast(_errorDetail(d, 'Submit failed'), 'error'); return; }
       showToast('Evidence submitted for review', 'success');
       if (onStatusChange) onStatusChange();
-    } catch (err: any) {
-      showToast(err.message || 'Submit failed', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Submit failed', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -146,8 +148,8 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
       setAction('');
       fetchReviews();
       if (onStatusChange) onStatusChange();
-    } catch (err: any) {
-      showToast(err.message || 'Decision failed', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Decision failed', 'error');
     } finally {
       setSubmitting(false);
     }
