@@ -464,7 +464,7 @@ export interface AssetCompliance {
   id: string;
   assetId: string;
   controlId: string;
-  status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence';
+  status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence' | 'Pending_Review';
   evidence: AssetComplianceEvidence[];
   lastUpdated: string;
   reason?: string;
