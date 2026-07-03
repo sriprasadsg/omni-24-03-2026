@@ -14,10 +14,12 @@ export const CloudAccountsDashboard: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ar, sr] = await Promise.all([
-        (await authFetch('/api/cloud-accounts')).json(),
-        (await authFetch('/api/cloud-accounts/summary')).json(),
+      const [aRes, sRes] = await Promise.all([
+        authFetch('/api/cloud-accounts'),
+        authFetch('/api/cloud-accounts/summary'),
       ]);
+      if (!aRes.ok || !sRes.ok) throw new Error('Failed to load');
+      const [ar, sr] = await Promise.all([aRes.json(), sRes.json()]);
       setAccounts(ar.items || []);
       setSummary(sr);
     } catch { showToast('Failed to load', 'error'); }
@@ -28,7 +30,8 @@ export const CloudAccountsDashboard: React.FC = () => {
 
   const register = async () => {
     try {
-      await (await authFetch('/api/cloud-accounts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) })).json();
+      const res = await authFetch('/api/cloud-accounts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Register failed'); }
       showToast('Account registered', 'success'); setShowForm(false); setForm({}); fetchData();
     } catch { showToast('Failed', 'error'); }
   };
@@ -36,7 +39,9 @@ export const CloudAccountsDashboard: React.FC = () => {
   const scan = async (id: string) => {
     setScanning(s => ({...s, [id]: true}));
     try {
-      const r = await (await authFetch(`/api/cloud-accounts/${id}/scan`, { method: 'POST' })).json();
+      const res = await authFetch(`/api/cloud-accounts/${id}/scan`, { method: 'POST' });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Scan failed'); }
+      const r = await res.json();
       showToast(`Scan complete: ${r.ran || 0} checks`, 'success');
       fetchData();
     } catch { showToast('Scan failed', 'error'); }
@@ -45,7 +50,12 @@ export const CloudAccountsDashboard: React.FC = () => {
 
   const loadResults = async (id: string) => {
     if (results[id]) return;
-    try { const r = await (await authFetch(`/api/cloud-accounts/${id}/results`)).json(); setResults(s => ({...s, [id]: r.items || []})); }
+    try {
+      const res = await authFetch(`/api/cloud-accounts/${id}/results`);
+      if (!res.ok) throw new Error('Failed to load results');
+      const r = await res.json();
+      setResults(s => ({...s, [id]: r.items || []}));
+    }
     catch { showToast('Failed to load results', 'error'); }
   };
 
