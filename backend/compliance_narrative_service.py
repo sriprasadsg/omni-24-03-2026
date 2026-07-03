@@ -3,6 +3,7 @@ Phase 13 — AI Compliance Narrative Service.
 Generates LLM-backed executive summaries and per-framework narratives for scheduled PDF reports.
 """
 import re
+import html as _html
 import logging
 from pydantic import BaseModel, field_validator, ValidationError
 
@@ -219,11 +220,11 @@ def _render_narratives(story: list, report_data: dict, styles, section: str = "a
         ai_summary = report_data.get("ai_executive_summary", "")
         if ai_summary:
             story.append(Paragraph("Executive Summary", styles["Heading2"]))
-            story.append(Paragraph(ai_summary, styles["Normal"]))
+            story.append(Paragraph(_html.escape(ai_summary, quote=False), styles["Normal"]))
             story.append(Spacer(1, 12))
     if section in ("frameworks", "all"):
         for fw_name, narrative in report_data.get("ai_framework_narratives", {}).items():
             if narrative:
                 story.append(Spacer(1, 8))
-                story.append(Paragraph(f"{fw_name} — Findings", styles["Heading2"]))
-                story.append(Paragraph(narrative, styles["Normal"]))
+                story.append(Paragraph(f"{_html.escape(fw_name, quote=False)} — Findings", styles["Heading2"]))
+                story.append(Paragraph(_html.escape(narrative, quote=False), styles["Normal"]))

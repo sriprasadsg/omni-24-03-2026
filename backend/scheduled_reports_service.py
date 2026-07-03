@@ -332,12 +332,16 @@ def _build_pdf(report_data: Dict[str, Any]) -> Optional[bytes]:
         styles = getSampleStyleSheet()
         story = []
 
-        title = report_data.get("report_name", "Security Report")
+        title = _html.escape(report_data.get("report_name", "Security Report"), quote=False)
         story.append(Paragraph(title, styles["Title"]))
         story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Generated: {report_data.get('generated_at', '')}", styles["Normal"]))
         story.append(Paragraph(
-            f"Period: {report_data.get('period_start', '')} — {report_data.get('period_end', '')}",
+            f"Generated: {_html.escape(str(report_data.get('generated_at', '')), quote=False)}",
+            styles["Normal"],
+        ))
+        story.append(Paragraph(
+            f"Period: {_html.escape(str(report_data.get('period_start', '')), quote=False)} — "
+            f"{_html.escape(str(report_data.get('period_end', '')), quote=False)}",
             styles["Normal"],
         ))
         story.append(Spacer(1, 24))
@@ -425,9 +429,12 @@ async def _deliver_report(schedule: Dict[str, Any], report_data: Dict[str, Any],
             else:
                 pdf_bytes = _build_pdf(report_data)
                 attach_name = f"{schedule.get('name', 'report')}.pdf"
-            if pdf_bytes:
-                attachments = [{"filename": attach_name, "data": pdf_bytes}]
-                delivered_filename = attach_name
+            if not pdf_bytes:
+                raise RuntimeError(
+                    f"PDF generation failed for schedule '{schedule.get('name', schedule.get('id'))}'"
+                )
+            attachments = [{"filename": attach_name, "data": pdf_bytes}]
+            delivered_filename = attach_name
         elif fmt == "html":
             html_bytes = _build_html(report_data).encode("utf-8")
             attach_name = f"{schedule.get('name', 'report')}.html"
