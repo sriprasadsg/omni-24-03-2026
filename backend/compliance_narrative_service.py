@@ -143,17 +143,26 @@ async def generate_framework_narrative(
 
 
 async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
+    # Per-framework failing-controls lists, keyed by framework name (the only
+    # identifier shared between this all-frameworks lookup and the tenant-scoped
+    # `data["frameworks"]` entries built in `_generate_report`, which carry only
+    # "name"/"score"). Kept as a local — not stored on `data` — so it doesn't leak
+    # into the generic metrics table / HTML / JSON report exports.
+    failing_by_framework: dict = {}
     try:
         frameworks = await db._db.compliance_frameworks.find({}).to_list(length=50)
         control_id_to_name: dict = {}
         control_id_to_severity: dict = {}
+        control_id_to_framework: dict = {}
         for fw in frameworks:
+            fw_key = fw.get("name") or str(fw.get("id") or fw.get("_id") or "")
             for ctrl in fw.get("controls", []):
                 cid = str(ctrl.get("id") or ctrl.get("_id") or "")
                 if cid:
                     control_id_to_name[cid] = ctrl.get("name", cid)
                     category = ctrl.get("category", "")
                     control_id_to_severity[cid] = _CATEGORY_SEVERITY.get(category, "Low")
+                    control_id_to_framework[cid] = fw_key
         if not control_id_to_name:
             logger.warning(
                 "[NarrativeService] No controls found in compliance_frameworks"
@@ -168,18 +177,31 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
         ).to_list(length=50)
         seen: set = set()
         sorted_controls: list = []
+        seen_by_fw: dict = {}
+        raw_by_fw: dict = {}
         for doc in failing_docs:
             cid = str(doc.get("controlId", ""))
             name = control_id_to_name.get(cid, cid)
             sev = control_id_to_severity.get(cid, "Low")
+            fw_key = control_id_to_framework.get(cid)
             if name and name not in seen:
                 seen.add(name)
                 sorted_controls.append((_SEVERITY_ORDER.get(sev, 3), name))
+            if name and fw_key is not None:
+                fw_seen = seen_by_fw.setdefault(fw_key, set())
+                if name not in fw_seen:
+                    fw_seen.add(name)
+                    raw_by_fw.setdefault(fw_key, []).append((_SEVERITY_ORDER.get(sev, 3), name))
         sorted_controls.sort(key=lambda x: x[0])
         data["top_failing_controls"] = [n for _, n in sorted_controls[:7]]
+        failing_by_framework = {
+            fw_key: [n for _, n in sorted(lst, key=lambda x: x[0])[:7]]
+            for fw_key, lst in raw_by_fw.items()
+        }
     except Exception as exc:
         logger.warning("[NarrativeService] Failed to fetch failing controls: %s", exc)
         data["top_failing_controls"] = []
+        failing_by_framework = {}
 
     try:
         fw_list = data.get("frameworks", [])
@@ -205,7 +227,7 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
             narratives[fw_name] = await generate_framework_narrative(
                 framework_name=fw_name,
                 score=float(fw.get("score", 0.0)),
-                failing_controls=data.get("top_failing_controls", []),
+                failing_controls=failing_by_framework.get(fw_name, []),
                 remediation_summary=None,
             )
         data["ai_framework_narratives"] = narratives
