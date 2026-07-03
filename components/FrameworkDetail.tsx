@@ -354,17 +354,19 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                               .reduce((sum, ac) => sum + (ac.evidence?.length || 0), 0)
                           })
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEvidenceUploadControlId(control.id);
-                          }}
-                          className="flex items-center text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded px-2 py-0.5 transition-colors"
-                          title="Upload policy document, audit report, or other evidence for this control"
-                        >
-                          <UploadIcon size={11} className="mr-1" />
-                          Upload
-                        </button>
+                        {canManageEvidence && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEvidenceUploadControlId(control.id);
+                            }}
+                            className="flex items-center text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded px-2 py-0.5 transition-colors"
+                            title="Upload policy document, audit report, or other evidence for this control"
+                          >
+                            <UploadIcon size={11} className="mr-1" />
+                            Upload
+                          </button>
+                        )}
                       </div>
                     </div>
                   </td>
