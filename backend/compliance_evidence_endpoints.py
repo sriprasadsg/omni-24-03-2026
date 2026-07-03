@@ -465,32 +465,39 @@ async def delete_control_direct_evidence(
     current_user=Depends(get_current_user),
 ):
     """Delete a manually uploaded control-level evidence record."""
-    db = get_database()
-    user_role = getattr(current_user, "role", "")
-    is_super = user_role in _SUPER_ROLES
-    caller_tenant = getattr(current_user, "tenant_id", None)
-    caller_username = getattr(current_user, "username", "")
+    try:
+        db = get_database()
+        user_role = getattr(current_user, "role", "")
+        is_super = user_role in _SUPER_ROLES
+        caller_tenant = getattr(current_user, "tenant_id", None)
+        caller_username = getattr(current_user, "username", "")
 
-    record = await db.control_evidence.find_one({"id": evidence_id, "controlId": control_id})
-    if not record:
-        raise HTTPException(status_code=404, detail="Evidence not found")
-    if not is_super:
-        if record.get("tenantId") != caller_tenant:
-            raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
-        if record.get("uploaded_by") != caller_username:
-            raise HTTPException(status_code=403, detail="You can only delete your own evidence")
+        record = await db.control_evidence.find_one({"id": evidence_id, "controlId": control_id})
+        if not record:
+            raise HTTPException(status_code=404, detail="Evidence not found")
+        if not is_super:
+            if record.get("tenantId") != caller_tenant:
+                raise HTTPException(status_code=403, detail="Evidence not found in your tenant")
+            if record.get("uploaded_by") != caller_username:
+                raise HTTPException(status_code=403, detail="You can only delete your own evidence")
 
-    await db.control_evidence.delete_one({"id": evidence_id})
-    await _append_coc_entry(
-        db=db, evidence_id=evidence_id,
-        tenant_id=record.get("tenantId", ""), actor=caller_username,
-        action_type="delete", snapshot_before=record, snapshot_after=None,
-    )
-    fname = Path(record.get("url", "")).name
-    if fname and not fname.startswith("."):
-        _safe_dir = Path(UPLOAD_DIR).resolve()
-        resolved = (_safe_dir / fname).resolve()
-        if str(resolved).startswith(str(_safe_dir) + os.sep) or resolved == _safe_dir:
-            resolved.unlink(missing_ok=True)
+        await db.control_evidence.delete_one({"id": evidence_id})
+        await _append_coc_entry(
+            db=db, evidence_id=evidence_id,
+            tenant_id=record.get("tenantId", ""), actor=caller_username,
+            action_type="delete", snapshot_before=record, snapshot_after=None,
+        )
+        fname = Path(record.get("url", "")).name
+        if fname and not fname.startswith("."):
+            _safe_dir = Path(UPLOAD_DIR).resolve()
+            resolved = (_safe_dir / fname).resolve()
+            if str(resolved).startswith(str(_safe_dir) + os.sep) or resolved == _safe_dir:
+                resolved.unlink(missing_ok=True)
 
-    return {"success": True}
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Delete control evidence error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
