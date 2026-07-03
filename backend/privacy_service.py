@@ -283,6 +283,7 @@ async def create_tia(db, tenant_id: str, data: dict) -> dict:
     if doc.get("risk_level") not in ("low", "medium", "high"):
         raise ValueError("risk_level must be low/medium/high")
     await db._db.privacy_tia.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
@@ -296,6 +297,7 @@ async def list_tia(db, tenant_id: str) -> list:
 async def create_lia(db, tenant_id: str, data: dict) -> dict:
     doc = {"id": _gen_id("lia"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
     await db._db.privacy_lia.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
@@ -317,6 +319,7 @@ async def create_notice(db, tenant_id: str, data: dict) -> dict:
         "created_at": _now_iso(), "updated_at": _now_iso(),
     }
     await db._db.privacy_notices.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
@@ -341,6 +344,7 @@ async def create_contract(db, tenant_id: str, data: dict) -> dict:
         raise ValueError(f"status must be one of {valid_statuses}")
     doc = {"id": _gen_id("contract"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
     await db._db.privacy_contracts.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
