@@ -4,7 +4,7 @@ import { showToast } from '../utils/toast';
 
 type Tab = 'tia' | 'lia' | 'notices' | 'contracts';
 
-interface TIARecord { id?: string; transfer_name: string; data_categories: string[]; source_country: string; destination_country: string; legal_basis: string; risk_level: string; status?: string; }
+interface TIARecord { id?: string; transfer_name: string; data_categories: string[]; safeguards?: string; source_country: string; destination_country: string; legal_basis: string; risk_level: string; status?: string; }
 interface LIARecord { id?: string; purpose: string; necessity_test: string; balancing_test: string; outcome: string; data_subjects: string; }
 interface NoticeRecord { id?: string; title: string; content_html: string; effective_date: string; applies_to: string; current_version?: number; }
 interface ContractRecord { id?: string; vendor_name: string; type: string; status: string; expiry_date: string; parties: string[]; }
@@ -91,6 +91,8 @@ export const PrivacyLegalDashboard: React.FC = () => {
               <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, risk_level: e.target.value})}>
                 <option value="">Risk level</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
               </select>
+              <input placeholder="Data categories (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, data_categories: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
+              <input placeholder="Safeguards" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, safeguards: e.target.value})} />
               <button onClick={submitTia} className="px-2 py-1 bg-blue-600 text-white rounded">Create</button>
             </div>
           )}
@@ -177,6 +179,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
                 <option value="">Status</option><option value="draft">Draft</option><option value="review">Review</option><option value="signed">Signed</option><option value="expired">Expired</option>
               </select>
               <input placeholder="Expiry date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, expiry_date: e.target.value})} />
+              <input placeholder="Parties (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setContractForm({...contractForm, parties: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
               <button onClick={submitContract} className="px-2 py-1 bg-blue-600 text-white rounded">Create</button>
             </div>
           )}
