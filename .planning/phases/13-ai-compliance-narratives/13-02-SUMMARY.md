@@ -124,3 +124,12 @@ None - no external service configuration required.
 ---
 *Phase: 13-ai-compliance-narratives*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+- FOUND: backend/tests/test_compliance_narrative_service.py
+- FOUND: backend/scheduled_reports_service.py
+- FOUND: .planning/phases/13-ai-compliance-narratives/13-02-SUMMARY.md
+- FOUND commit ad79138 (test: replace asyncio.get_event_loop with asyncio.run)
+- FOUND commit 33b8df3 (refactor: extract _process_due_schedule)
+- FOUND commit 6f00426 (docs: add SUMMARY)
