@@ -127,9 +127,11 @@ async def upload_manual_artifact(
         original_name = os.path.basename(file.filename or "artifact")
         file_ext = os.path.splitext(original_name)[1].lower()
 
-        # Whitelist extension and MIME type — reject executables and scripts
-        if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
-            raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
+        # Whitelist extension and MIME type — reject executables and scripts.
+        # Fails closed on an empty/omitted extension (CR-01), matching the sibling
+        # pattern in compliance_evidence_endpoints.py's upload handlers.
+        if not file_ext or file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"File type '{file_ext or '(none)'}' is not allowed.")
         content_type = (file.content_type or "").split(";")[0].strip()
         if not content_type or not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
             raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
