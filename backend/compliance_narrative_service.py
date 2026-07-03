@@ -8,6 +8,7 @@ import logging
 from pydantic import BaseModel, field_validator, model_validator, ValidationError
 
 from ai_service import ai_service
+from tenant_context import set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,11 @@ async def generate_framework_narrative(
 
 
 async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
+    # The tenant-scoped `db.asset_compliance.find(...)` below relies on ambient
+    # context set by `tenant_context`. Set it explicitly here (rather than relying
+    # on the one current caller to have done so already) so this function is
+    # correct in isolation and fails closed if a future caller forgets.
+    set_tenant_id(tenant_id)
     # Per-framework failing-controls lists, keyed by framework name (the only
     # identifier shared between this all-frameworks lookup and the tenant-scoped
     # `data["frameworks"]` entries built in `_generate_report`, which carry only
