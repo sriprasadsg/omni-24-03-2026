@@ -418,16 +418,19 @@ async def get_control_evidence(
     is_super = user_role in _SUPER_ROLES
 
     manual_query: dict = {"controlId": control_id}
-    if not is_super and tenant_id:
+    asset_query: dict = {"controlId": control_id}
+    # CR-03: fail closed like every sibling endpoint in this module — a missing
+    # tenant_id for a non-super caller must not silently drop the tenant filter
+    # and leak cross-tenant evidence.
+    if not is_super:
+        if not tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant context required")
         manual_query["tenantId"] = tenant_id
+        asset_query["tenantId"] = tenant_id
 
     manual_docs = await db.control_evidence.find(manual_query, {"_id": 0}).to_list(length=500)
 
     # Also pull system-generated evidence from asset_compliance
-    asset_query: dict = {"controlId": control_id}
-    if not is_super and tenant_id:
-        asset_query["tenantId"] = tenant_id
-
     pipeline = [
         {"$match": asset_query},
         {"$unwind": "$evidence"},
