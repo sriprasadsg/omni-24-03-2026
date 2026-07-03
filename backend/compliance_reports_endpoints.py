@@ -143,7 +143,7 @@ async def list_compliance_reports(current_user=Depends(get_current_user)):
     reports = []
     for doc in docs:
         filename = doc.get("filename", "")
-        created = doc.get("created") or doc.get("generatedAt") or ""
+        created = doc.get("createdAt") or doc.get("created") or doc.get("generatedAt") or ""
         if not created:
             file_path = os.path.join(_REPORTS_DIR, filename)
             if os.path.exists(file_path):
