@@ -1,6 +1,6 @@
 ---
 phase: 15-evidence-review-workflow
-fixed_at: 2026-07-03T08:22:33Z
+fixed_at: 2026-07-03T09:15:00Z
 review_path: .planning/phases/15-evidence-review-workflow/15-REVIEW.md
 iteration: 1
 findings_in_scope: 7
@@ -11,65 +11,65 @@ status: all_fixed
 
 # Phase 15: Code Review Fix Report
 
-**Fixed at:** 2026-07-03T08:22:33Z
+**Fixed at:** 2026-07-03T09:15:00Z
 **Source review:** .planning/phases/15-evidence-review-workflow/15-REVIEW.md
 **Iteration:** 1
 
 **Summary:**
-- Findings in scope: 7
+- Findings in scope: 7 (1 Critical + 4 Warning + 2 Info; `fix_scope: all`)
 - Fixed: 7
 - Skipped: 0
 
 ## Fixed Issues
 
-### CR-01: Approve/Reject buttons send an invalid `decision` value — every decision except "Request Changes" fails with 422
+### CR-01: `evidence_reviews` collection bypasses the tenant-isolation wrapper used everywhere else in this file
+
+**Files modified:** `backend/evidence_review_service.py`, `backend/tests/test_evidence_review.py`
+**Commit:** `0e25a5e`
+**Applied fix:** Changed all three raw `db._db[_EVIDENCE_REVIEWS_COL]` accesses (in `create_review`, `update_review_decision`, `get_reviews`) to the wrapped subscript accessor `db[_EVIDENCE_REVIEWS_COL]`, exactly as the review suggested — `TenantIsolatedDatabase.__getitem__` already wraps non-exempt collection names in `TenantIsolatedCollection`, so `evidence_reviews` now gets the same automatic `tenantId`-overwrite / fail-closed protection as `asset_compliance` and `audit_logs` in this file. Updated `_make_mock_db()` in the test file to wire `db.__getitem__` (the outer mock standing in for `TenantIsolatedDatabase`) to the same `evidence_reviews` mock object the assertions reference, and added `__getitem__` to the live-Mongo regression test's `_RealDbWrapper` shim (it previously only exposed `._db`, which would have broken under the new access pattern). Full suite (19 tests, including the new WR-01/WR-02/WR-03 tests added below) passes.
+
+### WR-01: `create_review` silently discards a concurrent reviewer's comment, not just a retried request's
+
+**Files modified:** `backend/evidence_review_service.py`, `backend/tests/test_evidence_review.py`
+**Commit:** `ce505ca`
+**Applied fix:** After the atomic `find_one_and_update` upsert, `create_review` now compares the returned record's `reviewer` field against the calling `reviewer`. When they differ (a different reviewer already has a pending review open on the same evidence item), the returned dict gets an additional `already_open_by: <reviewer>` key — computed only in the response, never persisted — so the endpoint/frontend can distinguish "created/reused-by-you" from "reused-from-a-different-reviewer" instead of identical 200 success semantics. Added `test_create_review_flags_already_open_by_different_reviewer` (asserts the flag appears with the correct value and that the new caller's comment was never persisted) and extended the existing same-caller-retry test to assert the flag is absent in that case.
+
+### WR-02: comment-required rule for `rejected`/`changes_requested` is enforced only at the API boundary, not inside the service function
+
+**Files modified:** `backend/evidence_review_service.py`, `backend/tests/test_evidence_review.py`
+**Commit:** `9fe3b57`
+**Applied fix:** Added `if requires_comment(decision) and not (comment or "").strip(): raise ValueError(...)` inside `update_review_decision` itself, right after decision validation — the endpoint's existing `except ValueError` handler already maps this to 422, so no endpoint change was needed. The invariant now holds regardless of caller (script, future endpoint, reordered check), matching what the function's docstring already claimed. Added `test_update_review_decision_rejects_empty_comment_at_service_layer`, which calls the service function directly (bypassing the endpoint) for both `rejected` and `changes_requested` with a whitespace-only comment and asserts `ValueError` is raised with zero mutation.
+
+### WR-03: a stale/duplicate review decision returns `200 success` even though the evidence's status was never actually changed
+
+**Files modified:** `backend/evidence_review_service.py`, `backend/tests/test_evidence_review.py`
+**Commit:** `a974488`
+**Applied fix:** `update_review_decision` now returns `{**review, "evidence_updated": result.modified_count > 0}` instead of the bare review dict, so the caller (and eventually the UI) can distinguish "decision fully applied" from "decision recorded on an orphaned review, evidence status unchanged" — matching the review's suggested fix exactly. Added `test_update_review_decision_flags_evidence_updated_false_on_stale_review` (mocks `asset_compliance.update_one` to return `modified_count=0` and asserts the response's `review.evidence_updated` is `False`) and a happy-path companion asserting `True` on normal success.
+
+### WR-04: `evidence_review_endpoints` is excluded from `_REQUIRED_ROUTERS` despite belonging to the same evidence-lifecycle feature set as routers that are required
+
+**Files modified:** `backend/router_registry.py`
+**Commit:** `1f600cc`
+**Applied fix:** Added `"evidence_review_endpoints"` to `_REQUIRED_ROUTERS`, consistent with its sibling evidence routers (`compliance_evidence_lifecycle_endpoints`, `compliance_bulk_evidence_endpoints`, `compliance_score_endpoints`) — a broken import for this router now aborts startup instead of silently starting the app with the entire review/approve/reject workflow absent. Verified by importing `router_registry` directly and confirming `evidence_review_endpoints` is present in the resulting `_REQUIRED_ROUTERS` frozenset.
+
+### IN-01: reviewer role list duplicated between backend and frontend with no shared source of truth
+
+**Files modified:** `backend/evidence_review_endpoints.py`, `components/EvidenceReviewPanel.tsx`
+**Commit:** `9e12f8c`
+**Applied fix:** Added explicit cross-referencing comments above each `_REVIEWER_ROLES` literal, pointing at the other file/line and stating that any change to one must be mirrored in the other. Scoping note: the review's primary suggestion (a shared constants module or an `/api/config`-style endpoint returning the role list) would require introducing a new cross-language shared source — no such module or endpoint already exists in this codebase, and creating one is a larger architectural change than is appropriate for an Info-severity finding in a review-fix pass (per this project's CLAUDE.md constraint against creating new files/endpoints unless necessary). The documented-sync comments are a proportionate mitigation: they don't eliminate the drift risk, but make it discoverable to any future editor of either file. This is a partial fix relative to the review's stated ideal; the shared-source approach remains available as a follow-up if this drift risk needs to be closed more fully.
+
+### IN-02: `any`-typed error handling in `EvidenceReviewPanel.tsx`
 
 **Files modified:** `components/EvidenceReviewPanel.tsx`
-**Commit:** e47e63d
-**Applied fix:** Added a `DECISION_MAP` constant mapping the internal button-click state (`'approve' | 'reject' | 'changes'`) to the exact strings the backend's `UpdateDecisionRequest` pattern validates (`approved`, `rejected`, `changes_requested`), and changed the Confirm button's `onClick` to call `handleReviewDecision(DECISION_MAP[action])` instead of passing the unconverted `action` value through for approve/reject. This also fixes the downstream comment-required guard (`decision === 'rejected' || decision === 'changes_requested'`), which now receives the correctly mapped value and fires as intended.
-
-### WR-01: File-picker `accept` attribute silently defeats the text-evidence ingestion gate added in the same change set
-
-**Files modified:** `components/AssetComplianceList.tsx`
-**Commit:** 05d48da
-**Applied fix:** Extended the `<input type="file">` `accept` attribute from `.pdf,.png,.jpg,.jpeg,.docx,.xlsx` to also include `.txt,.md,.json,.csv`, so the file picker's default filter now agrees with `INGESTIBLE_TEXT_TYPES` (`text/plain`, `text/markdown`, `application/json`, `text/csv`) that `isIngestibleText` checks against.
-
-### WR-02: Reviews-thread toggle shows a misleading "(0)" count before the panel is first opened
-
-**Files modified:** `components/EvidenceReviewPanel.tsx`
-**Commit:** ebfac27
-**Applied fix:** Added a `hasFetchedOnce` state flag, set `true` in `fetchReviews()`'s `finally` block (covering both success and error paths), and changed the toggle label to render `'Show reviews'` instead of `Reviews (0)` until the first fetch has actually completed.
-
-### WR-03: GET review endpoints are unprotected by rate limiting while every mutating endpoint in the same router is capped
-
-**Files modified:** `backend/evidence_review_endpoints.py`
-**Commit:** 6c972b0
-**Applied fix:** Added `@limiter.limit("60/minute")` plus the required `request: Request, response: Response` parameters to `list_evidence_reviews` and `list_pending_review_evidence`, matching the `request: Request, response: Response` signature convention already used by every other rate-limited endpoint in this codebase (e.g. `bundle_endpoints.py`), rather than only `request: Request` as shown in the review's illustrative snippet.
-
-### WR-04: The one regression test for the CR-01 `$elemMatch` propagation fix silently skips when no MongoDB is reachable
-
-**Files modified:** `backend/tests/test_evidence_review.py`
-**Commit:** fb2e027
-**Applied fix:** Implemented both remediation options from the review: (1) gated the live-Mongo test's skip behind a `CI` env var check — in CI, an unreachable MongoDB now fails the test suite loudly via `pytest.fail(...)` instead of silently reporting "skipped"; locally, the skip is preserved for developer convenience. (2) Added a new always-running, mock-based companion test (`test_update_review_decision_propagation_filter_uses_elem_match`) that inspects the actual filter dict passed to `db.asset_compliance.update_one` via a `MagicMock`'s `await_args`, asserting it contains `evidence.$elemMatch` with both `id` and `status` tied together — giving first-class, non-optional coverage of the same invariant with no live-database dependency. Verified: full suite (15 tests) passes with 0 skips in this environment.
-
-### IN-01: `ev: any` loosens type safety for the evidence array passed into `EvidenceReviewPanel`
-
-**Files modified:** `components/AssetComplianceList.tsx`
-**Commit:** 9573820
-**Applied fix:** Added a local `RenderedEvidence` interface extending the canonical `AssetComplianceEvidence` (imported from `../types`) with the ad-hoc, automated/AI-auditor-only fields the rendering path reads (`systemGenerated`, `source`, `evidence_id`, `evidence_content`, `content`, `details`, `check_name`, `stale`, `stale_days`, `agent_type`), and typed the `.map()` callback parameter as `RenderedEvidence` instead of `any`.
-
-### IN-02: `create_review`'s two distinct failure modes are both mapped to HTTP 404
-
-**Files modified:** `backend/evidence_review_service.py`, `backend/evidence_review_endpoints.py`
-**Commit:** ad5d4fa
-**Applied fix:** Added a new `EvidenceNotFoundError(ValueError)` subclass in `evidence_review_service.py`, raised specifically when the evidence item doesn't exist for the tenant at all (the "wrong status" case still raises a plain `ValueError`). Updated the `create_evidence_review` endpoint to catch `EvidenceNotFoundError` first (→ 404) and the remaining `ValueError` case second (→ 409 Conflict, consistent with how `update_review_decision`'s equivalent failure already maps to 422). Verified no existing test asserted 404 for the "wrong status" create-review path; full suite (15 tests) still passes.
+**Commit:** `6c6130c`
+**Applied fix:** Changed `_errorDetail`'s parameter from `d: any` to `d: unknown`, narrowing via a cast-then-optional-chain (`(d as { detail?: unknown } | null | undefined)?.detail`) before the existing `typeof detail === 'string'` check, rather than accessing a property directly on `unknown` (which TypeScript disallows). Changed all three `catch (err: any)` blocks (in `fetchReviews`, `handleSubmitForReview`, `handleReviewDecision`) to `catch (err: unknown)` paired with `err instanceof Error ? err.message : '<fallback>'`, matching the review's suggested pattern exactly. Verified no `any` remains in the file (`grep -n ": any\|<any>\|as any"` returns no matches). No local TypeScript compiler was available in this environment (no `node_modules`/`tsc`), so verification fell back to Tier 1 (re-read of all four modified sites, confirming correct syntax and intact surrounding code) per the verification strategy's Tier 3 fallback.
 
 ## Skipped Issues
 
-None — all findings were fixed.
+None — all 7 in-scope findings were fixed.
 
 ---
 
-_Fixed: 2026-07-03T08:22:33Z_
+_Fixed: 2026-07-03T09:15:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
