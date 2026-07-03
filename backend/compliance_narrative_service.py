@@ -12,6 +12,7 @@ from ai_service import ai_service
 logger = logging.getLogger(__name__)
 
 _UNSAFE = re.compile(r"[<>{}\[\]\\]")
+_NEWLINES = re.compile(r"[\r\n]+")
 
 _CATEGORY_SEVERITY = {
     "Access Control": "Critical", "Cryptography": "Critical", "Incident Response": "Critical",
@@ -22,7 +23,10 @@ _SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
 
 
 def _sanitise(value: str, max_len: int = 200) -> str:
-    return _UNSAFE.sub("", str(value)).strip()[:max_len]
+    # Collapse embedded newlines first so a crafted control/framework name can't
+    # inject new "instruction" lines inside the <compliance_data> block.
+    value = _NEWLINES.sub(" ", str(value))
+    return _UNSAFE.sub("", value).strip()[:max_len]
 
 
 def _trim_to_words(text: str, limit: int) -> str:
