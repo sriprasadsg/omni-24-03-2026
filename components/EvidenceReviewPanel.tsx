@@ -65,6 +65,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -89,6 +90,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
       setError(err.message || 'Failed to load reviews');
     } finally {
       setLoading(false);
+      setHasFetchedOnce(true);
     }
   }, [evidenceId]);
 
@@ -163,7 +165,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
           aria-expanded={open}
           className="text-xs text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
         >
-          {open ? 'Hide reviews' : `Reviews (${reviews.length})`}
+          {open ? 'Hide reviews' : (hasFetchedOnce ? `Reviews (${reviews.length})` : 'Show reviews')}
         </button>
         {canSubmitForReview && (
           <button
