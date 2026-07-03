@@ -313,7 +313,12 @@ async def update_review_decision(
             review_id, decision, evidence_id, tenant_id,
         )
 
-    return review
+    # WR-03: surface whether the evidence-status propagation actually
+    # matched anything, so the caller/UI can distinguish "decision fully
+    # applied" from "decision recorded on an orphaned review, evidence
+    # status unchanged" instead of getting identical 200 success semantics
+    # (and an unconditional audit log entry) for both outcomes.
+    return {**review, "evidence_updated": result.modified_count > 0}
 
 
 async def get_reviews(

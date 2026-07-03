@@ -570,3 +570,44 @@ def test_update_review_decision_rejects_empty_comment_at_service_layer():
         db._db.evidence_reviews.find_one_and_update.assert_not_awaited()
 
     asyncio.run(_run())
+
+
+def test_update_review_decision_flags_evidence_updated_false_on_stale_review():
+    """WR-03: when the evidence-status propagation update_one matches nothing
+    (evidence no longer 'pending_review' at decision time), the returned
+    review dict must report evidence_updated=False so the caller/UI can
+    distinguish "decision fully applied" from "decision recorded on an
+    orphaned review, evidence status unchanged" instead of both cases
+    returning identical success semantics."""
+    db = _make_mock_db()
+    # Simulate the evidence no longer being pending_review at decision time.
+    db.asset_compliance.update_one = AsyncMock(return_value=MagicMock(modified_count=0))
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "approved", "comment": "approving"},
+    )
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["success"] is True
+    assert data["review"]["evidence_updated"] is False, (
+        f"expected evidence_updated=False when propagation matched nothing, got: {data['review']!r}"
+    )
+
+
+def test_update_review_decision_flags_evidence_updated_true_on_success():
+    """Companion happy-path test: when propagation succeeds normally,
+    evidence_updated must be True."""
+    db = _make_mock_db()  # default mock: update_one returns modified_count=1
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "approved", "comment": "approving"},
+    )
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["review"]["evidence_updated"] is True
