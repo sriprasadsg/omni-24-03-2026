@@ -8,6 +8,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic, _SUPER_ROLES
 from evidence_coc import _append_coc_entry
 from evidence_staleness import get_staleness_threshold, compute_stale
@@ -40,7 +41,7 @@ async def upload_compliance_evidence(
     file: UploadFile = File(...),
     control_id: str = Form(...),
     description: str = Form("", max_length=1000),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance_evidence")),
 ):
     try:
         # Derive caller identity from JWT
