@@ -1,9 +1,10 @@
 """
 Unit tests for manual evidence upload gaps — EVID-01, EVID-02, EVID-04, EVID-05.
 
-RED phase: tests are written against the INTENDED post-fix behavior.
-They will FAIL until compliance_evidence_endpoints.py and
-compliance_artifacts_endpoints.py are updated in Tasks 1 and 2.
+Covers the fail-closed extension/tenant checks in both
+compliance_evidence_endpoints.py (upload_compliance_evidence,
+delete_compliance_evidence) and compliance_artifacts_endpoints.py
+(upload_manual_artifact).
 """
 import sys
 import os
@@ -55,9 +56,18 @@ def _make_db(asset_doc=None, aggregate_result=None):
 
 
 def _make_request():
+    """Build request/response mocks realistic enough for slowapi's rate-limit
+    header injection (WR-01 added @limiter.limit to the evidence endpoints).
+    `state` must be a real object (not an auto-attr MagicMock) so slowapi's
+    `getattr(request.state, "_rate_limiting_complete", False)` check actually
+    sees the False default instead of an auto-vivified truthy child mock,
+    and `client` needs a concrete host string for the rate-limit key func."""
     from fastapi import Request, Response
+    from types import SimpleNamespace
     req = MagicMock(spec=Request)
     req.headers = {}
+    req.client = SimpleNamespace(host="127.0.0.1")
+    req.state = SimpleNamespace()
     resp = MagicMock(spec=Response)
     return req, resp
 
@@ -280,6 +290,83 @@ def test_admin_delete_any_evidence():
 
     result = asyncio.run(_run())
     assert result.get("success") is True
+
+
+# ---------------------------------------------------------------------------
+# CR-01 / CR-04 — upload_manual_artifact fail-closed checks
+# ---------------------------------------------------------------------------
+
+def _make_artifact_db():
+    db = MagicMock()
+    assets_col = MagicMock()
+    assets_col.find_one = AsyncMock(return_value={"id": "asset-1", "tenantId": "tenant-a"})
+    db.assets = assets_col
+    db.compliance_artifacts = MagicMock()
+    db.compliance_artifacts.insert_one = AsyncMock(return_value=None)
+    db.asset_compliance = MagicMock()
+    db.asset_compliance.update_one = AsyncMock(return_value=None)
+    db.control_evidence = MagicMock()
+    db.control_evidence.insert_one = AsyncMock(return_value=None)
+    return db
+
+
+def test_manual_artifact_extension_omitted_rejected():
+    """CR-01: A filename with no extension is rejected, not silently allowed through."""
+    from compliance_artifacts_endpoints import upload_manual_artifact
+    from fastapi.exceptions import HTTPException
+
+    user = _make_user(role="Compliance Manager")
+    db = _make_artifact_db()
+    # No dot in the filename -> os.path.splitext yields an empty extension.
+    uf = _make_upload_file("artifact", b"<script>alert(1)</script>", "text/plain")
+    req, resp = _make_request()
+
+    async def _run():
+        with patch("compliance_artifacts_endpoints.get_database", return_value=db), \
+             patch("compliance_artifacts_endpoints.asyncio.to_thread", new=AsyncMock(return_value=None)):
+            return await upload_manual_artifact(
+                request=req,
+                response=resp,
+                file=uf,
+                category="other",
+                control_ids="",
+                description="",
+                asset_id=None,
+                current_user=user,
+            )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(_run())
+    assert exc_info.value.status_code == 400
+
+
+def test_manual_artifact_asset_ownership_requires_tenant():
+    """CR-04: A non-super caller with no tenant_id gets 403, not a skipped check."""
+    from compliance_artifacts_endpoints import upload_manual_artifact
+    from fastapi.exceptions import HTTPException
+
+    user = _make_user(role="Compliance Manager", tenant_id=None)
+    db = _make_artifact_db()
+    uf = _make_upload_file("report.pdf", b"%PDF-1.4 test content", "application/pdf")
+    req, resp = _make_request()
+
+    async def _run():
+        with patch("compliance_artifacts_endpoints.get_database", return_value=db), \
+             patch("compliance_artifacts_endpoints.asyncio.to_thread", new=AsyncMock(return_value=None)):
+            return await upload_manual_artifact(
+                request=req,
+                response=resp,
+                file=uf,
+                category="other",
+                control_ids="",
+                description="",
+                asset_id="asset-1",
+                current_user=user,
+            )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(_run())
+    assert exc_info.value.status_code == 403
 
 
 def test_delete_automated_evidence_blocked():
