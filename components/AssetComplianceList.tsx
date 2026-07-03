@@ -245,7 +245,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                             AI Auditor: {statusRecord.ai_evaluation.verified ? 'SUFFICIENT EVIDENCE' : 'INSUFFICIENT EVIDENCE'}
                                                         </div>
                                                         <div className="opacity-70 text-xs">
-                                                            {statusRecord.ai_evaluation.model_used.split('/').pop()}
+                                                            {(statusRecord.ai_evaluation.model_used || '').split('/').pop() || 'unknown'}
                                                         </div>
                                                     </div>
                                                     <div className="italic break-words">
