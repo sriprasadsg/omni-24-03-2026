@@ -234,6 +234,17 @@ async def update_review_decision(
     if decision not in _valid_decisions():
         raise ValueError(f"Invalid decision '{decision}'. Must be one of {_valid_decisions()}")
 
+    # WR-02: re-check the comment-required invariant here, not just at the
+    # API boundary (evidence_review_endpoints.update_evidence_review). The
+    # docstring above states "rejected / changes_requested require a
+    # non-empty comment" as if it were enforced by this function — without
+    # this check, any other caller of the service layer (a script, another
+    # endpoint, a future refactor that reorders/removes the endpoint-level
+    # check) could silently persist a rejection/changes-requested decision
+    # with no comment.
+    if requires_comment(decision) and not (comment or "").strip():
+        raise ValueError(f"Comment is required for decision '{decision}'")
+
     evidence_status = {
         "approved": "approved",
         "rejected": "rejected",

@@ -542,3 +542,31 @@ def test_update_review_decision_propagation_filter_uses_elem_match():
     assert elem_match.get("status") == "pending_review", (
         f"expected $elemMatch.status == 'pending_review', got: {elem_match!r}"
     )
+
+
+def test_update_review_decision_rejects_empty_comment_at_service_layer():
+    """WR-02: update_review_decision must enforce the comment-required
+    invariant for rejected/changes_requested itself, not rely solely on the
+    endpoint-level check in evidence_review_endpoints.update_evidence_review.
+    Calls the service function directly (bypassing the endpoint) to prove
+    the invariant holds regardless of caller."""
+    import evidence_review_service as svc
+
+    db = _make_mock_db()
+
+    async def _run():
+        for decision in ("rejected", "changes_requested"):
+            with pytest.raises(ValueError, match="Comment is required"):
+                await svc.update_review_decision(
+                    review_id="rev-abc",
+                    evidence_id="ev-1",
+                    decision=decision,
+                    comment="   ",  # whitespace-only, same as empty
+                    db=db,
+                    tenant_id="tenant-a",
+                    decided_by="admin",
+                )
+            # No mutation should have occurred before the raise.
+        db._db.evidence_reviews.find_one_and_update.assert_not_awaited()
+
+    asyncio.run(_run())
