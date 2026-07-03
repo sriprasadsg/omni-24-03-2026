@@ -21,6 +21,13 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     "compliance_evidence_lifecycle_endpoints",
     "compliance_bulk_evidence_endpoints",
     "compliance_score_endpoints",
+    # WR-04 (15-REVIEW.md): evidence_review_endpoints belongs to the same
+    # evidence-lifecycle feature set as its siblings above — without this,
+    # a broken import (e.g. of authentication_service or
+    # evidence_review_service) would silently start the app with the
+    # entire review/approve/reject workflow absent, surfaced only by a
+    # single ERROR-level startup log line.
+    "evidence_review_endpoints",
 })
 
 
