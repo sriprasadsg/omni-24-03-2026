@@ -5,7 +5,7 @@ Generates LLM-backed executive summaries and per-framework narratives for schedu
 import re
 import html as _html
 import logging
-from pydantic import BaseModel, field_validator, ValidationError
+from pydantic import BaseModel, field_validator, model_validator, ValidationError
 
 from ai_service import ai_service
 
@@ -33,6 +33,7 @@ def _trim_to_words(text: str, limit: int) -> str:
 class NarrativeOutput(BaseModel):
     text: str
     word_count: int
+    limit: int = 200
 
     @field_validator("text")
     @classmethod
@@ -44,24 +45,27 @@ class NarrativeOutput(BaseModel):
             raise ValueError(f"LLM returned error string: {v[:80]}")
         return v
 
-    @field_validator("word_count")
-    @classmethod
-    def within_budget(cls, v: int) -> int:
-        # 200 is the max of the two word limits (executive: 150, framework: 200).
-        # _trim_to_words is the primary enforcer; this validator catches any bypass.
-        if v > 200:
-            raise ValueError(f"narrative exceeds word budget: {v} words")
-        return v
+    @model_validator(mode="after")
+    def within_budget(self) -> "NarrativeOutput":
+        # `limit` is the call-site-specific budget (executive: 150 words,
+        # framework: 200 words). _trim_to_words is the primary enforcer;
+        # this validator catches any bypass against the *actual* limit that
+        # applies, rather than a shared hardcoded ceiling.
+        if self.word_count > self.limit:
+            raise ValueError(
+                f"narrative exceeds word budget: {self.word_count} words (limit {self.limit})"
+            )
+        return self
 
     @classmethod
-    def from_raw(cls, raw: str) -> "NarrativeOutput":
+    def from_raw(cls, raw: str, limit: int = 200) -> "NarrativeOutput":
         words = raw.split()
-        return cls(text=raw.strip(), word_count=len(words))
+        return cls(text=raw.strip(), word_count=len(words), limit=limit)
 
 
-def _validated_narrative(raw: str, fallback: str) -> str:
+def _validated_narrative(raw: str, fallback: str, limit: int = 200) -> str:
     try:
-        output = NarrativeOutput.from_raw(raw)
+        output = NarrativeOutput.from_raw(raw, limit=limit)
         return output.text
     except ValidationError as exc:
         logger.warning("[NarrativeService] Pydantic validation failed: %s", exc)
@@ -105,7 +109,7 @@ async def generate_executive_summary(
         logger.warning("[NarrativeService] generate_text failed: %s", result[:80])
         return fallback
     trimmed = _trim_to_words(result.strip(), 150)
-    return _validated_narrative(trimmed, fallback)
+    return _validated_narrative(trimmed, fallback, limit=150)
 
 
 async def generate_framework_narrative(
@@ -139,7 +143,7 @@ async def generate_framework_narrative(
         logger.warning("[NarrativeService] framework generate_text failed: %s", result[:80])
         return fallback
     trimmed = _trim_to_words(result.strip(), 200)
-    return _validated_narrative(trimmed, fallback)
+    return _validated_narrative(trimmed, fallback, limit=200)
 
 
 async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
