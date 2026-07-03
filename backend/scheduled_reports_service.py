@@ -24,7 +24,6 @@ except ImportError:  # pragma: no cover — safety fallback if narrative service
     def _render_narratives(*_a, **_kw): pass  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
-
 REPORT_TYPES = {
     "compliance_summary": {
         "name": "Compliance Summary Report",
@@ -64,18 +63,14 @@ REPORT_TYPES = {
 }
 
 SCHEDULE_FREQUENCIES = ["daily", "weekly", "monthly", "quarterly"]
-
 DELIVERY_CHANNELS = ["email", "webhook", "slack", "teams"]
-
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-
 
 def _validate_recipients(recipients: list) -> None:
     """Raise ValueError if any recipient is not a valid email address."""
     for r in recipients:
         if not isinstance(r, str) or not _EMAIL_RE.match(r):
             raise ValueError(f"Invalid email recipient: {r!r}")
-
 
 async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any]) -> Dict[str, Any]:
     set_tenant_id(tenant_id)
@@ -93,13 +88,10 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
     if delivery_channel not in DELIVERY_CHANNELS:
         raise ValueError(f"Invalid delivery channel. Choose from: {DELIVERY_CHANNELS}")
 
-    if delivery_channel == "email" and not data.get("recipients"):
-        raise ValueError("Email delivery requires at least one recipient")
-
     if delivery_channel == "email":
+        if not data.get("recipients"):
+            raise ValueError("Email delivery requires at least one recipient")
         _validate_recipients(data.get("recipients", []))
-
-    if delivery_channel == "email":
         smtp_cfg = await db.smtp_config.find_one({})
         if not smtp_cfg:
             raise ValueError("SMTP not configured")
@@ -148,7 +140,6 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
     logger.info("[Reports] Schedule created: %s for tenant %s", schedule["name"], tenant_id)
     return schedule
 
-
 def _calculate_next_run(frequency: str, hour: int = 8) -> datetime:
     now = datetime.now(timezone.utc)
     base = now.replace(minute=0, second=0, microsecond=0)
@@ -174,7 +165,6 @@ def _calculate_next_run(frequency: str, hour: int = 8) -> datetime:
         next_year = now.year if next_month > now.month else now.year + 1
         return base.replace(year=next_year, month=next_month, day=1, hour=hour)
 
-
 async def _generate_pdf_for_schedule(schedule: Dict[str, Any], tenant_id: str, framework_id: str) -> Optional[bytes]:
     """Call compliance_reporting_pdf._generate_pdf and return file bytes (ephemeral)."""
     result = await compliance_reporting_pdf._generate_pdf(framework_id, _REPORTS_DIR, tenant_id)
@@ -189,14 +179,7 @@ async def _generate_pdf_for_schedule(schedule: Dict[str, Any], tenant_id: str, f
             pass
     return pdf_bytes
 
-
-async def _write_delivery_log(
-    db,
-    schedule: Dict[str, Any],
-    status: str,
-    error: Optional[str],
-    filename: Optional[str],
-) -> None:
+async def _write_delivery_log(db, schedule: Dict[str, Any], status: str, error: Optional[str], filename: Optional[str]) -> None:
     """Insert one delivery log entry into report_delivery_logs."""
     await db.report_delivery_logs.insert_one({
         "id": str(uuid.uuid4()),
@@ -211,13 +194,7 @@ async def _write_delivery_log(
         "filename": filename,
     })
 
-
-async def get_delivery_history(
-    schedule_id: str,
-    tenant_id: str,
-    role: str,
-    limit: int = 50,
-) -> List[Dict[str, Any]]:
+async def get_delivery_history(schedule_id: str, tenant_id: str, role: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Return delivery log entries for a schedule, newest first."""
     db = get_database()
     query: Dict[str, Any] = {"schedule_id": schedule_id}
@@ -228,7 +205,6 @@ async def get_delivery_history(
         log.pop("_id", None)
     return logs
 
-
 async def list_schedules(tenant_id: str, role: str) -> List[Dict[str, Any]]:
     set_tenant_id(tenant_id)
     db = get_database()
@@ -237,7 +213,6 @@ async def list_schedules(tenant_id: str, role: str) -> List[Dict[str, Any]]:
     for s in schedules:
         s["_id"] = str(s["_id"])
     return schedules
-
 
 async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dict[str, Any]) -> bool:
     set_tenant_id(tenant_id)
@@ -250,9 +225,8 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
         _validate_recipients(data["recipients"])
 
     update = {"updated_at": datetime.now(timezone.utc).isoformat()}
-    for field in ("name", "frequency", "send_at_hour", "recipients", "webhook_url",
-                  "slack_webhook", "teams_webhook", "include_charts", "format", "enabled",
-                  "filters", "framework_id", "framework_name"):
+    for field in ("name", "frequency", "send_at_hour", "recipients", "webhook_url", "slack_webhook",
+                  "teams_webhook", "include_charts", "format", "enabled", "filters", "framework_id", "framework_name"):
         if field in data:
             update[field] = data[field]
 
@@ -268,7 +242,6 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
     result = await db.report_schedules.update_one(query, {"$set": update})
     return result.modified_count > 0
 
-
 async def delete_schedule(schedule_id: str, tenant_id: str, role: str) -> bool:
     set_tenant_id(tenant_id)
     db = get_database()
@@ -277,7 +250,6 @@ async def delete_schedule(schedule_id: str, tenant_id: str, role: str) -> bool:
         query["tenant_id"] = tenant_id
     result = await db.report_schedules.delete_one(query)
     return result.deleted_count > 0
-
 
 async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[str, Any]:
     """Generate and deliver report on-demand for the given schedule."""
@@ -308,7 +280,6 @@ async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[st
     )
 
     return {"status": "delivered", "delivered_at": now, "report_type": schedule.get("report_type")}
-
 
 async def _generate_report(schedule: Dict[str, Any], tenant_id: str) -> Dict[str, Any]:
     set_tenant_id(tenant_id)
@@ -346,7 +317,6 @@ async def _generate_report(schedule: Dict[str, Any], tenant_id: str) -> Dict[str
         data.update({"online_agents": online, "offline_agents": offline})
 
     return data
-
 
 def _build_pdf(report_data: Dict[str, Any]) -> Optional[bytes]:
     """Generate a simple PDF summary of report_data using reportlab. Returns None on failure."""
@@ -402,7 +372,6 @@ def _build_pdf(report_data: Dict[str, Any]) -> Optional[bytes]:
         logger.warning("[Reports] PDF generation failed: %s", exc)
         return None
 
-
 def _build_html(report_data: Dict[str, Any]) -> str:
     """Generate a self-contained HTML report from report_data."""
     title = _html.escape(report_data.get("report_name", "Security Report"))
@@ -438,12 +407,7 @@ def _build_html(report_data: Dict[str, Any]) -> str:
 </body>
 </html>"""
 
-
-async def _deliver_report(
-    schedule: Dict[str, Any],
-    report_data: Dict[str, Any],
-    tenant_id: str = "",
-) -> Optional[str]:
+async def _deliver_report(schedule: Dict[str, Any], report_data: Dict[str, Any], tenant_id: str = "") -> Optional[str]:
     """Deliver report via the configured channel. Returns filename or None."""
     channel = schedule.get("delivery_channel", "email")
     logger.info("[Reports] Delivering %s report via %s", schedule.get("report_type"), channel)
@@ -492,8 +456,29 @@ async def _deliver_report(
 
     return delivered_filename
 
-
 # ── Background scheduler loop ──────────────────────────────────────────────────
+
+async def _process_due_schedule(schedule: Dict[str, Any], db) -> None:
+    """Generate, deliver, and log one due schedule. Never raises — all exceptions logged."""
+    try:
+        sched_tenant_id = schedule.get("tenant_id", "")
+        report_data = await _generate_report(schedule, sched_tenant_id)
+        filename = await _deliver_report(schedule, report_data, sched_tenant_id)
+        await _write_delivery_log(db, schedule, "success", None, filename)
+        next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
+        now = datetime.now(timezone.utc).isoformat()
+        await db.report_schedules.update_one(
+            {"id": schedule["id"]},
+            {
+                "$set": {"last_run": now, "next_run": next_run.isoformat(), "last_error": None},
+                "$inc": {"run_count": 1},
+            },
+        )
+        logger.info("[Reports] Delivered scheduled report '%s' for tenant %s", schedule.get("name"), sched_tenant_id)
+    except Exception as exc:
+        logger.error("[Reports] Failed to deliver %s: %s", schedule.get("id"), exc)
+        await _write_delivery_log(db, schedule, "failure", str(exc), None)
+        await db.report_schedules.update_one({"id": schedule["id"]}, {"$set": {"last_error": str(exc)}})
 
 async def start_report_scheduler():
     """Background loop: check every 5 minutes for due reports."""
@@ -509,31 +494,7 @@ async def start_report_scheduler():
             ).to_list(length=50)
 
             for schedule in due_schedules:
-                try:
-                    sched_tenant_id = schedule.get("tenant_id", "")
-                    report_data = await _generate_report(schedule, sched_tenant_id)
-                    filename = await _deliver_report(schedule, report_data, sched_tenant_id)
-                    await _write_delivery_log(db, schedule, "success", None, filename)
-                    next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
-                    await db.report_schedules.update_one(
-                        {"id": schedule["id"]},
-                        {
-                            "$set": {
-                                "last_run": now,
-                                "next_run": next_run.isoformat(),
-                                "last_error": None,
-                            },
-                            "$inc": {"run_count": 1},
-                        },
-                    )
-                    logger.info("[Reports] Delivered scheduled report '%s' for tenant %s", schedule.get("name"), sched_tenant_id)
-                except Exception as exc:
-                    logger.error("[Reports] Failed to deliver %s: %s", schedule.get("id"), exc)
-                    await _write_delivery_log(db, schedule, "failure", str(exc), None)
-                    await db.report_schedules.update_one(
-                        {"id": schedule["id"]},
-                        {"$set": {"last_error": str(exc)}},
-                    )
+                await _process_due_schedule(schedule, db)
 
         except Exception as exc:
             logger.error("[Reports] Scheduler loop error: %s", exc)
