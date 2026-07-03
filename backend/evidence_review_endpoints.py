@@ -173,7 +173,10 @@ async def update_evidence_review(
 
 
 @router.get("/api/evidence/{evidence_id}/reviews")
+@limiter.limit("60/minute")
 async def list_evidence_reviews(
+    request: Request,
+    response: Response,
     evidence_id: str,
     current_user: TokenData = Depends(get_current_user),
 ):
@@ -188,7 +191,10 @@ async def list_evidence_reviews(
 
 
 @router.get("/api/evidence/pending-review")
+@limiter.limit("60/minute")
 async def list_pending_review_evidence(
+    request: Request,
+    response: Response,
     current_user: TokenData = Depends(get_current_user),
 ):
     """Return all evidence with pending_review status for this tenant."""
