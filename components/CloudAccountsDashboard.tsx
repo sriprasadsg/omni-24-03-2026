@@ -44,6 +44,7 @@ export const CloudAccountsDashboard: React.FC = () => {
       const r = await res.json();
       if (r.error) { showToast(`Scan failed: ${r.error}`, 'error'); }
       else { showToast(`Scan complete: ${r.ran || 0} checks`, 'success'); }
+      setResults(s => { const {[id]: _omit, ...rest} = s; return rest; });
       fetchData();
     } catch { showToast('Scan failed', 'error'); }
     finally { setScanning(s => ({...s, [id]: false})); }
