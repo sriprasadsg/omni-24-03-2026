@@ -6,6 +6,12 @@ import { API_BASE, authFetch } from '../services/apiService';
 
 const API = API_BASE || '/api';
 
+// IN-01 (15-REVIEW.md): kept in sync by hand with the equivalent literal in
+// backend/evidence_review_endpoints.py:37 (_REVIEWER_ROLES). The backend
+// always re-enforces authorization server-side regardless of this list, so
+// drift here is a UI-confusion risk (mismatched button visibility), not an
+// authz bypass. If this list changes, update the backend set in the same
+// change.
 const _REVIEWER_ROLES = ['admin', 'super_admin', 'compliance_reviewer'];
 
 /** Extracts a safe, user-displayable string from a fetch error response body.

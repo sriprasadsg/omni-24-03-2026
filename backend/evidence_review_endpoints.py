@@ -34,6 +34,14 @@ from evidence_review_service import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# IN-01 (15-REVIEW.md): kept in sync by hand with the equivalent literal in
+# components/EvidenceReviewPanel.tsx:9. The backend always re-enforces
+# authorization server-side regardless of the frontend list, so drift here
+# is a UI-confusion risk (mismatched button visibility), not an authz
+# bypass. If this set changes, update the frontend literal in the same
+# change — a shared source (constants module or an existing /api/config
+# response) would remove this manual-sync requirement but is out of scope
+# for this fix pass.
 _REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer"}
 
 
