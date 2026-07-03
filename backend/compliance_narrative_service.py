@@ -220,20 +220,23 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
         )
         data["ai_executive_summary"] = _fallback_executive_summary(fw_name, 0.0)
 
-    try:
-        narratives: dict = {}
-        for fw in data.get("frameworks", []):
-            fw_name = fw.get("name", "")
+    narratives: dict = {}
+    for fw in data.get("frameworks", []):
+        fw_name = fw.get("name", "")
+        try:
+            score = float(fw.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        try:
             narratives[fw_name] = await generate_framework_narrative(
                 framework_name=fw_name,
-                score=float(fw.get("score", 0.0)),
+                score=score,
                 failing_controls=failing_by_framework.get(fw_name, []),
                 remediation_summary=None,
             )
-        data["ai_framework_narratives"] = narratives
-    except Exception as exc:
-        logger.warning("[NarrativeService] Framework narratives failed: %s", exc)
-        data["ai_framework_narratives"] = {}
+        except Exception as exc:
+            logger.warning("[NarrativeService] Framework narrative failed for %s: %s", fw_name, exc)
+    data["ai_framework_narratives"] = narratives
 
 
 def _render_narratives(story: list, report_data: dict, styles, section: str = "all") -> None:
