@@ -4,9 +4,11 @@ import asyncio
 import logging
 import os
 import hashlib
+import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ _ALLOWED_UPLOAD_EXTENSIONS: frozenset[str] = frozenset({
     ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt",
     ".png", ".jpg", ".jpeg", ".gif", ".webp",
     ".zip", ".tar", ".gz",
-    ".md", ".json", ".xml", ".html",
+    # ".md", ".json", ".xml", ".html" removed — servable, script-capable formats (CR-01)
 })
 
 _ALLOWED_UPLOAD_MIME_PREFIXES: tuple[str, ...] = (
@@ -36,6 +38,12 @@ _ALLOWED_UPLOAD_MIME_PREFIXES: tuple[str, ...] = (
     "text/",
     "image/",
 )
+
+# Single source of truth for elevated-admin role variants (WR-02) — imported by
+# compliance_evidence_endpoints.py rather than each module keeping its own list.
+_SUPER_ROLES: frozenset[str] = frozenset({
+    "Super Admin", "super_admin", "superadmin", "admin", "platform-admin"
+})
 
 
 MANUAL_ARTIFACT_CATEGORIES = [
@@ -99,85 +107,104 @@ async def upload_manual_artifact(
     control_ids: str = Form("", description="Comma-separated control IDs this artifact satisfies"),
     description: str = Form("", description="Brief description of what this artifact proves"),
     asset_id: Optional[str] = Form(None, description="Asset or tenant this artifact belongs to"),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance_evidence")),
 ):
     """
     Upload a manual compliance evidence artifact (pentest report, DPA, vendor SOC2 report,
     restore test result, etc.).  Returns the record with SHA-256 integrity hash.
     """
-    if category not in MANUAL_ARTIFACT_CATEGORIES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid category '{category}'. Valid: {MANUAL_ARTIFACT_CATEGORIES}"
-        )
+    try:
+        if category not in MANUAL_ARTIFACT_CATEGORIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid category '{category}'. Valid: {MANUAL_ARTIFACT_CATEGORIES}"
+            )
 
-    file_content = await file.read()
-    if len(file_content) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
+        file_content = await file.read()
+        if len(file_content) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
 
-    original_name = os.path.basename(file.filename or "artifact")
-    file_ext = os.path.splitext(original_name)[1].lower()
+        original_name = os.path.basename(file.filename or "artifact")
+        file_ext = os.path.splitext(original_name)[1].lower()
 
-    # Whitelist extension and MIME type — reject executables and scripts
-    if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
-    content_type = (file.content_type or "").split(";")[0].strip()
-    if content_type and not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
-        raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+        # Whitelist extension and MIME type — reject executables and scripts
+        if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
+        content_type = (file.content_type or "").split(";")[0].strip()
+        if not content_type or not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
 
-    # Validate asset_id belongs to caller's tenant
-    if asset_id:
-        _caller_tenant = getattr(current_user, "tenant_id", None)
-        if _caller_tenant:
-            _db = get_database()
-            _asset = await _db.assets.find_one({"id": asset_id, "tenantId": _caller_tenant})
-            if not _asset:
-                raise HTTPException(status_code=403, detail="Asset not found in your tenant")
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    uploader = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
-    safe_filename = f"artifact_{category}_{timestamp}{file_ext}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+        # Magic-byte validation (CR-03) — catches content/extension mismatches (e.g. an
+        # HTML/script payload saved with a spoofed extension and forged Content-Type).
+        if not _check_magic(file_content, file_ext):
+            raise HTTPException(status_code=400, detail="File content does not match extension")
 
-    await asyncio.to_thread(_write_binary, file_path, file_content)
+        # Validate asset_id belongs to caller's tenant
+        if asset_id:
+            _caller_tenant = getattr(current_user, "tenant_id", None)
+            if _caller_tenant:
+                _db = get_database()
+                _asset = await _db.assets.find_one({"id": asset_id, "tenantId": _caller_tenant})
+                if not _asset:
+                    raise HTTPException(status_code=403, detail="Asset not found in your tenant")
+        uploader = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
+        # Unique per-upload filename (CR-04) — a second-granularity timestamp with no
+        # random component let two same-second uploads silently overwrite each other.
+        safe_filename = f"artifact_{category}_{uuid.uuid4().hex}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
-    sha256 = _sha256_file(file_path)
-    control_list = [c.strip() for c in control_ids.split(",") if c.strip()]
+        await asyncio.to_thread(_write_binary, file_path, file_content)
 
-    import uuid as _uuid
-    record = {
-        "id": f"artifact-{_uuid.uuid4().hex}",
-        "type": "manual_artifact",
-        "category": category,
-        "filename": original_name,
-        "stored_as": safe_filename,
-        "url": f"/static/evidence/{safe_filename}",
-        "sha256": sha256,
-        "size_bytes": len(file_content),
-        "content_type": file.content_type,
-        "description": description,
-        "control_ids": control_list,
-        "asset_id": asset_id,
-        "uploaded_by": uploader,
-        "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        "tenantId": getattr(current_user, "tenant_id", None),
-        "status": "pending_review",
-    }
+        sha256 = _sha256_file(file_path)
+        control_list = [c.strip() for c in control_ids.split(",") if c.strip()]
 
-    db = get_database()
-    await db.compliance_artifacts.insert_one({**record, "_id": record["id"]})
+        record = {
+            "id": f"artifact-{uuid.uuid4().hex}",
+            "type": "manual_artifact",
+            "category": category,
+            "filename": original_name,
+            "stored_as": safe_filename,
+            "url": f"/static/evidence/{safe_filename}",
+            "sha256": sha256,
+            "size_bytes": len(file_content),
+            "content_type": file.content_type,
+            "description": description,
+            "control_ids": control_list,
+            "asset_id": asset_id,
+            "uploaded_by": uploader,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "tenantId": getattr(current_user, "tenant_id", None),
+            "status": "pending_review",
+        }
 
-    for control_id in control_list:
-        scope = {"assetId": asset_id, "controlId": control_id} if asset_id else {"controlId": control_id}
-        await db.asset_compliance.update_one(
-            scope,
-            {
-                "$set": {"status": "Pending_Review", "lastUpdated": record["uploaded_at"]},
-                "$push": {"evidence": record},
-            },
-            upsert=True,
-        )
+        db = get_database()
+        await db.compliance_artifacts.insert_one({**record, "_id": record["id"]})
 
-    return {"success": True, "artifact": record}
+        for control_id in control_list:
+            if asset_id:
+                # Asset-scoped control: unambiguous (assetId, controlId) filter (CR-05).
+                await db.asset_compliance.update_one(
+                    {"assetId": asset_id, "controlId": control_id},
+                    {
+                        "$set": {"status": "Pending_Review", "lastUpdated": record["uploaded_at"]},
+                        "$push": {"evidence": record},
+                    },
+                    upsert=True,
+                )
+            else:
+                # Org-wide control (no specific asset) — route to the dedicated
+                # control_evidence collection instead of an ambiguous {"controlId": ...}
+                # filter against asset_compliance, which can match/mutate an unrelated
+                # asset's record (CR-05).
+                await db.control_evidence.insert_one({**record, "controlId": control_id})
+
+        return {"success": True, "artifact": record}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Manual artifact upload error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/compliance/artifacts")
@@ -194,7 +221,7 @@ async def list_manual_artifacts(
 
     user_role = getattr(current_user, "role", "")
     user_tenant = getattr(current_user, "tenant_id", None)
-    is_super_admin = user_role in ("Super Admin", "superadmin", "super_admin")
+    is_super_admin = user_role in _SUPER_ROLES
     if not is_super_admin:
         query["tenantId"] = user_tenant
         if asset_id:
