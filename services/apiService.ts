@@ -649,7 +649,10 @@ export const uploadComplianceEvidence = async (assetId: string, controlId: strin
         body: formData
     });
 
-    if (!res.ok) throw new Error("Evidence upload failed");
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || "Evidence upload failed");
+    }
     return await res.json();
 };
 
@@ -657,7 +660,10 @@ export const deleteComplianceEvidence = async (assetId: string, controlId: strin
     const res = await authFetch(`${API_BASE}/assets/${assetId}/compliance/evidence/${evidenceId}`, {
         method: 'DELETE'
     });
-    if (!res.ok) throw new Error("Evidence delete failed");
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || "Evidence delete failed");
+    }
 };
 
 export const updateAssetComplianceStatus = async (
@@ -683,13 +689,19 @@ export const uploadControlEvidence = async (controlId: string, file: File, descr
         method: 'POST',
         body: formData,
     });
-    if (!res.ok) throw new Error('Control evidence upload failed');
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || 'Control evidence upload failed');
+    }
     return res.json();
 };
 
 export const getControlEvidence = async (controlId: string) => {
     const res = await authFetch(`${API_BASE}/compliance/controls/${encodeURIComponent(controlId)}/evidence`);
-    if (!res.ok) throw new Error('Failed to fetch control evidence');
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || 'Failed to fetch control evidence');
+    }
     return res.json();
 };
 
@@ -697,7 +709,10 @@ export const deleteControlEvidence = async (controlId: string, evidenceId: strin
     const res = await authFetch(`${API_BASE}/compliance/controls/${encodeURIComponent(controlId)}/evidence/${evidenceId}`, {
         method: 'DELETE',
     });
-    if (!res.ok) throw new Error('Control evidence delete failed');
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || 'Control evidence delete failed');
+    }
 };
 
 export interface ManifestEntry {
