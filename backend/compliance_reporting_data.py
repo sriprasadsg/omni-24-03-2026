@@ -160,7 +160,11 @@ async def _build_report_data(framework_id: str, tenant_id: str = None):
 
     asset_counts: dict = {}
     for doc in ac_docs:
-        aid  = doc.get("assetId", "unknown")
+        # `.get("assetId", "unknown")` only substitutes when the key is
+        # ABSENT; a present-but-falsy value (None, "") would flow through
+        # verbatim and later raise TypeError when sorted() compares it
+        # against string keys. Use `or` to normalise both cases.
+        aid  = doc.get("assetId") or "unknown"
         norm = _score_status(doc.get("status", ""))
         if aid not in asset_counts:
             asset_counts[aid] = {"Compliant": 0, "Warning": 0, "Non-Compliant": 0}
