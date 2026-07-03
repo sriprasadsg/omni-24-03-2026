@@ -15,7 +15,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-UPLOAD_DIR = "static/evidence"
+# CR-02: stored outside backend/static/ so files are never reachable through the
+# public, unauthenticated `/static` mount in app.py. All reads must go through the
+# RBAC/tenant-scoped download endpoints in compliance_evidence_endpoints.py, which
+# resolve files by basename and do not depend on this constant's value matching any
+# URL prefix returned to clients.
+UPLOAD_DIR = "private_uploads/evidence"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 _ALLOWED_UPLOAD_EXTENSIONS: frozenset[str] = frozenset({
