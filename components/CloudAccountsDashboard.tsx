@@ -42,7 +42,8 @@ export const CloudAccountsDashboard: React.FC = () => {
       const res = await authFetch(`/api/cloud-accounts/${id}/scan`, { method: 'POST' });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Scan failed'); }
       const r = await res.json();
-      showToast(`Scan complete: ${r.ran || 0} checks`, 'success');
+      if (r.error) { showToast(`Scan failed: ${r.error}`, 'error'); }
+      else { showToast(`Scan complete: ${r.ran || 0} checks`, 'success'); }
       fetchData();
     } catch { showToast('Scan failed', 'error'); }
     finally { setScanning(s => ({...s, [id]: false})); }
