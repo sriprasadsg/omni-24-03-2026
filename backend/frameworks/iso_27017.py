@@ -30,3 +30,15 @@ CONTROLS: List[Dict[str, Any]] = [
     {"id": "ISO27017-15.1.2", "theme": "Supply Chain", "check_type": "supplier_monitoring", "title": "Subcontractors", "description": "Monitor and control cloud subcontractors."},
     {"id": "ISO27017-16.1.1", "theme": "Interoperability", "check_type": "tests_performed", "title": "Data portability", "description": "Support data portability and service migration."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db) -> List[Dict[str, Any]]:
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

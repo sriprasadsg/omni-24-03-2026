@@ -28,3 +28,15 @@ CONTROLS = [
     {"id":"TISAX-25","theme":"Personnel","check_type":"background_checks","title":"Personnel","description":"Personnel screening."},
     {"id":"TISAX-26","theme":"Data Protection","check_type":"privacy_policy","title":"Data protection","description":"Data protection compliance."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

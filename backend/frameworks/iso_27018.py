@@ -5,7 +5,7 @@ CONTROLS = [
     {"id":"ISO27018-5.1.2","theme":"Consent","check_type":"consent_withdrawal","title":"Withdrawal of consent","description":"Enable withdrawal of consent."},
     {"id":"ISO27018-6.1.1","theme":"Purpose","check_type":"documents_exist","title":"Processing purpose","description":"Define processing purpose."},
     {"id":"ISO27018-6.1.2","theme":"Purpose","check_type":"documents_exist","title":"Return/disposal of PII","description":"Return or dispose PII on request."},
-    {"id":"ISO27018-7.1.1","theme":"Disclosure","check_type":"incident_reporting","title":"Disclosure of PII","description":"Disclose PII only to authorized parties."},
+    {"id":"ISO27018-7.1.1","theme":"Disclosure","check_type":"pii_disclosure_controlled","title":"Disclosure of PII","description":"Disclose PII only to authorized parties."},
     {"id":"ISO27018-7.1.2","theme":"Disclosure","check_type":"contracts_signed","title":"Sub-processor disclosure","description":"Disclose sub-processors to customer."},
     {"id":"ISO27018-8.1.1","theme":"Breach","check_type":"incident_handling","title":"Breach notification","description":"Notify customers of PII breaches."},
     {"id":"ISO27018-8.1.2","theme":"Breach","check_type":"incident_reporting","title":"Breach response plan","description":"Maintain breach response."},
@@ -17,3 +17,14 @@ CONTROLS = [
     {"id":"ISO27018-11.1.2","theme":"Transparency","check_type":"training_present","title":"Staff training","description":"Train staff on PII protection."},
     {"id":"ISO27018-12.1.1","theme":"Third-Party","check_type":"supplier_assessment","title":"Third-party PII","description":"Assess third-party PII handling."},
 ]
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

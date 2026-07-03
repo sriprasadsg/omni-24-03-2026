@@ -3,10 +3,10 @@ FRAMEWORK_ID = "kisa_isms"; FRAMEWORK_NAME = "KISA ISMS"; FRAMEWORK_VERSION = "2
 CONTROLS = [
     {"id":"ISMS-1.1","theme":"Management","check_type":"policies_present","title":"ISMS policy","description":"Establish information security management policy."},
     {"id":"ISMS-1.2","theme":"Management","check_type":"documents_exist","title":"ISMS scope","description":"Define and document ISMS scope."},
-    {"id":"ISMS-2.1","theme":"Governance","check_type":"separation_of_duties","title":"CEO commitment","description":"CEO approves security policy and resources."},
+    {"id":"ISMS-2.1","theme":"Governance","check_type":"policies_present","title":"CEO commitment","description":"CEO approves security policy and resources."},
     {"id":"ISMS-2.2","theme":"Governance","check_type":"training_present","title":"Security organization","description":"Organize internal security organization."},
     {"id":"ISMS-3.1","theme":"Risk","check_type":"risk_assessment_completed","title":"Risk assessment","description":"Regular information asset risk assessment."},
-    {"id":"ISMS-3.2","theme":"Risk","check_type":"pen_testing","title":"Risk treatment","description":"Implement risk treatment plan."},
+    {"id":"ISMS-3.2","theme":"Risk","check_type":"policies_present","title":"Risk treatment","description":"Implement risk treatment plan."},
     {"id":"ISMS-4.1","theme":"Policy","check_type":"policies_present","title":"Security policies","description":"Document and enforce security policies."},
     {"id":"ISMS-4.2","theme":"Policy","check_type":"training_present","title":"Policy review","description":"Regular policy review and update."},
     {"id":"ISMS-5.1","theme":"Asset","check_type":"inventory","title":"Asset management","description":"Maintain information asset inventory."},
@@ -30,9 +30,20 @@ CONTROLS = [
     {"id":"ISMS-13.1","theme":"BCP","check_type":"backup_dr","title":"BCP","description":"Business continuity plan."},
     {"id":"ISMS-13.2","theme":"BCP","check_type":"tests_performed","title":"BCP testing","description":"Regular BCP drills."},
     {"id":"ISMS-14.1","theme":"Compliance","check_type":"assessments_performed","title":"Compliance review","description":"Review compliance with ISMS requirements."},
-    {"id":"ISMS-14.2","theme":"Compliance","check_type":"pen_testing","title":"Internal audit","description":"Conduct internal ISMS audits."},
+    {"id":"ISMS-14.2","theme":"Compliance","check_type":"internal_audit_evidence","title":"Internal audit","description":"Conduct internal ISMS audits."},
     {"id":"ISMS-15.1","theme":"Third-Party","check_type":"supplier_assessment","title":"Vendor security","description":"Assess third-party service providers."},
     {"id":"ISMS-15.2","theme":"Third-Party","check_type":"contracts_signed","title":"Outsourcing security","description":"Security requirements for outsourced services."},
     {"id":"ISMS-16.1","theme":"Review","check_type":"assessments_performed","title":"Management review","description":"Management review of ISMS."},
     {"id":"ISMS-16.2","theme":"Review","check_type":"continuous_monitoring","title":"Corrective actions","description":"Implement corrective actions from findings."},
 ]
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

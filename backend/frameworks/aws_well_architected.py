@@ -17,3 +17,15 @@ CONTROLS = [
     {"id":"AWS-WA-SEC-14","theme":"Application","check_type":"vuln_scanner","title":"Vulnerability management","description":"Scan applications and infrastructure for vulnerabilities."},
     {"id":"AWS-WA-SEC-15","theme":"Application","check_type":"patch_management","title":"Patch management","description":"Regularly patch and update systems."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

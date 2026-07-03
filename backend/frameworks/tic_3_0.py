@@ -17,3 +17,15 @@ CONTROLS = [
     {"id":"TIC-UC5-4","theme":"Policy Enforcement","check_type":"incident_handling","title":"Incident response","description":"Incident response procedures for TIC boundary events."},
     {"id":"TIC-UC5-5","theme":"Policy Enforcement","check_type":"log_retention","title":"Log retention","description":"Retain TIC traffic logs per policy."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

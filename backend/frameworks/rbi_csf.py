@@ -22,3 +22,15 @@ CONTROLS = [
     {"id":"RBI-3RD-1","theme":"Third Party","check_type":"supplier_assessment","title":"Third-party risk","description":"Vendor security assessment for critical vendors."},
     {"id":"RBI-3RD-2","theme":"Third Party","check_type":"contracts_signed","title":"Vendor due diligence","description":"Contractual security requirements for third parties."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

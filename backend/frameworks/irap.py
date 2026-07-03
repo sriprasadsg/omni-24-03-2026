@@ -29,3 +29,15 @@ CONTROLS = [
     {"id":"IRAP-VUL-1","theme":"Vulnerability","check_type":"vuln_scanner","title":"Vulnerability scanning","description":"Regular vulnerability scanning."},
     {"id":"IRAP-VUL-2","theme":"Vulnerability","check_type":"pen_testing","title":"Penetration testing","description":"Annual penetration testing."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

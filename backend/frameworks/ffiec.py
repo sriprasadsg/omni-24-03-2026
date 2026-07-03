@@ -27,3 +27,15 @@ CONTROLS = [
     {"id":"FFIEC-APP-1","theme":"Applications","check_type":"input_validation","title":"App security","description":"Application security controls."},
     {"id":"FFIEC-APP-2","theme":"Applications","check_type":"change_control","title":"Change management","description":"Change management for apps."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

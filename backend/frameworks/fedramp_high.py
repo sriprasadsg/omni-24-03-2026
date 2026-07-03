@@ -1,4 +1,4 @@
-"""FedRAMP High — NIST 800-53 High baseline (421+ controls)."""
+"""FedRAMP High — NIST 800-53 High baseline (131 of 421 controls implemented; full baseline pending)."""
 from __future__ import annotations
 from typing import Any, Dict, List
 
@@ -139,3 +139,15 @@ CONTROLS: List[Dict[str, Any]] = [
     {"id": "SR-3", "theme": "Supply Chain Risk", "check_type": "supplier_contracts", "title": "Supply Chain Controls", "description": "Implement supply chain controls."},
     {"id": "SR-4", "theme": "Supply Chain Risk", "check_type": "supplier_monitoring", "title": "Provenance", "description": "Track component provenance."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db) -> List[Dict[str, Any]]:
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

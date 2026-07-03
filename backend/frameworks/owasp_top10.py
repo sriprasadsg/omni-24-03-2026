@@ -12,3 +12,15 @@ CONTROLS = [
     {"id":"OWASP-A09","theme":"Logging Failures","check_type":"audit_log_volume","title":"Security Logging and Monitoring Failures","description":"Log and monitor security events."},
     {"id":"OWASP-A10","theme":"SSRF","check_type":"fw_blocked","title":"Server-Side Request Forgery","description":"Validate and restrict server-side requests."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

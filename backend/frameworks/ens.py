@@ -24,3 +24,15 @@ CONTROLS = [
     {"id":"ENS-me10","theme":"Measures","check_type":"baseline_config","title":"Secure configuration","description":"Baseline secure configurations."},
     {"id":"ENS-mar1","theme":"Continuity","check_type":"tests_performed","title":"Business continuity","description":"BCP tested."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results

@@ -32,3 +32,15 @@ CONTROLS = [
     {"id":"C5-PHY-1","theme":"Physical","check_type":"access_control_system","title":"Physical security","description":"Data center physical security."},
     {"id":"C5-PHY-2","theme":"Physical","check_type":"cctv_present","title":"Physical monitoring","description":"Physical access monitoring."},
 ]
+
+
+from ._common_checks import run_check as _run_check, now as _now
+
+
+async def evaluate_controls(db):
+    """Run all checks for this framework's controls. See _common_checks.py."""
+    results = []
+    for ctrl in CONTROLS:
+        status, evidence = await _run_check(db, ctrl)
+        results.append({**ctrl, "status": status, "evidence": evidence, "evaluated_at": _now()})
+    return results
