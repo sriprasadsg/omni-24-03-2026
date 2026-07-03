@@ -67,8 +67,16 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
 
         const description = descriptionMap[selectedAssetId] || undefined;
 
-        // 1. Trigger the standard upload handler (UI update + backend upload)
-        onUploadEvidence(selectedAssetId, file, description);
+        // 1. Trigger the standard upload handler (UI update + backend upload). Awaited
+        // with its own try/catch (WR-06) — this component previously relied entirely
+        // on the caller wrapping onUploadEvidence in its own try/catch, which is an
+        // implicit contract this component had no way to verify or enforce.
+        try {
+            await onUploadEvidence(selectedAssetId, file, description);
+        } catch (error) {
+            console.error("Failed to upload evidence", error);
+            showToast('Failed to upload evidence — please try again', 'error');
+        }
 
         // 2. Read content and trigger ingestion — skip binary formats (PDF, images,
         // DOCX, XLSX) since file.text() would garble them into replacement
