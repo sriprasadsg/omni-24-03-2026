@@ -9,7 +9,7 @@ from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
-from compliance_reporting_data import _build_report_data, _overall_verdict
+from compliance_reporting_data import _build_report_data, _overall_verdict, _sanitize_cell
 
 # ── Shared style constants ────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ async def _generate_excel(framework_id: str, reports_dir: str, tenant_id: str = 
         status_col = headers.index("Overall Status") + 1
         score_col  = headers.index("Score (%)") + 1
         for row in asset_summary:
-            ws1.append(list(row.values()))
+            ws1.append([_sanitize_cell(v) for v in row.values()])
             r = ws1.max_row
             for c in range(1, len(headers) + 1):
                 ws1.cell(r, c).border = _THIN_BORDER
@@ -131,7 +131,7 @@ async def _generate_excel(framework_id: str, reports_dir: str, tenant_id: str = 
         asset_col = headers2.index("Asset Status") + 1
         url_col = headers2.index("Evidence URLs") + 1 if "Evidence URLs" in headers2 else None
         for row in control_rows:
-            ws2.append(list(row.values()))
+            ws2.append([_sanitize_cell(v) for v in row.values()])
             r = ws2.max_row
             for c in range(1, len(headers2) + 1):
                 ws2.cell(r, c).border = _THIN_BORDER
@@ -226,7 +226,7 @@ async def _generate_all_excel(reports_dir: str, tenant_id: str = None, db=None) 
             _xl_header_row(ws_a, hdrs_a)
             sc_a = hdrs_a.index("Overall Status") + 1
             for row in asset_summary:
-                ws_a.append(list(row.values()))
+                ws_a.append([_sanitize_cell(v) for v in row.values()])
                 rn = ws_a.max_row
                 for c in range(1, len(hdrs_a) + 1):
                     ws_a.cell(rn, c).border = _THIN_BORDER
@@ -245,7 +245,7 @@ async def _generate_all_excel(reports_dir: str, tenant_id: str = None, db=None) 
             as_c  = hdrs_c.index("Asset Status") + 1
             url_c = hdrs_c.index("Evidence URLs") + 1 if "Evidence URLs" in hdrs_c else None
             for row in control_rows:
-                ws_c.append(list(row.values()))
+                ws_c.append([_sanitize_cell(v) for v in row.values()])
                 rn = ws_c.max_row
                 for c in range(1, len(hdrs_c) + 1):
                     ws_c.cell(rn, c).border = _THIN_BORDER

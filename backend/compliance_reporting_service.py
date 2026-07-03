@@ -16,7 +16,7 @@ import logging
 from datetime import datetime
 
 from database import get_database
-from compliance_reporting_data import _build_report_data
+from compliance_reporting_data import _build_report_data, _sanitize_cell
 from compliance_reporting_excel import _generate_excel, _generate_all_excel
 from compliance_reporting_pdf import _generate_pdf
 
@@ -39,7 +39,7 @@ async def _generate_csv(framework_id: str, reports_dir: str, tenant_id: str = No
     if asset_summary:
         w.writerow(list(asset_summary[0].keys()))
         for row in asset_summary:
-            w.writerow(list(row.values()))
+            w.writerow([_sanitize_cell(v) for v in row.values()])
     else:
         w.writerow(["No asset compliance data available"])
     w.writerow([])
@@ -48,7 +48,7 @@ async def _generate_csv(framework_id: str, reports_dir: str, tenant_id: str = No
     if control_rows:
         w.writerow(list(control_rows[0].keys()))
         for row in control_rows:
-            w.writerow(list(row.values()))
+            w.writerow([_sanitize_cell(v) for v in row.values()])
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     filename = f"compliance_report_{framework_id}_{timestamp}.csv"
@@ -90,7 +90,7 @@ async def _generate_all_csv(reports_dir: str, tenant_id: str = None) -> dict:
         if asset_summary:
             w.writerow(list(asset_summary[0].keys()))
             for row in asset_summary:
-                w.writerow(list(row.values()))
+                w.writerow([_sanitize_cell(v) for v in row.values()])
         else:
             w.writerow(["No asset compliance data available"])
         w.writerow([])
@@ -99,7 +99,7 @@ async def _generate_all_csv(reports_dir: str, tenant_id: str = None) -> dict:
         if control_rows:
             w.writerow(list(control_rows[0].keys()))
             for row in control_rows:
-                w.writerow(list(row.values()))
+                w.writerow([_sanitize_cell(v) for v in row.values()])
         else:
             w.writerow(["No control data available"])
         w.writerow([])

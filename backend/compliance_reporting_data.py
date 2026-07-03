@@ -18,6 +18,26 @@ STATUS_LEGEND = {
 }
 
 
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_cell(v):
+    """Neutralize CSV/XLSX formula injection (CWE-1236).
+
+    Spreadsheet applications (Excel, LibreOffice, Google Sheets) interpret any
+    cell value that begins with one of the formula-trigger characters as a
+    live formula. Evidence descriptions, evidence names, and asset hostnames
+    are all user/agent-reachable strings that flow into exported rows
+    unsanitized, so any string value is defused by prefixing it with a
+    single-quote (spreadsheet apps then treat the cell as literal text while
+    the value remains human-readable). Non-string values (numbers, None) are
+    returned unchanged so native numeric formatting in XLSX is preserved.
+    """
+    if isinstance(v, str) and v and v[0] in _FORMULA_TRIGGERS:
+        return "'" + v
+    return v
+
+
 def _score_status(status: str) -> str:
     """Normalise asset_compliance status to Compliant / Warning / Non-Compliant."""
     s = (status or "").strip()
