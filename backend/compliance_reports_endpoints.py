@@ -93,10 +93,11 @@ async def download_compliance_report(filename: str, current_user=Depends(get_cur
 
     if not os.path.abspath(file_path).startswith(os.path.abspath(_REPORTS_DIR) + os.sep):
         raise HTTPException(status_code=404, detail="Report not found")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Report not found")
 
-    # Verify the report belongs to the caller's tenant
+    # Verify the report belongs to the caller's tenant BEFORE checking
+    # filesystem existence. Checking existence first would let a caller
+    # probing another tenant's filenames distinguish "exists (403)" from
+    # "doesn't exist (404)" without ever being authorized to view it.
     caller_tenant = getattr(current_user, "tenant_id", None)
     caller_role = getattr(current_user, "role", "")
     if caller_role not in _SUPER_ADMIN_ROLES:
@@ -106,6 +107,9 @@ async def download_compliance_report(filename: str, current_user=Depends(get_cur
         report_meta = await db.compliance_reports.find_one({"filename": filename})
         if not report_meta or report_meta.get("tenantId") != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to access this report")
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Report not found")
 
     if filename.endswith(".pdf"):
         media_type = "application/pdf"
