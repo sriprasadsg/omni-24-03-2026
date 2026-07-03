@@ -189,28 +189,31 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
                                    "Not Implemented", "fail", "failed"]},
             }
         ).to_list(length=50)
-        seen: set = set()
-        sorted_controls: list = []
-        seen_by_fw: dict = {}
-        raw_by_fw: dict = {}
+        # `db.asset_compliance.find(...)` above has no explicit sort, so a control
+        # name that appears more than once in the (unordered) result set must keep
+        # its *most severe* occurrence — not merely the first one encountered —
+        # for the ranking to be deterministic and correct regardless of DB return
+        # order.
+        best_severity: dict = {}  # name -> lowest (= most severe) _SEVERITY_ORDER seen
+        best_severity_by_fw: dict = {}  # fw_key -> {name: lowest severity order seen}
         for doc in failing_docs:
             cid = str(doc.get("controlId", ""))
             name = control_id_to_name.get(cid, cid)
-            sev = control_id_to_severity.get(cid, "Low")
+            sev_order = _SEVERITY_ORDER.get(control_id_to_severity.get(cid, "Low"), 3)
             fw_key = control_id_to_framework.get(cid)
-            if name and name not in seen:
-                seen.add(name)
-                sorted_controls.append((_SEVERITY_ORDER.get(sev, 3), name))
-            if name and fw_key is not None:
-                fw_seen = seen_by_fw.setdefault(fw_key, set())
-                if name not in fw_seen:
-                    fw_seen.add(name)
-                    raw_by_fw.setdefault(fw_key, []).append((_SEVERITY_ORDER.get(sev, 3), name))
-        sorted_controls.sort(key=lambda x: x[0])
-        data["top_failing_controls"] = [n for _, n in sorted_controls[:7]]
+            if not name:
+                continue
+            if name not in best_severity or sev_order < best_severity[name]:
+                best_severity[name] = sev_order
+            if fw_key is not None:
+                fw_map = best_severity_by_fw.setdefault(fw_key, {})
+                if name not in fw_map or sev_order < fw_map[name]:
+                    fw_map[name] = sev_order
+        sorted_controls = sorted(best_severity.items(), key=lambda kv: kv[1])
+        data["top_failing_controls"] = [n for n, _ in sorted_controls[:7]]
         failing_by_framework = {
-            fw_key: [n for _, n in sorted(lst, key=lambda x: x[0])[:7]]
-            for fw_key, lst in raw_by_fw.items()
+            fw_key: [n for n, _ in sorted(fw_map.items(), key=lambda kv: kv[1])[:7]]
+            for fw_key, fw_map in best_severity_by_fw.items()
         }
     except Exception as exc:
         logger.warning("[NarrativeService] Failed to fetch failing controls: %s", exc)
