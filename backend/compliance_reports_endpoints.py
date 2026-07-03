@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_REPORTS_DIR = "static/reports"
+_REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "reports")
 
 
 @router.post("/api/compliance/reports/generate")
