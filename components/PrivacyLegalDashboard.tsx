@@ -30,15 +30,22 @@ export const PrivacyLegalDashboard: React.FC = () => {
   const [contractForm, setContractForm] = useState<Partial<ContractRecord>>({});
   const [expiring, setExpiring] = useState<ContractRecord[]>([]);
 
+  const fetchJson = async (url: string) => {
+    const res = await authFetch(url);
+    const body = await res.json();
+    if (!res.ok) { throw new Error(body?.detail || `Request failed: ${res.status}`); }
+    return body;
+  };
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      if (tab === 'tia') { const r = await (await authFetch('/api/privacy/tia')).json(); setTiaItems(r.items || []); }
-      if (tab === 'lia') { const r = await (await authFetch('/api/privacy/lia')).json(); setLiaItems(r.items || []); }
-      if (tab === 'notices') { const r = await (await authFetch('/api/privacy/notices')).json(); setNoticeItems(r.items || []); }
+      if (tab === 'tia') { const r = await fetchJson('/api/privacy/tia'); setTiaItems(r.items || []); }
+      if (tab === 'lia') { const r = await fetchJson('/api/privacy/lia'); setLiaItems(r.items || []); }
+      if (tab === 'notices') { const r = await fetchJson('/api/privacy/notices'); setNoticeItems(r.items || []); }
       if (tab === 'contracts') {
-        const r = await (await authFetch('/api/privacy/contracts')).json(); setContractItems(r.items || []);
-        const e = await (await authFetch('/api/privacy/contracts/expiring')).json(); setExpiring(e.items || []);
+        const r = await fetchJson('/api/privacy/contracts'); setContractItems(r.items || []);
+        const e = await fetchJson('/api/privacy/contracts/expiring'); setExpiring(e.items || []);
       }
     } catch { showToast('Failed to load data', 'error'); }
     finally { setLoading(false); }
