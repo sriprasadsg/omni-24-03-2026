@@ -1,8 +1,8 @@
 """
 Unit tests for Phase 13 AI Compliance Narrative Service.
 Tests: compliance_narrative_service.py
-Pattern: asyncio.get_event_loop().run_until_complete() + AsyncMock (NO pytest-asyncio).
-RED phase: Tests 1-7 fail with ImportError (compliance_narrative_service.py does not exist yet).
+Pattern: asyncio.run() + AsyncMock (NO pytest-asyncio).
+Pattern: asyncio.run() isolates each test from prior event-loop state — order-independent.
            Test 8 fails with AssertionError (_build_pdf does not yet render narrative text).
 """
 import sys
@@ -35,7 +35,7 @@ class TestGenerateExecutiveSummary:
                 )
             return result
 
-        result = asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.run(run())
         assert isinstance(result, str)
         assert len(result.split()) <= 150
 
@@ -60,7 +60,7 @@ class TestWordBudget:
                 )
             return result
 
-        result = asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.run(run())
         assert len(result.split()) <= 150
 
 
@@ -82,7 +82,7 @@ class TestFallbackOnError:
                 )
             return result
 
-        result = asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.run(run())
         assert isinstance(result, str)
         assert result != "Error: API timeout"
 
@@ -107,7 +107,7 @@ class TestFallbackOnBlocked:
                 )
             return result
 
-        result = asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.run(run())
         assert isinstance(result, str)
         assert not result.startswith("BLOCKED:")
 
@@ -162,7 +162,7 @@ class TestFrameworkNarrative:
                 )
             return result
 
-        result = asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.run(run())
         assert len(result.split()) <= 200
 
 
