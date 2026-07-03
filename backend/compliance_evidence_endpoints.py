@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
+from rate_limiter import limiter
 from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic, _SUPER_ROLES
 from evidence_coc import _append_coc_entry
 from evidence_staleness import get_staleness_threshold, compute_stale
@@ -34,6 +35,7 @@ _EVIDENCE_ALLOWED_MIME_PREFIXES: tuple[str, ...] = (
 
 
 @router.post("/api/assets/{asset_id}/compliance/evidence")
+@limiter.limit("30/hour")
 async def upload_compliance_evidence(
     request: Request,
     response: Response,
@@ -322,7 +324,9 @@ async def delete_compliance_evidence(
 
 
 @router.post("/api/compliance/controls/{control_id}/evidence")
+@limiter.limit("30/hour")
 async def upload_control_direct_evidence(
+    request: Request,
     control_id: str,
     file: UploadFile = File(...),
     description: str = Form("", max_length=1000),
