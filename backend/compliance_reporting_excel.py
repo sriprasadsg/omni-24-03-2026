@@ -215,7 +215,11 @@ async def _generate_all_excel(reports_dir: str, tenant_id: str = None, db=None) 
             ov.cell(r, c).alignment = Alignment(vertical="top", wrap_text=True)
         _apply_status_colors(ov, r, ov_status_col, overall)
 
-        short = re.sub(r'[\\/?*\[\]:]', '-', fw_name)[:24].strip()
+        # Excel/OOXML sheet titles are capped at 31 chars. " Controls" (9 chars)
+        # is the longer of the two suffixes appended below, so truncate to
+        # 31 - 9 = 22 chars to keep both "{short} Assets" and "{short} Controls"
+        # within the limit.
+        short = re.sub(r'[\\/?*\[\]:]', '-', fw_name)[:22].strip()
 
         ws_a = wb.create_sheet(f"{short} Assets")
         ws_a.append([f"Asset Summary — {fw_name}"])
