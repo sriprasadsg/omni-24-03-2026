@@ -77,16 +77,34 @@ _MAGIC_SIGNATURES: dict[str, bytes] = {
     ".xlsx": b"PK\x03\x04",
 }
 
+# WR-03: genuinely-unsigned extensions (no magic bytes exist to check) that are
+# nonetheless text-like enough to sanity-check as defense-in-depth, now that
+# CR-01 guarantees `ext` here is always non-empty and allowlisted.
+_TEXT_LIKE_UNSIGNED_EXTENSIONS: frozenset[str] = frozenset({".txt", ".csv"})
+_SUSPICIOUS_TEXT_PREFIXES: tuple[bytes, ...] = (b"<script", b"<html", b"<!doctype", b"<?php")
+
 
 def _check_magic(content: bytes, ext: str) -> bool:
     """Return True if file content leading bytes match the expected magic for ext.
 
-    Returns True for extensions with no defined signature (pass-through).
+    Returns True for extensions with no defined signature (pass-through), except
+    an empty ext (rejected outright — WR-03) and text-like unsigned extensions,
+    which get a lightweight NUL-byte / markup-prefix sanity check since they'd
+    otherwise have no content validation at all.
     """
+    if not ext:
+        return False
     sig = _MAGIC_SIGNATURES.get(ext)
-    if sig is None:
-        return True
-    return content[:len(sig)] == sig
+    if sig is not None:
+        return content[:len(sig)] == sig
+    if ext in _TEXT_LIKE_UNSIGNED_EXTENSIONS:
+        head = content[:4096]
+        if b"\x00" in head:
+            return False
+        stripped = head[:256].lstrip().lower()
+        if any(stripped.startswith(p) for p in _SUSPICIOUS_TEXT_PREFIXES):
+            return False
+    return True
 
 
 def _write_binary(path: str, data: bytes) -> None:
