@@ -406,15 +406,11 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                           }
                         }}
                         onIngestEvidence={async (assetId, fileName, content) => {
-                          console.log(`Ingesting evidence for asset ${assetId}: ${fileName}`);
                           try {
                             const asset = assets.find(a => a.id === assetId);
                             const sourceName = `Compliance_Evidence_${control.id}_${asset?.hostname || assetId}_${fileName}`;
                             const res = await api.ingestKnowledge(content, sourceName);
-                            if (res.success) {
-                              // alert(`Successfully ingested ${fileName} into RAG Knowledge Base!`); // Reduced noise
-                              console.log('Ingested into RAG');
-                            } else {
+                            if (!res.success) {
                               console.error('Ingest failed', res);
                             }
                           } catch (e) {
