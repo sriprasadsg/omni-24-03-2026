@@ -190,6 +190,8 @@ async def list_tia(current_user=Depends(get_current_user)):
 
 @router.post("/lia")
 async def create_lia(payload: dict = Body(...), current_user=Depends(get_current_user)):
+    if not payload.get("purpose"):
+        raise HTTPException(status_code=400, detail="LIA purpose is required")
     db = get_database()
     lia = await svc.create_lia(db, _tid(current_user), payload)
     return {"lia": lia}
@@ -207,6 +209,8 @@ async def list_lia(current_user=Depends(get_current_user)):
 
 @router.post("/notices")
 async def create_notice(payload: dict = Body(...), current_user=Depends(get_current_user)):
+    if not payload.get("title"):
+        raise HTTPException(status_code=400, detail="Notice title is required")
     db = get_database()
     notice = await svc.create_notice(db, _tid(current_user), payload)
     return {"notice": notice}
