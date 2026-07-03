@@ -193,7 +193,11 @@ async def _generate_all_excel(reports_dir: str, tenant_id: str = None, db=None) 
         fw_name = fw.get("name", fw_id)
         try:
             _, asset_summary, control_rows = await _build_report_data(fw_id, tenant_id)
-        except Exception as exc:
+        except ValueError as exc:
+            # ValueError is the documented "not found" failure mode raised by
+            # _build_report_data. Anything else (KeyError, AttributeError, DB
+            # timeouts, etc.) is a genuine defect and should propagate rather
+            # than be silently swallowed with no signal to the caller.
             logger.warning("Skipping framework %s in combined report: %s", fw_name, exc)
             continue
         total_done += 1
