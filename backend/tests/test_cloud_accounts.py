@@ -39,6 +39,7 @@ def test_register_aws_account():
     db = _mkdb(); c = _build(db, _mkuser())
     r = c.post("/api/cloud-accounts", json={"provider": "aws", "account_id": "123456789012", "account_name": "Prod", "environment": "prod"})
     assert r.status_code == 200, f"Got {r.status_code}"
+    assert "credentials_ref" not in r.json()["account"]
 
 def test_register_gcp_account():
     db = _mkdb(); c = _build(db, _mkuser())
@@ -51,9 +52,22 @@ def test_list_accounts():
     assert r.status_code == 200
 
 def test_scan_sets_status():
-    db = _mkdb(); c = _build(db, _mkuser())
-    r = c.post("/api/cloud-accounts/acct-1/scan")
-    assert r.status_code in (200, 500)
+    db = _mkdb()
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "aws"}
+    db._db.cloud_accounts.find_one = AsyncMock(return_value=account)
+    c = _build(db, _mkuser())
+    fake_run_checks = AsyncMock(return_value={"ran": 3, "accountId": "acct-1", "provider": "aws"})
+    with patch("cloud_checks_service.cloud_checks_service.run_checks", new=fake_run_checks):
+        r = c.post("/api/cloud-accounts/acct-1/scan")
+    assert r.status_code == 200
+    statuses = [
+        call.args[1]["$set"].get("scan_status")
+        for call in db._db.cloud_accounts.update_one.call_args_list
+    ]
+    assert statuses == ["scanning", "idle"], f"Got {statuses}"
+    # every write must be scoped to the account's tenant, not just its id
+    for call in db._db.cloud_accounts.update_one.call_args_list:
+        assert call.args[0].get("tenantId") == "tenant-a"
 
 def test_get_results():
     db = _mkdb(); c = _build(db, _mkuser())
@@ -72,6 +86,25 @@ def test_discover_org():
     assert "discovered" in r.json()
 
 def test_tenant_isolation():
-    db = _mkdb(); u = _mkuser("tenant-a", "user"); c = _build(db, u)
+    db = _mkdb()
+    docs = [
+        {"id": "acct-a", "tenantId": "tenant-a", "provider": "aws", "account_id": "111", "credentials_ref": "enc-x"},
+        {"id": "acct-b", "tenantId": "tenant-b", "provider": "aws", "account_id": "222", "credentials_ref": "enc-y"},
+    ]
+    captured_query = {}
+
+    def _find(query, *_a, **_kw):
+        captured_query.update(query)
+        filtered = [d for d in docs if d.get("tenantId") == query.get("tenantId")]
+        m = MagicMock()
+        m.sort = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=filtered)))
+        return m
+
+    db._db.cloud_accounts.find = MagicMock(side_effect=_find)
+    u = _mkuser("tenant-a", "user"); c = _build(db, u)
     r = c.get("/api/cloud-accounts")
     assert r.status_code == 200
+    assert captured_query.get("tenantId") == "tenant-a"
+    items = r.json()["items"]
+    assert len(items) == 1 and items[0]["id"] == "acct-a"
+    assert "credentials_ref" not in items[0]

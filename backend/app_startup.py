@@ -61,6 +61,13 @@ def _validate_startup_config() -> None:
     if super_pass in {"", "your-secure-super-admin-password", "change-me-to-a-strong-password"}:
         issues.append("SUPER_ADMIN_PASSWORD is unset or uses a placeholder value.")
 
+    if not os.getenv("CLOUD_CREDENTIALS_KEY", ""):
+        issues.append(
+            "CLOUD_CREDENTIALS_KEY is unset — cloud account credentials will use an "
+            "ephemeral encryption key (dev only; production refuses to start without it). "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+
     optional_integrations = {
         "GEMINI_API_KEY": "AI/LLM features",
         "VIRUSTOTAL_API_KEY": "VirusTotal binary scanning",
