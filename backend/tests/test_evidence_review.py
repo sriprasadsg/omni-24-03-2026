@@ -380,6 +380,19 @@ def test_evidence_propagation_query_does_not_corrupt_unrelated_evidence_item():
         except Exception:
             client.close()
             import pytest
+            # WR-04: this is the only test that exercises the *real* $elemMatch
+            # propagation query (see test_update_review_decision_propagation_filter_
+            # uses_elem_match below for a mock-based, always-runs companion that
+            # covers the same invariant without a live database). In CI, a missing
+            # MongoDB is a broken environment, not a legitimately-absent optional
+            # dependency, so fail loudly there instead of silently reporting
+            # "skipped"; locally (no CI env var set), skipping remains convenient.
+            if os.environ.get("CI"):
+                pytest.fail(
+                    f"No live MongoDB reachable at {mongo_uri} for CR-01 regression "
+                    f"test — CI environments must provide MONGODB_URI/MONGO_URI so "
+                    f"this test actually runs instead of silently skipping"
+                )
             pytest.skip(f"No live MongoDB reachable at {mongo_uri} for CR-01 regression test")
             return
 
@@ -442,3 +455,40 @@ def test_evidence_propagation_query_does_not_corrupt_unrelated_evidence_item():
             client.close()
 
     asyncio.run(_run())
+
+
+def test_update_review_decision_propagation_filter_uses_elem_match():
+    """Mock-based companion to the live-Mongo CR-01 regression test above (WR-04).
+
+    Unlike a plain mock's return value, the *filter dict itself* passed to
+    `db.asset_compliance.update_one` is fully inspectable without a live
+    database — asserting its shape gives first-class, non-optional coverage
+    (this test cannot silently skip) of the same invariant: `id` and `status`
+    must be tied together inside a single `$elemMatch`, not asserted as two
+    independent top-level conditions that Mongo's positional `$` operator
+    could resolve against different array elements.
+    """
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "approved", "comment": ""},
+    )
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+
+    assert db.asset_compliance.update_one.await_count == 1
+    filter_arg, _update_arg = db.asset_compliance.update_one.await_args.args
+
+    assert "evidence" in filter_arg, f"propagation filter missing 'evidence' key: {filter_arg!r}"
+    evidence_clause = filter_arg["evidence"]
+    assert "$elemMatch" in evidence_clause, (
+        "CR-01 regression: propagation filter's 'evidence' clause must use "
+        f"$elemMatch to tie id+status to the same array element, got: {evidence_clause!r}"
+    )
+    elem_match = evidence_clause["$elemMatch"]
+    assert elem_match.get("id") == "ev-1", f"expected $elemMatch.id == 'ev-1', got: {elem_match!r}"
+    assert elem_match.get("status") == "pending_review", (
+        f"expected $elemMatch.status == 'pending_review', got: {elem_match!r}"
+    )
