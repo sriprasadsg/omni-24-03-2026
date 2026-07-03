@@ -38,6 +38,17 @@ def _sanitize_cell(v):
     return v
 
 
+def _ev_key(e: dict):
+    """Stable dedup key for an evidence/artifact record.
+
+    Falls back through url/name before finally falling back to object
+    identity, so two records that both lack an "id" are never treated as
+    duplicates of each other (which would silently drop one from the
+    exported evidence list — see WR-03).
+    """
+    return e.get("id") or e.get("url") or e.get("name") or id(e)
+
+
 def _score_status(status: str) -> str:
     """Normalise asset_compliance status to Compliant / Warning / Non-Compliant."""
     s = (status or "").strip()
@@ -203,10 +214,12 @@ async def _build_report_data(framework_id: str, tenant_id: str = None):
 
         for aid, doc in matching:
             asset_ev = doc.get("evidence", [])
-            merged   = asset_ev + [
-                a for a in standalone
-                if not any(ae.get("id") == a.get("id") for ae in asset_ev)
-            ]
+            # Fall back to a stable synthetic key rather than comparing raw
+            # "id" values directly: two records that both lack an "id" would
+            # otherwise match via None == None and the standalone record
+            # would be silently dropped from the exported evidence list.
+            seen_asset_keys = {_ev_key(ae) for ae in asset_ev}
+            merged = asset_ev + [a for a in standalone if _ev_key(a) not in seen_asset_keys]
             ev = _flatten_evidence(merged)
             control_rows.append({
                 "Control ID": cid, "Control Name": cname, "Category": ccat,
