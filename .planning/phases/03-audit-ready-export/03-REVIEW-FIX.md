@@ -1,81 +1,99 @@
 ---
 phase: "03"
-fixed_at: 2026-07-02T18:35:58Z
+fixed_at: 2026-07-03T16:54:41Z
 review_path: .planning/phases/03-audit-ready-export/03-REVIEW.md
-iteration: 1
-findings_in_scope: 6
-fixed: 1
-skipped: 5
-status: partial
+iteration: 2
+findings_in_scope: 11
+fixed: 11
+skipped: 0
+status: all_fixed
 ---
 
-# Phase 03: Code Review Fix Report — Audit-Ready Export
+# Phase 03: Code Review Fix Report — Audit-Ready Export (Iteration 2)
 
-**Fixed at:** 2026-07-02T18:35:58Z
+**Fixed at:** 2026-07-03T16:54:41Z
 **Source review:** .planning/phases/03-audit-ready-export/03-REVIEW.md
-**Iteration:** 1
+**Iteration:** 2
 
 **Summary:**
-- Findings in scope: 6 (3 critical, 3 warning — the 2 Info findings are out of scope for this pass)
-- Fixed: 1
-- Skipped: 5 (all 5 were already resolved by later, unrelated work — see reasons below)
-
-This review is dated 2026-06-18, one of the earliest in the project. Re-verification against
-current source showed the codebase has moved on significantly: 5 of the 6 in-scope findings
-were already fixed by subsequent, unrelated commits (a service dispatcher method, a report
-metadata write path, and a project-wide tenant-isolation database wrapper). Only WR-01 still
-reproduced against current code and required a fix in this pass.
+- Findings in scope: 11 (2 critical, 5 warning, 4 info — fix_scope: all)
+- Fixed: 11
+- Skipped: 0
 
 ## Fixed Issues
 
-### WR-01: `_flatten_evidence` `count` field is inconsistent with `auto_count + manual_count`
+### CR-01: CSV/XLSX export writes user-controlled text unsanitized — formula injection (CWE-1236)
+
+**Files modified:** `backend/compliance_reporting_data.py`, `backend/compliance_reporting_service.py`, `backend/compliance_reporting_excel.py`
+**Commit:** bda4585
+**Applied fix:** Added a shared `_sanitize_cell()` helper in `compliance_reporting_data.py` that prefixes any string cell value beginning with a formula-trigger character (`=`, `+`, `-`, `@`, tab, CR) with a leading single-quote, neutralizing spreadsheet formula interpretation while remaining human-readable. Non-string values pass through unchanged so native XLSX numeric formatting is preserved. Applied at all four `csv.writer.writerow()` call sites in `_generate_csv`/`_generate_all_csv` and all four `ws.append()` call sites in `_generate_excel`/`_generate_all_excel`. Verified with `openpyxl` that `=HYPERLINK(...)`-style payloads are no longer interpreted as live formulas.
+
+### CR-02: PDF export crashes (500) on ordinary evidence text containing `<tag>`-like sequences
+
+**Files modified:** `backend/compliance_reporting_pdf.py`
+**Commit:** 43785a7
+**Applied fix:** Added `import html` and wrapped header/cell text in `html.escape(str(v), quote=False)` before constructing `reportlab.platypus.Paragraph` objects in `make_table()`. Reproduced the exact crash from the review (`Paragraph("Passed <br> review", ...)` raising `ValueError`) and confirmed the escaped version renders without error while preserving readable text.
+
+### WR-01: `list_compliance_reports` reads a field name that `_store_report_meta` never writes
+
+**Files modified:** `backend/compliance_reports_endpoints.py`
+**Commit:** 526ca51
+**Applied fix:** Changed `doc.get("created") or doc.get("generatedAt") or ""` to `doc.get("createdAt") or doc.get("created") or doc.get("generatedAt") or ""`, matching the key actually persisted by `_store_report_meta`.
+
+### WR-02: Excel sheet-name truncation still exceeds the 31-character OOXML limit
+
+**Files modified:** `backend/compliance_reporting_excel.py`
+**Commit:** e48a414
+**Applied fix:** Changed the truncation length from `[:24]` to `[:22]` (31 − len(" Controls") = 22, the longer of the two suffixes). Verified with the `"NIST Cybersecurity Framework v2.0"` example from the review that both `"{short} Assets"` (29 chars) and `"{short} Controls"` (31 chars) now stay within the 31-char OOXML limit.
+
+### WR-03: Evidence merge treats two id-less evidence records as duplicates (`None == None`)
 
 **Files modified:** `backend/compliance_reporting_data.py`
-**Commit:** b9573de
-**Applied fix:** Moved the `auto_count`/`manual_count` increment outside the `if name:` block in
-`_flatten_evidence`, so every deduplicated evidence record (including those with only a URL or
-description and no name) is counted toward `auto_count` or `manual_count`. `count` (`len(seen_ids)`)
-now always equals `auto_count + manual_count`, matching the fix's first option from REVIEW.md.
-Verified against the current file (same logic as reviewed, line numbers shifted slightly) and
-against `tests/test_audit_export.py::test_evidence_source_labelling`, which still asserts
-`auto_count == 1`, `manual_count == 1`, `count == 2` for two named records — unaffected by the
-change since both test records have names. Ran the full `tests/test_audit_export.py` suite
-(6 tests) after the fix: all pass.
+**Commit:** a982291
+**Applied fix:** Added an `_ev_key()` helper that falls back through `id` → `url` → `name` → `id(e)` (Python object identity) rather than comparing raw `.get("id")` values, so two unrelated id-less records never collide. Verified with a synthetic test that two distinct id-less evidence records are both now retained in the merged list (previously the standalone one was silently dropped).
+
+### WR-04: `_REPORTS_DIR` is cwd-relative, inconsistent with every sibling module
+
+**Files modified:** `backend/compliance_reports_endpoints.py`
+**Commit:** 6109be1
+**Applied fix:** Changed `_REPORTS_DIR = "static/reports"` to `_REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "reports")`, matching the pattern used by every other sibling module (`app.py`, `compliance_report_endpoints.py`, `ComplianceReportingService.reports_dir`).
+
+### WR-05: `sorted(asset_counts.items())` can raise `TypeError` if any `assetId` is present-but-`None`
+
+**Files modified:** `backend/compliance_reporting_data.py`
+**Commit:** 5b415a1
+**Applied fix:** Changed `doc.get("assetId", "unknown")` to `doc.get("assetId") or "unknown"` so a present-but-falsy (`None`/`""`) `assetId` is normalized the same way as a missing key, matching the guard already used eleven lines later in the same function. Verified with a synthetic mixed-key dict that `sorted()` no longer raises `TypeError`.
+
+### IN-01: `STATUS_LEGEND` is still a dead export (carried forward, unresolved)
+
+**Files modified:** `backend/compliance_reporting_data.py`
+**Commit:** 91d903d
+**Applied fix:** Removed the `STATUS_LEGEND` dict entirely after confirming via `grep -rn "STATUS_LEGEND" backend/` that its definition site was the only reference in the codebase.
+
+### IN-02: `test_legacy_download_allows_owner` still doesn't exercise the ownership-check path (carried forward, unresolved)
+
+**Files modified:** `backend/tests/test_audit_export.py`
+**Commit:** 9fd6f91
+**Applied fix:** Replaced the `patch("os.path.exists", return_value=False)` approach (which made the route 404 before ever reaching the tenant-ownership check) with a real temporary file served from a real reports directory (`tempfile.TemporaryDirectory()` + `patch.object(compliance_reports_endpoints, "_REPORTS_DIR", tmp_dir)`), then asserted `response.status_code == 200`. Verified independently that the same setup with a mismatched tenant in the DB mock genuinely returns 403 — confirming the test now discriminates the ownership-check path rather than short-circuiting on 404.
+
+### IN-03: Broad `except Exception: ... continue` silently skips frameworks in combined reports
+
+**Files modified:** `backend/compliance_reporting_service.py`, `backend/compliance_reporting_excel.py`
+**Commit:** 15d16db
+**Applied fix:** Narrowed `except Exception as exc` to `except ValueError as exc` in both `_generate_all_csv` and `_generate_all_excel`, matching the one documented failure mode (`_build_report_data` raising `ValueError` for an unresolvable framework). Unexpected exceptions (`KeyError`, `AttributeError`, DB timeouts) now propagate instead of being silently swallowed.
+
+### IN-04: Download route reveals filename existence before checking tenant ownership
+
+**Files modified:** `backend/compliance_reports_endpoints.py`
+**Commit:** 9424d8d
+**Applied fix:** Reordered `download_compliance_report` so the tenant-ownership DB lookup runs before the filesystem `os.path.exists()` check (the path-traversal guard remains first, since it is a security check unrelated to existence disclosure). A cross-tenant caller now always receives 403 regardless of whether the file exists, eliminating the existence oracle.
 
 ## Skipped Issues
 
-### CR-01: `generate_all_frameworks_report` does not exist on `ComplianceReportingService`
-
-**File:** `backend/compliance_reporting_service.py`
-**Reason:** Already fixed by later work. `ComplianceReportingService.generate_all_frameworks_report(self, tenant_id, format)` now exists (dispatches to `_generate_all_excel` or `_generate_all_csv` based on `format`, then persists report metadata via `_store_report_meta`). The endpoint at `backend/compliance_reports_endpoints.py:81` calls it successfully; no `AttributeError` / 500 reproduces against current code.
-**Original issue:** The method was missing, causing every `/api/compliance/reports/generate/all` call to hard-500.
-
-### CR-02: None-tenant bypass in download ownership check
-
-**File:** `backend/compliance_reports_endpoints.py:100-108`
-**Reason:** Already fixed by later work. The current ownership check includes an explicit guard — `if not caller_tenant: raise HTTPException(403, "Tenant context required")` — before the DB lookup, so a caller with no tenant context can no longer pass by `None == None` matching an untagged report's `tenantId`.
-**Original issue:** `caller_tenant is None` combined with a report stored without `tenantId` allowed the ownership check to pass via `None == None`.
-
-### CR-03: Report metadata is never written to `compliance_reports` collection
-
-**File:** `backend/compliance_reporting_service.py`
-**Reason:** Already fixed by later work. A `_store_report_meta(filename, tenant_id)` helper now upserts into `db.compliance_reports` after every report generation, and it is called from all six service methods (`generate_report`, `generate_excel_report`, `generate_pdf_report`, `generate_all_csv_report`, `generate_all_excel_report`, `generate_all_frameworks_report`). The download route's `db.compliance_reports.find_one({"filename": filename})` lookup is now populated, so the ownership check is no longer permanently self-defeating. A `list_compliance_reports` endpoint that reads from the same collection was also added, consistent with this metadata now being reliably written.
-**Original issue:** No writer populated `compliance_reports`, so the ownership check always 403'd, including for the legitimate owner.
-
-### WR-02: Unquoted filename in `Content-Disposition` header
-
-**File:** `backend/compliance_reports_endpoints.py:119`
-**Reason:** Already fixed by later work. The manual `headers={"Content-Disposition": ...}` override cited in the review no longer exists. The download route now returns `FileResponse(file_path, media_type=media_type, filename=filename)`, relying entirely on FastAPI/Starlette's built-in `Content-Disposition` generation (which quotes/encodes the filename correctly), exactly as REVIEW.md's suggested fix recommended.
-**Original issue:** An unquoted, manually-constructed `Content-Disposition` header allowed header injection via an unescaped filename.
-
-### WR-03: `_build_report_data` accepts `tenant_id` but never uses it as a DB filter
-
-**File:** `backend/compliance_reporting_data.py:96`
-**Reason:** Already fixed by later, unrelated work — a project-wide tenant-isolation mechanism superseded the need for this function to filter manually. `get_database()` (`backend/database.py`) now returns a `TenantIsolatedDatabase`, whose `TenantIsolatedCollection` wrapper auto-injects a `tenantId` filter (sourced from a per-request `ContextVar` set in `authentication_service.py` from the authenticated caller's tenant, via `Depends(get_current_user)` on every route in `compliance_reports_endpoints.py`) into every `find`/`find_one` call on `asset_compliance`, `compliance_artifacts`, and `assets` — the exact three collections named in this finding. `compliance_frameworks` is explicitly exempted as global reference data (consistent with the review's own caveat: "if multi-tenancy is enforced at the collection level this is benign"). Confirmed via grep that these three collections are NOT in the `TenantIsolatedDatabase` exemption list, and that `set_tenant_id` is called from `authentication_service.py` on every authenticated request. The explicit `tenant_id` parameter passed into `_build_report_data` is now dead code (unused), but poses no data-isolation risk since isolation is enforced one layer down at the database-access layer. Applying the review's literal suggested patch (adding `**({"tenantId": tenant_id} if tenant_id else {})` to each query) would be redundant — `TenantIsolatedCollection._inject_tenant_id` overwrites any `tenantId` key in the filter with the context-derived value regardless.
-**Original issue:** `tenant_id` was accepted but silently ignored, flagged as a possible cross-tenant data leak depending on schema.
+None — all findings were fixed.
 
 ---
 
-_Fixed: 2026-07-02T18:35:58Z_
+_Fixed: 2026-07-03T16:54:41Z_
 _Fixer: Claude (gsd-code-fixer)_
-_Iteration: 1_
+_Iteration: 2_

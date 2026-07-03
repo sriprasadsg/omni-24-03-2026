@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Windows PowerShell Evidence
-status: completed
-stopped_at: Phase 23 complete — Windows PowerShell evidence collector (28 checks), rebuilt installers, Inno Setup EXE, frontend 3-step install tab
-last_updated: "2026-06-27T07:11:47.348Z"
+status: Ready to plan
+stopped_at: Phase 14 Plan 01 complete — SaaS OAuth evidence integration
+last_updated: "2026-07-03T19:31:16.215Z"
 progress:
   total_phases: 18
-  completed_phases: 9
+  completed_phases: 11
   total_plans: 29
-  completed_plans: 20
-  percent: 50
+  completed_plans: 22
+  percent: 61
 ---
 
 # Project State
