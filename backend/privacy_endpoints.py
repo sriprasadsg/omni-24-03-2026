@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 import logging
 
 from auth_utils import get_current_user
+from database import get_database
 import privacy_service as svc
 
 router = APIRouter(prefix="/api/privacy", tags=["Privacy & Compliance"])
@@ -139,7 +140,6 @@ async def create_processing_activity(
 
 @router.get("/breaches")
 async def list_breaches(current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     tid = _tid(current_user)
     role = _role(current_user)
@@ -170,7 +170,6 @@ async def report_breach(
 
 @router.post("/tia")
 async def create_tia(payload: dict = Body(...), current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     try:
         tia = await svc.create_tia(db, _tid(current_user), payload)
@@ -181,7 +180,6 @@ async def create_tia(payload: dict = Body(...), current_user=Depends(get_current
 
 @router.get("/tia")
 async def list_tia(current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     items = await svc.list_tia(db, _tid(current_user))
     return {"items": items, "count": len(items)}
@@ -192,7 +190,6 @@ async def list_tia(current_user=Depends(get_current_user)):
 
 @router.post("/lia")
 async def create_lia(payload: dict = Body(...), current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     lia = await svc.create_lia(db, _tid(current_user), payload)
     return {"lia": lia}
@@ -200,7 +197,6 @@ async def create_lia(payload: dict = Body(...), current_user=Depends(get_current
 
 @router.get("/lia")
 async def list_lia(current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     items = await svc.list_lia(db, _tid(current_user))
     return {"items": items, "count": len(items)}
@@ -211,7 +207,6 @@ async def list_lia(current_user=Depends(get_current_user)):
 
 @router.post("/notices")
 async def create_notice(payload: dict = Body(...), current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     notice = await svc.create_notice(db, _tid(current_user), payload)
     return {"notice": notice}
@@ -219,7 +214,6 @@ async def create_notice(payload: dict = Body(...), current_user=Depends(get_curr
 
 @router.get("/notices")
 async def list_notices(current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     items = await svc.list_notices(db, _tid(current_user))
     return {"items": items, "count": len(items)}
@@ -227,7 +221,6 @@ async def list_notices(current_user=Depends(get_current_user)):
 
 @router.get("/notices/{notice_id}/versions")
 async def get_notice_versions(notice_id: str, current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     versions = await svc.get_notice_versions(db, notice_id, _tid(current_user))
     return {"versions": versions, "count": len(versions)}
@@ -238,7 +231,6 @@ async def get_notice_versions(notice_id: str, current_user=Depends(get_current_u
 
 @router.post("/contracts")
 async def create_contract(payload: dict = Body(...), current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     try:
         contract = await svc.create_contract(db, _tid(current_user), payload)
@@ -249,7 +241,6 @@ async def create_contract(payload: dict = Body(...), current_user=Depends(get_cu
 
 @router.get("/contracts")
 async def list_contracts(current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     items = await svc.list_contracts(db, _tid(current_user))
     return {"items": items, "count": len(items)}
@@ -257,7 +248,6 @@ async def list_contracts(current_user=Depends(get_current_user)):
 
 @router.get("/contracts/expiring")
 async def get_expiring_contracts(current_user=Depends(get_current_user)):
-    from database import get_database
     db = get_database()
     items = await svc.get_expiring_contracts(db, _tid(current_user))
     return {"items": items, "count": len(items)}
