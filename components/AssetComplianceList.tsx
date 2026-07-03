@@ -284,7 +284,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                 ref={fileInputRef}
                 className="hidden"
                 onChange={handleFileChange}
-                accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.txt,.md,.json,.csv"
+                accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
             />
         </div>
     );
