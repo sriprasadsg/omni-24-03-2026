@@ -42,9 +42,14 @@ def _make_mock_db():
     db.audit_logs = MagicMock()
     db.audit_logs.insert_one = AsyncMock(return_value=MagicMock(inserted_id="log-1"))
 
-    # evidence_reviews collection via _db — service code accesses it by subscript
-    # (db._db[_EVIDENCE_REVIEWS_COL]), not by attribute, so __getitem__ must be
-    # wired to the same mock the assertions below reference.
+    # evidence_reviews collection — service code accesses it via the wrapped
+    # tenant-isolation subscript accessor (db[_EVIDENCE_REVIEWS_COL]), matching
+    # every other collection in this file (CR-01: the raw db._db[...] bypass
+    # skipped TenantIsolatedDatabase.__getitem__'s automatic tenantId
+    # enforcement). db.__getitem__ must be wired to the same mock the
+    # assertions below reference. db._db is kept wired too (rather than
+    # removed) so the live-Mongo test below, which constructs its own
+    # `_RealDbWrapper` exposing `._db`, keeps working unchanged.
     inner = MagicMock()
     inner.evidence_reviews = MagicMock()
     inner.evidence_reviews.insert_one = AsyncMock(return_value=MagicMock(inserted_id="rev-abc"))
@@ -61,6 +66,12 @@ def _make_mock_db():
     ))))
     inner.__getitem__ = MagicMock(return_value=inner.evidence_reviews)
     db._db = inner
+    # db itself stands in for the TenantIsolatedDatabase the real service
+    # receives from get_database() — its __getitem__ must resolve to the
+    # same evidence_reviews mock so tests that mutate
+    # `db._db.evidence_reviews.<method>` (a reference, not a copy) are
+    # observed by the service code's `db[_EVIDENCE_REVIEWS_COL]` calls too.
+    db.__getitem__ = MagicMock(return_value=inner.evidence_reviews)
     return db
 
 
@@ -399,12 +410,19 @@ def test_evidence_propagation_query_does_not_corrupt_unrelated_evidence_item():
         motor_db = client["evidence_review_cr01_test"]
 
         class _RealDbWrapper:
-            """Minimal shim matching the (asset_compliance, _db[...]) surface
+            """Minimal shim matching the (asset_compliance, db[...]) surface
             evidence_review_service expects, backed by a real Mongo database
-            instead of a mock."""
+            instead of a mock. __getitem__ stands in for
+            TenantIsolatedDatabase.__getitem__ (CR-01) — this test doesn't
+            need the tenant-isolation wrapping itself (the query already
+            includes explicit tenantId filters), only the same access
+            pattern the production code now uses."""
             def __init__(self, mdb):
                 self.asset_compliance = mdb.asset_compliance
                 self._db = mdb
+
+            def __getitem__(self, name):
+                return self._db[name]
 
         db = _RealDbWrapper(motor_db)
 

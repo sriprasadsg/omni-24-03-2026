@@ -151,7 +151,7 @@ async def create_review(
         )
 
     now = _now_iso()
-    review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
+    review = await db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
         {"tenantId": tenant_id, "evidenceId": evidence_id, "status": "pending"},
         {
             "$setOnInsert": {
@@ -226,7 +226,7 @@ async def update_review_decision(
     #    part of the filter itself, so a mismatched evidence_id or an
     #    already-decided review is indistinguishable from "not found" and
     #    never mutates anything.
-    review = await db._db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
+    review = await db[_EVIDENCE_REVIEWS_COL].find_one_and_update(
         {
             "id": review_id,
             "evidenceId": evidence_id,
@@ -299,7 +299,7 @@ async def get_reviews(
     rather than reflecting a real expected volume.
     """
     cursor = (
-        db._db[_EVIDENCE_REVIEWS_COL]
+        db[_EVIDENCE_REVIEWS_COL]
         .find({"evidenceId": evidence_id, "tenantId": tenant_id}, {"_id": 0})
         .sort("created_at", -1)
     )
