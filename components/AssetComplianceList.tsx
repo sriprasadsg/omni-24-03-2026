@@ -1,9 +1,28 @@
 import React, { useState } from 'react';
-import { Asset, AssetCompliance, Control } from '../types';
+import { Asset, AssetCompliance, AssetComplianceEvidence, Control } from '../types';
 import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircuitIcon, TrashIcon } from './icons';
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
 import { EvidenceReviewPanel } from './EvidenceReviewPanel';
 import { showToast } from '../utils/toast';
+
+/** Extends the canonical `AssetComplianceEvidence` shape (types.ts) with the
+ * ad-hoc fields the automated/AI-auditor evidence rendering path below also
+ * reads. These aren't part of the shared type — they're specific to how
+ * automated evidence sources shape their payload — but typing them here
+ * still catches a typo'd or renamed property at compile time, which `any`
+ * would silently swallow (IN-01). */
+interface RenderedEvidence extends AssetComplianceEvidence {
+    systemGenerated?: boolean;
+    source?: string;
+    evidence_id?: string;
+    evidence_content?: string;
+    content?: string;
+    details?: string;
+    check_name?: string;
+    stale?: boolean;
+    stale_days?: number;
+    agent_type?: string;
+}
 
 interface AssetComplianceListProps {
     control: Control;
@@ -131,7 +150,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                     {statusRecord?.evidence?.length ? (
                                         <div className="flex flex-col space-y-3">
-                                            {statusRecord.evidence.map((ev: any, idx: number) => {
+                                            {statusRecord.evidence.map((ev: RenderedEvidence, idx: number) => {
                                                 const isAutomated = ev.systemGenerated === true || ev.source === 'auto';
                                                 const evId = ev.id || ev.evidence_id;
                                                 return (
