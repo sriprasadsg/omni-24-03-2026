@@ -1,6 +1,6 @@
 ---
 phase: 02-manual-evidence-uploads
-reviewed: 2026-07-03T00:00:00Z
+reviewed: 2026-07-03T09:54:49Z
 depth: standard
 files_reviewed: 6
 files_reviewed_list:
@@ -11,312 +11,177 @@ files_reviewed_list:
   - components/FrameworkDetail.tsx
   - services/apiService.ts
 findings:
-  critical: 6
-  warning: 7
-  info: 2
-  total: 15
+  critical: 4
+  warning: 4
+  info: 3
+  total: 11
 status: issues_found
 ---
 
 # Phase 02: Code Review Report
 
-**Reviewed:** 2026-07-03T00:00:00Z
+**Reviewed:** 2026-07-03T09:54:49Z
 **Depth:** standard
 **Files Reviewed:** 6
 **Status:** issues_found
 
 ## Summary
 
-This is a re-review of the manual-evidence-upload surface against its current
-state. An earlier review round (`02-REVIEW.md` history) fixed several serious
-issues in `compliance_evidence_endpoints.py` and `apiService.ts` — the tenant
-isolation bypass on DELETE, header-injection via evidence filename, the
-`controlId`/`control_id` mismatch, the missing `tenantId` on artifact records,
-and the artifact record's ID collision are all correctly fixed in the code
-read for this review. Good — that hardening held.
+This is a from-scratch re-review of the manual-evidence-upload feature after a prior fix pass claimed to resolve 15 findings (6 critical, incl. stored-XSS via unsafe upload allowlist). Several of the previously-described fix patterns (narrowed extension allowlists, magic-byte validation, path-traversal guards on download/delete, ownership/tenant checks) are present and correctly implemented in `compliance_evidence_endpoints.py`. However, this pass surfaces **new, unfixed, exploitable issues**, the most serious being:
 
-However, `compliance_artifacts_endpoints.py` still lags well behind
-`compliance_evidence_endpoints.py`'s security bar, and a new critical issue
-emerges from how the two interact with the rest of the app. It defines the
-same magic-byte helper (`_check_magic`) the evidence module uses but never
-calls it in its own upload endpoint; its extension allowlist still includes
-`.html`/`.xml`; and its MIME-check has an "only validate if a Content-Type
-was actually sent" bug that fails *open* instead of closed. Because
-`backend/app.py` mounts `static/evidence` directly as a static file server,
-the `.html` allowance is not theoretical — it is a working stored-XSS path for
-any authenticated user, of any role, since none of the upload endpoints
-enforce a permission check beyond "is logged in." The artifact upload's
-generated *filename* (as opposed to its `id`, which was already fixed to use
-a UUID) is still built from a second-granularity timestamp with no random
-component, so two same-second, same-category uploads still silently
-overwrite each other's file on disk — the ID collision was fixed, but an
-adjacent, functionally identical collision in the filename was not.
+1. `compliance_artifacts_endpoints.py`'s manual-artifact upload endpoint uses an inverted conditional that lets a caller **bypass the extension allowlist entirely** by omitting the file extension — reopening exactly the class of vulnerability ("stored-XSS via unsafe upload allowlist") the prior pass claims to have fixed. The sibling evidence-upload endpoints got this right; this one did not.
+2. All evidence/artifact files are stored under `backend/static/evidence/`, which is mounted **publicly and without authentication** at `/static` in `app.py`. This completely bypasses the RBAC- and tenant-scoped `/api/compliance/evidence/download/{evidence_id}` endpoint and every ownership check built into the delete endpoints — anyone who obtains a stored filename (via referrer leakage, logs, or the tenant-isolation bug below) can fetch the raw file with zero authorization.
+3. `get_control_evidence` silently drops its tenant filter (returning evidence across **all tenants**) whenever a non-super-admin caller has a falsy `tenant_id`, instead of failing closed like every other endpoint in the same file.
+4. `upload_manual_artifact`'s asset-tenant-ownership check is skipped outright when the caller's `tenant_id` is falsy, instead of failing closed.
 
-On the frontend, the file-picker `accept` mismatch flagged in the prior
-review was only half-fixed: the missing image/office formats were added
-back, but the extra text formats (`.txt`/`.md`/`.json`/`.csv`) that the
-backend's narrow evidence allowlist has never accepted are still offered,
-so picking one of those still always fails the primary upload. The
-"Pending_Review" status string set by both upload endpoints still isn't
-recognized by the frontend's status-badge styling (which only special-cases
-`Compliant` and `Pending_Evidence`), so freshly uploaded evidence awaiting
-review renders with the "Non-Compliant" red badge.
+These are provable, not hypothetical: I traced each through the actual conditional logic and cross-referenced `app.py`'s static mount and the RBAC helper (`rbac_utils.py`) to confirm tenant/role plumbing.
 
 ## Critical Issues
 
-### CR-01: Unrestricted `.html`/`.xml` upload + same-origin static serving enables stored XSS
+### CR-01: Extension allowlist bypass via omitted file extension in manual artifact upload
 
-**File:** `backend/compliance_artifacts_endpoints.py:19-24` (allowlist), `:92-180` (endpoint); exploitability confirmed via `backend/app.py:82`
+**File:** `backend/compliance_artifacts_endpoints.py:127-140`
+**Issue:** The extension check uses an inverted-guard conditional that only rejects a file when an extension is *present and disallowed*:
 
-**Issue:** `_ALLOWED_UPLOAD_EXTENSIONS` includes `.md`, `.json`, `.xml`, and `.html`. Uploaded files are written under `UPLOAD_DIR = "static/evidence"` and returned with `url: f"/static/evidence/{safe_filename}"`. `backend/app.py:82` mounts that same directory directly: `app.mount("/static", StaticFiles(directory=static_dir), name="static")`. Any authenticated user (no permission check — see CR-06) can upload an `.html` file containing `<script>...</script>` as a "manual artifact" and have it served same-origin at `/static/evidence/artifact_other_<timestamp>.html`, executing in the browser of anyone who opens that link (a reviewer, auditor, or Super Admin — possibly from another tenant). `sessionStorage` holds the JWT `token`/`refresh_token` (`services/apiService.ts:108-109`), so this is a session-hijack vector, not just defacement.
-
-**Fix:** Drop `.html`/`.xml` (and reconsider `.md`/`.json`, which some browsers still sniff) from `_ALLOWED_UPLOAD_EXTENSIONS`, and/or stop serving `static/evidence` through the raw static mount — route all evidence downloads exclusively through the existing `download_compliance_evidence` handler, which can force `Content-Disposition: attachment` and a locked content type:
 ```python
-_ALLOWED_UPLOAD_EXTENSIONS: frozenset[str] = frozenset({
-    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp",
-    ".zip", ".tar", ".gz",
-    # ".md", ".json", ".xml", ".html" removed — servable, script-capable formats
-})
-```
-
----
-
-### CR-02: MIME-type check silently no-ops when `Content-Type` is blank
-
-**File:** `backend/compliance_artifacts_endpoints.py:124-126`
-
-**Issue:**
-```python
-content_type = (file.content_type or "").split(";")[0].strip()
-if content_type and not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
-    raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
-```
-When `content_type` is empty (client omits `Content-Type`, or a scripted API call sends an empty value), `if content_type and ...` short-circuits to `False` and the check is skipped entirely — the file is accepted with no MIME validation at all. Contrast with the correct pattern already used two files over, in `compliance_evidence_endpoints.py:68` and `:348`:
-```python
-if not content_type or not any(content_type.startswith(p) for p in _EVIDENCE_ALLOWED_MIME_PREFIXES):
-```
-which fails closed instead of open.
-
-**Fix:**
-```python
-content_type = (file.content_type or "").split(";")[0].strip()
-if not content_type or not any(content_type.startswith(p) for p in _ALLOWED_UPLOAD_MIME_PREFIXES):
-    raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
-```
-
----
-
-### CR-03: Magic-byte validation (`_check_magic`) is defined but never called in the artifact upload endpoint
-
-**File:** `backend/compliance_artifacts_endpoints.py:68-76` (definition), `:92-180` (endpoint — no call site)
-
-**Issue:** `_check_magic()` exists specifically to catch content/extension mismatches (e.g. an HTML/script payload saved with a `.pdf` name and a forged `Content-Type: application/pdf`). `compliance_evidence_endpoints.py` correctly calls it (`compliance_evidence_endpoints.py:79`, `:354`) after reading the file. `upload_manual_artifact`, in the module that *defines* `_check_magic`, reads `file_content`, checks extension and MIME, and writes straight to disk — the helper is dead code in its own home module and is only ever invoked by the sibling module that imports it. Combined with CR-01/CR-02, this removes the last layer of defense against spoofed uploads on the broader artifact-upload path.
-
-**Fix:** Call it right after reading the content, mirroring `compliance_evidence_endpoints.py`:
-```python
-file_content = await file.read()
-if len(file_content) > 50 * 1024 * 1024:
-    raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
-
-original_name = os.path.basename(file.filename or "artifact")
 file_ext = os.path.splitext(original_name)[1].lower()
-...
-if not _check_magic(file_content, file_ext):
-    raise HTTPException(status_code=400, detail="File content does not match extension")
+
+# Whitelist extension and MIME type — reject executables and scripts
+if file_ext and file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+    raise HTTPException(status_code=400, detail=f"File type '{file_ext}' is not allowed.")
 ```
 
----
+If the client omits a filename (or uses a filename with no dot, e.g. `"artifact"`), `file_ext` is `""`, which is falsy, so `file_ext and ...` short-circuits to `False` and **no exception is raised** — the request sails through the allowlist check entirely. The same request then only needs a `Content-Type` that starts with an allowed prefix (`"text/"`, `"image/"`, `"application/pdf"`, etc. — note `"text/"` matches *any* `text/*` subtype, including `text/html`). `_check_magic(content, "")` looks up `_MAGIC_SIGNATURES.get("")`, finds nothing, and returns `True` (documented pass-through for "extensions with no defined signature") — so the magic-byte check is defeated too. The result: a file with attacker-controlled bytes and an attacker-controlled `Content-Type` can be stored with **no extension and no content validation whatsoever**, as long as the filename has no dot.
 
-### CR-04: Non-unique, low-resolution filename generation corrupts evidence integrity on the artifact upload path
-
-**File:** `backend/compliance_artifacts_endpoints.py:136-138`
-
-**Issue:**
+Contrast with the two upload handlers in `compliance_evidence_endpoints.py` (`upload_compliance_evidence` line 61, `upload_control_direct_evidence` line 342), which correctly use:
 ```python
-timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-...
-safe_filename = f"artifact_{category}_{timestamp}{file_ext}"
+if not file_ext or file_ext not in _EVIDENCE_ALLOWED_EXTENSIONS:
 ```
-This has only second-level resolution and no random/unique component. Two uploads of the same category within the same wall-clock second (concurrent requests, a double-clicked submit, or scripted bulk imports) collide on `safe_filename`, and the second `_write_binary` call silently overwrites the first upload's bytes on disk. Because `sha256 = _sha256_file(file_path)` re-reads the file *after* writing it, the first record's stored `sha256` will end up describing the *second* file's content the moment a collision occurs — silently breaking the chain-of-custody/integrity guarantee this endpoint exists to provide. A prior review round already fixed the *record's* `id` field to use `uuid.uuid4().hex` (avoiding a Mongo duplicate-key error) — but that fix was never applied to `safe_filename`, so the on-disk collision this review found is a distinct, still-open instance of the same root cause. Every other upload path in this codebase (`compliance_evidence_endpoints.py:82`, `:357`) uses `uuid.uuid4().hex` in the filename for exactly this reason.
+This fails closed on empty extension. `compliance_artifacts_endpoints.py` was not brought in line with that pattern.
 
 **Fix:**
 ```python
-import uuid  # promote the existing local `import uuid as _uuid` to module scope (see IN-01)
-...
-safe_filename = f"artifact_{category}_{uuid.uuid4().hex}{file_ext}"
+if not file_ext or file_ext not in _ALLOWED_UPLOAD_EXTENSIONS:
+    raise HTTPException(status_code=400, detail=f"File type '{file_ext or '(none)'}' is not allowed.")
 ```
 
----
+### CR-02: Uploaded evidence/artifact files are served publicly with no authentication, bypassing all RBAC/tenant checks
 
-### CR-05: Non-unique MongoDB filter can silently attach evidence to (and flip the status of) an unrelated asset
+**File:** `backend/compliance_artifacts_endpoints.py:18-19` (and `backend/compliance_evidence_endpoints.py:12` which imports the same `UPLOAD_DIR`); root cause visible at `backend/app.py:81-82`
+**Issue:** `UPLOAD_DIR = "static/evidence"` and files are written under `backend/static/evidence/...`. `app.py` mounts that same `static/` tree publicly and unauthenticated:
+```python
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+```
+Every evidence/artifact record's `url` field (`/static/evidence/<uuid>.<ext>`) is therefore directly fetchable by anyone — no JWT, no tenant check, no ownership check — completely bypassing:
+- The tenant/role checks in `download_compliance_evidence` (`compliance_evidence_endpoints.py:160-219`),
+- The "only owner or admin can delete" logic (irrelevant to *reads*, but shows the intended access model),
+- The tenant-scoping in `list_manual_artifacts` / `get_control_evidence`.
 
-**File:** `backend/compliance_artifacts_endpoints.py:169-178`
+Filenames are UUID4 hex (hard to brute-force), but they are not designed to be secrets — they are returned verbatim in API responses to any user who can see the record, they'll appear in browser history/devtools/network logs, and (per CR-03 below) can even leak cross-tenant through `get_control_evidence`. Once a filename is known by any means, the file is fully exposed regardless of tenant, role, or whether the uploading control/asset is even accessible to the requester anymore.
+**Fix:** Do not serve the evidence directory through the public static mount. Either:
+1. Store uploads outside of `backend/static/` (e.g. `backend/private_uploads/evidence/`) so nothing under `/static` maps to them, and route all reads exclusively through the authenticated download endpoints, or
+2. If they must live under `static/`, exclude that subpath from the `StaticFiles` mount (e.g., mount only `static/public` at `/static`) and require every read to go through `download_compliance_evidence`.
 
+### CR-03: `get_control_evidence` returns cross-tenant evidence when a non-super caller has no `tenant_id`
+
+**File:** `backend/compliance_evidence_endpoints.py:408-458`
 **Issue:**
 ```python
-for control_id in control_list:
-    scope = {"assetId": asset_id, "controlId": control_id} if asset_id else {"controlId": control_id}
-    await db.asset_compliance.update_one(
-        scope,
-        {
-            "$set": {"status": "Pending_Review", "lastUpdated": record["uploaded_at"]},
-            "$push": {"evidence": record},
-        },
-        upsert=True,
-    )
+manual_query: dict = {"controlId": control_id}
+if not is_super and tenant_id:
+    manual_query["tenantId"] = tenant_id
+...
+asset_query: dict = {"controlId": control_id}
+if not is_super and tenant_id:
+    asset_query["tenantId"] = tenant_id
 ```
-When `asset_id` is not supplied (the "org-wide control, no specific asset" case that field's docstring describes), `scope` is `{"controlId": control_id}` — with no `assetId` constraint. `asset_compliance` normally holds one document per `(assetId, controlId)` pair, so for any control tracked across multiple assets there will be several documents matching that filter. `update_one` only updates the **first** document Mongo happens to match (order is not guaranteed) — this silently pushes the artifact's evidence into, and flips the `status` of, one arbitrary asset's compliance record instead of the intended "no particular asset" target, corrupting that asset's compliance state as a side effect of an unrelated upload. If no document matches, `upsert=True` instead creates an orphaned record with no `assetId`, which `get_asset_compliance` (filtered by `assetId`) will never surface, but `get_control_evidence`'s asset-agnostic query (`compliance_evidence_endpoints.py:429`, `asset_query: dict = {"controlId": control_id}`) will pick up and mislabel as `system`-sourced evidence (it has neither `systemGenerated` nor `source: "auto"`, so it's silently misclassified rather than merely hidden).
+If `tenant_id` is `None`/empty for a non-super-admin caller (malformed token, mis-provisioned account, service-to-service caller, etc.), the `and tenant_id` guard is falsy, so **the tenant filter is never applied** — both `manual_query` and `asset_query` collapse to `{"controlId": control_id}`, returning every tenant's manual and system evidence for that control. This is the *only* place in the file that behaves this way; every other endpoint in the same module fails closed on a missing tenant (e.g. `download_compliance_evidence:171-174` raises 403 "Tenant context required"; `get_asset_compliance:233` uses `tenant_id or ""` which can never match a real tenant; `delete_control_direct_evidence:479` compares `record.get("tenantId") != caller_tenant` which is `!= None` and fails safe).
+**Fix:** Fail closed like the sibling endpoints:
+```python
+if not is_super:
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    manual_query["tenantId"] = tenant_id
+    asset_query["tenantId"] = tenant_id
+```
 
-**Fix:** Route control-level (no-asset) manual artifacts to the dedicated `control_evidence` collection that already exists for exactly this case (see `upload_control_direct_evidence` in `compliance_evidence_endpoints.py:326-407`), instead of upserting into `asset_compliance` with an ambiguous filter:
+### CR-04: Asset-tenant ownership check silently skipped when caller has no `tenant_id`
+
+**File:** `backend/compliance_artifacts_endpoints.py:143-149`
+**Issue:**
 ```python
 if asset_id:
-    await db.asset_compliance.update_one(
-        {"assetId": asset_id, "controlId": control_id},
-        {"$set": {"status": "Pending_Review", "lastUpdated": record["uploaded_at"]},
-         "$push": {"evidence": record}},
-        upsert=True,
-    )
-else:
-    await db.control_evidence.insert_one({**record, "controlId": control_id})
+    _caller_tenant = getattr(current_user, "tenant_id", None)
+    if _caller_tenant:
+        _db = get_database()
+        _asset = await _db.assets.find_one({"id": asset_id, "tenantId": _caller_tenant})
+        if not _asset:
+            raise HTTPException(status_code=403, detail="Asset not found in your tenant")
 ```
-
----
-
-### CR-06: No server-side authorization check on evidence/artifact upload endpoints
-
-**File:** `backend/compliance_artifacts_endpoints.py:92-103` (`upload_manual_artifact`); `backend/compliance_evidence_endpoints.py:38-47` (`upload_compliance_evidence`), `:326-333` (`upload_control_direct_evidence`)
-
-**Issue:** All three upload endpoints depend only on `Depends(get_current_user)`, which (per `authentication_service.py:169`) verifies the JWT but performs no role/permission check. Tenant isolation is enforced correctly where it applies, but *any* authenticated user of *any* role — including a read-only `Viewer` — can call these endpoints directly (they're plain REST routes, unrelated to what the client UI chooses to render). The frontend's own gating is inconsistent, which is evidence server-side enforcement is actually needed: `FrameworkDetail.tsx:167-176` hides "Bulk Upload Evidence" behind `canManageEvidence = hasPermission('manage:compliance_evidence')`, but the per-control "Upload" button (`FrameworkDetail.tsx:357-367`) that opens `ControlEvidenceUploadModal` is not gated by that permission at all — and neither button's protection would matter to an attacker calling the API directly regardless.
-
-**Fix:** Add an explicit permission dependency to each upload/create route, mirroring whatever mechanism gates other write endpoints elsewhere in the backend (e.g. a `require_permission("manage:compliance_evidence")` dependency), rather than relying on the frontend to hide the control.
+When `current_user.tenant_id` is falsy for a non-super-admin caller, the entire ownership check (`if _caller_tenant:`) is skipped, and the artifact is happily associated with an arbitrary `asset_id` belonging to any tenant — no 403 is raised. This mirrors the same fail-open pattern as CR-03, just in the sibling module.
+**Fix:** Fail closed instead of skipping the check:
+```python
+if asset_id:
+    _caller_tenant = getattr(current_user, "tenant_id", None)
+    _user_role = getattr(current_user, "role", "")
+    if _user_role not in _SUPER_ROLES:
+        if not _caller_tenant:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        _db = get_database()
+        _asset = await _db.assets.find_one({"id": asset_id, "tenantId": _caller_tenant})
+        if not _asset:
+            raise HTTPException(status_code=403, detail="Asset not found in your tenant")
+```
 
 ## Warnings
 
-### WR-01: Backend validation `detail` messages are discarded by the frontend evidence API wrappers
+### WR-01: Evidence-upload endpoints lack the dedicated rate limit applied to the sibling artifact-upload endpoint
 
-**File:** `services/apiService.ts:639-660, 677-701`
+**File:** `backend/compliance_evidence_endpoints.py:36-131` (`upload_compliance_evidence`), `:324-405` (`upload_control_direct_evidence`)
+**Issue:** `upload_manual_artifact` in `compliance_artifacts_endpoints.py:100-101` is explicitly throttled with `@limiter.limit("10/hour")`. Neither `upload_compliance_evidence` nor `upload_control_direct_evidence` carry any endpoint-specific limit, so they fall back to the much more permissive app-wide default (`200/minute`, `2000/hour`, from `rate_limiter.py:13`, wired in via `SlowAPIMiddleware` in `app_middleware.py`). Both endpoints accept up to 25 MB per request and write to disk; at the default global limit a single caller can write roughly 5 GB/minute, dramatically more than the artifact-upload path allows for functionally identical file-write operations. `upload_compliance_evidence` even declares unused `request: Request, response: Response` parameters, suggesting a limiter decorator was intended but never added.
+**Fix:** Add a comparable per-endpoint limit, e.g. `@limiter.limit("30/hour")`, to both handlers, consistent with the artifact-upload endpoint's posture.
 
-**Issue:** `uploadComplianceEvidence`, `deleteComplianceEvidence`, `uploadControlEvidence`, `getControlEvidence`, and `deleteControlEvidence` all throw a fixed generic string on `!res.ok` (e.g. `throw new Error("Evidence upload failed")`), discarding the response body. The backend returns several distinct, specific reasons for a 4xx (wrong extension, wrong MIME, size cap exceeded, tenant mismatch, content/extension mismatch) — all of that detail is thrown away, so `FrameworkDetail.tsx:401-404`'s catch block can only ever show "Failed to upload evidence." regardless of cause. `uploadBulkEvidence` a few lines below (`apiService.ts:715-731`) handles this correctly (`err.detail = body.detail`), showing this is an inconsistency rather than a deliberate simplification.
+### WR-02: Distinguishable 403 vs 404 responses allow cross-tenant existence probing in `delete_compliance_evidence`
 
-**Fix:**
-```typescript
-export const uploadComplianceEvidence = async (assetId: string, controlId: string, file: File, description?: string) => {
-    ...
-    if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || "Evidence upload failed");
-    }
-    return await res.json();
-};
-```
-Apply the same pattern to the other four functions listed above.
+**File:** `backend/compliance_evidence_endpoints.py:249-321`
+**Issue:** The aggregation lookup (`:264-269`) matches purely on `{"assetId": asset_id, "evidence.id": evidence_id}` with no tenant filter. Only *after* a match is found does the code check `doc_tenant != caller_tenant` and return 403 (`:284-285`); if no match is found at all, it returns 404 (`:270-271`). A caller can therefore distinguish "this asset/evidence pair doesn't exist" (404) from "it exists but belongs to another tenant" (403) — a tenant/asset/evidence-existence oracle. Severity is limited because evidence IDs are UUID4 hex and hard to guess, but it is nonetheless a real information leak that a defense-in-depth posture should close.
+**Fix:** Scope the initial aggregation match by tenant for non-super callers (when `caller_tenant` is known) so a mismatch collapses into the same 404 as "not found," e.g. add `"tenantId": caller_tenant` to the `$match` stage before the aggregation for non-super callers, then return a single 404 for both "doesn't exist" and "exists in another tenant."
 
----
+### WR-03: `_MAGIC_SIGNATURES` pass-through combines with the extension-bypass in CR-01 to fully defeat content validation
 
-### WR-02: Super-admin role sets have drifted between the two compliance-upload modules
+**File:** `backend/compliance_artifacts_endpoints.py:66-84`
+**Issue:** This is a secondary contributor to CR-01: `_check_magic` intentionally passes through (`return True`) for any extension without a registered signature (`.csv`, `.txt`, `.zip`, `.tar`, `.gz`, `.webp`, `.gif`, `.doc`, `.xls`, and — critically — the empty string `""`). This is a reasonable trade-off for those legitimate extensions individually, but because `_check_magic("", content)` also passes through, it removes the last line of defense once CR-01's extension check is bypassed. Once CR-01 is fixed (extension can no longer be empty), this is no longer independently exploitable, but it's worth tightening for genuinely-unsigned extensions like `.txt`/`.csv` too, since arbitrary bytes (including HTML/script payloads) can currently be stored under those extensions without any content check.
+**Fix:** After CR-01 is fixed this is low-risk, but consider adding a lightweight sanity check for text-based unsigned extensions (e.g., reject NUL bytes or `<script`/`<html` prefixes) as defense-in-depth, and explicitly reject `_check_magic` calls with an empty `ext` rather than silently passing them through.
 
-**File:** `backend/compliance_artifacts_endpoints.py:197`, `backend/compliance_evidence_endpoints.py:20-22`
+### WR-04: Stale "RED phase" framing left in test module docstring understates actual coverage gaps
 
-**Issue:** `compliance_evidence_endpoints.py` now correctly uses a single shared `_SUPER_ROLES = frozenset({"Super Admin", "super_admin", "superadmin", "admin", "platform-admin"})` everywhere inside that file. `compliance_artifacts_endpoints.py`'s `list_manual_artifacts`, however, independently inlines `is_super_admin = user_role in ("Super Admin", "superadmin", "super_admin")` — missing `"admin"` and `"platform-admin"`. A user with role `"admin"` therefore gets unrestricted, cross-tenant visibility in `get_all_compliance_evidence`/`download_compliance_evidence` but is tenant-scoped in `list_manual_artifacts`. The earlier fix for this class of drift was applied only within `compliance_evidence_endpoints.py`, not shared with the sibling module.
-
-**Fix:** Export `_SUPER_ROLES` from one shared location (or from `compliance_artifacts_endpoints.py` and import it into `compliance_evidence_endpoints.py`, the way `_check_magic`/`UPLOAD_DIR` already are) and use that single definition everywhere.
-
----
-
-### WR-03: Inconsistent error handling/logging — some endpoints wrap and log, siblings don't
-
-**File:** `backend/compliance_artifacts_endpoints.py:92-180` (`upload_manual_artifact`); `backend/compliance_evidence_endpoints.py:463-498` (`delete_control_direct_evidence`)
-
-**Issue:** `upload_compliance_evidence`, `delete_compliance_evidence`, and `upload_control_direct_evidence` all wrap their bodies in `try/except HTTPException: raise / except Exception as e: logger.error(...); raise HTTPException(500, ...)`. `upload_manual_artifact` and `delete_control_direct_evidence` have no such wrapper — an unexpected exception (DB error, disk full, etc.) will still produce a 500 via FastAPI's default handler, but it won't go through this module's structured `logger`, making production diagnosis harder and leaving the file internally inconsistent.
-
-**Fix:** Wrap both functions the same way as their siblings, logging via `logger.error(...)` before re-raising as a generic 500.
-
----
-
-### WR-04: Frontend evidence file picker still advertises formats the backend always rejects
-
-**File:** `components/AssetComplianceList.tsx:287` vs `backend/compliance_evidence_endpoints.py:25-27`
-
-**Issue:** The hidden `<input type="file">` for "Upload Evidence & Ingest" sets `accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.txt,.md,.json,.csv"`, but `upload_compliance_evidence`'s `_EVIDENCE_ALLOWED_EXTENSIONS` only permits `{".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx"}`. A previous review round flagged this mismatch and the fix added the missing image/office formats back — but the extra text formats were left in place. Selecting `.txt`, `.md`, `.json`, or `.csv` (all explicitly offered) still always fails the primary upload with a 400, while the parallel ingestion path (`handleFileChange:76-83`, which runs for exactly those "ingestible text" MIME types) can still succeed — leaving the file ingested into the RAG knowledge base with no corresponding evidence record ever attached to the control, and a "Failed to upload evidence" toast the user has no obvious way to resolve.
-
-**Fix:** Narrow the `accept` attribute to match the backend allowlist (or widen the backend allowlist, only if `.txt`/`.md`/`.json`/`.csv` are genuinely meant to be accepted as evidence and not just ingestion input):
-```tsx
-accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
-```
-
----
-
-### WR-05: Dead/misleading MIME-prefix entries with no corresponding allowed extension
-
-**File:** `backend/compliance_evidence_endpoints.py:25-35`
-
-**Issue:** `_EVIDENCE_ALLOWED_MIME_PREFIXES` includes `"application/msword"` and `"application/vnd.ms-excel"` (legacy `.doc`/`.xls` MIME types), but `_EVIDENCE_ALLOWED_EXTENSIONS` only allows `.docx`/`.xlsx` — the legacy extensions are rejected before the MIME check is ever reached. These entries are unreachable and misleading to future maintainers who might reasonably assume `.doc`/`.xls` are supported.
-
-**Fix:** Remove the unreachable MIME prefixes, or add `.doc`/`.xls` to the extension allowlist if legacy Office formats should genuinely be supported (in which case add magic signatures for them too — `_MAGIC_SIGNATURES` in `compliance_artifacts_endpoints.py` currently has none for `.doc`/`.xls`).
-
----
-
-### WR-06: `onUploadEvidence` is invoked without `await`, relying entirely on its caller's try/catch
-
-**File:** `components/AssetComplianceList.tsx:71`
-
-**Issue:**
-```tsx
-onUploadEvidence(selectedAssetId, file, description);
-```
-This async call is fired without `await` or a `.catch`. It currently avoids becoming an unhandled promise rejection only because the sole current caller (`FrameworkDetail.tsx:394-405`) happens to wrap its own body in `try/catch`. That is an implicit contract on the `onUploadEvidence` prop that this component has no way to verify or enforce.
-
-**Fix:** Either `await` it before proceeding to the ingestion step, or explicitly mark the fire-and-forget intent with a trailing `.catch(() => {})` and a comment, so a future caller that omits its own error handling can't produce an unhandled rejection.
-
----
-
-### WR-07: `Pending_Review` status still isn't recognized by the frontend status badge (renders as "Non-Compliant" red)
-
-**File:** `components/AssetComplianceList.tsx:137-141` vs `backend/compliance_evidence_endpoints.py:109` and `backend/compliance_artifacts_endpoints.py:174`
-
-**Issue:** Both upload endpoints set `"status": "Pending_Review"` after a successful upload. The status badge styling is:
-```tsx
-${status === 'Compliant' ? 'bg-green-100 ...' :
-    status === 'Pending_Evidence' ? 'bg-yellow-100 ...' :
-        'bg-red-100 ...'}
-```
-`"Pending_Review"` matches neither `'Compliant'` nor `'Pending_Evidence'`, so it falls through to the red "Non-Compliant" styling. A user who just uploaded evidence for review sees the control flip to red immediately, which reads as a regression/failure rather than "awaiting review." This was flagged in a prior review pass and does not appear to have been addressed for this status value.
-
-**Fix:**
-```tsx
-${status === 'Compliant' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-    (status === 'Pending_Evidence' || status === 'Pending_Review') ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-        'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}
-```
+**File:** `backend/tests/test_evidence_uploads.py:1-7`
+**Issue:** The module docstring still reads "RED phase: tests are written against the INTENDED post-fix behavior. They will FAIL until ... updated in Tasks 1 and 2," implying these are pre-fix, expected-to-fail tests from an earlier TDD cycle. Left in place post-fix, this is misleading to future readers about the current state of the suite and, notably, none of these tests exercise `upload_manual_artifact` in `compliance_artifacts_endpoints.py` at all (only its shared `_check_magic` helper is unit-tested) — so CR-01 and CR-04, both in that same file, have zero test coverage.
+**Fix:** Update the docstring to reflect current (green) state, and add tests for `upload_manual_artifact` covering: extension omitted entirely, extension omitted with a spoofed allowed `Content-Type`, and the asset/tenant-ownership check with a caller lacking `tenant_id`.
 
 ## Info
 
-### IN-01: Local `import uuid as _uuid` inside a function body
+### IN-01: Leftover debug `console.log` calls in evidence-ingestion path
 
-**File:** `backend/compliance_artifacts_endpoints.py:146`
+**File:** `components/FrameworkDetail.tsx:409, 416`
+**Issue:** `console.log(\`Ingesting evidence for asset ${assetId}: ${fileName}\`);` and `console.log('Ingested into RAG');` are debug artifacts left in the shipped `onIngestEvidence` handler.
+**Fix:** Remove, or route through a proper logging utility gated behind a debug flag.
 
-**Issue:** `upload_manual_artifact` does `import uuid as _uuid` mid-function instead of importing `uuid` at module scope (as `compliance_evidence_endpoints.py:6` does). The module has no top-level `uuid` import at all, so this local import is the only source of unique IDs in the file — worth promoting to a normal top-level import for consistency and so the dependency is obvious at a glance, especially once CR-04's fix also needs `uuid` for the filename.
+### IN-02: Commented-out `alert(...)` call left in place
 
-**Fix:**
-```python
-import uuid  # top of file, alongside os, hashlib, etc.
-...
-record = {
-    "id": f"artifact-{uuid.uuid4().hex}",
-    ...
-```
+**File:** `components/FrameworkDetail.tsx:415`
+**Issue:** `// alert(\`Successfully ingested ${fileName} into RAG Knowledge Base!\`); // Reduced noise` is dead, commented-out code.
+**Fix:** Delete the line; the intent ("reduced noise") is already served by the toast/console-log calls around it.
 
-### IN-02: "Upload" button for control-level evidence isn't gated by the same permission as "Bulk Upload Evidence"
+### IN-03: `RenderedEvidence.model_used` access has no runtime guard despite being read via `.split('/')`
 
-**File:** `components/FrameworkDetail.tsx:167-176` vs `:357-367`
-
-**Issue:** `canManageEvidence` gates the "Bulk Upload Evidence" button but not the per-control "Upload" button that opens `ControlEvidenceUploadModal`. Whether or not this is intentional (e.g. any tenant member may attach single pieces of evidence, but only privileged users may bulk-import), the asymmetry is worth a second look given CR-06 — since there's no backend enforcement either, this button is currently the only place the intended access boundary is expressed at all, and it doesn't match the sibling control right next to it.
-
-**Fix:** Decide the intended policy and either gate both buttons on `canManageEvidence` or document why single-item upload is intentionally open to all roles.
+**File:** `components/AssetComplianceList.tsx:248`
+**Issue:** `statusRecord.ai_evaluation.model_used.split('/').pop()` will throw if `model_used` is ever `undefined`/`null` at runtime (the TS type in `types.ts:476` marks it required, but this is backend-supplied JSON with no runtime validation at the boundary, per CLAUDE.md's "Validate input at system boundaries" guidance). A malformed `ai_evaluation` payload would crash this row's render.
+**Fix:** `{(statusRecord.ai_evaluation.model_used || '').split('/').pop() || 'unknown'}` or a small helper that tolerates a missing value.
 
 ---
 
-_Reviewed: 2026-07-03T00:00:00Z_
+_Reviewed: 2026-07-03T09:54:49Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
