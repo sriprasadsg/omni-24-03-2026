@@ -342,6 +342,38 @@ def test_create_review_dedup_returns_existing_pending_via_atomic_upsert():
     data = resp.json()
     assert data["review"]["id"] == "rev-existing"
     db._db.evidence_reviews.insert_one.assert_not_awaited()
+    # Same-caller retry: reviewer1 (the caller here) matches the existing
+    # record's reviewer, so this is not a "different reviewer" case.
+    assert "already_open_by" not in data["review"]
+
+
+def test_create_review_flags_already_open_by_different_reviewer():
+    """When a *different* reviewer already has a pending review open on the
+    same evidence item, create_review must surface that distinction instead
+    of silently discarding the new caller's comment with identical success
+    semantics. Regression test for WR-01 (concurrent-reviewer comment loss)."""
+    db = _make_mock_db()
+    existing_review = {
+        "id": "rev-existing", "tenantId": "tenant-a", "evidenceId": "ev-1",
+        "reviewer": "reviewer-A", "status": "pending", "comment": "reviewer A's comment",
+        "created_at": "2026-06-27T10:00:00Z", "updated_at": "2026-06-27T10:00:00Z",
+    }
+    db._db.evidence_reviews.find_one_and_update = AsyncMock(return_value=existing_review)
+    # Caller is reviewer-B, a different reviewer than the one who already
+    # opened the pending review (reviewer-A).
+    user = _make_user("tenant-a", "admin", username="reviewer-B")
+    client = _build_client(db, user)
+
+    resp = client.post("/api/evidence/ev-1/review", json={"comment": "reviewer B's comment"})
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["review"]["id"] == "rev-existing"
+    assert data["review"]["already_open_by"] == "reviewer-A", (
+        f"expected already_open_by to surface the existing reviewer, got: {data['review']!r}"
+    )
+    # reviewer B's comment must never have been persisted — the returned
+    # comment is still reviewer A's.
+    assert data["review"]["comment"] == "reviewer A's comment"
 
 
 def test_repatch_already_decided_review_returns_404():

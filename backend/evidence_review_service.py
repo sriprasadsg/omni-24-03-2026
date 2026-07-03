@@ -134,6 +134,18 @@ async def create_review(
     a separate read-then-write (find_one then insert_one) — the latter is a
     check-then-act race where two concurrent create-review calls can both
     observe "no existing pending review" and both insert a duplicate record.
+
+    WR-01: the same dedup upsert also collapses two genuinely different
+    situations under identical 200-success semantics — "this caller's own
+    retried request" vs. "a different reviewer already has this evidence
+    item open." In the latter case the caller's `comment` argument is never
+    persisted (the existing record's fields win via `$setOnInsert`). When
+    the returned record's `reviewer` differs from the current caller, this
+    function adds an `already_open_by: <reviewer>` key to the returned dict
+    (computed here, not persisted) so the endpoint/frontend can distinguish
+    "created/reused-by-you" from "reused-from-a-different-reviewer" and tell
+    the user their comment was not saved, instead of returning identical
+    success semantics for both.
     """
     existing = await db.asset_compliance.find_one(
         {"tenantId": tenant_id, "evidence.id": evidence_id}
@@ -169,6 +181,12 @@ async def create_review(
         return_document=True,
         projection={"_id": 0},
     )
+    if review and review.get("reviewer") != reviewer:
+        # A different reviewer already has a pending review open on this
+        # evidence item — this caller's comment was not persisted. Surface
+        # that distinction to the caller (WR-01) rather than returning
+        # identical success semantics for "created" and "reused".
+        review = {**review, "already_open_by": review.get("reviewer")}
     return review
 
 
