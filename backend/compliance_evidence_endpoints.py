@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
-from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic
+from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic, _SUPER_ROLES
 from evidence_coc import _append_coc_entry
 from evidence_staleness import get_staleness_threshold, compute_stale
 
@@ -17,19 +17,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-_SUPER_ROLES: frozenset[str] = frozenset({
-    "Super Admin", "super_admin", "superadmin", "admin", "platform-admin"
-})
-
 # Narrowed allowlists for manual evidence uploads (EVID-01 / EVID-05)
 _EVIDENCE_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
     ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx"
 })
+# WR-05: application/msword and application/vnd.ms-excel (legacy .doc/.xls MIME
+# types) removed — .doc/.xls are not in _EVIDENCE_ALLOWED_EXTENSIONS above, so
+# those prefixes were unreachable and misleading to future maintainers.
 _EVIDENCE_ALLOWED_MIME_PREFIXES: tuple[str, ...] = (
     "application/pdf",
     "application/vnd.openxmlformats",
-    "application/msword",
-    "application/vnd.ms-excel",
     "image/png",
     "image/jpeg",
 )
