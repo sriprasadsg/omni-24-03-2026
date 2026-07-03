@@ -1,6 +1,21 @@
 """Compliance framework definitions (part 2): ISO 42001, CCPA, COBIT, DORA, DPDP, ISO 9001, ISO 31000, SOX, EU AI Act, NIST AI RMF."""
 
 from seed_compliance_controls_a import ctrl
+from frameworks import (
+    ens, mas_trm, irap, iso_27017, iso_27018, bsi_c5, ffiec,
+    owasp_top10, tisax, aws_well_architected, rbi_csf, tic_3_0,
+    kisa_isms, fedramp_high,
+)
+
+
+def _controls_from_module(mod):
+    """Build seed control docs from a framework module's own CONTROLS list,
+    keeping the module as the single source of truth for id/title/description/theme
+    (see phase 19 code review CR-01)."""
+    return [
+        ctrl(c["id"], c["title"], c["description"], c.get("theme", "General"))
+        for c in mod.CONTROLS
+    ]
 
 
 FRAMEWORKS_PART2 = [
@@ -472,5 +487,132 @@ FRAMEWORKS_PART2 = [
             ctrl("MANAGE-3.1","AI System Decommissioning","AI risks are tracked for deployed systems and decommissioning plans are in place.","MANAGE"),
             ctrl("MANAGE-4.1","Risk Treatment Monitoring","Post-deployment AI risks and performance are continuously monitored.","MANAGE"),
         ],
+    },
+    # ── Phase 19: additional frameworks (real check-based evaluation, see frameworks/_common_checks.py) ──
+    {
+        "id": "ens",
+        "name": ens.FRAMEWORK_NAME,
+        "shortName": "ENS",
+        "description": "Spanish National Security Framework (Esquema Nacional de Seguridad, RD 3/2010) – mandatory security scheme for Spanish public sector and connected systems.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(ens),
+    },
+    {
+        "id": "mas_trm",
+        "name": mas_trm.FRAMEWORK_NAME,
+        "shortName": "MAS TRM",
+        "description": "Monetary Authority of Singapore Technology Risk Management Guidelines – technology risk governance for Singapore-regulated financial institutions.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(mas_trm),
+    },
+    {
+        "id": "irap",
+        "name": irap.FRAMEWORK_NAME,
+        "shortName": "IRAP",
+        "description": "Australian Government Information Security Registered Assessors Program – security assessment framework for Australian government information systems.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(irap),
+    },
+    {
+        "id": "iso_27017",
+        "name": iso_27017.FRAMEWORK_NAME,
+        "shortName": "ISO 27017",
+        "description": "ISO/IEC 27017:2015 – cloud-specific information security controls extending ISO/IEC 27002 for cloud service providers and customers.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(iso_27017),
+    },
+    {
+        "id": "iso_27018",
+        "name": iso_27018.FRAMEWORK_NAME,
+        "shortName": "ISO 27018",
+        "description": "ISO/IEC 27018:2019 – code of practice for protection of personally identifiable information (PII) in public clouds acting as PII processors.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(iso_27018),
+    },
+    {
+        "id": "bsi_c5",
+        "name": bsi_c5.FRAMEWORK_NAME,
+        "shortName": "BSI C5",
+        "description": "German Federal Office for Information Security (BSI) Cloud Computing Compliance Criteria Catalogue – cloud provider security attestation standard.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(bsi_c5),
+    },
+    {
+        "id": "ffiec",
+        "name": ffiec.FRAMEWORK_NAME,
+        "shortName": "FFIEC",
+        "description": "Federal Financial Institutions Examination Council IT Examination Handbook – IT risk and security guidance for US financial institutions.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(ffiec),
+    },
+    {
+        "id": "owasp_top10",
+        "name": owasp_top10.FRAMEWORK_NAME,
+        "shortName": "OWASP Top 10",
+        "description": "OWASP Top 10 (2021) – the ten most critical web application security risk categories.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(owasp_top10),
+    },
+    {
+        "id": "tisax",
+        "name": tisax.FRAMEWORK_NAME,
+        "shortName": "TISAX",
+        "description": "Trusted Information Security Assessment Exchange – automotive industry information security and prototype-protection assessment standard.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(tisax),
+    },
+    {
+        "id": "aws_well_architected",
+        "name": aws_well_architected.FRAMEWORK_NAME,
+        "shortName": "AWS WA Security",
+        "description": "AWS Well-Architected Framework – Security Pillar – AWS best-practice guidance for identity, detection, protection, incident response and data protection.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(aws_well_architected),
+    },
+    {
+        "id": "rbi_csf",
+        "name": rbi_csf.FRAMEWORK_NAME,
+        "shortName": "RBI CSF",
+        "description": "Reserve Bank of India Cyber Security Framework – mandatory cyber security baseline for RBI-regulated banks and financial institutions.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(rbi_csf),
+    },
+    {
+        "id": "tic_3_0",
+        "name": tic_3_0.FRAMEWORK_NAME,
+        "shortName": "TIC 3.0",
+        "description": "Trusted Internet Connections 3.0 – US federal government reference architecture for securing network traffic across boundaries and use cases.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(tic_3_0),
+    },
+    {
+        "id": "kisa_isms",
+        "name": kisa_isms.FRAMEWORK_NAME,
+        "shortName": "KISA ISMS",
+        "description": "Korea Internet & Security Agency Information Security Management System – Korean national information security certification scheme.",
+        "status": "Implemented",
+        "progress": 100,
+        "controls": _controls_from_module(kisa_isms),
+    },
+    {
+        "id": "fedramp_high",
+        "name": fedramp_high.FRAMEWORK_NAME,
+        "shortName": "FedRAMP High",
+        "description": fedramp_high.__doc__.strip(),
+        "status": "In Progress",
+        "progress": round(len(fedramp_high.CONTROLS) / 421 * 100),
+        "controls": _controls_from_module(fedramp_high),
     },
 ]

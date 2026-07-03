@@ -16,6 +16,9 @@ from frameworks import (
     gdpr, fedramp, hitrust, cmmc, csa_star, iso42001, ccpa,
     cobit, dora, dpdp, iso9001, iso31000, nist_800_53, nist_800_171,
     sox_itgc, nis2, iso27701, swift_csp, nist_ai_rmf,
+    ens, mas_trm, irap, iso_27017, iso_27018, bsi_c5, ffiec,
+    owasp_top10, tisax, aws_well_architected, rbi_csf, tic_3_0,
+    kisa_isms, fedramp_high,
 )
 from datetime import datetime, timezone
 from typing import List, Dict, Any
@@ -53,6 +56,20 @@ _REGISTRY = {
     "iso27701":         iso27701,
     "swift_csp":        swift_csp,
     "nist_ai_rmf":      nist_ai_rmf,
+    "ens":                  ens,
+    "mas_trm":              mas_trm,
+    "irap":                 irap,
+    "iso_27017":            iso_27017,
+    "iso_27018":            iso_27018,
+    "bsi_c5":               bsi_c5,
+    "ffiec":                ffiec,
+    "owasp_top10":          owasp_top10,
+    "tisax":                tisax,
+    "aws_well_architected": aws_well_architected,
+    "rbi_csf":              rbi_csf,
+    "tic_3_0":              tic_3_0,
+    "kisa_isms":            kisa_isms,
+    "fedramp_high":         fedramp_high,
 }
 
 
