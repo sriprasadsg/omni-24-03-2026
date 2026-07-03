@@ -21,6 +21,16 @@ def _now_iso() -> str:
 def _gen_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
+
+def _fail_closed_tenant_id(tenant_id: Optional[str]) -> str:
+    """Fail-closed tenant_id for TIA/LIA/Notice/Contract collections, which are
+    accessed via the raw db._db.<collection> (not the TenantIsolatedCollection
+    wrapper). Mirrors TenantIsolatedCollection's own sentinel in database.py so
+    callers with no tenant context (e.g. platform-admin accounts whose
+    TokenData.tenant_id is None) never collide on a shared `tenantId: None`
+    partition."""
+    return tenant_id or "NON_EXISTENT_TENANT_ISOLATION_EMERGENCY"
+
 DSR_TYPES = {
     "access": {"name": "Right of Access (Art. 15 GDPR)", "sla_days": 30},
     "erasure": {"name": "Right to Erasure / Right to be Forgotten (Art. 17 GDPR / CCPA)", "sla_days": 30},
@@ -279,6 +289,7 @@ async def create_breach_notification(tenant_id: str, reported_by: str, data: Dic
 
 
 async def create_tia(db, tenant_id: str, data: dict) -> dict:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     doc = {"id": _gen_id("tia"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
     if doc.get("risk_level") not in ("low", "medium", "high"):
         raise ValueError("risk_level must be low/medium/high")
@@ -288,6 +299,7 @@ async def create_tia(db, tenant_id: str, data: dict) -> dict:
 
 
 async def list_tia(db, tenant_id: str) -> list:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     return await db._db.privacy_tia.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
 
 
@@ -295,6 +307,7 @@ async def list_tia(db, tenant_id: str) -> list:
 
 
 async def create_lia(db, tenant_id: str, data: dict) -> dict:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     doc = {"id": _gen_id("lia"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
     await db._db.privacy_lia.insert_one(doc)
     doc.pop("_id", None)
@@ -302,6 +315,7 @@ async def create_lia(db, tenant_id: str, data: dict) -> dict:
 
 
 async def list_lia(db, tenant_id: str) -> list:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     return await db._db.privacy_lia.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
 
 
@@ -309,6 +323,7 @@ async def list_lia(db, tenant_id: str) -> list:
 
 
 async def create_notice(db, tenant_id: str, data: dict) -> dict:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     notice_id = _gen_id("notice")
     version = data.get("version", 1)
     doc = {
@@ -324,10 +339,12 @@ async def create_notice(db, tenant_id: str, data: dict) -> dict:
 
 
 async def list_notices(db, tenant_id: str) -> list:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     return await db._db.privacy_notices.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
 
 
 async def get_notice_versions(db, notice_id: str, tenant_id: str) -> list:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     notice = await db._db.privacy_notices.find_one({"id": notice_id, "tenantId": tenant_id}, {"_id": 0})
     return sorted(notice.get("versions", []), key=lambda v: v.get("version", 0), reverse=True) if notice else []
 
@@ -336,6 +353,7 @@ async def get_notice_versions(db, notice_id: str, tenant_id: str) -> list:
 
 
 async def create_contract(db, tenant_id: str, data: dict) -> dict:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     valid_types = {"DPA", "MSA", "NDA", "SCC"}
     valid_statuses = {"draft", "review", "signed", "expired"}
     if data.get("type") not in valid_types:
@@ -349,10 +367,12 @@ async def create_contract(db, tenant_id: str, data: dict) -> dict:
 
 
 async def list_contracts(db, tenant_id: str) -> list:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     return await db._db.privacy_contracts.find({"tenantId": tenant_id}, {"_id": 0}).sort("expiry_date", 1).to_list(length=100)
 
 
 async def get_expiring_contracts(db, tenant_id: str, within_days: int = 30) -> list:
+    tenant_id = _fail_closed_tenant_id(tenant_id)
     from datetime import timedelta
     cutoff = (datetime.now(timezone.utc) + timedelta(days=within_days)).strftime("%Y-%m-%d")
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
