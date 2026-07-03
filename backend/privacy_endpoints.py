@@ -66,8 +66,8 @@ async def create_dsr(
         dsr = await svc.create_dsr(_tid(current_user), _actor(current_user), payload)
         dsr.pop("_id", None)
         return {"dsr": dsr, "message": f"DSR {dsr['reference_number']} created — due by {dsr['due_date'][:10]}"}
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Bad request")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.put("/dsr/{dsr_id}/status")
