@@ -7,6 +7,7 @@ import os
 import re
 import uuid
 import asyncio
+import calendar
 import logging
 import html as _html
 from datetime import datetime, timezone, timedelta
@@ -104,7 +105,9 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
         raise ValueError("send_at_hour must be 0-23")
 
     now = datetime.now(timezone.utc)
-    next_run = _calculate_next_run(frequency, send_at_hour)
+    next_run = _calculate_next_run(
+        frequency, send_at_hour, data.get("day_of_week", 1), data.get("day_of_month", 1)
+    )
 
     schedule = {
         "id": str(uuid.uuid4()),
@@ -140,7 +143,9 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
     logger.info("[Reports] Schedule created: %s for tenant %s", schedule["name"], tenant_id)
     return schedule
 
-def _calculate_next_run(frequency: str, hour: int = 8) -> datetime:
+def _calculate_next_run(
+    frequency: str, hour: int = 8, day_of_week: int = 1, day_of_month: int = 1,
+) -> datetime:
     now = datetime.now(timezone.utc)
     base = now.replace(minute=0, second=0, microsecond=0)
 
@@ -151,19 +156,29 @@ def _calculate_next_run(frequency: str, hour: int = 8) -> datetime:
         return next_dt
 
     elif frequency == "weekly":
-        days_ahead = 7 - now.weekday()
-        return (base + timedelta(days=days_ahead)).replace(hour=hour)
+        # Schedule storage convention: day_of_week 1=Monday ... 7=Sunday.
+        # Python's datetime.weekday(): Monday=0 ... Sunday=6.
+        target_weekday = (int(day_of_week) - 1) % 7
+        days_ahead = (target_weekday - now.weekday()) % 7
+        next_dt = (base + timedelta(days=days_ahead)).replace(hour=hour)
+        if next_dt <= now:
+            next_dt += timedelta(days=7)
+        return next_dt
 
     elif frequency == "monthly":
-        if now.month == 12:
-            return base.replace(year=now.year + 1, month=1, day=1, hour=hour)
-        return base.replace(month=now.month + 1, day=1, hour=hour)
+        target_month = 1 if now.month == 12 else now.month + 1
+        target_year = now.year + 1 if now.month == 12 else now.year
+        last_day = calendar.monthrange(target_year, target_month)[1]
+        target_day = max(1, min(int(day_of_month), last_day))
+        return base.replace(year=target_year, month=target_month, day=target_day, hour=hour)
 
     else:  # quarterly
         quarter_starts = [1, 4, 7, 10]
         next_month = next((m for m in quarter_starts if m > now.month), 1)
         next_year = now.year if next_month > now.month else now.year + 1
-        return base.replace(year=next_year, month=next_month, day=1, hour=hour)
+        last_day = calendar.monthrange(next_year, next_month)[1]
+        target_day = max(1, min(int(day_of_month), last_day))
+        return base.replace(year=next_year, month=next_month, day=target_day, hour=hour)
 
 async def _generate_pdf_for_schedule(schedule: Dict[str, Any], tenant_id: str, framework_id: str) -> Optional[bytes]:
     """Call compliance_reporting_pdf._generate_pdf and return file bytes (ephemeral)."""
@@ -225,8 +240,9 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
         _validate_recipients(data["recipients"])
 
     update = {"updated_at": datetime.now(timezone.utc).isoformat()}
-    for field in ("name", "frequency", "send_at_hour", "recipients", "webhook_url", "slack_webhook",
-                  "teams_webhook", "include_charts", "format", "enabled", "filters", "framework_id", "framework_name"):
+    for field in ("name", "frequency", "send_at_hour", "day_of_week", "day_of_month", "recipients",
+                  "webhook_url", "slack_webhook", "teams_webhook", "include_charts", "format",
+                  "enabled", "filters", "framework_id", "framework_name"):
         if field in data:
             update[field] = data[field]
 
@@ -237,7 +253,9 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
             raise ValueError("send_at_hour must be an integer")
         if not 0 <= upd_hour <= 23:
             raise ValueError("send_at_hour must be 0-23")
-        update["next_run"] = _calculate_next_run(data["frequency"], upd_hour).isoformat()
+        update["next_run"] = _calculate_next_run(
+            data["frequency"], upd_hour, data.get("day_of_week", 1), data.get("day_of_month", 1)
+        ).isoformat()
 
     result = await db.report_schedules.update_one(query, {"$set": update})
     return result.modified_count > 0
@@ -273,7 +291,10 @@ async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[st
         raise
 
     now = datetime.now(timezone.utc).isoformat()
-    next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
+    next_run = _calculate_next_run(
+        schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8),
+        schedule.get("day_of_week", 1), schedule.get("day_of_month", 1),
+    )
     await db.report_schedules.update_one(
         query,
         {"$set": {"last_run": now, "next_run": next_run.isoformat()}, "$inc": {"run_count": 1}},
@@ -472,7 +493,10 @@ async def _process_due_schedule(schedule: Dict[str, Any], db) -> None:
         report_data = await _generate_report(schedule, sched_tenant_id)
         filename = await _deliver_report(schedule, report_data, sched_tenant_id)
         await _write_delivery_log(db, schedule, "success", None, filename)
-        next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8))
+        next_run = _calculate_next_run(
+            schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8),
+            schedule.get("day_of_week", 1), schedule.get("day_of_month", 1),
+        )
         now = datetime.now(timezone.utc).isoformat()
         await db.report_schedules.update_one(
             {"id": schedule["id"]},
