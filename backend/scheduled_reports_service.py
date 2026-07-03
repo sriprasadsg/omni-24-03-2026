@@ -6,13 +6,9 @@ Schedules and delivers compliance, security, and executive reports via email and
 import os
 import re
 import uuid
-import socket
 import asyncio
-import calendar
-import ipaddress
 import logging
 import html as _html
-from urllib.parse import urlsplit
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +17,8 @@ from tenant_context import set_tenant_id
 import compliance_reporting_pdf
 from compliance_reports_endpoints import _REPORTS_DIR
 from email_service import email_service
+from webhook_url_validator import validate_webhook_url as _validate_webhook_url
+from report_schedule_timing import calculate_next_run as _calculate_next_run
 try:
     from compliance_narrative_service import enrich_report_data, _render_narratives
 except ImportError:  # pragma: no cover — safety fallback if narrative service fails to load
@@ -77,50 +75,6 @@ def _validate_recipients(recipients: list) -> None:
         if not isinstance(r, str) or not _EMAIL_RE.match(r):
             raise ValueError(f"Invalid email recipient: {r!r}")
 
-def _is_disallowed_ip(ip_str: str) -> bool:
-    """Return True for loopback/private/link-local/reserved/multicast addresses (SSRF surface)."""
-    try:
-        ip = ipaddress.ip_address(ip_str)
-    except ValueError:
-        return True  # unparsable — fail closed
-    return (
-        ip.is_private or ip.is_loopback or ip.is_link_local
-        or ip.is_multicast or ip.is_reserved or ip.is_unspecified
-    )
-
-async def _validate_webhook_url(url: str) -> None:
-    """Raise ValueError unless url is https:// and resolves only to public addresses.
-
-    Guards against SSRF via webhook/Slack/Teams delivery URLs pointed at internal
-    services (cloud metadata endpoints, internal admin APIs, loopback, etc).
-    """
-    if not url:
-        raise ValueError("Webhook URL must not be empty")
-    parsed = urlsplit(url)
-    if parsed.scheme != "https":
-        raise ValueError(f"Webhook URL must use https:// (got {parsed.scheme or 'no scheme'!r})")
-    host = parsed.hostname
-    if not host:
-        raise ValueError("Webhook URL must include a hostname")
-    try:
-        ipaddress.ip_address(host)
-        is_literal_ip = True
-    except ValueError:
-        is_literal_ip = False
-    if is_literal_ip:
-        if _is_disallowed_ip(host):
-            raise ValueError(f"Webhook URL resolves to a disallowed address: {host}")
-        return
-    loop = asyncio.get_event_loop()
-    try:
-        infos = await loop.run_in_executor(None, socket.getaddrinfo, host, None)
-    except socket.gaierror as exc:
-        raise ValueError(f"Webhook URL hostname could not be resolved: {host}") from exc
-    for info in infos:
-        addr = info[4][0]
-        if _is_disallowed_ip(addr):
-            raise ValueError(f"Webhook URL hostname '{host}' resolves to a disallowed address: {addr}")
-
 async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any]) -> Dict[str, Any]:
     set_tenant_id(tenant_id)
     db = get_database()
@@ -156,9 +110,7 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
         raise ValueError("send_at_hour must be 0-23")
 
     now = datetime.now(timezone.utc)
-    next_run = _calculate_next_run(
-        frequency, send_at_hour, data.get("day_of_week", 1), data.get("day_of_month", 1)
-    )
+    next_run = _calculate_next_run(frequency, send_at_hour, data.get("day_of_week", 1), data.get("day_of_month", 1))
 
     schedule = {
         "id": str(uuid.uuid4()),
@@ -193,43 +145,6 @@ async def create_schedule(tenant_id: str, created_by: str, data: Dict[str, Any])
     await db.report_schedules.insert_one(schedule)
     logger.info("[Reports] Schedule created: %s for tenant %s", schedule["name"], tenant_id)
     return schedule
-
-def _calculate_next_run(
-    frequency: str, hour: int = 8, day_of_week: int = 1, day_of_month: int = 1,
-) -> datetime:
-    now = datetime.now(timezone.utc)
-    base = now.replace(minute=0, second=0, microsecond=0)
-
-    if frequency == "daily":
-        next_dt = base.replace(hour=hour)
-        if next_dt <= now:
-            next_dt += timedelta(days=1)
-        return next_dt
-
-    elif frequency == "weekly":
-        # Schedule storage convention: day_of_week 1=Monday ... 7=Sunday.
-        # Python's datetime.weekday(): Monday=0 ... Sunday=6.
-        target_weekday = (int(day_of_week) - 1) % 7
-        days_ahead = (target_weekday - now.weekday()) % 7
-        next_dt = (base + timedelta(days=days_ahead)).replace(hour=hour)
-        if next_dt <= now:
-            next_dt += timedelta(days=7)
-        return next_dt
-
-    elif frequency == "monthly":
-        target_month = 1 if now.month == 12 else now.month + 1
-        target_year = now.year + 1 if now.month == 12 else now.year
-        last_day = calendar.monthrange(target_year, target_month)[1]
-        target_day = max(1, min(int(day_of_month), last_day))
-        return base.replace(year=target_year, month=target_month, day=target_day, hour=hour)
-
-    else:  # quarterly
-        quarter_starts = [1, 4, 7, 10]
-        next_month = next((m for m in quarter_starts if m > now.month), 1)
-        next_year = now.year if next_month > now.month else now.year + 1
-        last_day = calendar.monthrange(next_year, next_month)[1]
-        target_day = max(1, min(int(day_of_month), last_day))
-        return base.replace(year=next_year, month=next_month, day=target_day, hour=hour)
 
 async def _generate_pdf_for_schedule(schedule: Dict[str, Any], tenant_id: str, framework_id: str) -> Optional[bytes]:
     """Call compliance_reporting_pdf._generate_pdf and return file bytes (ephemeral)."""
@@ -309,8 +224,7 @@ async def update_schedule(schedule_id: str, tenant_id: str, role: str, data: Dic
         if not 0 <= upd_hour <= 23:
             raise ValueError("send_at_hour must be 0-23")
         update["next_run"] = _calculate_next_run(
-            data["frequency"], upd_hour, data.get("day_of_week", 1), data.get("day_of_month", 1)
-        ).isoformat()
+            data["frequency"], upd_hour, data.get("day_of_week", 1), data.get("day_of_month", 1)).isoformat()
 
     result = await db.report_schedules.update_one(query, {"$set": update})
     return result.modified_count > 0
@@ -346,14 +260,10 @@ async def run_report_now(schedule_id: str, tenant_id: str, role: str) -> Dict[st
         raise
 
     now = datetime.now(timezone.utc).isoformat()
-    next_run = _calculate_next_run(
-        schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8),
-        schedule.get("day_of_week", 1), schedule.get("day_of_month", 1),
-    )
+    next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8),
+                                    schedule.get("day_of_week", 1), schedule.get("day_of_month", 1))
     await db.report_schedules.update_one(
-        query,
-        {"$set": {"last_run": now, "next_run": next_run.isoformat()}, "$inc": {"run_count": 1}},
-    )
+        query, {"$set": {"last_run": now, "next_run": next_run.isoformat()}, "$inc": {"run_count": 1}})
 
     return {"status": "delivered", "delivered_at": now, "report_type": schedule.get("report_type")}
 
@@ -552,10 +462,8 @@ async def _process_due_schedule(schedule: Dict[str, Any], db) -> None:
         report_data = await _generate_report(schedule, sched_tenant_id)
         filename = await _deliver_report(schedule, report_data, sched_tenant_id)
         await _write_delivery_log(db, schedule, "success", None, filename)
-        next_run = _calculate_next_run(
-            schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8),
-            schedule.get("day_of_week", 1), schedule.get("day_of_month", 1),
-        )
+        next_run = _calculate_next_run(schedule.get("frequency", "weekly"), schedule.get("send_at_hour", 8),
+                                        schedule.get("day_of_week", 1), schedule.get("day_of_month", 1))
         now = datetime.now(timezone.utc).isoformat()
         await db.report_schedules.update_one(
             {"id": schedule["id"]},
