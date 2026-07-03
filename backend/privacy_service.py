@@ -293,6 +293,9 @@ async def create_tia(db, tenant_id: str, data: dict) -> dict:
     doc = {"id": _gen_id("tia"), "tenantId": tenant_id, "created_at": _now_iso(), "updated_at": _now_iso(), **data}
     if doc.get("risk_level") not in ("low", "medium", "high"):
         raise ValueError("risk_level must be low/medium/high")
+    valid_statuses = {"draft", "approved", "rejected"}
+    if doc.get("status") is not None and doc.get("status") not in valid_statuses:
+        raise ValueError(f"status must be one of {valid_statuses}")
     await db._db.privacy_tia.insert_one(doc)
     doc.pop("_id", None)
     return doc
