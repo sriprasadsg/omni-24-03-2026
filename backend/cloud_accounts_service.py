@@ -47,15 +47,23 @@ async def list_accounts(db, tenant_id: str) -> list:
 
 async def scan_account(db, account_id: str, tenant_id: str) -> dict:
     from cloud_checks_service import cloud_checks_service
-    await db._db.cloud_accounts.update_one({"id": account_id}, {"$set": {"scan_status": "scanning"}})
+    account = await db._db.cloud_accounts.find_one({"id": account_id, "tenantId": tenant_id})
+    if not account:
+        return {"error": "Cloud account not found", "ran": 0}
+    await db._db.cloud_accounts.update_one(
+        {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "scanning"}}
+    )
     try:
-        account = await db._db.cloud_accounts.find_one({"id": account_id, "tenantId": tenant_id})
-        provider = account.get("provider", "aws") if account else "aws"
+        provider = account.get("provider", "aws")
         result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
-        await db._db.cloud_accounts.update_one({"id": account_id}, {"$set": {"scan_status": "idle", "last_scan": _now()}})
+        await db._db.cloud_accounts.update_one(
+            {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "idle", "last_scan": _now()}}
+        )
         return result
     except Exception as e:
-        await db._db.cloud_accounts.update_one({"id": account_id}, {"$set": {"scan_status": "failed"}})
+        await db._db.cloud_accounts.update_one(
+            {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "failed"}}
+        )
         return {"error": str(e), "ran": 0}
 
 
