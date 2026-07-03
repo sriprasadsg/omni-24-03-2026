@@ -28,6 +28,7 @@ from evidence_review_service import (
     get_reviews,
     get_pending_evidence,
     requires_comment,
+    EvidenceNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,8 +95,16 @@ async def create_evidence_review(
             db=db,
             tenant_id=tenant_id,
         )
-    except ValueError as exc:
+    except EvidenceNotFoundError as exc:
+        # Evidence item genuinely doesn't exist for this tenant.
         raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        # Evidence exists but isn't in a state that permits opening a review
+        # (e.g. not currently pending_review) — 409 Conflict describes "the
+        # resource exists but isn't in a state that permits this operation"
+        # more accurately than 404, and is consistent with how
+        # update_review_decision's equivalent failure already maps to 422 (IN-02).
+        raise HTTPException(status_code=409, detail=str(exc))
     return {"success": True, "review": review}
 
 

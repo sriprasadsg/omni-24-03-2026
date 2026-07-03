@@ -17,6 +17,19 @@ logger = logging.getLogger(__name__)
 
 _EVIDENCE_REVIEWS_COL = "evidence_reviews"
 
+
+class EvidenceNotFoundError(ValueError):
+    """Raised when the evidence item does not exist for the tenant at all.
+
+    Kept as a ValueError subclass (rather than an unrelated exception type)
+    so any pre-existing `except ValueError` handler that hasn't been updated
+    yet still catches it — but a distinct type lets `create_review`'s caller
+    (evidence_review_endpoints.py) tell "not found" apart from "exists but
+    wrong status" and map each to a different HTTP status code (IN-02),
+    instead of collapsing both into a single misleading 404.
+    """
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
@@ -126,7 +139,7 @@ async def create_review(
         {"tenantId": tenant_id, "evidence.id": evidence_id}
     )
     if not existing:
-        raise ValueError(f"Evidence '{evidence_id}' not found for tenant")
+        raise EvidenceNotFoundError(f"Evidence '{evidence_id}' not found for tenant")
 
     evidence_item = next(
         (e for e in existing.get("evidence", []) if e.get("id") == evidence_id), None
