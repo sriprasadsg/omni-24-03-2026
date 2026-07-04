@@ -56,8 +56,6 @@ def scan_code(code: str, filename: str = "") -> dict:
         has_negative = False
         if negative:
             has_negative = bool(re.search(negative, code, re.MULTILINE | re.DOTALL))
-        if provider == "kubernetes":
-            has_negative = False  # K8s checks fire when pattern IS found
         if check.get("vulnerable_marker"):
             # negative_pattern match confirms the vulnerable condition itself
             status = "FAIL" if has_negative else "PASS"
