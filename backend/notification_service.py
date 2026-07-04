@@ -508,24 +508,32 @@ async def send_notification(db, tenant_id: str, event_type: str, payload: dict) 
             try:
                 if ch["type"] == "slack":
                     url = ch.get("config", {}).get("url", "")
-                    if url and not _validate_webhook_url(url):
+                    if not url:
+                        results.append({"channel_id": ch["id"], "status": "failed", "error": "no webhook URL configured"})
+                        continue
+                    if not _validate_webhook_url(url):
                         results.append({"channel_id": ch["id"], "status": "failed", "error": "invalid or unsafe webhook URL"})
                         continue
-                    if url:
-                        async with httpx.AsyncClient() as cl:
-                            await cl.post(url, json={"text": f"[{event_type}] {payload.get('message', '')}"}, timeout=10)
+                    async with httpx.AsyncClient() as cl:
+                        resp = await cl.post(url, json={"text": f"[{event_type}] {payload.get('message', '')}"}, timeout=10)
+                        resp.raise_for_status()
+                    results.append({"channel_id": ch["id"], "status": "sent"})
                 elif ch["type"] == "webhook":
                     url = ch.get("config", {}).get("webhook_url", "")
-                    if url and not _validate_webhook_url(url):
+                    if not url:
+                        results.append({"channel_id": ch["id"], "status": "failed", "error": "no webhook URL configured"})
+                        continue
+                    if not _validate_webhook_url(url):
                         results.append({"channel_id": ch["id"], "status": "failed", "error": "invalid or unsafe webhook URL"})
                         continue
-                    if url:
-                        async with httpx.AsyncClient() as cl:
-                            await cl.post(url, json=payload, timeout=10, headers={"Content-Type": "application/json"})
+                    async with httpx.AsyncClient() as cl:
+                        resp = await cl.post(url, json=payload, timeout=10, headers={"Content-Type": "application/json"})
+                        resp.raise_for_status()
+                    results.append({"channel_id": ch["id"], "status": "sent"})
                 else:
-                    import json, logging
+                    import logging
                     logging.getLogger(__name__).info("[NOTIF EMAIL] To: %s | Event: %s", ch.get("config", {}).get("email", "unknown"), event_type)
-                results.append({"channel_id": ch["id"], "status": "sent"})
+                    results.append({"channel_id": ch["id"], "status": "sent"})
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error("Notify send error: %s", e)

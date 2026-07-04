@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Body, Query
-from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+from typing import List, Dict, Any, Literal, Optional
 from datetime import datetime, timezone
 from database import get_database
 import logging
@@ -11,6 +12,18 @@ logger = logging.getLogger(__name__)
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
+
+
+class ChannelCreate(BaseModel):
+    name: str
+    type: Literal["slack", "email", "webhook"]
+    config: Dict[str, Any] = {}
+
+
+class RuleCreate(BaseModel):
+    event_type: Literal["finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"]
+    channel_ids: List[str] = []
+    severity_filter: List[str] = []
 
 
 def _validate_webhook_url(url: str) -> bool:
@@ -267,10 +280,10 @@ async def test_notification_channel(
 
 
 @router.post("/channels")
-async def create_notification_channel(payload: dict = Body(...), current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
+async def create_notification_channel(payload: ChannelCreate, current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
     db = get_database()
     try:
-        ch = await notification_service.create_channel(db, get_tenant_id(), payload)
+        ch = await notification_service.create_channel(db, get_tenant_id(), payload.model_dump())
         return {"channel": ch}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -292,10 +305,10 @@ async def list_notification_channels(current_user: TokenData = Depends(rbac_serv
 
 
 @router.post("/rules")
-async def create_notification_rule(payload: dict = Body(...), current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
+async def create_notification_rule(payload: RuleCreate, current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
     db = get_database()
     try:
-        rule = await notification_service.create_rule(db, get_tenant_id(), payload)
+        rule = await notification_service.create_rule(db, get_tenant_id(), payload.model_dump())
         return {"rule": rule}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

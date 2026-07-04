@@ -71,11 +71,10 @@ def _check_ports(host: str) -> dict:
     results = {}
     for port in COMMON_PORTS:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(2)
-            r = s.connect_ex((host, port))
-            results[str(port)] = r == 0
-            s.close()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)
+                r = s.connect_ex((host, port))
+                results[str(port)] = r == 0
         except OSError:
             results[str(port)] = False
     return results
@@ -84,12 +83,11 @@ def _check_ports(host: str) -> dict:
 def _check_tls(domain: str) -> dict:
     try:
         ctx = ssl.create_default_context()
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect((domain, 443))
-        ss = ctx.wrap_socket(s, server_hostname=domain)
-        cert = ss.getpeercert()
-        s.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(5)
+            s.connect((domain, 443))
+            with ctx.wrap_socket(s, server_hostname=domain) as ss:
+                cert = ss.getpeercert()
         return {
             "expiry": cert.get("notAfter", "unknown"),
             "issuer": dict(cert.get("issuer", [])).get("organizationName", "unknown"),

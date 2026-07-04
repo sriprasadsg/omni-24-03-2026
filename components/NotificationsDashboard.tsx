@@ -43,14 +43,16 @@ export const NotificationsDashboard: React.FC = () => {
 
   const submitChannel = async () => {
     try {
-      await (await authFetch('/api/notifications/channels', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(chanForm) })).json();
+      const res = await authFetch('/api/notifications/channels', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(chanForm) });
+      if (!res.ok) throw new Error(await res.text());
       showToast('Channel created', 'success'); setShowChanForm(false); setChanForm({}); fetchData();
     } catch { showToast('Failed', 'error'); }
   };
 
   const submitRule = async () => {
     try {
-      await (await authFetch('/api/notifications/rules', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(ruleForm) })).json();
+      const res = await authFetch('/api/notifications/rules', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(ruleForm) });
+      if (!res.ok) throw new Error(await res.text());
       showToast('Rule created', 'success'); setShowRuleForm(false); setRuleForm({}); fetchData();
     } catch { showToast('Failed', 'error'); }
   };
@@ -68,7 +70,8 @@ export const NotificationsDashboard: React.FC = () => {
   const scheduleDomain = async () => {
     if (!domain) return;
     try {
-      await (await authFetch('/api/domain-scanner/scheduled', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({domain})})).json();
+      const res = await authFetch('/api/domain-scanner/scheduled', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({domain})});
+      if (!res.ok) throw new Error(await res.text());
       showToast('Scheduled', 'success'); fetchData();
     } catch { showToast('Failed', 'error'); }
   };
@@ -92,7 +95,12 @@ export const NotificationsDashboard: React.FC = () => {
                 <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, type: e.target.value})}>
                   <option value="">Type</option><option value="slack">Slack</option><option value="email">Email</option><option value="webhook">Webhook</option>
                 </select>
-                <input placeholder="URL/Email" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setChanForm({...chanForm, config: {url: e.target.value}})} />
+                <input placeholder="URL/Email" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setChanForm({
+                  ...chanForm,
+                  config: chanForm.type === 'webhook' ? { webhook_url: e.target.value }
+                    : chanForm.type === 'email' ? { email: e.target.value }
+                    : { url: e.target.value },
+                })} />
                 <button onClick={submitChannel} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
               </div>
             )}
@@ -109,7 +117,7 @@ export const NotificationsDashboard: React.FC = () => {
                 <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, event_type: e.target.value})}>
                   <option value="">Event</option><option value="finding_created">Finding Created</option><option value="control_failed">Control Failed</option><option value="evidence_expired">Evidence Expired</option>
                 </select>
-                <input placeholder="Channel IDs (comma)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',')})} />
+                <input placeholder="Channel IDs (comma)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} />
                 <button onClick={submitRule} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
               </div>
             )}
