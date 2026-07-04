@@ -159,6 +159,59 @@ def test_list_accounts_total_count_reflects_count_accounts():
     assert body["total_count"] == 137, f"Got {body}"
     assert body["count"] == 0, "count reflects the (empty, mocked) page, not total_count"
 
+def test_register_preserves_account_name_region_environment_when_omitted():
+    # IN-01: regression test for WR-06 (account_name/region) and WR-01
+    # (environment) — re-registering an existing (tenantId, provider,
+    # account_id) without resending account_name/region/environment (the
+    # shipped UI form only sends fields the user actually touched) must
+    # preserve the previously-stored values rather than silently resetting
+    # them to defaults ("", "us-east-1", "dev").
+    db = _mkdb(); c = _build(db, _mkuser())
+    r1 = c.post("/api/cloud-accounts", json={
+        "provider": "aws", "account_id": "123456789012",
+        "account_name": "Custom Name", "region": "eu-west-1", "environment": "prod",
+    })
+    assert r1.status_code == 200, f"Got {r1.status_code}"
+    first_doc = db._db.cloud_accounts.update_one.call_args_list[0].args[1]["$set"]
+    assert first_doc["account_name"] == "Custom Name"
+    assert first_doc["region"] == "eu-west-1"
+    assert first_doc["environment"] == "prod"
+
+    # Second call simulates the stored doc now being found via find_one,
+    # and omits account_name/region/environment entirely — exactly what
+    # the shipped UI does when a user never touches those fields.
+    db._db.cloud_accounts.find_one = AsyncMock(return_value=first_doc)
+    r2 = c.post("/api/cloud-accounts", json={
+        "provider": "aws", "account_id": "123456789012",
+    })
+    assert r2.status_code == 200, f"Got {r2.status_code}"
+    second_doc = db._db.cloud_accounts.update_one.call_args_list[1].args[1]["$set"]
+    assert second_doc["account_name"] == "Custom Name", (
+        "account_name must be preserved when omitted on re-registration"
+    )
+    assert second_doc["region"] == "eu-west-1", (
+        "region must be preserved when omitted on re-registration"
+    )
+    assert second_doc["environment"] == "prod", (
+        "environment must be preserved when omitted on re-registration"
+    )
+
+def test_summary_total_accounts_reflects_count_accounts_not_capped_list():
+    # IN-01: regression test for WR-05 — GET /api/cloud-accounts/summary's
+    # total_accounts must reflect count_accounts()'s unbounded count, not
+    # the length of the (possibly capped) account list used to build the
+    # by_provider/by_environment breakdown.
+    db = _mkdb()
+    db._db.cloud_accounts.count_documents = AsyncMock(return_value=150)
+    db._db.cloud_accounts.find = MagicMock(return_value=_chain([
+        {"provider": "aws", "environment": "prod", "account_name": f"acct-{i}"} for i in range(5)
+    ]))
+    c = _build(db, _mkuser())
+    r = c.get("/api/cloud-accounts/summary")
+    assert r.status_code == 200, f"Got {r.status_code}"
+    body = r.json()
+    assert body["total_accounts"] == 150, f"Got {body}"
+
 def test_tenant_isolation():
     db = _mkdb()
     docs = [
