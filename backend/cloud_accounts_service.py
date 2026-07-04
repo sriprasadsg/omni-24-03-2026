@@ -51,6 +51,14 @@ async def register_account(db, tenant_id: str, data: dict) -> dict:
         # CR-01: preserve the previously-stored encrypted credential when the
         # caller doesn't resend it (the shipped UI never sends this field at
         # all), instead of silently overwriting it with an empty string.
+        #
+        # IN-06: this means every falsy credentials_ref ("", null, or the key
+        # being entirely absent) is treated identically to "not provided" —
+        # there is currently no way for a client to intentionally *clear* a
+        # stored credential (e.g. to de-authorize an account without deleting
+        # the whole registration). If rotation/removal is needed later, use an
+        # explicit sentinel to distinguish "clear" from "don't touch" instead
+        # of overloading falsy-ness for both.
         creds_enc = existing.get("credentials_ref", "") if existing else ""
 
     doc = {
