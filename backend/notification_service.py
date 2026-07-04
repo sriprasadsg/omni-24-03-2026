@@ -430,6 +430,7 @@ async def create_channel(db, tenant_id: str, data: dict) -> dict:
         raise ValueError(f"type must be one of {VALID_CHANNEL_TYPES}")
     doc = {"id": _id("chan"), "tenantId": tenant_id, "created_at": _now(), **data}
     await db._db.notification_channels.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
@@ -442,6 +443,7 @@ async def create_rule(db, tenant_id: str, data: dict) -> dict:
         raise ValueError(f"event_type must be one of {VALID_EVENTS}")
     doc = {"id": _id("rule"), "tenantId": tenant_id, "created_at": _now(), **data}
     await db._db.notification_rules.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
