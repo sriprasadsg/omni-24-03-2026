@@ -120,6 +120,45 @@ def test_insufficient_permission_rejected():
     r_register = c.post("/api/cloud-accounts", json={"provider": "aws", "account_id": "123456789012"})
     assert r_register.status_code == 403, f"Got {r_register.status_code}"
 
+def test_register_preserves_credentials_ref_when_omitted():
+    # IN-05: regression test for CR-01 — re-registering an existing
+    # (tenantId, provider, account_id) without resending credentials_ref
+    # (the shipped UI form never sends this field) must preserve the
+    # previously-stored encrypted value rather than blanking it.
+    db = _mkdb(); c = _build(db, _mkuser())
+    r1 = c.post("/api/cloud-accounts", json={
+        "provider": "aws", "account_id": "123456789012",
+        "credentials_ref": "arn:aws:iam::123456789012:role/scanner",
+    })
+    assert r1.status_code == 200, f"Got {r1.status_code}"
+    first_doc = db._db.cloud_accounts.update_one.call_args_list[0].args[1]["$set"]
+    assert first_doc["credentials_ref"], "first registration must store an encrypted credentials_ref"
+
+    # Second call simulates the stored doc now being found via find_one,
+    # and omits credentials_ref entirely — exactly what the shipped UI does.
+    db._db.cloud_accounts.find_one = AsyncMock(return_value=first_doc)
+    r2 = c.post("/api/cloud-accounts", json={
+        "provider": "aws", "account_id": "123456789012", "account_name": "Prod",
+    })
+    assert r2.status_code == 200, f"Got {r2.status_code}"
+    second_doc = db._db.cloud_accounts.update_one.call_args_list[1].args[1]["$set"]
+    assert second_doc["credentials_ref"] == first_doc["credentials_ref"], (
+        "credentials_ref must be preserved when omitted on re-registration"
+    )
+
+def test_list_accounts_total_count_reflects_count_accounts():
+    # IN-05: regression test for WR-03 — total_count in the GET
+    # /api/cloud-accounts response must reflect count_accounts()'s return
+    # value, independent of how many items the current page returns.
+    db = _mkdb()
+    db._db.cloud_accounts.count_documents = AsyncMock(return_value=137)
+    c = _build(db, _mkuser())
+    r = c.get("/api/cloud-accounts?limit=10")
+    assert r.status_code == 200, f"Got {r.status_code}"
+    body = r.json()
+    assert body["total_count"] == 137, f"Got {body}"
+    assert body["count"] == 0, "count reflects the (empty, mocked) page, not total_count"
+
 def test_tenant_isolation():
     db = _mkdb()
     docs = [
