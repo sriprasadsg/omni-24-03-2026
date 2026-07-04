@@ -190,6 +190,7 @@ async def send_notification(
             message=data.get("message"),
             severity=data.get("severity", "info"),
             recipients=data.get("recipients", []),
+            tenant_id=getattr(_current_user, "tenant_id", None),
             channels=data.get("channels", ["email"]),
             metadata=data.get("metadata"),
         )

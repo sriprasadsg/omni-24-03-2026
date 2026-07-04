@@ -282,6 +282,11 @@ async def list_notification_channels(current_user: TokenData = Depends(rbac_serv
     from database import get_database
     db = get_database()
     items = await notification_service.list_channels(db, get_tenant_id())
+    for item in items:
+        cfg = item.get("config") or {}
+        for field in _REDACTED_FIELDS:
+            if field in cfg:
+                cfg[field] = "***"
     return {"items": items, "count": len(items)}
 
 

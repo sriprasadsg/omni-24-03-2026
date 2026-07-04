@@ -29,18 +29,19 @@ class NotificationService:
         message: str,
         severity: str,
         recipients: List[str],
+        tenant_id: Optional[str] = None,
         channels: List[str] = None,
         metadata: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Send multi-channel alert
-        
+
         Channels: email, sms, slack, webhook
         Severity: critical, warning, info
         """
         if not channels:
             channels = ["email"]  # Default
-        
+
         results = {
             "alert_id": f"alert-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
             "title": title,
@@ -48,34 +49,35 @@ class NotificationService:
             "sent_at": datetime.now(timezone.utc).isoformat(),
             "channels": {}
         }
-        
+
         # Send via each channel
         if "email" in channels:
             results["channels"]["email"] = await self._send_email(
                 recipients, title, message, severity
             )
-        
+
         if "sms" in channels:
             results["channels"]["sms"] = await self._send_sms(
                 recipients, f"{title}: {message}"
             )
-        
+
         if "slack" in channels:
             results["channels"]["slack"] = await self._send_slack(
-                title, message, severity, metadata
+                title, message, severity, tenant_id, metadata
             )
-        
+
         if "webhook" in channels and metadata and "webhook_url" in metadata:
             results["channels"]["webhook"] = await self._send_webhook(
                 metadata["webhook_url"], title, message, severity, metadata
             )
-        
+
         # Log notification
         await self.db.notifications.insert_one({
             **results,
+            "tenant_id": tenant_id,
             "metadata": metadata
         })
-        
+
         return results
     
     async def _send_email(
@@ -191,15 +193,18 @@ class NotificationService:
         title: str,
         message: str,
         severity: str,
+        tenant_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Send Slack notification via webhook
-        
+
         Requires: Slack webhook URL in configuration
         """
-        # Get Slack webhook URL from config
-        config = await self.db.notification_config.find_one({"type": "slack"}, {"_id": 0})
+        # Get Slack webhook URL from config, scoped to the requesting tenant
+        config = await self.db.notification_config.find_one(
+            {"type": "slack", "tenant_id": tenant_id}, {"_id": 0}
+        )
         
         if not config or not config.get("webhook_url"):
             return {
@@ -301,7 +306,8 @@ class NotificationService:
         self,
         patch: Dict[str, Any],
         breach_hours: float,
-        recipients: List[str]
+        recipients: List[str],
+        tenant_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Send alert for SLA breach"""
         title = f"🚨 SLA Breach: {patch.get('name')}"
@@ -322,6 +328,7 @@ Immediate action required.
             message=message,
             severity="critical",
             recipients=recipients,
+            tenant_id=tenant_id,
             channels=["email", "slack"],
             metadata={
                 "patch_id": patch.get("id"),
@@ -333,7 +340,8 @@ Immediate action required.
     async def send_critical_patch_alert(
         self,
         patch: Dict[str, Any],
-        recipients: List[str]
+        recipients: List[str],
+        tenant_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Send alert for new critical patch"""
         cvss = patch.get("cvss_score", "N/A")
@@ -358,6 +366,7 @@ Review and deploy as soon as possible.
             message=message,
             severity="warning",
             recipients=recipients,
+            tenant_id=tenant_id,
             channels=["email", "slack"],
             metadata={
                 "patch_id": patch.get("id"),
@@ -371,7 +380,8 @@ Review and deploy as soon as possible.
         deployment_id: str,
         success_count: int,
         failure_count: int,
-        recipients: List[str]
+        recipients: List[str],
+        tenant_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Send alert when deployment completes"""
         total = success_count + failure_count
@@ -397,6 +407,7 @@ View details in the dashboard.
             message=message,
             severity=severity,
             recipients=recipients,
+            tenant_id=tenant_id,
             channels=["email", "slack"],
             metadata={
                 "deployment_id": deployment_id,
@@ -428,7 +439,7 @@ async def create_channel(db, tenant_id: str, data: dict) -> dict:
     typ = data.get("type")
     if typ not in VALID_CHANNEL_TYPES:
         raise ValueError(f"type must be one of {VALID_CHANNEL_TYPES}")
-    doc = {"id": _id("chan"), "tenantId": tenant_id, "created_at": _now(), **data}
+    doc = {**data, "id": _id("chan"), "tenantId": tenant_id, "created_at": _now()}
     await db._db.notification_channels.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -441,7 +452,7 @@ async def list_channels(db, tenant_id: str) -> list:
 async def create_rule(db, tenant_id: str, data: dict) -> dict:
     if data.get("event_type") not in VALID_EVENTS:
         raise ValueError(f"event_type must be one of {VALID_EVENTS}")
-    doc = {"id": _id("rule"), "tenantId": tenant_id, "created_at": _now(), **data}
+    doc = {**data, "id": _id("rule"), "tenantId": tenant_id, "created_at": _now()}
     await db._db.notification_rules.insert_one(doc)
     doc.pop("_id", None)
     return doc
