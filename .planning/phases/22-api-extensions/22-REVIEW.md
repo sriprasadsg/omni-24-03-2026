@@ -11,10 +11,10 @@ files_reviewed_list:
   - backend/router_registry.py
   - components/ApiExtensionsDashboard.tsx
 findings:
-  critical: 3
+  critical: 5
   warning: 6
-  info: 2
-  total: 11
+  info: 3
+  total: 14
 status: issues_found
 ---
 
@@ -32,6 +32,8 @@ Reviewed the four API-extension features (MCP protocol server, OCSF export, Digi
 The most severe finding is that `backend/scripts/omni-cli.py` does not implement the plan's explicit must-have — "a Click CLI" — at all (no `import click` anywhere in the file), and its hand-rolled parser cannot handle `--flag value` syntax. All three CLI invocations given verbatim in the plan's objective (`scan cloud --provider digitalocean --account-id 12345`, `findings list --severity high --limit 10`, `score --framework soc2`) silently produce wrong API calls with no error. This was independently reproduced by tracing/executing the parsing logic (see CR-01).
 
 Beyond that, `mcp_server_endpoints.py`'s `execute_tool()` accepts an entirely untyped `dict` body and splices several of its values (`control_id`, `account_id`, `severity`) directly into MongoDB filter documents with no type/shape validation, which is a NoSQL query-operator injection vector (CR-02), and separately fails to validate the `limit` parameter's type/sign before calling `min()` and Motor's `to_list()`, both of which raise unhandled exceptions on malformed input (WR-01). The MCP `run_cloud_check` tool also skips the `aws/azure/gcp` provider allowlist that the equivalent REST endpoint (`cloud_checks_endpoints.py`) enforces, which can violate the coverage-percentage invariant documented in `cloud_checks_service.py` (WR-02). The DigitalOcean check set silently substitutes an unlisted check for the plan's explicitly-named "snapshot retention" check (WR-03). The dashboard's OCSF export buttons don't check response status before treating an error body as a successful download (WR-04).
+
+**Update (fresh re-audit):** Two additional critical bugs were found in the MCP tool handlers on closer inspection: `list_frameworks` filters on a `tenantId` field that no writer in the codebase ever sets (real data uses snake_case `tenant_id` or no tenant field at all for global frameworks), so it returns an empty list for every tenant, always (CR-04). `get_compliance_score` reads a `framework` param but never uses it to filter — it returns the exact same tenant-wide aggregate regardless of which framework is requested, fabricating framework-specific numbers (CR-05). A third, lower-severity gap: two other documented tool params (`framework_id`, `check_id`) are silently ignored by their handlers with no error signal (IN-03). No test file exercises any of these 6 modules — `test_cloud_checks_expansion.py` is a 0-byte empty placeholder.
 
 ## Critical Issues
 
@@ -142,6 +144,33 @@ if not isinstance(raw_limit, int) or isinstance(raw_limit, bool) or raw_limit < 
     raise HTTPException(status_code=400, detail="limit must be a positive integer")
 limit = min(raw_limit, 100)
 ```
+
+---
+
+### CR-04: `list_frameworks` MCP tool always returns an empty list, for every tenant, permanently
+
+**File:** `backend/mcp_server_endpoints.py:53`
+**Issue:** `frameworks = await db._db.compliance_frameworks.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=100)` filters on `tenantId` (camelCase), but no writer anywhere in the codebase ever sets that field on this collection — global/seeded frameworks (`seed_compliance.py`, `seed_compliance_frameworks_a/b.py`) carry no tenant field at all, and tenant-owned custom frameworks are created with snake_case `tenant_id` (`compliance_framework_mgmt_endpoints.py:144,165`, which itself queries via `$or` on `tenant_id`). Reproduced with `mongomock`: inserting a global doc plus a `tenant_id`-scoped doc and running this exact query returns `[]`, while the equivalent `/api/compliance` `$or` query correctly returns both. This is the first and simplest tool in `MCP_TOOLS` and it silently returns an empty array with a 200 OK for every tenant, always.
+**Fix:** Match the real schema — query with the same `$or` pattern used by `compliance_framework_mgmt_endpoints.py` (global frameworks with no tenant field, or `tenant_id` matching the caller):
+```python
+frameworks = await db._db.compliance_frameworks.find(
+    {"$or": [{"tenant_id": tenant_id}, {"tenant_id": {"$exists": False}}]}, {"_id": 0}
+).to_list(length=100)
+```
+
+### CR-05: `get_compliance_score` MCP tool ignores the `framework` filter and fabricates per-framework numbers
+
+**File:** `backend/mcp_server_endpoints.py:79-84`
+**Issue:**
+```python
+framework = params.get("framework", "soc2")
+results = await db.asset_compliance.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=1000)
+passing = sum(1 for r in results if r.get("status") == "Compliant")
+total = len(results) or 1
+return {"tool": tool_name, "result": {"score": round(passing/total*100), "passing": passing, "total": total, "framework": framework}}
+```
+`framework` is read but never used to filter the query — it computes a tenant-wide aggregate score across every framework's controls and just echoes back whatever `framework` string the caller passed. The real REST equivalent (`compliance_score_endpoints.py:95-145`) does a genuine two-step join (the named framework's `controls[].id` → `asset_compliance.controlId`) to compute a real per-framework score, because `asset_compliance` documents have no direct `frameworkId` field of their own. Calling this tool with `{"framework":"soc2"}` and `{"framework":"pci_dss"}` returns byte-identical `score`/`passing`/`total`, differing only in the echoed label — actively fabricating framework-specific compliance numbers for any caller (including an AI assistant) that trusts the response.
+**Fix:** Reuse the same framework→controls join `compliance_score_endpoints.py` already performs instead of aggregating the whole `asset_compliance` collection unfiltered; if no framework-scoped computation is feasible in this tool's scope, at minimum don't claim a `framework`-specific result — compute the aggregate honestly and drop the misleading `framework` echo, or raise a 400 if an unsupported framework is requested.
 
 ## Warnings
 
@@ -255,6 +284,12 @@ except Exception:
 **File:** `backend/scripts/omni-cli.py:16-25`
 **Issue:** `requests.get(...)` / `requests.post(...)` are called with no `timeout=` argument, so a hung/unresponsive backend will cause the CLI to hang indefinitely rather than failing fast.
 **Fix:** Add `timeout=30` (or similar) to both calls, as noted in WR-06's fix snippet.
+
+### IN-03: Documented MCP tool params silently ignored by their handlers
+
+**File:** `backend/mcp_server_endpoints.py:20,24` (declared params) vs `:56-61,63-68` (handlers)
+**Issue:** `get_control_status`'s optional `framework_id` param (declared in the `MCP_TOOLS` schema) is never read by the handler; `run_cloud_check`'s optional `check_id` param is likewise never read, and `cloud_checks_service.run_checks()` has no per-check-id filtering capability at all — it always evaluates every check for the given provider. Callers following the published tool schema get unfiltered results with no signal that their filter was silently dropped.
+**Fix:** Either implement the filters (thread `framework_id`/`check_id` through to the underlying queries) or remove them from the published `MCP_TOOLS` schema so the documented contract matches actual behavior.
 
 ---
 
