@@ -95,10 +95,12 @@ async def get_results(db, account_id: str, tenant_id: str) -> list:
 
 async def get_summary(db, tenant_id: str) -> dict:
     accounts = await list_accounts(db, tenant_id)
-    results = await db.cloud_check_results.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=5000)
-    total = len(results)
-    passed = sum(1 for r in results if r.get("result") == "PASS")
-    failed = sum(1 for r in results if r.get("result") == "FAIL")
+    # WR-04: use count_documents instead of loading a capped result set into
+    # memory, so pass/fail/total stay accurate no matter how many check
+    # results a tenant accumulates.
+    total = await db.cloud_check_results.count_documents({"tenantId": tenant_id})
+    passed = await db.cloud_check_results.count_documents({"tenantId": tenant_id, "result": "PASS"})
+    failed = await db.cloud_check_results.count_documents({"tenantId": tenant_id, "result": "FAIL"})
     by_provider: dict = {}
     by_env: dict = {}
     for a in accounts:
