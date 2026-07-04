@@ -106,7 +106,13 @@ async def get_results(db, account_id: str, tenant_id: str) -> list:
 
 
 async def get_summary(db, tenant_id: str) -> dict:
-    accounts = await list_accounts(db, tenant_id)
+    # WR-05: total_accounts must come from count_accounts() (unbounded), and the
+    # account list used for the by_provider/by_environment breakdown must not be
+    # silently capped at list_accounts()'s default limit=100 — otherwise tenants
+    # with >100 accounts get a truncated summary, the same failure WR-03 fixed
+    # for the paginated list endpoint.
+    total_accounts = await count_accounts(db, tenant_id)
+    accounts = await list_accounts(db, tenant_id, skip=0, limit=max(total_accounts, 1))
     # WR-04: use count_documents instead of loading a capped result set into
     # memory, so pass/fail/total stay accurate no matter how many check
     # results a tenant accumulates.
@@ -122,7 +128,7 @@ async def get_summary(db, tenant_id: str) -> dict:
         if e not in by_env:
             by_env[e] = []
         by_env[e].append(a.get("account_name", a.get("account_id", "")))
-    return {"total_accounts": len(accounts), "total_checks": total, "pass": passed, "fail": failed, "by_provider": by_provider, "by_environment": {k: {"accounts": v, "count": len(v)} for k, v in by_env.items()}}
+    return {"total_accounts": total_accounts, "total_checks": total, "pass": passed, "fail": failed, "by_provider": by_provider, "by_environment": {k: {"accounts": v, "count": len(v)} for k, v in by_env.items()}}
 
 
 async def discover_org_accounts(db, tenant_id: str, credentials: dict) -> dict:
