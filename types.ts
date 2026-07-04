@@ -20,6 +20,7 @@ export type AppView =
   | 'securityIntelConnectors'
   | 'security'
   | 'compliance'
+  | 'programs'
   | 'aiGovernance'
   | 'finops'
   | 'auditLog'
