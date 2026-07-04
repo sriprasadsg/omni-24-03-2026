@@ -34,6 +34,8 @@ async def register_account(payload: Dict[str, Any] = Body(...), current_user: To
         raise HTTPException(status_code=400, detail=f"provider must be one of {sorted(_VALID_PROVIDERS)}")
     if payload.get("environment", "dev") not in _VALID_ENVS:
         raise HTTPException(status_code=400, detail=f"environment must be one of {sorted(_VALID_ENVS)}")
+    if payload.get("credentials_ref") is not None and not isinstance(payload["credentials_ref"], str):
+        raise HTTPException(status_code=400, detail="credentials_ref must be a string")
     doc = await svc.register_account(db, _tid(current_user), payload)
     return {"account": doc}
 
