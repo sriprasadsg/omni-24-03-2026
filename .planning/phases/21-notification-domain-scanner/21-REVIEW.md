@@ -1,6 +1,6 @@
 ---
 phase: 21-notification-domain-scanner
-reviewed: 2026-07-04T00:00:00Z
+reviewed: 2026-07-04T12:00:00Z
 depth: standard
 files_reviewed: 6
 files_reviewed_list:
@@ -11,153 +11,139 @@ files_reviewed_list:
   - backend/tests/test_notification_service.py
   - components/NotificationsDashboard.tsx
 findings:
-  critical: 8
+  critical: 10
   warning: 7
-  info: 3
-  total: 18
+  info: 5
+  total: 22
 status: issues_found
 ---
 
 # Phase 21: Code Review Report
 
-**Reviewed:** 2026-07-04T00:00:00Z
+**Reviewed:** 2026-07-04T12:00:00Z
 **Depth:** standard
 **Files Reviewed:** 6
 **Status:** issues_found
 
 ## Summary
 
-Reviewed against `.planning/phases/21-notification-domain-scanner/21-01-PLAN.md`'s must-haves, with the legacy `NotificationService` class (SMS/patch-management code above `notification_service.py:409`) correctly treated as pre-existing and out of scope. Every finding below was verified by directly executing the code (not just reading it) — via pytest, direct async-function invocation with mocked collections that mimic real pymongo/motor `insert_one` mutation behavior, and `fastapi.encoders.jsonable_encoder`.
+This is a fresh, independent re-review of the current on-disk state of all six files. A `21-REVIEW.md` already existed on disk with 18 findings (8 critical/7 warning/3 info) from an earlier pass; no `REVIEW-FIX.md` exists and no fix commits have landed against these files (`git log` shows the last commit touching every one of them is still the original `feat(phase-16): implement program control grouping` commit). I did not assume the prior findings were stale — I re-verified the load-bearing ones directly (running `pytest`, invoking the route handlers with mocked dependencies, and inspecting the installed `pymongo` source for `insert_one` mutation semantics) and they all still reproduce exactly as before. I also found several additional defects not previously documented, listed below (CR-04, CR-05, CR-06, WR-04, IN-04, IN-05).
 
-The phase-21 code is broken at multiple independent layers, several of which stack on top of each other:
-
-- `notification_endpoints.py` never imports the `notification_service` module it calls on every one of the four new routes (`POST/GET /channels`, `POST/GET /rules`). Every real request to these routes raises `NameError` and 500s — I reproduced this directly, bypassing the also-broken test auth. This is not a hypothetical: the feature is not reachable in any working state today.
-- Even if that `NameError` is fixed, `create_channel`/`create_rule` return the same dict object passed to `insert_one()`, which pymongo/motor mutates in place by injecting a raw `ObjectId` under `_id` (confirmed by reading the installed pymongo source and reproducing the crash with `jsonable_encoder`). `POST /channels` and `POST /rules` would still 500 — this is the exact same defect class already found and documented as CR-04 in `16-REVIEW.md` for a sibling phase in this same codebase.
-- `create_channel`/`create_rule` build their document as `{"id": ..., "tenantId": tenant_id, "created_at": ..., **data}` — because `**data` is spread *after* the explicit keys in the dict literal, any `id`/`tenantId`/`created_at` key present in the caller-supplied request body silently overrides the server-assigned value. I reproduced this directly: a caller can plant an arbitrary `tenantId` in the POST body and the resulting document is persisted under that tenant, not the caller's own tenant — a cross-tenant data-injection primitive.
-- The new `send_notification()` and `create_channel()` code paths perform zero URL validation before storing or POSTing to attacker/tenant-admin-supplied URLs — confirmed by reading the code and comparing against two working validation patterns that already exist in this codebase (`webhook_url_validator.validate_webhook_url`, used by `scheduled_reports_service.py`; and the flawed-but-present `notification_endpoints._validate_webhook_url`, used only by the unrelated pre-existing `/test/{channel}` route). Neither is called anywhere near the new `/channels` or `send_notification` code paths.
-- `send_notification()` unconditionally appends `{"status": "sent"}` for every channel after the `try` block, regardless of whether a URL was even configured (guarded by `if url:` with no `else`) or what HTTP status the remote endpoint returned (the `httpx` response is never inspected). Combined with a frontend bug where the channel-creation form always writes `config.url` regardless of the selected channel type (so `webhook`-type channels never get `config.webhook_url` populated), this means the platform will silently report "sent" for alerts that were never delivered — undermining the entire stated purpose of the feature ("GRC teams get alerted... when compliance events occur").
-- `backend/tests/test_notification_service.py`: I ran `pytest` directly — 7 of 7 tests fail (0/7 passing), contradicting the plan's must-have. Six fail with `401 Unauthorized` because `_build_client()` overrides a freshly-constructed `rbac_service.has_permission(...)` closure rather than the object baked into the router at import time (same root cause already diagnosed and fixed as `16-REVIEW.md` CR-02). The seventh (`test_domain_scan_returns_structure`) fails with `TypeError: object MagicMock can't be used in 'await' expression` because `_make_db()`'s mocked `insert_one` on `domain_scans`/`scheduled_domains` collections was never made an `AsyncMock`. The suite also silently substitutes two of the plan's seven required tests (`test_send_notification_routes_to_matching_channels`, `test_severity_filter_excludes_low_severity`) with unrelated validation tests — so even if the auth bug were fixed, the single most important piece of new business logic (severity-filtered routing in `send_notification`) would remain completely untested.
-- The domain scanner performs real, synchronous, blocking `socket`/`ssl` I/O (DNS resolution for 23 subdomain candidates with no timeout, 5 sequential port connects, one TLS handshake) directly inside `async def scan_domain`, with no `asyncio.to_thread`/executor offload. Because this is the *only* running event loop for the whole (multi-tenant) FastAPI process, a single `GET /api/domain-scanner/scan` call — reachable by any user with the low-privilege `view:dashboard` permission — freezes every other concurrent request on the server for the duration of the scan.
-- The same endpoint accepts an arbitrary caller-supplied `domain` (or literal IP) with no restriction on private/loopback/link-local/reserved ranges, then makes the server itself open real TCP connections and TLS handshakes to it and reflects the results (open ports, TLS cert data) back to the caller — an SSRF-as-a-feature that lets any `view:dashboard` user use the platform's server as a network probe against internal infrastructure (including the cloud metadata endpoint `169.254.169.254`).
+Net assessment: this phase is not shippable. The four new "channels"/"rules" routes 500 on every call today (`CR-01`), and even past that immediate blocker there is a second, independent 500 waiting (`CR-02`), a cross-tenant document-injection primitive (`CR-03`), a credential-disclosure endpoint (`CR-04`), a cross-tenant alert-leak in the pre-existing alerting class that this feature shares a collection with (`CR-05`/`CR-06`), an SSRF primitive in the new channel/webhook code (`CR-07`), and a second, more direct SSRF-as-a-feature in the domain scanner that also freezes the whole multi-tenant event loop on every call (`CR-08`/`CR-09`). The test suite that is supposed to catch all of this is 0/7 passing (`CR-10`), so none of it was ever actually exercised.
 
 ## Critical Issues
 
-### CR-01: `notification_service` module is never imported — all four new routes raise `NameError` and 500 on every call
+### CR-01: `notification_service` module is never imported — the four new routes raise `NameError` on every call
 
-**File:** `backend/notification_endpoints.py:268-306` (imports at `1-12`)
-**Issue:** `create_notification_channel`, `list_notification_channels`, `create_notification_rule`, and `list_notification_rules` all call `notification_service.create_channel(...)`, `notification_service.list_channels(...)`, `notification_service.create_rule(...)`, `notification_service.list_rules(...)` — but `notification_service` is never imported anywhere in this file (the import block at lines 1-12 has no `import notification_service` / `from notification_service import ...`). I confirmed this is not a lazy/local import by inspecting the module namespace directly, then reproduced the runtime failure by calling the route handler with a mocked `get_database`:
+**File:** `backend/notification_endpoints.py:273, 283, 295, 305` (import block: `1-12`)
+**Issue:** `create_notification_channel`, `list_notification_channels`, `create_notification_rule`, and `list_notification_rules` all call `notification_service.create_channel(...)` / `.list_channels(...)` / `.create_rule(...)` / `.list_rules(...)`, but the module `notification_service` is never imported anywhere in this file — not at module scope (lines 1-12) and not locally inside these four handlers (they instead do a redundant local `from database import get_database`, see WR-04). I reproduced the crash directly, bypassing auth entirely, by invoking the handler with a patched `database.get_database`:
 ```
-File ".../backend/notification_endpoints.py", line 273, in create_notification_channel
-    ch = await notification_service.create_channel(db, get_tenant_id(), payload)
-               ^^^^^^^^^^^^^^^^^^^^
 NameError: name 'notification_service' is not defined
 ```
-This is independent of, and more severe than, the test-suite's auth bug (CR-06 below) — even with correct authentication, every one of these four routes 500s. NOTIF-01 is not shippable as committed.
+Every real request to `POST/GET /api/notifications/channels` and `POST/GET /api/notifications/rules` 500s today. This is not a hypothetical — it's the current, reachable behavior of the shipped code.
 **Fix:**
 ```python
-# at top of backend/notification_endpoints.py
+# top of backend/notification_endpoints.py
 import notification_service
 ```
 
-### CR-02: `create_channel`/`create_rule` return a document containing a raw, non-serializable `ObjectId`
+### CR-02: `create_channel`/`create_rule` return a document mutated in place with a raw, non-JSON-serializable `ObjectId`
 
 **File:** `backend/notification_service.py:427-433, 440-445`
-**Issue:** `insert_one(doc)` is called with the same `doc` dict that is then returned directly. Per the installed pymongo source (`Collection.insert_one`), `insert_one` mutates its argument in place, injecting `document["_id"] = ObjectId()` when `_id` is absent. I reproduced this with a fake collection that mimics real motor/pymongo behavior:
+**Issue:** `await db._db.notification_channels.insert_one(doc)` is called on the same `doc` dict that is returned immediately after. I confirmed via the installed `pymongo` (`4.17.0`) source for `Collection.insert_one` that it mutates its argument in place:
 ```python
-doc = await ns.create_channel(FakeDB(), 'tenant-a', {'type': 'slack', 'name': 'x', 'config': {...}})
-# doc == {..., '_id': ObjectId('6a483dc2906e66e27b973142')}
-jsonable_encoder({'channel': doc})
-# TypeError: 'ObjectId' object is not iterable
+if not (isinstance(document, RawBSONDocument) or "_id" in document):
+    document["_id"] = ObjectId()
 ```
-`notification_endpoints.py`'s `create_notification_channel`/`create_notification_rule` return this dict directly with no `_id` stripping and no `response_model`, so FastAPI's `jsonable_encoder` raises and every successful creation 500s — this is the exact same defect already found and fixed as `16-REVIEW.md` CR-04 for a sibling phase in this codebase; it has recurred here.
+So even once `CR-01` is fixed, `doc` returned from `create_channel`/`create_rule` will contain a live `bson.ObjectId` under `_id`. `notification_endpoints.py`'s handlers return this dict directly (no `response_model`, no `_id` stripping), so FastAPI's `jsonable_encoder` will raise `TypeError` on the very next successful call — every "successful" channel/rule creation still 500s, just one layer deeper.
 **Fix:**
 ```python
-async def create_channel(db, tenant_id: str, data: dict) -> dict:
-    typ = data.get("type")
-    if typ not in VALID_CHANNEL_TYPES:
-        raise ValueError(f"type must be one of {VALID_CHANNEL_TYPES}")
-    doc = {"id": _id("chan"), "tenantId": tenant_id, "created_at": _now(), **data}
-    await db._db.notification_channels.insert_one(doc)
-    doc.pop("_id", None)
-    return doc
+await db._db.notification_channels.insert_one(doc)
+doc.pop("_id", None)
+return doc
 ```
-Apply the same `doc.pop("_id", None)` fix to `create_rule`.
+Apply the same fix to `create_rule`.
 
-### CR-03: Caller-supplied `tenantId`/`id`/`created_at` silently override server-assigned values — cross-tenant data injection
+### CR-03: Caller-supplied `id`/`tenantId`/`created_at` silently override server-assigned values — cross-tenant document injection
 
 **File:** `backend/notification_service.py:431, 443`
-**Issue:** `doc = {"id": _id("chan"), "tenantId": tenant_id, "created_at": _now(), **data}` spreads the caller-supplied `data` dict *after* the server-assigned keys in the literal, so any of `id`, `tenantId`, or `created_at` present in the request body wins over the server-generated value (standard Python dict-literal-with-spread semantics). I reproduced this directly:
-```python
-doc = await ns.create_channel(FakeDB(), 'tenant-a',
-    {'type': 'slack', 'name': 'evil', 'tenantId': 'tenant-victim', 'id': 'chan-fixed'})
-# {'id': 'chan-fixed', 'tenantId': 'tenant-victim', ...}
-```
-Any authenticated user holding `manage:settings` in their own tenant can plant a channel or rule document under a *different* tenant's `tenantId` simply by including that key in the JSON body — a straightforward cross-tenant isolation bypass with no additional privileges required. The same pattern applies to `create_rule` (line 443).
-**Fix:** Strip caller-controlled identity fields from `data` before merging, or set the authoritative fields *after* the spread:
+**Issue:** `doc = {"id": _id("chan"), "tenantId": tenant_id, "created_at": _now(), **data}` spreads caller-supplied `data` *after* the server-assigned keys in the dict literal — standard Python semantics mean any of `id`, `tenantId`, or `created_at` present in the request body silently wins over the server-generated value. Any authenticated user holding `manage:settings` in their own tenant can POST `{"type": "slack", "tenantId": "some-other-tenant", ...}` to `/api/notifications/channels` and have the document persisted under a tenant they do not belong to — a straightforward tenant-isolation bypass requiring no additional privilege. Same pattern in `create_rule` (line 443).
+**Fix:** Put the authoritative fields *after* the spread so they cannot be overridden:
 ```python
 doc = {**data, "id": _id("chan"), "tenantId": tenant_id, "created_at": _now()}
 ```
 
-### CR-04: New notification-channel code path has zero SSRF protection
+### CR-04: `GET /api/notifications/channels` returns unredacted secrets to any user with only `view:dashboard`
 
-**File:** `backend/notification_service.py:427-433 (create_channel), 452-480 (send_notification)`
-**Issue:** `create_channel` persists whatever `config` dict is supplied with no validation of any kind — not even a URL scheme check. `send_notification` then `httpx.AsyncClient().post()`s directly to `ch["config"]["url"]` (slack) / `ch["config"]["webhook_url"]` (webhook) with no validation before the outbound request. This codebase already has two working validation patterns for exactly this problem: `backend/webhook_url_validator.py`'s `validate_webhook_url()` (requires `https://` and DNS-resolves the hostname to reject private/loopback/link-local/reserved/multicast targets, used correctly by `scheduled_reports_service.py` at both save and delivery time), and `notification_endpoints.py`'s own pre-existing `_validate_webhook_url()` (line 15, used by the unrelated `/test/{channel}` route). Neither is called anywhere near `create_channel`, `create_rule`, or `send_notification`. A tenant admin (or anyone with `manage:settings`) can point a channel at `http://169.254.169.254/latest/meta-data/` or any internal service, and every matching compliance event (`finding_created`, `control_failed`, etc.) will trigger a real outbound request to it — a working SSRF primitive triggered by ordinary product usage, not just a misconfiguration. This is a regression of a bug class already found and fixed in this exact codebase (commit `6bcbfff`, "fix(13): WR-06 validate webhook/Slack/Teams URLs... to close SSRF surface").
-**Fix:** Validate at both save time and delivery time using the existing shared module:
+**File:** `backend/notification_endpoints.py:279-284`; `backend/notification_service.py:436-437`
+**Issue:** `list_channels` returns raw `notification_channels` documents (`{"_id": 0}` projection only — no field redaction) and the route requires only `view:dashboard`, a much lower bar than the `manage:settings` permission required to create a channel. A channel's `config` dict routinely holds a Slack incoming-webhook URL (itself a bearer credential — anyone holding it can post to that Slack channel), a generic webhook URL, or a `secret` used as `X-OmniAgent-Secret` (see `notification_endpoints.py:229-230`). This file already implements exactly the right pattern one endpoint away — `get_notification_config` (lines 98-112) explicitly redacts `webhook_url`, `auth_token`, `routing_key`, `account_sid`, `secret` via `_REDACTED_FIELDS` before returning — but `list_channels` was added without the same treatment, so every low-privilege viewer can read every configured channel's raw credentials.
+**Fix:** Redact nested `config` secrets before returning, reusing `_REDACTED_FIELDS`:
 ```python
-# notification_service.py
-from webhook_url_validator import validate_webhook_url
-
-async def create_channel(db, tenant_id: str, data: dict) -> dict:
-    typ = data.get("type")
-    if typ not in VALID_CHANNEL_TYPES:
-        raise ValueError(f"type must be one of {VALID_CHANNEL_TYPES}")
-    if typ in ("slack", "webhook"):
-        url = data.get("config", {}).get("url") or data.get("config", {}).get("webhook_url")
-        await validate_webhook_url(url)  # raises ValueError on unsafe/invalid URL
-    ...
-```
-and re-validate immediately before each `cl.post(...)` call in `send_notification` (URLs can be edited between save and send, or a save-time check bypassed if it's ever added inconsistently).
-
-### CR-05: `send_notification` reports `"status": "sent"` even when nothing was sent or delivery failed
-
-**File:** `backend/notification_service.py:460-480`
-**Issue:** `results.append({"channel_id": ch["id"], "status": "sent"})` (line 475) executes unconditionally after the `if/elif/else` block, regardless of whether the inner `if url:` guard (lines 464, 469) was true. If a channel's `config` is missing the expected key (e.g. a `webhook` channel whose `config` only has `url` instead of `webhook_url` — which is exactly what the current frontend produces, see WR-02), no HTTP request is made at all, yet the channel is still recorded as `"sent"`. Separately, even when a request *is* made, the `httpx` response is never inspected (no status-code check, no `raise_for_status()`) — a 404/500 from the remote Slack/webhook endpoint is still reported as `"sent"` because `httpx` does not raise on non-2xx responses by default. For a compliance-alerting feature whose entire purpose is "GRC teams get alerted... when compliance events occur," this means the system can silently fail to notify anyone while reporting total success.
-**Fix:**
-```python
-if ch["type"] == "slack":
-    url = ch.get("config", {}).get("url", "")
-    if not url:
-        results.append({"channel_id": ch["id"], "status": "failed", "error": "no url configured"})
-        continue
-    async with httpx.AsyncClient() as cl:
-        resp = await cl.post(url, json={...}, timeout=10)
-    status = "sent" if resp.status_code < 400 else "failed"
-    results.append({"channel_id": ch["id"], "status": status, "http_status": resp.status_code})
-    continue
-# ... same pattern for webhook; only reach the unconditional append for the email/log branch
+@router.get("/channels")
+async def list_notification_channels(...):
+    items = await notification_service.list_channels(db, get_tenant_id())
+    for it in items:
+        cfg = it.get("config") or {}
+        for field in _REDACTED_FIELDS:
+            if field in cfg:
+                cfg[field] = "***"
+    return {"items": items, "count": len(items)}
 ```
 
-### CR-06: Test suite is fully broken — 0 of 7 tests pass (must-have violation)
+### CR-05: `_send_slack` loads the Slack webhook config with no tenant filter — cross-tenant alert leakage
 
-**File:** `backend/tests/test_notification_service.py:23-34, 67-77`
-**Issue:** I ran `backend/venv/bin/python -m pytest backend/tests/test_notification_service.py -v` directly: **7 of 7 tests fail**.
-- Six fail with `401 Unauthorized`. `_build_client()` (lines 23-34) does `app.dependency_overrides[rbac_service.has_permission("manage:settings")] = lambda: t` — `has_permission(...)` is a factory that returns a brand-new closure on every call, so the override key here is a different object than the one baked into the router at import time. FastAPI matches overrides by exact callable identity, so the override never applies and the real (un-mocked) auth dependency runs, rejecting every request with 401. This is the identical bug already diagnosed and fixed as CR-02 in `.planning/phases/16-program-control-grouping/16-REVIEW.md`.
-- The seventh, `test_domain_scan_returns_structure` (lines 67-77), fails with `TypeError: object MagicMock can't be used in 'await' expression` — `_make_db()` only makes `insert_one` an `AsyncMock` for `find`-chain purposes via a plain `MagicMock`; `db._db.domain_scans.insert_one` (called inside `scan_domain`) is never mocked at all and defaults to a synchronous `MagicMock`, which cannot be awaited.
-- Additionally, the plan's TDD spec requires `test_send_notification_routes_to_matching_channels` and `test_severity_filter_excludes_low_severity` as tests 3 and 4. The committed suite substitutes `test_invalid_channel_type` and `test_invalid_event_type` instead — so even after the auth/mock bugs are fixed, the single most important piece of new business logic in this phase (severity-filtered routing in `send_notification`) has **zero** test coverage.
-
-This directly contradicts the plan's must-have "All 7 tests in test_notification_service.py pass green." Actual pass rate: 0/7.
-**Fix:** Override the stable `get_current_user` singleton (not a freshly-constructed `has_permission(...)` closure), per the established working pattern elsewhere in this codebase:
+**File:** `backend/notification_service.py:202`
+**Issue:** `config = await self.db.notification_config.find_one({"type": "slack"}, {"_id": 0})` queries by `type` only — no `tenantId` in the filter, unlike every other query touching this collection in the codebase (e.g. `notification_endpoints.get_notification_config`/`update_notification_config` both scope by `tenantId`). `_send_slack` is invoked by `send_alert`, which in turn backs `send_sla_breach_alert`, `send_critical_patch_alert`, and `send_deployment_complete_alert` — all real, currently-wired alerting flows. In a multi-tenant deployment, whichever tenant's Slack config document Mongo returns first for `{"type": "slack"}` becomes the *only* Slack destination for every tenant's SLA-breach, critical-patch, and deployment-complete alerts — leaking one tenant's patch names, CVSS scores, asset counts, and deployment results into a completely different tenant's Slack channel.
+**Fix:** Thread `tenant_id` through `NotificationService`/`send_alert`/`_send_slack` and filter by it:
 ```python
-from authentication_service import get_current_user
-app.dependency_overrides[get_current_user] = lambda: t
+config = await self.db.notification_config.find_one(
+    {"type": "slack", "tenantId": tenant_id}, {"_id": 0}
+)
 ```
-Make every collection method actually used by the code under test an `AsyncMock` (including `insert_one` on `domain_scans`), and replace `test_invalid_channel_type`/`test_invalid_event_type` with the plan-mandated `test_send_notification_routes_to_matching_channels` and `test_severity_filter_excludes_low_severity`, asserting on `send_notification`'s return value (`matched_rules`, `sent`, `results`) with concrete mocked rules/channels.
 
-### CR-07: Domain scan performs synchronous blocking I/O directly inside the async event loop — single-request denial of service
+### CR-06: `send_alert` inserts notification records without `tenantId` — alerts become permanently invisible and unmanageable
+
+**File:** `backend/notification_service.py:74-77`
+**Issue:** `send_alert` builds `results` (no `tenantId` key anywhere in it) and does `await self.db.notifications.insert_one({**results, "metadata": metadata})`. But `notification_endpoints.py`'s `get_notifications` (line 46-49), `mark_as_read` (line 57-58), and `delete_notification` (line 91) all filter strictly on `{"tenantId": tenant_id, ...}`. Every alert sent through `send_alert` — i.e. every SLA-breach, critical-patch, and deployment-complete alert — is persisted with no `tenantId` field, so it can never match those filters: it will never appear in `GET /api/notifications`, and `PUT /{id}/read` / `DELETE /{id}` against it will always 404 (`matched_count`/`deleted_count` of 0). The write and read sides of the same collection, in the same review scope, are simply incompatible.
+**Fix:** Pass and persist `tenantId` on every inserted notification:
+```python
+await self.db.notifications.insert_one({
+    **results, "tenantId": tenant_id, "metadata": metadata,
+})
+```
+(requires threading `tenant_id` into `send_alert` and its three callers, same as CR-05).
+
+### CR-07: New channel/notification code path has zero SSRF/URL validation before persisting or POSTing
+
+**File:** `backend/notification_service.py:427-433 (create_channel), 452-480 (send_notification)`; `backend/notification_endpoints.py:268-276 (create_notification_channel)`
+**Issue:** `create_channel` persists whatever `config` dict is supplied with no validation whatsoever — not even a scheme check. `send_notification` then does `httpx.AsyncClient().post(url, ...)` directly against `ch["config"]["url"]` (slack) or `ch["config"]["webhook_url"]` (webhook) with no check before the outbound request. This file already contains a working SSRF guard, `_validate_webhook_url` (`notification_endpoints.py:15-35`), but it is only wired into the pre-existing `/test/{channel}` route (lines 160, 173, 226) — it is never called from `create_channel`, `create_rule`, or `send_notification`. Any user with `manage:settings` can create a channel pointed at `http://169.254.169.254/latest/meta-data/` (or any internal service), and it will receive a real outbound POST the next time a matching compliance event fires.
+**Fix:** Call `_validate_webhook_url` (or a DNS-resolving equivalent) both at save time in `create_channel` and again immediately before each outbound POST in `send_notification` (URLs can be edited after save, or the save-time check bypassed if ever added asymmetrically).
+
+### CR-08: Domain scanner accepts arbitrary caller-controlled hosts/IPs with no restriction — SSRF-as-a-feature
+
+**File:** `backend/domain_scanner_service.py:48-59 (_check_ports), 62-78 (_check_tls)`; `backend/domain_scanner_endpoints.py:15-19`
+**Issue:** `domain` is constrained only by FastAPI's `Query(..., min_length=1, max_length=253)` — no hostname-format check, and nothing rejects a literal IP or a name resolving into a private/loopback/link-local/reserved range. `_check_ports`/`_check_tls` then open real TCP connections and perform a real TLS handshake directly against whatever was supplied, and reflect the results (per-port open/closed, TLS issuer/expiry/SAN) back in the API response. `GET /api/domain-scanner/scan` requires only the low-privilege `view:dashboard` permission, so any authenticated user — not just an admin — can pass `domain=169.254.169.254` (cloud metadata) or any internal hostname/IP the server can reach, and get back a structured open-port/TLS fingerprint of infrastructure they could not otherwise reach. This is a live SSRF pivot reachable through ordinary, documented product use of the feature, not a misconfiguration.
+**Fix:** Resolve and reject unsafe targets before probing:
+```python
+from ipaddress import ip_address
+def _is_safe_target(host: str) -> bool:
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    return all(
+        not (ip_address(info[4][0]).is_private or ip_address(info[4][0]).is_loopback
+             or ip_address(info[4][0]).is_link_local or ip_address(info[4][0]).is_reserved)
+        for info in infos
+    )
+```
+and call it in `scan_domain` before `_check_ports`/`_check_tls`, returning 400/422 for unsafe targets.
+
+### CR-09: Domain scan runs synchronous, blocking socket/TLS/DNS I/O directly inside the async event loop — single request freezes the whole platform
 
 **File:** `backend/domain_scanner_service.py:11-18, 31-45, 48-59, 62-78`
-**Issue:** `scan_domain` is `async def`, but everything it calls — `_passive_discover` (up to 23 `socket.getaddrinfo` calls with no explicit timeout, relying on OS defaults which can be tens of seconds each on an unresponsive resolver), `_check_ports` (5 sequential blocking `socket.connect_ex` calls, 2s timeout each), and `_check_tls` (blocking `socket.connect` + TLS handshake, 5s timeout) — are all plain synchronous functions run inline, with no `asyncio.to_thread`/executor offload. This backend runs a single-threaded asyncio event loop shared by all tenants and all requests; any blocking call inside a coroutine stalls that entire loop, not just the calling request. `GET /api/domain-scanner/scan` requires only the low-privilege `view:dashboard` permission, so any authenticated low-privilege user can freeze the entire platform (all tenants, all endpoints) for several seconds to potentially much longer per call, and can repeat this indefinitely with no rate limiting.
-**Fix:** Offload all blocking socket/ssl work:
+**Issue:** `scan_domain` is `async def`, but `_passive_discover` (up to 23 sequential `socket.getaddrinfo` calls with no explicit timeout — subject to whatever the OS resolver default is, which can be tens of seconds per unresponsive lookup), `_check_ports` (5 sequential blocking `connect_ex` calls, 2s timeout each), and `_check_tls` (blocking connect + TLS handshake, 5s timeout) are plain synchronous functions invoked inline with no `asyncio.to_thread`/executor offload — unlike `notification_service._send_email`, elsewhere in this same review scope, which correctly wraps its blocking SMTP call in `asyncio.to_thread`. Because this backend runs a single asyncio event loop shared by every tenant, any blocking call inside a coroutine stalls that loop for everyone. Combined with `CR-08`, any authenticated `view:dashboard` user can repeatedly freeze the entire multi-tenant API for several seconds to potentially much longer per call, with no rate limiting on the endpoint.
+**Fix:**
 ```python
 async def scan_domain(db, tenant_id: str, domain: str) -> dict:
     subdomains = await asyncio.to_thread(_passive_discover, domain)
@@ -166,50 +152,24 @@ async def scan_domain(db, tenant_id: str, domain: str) -> dict:
     dns = await asyncio.to_thread(_get_dns, domain)
     ...
 ```
-and add explicit timeouts to every `socket.getaddrinfo` call in `_passive_discover` (e.g. via `socket.setdefaulttimeout` in the worker thread, or a `concurrent.futures` timeout wrapper) so a single unresponsive DNS server cannot hang the scan indefinitely.
+and add an explicit timeout around each `socket.getaddrinfo` call in `_passive_discover`.
 
-### CR-08: Domain scanner performs unrestricted outbound TCP/TLS probes against caller-controlled targets — internal network / cloud metadata probing
+### CR-10: Test suite is fully broken — 0 of 7 tests pass
 
-**File:** `backend/domain_scanner_service.py:48-59 (_check_ports), 62-78 (_check_tls)`; `backend/domain_scanner_endpoints.py:15-19`
-**Issue:** `domain` is only constrained by FastAPI's `Query(..., min_length=1, max_length=253)` — no format/hostname validation, and nothing rejects a literal IP address or a hostname resolving to a private/loopback/link-local/reserved range. `_check_ports(host)` and `_check_tls(domain)` then open real TCP connections and perform a real TLS handshake directly against whatever the caller supplied, and reflect the results (open/closed per port, TLS cert issuer/expiry/SAN) straight back in the API response. Any authenticated user with only `view:dashboard` can pass `domain=169.254.169.254` (or any internal hostname/IP the server's network can reach) and get back a live open-port/TLS fingerprint of internal infrastructure the caller could not otherwise reach directly — the application server acts as an SSRF pivot with structured output, by design of this feature with no allow/deny-list.
-**Fix:** Before probing, resolve the domain and reject private/loopback/link-local/reserved/multicast targets, mirroring the pattern already used by `webhook_url_validator.py`:
-```python
-import socket as _socket
-from ipaddress import ip_address
+**File:** `backend/tests/test_notification_service.py:23-34, 67-77`
+**Issue:** Running `python3 -m pytest backend/tests/test_notification_service.py -v` today gives **7 failed, 0 passed**. Root causes, both confirmed:
+1. `_build_client` (lines 23-34) does `app.dependency_overrides[rbac_service.has_permission("manage:settings")] = lambda: t`. `has_permission(...)` (`rbac_service.py:115-129`) is a factory that returns a brand-new closure on every call, so the object used as the override key is never the same object baked into the router at import time — FastAPI's `dependency_overrides` matches by exact callable identity, so the override never applies. Every authenticated test hits the real (un-mocked) auth dependency chain and gets `401 Unauthorized`. Six of the seven tests fail this way.
+2. `test_domain_scan_returns_structure` (line 71) fails with `TypeError: object MagicMock can't be used in 'await' expression`. `_make_db()` (lines 13-20) only wires `insert_one` as an `AsyncMock` for `notification_channels`, `notification_rules`, and `scheduled_domains` — it never touches `domain_scans`, the collection `scan_domain` actually writes to, so `db._db.domain_scans.insert_one(...)` resolves to a synchronous auto-`MagicMock` and cannot be awaited.
 
-def _is_safe_target(host: str) -> bool:
-    try:
-        infos = _socket.getaddrinfo(host, None)
-    except OSError:
-        return False
-    for info in infos:
-        ip = ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            return False
-    return True
-```
-and call it in `scan_domain` before invoking `_check_ports`/`_check_tls`, returning a 400/422 for unsafe targets.
+Zero of the seven tests exercise anything meaningful about this phase's behavior — they can't get past auth or the mock setup to reach the actual logic (including the CR-01/CR-02/CR-03 bugs above, which real requests would hit).
+**Fix:** Override the stable dependency object actually referenced by the router (e.g. re-export a module-level `has_permission_manage_settings = rbac_service.has_permission("manage:settings")` singleton and use that both in the route decorator and in the test override, or override `get_current_user` directly). Make `_make_db()` mock every collection actually touched by code under test, including `domain_scans`.
 
 ## Warnings
 
-### WR-01: Frontend channel form always writes `config.url`, mismatching the backend's per-type config keys
-
-**File:** `components/NotificationsDashboard.tsx:91-96`
-**Issue:** The single "URL/Email" input always sets `config: {url: e.target.value}` (line 95), regardless of the `type` selected in the dropdown above it. But `send_notification` (`notification_service.py:463, 468`) reads `config.url` only for `slack` channels and `config.webhook_url` for `webhook` channels; the `email` branch reads `config.email`. Any `webhook` or `email` channel created through this UI will have the wrong config key populated, so `send_notification` will silently find an empty string and (per CR-05) still report `"status": "sent"` — this is a real, reachable end-to-end failure of the feature via the only UI provided for it, not a hypothetical misuse.
-**Fix:** Render a type-specific input (or at least write to the correct key based on `chanForm.type`):
-```jsx
-onChange={e => setChanForm({
-  ...chanForm,
-  config: chanForm.type === 'webhook' ? { webhook_url: e.target.value }
-        : chanForm.type === 'email' ? { email: e.target.value }
-        : { url: e.target.value },
-})}
-```
-
-### WR-02: Frontend reports "success" for channel/rule/schedule creation regardless of actual HTTP outcome
+### WR-01: Frontend declares success without checking HTTP status
 
 **File:** `components/NotificationsDashboard.tsx:44-56, 68-74`
-**Issue:** `submitChannel`, `submitRule`, and `scheduleDomain` all call `.json()` on the response and immediately show a success toast, with no check of `response.ok`/`response.status`. `authFetch` (`services/apiService.ts:198-214`) returns the raw `Response` for any status code and does not throw on 4xx/5xx. Given CR-01/CR-02 currently make `POST /channels` and `POST /rules` 500 with a JSON error body, `.json()` resolves without throwing, the `catch` block never fires, and the user sees "Channel created"/"Rule created" even though nothing was created. This is the same defect pattern already documented as CR-06 in `16-REVIEW.md` for a sibling phase.
+**Issue:** `submitChannel`, `submitRule`, and `scheduleDomain` all call `.json()` on the `authFetch` response and immediately show a success toast, with no check of `response.ok`. `authFetch` (`services/apiService.ts:198-214`) returns the raw `Response` object regardless of status code and does not throw on 4xx/5xx. Given `CR-01`/`CR-02` currently make these endpoints 500 with a valid JSON error body, `.json()` resolves without throwing, the `catch` block never runs, and the user sees "Channel created"/"Rule created" even though nothing was persisted.
 **Fix:**
 ```javascript
 const submitChannel = async () => {
@@ -222,75 +182,84 @@ const submitChannel = async () => {
 ```
 Apply the same pattern to `submitRule` and `scheduleDomain`.
 
-### WR-03: `send_notification` is never invoked by any compliance-event trigger in the codebase
+### WR-02: Frontend channel form always writes `config.url`, mismatching the backend's per-type config keys
 
-**File:** `backend/notification_service.py:452-480`
-**Issue:** Grepping the entire backend for callers of this new module-level `send_notification` finds none outside the test file — no code path for finding creation, control failure, evidence expiry, review-overdue, or cert-expiring events calls it. (There is a separate, unrelated, pre-existing `notification_manager.send_notification` in `backend/notification_manager.py` used by the agent/threat-quarantine subsystem — different function, different purpose, not connected to this feature.) As committed, the phase's stated objective — "lets GRC teams get alerted in Slack/email/webhook when compliance events occur" — is not actually achieved: an admin can configure channels and rules, but no real event will ever trigger a notification until something is wired to call this function.
-**Fix:** Either wire `send_notification` into the relevant event-producing code paths (finding creation, control status transitions, evidence expiry job, etc.) as part of this phase, or explicitly document this as deferred follow-up work so it isn't mistaken for a completed capability.
+**File:** `components/NotificationsDashboard.tsx:95`
+**Issue:** The single "URL/Email" input always sets `config: {url: e.target.value}`, regardless of which `type` is selected in the dropdown above it. But `send_notification` (`notification_service.py:463, 468, 474`) reads `config.url` only for `slack` channels, `config.webhook_url` for `webhook` channels, and `config.email` for the email/log branch. Any `webhook` or `email` channel created through this UI ends up with the wrong key populated, so at delivery time the URL/address is always empty — and because of `WR-03` below, this failure is silently swallowed and still reported as "sent".
+**Fix:** Write to the correct key based on the selected type:
+```jsx
+onChange={e => setChanForm({
+  ...chanForm,
+  config: chanForm.type === 'webhook' ? { webhook_url: e.target.value }
+        : chanForm.type === 'email' ? { email: e.target.value }
+        : { url: e.target.value },
+})}
+```
 
-### WR-04: No schema validation on channel/rule request bodies beyond the `type`/`event_type` enum check
+### WR-03: `send_notification` reports `"status": "sent"` unconditionally, regardless of whether a URL existed or the remote call succeeded
+
+**File:** `backend/notification_service.py:462-475`
+**Issue:** `results.append({"channel_id": ch["id"], "status": "sent"})` runs unconditionally after the `if/elif/else` block, even when the inner `if url:` guard was false (channel has no usable URL, e.g. due to `WR-02`) and even when the outbound `cl.post(...)` succeeds at the transport level but the remote returns a 4xx/5xx (the `httpx` response is never inspected — no status check, no `raise_for_status()`). The feature's entire purpose is to alert GRC teams when compliance events occur; as written it can silently fail to deliver while reporting universal success.
+**Fix:** Inspect the response/URL presence per branch and only append `"sent"` when a request actually succeeded; append `"failed"` with a reason otherwise (see code sketch in the corresponding section of prior review history for this file).
+
+### WR-04: Four new endpoints locally re-import `get_database`, bypassing the module-level import and the file's established test-mocking pattern
+
+**File:** `backend/notification_endpoints.py:270-271, 281-282, 293-294, 303-304`
+**Issue:** `create_notification_channel`, `list_notification_channels`, `create_notification_rule`, and `list_notification_rules` each do `from database import get_database` *inside the function body*, then call it locally — unlike every other handler in this file (e.g. `get_notifications`, `mark_as_read`) which uses the module-level `get_database` imported at line 4. This is inconsistent with the rest of the file, and it directly defeats `test_notification_service.py`'s mocking strategy: `patch(f"{module_name}.get_database", return_value=mock_db)` patches the name bound in `notification_endpoints`'s module namespace, but these four handlers re-resolve `get_database` fresh from the `database` module inside the function body, so the patch never takes effect for them even when other bugs (CR-10) are fixed.
+**Fix:** Remove the local imports and use the module-level `get_database` already imported at the top of the file, consistent with the rest of the router.
+
+### WR-05: `_check_ports`/`_check_tls` leak the socket file descriptor when an exception occurs before `close()`
+
+**File:** `backend/domain_scanner_service.py:48-59, 62-78`
+**Issue:** In both functions, `s = socket.socket(...)` is created, then several operations that can raise (`connect_ex`, `connect`, `wrap_socket`) run before the corresponding `s.close()` on the following line. If any of them raises (caught by the surrounding `except OSError`/`except Exception`), execution jumps past `s.close()` and the socket is never closed, leaking a file descriptor per failed attempt.
+**Fix:** Use `with socket.socket(...) as s:` or wrap in `try/finally` so the socket is always closed regardless of outcome.
+
+### WR-06: Rule `channel_ids` parsed via naive `split(',')` with no trimming
+
+**File:** `components/NotificationsDashboard.tsx:112`
+**Issue:** `onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',')})}` — a common input like `"chan-abc, chan-def"` produces `["chan-abc", " chan-def"]`. The leading space on the second entry will never match a real channel `id` in `notification_service.send_notification`'s `{"id": {"$in": rule.get("channel_ids", [])}}` query, so the rule silently fails to route to that channel with no error surfaced anywhere.
+**Fix:** `channel_ids: e.target.value.split(',').map(s => s.trim()).filter(Boolean)`
+
+### WR-07: No request-body schema validation for channel/rule creation beyond a single enum check
 
 **File:** `backend/notification_endpoints.py:268-276, 290-298`; `backend/notification_service.py:427-445`
-**Issue:** CLAUDE.md requires "Validate input at system boundaries." Both `create_channel` and `create_rule` accept a raw `dict = Body(...)` with only a single enum check on `type`/`event_type`. `name` is never required to be present or non-empty; `config` is never validated to contain the fields the declared `type` needs; `channel_ids`/`severity_filter` on a rule are never validated to be lists. A caller sending `"channel_ids": "chan-abc"` (a string, not a list) would have it silently accepted and later iterated character-by-character wherever it's consumed (e.g. `{"$in": rule.get("channel_ids", [])}` in `send_notification`), producing confusing, hard-to-debug non-matches instead of a clear 422 at creation time.
-**Fix:** Use Pydantic request models, e.g.:
-```python
-class ChannelCreate(BaseModel):
-    type: Literal["slack", "email", "webhook"]
-    name: str
-    config: dict
-
-class RuleCreate(BaseModel):
-    event_type: Literal["finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"]
-    channel_ids: list[str] = []
-    severity_filter: list[str] = []
-```
-
-### WR-05: Email notification log omits the actual message content, deviating from the plan's spec
-
-**File:** `backend/notification_service.py:473-474`
-**Issue:** The plan's must-have states: "Email sending: log to app logger as INFO with formatted message." The implementation logs only the recipient placeholder and event type — `logging.getLogger(__name__).info("[NOTIF EMAIL] To: %s | Event: %s", ch.get("config", {}).get("email", "unknown"), event_type)` — never including `payload.get("message")` or any other content from the triggering event. Since this is the only observable output for email channels (actual SMTP is explicitly deferred per the plan), the log is currently useless for verifying *what* would have been emailed.
-**Fix:**
-```python
-logging.getLogger(__name__).info(
-    "[NOTIF EMAIL] To: %s | Event: %s | Message: %s",
-    ch.get("config", {}).get("email", "unknown"), event_type, payload.get("message", ""),
-)
-```
-
-### WR-06: `_validate_webhook_url` in this file only rejects raw IP-literal hosts — no DNS resolution
-
-**File:** `backend/notification_endpoints.py:15-35`
-**Issue:** This pre-existing helper (used by the unrelated `/test/{channel}` route, lines 160/173/226) parses the URL's `hostname` and, via `ipaddress.ip_address(hostname)`, rejects private/loopback/link-local/reserved targets — but only when the hostname is already a raw IP literal. Any DNS name (e.g. `localhost`, or an attacker-controlled domain that resolves to `127.0.0.1`/`169.254.169.254`) falls into the `except ValueError: pass  # hostname is a domain name — allow` branch at line 31 and is treated as safe, since this function never calls `socket.getaddrinfo`/DNS resolution the way `webhook_url_validator.validate_webhook_url` does. This is out of scope as a standalone fix for phase 21 (the function predates this phase and is used only by the pre-existing `/test/{channel}` route), but it should not be used as the template for closing CR-04 — use `webhook_url_validator.validate_webhook_url` instead, which resolves DNS correctly.
-**Fix:** When addressing CR-04, do not copy this function's pattern; use the DNS-resolving `webhook_url_validator.validate_webhook_url` for both `/channels` and `send_notification`. Separately, consider replacing this function's body with a call to the same shared validator for consistency.
-
-### WR-07: Unused `json` import inside `send_notification`'s email branch
-
-**File:** `backend/notification_service.py:473`
-**Issue:** `import json, logging` — `json` is imported but never used in this branch (only `logging` is referenced).
-**Fix:** `import logging`
+**Issue:** CLAUDE.md requires validating input at system boundaries. Both endpoints accept a raw `dict = Body(...)` and only validate `type`/`event_type` against an enum — `name` is never required, `config`'s shape is never checked against what the declared `type` needs, and `channel_ids`/`severity_filter` are never validated to be lists (a caller sending `"channel_ids": "chan-abc"` as a bare string would be accepted and later iterated character-by-character wherever consumed).
+**Fix:** Introduce Pydantic request models (`ChannelCreate`, `RuleCreate`) with `Literal` type/event_type fields and typed `config`/`channel_ids`/`severity_filter`.
 
 ## Info
 
-### IN-01: Unexplained magic-number result caps with no pagination
+### IN-01: Hardcoded `to_list(length=...)` caps with no pagination
 
 **File:** `backend/notification_service.py:437, 449, 454, 459`; `backend/domain_scanner_service.py:28`
-**Issue:** `to_list(length=100)` / `length=50` / `length=20` are hardcoded with no named constant or comment explaining the choice. A tenant with more channels/rules/scheduled domains than the cap will have results silently truncated with no indication to the caller (same pattern flagged as `16-REVIEW.md` IN-03).
-**Fix:** Extract to named constants (e.g. `_MAX_CHANNELS = 100`) or implement real pagination.
+**Issue:** `length=100` / `50` / `20` are magic numbers with no named constant, and results are silently truncated past the cap with no indication to the caller.
+**Fix:** Extract to named constants or implement real pagination/cursor support.
 
-### IN-02: Function-local re-imports instead of module-level imports
+### IN-02: Redundant duplicate imports
 
-**File:** `backend/notification_service.py:452 (httpx), 473, 477 (logging)`
-**Issue:** `send_notification` imports `httpx` and `logging` inside the function body on every call, inconsistent with the rest of the file (and the codebase convention) of importing at module scope. Not a bug, but adds avoidable per-call overhead and inconsistency.
-**Fix:** Move `import httpx` and `import logging` to the top of `notification_service.py`.
+**File:** `backend/notification_service.py:91 (asyncio), 151 (aiohttp), 416-417 (uuid, datetime, timezone), 473 (json, unused)`
+**Issue:** `asyncio`, `aiohttp`, `datetime`, and `timezone` are already imported at module scope (lines 6-9) and are re-imported locally inside `_send_email`/`_send_sms` and again at the bottom of the module before the channel/rule helper section. `send_notification`'s email branch does `import json, logging` but never references `json`.
+**Fix:** Remove the redundant local/duplicate imports; drop the unused `json` import.
 
 ### IN-03: Loose `any` typing throughout the dashboard component
 
 **File:** `components/NotificationsDashboard.tsx:11, 13, 15, 17, 20, 22`
-**Issue:** `useState<any[]>([])` / `useState<any>({})` are used for channels, rules, scan results, and form state despite this being a TypeScript file with well-defined backend document schemas (see plan's channel/rule schema). No compile-time safety against typos like the `config.url`/`config.webhook_url` mismatch in WR-01.
-**Fix:** Define `interface NotificationChannel { id: string; type: 'slack'|'email'|'webhook'; name: string; config: Record<string, string> }` and equivalent `NotificationRule`/`ScanResult` interfaces, and use them in place of `any`.
+**Issue:** `useState<any[]>([])` / `useState<any>({})` are used for channels, rules, scan results, and both form objects, in a TypeScript file, with no compile-time protection against exactly the kind of key-name mismatch documented in `WR-02`.
+**Fix:** Define `NotificationChannel`, `NotificationRule`, and `ScanResult` interfaces matching the backend document shapes and use them in place of `any`.
+
+### IN-04: UI event-type dropdown exposes only 3 of the 5 backend-supported event types; tenant-isolation test doesn't test isolation
+
+**File:** `components/NotificationsDashboard.tsx:109-111`; `backend/tests/test_notification_service.py:86-90`
+**Issue:** The rule form's `<select>` only offers `finding_created`, `control_failed`, `evidence_expired`, while `VALID_EVENTS` in `notification_service.py` also supports `review_overdue` and `cert_expiring` — those two event types can never be selected through the UI. Separately, `test_tenant_isolation_channels` only asserts a single tenant's request returns `200`; it never creates data under a second tenant and verifies it is excluded, so it does not actually verify tenant isolation despite its name.
+**Fix:** Add the two missing `<option>`s to the dropdown; rewrite the isolation test to seed a channel under `tenant-b` and assert a `tenant-a` client's `GET /channels` does not include it.
+
+### IN-05: Unit test performs live network I/O against a real external host
+
+**File:** `backend/tests/test_notification_service.py:67-77`
+**Issue:** `test_domain_scan_returns_structure` calls `svc.scan_domain(db, "tenant-a", "example.com")` directly, which performs real DNS resolution (up to 23 lookups), real TCP connects, and a real TLS handshake against `example.com` over the network. This makes the test slow, non-hermetic, and dependent on outbound network access being available in the CI/sandbox environment (which, combined with `CR-09`'s lack of timeouts on `_passive_discover`, risks the test itself hanging).
+**Fix:** Monkeypatch `_passive_discover`/`_check_ports`/`_check_tls`/`_get_dns` to return canned data for this test, and add a separate, explicitly-marked integration test (skipped by default) for real network behavior if needed.
 
 ---
 
-_Reviewed: 2026-07-04T00:00:00Z_
+_Reviewed: 2026-07-04T12:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
