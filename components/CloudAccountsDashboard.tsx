@@ -78,7 +78,7 @@ export const CloudAccountsDashboard: React.FC = () => {
       const res = await authFetch('/api/cloud-accounts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Register failed'); }
       showToast('Account registered', 'success'); setShowForm(false); setForm({}); fetchData();
-    } catch { showToast('Failed', 'error'); }
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
   };
 
   const scan = async (id: string) => {
