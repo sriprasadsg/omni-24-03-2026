@@ -11,9 +11,9 @@ files_reviewed_list:
   - components/CloudAccountsDashboard.tsx
 findings:
   critical: 2
-  warning: 6
+  warning: 7
   info: 3
-  total: 11
+  total: 12
 status: issues_found
 ---
 
@@ -180,6 +180,41 @@ if payload.get("environment", "dev") not in _VALID_ENVS:
 
 The suite is green, but it is exercising routing/wiring, not the documented security/correctness guarantees.
 **Fix:** Strengthen at minimum: (1) assert `"credentials_ref" not in r.json()["account"]` in `test_register_aws_account`; (2) make `test_scan_sets_status` assert exactly `200` and assert the mock's `update_one` was called with the expected `scan_status` values; (3) make `test_tenant_isolation` configure the mock `find` to return tenant-tagged docs and assert the query passed to `find()` includes the calling user's `tenantId`.
+
+### WR-07: Missing authorization/RBAC enforcement on all cloud-account endpoints, inconsistent with sibling routers
+
+**File:** `backend/cloud_account_endpoints.py:21-66` (all 6 routes: `list_accounts`, `register_account`, `scan_account`, `get_account_results`, `get_summary`, `discover_org`)
+**Issue:** Every route depends only on `Depends(get_current_user)` — no permission gate at all, just proof of a valid JWT. Sibling routers registered in the same "Observability & Platform" block of `router_registry.py` (`container_scanner_endpoints.py`, `iac_scanner_endpoints.py`) gate identical-shape actions behind `Depends(rbac_service.has_permission("view:dashboard"))` for reads/scans and `Depends(rbac_service.has_permission("manage:settings"))` for config-mutation. `rbac_service.py` even defines a permission literally named `view:cloud_security` on every role (admin, Tenant Admin, user, viewer) that is never referenced by `has_permission(...)` anywhere in the backend — it looks like it was meant to gate exactly this feature and was never wired in.
+
+Concretely: a user with the `viewer` role (read-only by name/intent — has only `view:*` permissions) can `POST /api/cloud-accounts` to register a new cloud account, `POST /api/cloud-accounts/{id}/scan` to trigger scans, and `POST /api/cloud-accounts/discover-org` to fabricate org accounts — all mutating actions — purely because the endpoints never check role/permission, only that the JWT is valid. This is an intra-tenant privilege-escalation gap (viewer → effectively full manage rights on this feature); tenant isolation itself is intact (each route still scopes by the caller's own `tenantId`), so this is confined within the caller's tenant rather than cross-tenant.
+**Fix:** Gate reads/scans with the purpose-built `view:cloud_security` permission and account-creation actions with `manage:settings`, matching the codebase's existing convention for "configure a new integration" actions:
+```python
+from rbac_service import rbac_service
+
+@router.get("")
+async def list_accounts(current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
+    ...
+
+@router.post("")
+async def register_account(payload: ..., current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
+    ...
+
+@router.post("/{account_id}/scan")
+async def scan_account(account_id: str, current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
+    ...
+
+@router.get("/{account_id}/results")
+async def get_account_results(account_id: str, current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
+    ...
+
+@router.get("/summary")
+async def get_summary(current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
+    ...
+
+@router.post("/discover-org")
+async def discover_org(payload: ..., current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
+    ...
+```
 
 ## Info
 
