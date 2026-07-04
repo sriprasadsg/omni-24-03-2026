@@ -25,6 +25,10 @@ def _mkdb():
     _find_result.sort = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))
     db.cloud_check_results.find = MagicMock(return_value=_find_result)
     db.cloud_check_results.find_one = AsyncMock(return_value=None)
+    # rbac_service.get_user_permissions falls back to its in-memory default_roles
+    # table for any non-super-admin role as long as the DB lookup resolves to None.
+    db.roles = MagicMock()
+    db.roles.find_one = AsyncMock(return_value=None)
     return db
 
 def _build(db, u):
@@ -33,6 +37,7 @@ def _build(db, u):
     app = FastAPI(); app.include_router(m.router)
     app.dependency_overrides[get_current_user] = lambda: u
     patcher = patch("cloud_account_endpoints.get_database", return_value=db); patcher.start()
+    rbac_patcher = patch("rbac_service.get_database", return_value=db); rbac_patcher.start()
     return TestClient(app, raise_server_exceptions=False)
 
 def test_register_aws_account():
@@ -69,6 +74,12 @@ def test_scan_sets_status():
     for call in db._db.cloud_accounts.update_one.call_args_list:
         assert call.args[0].get("tenantId") == "tenant-a"
 
+def test_scan_nonexistent_account_returns_404():
+    db = _mkdb()  # cloud_accounts.find_one defaults to returning None
+    c = _build(db, _mkuser())
+    r = c.post("/api/cloud-accounts/does-not-exist/scan")
+    assert r.status_code == 404
+
 def test_get_results():
     db = _mkdb(); c = _build(db, _mkuser())
     r = c.get("/api/cloud-accounts/acct-1/results")
@@ -81,9 +92,26 @@ def test_summary():
 
 def test_discover_org():
     db = _mkdb(); c = _build(db, _mkuser())
-    r = c.post("/api/cloud-accounts/discover-org", json={"provider": "aws"})
+    r = c.post("/api/cloud-accounts/discover-org", json={"provider": "aws", "management_account_id": "111111111111"})
     assert r.status_code == 200
     assert "discovered" in r.json()
+
+def test_discover_org_requires_management_account_id():
+    db = _mkdb(); c = _build(db, _mkuser())
+    r = c.post("/api/cloud-accounts/discover-org", json={"provider": "aws"})
+    assert r.status_code == 400
+
+def test_insufficient_permission_rejected():
+    # security_analyst has neither view:cloud_security nor manage:settings —
+    # this is the regression test for WR-07 (endpoints previously had zero
+    # permission gate, so any authenticated role could register/scan accounts).
+    db = _mkdb()
+    u = _mkuser("tenant-a", "security_analyst")
+    c = _build(db, u)
+    r_list = c.get("/api/cloud-accounts")
+    assert r_list.status_code == 403, f"Got {r_list.status_code}"
+    r_register = c.post("/api/cloud-accounts", json={"provider": "aws", "account_id": "123456789012"})
+    assert r_register.status_code == 403, f"Got {r_register.status_code}"
 
 def test_tenant_isolation():
     db = _mkdb()
