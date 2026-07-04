@@ -2,18 +2,19 @@
 phase: 20-multi-account-cloud
 reviewed: 2026-07-04T00:00:00Z
 depth: standard
-files_reviewed: 5
+files_reviewed: 6
 files_reviewed_list:
   - backend/cloud_accounts_service.py
   - backend/cloud_account_endpoints.py
   - backend/tests/test_cloud_accounts.py
   - backend/router_registry.py
   - components/CloudAccountsDashboard.tsx
+  - backend/app_startup.py
 findings:
   critical: 2
-  warning: 7
-  info: 3
-  total: 12
+  warning: 4
+  info: 4
+  total: 10
 status: issues_found
 ---
 
@@ -21,220 +22,184 @@ status: issues_found
 
 **Reviewed:** 2026-07-04T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 5
+**Files Reviewed:** 6
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the multi-account cloud scanning feature: `cloud_accounts_service.py` (registration/scan/discovery logic), `cloud_account_endpoints.py` (the FastAPI router — note: the actual filename is singular `cloud_account_endpoints.py`, not the plural `cloud_accounts_endpoints.py` listed in the plan's `files_modified`; `router_registry.py:226` and the test's `import cloud_account_endpoints as m` are both wired correctly under the singular name, so this is a plan-vs-actual naming discrepancy only, not a code defect), `test_cloud_accounts.py`, `router_registry.py`, and `CloudAccountsDashboard.tsx`.
+This is a fresh, independent re-audit of the current state of the multi-account cloud scanning feature — not a continuation of the prior `20-REVIEW.md`. I verified all 12 previously-reported findings (CR-01, CR-02, WR-01..07, IN-01..03) against the code as it stands today: **all 12 appear to be genuinely fixed** — production now hard-fails at import time if `CLOUD_CREDENTIALS_KEY` is unset (`cloud_accounts_service.py:9-22`), `scan_account()` is fully `tenantId`-scoped on every read/write, the frontend checks `res.ok` before treating responses as success, `provider`/`environment` are validated server-side, `register_account`/`discover_org_accounts` upsert instead of blindly inserting, stale results are cleared after a scan, and every route in `cloud_account_endpoints.py` is now gated by `rbac_service.has_permission(...)`.
 
-Two Critical issues were found, both of which represent a real gap between what the plan's must-haves promise and what the code actually enforces:
+However, this fresh pass found **two new Critical defects** that were not present in (or not caught by) the prior review's scope:
 
-1. **Silent plaintext-credential fallback** when `CLOUD_CREDENTIALS_KEY` is unset — confirmed independently (see CR-01). This directly contradicts the plan's must-have "Credentials are stored encrypted (Fernet) in cloud_accounts collection" with no fail-closed behavior and no startup warning, unlike every other Fernet-backed service in this codebase (`encryption_service.py`, `saas_integration_service.py`), which both refuse to start in production or at minimum log a loud warning and use an ephemeral key.
-2. **Cross-tenant unauthorized write (IDOR)** in `scan_account()` — the two bracketing `update_one` calls that flip `scan_status` are not scoped by `tenantId`, so any authenticated user of any tenant can mutate another tenant's cloud-account row by supplying its `account_id`.
+1. **Silent credential wipeout on re-registration** (`CR-01`): `register_account()`'s upsert logic preserves `last_scan`, `scan_status`, and `created_at` from the existing document when a field isn't supplied in the new request, but it does **not** apply the same preservation to `credentials_ref` — any call that omits `credentials_ref` (which is every single call the actual UI makes, since the registration form has no credentials field at all) blows away a previously-stored encrypted credential with an empty string.
+2. **The fail-closed production guard is defeated by the router-loading architecture** (`CR-02`): the `RuntimeError` that's supposed to refuse app startup in production when `CLOUD_CREDENTIALS_KEY` is unset is raised at `cloud_accounts_service` import time, but that import only ever happens via `router_registry.py`'s non-required `_load()` path, which catches and swallows the exception (logs it at ERROR and moves on) because `"cloud_account_endpoints"` is absent from `_REQUIRED_ROUTERS`. The net effect: instead of refusing to start, the app boots normally in production with the encryption guard's failure silently downgraded to "this one feature just doesn't exist," directly contradicting the code's own stated intent.
 
-The 8 tests in `test_cloud_accounts.py` all pass, but per-test assertions are shallow (status-code-only in most cases) and do not verify the specific behaviors their names in the plan's TDD order imply (credential encryption, credential exclusion from list responses, tenant isolation) — see WR-06. Neither of the two Critical bugs above would have been caught by this suite.
+Also found 4 Warnings and 4 Info items — see below.
 
 ## Critical Issues
 
-### CR-01: Cloud credentials silently stored in plaintext when `CLOUD_CREDENTIALS_KEY` is unset
+### CR-01: `register_account` silently wipes stored credentials on any update that omits `credentials_ref`
 
-**File:** `backend/cloud_accounts_service.py:9-10, 19, 77, 83-86`
-**Issue:** `_FERNET` is only constructed if `CLOUD_CREDENTIALS_KEY` is set:
+**File:** `backend/cloud_accounts_service.py:29-46`
+**Issue:** The upsert `doc` correctly falls back to the existing document's `last_scan`, `scan_status`, and `created_at` when those keys are absent from the incoming request:
 ```python
-_FERNET_KEY = os.environ.get("CLOUD_CREDENTIALS_KEY", "")
-_FERNET = Fernet(_FERNET_KEY.encode()) if _FERNET_KEY else None
+"last_scan": existing.get("last_scan") if existing else None,
+"scan_status": existing.get("scan_status", "idle") if existing else "idle",
+"created_at": existing["created_at"] if existing else _now(),
 ```
-`_encrypt()` then silently returns the plaintext input unchanged when `_FERNET` is `None`:
+but `credentials_ref` has no equivalent fallback — it is unconditionally set from this call's payload:
 ```python
-def _encrypt(plain: str) -> str:
-    if not _FERNET or not plain:
-        return plain
-    return _FERNET.encrypt(plain.encode()).decode()
+creds_raw = data.get("credentials_ref", "")
+creds_enc = _encrypt(creds_raw) if creds_raw else creds_raw
+...
+"credentials_ref": creds_enc,
 ```
-and both call sites (`register_account` line 19, `discover_org_accounts` line 77) gate encryption on the same falsy check, so `credentials_ref` — AWS ARNs, GCP service-account keys, Azure principals — is written to the `cloud_accounts` collection **unencrypted** whenever this one env var is missing. I independently verified:
-- `CLOUD_CREDENTIALS_KEY` is referenced nowhere else in `backend/` (not in `app_startup.py::_validate_startup_config`, not in any required-env check).
-- No warning of any kind is logged when this fallback path is taken — an operator has no signal that credential encryption is silently disabled.
-- This is a genuine deviation from the codebase's own established pattern: both `backend/encryption_service.py` (`PAYMENT_ENCRYPTION_KEY`) and `backend/saas_integration_service.py` (`ENCRYPTION_KEY`) either **raise at startup in production** or, at minimum, **log a warning and use a per-process ephemeral key** so ciphertext is never silently degraded to plaintext.
+Since `register_account` upserts on `{"tenantId", "provider", "account_id"}` (the previously-fixed WR-04), calling it a second time for the *same* account — e.g. to update `account_name` or `environment` — silently overwrites `credentials_ref` with `""` if the caller doesn't resend it. This is guaranteed to happen via the shipped UI: `CloudAccountsDashboard.tsx`'s registration form (lines 134-146) collects only `account_name`, `account_id`, `provider`, `environment` — it has **no** `credentials_ref` field at all, so every UI-driven registration submits an empty `credentials_ref`. If an account was previously registered with real credentials (via `discover_org_accounts` or a direct API call), a user re-submitting the same account through the UI form (or any client that omits the field) destroys the stored credential with no warning, no error, and no way to recover it (the ciphertext is gone, not just re-encrypted).
+**Fix:** Preserve the existing encrypted value when the caller doesn't supply a new one, exactly like the other "sticky" fields:
+```python
+async def register_account(db, tenant_id: str, data: dict) -> dict:
+    provider = data.get("provider", "")
+    account_id = data.get("account_id", "")
+    key = {"tenantId": tenant_id, "provider": provider, "account_id": account_id}
+    existing = await db._db.cloud_accounts.find_one(key)
 
-This directly contradicts the phase's explicit must-have: *"Credentials are stored encrypted (Fernet) in cloud_accounts collection, credentials_ref field only."* In the current code, that guarantee holds only if an operator happens to set an otherwise-unenforced env var.
+    creds_raw = data.get("credentials_ref", "")
+    if creds_raw:
+        creds_enc = _encrypt(creds_raw)
+    else:
+        creds_enc = existing.get("credentials_ref", "") if existing else ""
 
-**Fix:**
+    doc = {
+        "id": existing["id"] if existing else _id(), "tenantId": tenant_id,
+        "provider": provider, "account_id": account_id,
+        "account_name": data.get("account_name", ""), "environment": data.get("environment", "dev"),
+        "credentials_ref": creds_enc, "region": data.get("region", "us-east-1"),
+        "last_scan": existing.get("last_scan") if existing else None,
+        "scan_status": existing.get("scan_status", "idle") if existing else "idle",
+        "created_at": existing["created_at"] if existing else _now(),
+    }
+    await db._db.cloud_accounts.update_one(key, {"$set": doc}, upsert=True)
+    return {k: v for k, v in doc.items() if k != "credentials_ref"}
+```
+
+### CR-02: Production fail-closed encryption-key guard is neutered by optional-router exception swallowing
+
+**File:** `backend/cloud_accounts_service.py:9-22`, `backend/router_registry.py:34-49, 226`
+**Issue:** `cloud_accounts_service.py` raises at **import time** if `APP_ENV=="production"` and `CLOUD_CREDENTIALS_KEY` is unset:
 ```python
 _FERNET_KEY = os.environ.get("CLOUD_CREDENTIALS_KEY", "")
 if not _FERNET_KEY:
     if os.environ.get("APP_ENV", "development").lower() == "production":
         raise RuntimeError(
-            "CLOUD_CREDENTIALS_KEY is not set. Refusing to start in production "
-            "without a stable encryption key for cloud account credentials. "
-            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            "CLOUD_CREDENTIALS_KEY is not set. Refusing to start in production ..."
         )
-    logger.warning(
-        "CLOUD_CREDENTIALS_KEY not set — using ephemeral key (dev only). "
-        "Cloud account credentials will not survive restart."
-    )
-    _FERNET_KEY = Fernet.generate_key().decode()
-_FERNET = Fernet(_FERNET_KEY.encode())
 ```
-Then drop the `if _FERNET` / `if _FERNET and creds_raw` conditionals in `register_account`, `discover_org_accounts`, and `_encrypt` — `_FERNET` is now always a real cipher, so the plaintext-passthrough branch can never be silently reached. Also add `CLOUD_CREDENTIALS_KEY` to `app_startup.py::_validate_startup_config`'s issue list so it is surfaced the same way `JWT_SECRET_KEY`/`SUPER_ADMIN_PASSWORD` are.
-
-### CR-02: Cross-tenant unauthorized write to `scan_status`/`last_scan` (IDOR)
-
-**File:** `backend/cloud_accounts_service.py:36-47`
-**Issue:**
+This module is imported exactly one way in the running app: `router_registry.register_all_routers()` calls `_load(app, "cloud_account_endpoints", "router")`, and `cloud_account_endpoints.py` does `import cloud_accounts_service as svc` at its own module top level. `_load()`'s error handling is:
 ```python
-async def scan_account(db, account_id: str, tenant_id: str) -> dict:
-    from cloud_checks_service import cloud_checks_service
-    await db._db.cloud_accounts.update_one({"id": account_id}, {"$set": {"scan_status": "scanning"}})
-    try:
-        account = await db._db.cloud_accounts.find_one({"id": account_id, "tenantId": tenant_id})
-        provider = account.get("provider", "aws") if account else "aws"
-        result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
-        await db._db.cloud_accounts.update_one({"id": account_id}, {"$set": {"scan_status": "idle", "last_scan": _now()}})
-        return result
-    except Exception as e:
-        await db._db.cloud_accounts.update_one({"id": account_id}, {"$set": {"scan_status": "failed"}})
-        return {"error": str(e), "ran": 0}
+try:
+    mod = importlib.import_module(module_name)
+    app.include_router(getattr(mod, attr), **kwargs)
+    logger.debug("[Router] Loaded %s", module_name)
+except Exception as exc:
+    logger.error("[Router] Failed to load %s: %s", module_name, exc)
+    if module_name in _REQUIRED_ROUTERS:
+        raise
 ```
-All three `update_one` calls filter only by `{"id": account_id}` — none of them include `tenantId`. `cloud_checks_service.run_checks()` (the only call that reads/writes scan *results*) does correctly scope by `tenantId`, so scan results themselves aren't cross-tenant readable. But the account document's `scan_status`/`last_scan` fields are writable by *any authenticated user of any tenant*, for *any* `account_id`, regardless of which tenant owns it. `POST /api/cloud-accounts/{account_id}/scan` passes `account_id` straight from the URL path with no ownership check before the first write. A user in tenant B who learns or guesses a tenant A `account_id` (format `acct-{12 hex chars}`, but IDs can also leak via shared support channels, logs, referrers, etc.) can flip tenant A's account into `scanning`/`idle` state and stomp its `last_scan` timestamp — an authorization gap and a minor denial-of-service/data-integrity vector (dashboard for tenant A would show incorrect scan status/timestamps caused by an unrelated tenant).
-
-**Fix:** Scope every write by `tenantId`, and look the account up (with tenant filter) before doing anything:
+`_REQUIRED_ROUTERS` is `{"compliance_status_endpoints", "compliance_evidence_lifecycle_endpoints", "compliance_bulk_evidence_endpoints", "compliance_score_endpoints", "evidence_review_endpoints"}` — `"cloud_account_endpoints"` is not in this set. I verified `cloud_accounts_service`/`cloud_account_endpoints` are imported nowhere else in `backend/` (not in `app.py`, not in `app_startup.py`). So the `RuntimeError` intended to hard-block application startup is caught, logged once at ERROR level, and swallowed — `register_all_routers()` continues on to load every subsequent router, and the FastAPI app finishes starting successfully. The observable production behavior is: **the app boots fine; the entire `/api/cloud-accounts/*` surface is silently absent**, discoverable only by grepping startup logs for one ERROR line among hundreds of other router-load log lines. This is the exact "operator has no signal" failure mode the guard was written to prevent — it just moved from "silently stores plaintext credentials" (the prior, now-fixed CR-01) to "silently disables the whole feature," when the code's own comment says the goal is to refuse to start.
+**Fix:** Either (a) add `"cloud_account_endpoints"` to `_REQUIRED_ROUTERS` so a production misconfiguration aborts startup as originally intended, or (b) move the production-fatal check out of module-import time and into `app_startup.py::_validate_startup_config()` (which already runs unconditionally during startup, before routers are wired) so it fires regardless of which routers happen to load successfully:
 ```python
-async def scan_account(db, account_id: str, tenant_id: str) -> dict:
-    from cloud_checks_service import cloud_checks_service
-    account = await db._db.cloud_accounts.find_one({"id": account_id, "tenantId": tenant_id})
-    if not account:
-        return {"error": "Cloud account not found", "ran": 0}
-    await db._db.cloud_accounts.update_one(
-        {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "scanning"}}
+# app_startup.py, inside _validate_startup_config(), after the existing issues.append(...) for CLOUD_CREDENTIALS_KEY:
+if env not in ("development", "dev", "test", "ci") and not os.getenv("CLOUD_CREDENTIALS_KEY", ""):
+    raise RuntimeError(
+        "CLOUD_CREDENTIALS_KEY is not set. Refusing to start in production without a "
+        "stable encryption key for cloud account credentials."
     )
-    try:
-        provider = account.get("provider", "aws")
-        result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
-        await db._db.cloud_accounts.update_one(
-            {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "idle", "last_scan": _now()}}
-        )
-        return result
-    except Exception as e:
-        await db._db.cloud_accounts.update_one(
-            {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "failed"}}
-        )
-        return {"error": str(e), "ran": 0}
 ```
+and drop the duplicate raise from `cloud_accounts_service.py` (or keep both, but option (a) alone is the minimal fix).
 
 ## Warnings
 
-### WR-01: Frontend never checks HTTP status before treating a response as success
+### WR-01: `register()` in the dashboard discards the server's specific validation error
 
-**File:** `components/CloudAccountsDashboard.tsx:14-25, 29-34, 36-44, 46-50`
-**Issue:** `fetchData()`, `register()`, `scan()`, and `loadResults()` all do `(await authFetch(...)).json()` and treat the parsed body as success data unconditionally. `authFetch` (see `services/apiService.ts`) returns the raw `fetch` `Response` and does not throw on non-2xx status. Since FastAPI error responses (`{"detail": "..."}`) are valid JSON, `.json()` succeeds even on a 400/422/500, so e.g. `register()` will call `showToast('Account registered', 'success')` after a request that the server actually rejected with 400 (missing `provider`/`account_id`).
-**Fix:** Check `response.ok` (or status) before parsing/toasting success, e.g.:
+**File:** `components/CloudAccountsDashboard.tsx:76-82`
+**Issue:**
 ```ts
-const res = await authFetch('/api/cloud-accounts', { method: 'POST', ... });
-if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Register failed'); }
-const doc = await res.json();
+const register = async () => {
+    try {
+      const res = await authFetch('/api/cloud-accounts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form) });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Register failed'); }
+      showToast('Account registered', 'success'); setShowForm(false); setForm({}); fetchData();
+    } catch { showToast('Failed', 'error'); }
+  };
 ```
-
-### WR-02: Scan failures are swallowed into a 200 response, then reported as success by the UI
-
-**File:** `backend/cloud_accounts_service.py:45-47`, `backend/cloud_account_endpoints.py:34-38`, `components/CloudAccountsDashboard.tsx:36-44`
-**Issue:** When `cloud_checks_service.run_checks()` raises, `scan_account()` catches the exception and returns `{"error": str(e), "ran": 0}` with an implicit HTTP 200 (the endpoint just returns the dict as-is, no exception, no non-2xx status). The frontend's `scan()` never inspects `r.error`; it unconditionally shows `` `Scan complete: ${r.ran || 0} checks` `` as a **success** toast — so a hard scan failure looks identical in the UI to a scan that legitimately found 0 checks for a provider. Combined with WR-01, there is no path in the UI for a user to learn a scan actually failed except by noticing `scan_status: failed` after a manual refresh.
-**Fix:** Either have the endpoint return a non-2xx status when `result.get("error")` is present, or have the frontend check `r.error` and show an error toast:
+The code goes to the trouble of extracting the backend's specific message (`err.detail`, e.g. `"provider must be one of ['aws', 'azure', 'gcp']"`) into the thrown `Error`, but the `catch` block doesn't bind the exception (`catch { ... }` instead of `catch (e) { ... }`), so that message is discarded and the user always sees the generic `"Failed"` toast. This is inconsistent with `scan()` a few lines below, which correctly does `catch (e: any) { showToast(e.message || 'Scan failed', 'error'); }`. A user who omits a required field, or types an invalid provider, gets no actionable feedback.
+**Fix:**
 ```ts
-if (r.error) { showToast(`Scan failed: ${r.error}`, 'error'); } else { showToast(`Scan complete: ${r.ran || 0} checks`, 'success'); }
+} catch (e: any) { showToast(e.message || 'Failed', 'error'); }
 ```
 
-### WR-03: `provider`/`environment` are not validated against their documented enums, and invalid `environment` values silently vanish from the dashboard
+### WR-02: `register_account` has no type validation on `credentials_ref` (or other free-form fields), allowing an unhandled crash from a malformed request body
 
-**File:** `backend/cloud_account_endpoints.py:25-31`, `components/CloudAccountsDashboard.tsx:52-56, 95`
-**Issue:** `register_account()` in `cloud_account_endpoints.py` only checks that `provider` and `account_id` are *present* (truthy), not that `provider` ∈ `{aws, azure, gcp}` or `environment` ∈ `{prod, staging, dev}` as the plan's must-haves specify. This violates this project's own CLAUDE.md rule ("Validate input at system boundaries"). The consequence is visible in the frontend: `grouped` in `CloudAccountsDashboard.tsx` only buckets `['prod', 'staging', 'dev']` (lines 52-56, 95), so an account registered directly against the API (bypassing the `<select>` dropdown) with e.g. `environment: "qa"` or `environment: ""` is still counted in `summary.total_accounts`/`by_environment`, yet never rendered in any environment section — it becomes permanently invisible in the dashboard with no error surfaced anywhere.
-**Fix:** Validate `provider` and `environment` server-side (400 on invalid value), e.g.:
+**File:** `backend/cloud_accounts_service.py:30-31`, `backend/cloud_account_endpoints.py:28-38`
+**Issue:** `cloud_account_endpoints.register_account` validates presence of `provider`/`account_id` and enum membership of `provider`/`environment`, but never validates the *type* of `credentials_ref` before handing the payload to `svc.register_account`. There:
 ```python
-_VALID_PROVIDERS = {"aws", "azure", "gcp"}
-_VALID_ENVS = {"prod", "staging", "dev"}
-if payload.get("provider") not in _VALID_PROVIDERS:
-    raise HTTPException(status_code=400, detail=f"provider must be one of {_VALID_PROVIDERS}")
-if payload.get("environment", "dev") not in _VALID_ENVS:
-    raise HTTPException(status_code=400, detail=f"environment must be one of {_VALID_ENVS}")
+creds_raw = data.get("credentials_ref", "")
+creds_enc = _encrypt(creds_raw) if creds_raw else creds_raw
 ```
-
-### WR-04: No uniqueness/dedup check on `account_id` — repeated registration or discovery creates duplicate records
-
-**File:** `backend/cloud_accounts_service.py:17-28, 72-80`
-**Issue:** `register_account()` always `insert_one`s a new document with a fresh `id` regardless of whether a document with the same `(tenantId, provider, account_id)` already exists. `discover_org_accounts()` is worse: it unconditionally creates 3 new `org-acct-{1,2,3}` records (with brand-new `acct-...` IDs) on **every single call** — calling `POST /api/cloud-accounts/discover-org` twice produces 6 accounts, three pairs sharing the same `account_id` but different `id`s. This inflates `summary.total_accounts`/`by_provider`/`by_environment` and creates ambiguous, indistinguishable duplicate rows in the dashboard.
-**Fix:** Use `update_one(..., upsert=True)` keyed on `{"tenantId": tenant_id, "provider": provider, "account_id": account_id}` instead of `insert_one` in both functions.
-
-### WR-05: Stale per-account results cache after a new scan
-
-**File:** `components/CloudAccountsDashboard.tsx:36-44, 46-50`
-**Issue:** `loadResults(id)` early-returns if `results[id]` is already set (`if (results[id]) return;` — line 47), including when it's an already-fetched empty array. `scan(id)` calls `fetchData()` afterward (line 41) but never clears/invalidates `results[id]`. So if a user viewed "Results" before running a new scan, the results panel keeps showing the pre-scan snapshot indefinitely (until page reload), even though the account's `scan_status`/`last_scan` visibly updated.
-**Fix:** Clear the cached results for that account when a scan completes: `setResults(s => { const {[id]: _, ...rest} = s; return rest; });` inside `scan()`'s success path (before or instead of relying on `fetchData()`).
-
-### WR-06: Test suite asserts only HTTP status codes — would not catch CR-01 or CR-02
-
-**File:** `backend/tests/test_cloud_accounts.py:38-77`
-**Issue:** The plan's TDD order names 8 specific behaviors to verify (`test_register_aws_account_encrypts_credentials`, `test_list_accounts_never_returns_credentials`, `test_discover_org_accounts`, `test_tenant_isolation`, etc.), but the actual tests only assert `status_code == 200` (or, worse, `status_code in (200, 500)` for `test_scan_sets_status`, line 56, which passes even on outright failure). None of them:
-- Inspect the stored/returned document to confirm `credentials_ref` is encrypted or absent (would have caught CR-01).
-- Register accounts under two different tenants and confirm cross-tenant isolation on `list`/`scan`/`results` (would have caught CR-02) — `test_tenant_isolation` (lines 74-77) just hits `GET /api/cloud-accounts` once with a mock DB that always returns `[]` regardless of query filters, so it cannot distinguish correct tenant-scoped queries from no filtering at all.
-- Assert on response body shape for `list_accounts`/`register_account` beyond "it's 200".
-
-The suite is green, but it is exercising routing/wiring, not the documented security/correctness guarantees.
-**Fix:** Strengthen at minimum: (1) assert `"credentials_ref" not in r.json()["account"]` in `test_register_aws_account`; (2) make `test_scan_sets_status` assert exactly `200` and assert the mock's `update_one` was called with the expected `scan_status` values; (3) make `test_tenant_isolation` configure the mock `find` to return tenant-tagged docs and assert the query passed to `find()` includes the calling user's `tenantId`.
-
-### WR-07: Missing authorization/RBAC enforcement on all cloud-account endpoints, inconsistent with sibling routers
-
-**File:** `backend/cloud_account_endpoints.py:21-66` (all 6 routes: `list_accounts`, `register_account`, `scan_account`, `get_account_results`, `get_summary`, `discover_org`)
-**Issue:** Every route depends only on `Depends(get_current_user)` — no permission gate at all, just proof of a valid JWT. Sibling routers registered in the same "Observability & Platform" block of `router_registry.py` (`container_scanner_endpoints.py`, `iac_scanner_endpoints.py`) gate identical-shape actions behind `Depends(rbac_service.has_permission("view:dashboard"))` for reads/scans and `Depends(rbac_service.has_permission("manage:settings"))` for config-mutation. `rbac_service.py` even defines a permission literally named `view:cloud_security` on every role (admin, Tenant Admin, user, viewer) that is never referenced by `has_permission(...)` anywhere in the backend — it looks like it was meant to gate exactly this feature and was never wired in.
-
-Concretely: a user with the `viewer` role (read-only by name/intent — has only `view:*` permissions) can `POST /api/cloud-accounts` to register a new cloud account, `POST /api/cloud-accounts/{id}/scan` to trigger scans, and `POST /api/cloud-accounts/discover-org` to fabricate org accounts — all mutating actions — purely because the endpoints never check role/permission, only that the JWT is valid. This is an intra-tenant privilege-escalation gap (viewer → effectively full manage rights on this feature); tenant isolation itself is intact (each route still scopes by the caller's own `tenantId`), so this is confined within the caller's tenant rather than cross-tenant.
-**Fix:** Gate reads/scans with the purpose-built `view:cloud_security` permission and account-creation actions with `manage:settings`, matching the codebase's existing convention for "configure a new integration" actions:
+If a client sends `{"provider": "aws", "account_id": "123", "credentials_ref": {"key": "x"}}` (an object) or a number, `creds_raw` is truthy and non-string, so `_encrypt()`'s `plain.encode()` raises `AttributeError`. There's no `try/except` around the `svc.register_account()` call in the endpoint, so this becomes an unhandled exception. It is caught by the app's global `unhandled_exception_handler` (so no stack trace leaks), but it still turns a client input-validation problem into a generic 500 rather than a clean 400, and needlessly generates an ERROR-level log entry (`logger.exception(...)`) for what is just bad input. This is also a direct instance of this project's own CLAUDE.md rule: "Validate input at system boundaries."
+**Fix:**
 ```python
-from rbac_service import rbac_service
-
-@router.get("")
-async def list_accounts(current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
-    ...
-
-@router.post("")
-async def register_account(payload: ..., current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
-    ...
-
-@router.post("/{account_id}/scan")
-async def scan_account(account_id: str, current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
-    ...
-
-@router.get("/{account_id}/results")
-async def get_account_results(account_id: str, current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
-    ...
-
-@router.get("/summary")
-async def get_summary(current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
-    ...
-
-@router.post("/discover-org")
-async def discover_org(payload: ..., current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
-    ...
+if payload.get("credentials_ref") is not None and not isinstance(payload["credentials_ref"], str):
+    raise HTTPException(status_code=400, detail="credentials_ref must be a string")
 ```
+
+### WR-03: `list_accounts` hard-caps at 100 documents with no pagination, silently hiding accounts for orgs above that threshold
+
+**File:** `backend/cloud_accounts_service.py:49-51`
+**Issue:**
+```python
+async def list_accounts(db, tenant_id: str) -> list:
+    docs = await db._db.cloud_accounts.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+    return [{k: v for k, v in d.items() if k != "credentials_ref"} for d in docs]
+```
+`to_list(length=100)` silently truncates results — there is no pagination parameter, no total-count indicator, and no signal to the caller (or the dashboard) that more accounts exist beyond the 100 returned. This is precisely the scenario this phase is meant to solve: a tenant using `discover_org_accounts`-style bulk onboarding for a real AWS Organization (which can have hundreds of member accounts) will have accounts silently disappear from the list/dashboard/summary once the 101st is registered, with the oldest (`created_at desc` puts newest first, so it's the *oldest* accounts that fall off the end) simply vanishing from view.
+**Fix:** Add pagination (`skip`/`limit` query params surfaced through `GET /api/cloud-accounts`) or at minimum raise the cap and expose a `total_count` via `count_documents` so the frontend can detect truncation.
+
+### WR-04: `get_summary`'s fixed 5000-document cap silently produces inaccurate aggregate statistics at scale
+
+**File:** `backend/cloud_accounts_service.py:80-95`
+**Issue:**
+```python
+results = await db.cloud_check_results.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=5000)
+total = len(results)
+passed = sum(1 for r in results if r.get("result") == "PASS")
+failed = sum(1 for r in results if r.get("result") == "FAIL")
+```
+Each scan upserts one result document per `(tenantId, accountId, checkId)` (in `cloud_checks_service.run_checks`), so the ceiling per tenant is `accounts × checks-for-that-provider` (up to ~147 for AWS alone). A tenant with roughly 16+ fully-scanned AWS accounts (or a mix across AWS/Azure/GCP) will exceed the 5000-document cap, at which point `pass`/`fail`/`total_checks` and the `by_provider`/`by_environment` breakdowns silently become undercounts with no indication to the caller that the aggregate is partial. For a "multi-account" feature whose entire premise is scaling to many accounts, this is a realistic and unannounced correctness gap in the headline dashboard numbers.
+**Fix:** Use `count_documents`/an aggregation pipeline for the pass/fail/total counts instead of loading a capped result set into memory, e.g. `db.cloud_check_results.count_documents({"tenantId": tenant_id, "result": "PASS"})`.
 
 ## Info
 
-### IN-01: Pervasive `any` typing in a form that handles credential-adjacent input
+### IN-01: Redundant no-op branch around `_encrypt`
 
-**File:** `components/CloudAccountsDashboard.tsx:6, 7, 10, 12, 101, 116`
-**Issue:** `accounts`, `summary`, `form`, `results`, and the `.map((a: any) => ...)` / `.map((r: any, i: number) => ...)` callbacks are all typed `any`, discarding compile-time safety for a component that renders/handles account registration data.
-**Fix:** Define minimal `CloudAccount`/`CloudCheckResult`/`AccountSummary` interfaces and replace the `any`s; low effort given the shapes are already fixed by the backend response schema.
+**File:** `backend/cloud_accounts_service.py:31, 118-121`
+**Issue:** `_encrypt()` already returns its input unchanged when falsy: `if not plain: return plain`. The call site still duplicates that check: `creds_enc = _encrypt(creds_raw) if creds_raw else creds_raw`. Harmless, but it's redundant logic that could drift out of sync if `_encrypt`'s no-op condition ever changes.
+**Fix:** Simplify to `creds_enc = _encrypt(creds_raw)`.
 
-### IN-02: `discover_org_accounts` accepts an unvalidated, effectively-unused `credentials` payload
+### IN-02: Stored, encrypted `credentials_ref` is never read/decrypted anywhere in the codebase
 
-**File:** `backend/cloud_accounts_service.py:72-80`, `backend/cloud_account_endpoints.py:55-59`
-**Issue:** The endpoint and service both accept a `credentials: dict` parameter (intended to be AWS Organizations management-account credentials per the plan) but never inspect or validate it — the function is a hardcoded simulation that ignores its input entirely and always fabricates exactly 3 accounts. This is clearly intentional per the docstring ("Simulate org discovery (real impl calls AWS Organizations ListAccounts)"), but there's no `HTTPException` even for a completely empty `{}` body, which will be surprising when this stub is later replaced with a real implementation and validation needs to be retrofitted. Worth a `# TODO` or minimal shape check so the API contract is stable ahead of the real integration.
-**Fix:** Add a lightweight guard (e.g., require a `management_account_id` or `credentials_ref` key) even in stub form, or note the contract expectation in a comment near the FastAPI route so future implementers don't have to reverse-engineer it from the plan.
+**File:** `backend/cloud_accounts_service.py:118-121`
+**Issue:** `_encrypt()` is called in two places (`register_account`, `discover_org_accounts`), but there is no corresponding `_decrypt`/`Fernet(...).decrypt(...)` call anywhere in `backend/`. `scan_account()` → `cloud_checks_service.run_checks()` never reads `credentials_ref`; it evaluates checks purely against a separate `cloud_findings` collection populated by some other (out-of-scope) import path. As it stands, `credentials_ref` is a write-only field — encrypted, persisted, and returned to nobody, used by nothing. This isn't necessarily wrong for a phase that's explicitly building the account-registration/scan-status skeleton ahead of a real provider integration, but it's worth flagging explicitly so it isn't mistaken for a completed feature, and so CR-01 above (which is only reachable because this field exists and is expected to be preserved across updates) doesn't get "fixed" by simply removing the field instead of fixing the merge logic.
 
-### IN-03: `scan_account` endpoint always returns HTTP 200, even for a nonexistent account or an internal failure
+### IN-03: Inconsistent DB-access pattern for `cloud_accounts` between cooperating modules
 
-**File:** `backend/cloud_account_endpoints.py:34-38`, `backend/cloud_accounts_service.py:36-47`
-**Issue:** Unlike `register_account`'s endpoint (which raises `HTTPException(400)` for bad input), `scan_account`'s endpoint returns whatever dict `svc.scan_account` produces verbatim, including `{"error": "Cloud account not found", "ran": 0}` or `{"error": str(e), "ran": 0}`, both with implicit status 200. This is inconsistent with REST conventions used elsewhere in this same router file and is part of what makes WR-02 possible on the frontend.
-**Fix:** Have the endpoint map an `"error"` key in the service result to an appropriate status code (404 for not-found, 502/500 for scan execution failure) rather than always returning 200.
+**File:** `backend/cloud_accounts_service.py` (uses `db._db.cloud_accounts` throughout), `backend/cloud_checks_service.py` (uses `db.cloud_accounts`, outside this review's file list but directly called by `scan_account`)
+**Issue:** `cloud_accounts_service.py` always goes through the raw `db._db.<collection>` accessor (bypassing `TenantIsolatedCollection`) and manually adds `"tenantId"` to every filter — necessary, and done correctly everywhere in this file. `cloud_checks_service.run_checks()`, which `scan_account()` calls directly, instead goes through the tenant-isolation-wrapped `db.cloud_accounts`/`db.cloud_check_results` accessors, relying on ambient request-context tenant injection (`TenantIsolatedCollection._inject_tenant_id`) *in addition to* an explicit `"tenantId"` key in its own filters (which gets overwritten by the wrapper's context-derived value anyway). Both are safe today, but the two files use fundamentally different, non-interchangeable idioms for the same collection, which is exactly the kind of inconsistency that let the now-fixed original cross-tenant IDOR slip through before: were a future edit to move `cloud_accounts_service.py` off `db._db` under the (correct-for-the-*other*-file) assumption that `db.cloud_accounts` already tenant-scopes everything, it would silently reintroduce the same class of bug if done carelessly. Worth calling out in a code comment given how easy it is to conflate the two access patterns.
+
+### IN-04: No platform-admin/cross-tenant visibility for cloud accounts, unlike the sibling check-results API
+
+**File:** `backend/cloud_accounts_service.py:49-51, 80-95`
+**Issue:** `cloud_accounts_service.list_accounts`/`get_summary` always filter strictly by the caller's own `tenant_id`, with no bypass for elevated roles. This differs from `cloud_checks_service.get_results()` (used by a related, out-of-file-list endpoint), which explicitly bypasses tenant filtering for roles in `SUPER_AND_ADMIN_ROLES`. This may well be intentional (cloud-account inventory is more sensitive than check-result summaries), but the asymmetry means a platform admin can see all tenants' check results through one API but not all tenants' registered cloud accounts through this one — worth confirming this is the intended trust boundary rather than an oversight.
 
 ---
 
