@@ -36,10 +36,6 @@ def _resolve_tenant_id(user: TokenData, requested_tenant_id: str | None) -> str 
     return caller_tenant
 
 
-_NOTIFICATION_CONFIG_FIELDS = {"type", "enabled", "webhook_url", "smtp_host", "smtp_port",
-                                "smtp_user", "phone_number", "channel", "routing_key"}
-
-
 # ── Reports ──────────────────────────────────────────────────────────────────
 
 @router.get("/api/reports/sla-compliance")
@@ -194,55 +190,6 @@ async def send_notification(
             channels=data.get("channels", ["email"]),
             metadata=data.get("metadata"),
         )
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/api/notifications/config")
-async def configure_notifications(
-    data: dict,
-    _current_user: TokenData = Depends(get_current_user),
-):
-    """
-    Configure a notification channel.
-    Body: { type, enabled, config: { webhook_url | smtp_host | phone_number, ... } }
-    """
-    try:
-        db = get_database()
-        tenant_id = getattr(_current_user, "tenant_id", None)
-        raw_cfg = data.get("config", {})
-        safe_cfg = {k: v for k, v in raw_cfg.items() if k in _NOTIFICATION_CONFIG_FIELDS}
-        config = {
-            "type": data.get("type"),
-            "enabled": data.get("enabled", True),
-            **safe_cfg,
-            "tenant_id": tenant_id,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await db.notification_config.update_one(
-            {"type": data.get("type"), "tenant_id": tenant_id},
-            {"$set": config},
-            upsert=True,
-        )
-        return {"success": True, "message": f"{data.get('type')} notifications configured"}
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/api/notifications/config")
-async def get_notification_configs(_current_user: TokenData = Depends(get_current_user)):
-    """Get all notification channel configurations (sensitive fields redacted)."""
-    try:
-        db = get_database()
-        tenant_id = getattr(_current_user, "tenant_id", None)
-        query = {} if getattr(_current_user, "role", "") in _ADMIN_ROLES else {"tenant_id": tenant_id}
-        configs = await db.notification_config.find(query, {"_id": 0}).to_list(length=500)
-        for config in configs:
-            if len(config.get("webhook_url", "")) > 30:
-                config["webhook_url"] = config["webhook_url"][:30] + "..."
-            if "smtp_password" in config:
-                config["smtp_password"] = "***"
-        return {"configs": configs}
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
