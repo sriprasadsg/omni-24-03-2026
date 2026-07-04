@@ -54,9 +54,17 @@ async def register_account(db, tenant_id: str, data: dict) -> dict:
     return {k: v for k, v in doc.items() if k != "credentials_ref"}
 
 
-async def list_accounts(db, tenant_id: str) -> list:
-    docs = await db._db.cloud_accounts.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+async def list_accounts(db, tenant_id: str, skip: int = 0, limit: int = 100) -> list:
+    docs = await db._db.cloud_accounts.find({"tenantId": tenant_id}, {"_id": 0}).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit).to_list(length=limit)
     return [{k: v for k, v in d.items() if k != "credentials_ref"} for d in docs]
+
+
+async def count_accounts(db, tenant_id: str) -> int:
+    """WR-03: exposes the true tenant account count so callers can detect
+    truncation instead of silently losing accounts beyond the page size."""
+    return await db._db.cloud_accounts.count_documents({"tenantId": tenant_id})
 
 
 async def scan_account(db, account_id: str, tenant_id: str) -> dict:

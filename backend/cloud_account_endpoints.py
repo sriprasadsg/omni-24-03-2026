@@ -19,10 +19,17 @@ def _tid(user: TokenData) -> str:
 
 
 @router.get("")
-async def list_accounts(current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security"))):
+async def list_accounts(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: TokenData = Depends(rbac_service.has_permission("view:cloud_security")),
+):
     db = get_database()
-    items = await svc.list_accounts(db, _tid(current_user))
-    return {"items": items, "count": len(items)}
+    skip = max(0, skip)
+    limit = max(1, min(limit, 500))
+    items = await svc.list_accounts(db, _tid(current_user), skip=skip, limit=limit)
+    total_count = await svc.count_accounts(db, _tid(current_user))
+    return {"items": items, "count": len(items), "total_count": total_count}
 
 
 @router.post("")
