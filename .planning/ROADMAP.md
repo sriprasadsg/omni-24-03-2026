@@ -330,3 +330,22 @@ deployment.
 - `components/WindowsInstallTab.tsx` — 3-step install UI + 28-checks panel
 - `components/AssetComplianceList.tsx` — purple "PS" source badge
 - `components/AgentInstallation.tsx` — Windows tab integration
+
+---
+
+## Phase 24: IaC & Container Security
+
+**Milestone:** v2.1
+
+**Goal:** Implement Infrastructure-as-Code scanning (Terraform, CloudFormation, Kubernetes
+manifests — 25+ checks) and container image vulnerability scanning (Trivy-backed, with a
+simulated fallback), closing the #1 gap versus Checkov, Trivy, and Snyk identified in the
+June 2026 audit.
+
+**Requirements:** IAC-01 (IaC scan endpoint + 25+ checks across Terraform/CloudFormation/Kubernetes), IAC-02 (container image scan endpoint + historical results), IAC-03 (scan-config endpoint + 8 passing tests)
+
+**Depends on:** Phase 23
+
+**Plans:** 1/1 planned — 0/1 executed
+
+- [ ] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs)

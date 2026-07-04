@@ -139,6 +139,16 @@
 
 *Not verified: all files exist, `mcp_server_endpoints`/`ocsf_endpoints` are registered in `router_registry.py`, and both import cleanly with no errors — the best-off of the unverified phases. No test suite was ever created for this phase (none listed in `22-01-PLAN.md`'s `files_modified`, and none found on disk), so there's no automated confirmation of correct behavior, only that the code loads.*
 
+## v2.1 Requirements
+
+### IaC & Container Security (Phase 24)
+
+- [ ] **IAC-01**: `POST /api/iac/scan` accepts code content or a git repo URL and returns check results (`check_id`, `severity`, `status`, `message`, `line_ref`) across 25+ checks spanning Terraform, CloudFormation, and Kubernetes manifests
+- [ ] **IAC-02**: `POST /api/container/scan` accepts an `image_name:tag` and returns vulnerability results (Trivy-backed when available, simulated fallback otherwise); `GET /api/iac/results` and `GET /api/container/results` return tenant-scoped scan history
+- [ ] **IAC-03**: `POST`/`GET /api/iac/scan-config` manages scanner config (excluded paths, severity threshold, auto-scan); all 8 unit tests in `test_iac_scanner.py` pass
+
+*Not started — `24-01-PLAN.md` exists (drafted ahead of execution) but no implementation, tests, or review have run yet.*
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -203,6 +213,9 @@
 | API-02 | Phase 22 | Implemented — untested (no test suite exists) |
 | API-03 | Phase 22 | Implemented — untested (no test suite exists) |
 | API-04 | Phase 22 | Implemented — untested (no test suite exists) |
+| IAC-01 | Phase 24 | Not started |
+| IAC-02 | Phase 24 | Not started |
+| IAC-03 | Phase 24 | Not started |
 
 **Coverage:**
 
@@ -211,7 +224,8 @@
 - v1.3 requirements: 3 total, 2 complete
 - v1.4 requirements: 4 total, all complete
 - v1.5 requirements: 2 total, 0 complete
-- v2.0 requirements: 30 total, 7 complete (REV-01/02/03, SAAS-01..04), 19 implemented-but-unverified/broken, 4 not started (FW-01, CLD-01/02/03) — see per-phase notes above; ROADMAP.md still labels phases 16–22 "Planned" but code already exists on disk for all except Phase 19
+- v2.0 requirements: 30 total, 7 complete (REV-01/02/03, SAAS-01..04), 19 implemented-but-unverified/broken, 4 not started (FW-01, CLD-01/02/03) — see per-phase notes above; ROADMAP.md still labels phases 16–22 "Planned" but code already exists on disk for all except Phase 19 — **note: this line predates this session's work and is now stale** (phases 17–22 backfilled with SUMMARY.md, phase 20 fully fixed across 3 review iterations, phase 21/22 security findings fixed with tests passing); not rewritten here as it's a separate cleanup from registering Phase 24
+- v2.1 requirements: 3 total (IAC-01..03), 0 complete — Phase 24 not yet executed
 - Unmapped: 0 ✓
 
 ---

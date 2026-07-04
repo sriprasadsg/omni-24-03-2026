@@ -189,3 +189,9 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 **Last session:** 2026-06-27T07:11:47.336Z
 **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
 **Resume file:** None
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 24 added: IaC & Container Security (Terraform/CloudFormation/Kubernetes scanning + container image vulnerability scanning). A `24-01-PLAN.md` already existed on disk (drafted ahead of execution, never wired into ROADMAP.md) — registered as Phase 24 in ROADMAP.md and REQUIREMENTS.md (IAC-01..03) reusing the existing directory/plan rather than generating a new one, so `/gsd-autonomous --only 24` can discover and execute it.
