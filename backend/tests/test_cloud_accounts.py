@@ -7,24 +7,31 @@ from fastapi.testclient import TestClient
 def _mkuser(t="tenant-a", r="admin"):
     u = MagicMock(); u.tenant_id = t; u.role = r; return u
 
+def _chain(result):
+    """Build a cursor-like mock that supports any combination of
+    .sort()/.skip()/.limit() before .to_list(), all resolving to `result`.
+    Needed because list_accounts() chains .find().sort().skip().limit().to_list()
+    while get_results() chains .find().sort().to_list() directly."""
+    m = MagicMock()
+    m.to_list = AsyncMock(return_value=result)
+    m.sort = MagicMock(return_value=m)
+    m.skip = MagicMock(return_value=m)
+    m.limit = MagicMock(return_value=m)
+    return m
+
 def _mkdb():
     db = MagicMock()
     for col in ("cloud_accounts", "cloud_check_results"):
         c = MagicMock()
         c.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))
-        c.find = MagicMock(return_value=MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))))
+        c.find = MagicMock(return_value=_chain([]))
         c.find_one = AsyncMock(return_value=None)
         c.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+        c.count_documents = AsyncMock(return_value=0)
         setattr(db._db, col, c)
-    # get_results() chains .find(...).sort(...).to_list(...) while get_summary()
-    # calls .find(...).to_list(...) directly — the mock's .find() return value
-    # needs both a direct .to_list() and a .sort() that itself resolves to an
-    # awaitable .to_list() to satisfy both call shapes.
-    _find_result = MagicMock()
-    _find_result.to_list = AsyncMock(return_value=[])
-    _find_result.sort = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))
-    db.cloud_check_results.find = MagicMock(return_value=_find_result)
+    db.cloud_check_results.find = MagicMock(return_value=_chain([]))
     db.cloud_check_results.find_one = AsyncMock(return_value=None)
+    db.cloud_check_results.count_documents = AsyncMock(return_value=0)
     # rbac_service.get_user_permissions falls back to its in-memory default_roles
     # table for any non-super-admin role as long as the DB lookup resolves to None.
     db.roles = MagicMock()
@@ -124,9 +131,7 @@ def test_tenant_isolation():
     def _find(query, *_a, **_kw):
         captured_query.update(query)
         filtered = [d for d in docs if d.get("tenantId") == query.get("tenantId")]
-        m = MagicMock()
-        m.sort = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=filtered)))
-        return m
+        return _chain(filtered)
 
     db._db.cloud_accounts.find = MagicMock(side_effect=_find)
     u = _mkuser("tenant-a", "user"); c = _build(db, u)
