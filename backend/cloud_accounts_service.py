@@ -56,8 +56,13 @@ async def register_account(db, tenant_id: str, data: dict) -> dict:
     doc = {
         "id": existing["id"] if existing else _id(), "tenantId": tenant_id,
         "provider": provider, "account_id": account_id,
-        "account_name": data.get("account_name", ""), "environment": data.get("environment", "dev"),
-        "credentials_ref": creds_enc, "region": data.get("region", "us-east-1"),
+        # WR-06: same preserve-on-omission pattern as credentials_ref above —
+        # a re-register call that omits account_name/region must not silently
+        # blank a previously-set display name or reset a custom region.
+        "account_name": data.get("account_name") or (existing.get("account_name", "") if existing else ""),
+        "environment": data.get("environment", "dev"),
+        "credentials_ref": creds_enc,
+        "region": data.get("region") or (existing.get("region", "us-east-1") if existing else "us-east-1"),
         "last_scan": existing.get("last_scan") if existing else None,
         "scan_status": existing.get("scan_status", "idle") if existing else "idle",
         "created_at": existing["created_at"] if existing else _now(),
