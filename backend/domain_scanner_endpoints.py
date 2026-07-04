@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 @router.get("/scan")
 async def scan_domain(domain: str = Query(..., min_length=1, max_length=253), current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
     db = get_database()
-    result = await svc.scan_domain(db, get_tenant_id(), domain)
+    try:
+        result = await svc.scan_domain(db, get_tenant_id(), domain)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return result
 
 

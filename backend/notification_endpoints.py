@@ -268,7 +268,6 @@ async def test_notification_channel(
 
 @router.post("/channels")
 async def create_notification_channel(payload: dict = Body(...), current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
-    from database import get_database
     db = get_database()
     try:
         ch = await notification_service.create_channel(db, get_tenant_id(), payload)
@@ -279,7 +278,6 @@ async def create_notification_channel(payload: dict = Body(...), current_user: T
 
 @router.get("/channels")
 async def list_notification_channels(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
-    from database import get_database
     db = get_database()
     items = await notification_service.list_channels(db, get_tenant_id())
     for item in items:
@@ -295,7 +293,6 @@ async def list_notification_channels(current_user: TokenData = Depends(rbac_serv
 
 @router.post("/rules")
 async def create_notification_rule(payload: dict = Body(...), current_user: TokenData = Depends(rbac_service.has_permission("manage:settings"))):
-    from database import get_database
     db = get_database()
     try:
         rule = await notification_service.create_rule(db, get_tenant_id(), payload)
@@ -306,7 +303,6 @@ async def create_notification_rule(payload: dict = Body(...), current_user: Toke
 
 @router.get("/rules")
 async def list_notification_rules(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
-    from database import get_database
     db = get_database()
     items = await notification_service.list_rules(db, get_tenant_id())
     return {"items": items, "count": len(items)}

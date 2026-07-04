@@ -428,6 +428,38 @@ import uuid
 from datetime import datetime, timezone
 
 
+def _validate_webhook_url(url: str) -> bool:
+    """Reject private/loopback IPs and non-HTTP(S) schemes to block SSRF."""
+    if not url:
+        return False
+    try:
+        from urllib.parse import urlparse as _urlparse
+        from ipaddress import ip_address as _ip_address
+        parsed = _urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return False
+        hostname = parsed.hostname or ""
+        try:
+            ip = _ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass  # hostname is a domain name — allow
+        return True
+    except Exception:
+        return False
+
+
+def _has_unsafe_webhook_url(data: dict) -> bool:
+    """Check a channel's config for a webhook/URL field that fails SSRF validation."""
+    cfg = data.get("config") or {}
+    for key in ("url", "webhook_url"):
+        val = cfg.get(key)
+        if val and not _validate_webhook_url(val):
+            return True
+    return False
+
+
 def _now() -> str: return datetime.now(timezone.utc).isoformat()
 def _id(prefix: str) -> str: return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
@@ -439,6 +471,8 @@ async def create_channel(db, tenant_id: str, data: dict) -> dict:
     typ = data.get("type")
     if typ not in VALID_CHANNEL_TYPES:
         raise ValueError(f"type must be one of {VALID_CHANNEL_TYPES}")
+    if typ in ("slack", "webhook") and _has_unsafe_webhook_url(data):
+        raise ValueError("channel config contains an invalid or unsafe webhook URL")
     doc = {**data, "id": _id("chan"), "tenantId": tenant_id, "created_at": _now()}
     await db._db.notification_channels.insert_one(doc)
     doc.pop("_id", None)
@@ -474,11 +508,17 @@ async def send_notification(db, tenant_id: str, event_type: str, payload: dict) 
             try:
                 if ch["type"] == "slack":
                     url = ch.get("config", {}).get("url", "")
+                    if url and not _validate_webhook_url(url):
+                        results.append({"channel_id": ch["id"], "status": "failed", "error": "invalid or unsafe webhook URL"})
+                        continue
                     if url:
                         async with httpx.AsyncClient() as cl:
                             await cl.post(url, json={"text": f"[{event_type}] {payload.get('message', '')}"}, timeout=10)
                 elif ch["type"] == "webhook":
                     url = ch.get("config", {}).get("webhook_url", "")
+                    if url and not _validate_webhook_url(url):
+                        results.append({"channel_id": ch["id"], "status": "failed", "error": "invalid or unsafe webhook URL"})
+                        continue
                     if url:
                         async with httpx.AsyncClient() as cl:
                             await cl.post(url, json=payload, timeout=10, headers={"Content-Type": "application/json"})

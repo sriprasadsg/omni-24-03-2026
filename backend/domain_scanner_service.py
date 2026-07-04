@@ -1,6 +1,8 @@
 """Lightweight domain/subdomain scanner — passive DNS, TLS, port checks."""
+import asyncio
 import socket, ssl, json, uuid, logging
 from datetime import datetime, timezone
+from ipaddress import ip_address
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -8,11 +10,31 @@ logger = logging.getLogger(__name__)
 COMMON_PORTS = [80, 443, 8080, 8443, 8888]
 
 
+def _is_safe_target(host: str) -> bool:
+    """Reject hosts that resolve to private/loopback/link-local/reserved ranges to block SSRF."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        try:
+            ip = ip_address(info[4][0])
+        except ValueError:
+            return False
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return False
+    return True
+
+
 async def scan_domain(db, tenant_id: str, domain: str) -> dict:
-    subdomains = _passive_discover(domain)
-    ports = _check_ports(subdomains[0] if subdomains else domain)
-    tls = _check_tls(domain)
-    dns = _get_dns(domain)
+    if not await asyncio.to_thread(_is_safe_target, domain):
+        raise ValueError("domain resolves to a private, loopback, or reserved address and cannot be scanned")
+    subdomains = await asyncio.to_thread(_passive_discover, domain)
+    ports = await asyncio.to_thread(_check_ports, subdomains[0] if subdomains else domain)
+    tls = await asyncio.to_thread(_check_tls, domain)
+    dns = await asyncio.to_thread(_get_dns, domain)
     result = {"domain": domain, "scanned_at": datetime.now(timezone.utc).isoformat(), "subdomains": subdomains, "open_ports": ports, "tls": tls, "dns": dns}
     await db._db.domain_scans.insert_one({"tenantId": tenant_id, **result})
     return result

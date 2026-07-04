@@ -12,25 +12,35 @@ def _make_user(tenant_id="tenant-a", role="admin", username="admin1"):
 
 def _make_db():
     db = MagicMock()
-    for col in ("notification_channels", "notification_rules", "scheduled_domains"):
+    for col in ("notification_channels", "notification_rules", "scheduled_domains", "domain_scans"):
         c = MagicMock()
         c.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))
         c.find = MagicMock(return_value=MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))))
         setattr(db._db, col, c)
+    # rbac_service.get_user_permissions falls back to its in-memory default_roles
+    # table for any non-super-admin role as long as the DB lookup resolves to None.
+    db.roles = MagicMock()
+    db.roles.find_one = AsyncMock(return_value=None)
     return db
 
 
 def _build_client(module_name, mock_db, user):
     import importlib
     mod = importlib.import_module(module_name)
-    from rbac_service import rbac_service
+    from authentication_service import get_current_user
     app = FastAPI(); app.include_router(mod.router)
     from auth_types import TokenData
     t = TokenData(username=user.username, tenant_id=user.tenant_id, role=user.role)
-    app.dependency_overrides[rbac_service.has_permission("manage:settings")] = lambda: t
-    app.dependency_overrides[rbac_service.has_permission("view:dashboard")] = lambda: t
+    # has_permission(...) is a factory — every route decorator call produces a
+    # distinct closure, so overriding by re-calling it here never matches the
+    # object actually bound into the router. get_current_user is the stable,
+    # singleton dependency every has_permission(...) closure wraps, so override
+    # that instead.
+    app.dependency_overrides[get_current_user] = lambda: t
     patcher = patch(f"{module_name}.get_database", return_value=mock_db)
     patcher.start()
+    rbac_patcher = patch("rbac_service.get_database", return_value=mock_db)
+    rbac_patcher.start()
     return TestClient(app, raise_server_exceptions=False)
 
 
