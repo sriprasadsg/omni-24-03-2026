@@ -78,11 +78,17 @@ def test_domain_scan_returns_structure():
     import domain_scanner_service as svc
     db = _make_db()
     import asyncio
-    result = asyncio.run(svc.scan_domain(db, "tenant-a", "example.com"))
-    assert "domain" in result
+    # Stub every network-touching helper (DNS/TCP/TLS) so this unit test is
+    # hermetic — no real resolution, connects, or handshakes against the network.
+    with patch.object(svc, "_is_safe_target", return_value=True), \
+         patch.object(svc, "_passive_discover", return_value=["www.example.com"]), \
+         patch.object(svc, "_check_ports", return_value={"80": True, "443": True}), \
+         patch.object(svc, "_check_tls", return_value={"expiry": "2030-01-01", "issuer": "Test CA", "san": ["example.com"]}), \
+         patch.object(svc, "_get_dns", return_value={"A": ["93.184.216.34"]}):
+        result = asyncio.run(svc.scan_domain(db, "tenant-a", "example.com"))
     assert result["domain"] == "example.com"
-    assert "subdomains" in result
-    assert "open_ports" in result
+    assert result["subdomains"] == ["www.example.com"]
+    assert result["open_ports"] == {"80": True, "443": True}
     assert "dns" in result
 
 
@@ -94,7 +100,24 @@ def test_schedule_domain():
 
 
 def test_tenant_isolation_channels():
-    db = _make_db(); user = _make_user("tenant-a", "user")
+    seeded = [
+        {"id": "chan-a", "tenantId": "tenant-a", "type": "slack", "name": "A's channel", "config": {}},
+        {"id": "chan-b", "tenantId": "tenant-b", "type": "slack", "name": "B's channel", "config": {}},
+    ]
+
+    def _fake_find(query, *_a, **_kw):
+        matched = [c for c in seeded if c["tenantId"] == query.get("tenantId")]
+        return MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=matched))))
+
+    db = _make_db()
+    db._db.notification_channels.find = MagicMock(side_effect=_fake_find)
+    user = _make_user("tenant-a", "user")
     client = _build_client("notification_endpoints", db, user)
-    resp = client.get("/api/notifications/channels")
+    # get_tenant_id() reads a ContextVar normally populated by request middleware,
+    # which this bare single-router test app doesn't run — set it explicitly.
+    with patch("notification_endpoints.get_tenant_id", return_value="tenant-a"):
+        resp = client.get("/api/notifications/channels")
     assert resp.status_code == 200
+    ids = {c["id"] for c in resp.json()["items"]}
+    assert "chan-a" in ids, "tenant-a should see its own channel"
+    assert "chan-b" not in ids, "tenant isolation violated: tenant-a saw tenant-b's channel"

@@ -90,7 +90,6 @@ class NotificationService:
         """
         Send email notification using SMTP logic (Synchronous wrapper)
         """
-        import asyncio
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
@@ -150,7 +149,6 @@ class NotificationService:
     ) -> Dict[str, Any]:
         """Send SMS via Twilio when configured; log to file as fallback."""
         import os
-        import aiohttp
 
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
         auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
@@ -425,7 +423,6 @@ def get_notification_service(db):
 
 # ─── Channel & Rule helpers (module-level, collection-based) ──────────────────
 import uuid
-from datetime import datetime, timezone
 
 
 def _validate_webhook_url(url: str) -> bool:
@@ -466,6 +463,14 @@ def _id(prefix: str) -> str: return f"{prefix}-{uuid.uuid4().hex[:12]}"
 VALID_EVENTS = {"finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"}
 VALID_CHANNEL_TYPES = {"slack", "email", "webhook"}
 
+# Result caps for list/lookup queries. These silently truncate past the cap —
+# fine for the current UI's needs, but callers expecting exhaustive results
+# should not rely on these without real pagination support.
+_CHANNELS_LIST_CAP = 100
+_RULES_LIST_CAP = 100
+_MATCHED_RULES_CAP = 50
+_RULE_CHANNELS_CAP = 20
+
 
 async def create_channel(db, tenant_id: str, data: dict) -> dict:
     typ = data.get("type")
@@ -480,7 +485,7 @@ async def create_channel(db, tenant_id: str, data: dict) -> dict:
 
 
 async def list_channels(db, tenant_id: str) -> list:
-    return await db._db.notification_channels.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+    return await db._db.notification_channels.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=_CHANNELS_LIST_CAP)
 
 
 async def create_rule(db, tenant_id: str, data: dict) -> dict:
@@ -493,17 +498,17 @@ async def create_rule(db, tenant_id: str, data: dict) -> dict:
 
 
 async def list_rules(db, tenant_id: str) -> list:
-    return await db._db.notification_rules.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+    return await db._db.notification_rules.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=_RULES_LIST_CAP)
 
 
 async def send_notification(db, tenant_id: str, event_type: str, payload: dict) -> dict:
     import httpx
-    rules = await db._db.notification_rules.find({"tenantId": tenant_id, "event_type": event_type}, {"_id": 0}).to_list(length=50)
+    rules = await db._db.notification_rules.find({"tenantId": tenant_id, "event_type": event_type}, {"_id": 0}).to_list(length=_MATCHED_RULES_CAP)
     severity = payload.get("severity", "medium")
     matched = [r for r in rules if not r.get("severity_filter") or severity in r.get("severity_filter", [])]
     results = []
     for rule in matched:
-        channels = await db._db.notification_channels.find({"id": {"$in": rule.get("channel_ids", [])}, "tenantId": tenant_id}, {"_id": 0}).to_list(length=20)
+        channels = await db._db.notification_channels.find({"id": {"$in": rule.get("channel_ids", [])}, "tenantId": tenant_id}, {"_id": 0}).to_list(length=_RULE_CHANNELS_CAP)
         for ch in channels:
             try:
                 if ch["type"] == "slack":

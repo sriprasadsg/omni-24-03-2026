@@ -8,6 +8,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 COMMON_PORTS = [80, 443, 8080, 8443, 8888]
+_SCHEDULED_DOMAINS_LIST_CAP = 100
 
 
 def _is_safe_target(host: str) -> bool:
@@ -47,7 +48,7 @@ async def schedule_domain(db, tenant_id: str, domain: str) -> dict:
 
 
 async def list_scheduled(db, tenant_id: str) -> list:
-    return await db._db.scheduled_domains.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+    return await db._db.scheduled_domains.find({"tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1).to_list(length=_SCHEDULED_DOMAINS_LIST_CAP)
 
 
 def _passive_discover(domain: str) -> list:

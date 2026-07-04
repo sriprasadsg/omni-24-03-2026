@@ -3,23 +3,79 @@ import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 
 type Tab = 'notifications' | 'scanner';
+type ChannelType = 'slack' | 'email' | 'webhook';
+type EventType = 'finding_created' | 'control_failed' | 'evidence_expired' | 'review_overdue' | 'cert_expiring';
+
+interface NotificationChannelConfig {
+  url?: string;
+  webhook_url?: string;
+  email?: string;
+  [key: string]: string | undefined;
+}
+
+interface NotificationChannel {
+  id: string;
+  tenantId: string;
+  created_at: string;
+  type: ChannelType;
+  name: string;
+  config: NotificationChannelConfig;
+}
+
+interface NotificationRule {
+  id: string;
+  tenantId: string;
+  created_at: string;
+  event_type: EventType;
+  channel_ids: string[];
+  severity_filter?: string[];
+}
+
+interface ScanResult {
+  domain: string;
+  scanned_at: string;
+  subdomains: string[];
+  open_ports: Record<string, boolean>;
+  tls: { expiry: string | null; issuer: string | null; san: string[]; error?: string };
+  dns: Record<string, string[]>;
+}
+
+interface ScheduledDomain {
+  id: string;
+  tenantId: string;
+  domain: string;
+  created_at: string;
+  status: string;
+}
+
+interface ChannelFormState {
+  name?: string;
+  type?: ChannelType | '';
+  config?: NotificationChannelConfig;
+}
+
+interface RuleFormState {
+  event_type?: EventType | '';
+  channel_ids?: string[];
+  severity_filter?: string[];
+}
 
 export const NotificationsDashboard: React.FC = () => {
   const [tab, setTab] = useState<Tab>('notifications');
   const [loading, setLoading] = useState(false);
   // Channels
-  const [channels, setChannels] = useState<any[]>([]);
+  const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [showChanForm, setShowChanForm] = useState(false);
-  const [chanForm, setChanForm] = useState<any>({});
+  const [chanForm, setChanForm] = useState<ChannelFormState>({});
   // Rules
-  const [rules, setRules] = useState<any[]>([]);
+  const [rules, setRules] = useState<NotificationRule[]>([]);
   const [showRuleForm, setShowRuleForm] = useState(false);
-  const [ruleForm, setRuleForm] = useState<any>({});
+  const [ruleForm, setRuleForm] = useState<RuleFormState>({});
   // Scanner
   const [domain, setDomain] = useState('');
-  const [scanResult, setScanResult] = useState<any>(null);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [scheduled, setScheduled] = useState<any[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledDomain[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -92,7 +148,7 @@ export const NotificationsDashboard: React.FC = () => {
             {showChanForm && (
               <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
                 <input placeholder="Name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, name: e.target.value})} />
-                <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, type: e.target.value})}>
+                <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, type: e.target.value as ChannelType | ''})}>
                   <option value="">Type</option><option value="slack">Slack</option><option value="email">Email</option><option value="webhook">Webhook</option>
                 </select>
                 <input placeholder="URL/Email" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setChanForm({
@@ -114,8 +170,8 @@ export const NotificationsDashboard: React.FC = () => {
               <button onClick={() => setShowRuleForm(!showRuleForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">+ Rule</button></div>
             {showRuleForm && (
               <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-                <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, event_type: e.target.value})}>
-                  <option value="">Event</option><option value="finding_created">Finding Created</option><option value="control_failed">Control Failed</option><option value="evidence_expired">Evidence Expired</option>
+                <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, event_type: e.target.value as EventType | ''})}>
+                  <option value="">Event</option><option value="finding_created">Finding Created</option><option value="control_failed">Control Failed</option><option value="evidence_expired">Evidence Expired</option><option value="review_overdue">Review Overdue</option><option value="cert_expiring">Cert Expiring</option>
                 </select>
                 <input placeholder="Channel IDs (comma)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} />
                 <button onClick={submitRule} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
@@ -156,7 +212,7 @@ export const NotificationsDashboard: React.FC = () => {
               )}
               <div className="p-3 bg-white dark:bg-gray-800 rounded shadow-sm">
                 <span className="font-medium">Scheduled</span>
-                <ul className="mt-1 text-gray-600">{scheduled.map((s: any, i: number) => <li key={i}>{s.domain} ({s.status})</li>)}</ul>
+                <ul className="mt-1 text-gray-600">{scheduled.map((s, i) => <li key={i}>{s.domain} ({s.status})</li>)}</ul>
               </div>
             </div>
           )}
