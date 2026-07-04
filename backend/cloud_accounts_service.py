@@ -67,8 +67,11 @@ async def register_account(db, tenant_id: str, data: dict) -> dict:
         # WR-06: same preserve-on-omission pattern as credentials_ref above —
         # a re-register call that omits account_name/region must not silently
         # blank a previously-set display name or reset a custom region.
+        # WR-01: environment is a third sibling field with the identical
+        # defect — a re-register call that omits environment must not
+        # silently reset a "prod" account down to the "dev" default.
         "account_name": data.get("account_name") or (existing.get("account_name", "") if existing else ""),
-        "environment": data.get("environment", "dev"),
+        "environment": data.get("environment") or (existing.get("environment", "dev") if existing else "dev"),
         "credentials_ref": creds_enc,
         "region": data.get("region") or (existing.get("region", "us-east-1") if existing else "us-east-1"),
         "last_scan": existing.get("last_scan") if existing else None,
