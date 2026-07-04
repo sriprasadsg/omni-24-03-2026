@@ -27,12 +27,20 @@ def _id() -> str: return f"acct-{uuid.uuid4().hex[:12]}"
 
 
 async def register_account(db, tenant_id: str, data: dict) -> dict:
-    creds_raw = data.get("credentials_ref", "")
-    creds_enc = _encrypt(creds_raw) if creds_raw else creds_raw
     provider = data.get("provider", "")
     account_id = data.get("account_id", "")
     key = {"tenantId": tenant_id, "provider": provider, "account_id": account_id}
     existing = await db._db.cloud_accounts.find_one(key)
+
+    creds_raw = data.get("credentials_ref", "")
+    if creds_raw:
+        creds_enc = _encrypt(creds_raw)
+    else:
+        # CR-01: preserve the previously-stored encrypted credential when the
+        # caller doesn't resend it (the shipped UI never sends this field at
+        # all), instead of silently overwriting it with an empty string.
+        creds_enc = existing.get("credentials_ref", "") if existing else ""
+
     doc = {
         "id": existing["id"] if existing else _id(), "tenantId": tenant_id,
         "provider": provider, "account_id": account_id,
