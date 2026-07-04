@@ -5,6 +5,7 @@ Maps agent check names to framework control IDs and writes evidence records.
 import hashlib
 import logging
 from datetime import datetime, timezone
+from tenant_context import set_tenant_id, get_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +222,6 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
 
     asset_id = f"asset-{agent_hostname}"
 
-    from tenant_context import set_tenant_id, get_tenant_id
     old_tenant_id = get_tenant_id()
 
     set_tenant_id("platform-admin")

@@ -73,13 +73,11 @@ def _mock_db():
 def _run_processor(db):
     """Run process_automated_evidence with the Rust payload against db."""
     import asyncio
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    ctx = MagicMock()
-    ctx.get_tenant_id = MagicMock(return_value=None)
-    ctx.set_tenant_id = MagicMock()
-    with patch.dict("sys.modules", {"tenant_context": ctx}):
-        from compliance_evidence_processor import process_automated_evidence
+    from compliance_evidence_processor import process_automated_evidence
+    with patch("compliance_evidence_processor.set_tenant_id"), \
+         patch("compliance_evidence_processor.get_tenant_id", return_value=None):
         compliance_data = RUST_HEARTBEAT_PAYLOAD["meta"]["compliance_enforcement"]
         asyncio.run(process_automated_evidence(TEST_HOSTNAME, compliance_data, db, agent_type="rust"))
 
@@ -258,10 +256,14 @@ def main():
     assert hb.json().get("success") is True
     print(f"[RUST-01] Heartbeat POST returned {hb.status_code}: PASS")
 
-    time.sleep(1)
-
-    records = list(db.asset_compliance.find({"assetId": TEST_ASSET_ID}))
-    assert records, "No asset_compliance records found"
+    deadline = time.monotonic() + 10
+    records = []
+    while time.monotonic() < deadline:
+        records = list(db.asset_compliance.find({"assetId": TEST_ASSET_ID}))
+        if records:
+            break
+        time.sleep(0.25)
+    assert records, "No asset_compliance records found within 10 seconds"
     for doc in records:
         assert doc.get("agent_type") == "rust", f"Missing doc-level agent_type: {doc.get('controlId')}"
         assert any(e.get("agent_type") == "rust" for e in doc.get("evidence", [])), (

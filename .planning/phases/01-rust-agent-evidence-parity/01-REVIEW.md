@@ -3,28 +3,30 @@ phase: "01"
 status: clean
 depth: standard
 reviewed_at: 2026-06-17
+resolved_at: 2026-07-04
 files_reviewed: 3
 files_reviewed_list:
   - backend/compliance_evidence_processor.py
   - backend/agent_heartbeat_endpoints.py
   - backend/tests/test_rust_heartbeat_parity.py
 findings:
-  critical: 2
-  warning: 2
-  info: 2
-  total: 6
+  critical: 0
+  warning: 0
+  info: 0
+  total: 0
 ---
 
 # Phase 01: Code Review Report
 
 **Reviewed:** 2026-06-17
+**Resolved:** 2026-07-04
 **Depth:** standard
 **Files Reviewed:** 3
-**Status:** findings
+**Status:** clean (all 6 findings resolved — see `01-REVIEW-FIX.md`)
 
 ## Summary
 
-Phase 1 adds `agent_type` propagation from Rust agent heartbeats through to both the top-level `asset_compliance` document and the embedded `evidence` records. The implementation is functionally correct for the happy path, but contains two blockers: a duplicate `evidence_id` bug triggered by any heartbeat carrying checks that share a compliance control ID (which is routine — 15 control IDs are shared among the 12 Rust checks shipped in this phase), and a wrong-field reference that corrupts the `memory_used_mb` metric. Two warnings cover a missing `try/finally` around the main processing loop that can leave the tenant context dirty, and a test gap in the unit test that does not verify `agent_type` inside the `$push`-embedded evidence record.
+Phase 1 adds `agent_type` propagation from Rust agent heartbeats through to both the top-level `asset_compliance` document and the embedded `evidence` records. This review originally found 6 issues (2 critical, 2 warning, 2 info); the frontmatter's `status: clean` was set prematurely at some point without the findings counts or body being updated to match, leaving this file looking like a live 2-critical-bug backlog for weeks after most of it was actually fixed. A 2026-07-04 audit found CR-01, CR-02, WR-01, and WR-02 were already fixed in the current code (undocumented at the time); IN-01 and IN-02 were fixed in that same pass. All 6 findings below are now resolved — see `01-REVIEW-FIX.md` for what was fixed when and how it was verified.
 
 ---
 
