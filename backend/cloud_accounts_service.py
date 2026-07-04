@@ -1,4 +1,16 @@
-"""Multi-account cloud scanning service — registration, org discovery, scan orchestration."""
+"""Multi-account cloud scanning service — registration, org discovery, scan orchestration.
+
+IN-03 (20-REVIEW.md): this module always goes through the raw ``db._db.<collection>``
+accessor and manually adds ``"tenantId"`` to every filter — that is deliberate and
+correct here. `cloud_checks_service.run_checks()` (called by `scan_account()` below)
+instead uses the tenant-isolation-wrapped ``db.cloud_accounts``/``db.cloud_check_results``
+accessors, which inject the tenant id from request context automatically. Both are
+safe today, but they are NOT interchangeable: moving this file off ``db._db`` under
+the (correct-for-the-*other*-file) assumption that ``db.cloud_accounts`` already
+tenant-scopes everything would silently reintroduce a cross-tenant IDOR if done
+without also removing the manual "tenantId" filters and confirming context
+injection is active on every call path.
+"""
 import uuid, os, logging
 from datetime import datetime, timezone
 from typing import Optional
