@@ -17,11 +17,11 @@ MCP_TOOLS = {
     },
     "get_control_status": {
         "description": "Get compliance status for a specific control across assets",
-        "params": {"control_id": "string", "framework_id": "string (optional)"},
+        "params": {"control_id": "string"},
     },
     "run_cloud_check": {
         "description": "Run a cloud security check against a provider account",
-        "params": {"provider": "string (aws/azure/gcp)", "account_id": "string", "check_id": "string (optional)"},
+        "params": {"provider": "string (aws/azure/gcp)", "account_id": "string"},
     },
     "list_findings": {
         "description": "List security findings with optional severity filter",
@@ -50,26 +50,45 @@ async def execute_tool(tool_name: str, params: dict = Body(default={}), current_
     tenant_id = get_tenant_id()
 
     if tool_name == "list_frameworks":
-        frameworks = await db._db.compliance_frameworks.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=100)
+        # Global/seeded frameworks carry no tenant field at all; tenant-owned
+        # custom frameworks are stamped with snake_case tenant_id (see
+        # compliance_framework_mgmt_endpoints.py's /api/compliance route).
+        frameworks = await db._db.compliance_frameworks.find(
+            {"$or": [
+                {"tenant_id": {"$exists": False}},
+                {"tenant_id": ""},
+                {"tenant_id": None},
+                {"tenant_id": tenant_id},
+            ]}, {"_id": 0}
+        ).to_list(length=100)
         return {"tool": tool_name, "result": [{"id": f.get("id"), "name": f.get("name")} for f in frameworks]}
 
     if tool_name == "get_control_status":
         control_id = params.get("control_id")
-        if not control_id:
-            raise HTTPException(status_code=400, detail="control_id required")
+        if not isinstance(control_id, str) or not control_id:
+            raise HTTPException(status_code=400, detail="control_id must be a non-empty string")
         results = await db.asset_compliance.find({"controlId": control_id, "tenantId": tenant_id}, {"_id": 0}).to_list(length=200)
-        return {"tool": tool_name, "result": {"control_id": control_id, "assets": len(results), "statuses": {r.get("status") for r in results}}}
+        return {"tool": tool_name, "result": {"control_id": control_id, "assets": len(results), "statuses": sorted({r.get("status") for r in results})}}
 
     if tool_name == "run_cloud_check":
+        account_id = params.get("account_id", "")
+        provider = params.get("provider", "")
+        if not isinstance(account_id, str) or not account_id:
+            raise HTTPException(status_code=400, detail="account_id must be a non-empty string")
+        if provider not in ("aws", "azure", "gcp"):
+            raise HTTPException(status_code=400, detail="provider must be aws, azure, or gcp")
         from cloud_checks_service import cloud_checks_service
-        result = await cloud_checks_service.run_checks(
-            params.get("account_id", ""), params.get("provider", ""), tenant_id
-        )
+        result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
         return {"tool": tool_name, "result": result}
 
     if tool_name == "list_findings":
         severity = params.get("severity")
-        limit = min(params.get("limit", 20), 100)
+        if severity is not None and (not isinstance(severity, str) or not severity):
+            raise HTTPException(status_code=400, detail="severity must be a non-empty string")
+        raw_limit = params.get("limit", 20)
+        if not isinstance(raw_limit, int) or isinstance(raw_limit, bool) or raw_limit < 1:
+            raise HTTPException(status_code=400, detail="limit must be a positive integer")
+        limit = min(raw_limit, 100)
         query = {"tenantId": tenant_id}
         if severity:
             query["severity"] = severity
@@ -78,7 +97,17 @@ async def execute_tool(tool_name: str, params: dict = Body(default={}), current_
 
     if tool_name == "get_compliance_score":
         framework = params.get("framework", "soc2")
-        results = await db.asset_compliance.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=1000)
+        if not isinstance(framework, str) or not framework:
+            raise HTTPException(status_code=400, detail="framework must be a non-empty string")
+        fw = await db._db.compliance_frameworks.find_one({"id": framework}, {"_id": 0})
+        if not fw:
+            raise HTTPException(status_code=404, detail=f"Unknown framework '{framework}'")
+        control_ids = [c.get("id") for c in fw.get("controls", []) if c.get("id")]
+        if not control_ids:
+            return {"tool": tool_name, "result": {"score": 0, "passing": 0, "total": 0, "framework": framework}}
+        results = await db.asset_compliance.find(
+            {"tenantId": tenant_id, "controlId": {"$in": control_ids}}, {"_id": 0}
+        ).to_list(length=1000)
         passing = sum(1 for r in results if r.get("status") == "Compliant")
         total = len(results) or 1
         return {"tool": tool_name, "result": {"score": round(passing / total * 100), "passing": passing, "total": total, "framework": framework}}

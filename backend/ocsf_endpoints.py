@@ -15,6 +15,7 @@ def _to_epoch(iso_str: str) -> int:
     try:
         return int(datetime.fromisoformat(iso_str.replace("Z", "+00:00")).timestamp())
     except Exception:
+        logger.warning("Failed to parse OCSF timestamp %r, using current time", iso_str)
         return int(datetime.now(timezone.utc).timestamp())
 
 

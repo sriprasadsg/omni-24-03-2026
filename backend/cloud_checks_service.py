@@ -14,7 +14,7 @@ from cloud_checks_k8s import K8S_CHECKS
 # DigitalOcean checks
 DO_CHECKS: List[Dict[str, Any]] = [
     {"id": "do-fw-001", "name": "DO Firewall Rules Restrict SSH", "description": "Droplet firewall should restrict SSH to trusted IPs", "provider": "digitalocean", "service": "firewall", "severity": "critical", "frameworks": ["NIST-SC-7", "PCI-1.2.1"], "remediation": "Restrict SSH inbound rules to trusted IPs in DO Cloud Firewall."},
-    {"id": "do-fw-002", "name": "DO Firewall Rules Restrict RDP", "description": "Droplet firewall should restrict RDP to trusted IPs", "provider": "digitalocean", "service": "firewall", "severity": "critical", "frameworks": ["NIST-SC-7", "PCI-1.2.1"], "remediation": "Restrict RDP inbound rules to trusted IPs in DO Cloud Firewall."},
+    {"id": "do-droplet-002", "name": "DO Droplet Snapshot Retention Configured", "description": "Droplets should have automated snapshots with a defined retention policy", "provider": "digitalocean", "service": "droplet", "severity": "medium", "frameworks": ["NIST-CP-9"], "remediation": "Enable scheduled snapshots with a retention policy on DO Droplets."},
     {"id": "do-db-001", "name": "DO Managed Database Encryption at Rest", "description": "DO managed databases should have encryption at rest enabled", "provider": "digitalocean", "service": "database", "severity": "high", "frameworks": ["NIST-SC-28", "PCI-3.4"], "remediation": "Enable encryption at rest on DO managed database clusters."},
     {"id": "do-db-002", "name": "DO Managed Database Backups Enabled", "description": "DO managed databases should have automated backups enabled", "provider": "digitalocean", "service": "database", "severity": "medium", "frameworks": ["NIST-CP-9"], "remediation": "Enable automated daily backups on DO managed database clusters."},
     {"id": "do-spaces-001", "name": "DO Spaces Bucket Public Access Disabled", "description": "DO Spaces buckets must not allow public read access", "provider": "digitalocean", "service": "spaces", "severity": "critical", "frameworks": ["NIST-SC-7", "SOC2-CC6.6"], "remediation": "Disable public read access on DO Spaces buckets."},
@@ -61,6 +61,8 @@ class CloudChecksService:
 
     async def run_checks(self, account_id: str, provider: str, tenant_id: str, credentials_hint: Optional[str] = None) -> Dict:
         """Evaluate checks against the account's imported findings from native scanners."""
+        if provider not in RUNNABLE_PROVIDERS:
+            return {"error": f"provider must be one of {RUNNABLE_PROVIDERS}", "ran": 0}
         db = self._db()
         account = await db.cloud_accounts.find_one({"id": account_id, "tenantId": tenant_id}, {"_id": 0})
         if not account:

@@ -28,10 +28,12 @@ export const ApiExtensionsDashboard: React.FC = () => {
     setToolResult(null);
     try {
       const params = toolInputs[name] ? JSON.parse(toolInputs[name]) : {};
-      const res = await (await authFetch(`/api/mcp/execute/${name}`, {
+      const rawRes = await authFetch(`/api/mcp/execute/${name}`, {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(params),
-      })).json();
+      });
+      const res = await rawRes.json();
       setToolResult(res);
+      if (!rawRes.ok) showToast(res.detail || 'Tool execution failed', 'error');
     } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
     finally { setRunning(''); }
   };
@@ -39,6 +41,7 @@ export const ApiExtensionsDashboard: React.FC = () => {
   const exportOcsf = async (endpoint: string, filename: string) => {
     try {
       const res = await authFetch(endpoint);
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = filename;
@@ -119,13 +122,13 @@ export const ApiExtensionsDashboard: React.FC = () => {
           <p>python backend/scripts/omni-cli.py frameworks list</p>
           <p></p>
           <p># Cloud scan</p>
-          <p>python backend/scripts/omni-cli.py scan cloud digitalocean</p>
+          <p>python backend/scripts/omni-cli.py scan cloud --provider digitalocean --account-id 12345</p>
           <p></p>
           <p># List high-severity findings</p>
-          <p>python backend/scripts/omni-cli.py findings list high</p>
+          <p>python backend/scripts/omni-cli.py findings list --severity high --limit 10</p>
           <p></p>
           <p># Compliance score</p>
-          <p>python backend/scripts/omni-cli.py score soc2</p>
+          <p>python backend/scripts/omni-cli.py score --framework soc2</p>
         </div>
       </div>
     </div>

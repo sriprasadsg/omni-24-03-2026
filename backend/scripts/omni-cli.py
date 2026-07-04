@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """OmniAgent CLI — frameworks, scan, findings, score commands."""
-import os, sys, json, requests
+import json
+import os
+import sys
+
+import click
+import requests
 
 API_URL = os.environ.get("OMNI_API_URL", "http://localhost:5000")
 API_TOKEN = os.environ.get("OMNI_API_TOKEN", "")
+_TIMEOUT_SECONDS = 30
 
 
 def _headers():
@@ -14,77 +20,90 @@ def _headers():
 
 
 def _get(path: str, params: dict = None):
-    r = requests.get(f"{API_URL}{path}", headers=_headers(), params=params)
-    r.raise_for_status()
-    return r.json()
+    try:
+        r = requests.get(f"{API_URL}{path}", headers=_headers(), params=params, timeout=_TIMEOUT_SECONDS)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.RequestException as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 def _post(path: str, data: dict = None):
-    r = requests.post(f"{API_URL}{path}", headers=_headers(), json=data or {})
-    r.raise_for_status()
-    return r.json()
+    try:
+        r = requests.post(f"{API_URL}{path}", headers=_headers(), json=data or {}, timeout=_TIMEOUT_SECONDS)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.RequestException as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
-def cmd_frameworks_list(args):
+@click.group()
+def cli():
+    """OmniAgent CLI — frameworks, scan, findings, score commands."""
+
+
+@cli.group()
+def frameworks():
+    """Compliance framework commands."""
+
+
+@frameworks.command("list")
+def frameworks_list():
+    """List compliance frameworks."""
     data = _get("/api/compliance/frameworks")
     for fw in data.get("frameworks", []):
-        print(f"{fw.get('id', ''):20s} {fw.get('name', '')}")
-    return 0
+        click.echo(f"{fw.get('id', ''):20s} {fw.get('name', '')}")
 
 
-def cmd_scan_cloud(args):
-    provider = args[0] if args else "digitalocean"
-    account_id = args[1] if len(args) > 1 else ""
+@cli.group()
+def scan():
+    """Cloud security scan commands."""
+
+
+@scan.command("cloud")
+@click.option("--provider", default="digitalocean", help="Cloud provider (aws/azure/gcp)")
+@click.option("--account-id", default="", help="Cloud account ID")
+def scan_cloud(provider, account_id):
+    """Run a cloud security check against a provider account."""
     result = _post("/api/mcp/execute/run_cloud_check", {"provider": provider, "account_id": account_id})
-    print(json.dumps(result.get("result", result), indent=2))
-    return 0
+    click.echo(json.dumps(result.get("result", result), indent=2))
 
 
-def cmd_findings_list(args):
-    sev = args[0] if args else None
-    params = {"severity": sev, "limit": 20} if sev else {"limit": 20}
+@cli.group()
+def findings():
+    """Security findings commands."""
+
+
+@findings.command("list")
+@click.option("--severity", default=None, help="Filter by severity (critical/high/medium/low)")
+@click.option("--limit", default=20, type=int, help="Max results to fetch")
+def findings_list(severity, limit):
+    """List security findings."""
+    params = {"limit": limit}
+    if severity:
+        params["severity"] = severity
     data = _get("/api/ocsf/findings", params)
     items = data.get("items", [])
-    print(f"{'Title':50s} {'Severity':10s}")
-    print("-" * 60)
+    click.echo(f"{'Title':50s} {'Severity':10s}")
+    click.echo("-" * 60)
     for f in items[:10]:
         title = f.get("finding", {}).get("title", "")[:48]
         sev = f.get("severity", "")
-        print(f"{title:50s} {sev:10s}")
-    return 0
+        click.echo(f"{title:50s} {sev:10s}")
 
 
-def cmd_score(args):
-    framework = args[0] if args else "soc2"
+@cli.command()
+@click.option("--framework", default="soc2", help="Framework id (soc2/iso27001/pci_dss/etc)")
+def score(framework):
+    """Get overall compliance score for a framework."""
     result = _post("/api/mcp/execute/get_compliance_score", {"framework": framework})
     data = result.get("result", {})
-    print(f"Framework: {data.get('framework', framework)}")
-    print(f"Score:     {data.get('score', 0)}%")
-    print(f"Passing:   {data.get('passing', 0)}/{data.get('total', 0)}")
-    return 0
-
-
-COMMANDS = {
-    "frameworks list": cmd_frameworks_list,
-    "scan cloud": cmd_scan_cloud,
-    "findings list": cmd_findings_list,
-    "score": cmd_score,
-}
-
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: omni-cli.py <command> [args...]")
-        print("Commands: frameworks list, scan cloud [provider] [account-id], findings list [severity], score [framework]")
-        return 1
-    cmd = " ".join(sys.argv[1:])
-    for prefix, fn in sorted(COMMANDS.items(), key=lambda x: -len(x[0])):
-        if cmd.startswith(prefix):
-            rest = cmd[len(prefix):].strip().split()
-            return fn(rest)
-    print(f"Unknown command: {cmd}")
-    return 1
+    click.echo(f"Framework: {data.get('framework', framework)}")
+    click.echo(f"Score:     {data.get('score', 0)}%")
+    click.echo(f"Passing:   {data.get('passing', 0)}/{data.get('total', 0)}")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    cli()
