@@ -28,6 +28,13 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     # entire review/approve/reject workflow absent, surfaced only by a
     # single ERROR-level startup log line.
     "evidence_review_endpoints",
+    # CR-02 (20-REVIEW.md): cloud_accounts_service raises RuntimeError at
+    # import time when CLOUD_CREDENTIALS_KEY is unset in production, meant
+    # to hard-block startup. Without being required here, that RuntimeError
+    # is caught by _load()'s generic except-and-log path and swallowed —
+    # the app boots fine with the entire /api/cloud-accounts/* surface
+    # silently absent instead of refusing to start as intended.
+    "cloud_account_endpoints",
 })
 
 
