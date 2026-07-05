@@ -242,6 +242,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'agentCapabilities', label: 'Agent Capabilities', icon: <ServerIcon size={20} />, permission: 'view:agent_capabilities' },
                 { view: 'assetManagement', label: 'Assets', icon: <DatabaseIcon size={20} />, permission: 'view:assets' },
                 { view: 'patchManagement', label: 'Patching', icon: <ShieldAlertIcon size={20} />, permission: 'view:patching' },
+                { view: 'deploymentApprovals', label: 'Deployment Approvals', icon: <ShieldCheckIcon size={20} />, permission: 'view:patching' },
                 { view: 'softwareUpdates', label: 'Software Updates', icon: <ShieldAlertIcon size={20} />, permission: 'view:software_updates' },
                 { view: 'softwareDeployment', label: 'Software Deployment', icon: <BoxIcon size={20} />, permission: 'view:software_deployment' },
                 { view: 'windowsAutopilot', label: 'Windows Autopilot', icon: <MonitorIcon size={20} />, permission: 'view:autopilot' },

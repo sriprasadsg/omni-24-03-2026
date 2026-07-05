@@ -43,6 +43,7 @@ const CloudAccountsDashboard = lazy(() => import('./components/CloudAccountsDash
 const NotificationsDashboard = lazy(() => import('./components/NotificationsDashboard').then(m => ({ default: m.NotificationsDashboard })));
 const ApiExtensionsDashboard = lazy(() => import('./components/ApiExtensionsDashboard').then(m => ({ default: m.ApiExtensionsDashboard })));
 const IacContainerDashboard = lazy(() => import('./components/IacContainerDashboard').then(m => ({ default: m.IacContainerDashboard })));
+const ApprovalDashboard = lazy(() => import('./components/ApprovalDashboard').then(m => ({ default: m.ApprovalDashboard })));
 const AIGovernanceDashboard = lazy(() => import('./components/AIGovernanceDashboard').then(m => ({ default: m.AIGovernanceDashboard })));
 const FinOpsBillingPage = lazy(() => import('./components/FinOpsBillingPage').then(m => ({ default: m.FinOpsBillingPage })));
 const AuditLogDashboard = lazy(() => import('./components/AuditLogDashboard').then(m => ({ default: m.AuditLogDashboard })));
@@ -411,6 +412,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   maturityScore: 'view:compliance',
   modelMonitoring: 'view:mlops',
   soar: 'manage:playbooks',
+  deploymentApprovals: 'view:patching',
 };
 
 
@@ -1695,6 +1697,7 @@ const App: React.FC = () => {
       case 'assetManagement': return <ErrorBoundary name="AssetManagementDashboard"><AssetManagementDashboard assets={tenantData.assets} patches={tenantData.patches} onRunVulnerabilityScan={handleRunVulnerabilityScan} filters={assetFilters} onClearFilters={() => setAssetFilters([])} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} onDeleteAsset={handleDeleteAsset} /></ErrorBoundary>;
       case 'softwareUpdates': return <ErrorBoundary name="SoftwareUpdateManagement"><SoftwareUpdateManagement assets={tenantData.assets} /></ErrorBoundary>;
       case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} /></ErrorBoundary>;
+      case 'deploymentApprovals': return <ErrorBoundary name="ApprovalDashboard"><ApprovalDashboard currentUser={currentUser} /></ErrorBoundary>;
       case 'vulnerabilityManagement': return <ErrorBoundary name="VulnerabilityManagement"><VulnerabilityManagement /></ErrorBoundary>;
       case 'cloudSecurity': return <ErrorBoundary name="CloudSecurityDashboard"><CloudSecurityDashboard cloudAccounts={tenantData.cloudAccounts} findings={tenantData.cspmFindings} onAddAccount={handleAddCloudAccount} /></ErrorBoundary>;
       case 'cloudAccounts': return <ErrorBoundary name="CloudAccountsDashboard"><CloudAccountsDashboard /></ErrorBoundary>;
