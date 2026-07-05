@@ -45,7 +45,11 @@ function Prompt-Input ([string]$label, [string]$default = "", [switch]$Secret) {
     if ($Secret) {
         $secure = Read-Host -Prompt "  $prompt" -AsSecureString
         $bstr   = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-        return [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        try {
+            return [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        } finally {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        }
     }
     $value = Read-Host -Prompt "  $prompt"
     if ($value) { return $value }
@@ -128,7 +132,7 @@ if ($Register -and $TenantKey -and -not $AgentToken) {
     Write-Header "Registering Agent with Backend"
 
     $hostname   = $env:COMPUTERNAME
-    $os_version = (Get-WmiObject Win32_OperatingSystem).Caption
+    $os_version = (Get-CimInstance Win32_OperatingSystem).Caption
 
     $body = @{
         name       = $AgentName
