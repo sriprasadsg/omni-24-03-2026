@@ -272,6 +272,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'dlp', label: 'Data Loss Prevention', icon: <ShieldLockIcon size={20} />, permission: 'view:security' },
                 { view: 'cloudSecurity', label: 'Cloud Security', icon: <CloudShieldIcon size={20} />, permission: 'view:cloud_security' },
                 { view: 'cloudAccounts', label: 'Multi-Account Scanning', icon: <CloudShieldIcon size={20} />, permission: 'view:cloud_security' },
+                { view: 'iacContainer', label: 'IaC & Container Security', icon: <FileCodeIcon size={20} />, permission: 'view:cloud_security' },
                 { view: 'threatHunting', label: 'Threat Hunting', icon: <SearchIcon size={20} />, permission: 'view:threat_hunting', minTier: 'Pro', featureKey: 'threat_hunting' },
                 { view: 'siem', label: 'SIEM Dashboard (OCSF)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'threatIntelligence', label: 'Threat Intelligence', icon: <TargetIcon size={20} />, permission: 'view:threat_intel' },

@@ -180,6 +180,7 @@ export type AppView =
   | 'cloudAccounts'
   | 'notificationsRouting'
   | 'apiExtensions'
+  | 'iacContainer'
   | 'privacyLegal';
 
 
