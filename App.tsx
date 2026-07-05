@@ -37,6 +37,11 @@ const CloudSecurityDashboard = lazy(() => import('./components/CloudSecurityDash
 const SecurityDashboard = lazy(() => import('./components/SecurityDashboard').then(m => ({ default: m.SecurityDashboard })));
 const ComplianceDashboard = lazy(() => import('./components/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })));
 const ProgramsDashboard = lazy(() => import('./components/ProgramsDashboard').then(m => ({ default: m.ProgramsDashboard })));
+const SaaSIntegrationsDashboard = lazy(() => import('./components/SaaSIntegrationsDashboard'));
+const PrivacyLegalDashboard = lazy(() => import('./components/PrivacyLegalDashboard').then(m => ({ default: m.PrivacyLegalDashboard })));
+const CloudAccountsDashboard = lazy(() => import('./components/CloudAccountsDashboard').then(m => ({ default: m.CloudAccountsDashboard })));
+const NotificationsDashboard = lazy(() => import('./components/NotificationsDashboard').then(m => ({ default: m.NotificationsDashboard })));
+const ApiExtensionsDashboard = lazy(() => import('./components/ApiExtensionsDashboard').then(m => ({ default: m.ApiExtensionsDashboard })));
 const AIGovernanceDashboard = lazy(() => import('./components/AIGovernanceDashboard').then(m => ({ default: m.AIGovernanceDashboard })));
 const FinOpsBillingPage = lazy(() => import('./components/FinOpsBillingPage').then(m => ({ default: m.FinOpsBillingPage })));
 const AuditLogDashboard = lazy(() => import('./components/AuditLogDashboard').then(m => ({ default: m.AuditLogDashboard })));
@@ -383,6 +388,11 @@ const viewPermissionMap: Record<AppView, Permission> = {
   ticketWebhooks: 'manage:settings',
   notificationPrefs: 'view:profile',
   securityIntelConnectors: 'view:security',
+  saasIntegrations: 'view:compliance',
+  privacyLegal: 'view:compliance',
+  cloudAccounts: 'view:cloud_security',
+  notificationsRouting: 'view:automation',
+  apiExtensions: 'view:devsecops',
 };
 
 
@@ -1668,9 +1678,11 @@ const App: React.FC = () => {
       case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} /></ErrorBoundary>;
       case 'vulnerabilityManagement': return <ErrorBoundary name="VulnerabilityManagement"><VulnerabilityManagement /></ErrorBoundary>;
       case 'cloudSecurity': return <ErrorBoundary name="CloudSecurityDashboard"><CloudSecurityDashboard cloudAccounts={tenantData.cloudAccounts} findings={tenantData.cspmFindings} onAddAccount={handleAddCloudAccount} /></ErrorBoundary>;
+      case 'cloudAccounts': return <ErrorBoundary name="CloudAccountsDashboard"><CloudAccountsDashboard /></ErrorBoundary>;
       case 'security': return <ErrorBoundary name="SecurityDashboard"><SecurityDashboard securityCases={tenantData.securityCases} playbooks={playbooks} securityEvents={tenantData.securityEvents} users={users} onCaseUpdate={handleCaseUpdate} onGeneratePlaybook={handleGeneratePlaybook} onAnalyzeImpact={handleAnalyzeImpact} threatIntelFeed={threatIntelFeed} /></ErrorBoundary>;
       case 'compliance': return <ErrorBoundary name="ComplianceDashboard"><ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} /></ErrorBoundary>;
       case 'programs': return <ErrorBoundary name="ProgramsDashboard"><ProgramsDashboard /></ErrorBoundary>;
+      case 'saasIntegrations': return <ErrorBoundary name="SaaSIntegrationsDashboard"><SaaSIntegrationsDashboard /></ErrorBoundary>;
       case 'aiGovernance': return <ErrorBoundary name="AIGovernanceDashboard"><AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} /></ErrorBoundary>;
       case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} /></ErrorBoundary>;
       case 'auditLog': return <ErrorBoundary name="AuditLogDashboard"><AuditLogDashboard logs={tenantData.auditLogs} /></ErrorBoundary>;
@@ -1702,7 +1714,9 @@ const App: React.FC = () => {
       );
       case 'profile': return <ErrorBoundary name="UserProfilePage"><UserProfilePage onProfileUpdate={handleProfileUpdate} /></ErrorBoundary>;
       case 'automation': return <ErrorBoundary name="AutomationPoliciesDashboard"><AutomationPoliciesDashboard policies={tenantData.automationPolicies} onUpdatePolicy={handleUpdateAutomationPolicy} onAddPolicy={handleAddAutomationPolicy} /></ErrorBoundary>;
+      case 'notificationsRouting': return <ErrorBoundary name="NotificationsDashboard"><NotificationsDashboard /></ErrorBoundary>;
       case 'devsecops': return <ErrorBoundary name="DevSecOpsDashboard"><DevSecOpsDashboard sboms={tenantData.sboms} softwareComponents={tenantData.softwareComponents} onUploadSbom={handleUploadSbom} sastFindings={tenantData.sastFindings} repositories={tenantData.codeRepositories} initialTab="sast" mode="sast-only" /></ErrorBoundary>;
+      case 'apiExtensions': return <ErrorBoundary name="ApiExtensionsDashboard"><ApiExtensionsDashboard /></ErrorBoundary>;
       case 'sbom': return <ErrorBoundary name="DevSecOpsDashboardSbom"><DevSecOpsDashboard sboms={tenantData.sboms} softwareComponents={tenantData.softwareComponents} onUploadSbom={handleUploadSbom} sastFindings={tenantData.sastFindings} repositories={tenantData.codeRepositories} initialTab="sbom" mode="sbom-only" /></ErrorBoundary>;
       case 'developer_hub': return <ErrorBoundary name="DeveloperHubDashboard"><DeveloperHubDashboard endpoints={apiDocs} /></ErrorBoundary>;
       case 'proactiveInsights': return <ErrorBoundary name="ProactiveInsightsDashboard"><ProactiveInsightsDashboard insights={tenantData.proactiveInsights} /></ErrorBoundary>;
@@ -1816,6 +1830,7 @@ const App: React.FC = () => {
       case 'activeResponse': return <ErrorBoundary name="ActiveResponseDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ActiveResponseDashboard /></Suspense></ErrorBoundary>;
       case 'incidentWarRoom': return <ErrorBoundary name="IncidentWarRoomDashboard"><IncidentWarRoomDashboard /></ErrorBoundary>;
       case 'privacy': return <ErrorBoundary name="PrivacyDashboard"><PrivacyDashboard /></ErrorBoundary>;
+      case 'privacyLegal': return <ErrorBoundary name="PrivacyLegalDashboard"><PrivacyLegalDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
       case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
       case 'customFrameworks': return <ErrorBoundary name="CustomFrameworkBuilder"><CustomFrameworkBuilder /></ErrorBoundary>;

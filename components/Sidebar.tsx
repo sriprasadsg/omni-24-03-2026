@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon } from './icons';
+import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon } from './icons';
 import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
@@ -271,6 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'mitreAttack', label: 'MITRE ATT&CK', icon: <NetworkIcon size={20} />, permission: 'view:security' },
                 { view: 'dlp', label: 'Data Loss Prevention', icon: <ShieldLockIcon size={20} />, permission: 'view:security' },
                 { view: 'cloudSecurity', label: 'Cloud Security', icon: <CloudShieldIcon size={20} />, permission: 'view:cloud_security' },
+                { view: 'cloudAccounts', label: 'Multi-Account Scanning', icon: <CloudShieldIcon size={20} />, permission: 'view:cloud_security' },
                 { view: 'threatHunting', label: 'Threat Hunting', icon: <SearchIcon size={20} />, permission: 'view:threat_hunting', minTier: 'Pro', featureKey: 'threat_hunting' },
                 { view: 'siem', label: 'SIEM Dashboard (OCSF)', icon: <ShieldZapIcon size={20} />, permission: 'view:security' },
                 { view: 'threatIntelligence', label: 'Threat Intelligence', icon: <TargetIcon size={20} />, permission: 'view:threat_intel' },
@@ -326,6 +327,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'pipelineSecurity', label: 'Pipeline Security', icon: <ShieldCheckIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'iacSecurity', label: 'IaC Security', icon: <FileCodeIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'containerScan', label: 'Container Scanning', icon: <BoxIcon size={20} />, permission: 'view:devsecops' },
+                { view: 'apiExtensions', label: 'API Extensions (MCP/OCSF)', icon: <ComponentIcon size={20} />, permission: 'view:devsecops' },
                 { view: 'chaosEngineering', label: 'Chaos Engineering', icon: <BombIcon size={20} />, permission: 'view:chaos', minTier: 'Enterprise', featureKey: 'chaos_engineering' },
                 { view: 'developer_hub', label: 'Developer Hub', icon: <BookKeyIcon size={20} />, permission: 'view:developer_hub' },
                 { view: 'mlops', label: 'MLOps', icon: <WorkflowIcon size={20} />, permission: 'view:mlops', minTier: 'Enterprise', featureKey: 'mlops' },
@@ -341,12 +343,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'programs', label: 'Programs', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceEvidence', label: 'Evidence Collector', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
+                { view: 'saasIntegrations', label: 'SaaS Evidence Integrations', icon: <UploadCloudIcon size={20} />, permission: 'view:compliance' },
                 { view: 'remediationWorkflow', label: 'Remediation', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceFrameworks', label: 'Framework Evaluator', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'customFrameworks', label: 'Custom Frameworks', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'complianceOracle', label: 'Compliance Oracle', icon: <BotIcon size={20} />, permission: 'view:compliance' },
                 { view: 'cissporacle', label: 'CISSP Oracle', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance', minTier: 'Enterprise', featureKey: 'cissp_oracle' },
                 { view: 'privacy', label: 'Privacy (GDPR/CCPA)', icon: <ShieldLockIcon size={20} />, permission: 'view:compliance' },
+                { view: 'privacyLegal', label: 'Privacy & Legal (TIA/LIA)', icon: <GavelIcon size={20} />, permission: 'view:compliance' },
                 { view: 'riskRegister', label: 'Risk Register', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
                 { view: 'vendorManagement', label: 'Vendor Mgmt', icon: <UsersIcon size={20} />, permission: 'view:compliance' },
                 { view: 'trustCenter', label: 'Trust Center', icon: <Globe size={20} />, permission: 'view:compliance' },
@@ -363,6 +367,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             title: "Automation & Intelligence",
             items: [
                 { view: 'automation', label: 'Automation', icon: <WorkflowIcon size={20} />, permission: 'view:automation' },
+                { view: 'notificationsRouting', label: 'Notifications & Domain Scanner', icon: <BellIcon size={20} />, permission: 'view:automation' },
                 { view: 'playbooks', label: 'Playbooks', icon: <BookKeyIcon size={20} />, permission: 'manage:playbooks' },
                 { view: 'jitAccess', label: 'JIT Privileged Access', icon: <Lock size={20} />, permission: 'manage:settings' },
                 { view: 'conditionalAccess', label: 'Conditional Access', icon: <ShieldCheckIcon size={20} />, permission: 'view:conditional_access' },

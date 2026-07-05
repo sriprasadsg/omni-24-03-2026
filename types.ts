@@ -175,7 +175,12 @@ export type AppView =
   | 'agentGroups'
   | 'configDrift'
   | 'fimMonitoring'
-  | 'activeResponse';
+  | 'activeResponse'
+  | 'saasIntegrations'
+  | 'cloudAccounts'
+  | 'notificationsRouting'
+  | 'apiExtensions'
+  | 'privacyLegal';
 
 
 export type Permission =
