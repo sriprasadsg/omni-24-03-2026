@@ -44,6 +44,8 @@ const NotificationsDashboard = lazy(() => import('./components/NotificationsDash
 const ApiExtensionsDashboard = lazy(() => import('./components/ApiExtensionsDashboard').then(m => ({ default: m.ApiExtensionsDashboard })));
 const IacContainerDashboard = lazy(() => import('./components/IacContainerDashboard').then(m => ({ default: m.IacContainerDashboard })));
 const ApprovalDashboard = lazy(() => import('./components/ApprovalDashboard').then(m => ({ default: m.ApprovalDashboard })));
+const CloudChecksScanner = lazy(() => import('./components/CloudChecksScanner'));
+const StagedDeploymentsPage = lazy(() => import('./components/StagedDeploymentVisualizer').then(m => ({ default: m.StagedDeploymentsPage })));
 const AIGovernanceDashboard = lazy(() => import('./components/AIGovernanceDashboard').then(m => ({ default: m.AIGovernanceDashboard })));
 const FinOpsBillingPage = lazy(() => import('./components/FinOpsBillingPage').then(m => ({ default: m.FinOpsBillingPage })));
 const AuditLogDashboard = lazy(() => import('./components/AuditLogDashboard').then(m => ({ default: m.AuditLogDashboard })));
@@ -413,6 +415,8 @@ const viewPermissionMap: Record<AppView, Permission> = {
   modelMonitoring: 'view:mlops',
   soar: 'manage:playbooks',
   deploymentApprovals: 'view:patching',
+  cloudChecksScanner: 'view:cloud_security',
+  stagedDeployments: 'view:software_deployment',
 };
 
 
@@ -1698,9 +1702,11 @@ const App: React.FC = () => {
       case 'softwareUpdates': return <ErrorBoundary name="SoftwareUpdateManagement"><SoftwareUpdateManagement assets={tenantData.assets} /></ErrorBoundary>;
       case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} /></ErrorBoundary>;
       case 'deploymentApprovals': return <ErrorBoundary name="ApprovalDashboard"><ApprovalDashboard currentUser={currentUser} /></ErrorBoundary>;
+      case 'stagedDeployments': return <ErrorBoundary name="StagedDeploymentsPage"><StagedDeploymentsPage /></ErrorBoundary>;
       case 'vulnerabilityManagement': return <ErrorBoundary name="VulnerabilityManagement"><VulnerabilityManagement /></ErrorBoundary>;
       case 'cloudSecurity': return <ErrorBoundary name="CloudSecurityDashboard"><CloudSecurityDashboard cloudAccounts={tenantData.cloudAccounts} findings={tenantData.cspmFindings} onAddAccount={handleAddCloudAccount} /></ErrorBoundary>;
       case 'cloudAccounts': return <ErrorBoundary name="CloudAccountsDashboard"><CloudAccountsDashboard /></ErrorBoundary>;
+      case 'cloudChecksScanner': return <ErrorBoundary name="CloudChecksScanner"><CloudChecksScanner /></ErrorBoundary>;
       case 'iacContainer': return <ErrorBoundary name="IacContainerDashboard"><IacContainerDashboard /></ErrorBoundary>;
       case 'security': return <ErrorBoundary name="SecurityDashboard"><SecurityDashboard securityCases={tenantData.securityCases} playbooks={playbooks} securityEvents={tenantData.securityEvents} users={users} onCaseUpdate={handleCaseUpdate} onGeneratePlaybook={handleGeneratePlaybook} onAnalyzeImpact={handleAnalyzeImpact} threatIntelFeed={threatIntelFeed} /></ErrorBoundary>;
       case 'compliance': return <ErrorBoundary name="ComplianceDashboard"><ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} /></ErrorBoundary>;

@@ -190,7 +190,9 @@ export type AppView =
   | 'maturityScore'
   | 'modelMonitoring'
   | 'soar'
-  | 'deploymentApprovals';
+  | 'deploymentApprovals'
+  | 'cloudChecksScanner'
+  | 'stagedDeployments';
 
 
 export type Permission =

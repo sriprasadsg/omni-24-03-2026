@@ -260,3 +260,72 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
         </div>
     );
 };
+
+interface DeploymentListItem {
+    id: string;
+    status: string;
+    current_stage: string;
+    created_at: string;
+    patch_ids: string[];
+    all_asset_ids: string[];
+}
+
+export const StagedDeploymentsPage: React.FC = () => {
+    const [deployments, setDeployments] = useState<DeploymentListItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    useEffect(() => {
+        authFetch('/api/deployments/staged')
+            .then(res => res.json())
+            .then(data => setDeployments(data.deployments || []))
+            .catch(err => console.error('Error listing staged deployments:', err))
+            .finally(() => setLoading(false));
+    }, []);
+
+    if (selectedId) {
+        return (
+            <div className="space-y-4">
+                <button
+                    onClick={() => setSelectedId(null)}
+                    className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                    ← Back to deployments
+                </button>
+                <StagedDeploymentVisualizer deploymentId={selectedId} />
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Staged Deployments</h2>
+            {loading ? (
+                <div className="p-6 text-gray-500 dark:text-gray-400">Loading deployments...</div>
+            ) : deployments.length === 0 ? (
+                <div className="p-6 text-gray-500 dark:text-gray-400">No staged deployments yet.</div>
+            ) : (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md divide-y divide-gray-200 dark:divide-gray-700">
+                    {deployments.map(d => (
+                        <button
+                            key={d.id}
+                            onClick={() => setSelectedId(d.id)}
+                            className="w-full text-left flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                        >
+                            <div>
+                                <p className="font-medium text-gray-900 dark:text-white">{d.id}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {d.patch_ids?.length || 0} patches • {d.all_asset_ids?.length || 0} assets • created {new Date(d.created_at).toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm font-semibold uppercase">{d.status?.replace('_', ' ')}</p>
+                                <p className="text-xs text-gray-400">stage: {d.current_stage}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
