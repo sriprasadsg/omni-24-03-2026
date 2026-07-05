@@ -3,22 +3,21 @@ import { Shield, AlertTriangle, CheckCircle, RefreshCw, Upload, Terminal, Server
 
 interface IaCResult {
   check_id: string;
-  name: string;
+  check_name: string;
   severity: string;
   status: string;
   message: string;
-  line_ref: number | null;
+  line: number | null;
 }
 
 interface IaCScanResponse {
   scan_id: string;
-  filename: string;
-  type: string;
+  provider: string;
+  total: number;
+  fail: number;
+  findings: IaCResult[];
   scanned_at: string;
-  total_checks: number;
-  pass_count: number;
-  fail_count: number;
-  results: IaCResult[];
+  warning?: string;
 }
 
 interface ContainerVuln {
@@ -80,18 +79,24 @@ export function IacContainerDashboard() {
   const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 
   const fetchIacHistory = useCallback(async () => {
-    const r = await fetch('/api/iac/results', { headers }).then(r => r.ok ? r.json() : null);
-    if (r) setIacHistory(r.items || []);
+    try {
+      const r = await fetch('/api/iac/results', { headers }).then(r => r.ok ? r.json() : null);
+      if (r) setIacHistory(r.items || []);
+    } catch { /* network error — leave existing history in place */ }
   }, []);
 
   const fetchContainerHistory = useCallback(async () => {
-    const r = await fetch('/api/container/results', { headers }).then(r => r.ok ? r.json() : null);
-    if (r) setContainerHistory(r.items || []);
+    try {
+      const r = await fetch('/api/container/results', { headers }).then(r => r.ok ? r.json() : null);
+      if (r) setContainerHistory(r.items || []);
+    } catch { /* network error — leave existing history in place */ }
   }, []);
 
   const fetchIacConfig = useCallback(async () => {
-    const r = await fetch('/api/iac/scan-config', { headers }).then(r => r.ok ? r.json() : null);
-    if (r) setIacConfig(r.config);
+    try {
+      const r = await fetch('/api/iac/scan-config', { headers }).then(r => r.ok ? r.json() : null);
+      if (r) setIacConfig(r.config);
+    } catch { /* network error — leave existing config in place */ }
   }, []);
 
   useEffect(() => {
@@ -228,7 +233,7 @@ export function IacContainerDashboard() {
               <span style={{ fontWeight: 700, fontSize: '0.9em' }}>Scan Results</span>
               {iacResult && (
                 <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>
-                  {iacResult.pass_count} pass · {iacResult.fail_count} fail · {iacResult.total_checks} checks
+                  {iacResult.total - iacResult.fail} pass · {iacResult.fail} fail · {iacResult.total} checks
                 </span>
               )}
             </div>
@@ -237,6 +242,10 @@ export function IacContainerDashboard() {
                 <div style={{ textAlign: 'center', color: '#94a3b8', padding: 40, fontSize: '0.85em' }}>
                   <Shield size={32} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
                   <div>Paste code and click Scan to check for misconfigurations</div>
+                </div>
+              ) : iacResult.warning ? (
+                <div style={{ padding: '10px 14px', background: 'rgba(245,158,11,.1)', borderRadius: 8, color: '#fcd34d', fontSize: '0.8em' }}>
+                  <AlertTriangle size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} /> {iacResult.warning}
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
@@ -251,12 +260,12 @@ export function IacContainerDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {iacResult.results.map((r, i) => (
-                        <tr key={i} style={{ background: r.status === 'fail' ? 'rgba(239,68,68,.03)' : 'transparent' }}>
+                      {iacResult.findings.map((r, i) => (
+                        <tr key={i} style={{ background: r.status.toUpperCase() === 'FAIL' ? 'rgba(239,68,68,.03)' : 'transparent' }}>
                           <td style={{ ...CELL, fontWeight: 600, fontFamily: 'monospace', fontSize: '0.72em' }}>{r.check_id}</td>
                           <td style={{ ...CELL, color: SEV_COLOR[r.severity] || '#94a3b8', fontWeight: 600 }}>{r.severity.toUpperCase()}</td>
-                          <td style={CELL}><span style={BADGE(r.status)}>{r.status === 'fail' ? <AlertTriangle size={11} /> : <CheckCircle size={11} />} {r.status.toUpperCase()}</span></td>
-                          <td style={{ ...CELL, color: '#64748b', fontFamily: 'monospace' }}>{r.line_ref ?? '—'}</td>
+                          <td style={CELL}><span style={BADGE(r.status)}>{r.status.toUpperCase() === 'FAIL' ? <AlertTriangle size={11} /> : <CheckCircle size={11} />} {r.status.toUpperCase()}</span></td>
+                          <td style={{ ...CELL, color: '#64748b', fontFamily: 'monospace' }}>{r.line ?? '—'}</td>
                           <td style={{ ...CELL, color: '#cbd5e1', fontSize: '0.74em' }}>{r.message}</td>
                         </tr>
                       ))}
@@ -278,10 +287,10 @@ export function IacContainerDashboard() {
                   {iacHistory.map((h, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,.02)', borderRadius: 8 }}>
                       <FileCode size={14} color="#94a3b8" />
-                      <span style={{ fontSize: '0.78em', color: '#cbd5e1', fontWeight: 600 }}>{h.filename}</span>
-                      <span style={{ fontSize: '0.72em', color: SEV_COLOR[h.type], background: `${SEV_COLOR[h.type]}15`, borderRadius: 4, padding: '1px 6px' }}>{h.type}</span>
-                      <span style={{ fontSize: '0.72em', color: '#6ee7b7' }}>{h.pass_count} pass</span>
-                      {h.fail_count > 0 && <span style={{ fontSize: '0.72em', color: '#fca5a5' }}>{h.fail_count} fail</span>}
+                      <span style={{ fontSize: '0.78em', color: '#cbd5e1', fontWeight: 600, fontFamily: 'monospace' }}>{h.scan_id}</span>
+                      <span style={{ fontSize: '0.72em', color: '#a5b4fc', background: 'rgba(99,102,241,.12)', borderRadius: 4, padding: '1px 6px' }}>{h.provider}</span>
+                      <span style={{ fontSize: '0.72em', color: '#6ee7b7' }}>{h.total - h.fail} pass</span>
+                      {h.fail > 0 && <span style={{ fontSize: '0.72em', color: '#fca5a5' }}>{h.fail} fail</span>}
                       <span style={{ marginLeft: 'auto', fontSize: '0.72em', color: '#64748b' }}>{timeAgo(h.scanned_at)}</span>
                     </div>
                   ))}
