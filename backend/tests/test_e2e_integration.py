@@ -384,6 +384,8 @@ def test_report_instruction_result_still_calls_process_evidence():
     db = MagicMock()
     db.agent_instructions = MagicMock()
     db.agent_instructions.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+    db.agents = MagicMock()
+    db.agents.find_one = AsyncMock(return_value=None)
     db.compliance_remediation_tasks = MagicMock()
     db.compliance_remediation_tasks.find = MagicMock(
         return_value=MagicMock(to_list=AsyncMock(return_value=[]))
