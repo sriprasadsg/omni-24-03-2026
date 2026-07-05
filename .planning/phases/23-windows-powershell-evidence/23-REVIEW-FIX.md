@@ -1,25 +1,28 @@
 ---
 phase: 23-windows-powershell-evidence
-fixed_at: 2026-07-02T19:35:00Z
+fixed_at: 2026-07-05T00:00:00Z
 review_path: .planning/phases/23-windows-powershell-evidence/23-REVIEW.md
-iteration: 1
-findings_in_scope: 12
-fixed: 11
-skipped: 1
-status: partial
+iteration: 2
+findings_in_scope: 16
+fixed: 16
+skipped: 0
+status: complete
 ---
 
 # Phase 23: Code Review Fix Report
 
-**Fixed at:** 2026-07-02T19:35:00Z
+**Fixed at:** 2026-07-05T00:00:00Z (iteration 2; iteration 1 was 2026-07-02T19:35:00Z)
 **Source review:** .planning/phases/23-windows-powershell-evidence/23-REVIEW.md
-**Iteration:** 1
+**Iteration:** 2
 
 **Summary:**
-- Findings in scope: 12 (4 critical, 8 warning — `fix_scope: critical_warning`; the 4 Info
-  findings were explicitly out of scope for this pass and were not touched)
-- Fixed: 11
-- Skipped: 1
+- Findings in scope: 16 (4 critical, 8 warning, 4 info — full review scope)
+- Fixed: 16
+- Skipped: 0
+
+**Iteration 2 (2026-07-05)** closed out the remaining Info findings (IN-01, IN-02, IN-03 —
+IN-04 was already closed as a side effect of the CR-01 fix below) and revisited WR-05, which
+iteration 1 had left as a documented skip. WR-05 is now fixed: see its entry below.
 
 ## Fixed Issues
 
@@ -158,30 +161,64 @@ alternative). No `tsc` available; verified by re-reading (Tier 1).
 silently propagating an empty string that later degrades to `tenant_id=None` inside
 `process_automated_evidence`. All 7 tests in `test_powershell_evidence.py` pass.
 
-## Skipped Issues
-
 ### WR-05: Agent binary/scripts downloaded and executed as SYSTEM with no signature or checksum verification
 
-**File:** `backend/static/win-install.ps1:94-105, 138-146`; `agent-rust/install-service.ps1:140-147`
-**Reason:** The review's own suggested fix requires new backend infrastructure — a
-checksum-serving endpoint (e.g. `/api/agent-updates/checksum`) — that does not currently
-exist. The download endpoint this would need to attach to
-(`/api/agent-updates/download/{filename}` in `backend/update_endpoints.py`) is **not** in
-this phase's reviewed file set (`files_reviewed_list` in `23-REVIEW.md` lists 14 files;
-`update_endpoints.py` is not among them). Implementing this properly means: (1) a new
-backend endpoint computing/serving a SHA-256 alongside the binary, (2) client-side
-verification logic added to two separate PowerShell installers before
-`Copy-Item`/service registration, and (3) end-to-end testing of a download-then-verify
-flow that cannot be exercised in this environment (no Windows runtime, no way to invoke
-the actual HTTP download/build pipeline). This is a scoped new feature rather than a
-targeted fix, and forcing it through this automated pass risked shipping unverified,
-untestable PowerShell changes to a security-sensitive code path. Recommend addressing as
-a dedicated follow-up phase/plan with proper design (checksum storage, HTTPS enforcement
-question, and/or Authenticode signing) rather than a quick patch here.
+**Files modified:** `backend/update_endpoints.py`, `backend/static/win-install.ps1`,
+`agent-rust/install-service.ps1`, `backend/tests/test_agent_update_checksum.py` (new)
+**Fixed:** iteration 2 (2026-07-05)
+**Applied fix:** Added `GET /api/agent-updates/checksum/{filename}` in `update_endpoints.py`,
+sharing a new `_resolve_servable_path()` helper with the existing `/download/{filename}`
+endpoint so a checksum can never be computed over a different file than the one actually
+served. Both PowerShell installers gained a `Confirm-Checksum` helper that fetches the
+expected SHA-256 and compares it against `Get-FileHash` on the downloaded file:
+`win-install.ps1` aborts the omni-agent.exe install on mismatch (before `Copy-Item`); both
+scripts' `Collect-Evidence.ps1` download deletes the file and warns on mismatch, consistent
+with that step's existing non-fatal handling. `agent-rust/install-service.ps1`'s exe comes
+from a local build artifact rather than a download, so only its `Collect-Evidence.ps1` fetch
+needed wiring. Added 5 new backend tests confirming checksum/download resolve to the same
+file (including the versioned-fallback and `Collect-Evidence.ps1` cases) and 404 when
+missing. This confirms transport integrity between the platform and installer only — it is
+not a substitute for Authenticode signing, which remains a longer-term follow-up per the
+original finding. No PowerShell interpreter available in this environment; the `.ps1`
+changes are verified by manual reasoning (Tier 3 fallback) plus mechanical brace/paren
+balance checks.
 **Original issue:** `Invoke-WebRequest` fetches `omni-agent.exe`/`Collect-Evidence.ps1`
 with no checksum, signature, or HTTPS-enforcement check, then runs them as `LocalSystem` —
 a MITM attacker on a shared network segment could substitute a malicious binary/script that
 then executes with full SYSTEM privileges.
+
+### IN-01: `content_hash` provides no real tamper detection
+
+**Files modified:** `backend/compliance_evidence_processor.py`
+**Fixed:** iteration 2 (2026-07-05)
+**Applied fix:** Added a note to the generated evidence record's "Evidence Integrity"
+section clarifying that the hash confirms transport integrity between agent and server
+only, and does not authenticate that the agent's collection was untampered — closing the
+gap between the "✅ Verified" / "❌ TAMPERING DETECTED" language and what the check
+actually proves.
+
+### IN-02: SecureString plaintext not zeroed after use
+
+**Files modified:** `agent/installer/Configure-Agent.ps1`
+**Fixed:** iteration 2 (2026-07-05)
+**Applied fix:** Wrapped the `SecureStringToBSTR`/`PtrToStringAuto` pair in `try/finally`
+so `ZeroFreeBSTR($bstr)` always runs before `Prompt-Input` returns, instead of leaving the
+plaintext secret's BSTR allocation unfreed in process memory.
+
+### IN-03: `Get-WmiObject` is deprecated/unavailable on PowerShell 7+
+
+**Files modified:** `agent/installer/Configure-Agent.ps1`
+**Fixed:** iteration 2 (2026-07-05)
+**Applied fix:** Replaced `Get-WmiObject Win32_OperatingSystem` with
+`Get-CimInstance Win32_OperatingSystem`, matching the cmdlet already used the same way in
+`Collect-Evidence.ps1`, so the OS-version lookup works on both Windows PowerShell and
+PowerShell 7+ like the other scripts in this phase.
+
+### IN-04: Test suite mocks out the exact function whose contract CR-01 violates
+
+**Status:** already fixed as a side effect of the CR-01 fix in iteration 1 — see CR-01 above
+(`test_real_process_automated_evidence_writes_asset_compliance` exercises the real,
+unmocked `process_automated_evidence`).
 
 ---
 
