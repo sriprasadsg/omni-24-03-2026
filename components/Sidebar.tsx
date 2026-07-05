@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon } from './icons';
-import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, UserCheck, ClipboardCheck, Cookie, RadioTower } from 'lucide-react';
+import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, UserCheck, ClipboardCheck, Cookie, RadioTower, BarChart2, Radar } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useFeatures } from '../contexts/FeaturesContext';
@@ -333,6 +333,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'chaosEngineering', label: 'Chaos Engineering', icon: <BombIcon size={20} />, permission: 'view:chaos', minTier: 'Enterprise', featureKey: 'chaos_engineering' },
                 { view: 'developer_hub', label: 'Developer Hub', icon: <BookKeyIcon size={20} />, permission: 'view:developer_hub' },
                 { view: 'mlops', label: 'MLOps', icon: <WorkflowIcon size={20} />, permission: 'view:mlops', minTier: 'Enterprise', featureKey: 'mlops' },
+                { view: 'modelMonitoring', label: 'Model Monitoring', icon: <Radar size={20} />, permission: 'view:mlops', minTier: 'Enterprise', featureKey: 'mlops' },
                 { view: 'llmops', label: 'LLMOps', icon: <BotIcon size={20} />, permission: 'view:llmops', minTier: 'Enterprise', featureKey: 'llmops' },
                 { view: 'automl', label: 'AutoML', icon: <LightbulbIcon size={20} />, permission: 'view:automl', minTier: 'Enterprise', featureKey: 'automl' },
                 { view: 'abTesting', label: 'A/B Testing', icon: <GitMergeIcon size={20} />, permission: 'manage:experiments' },
@@ -347,6 +348,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'auditProgram', label: 'Audit Programs', icon: <ClipboardCheck size={20} />, permission: 'view:compliance' },
                 { view: 'accessReview', label: 'Access Reviews', icon: <UserCheck size={20} />, permission: 'view:compliance' },
                 { view: 'cookieConsent', label: 'Cookie Consent', icon: <Cookie size={20} />, permission: 'view:compliance' },
+                { view: 'maturityScore', label: 'Maturity Score', icon: <BarChart2 size={20} />, permission: 'view:compliance' },
                 { view: 'complianceEvidence', label: 'Evidence Collector', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'saasIntegrations', label: 'SaaS Evidence Integrations', icon: <UploadCloudIcon size={20} />, permission: 'view:compliance' },
                 { view: 'remediationWorkflow', label: 'Remediation', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
@@ -374,6 +376,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'automation', label: 'Automation', icon: <WorkflowIcon size={20} />, permission: 'view:automation' },
                 { view: 'notificationsRouting', label: 'Notifications & Domain Scanner', icon: <BellIcon size={20} />, permission: 'view:automation' },
                 { view: 'playbooks', label: 'Playbooks', icon: <BookKeyIcon size={20} />, permission: 'manage:playbooks' },
+                { view: 'soar', label: 'SOAR Executions', icon: <ZapIcon size={20} />, permission: 'manage:playbooks' },
                 { view: 'jitAccess', label: 'JIT Privileged Access', icon: <Lock size={20} />, permission: 'manage:settings' },
                 { view: 'conditionalAccess', label: 'Conditional Access', icon: <ShieldCheckIcon size={20} />, permission: 'view:conditional_access' },
                 { view: 'scheduledReports', label: 'Scheduled Reports', icon: <ClipboardListIcon size={20} />, permission: 'view:reporting' },

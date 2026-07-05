@@ -206,6 +206,9 @@ const ApiStatusDashboard = lazy(() => import('./components/ApiStatusDashboard').
 const AuditProgramDashboard = lazy(() => import('./components/AuditProgramDashboard'));
 const CookieConsentDashboard = lazy(() => import('./components/CookieConsentDashboard'));
 const ExecutiveDashboard = lazy(() => import('./components/ExecutiveDashboard').then(m => ({ default: m.ExecutiveDashboard })));
+const MaturityScoreDashboard = lazy(() => import('./components/MaturityScoreDashboard'));
+const ModelMonitoringDashboard = lazy(() => import('./components/ModelMonitoringDashboard').then(m => ({ default: m.ModelMonitoringDashboard })));
+const SOARDashboard = lazy(() => import('./components/SOARDashboard').then(m => ({ default: m.SOARDashboard })));
 
 
 import * as api from './services/apiService';
@@ -405,6 +408,9 @@ const viewPermissionMap: Record<AppView, Permission> = {
   auditProgram: 'view:compliance',
   cookieConsent: 'view:compliance',
   executiveSummary: 'view:reporting',
+  maturityScore: 'view:compliance',
+  modelMonitoring: 'view:mlops',
+  soar: 'manage:playbooks',
 };
 
 
@@ -1699,6 +1705,7 @@ const App: React.FC = () => {
       case 'auditProgram': return <ErrorBoundary name="AuditProgramDashboard"><AuditProgramDashboard /></ErrorBoundary>;
       case 'accessReview': return <ErrorBoundary name="AccessReviewDashboard"><AccessReviewDashboard /></ErrorBoundary>;
       case 'cookieConsent': return <ErrorBoundary name="CookieConsentDashboard"><CookieConsentDashboard /></ErrorBoundary>;
+      case 'maturityScore': return <ErrorBoundary name="MaturityScoreDashboard"><MaturityScoreDashboard /></ErrorBoundary>;
       case 'saasIntegrations': return <ErrorBoundary name="SaaSIntegrationsDashboard"><SaaSIntegrationsDashboard /></ErrorBoundary>;
       case 'aiGovernance': return <ErrorBoundary name="AIGovernanceDashboard"><AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} /></ErrorBoundary>;
       case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} /></ErrorBoundary>;
@@ -1714,6 +1721,7 @@ const App: React.FC = () => {
       case 'incidentImpact': return <ErrorBoundary name="IncidentImpactDashboard"><IncidentImpactDashboard graph={incidentImpactGraph!} context={viewingImpactFor} alerts={tenantData.alerts} cases={tenantData.securityCases} onAnalyze={handleAnalyzeImpact} /></ErrorBoundary>;
       case 'pentest': return <ErrorBoundary name="PentestDashboard"><PentestDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
       case 'playbooks': return <ErrorBoundary name="PlaybookBuilder"><PlaybookBuilder /></ErrorBoundary>;
+      case 'soar': return <ErrorBoundary name="SOARDashboard"><SOARDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
       case 'threatIntelligence': return (
         <ErrorBoundary name="ThreatIntelligence">
           <div className="space-y-6">
@@ -1803,6 +1811,7 @@ const App: React.FC = () => {
       case 'dataGovernance': return <ErrorBoundary name="DataGovernanceDashboard"><DataGovernanceDashboard /></ErrorBoundary>;
       case 'webMonitoring': return <ErrorBoundary name="WebMonitoringDashboard"><WebMonitoringDashboard /></ErrorBoundary>;
       case 'mlops': return <ErrorBoundary name="MLOpsDashboard"><MLOpsDashboard /></ErrorBoundary>;
+      case 'modelMonitoring': return <ErrorBoundary name="ModelMonitoringDashboard"><ModelMonitoringDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
       case 'automl': return <ErrorBoundary name="AutoMLDashboard"><AutoMLDashboard /></ErrorBoundary>;
       case 'xai': return <ErrorBoundary name="XAIDashboard"><XAIDashboard /></ErrorBoundary>;
       case 'abTesting': return <ErrorBoundary name="ABTestingDashboard"><ABTestingDashboard /></ErrorBoundary>;

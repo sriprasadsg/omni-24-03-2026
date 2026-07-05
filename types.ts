@@ -186,7 +186,10 @@ export type AppView =
   | 'apiStatus'
   | 'auditProgram'
   | 'cookieConsent'
-  | 'executiveSummary';
+  | 'executiveSummary'
+  | 'maturityScore'
+  | 'modelMonitoring'
+  | 'soar';
 
 
 export type Permission =
