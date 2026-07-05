@@ -143,11 +143,11 @@
 
 ### IaC & Container Security (Phase 24)
 
-- [ ] **IAC-01**: `POST /api/iac/scan` accepts code content or a git repo URL and returns check results (`check_id`, `severity`, `status`, `message`, `line_ref`) across 25+ checks spanning Terraform, CloudFormation, and Kubernetes manifests
-- [ ] **IAC-02**: `POST /api/container/scan` accepts an `image_name:tag` and returns vulnerability results (Trivy-backed when available, simulated fallback otherwise); `GET /api/iac/results` and `GET /api/container/results` return tenant-scoped scan history
-- [ ] **IAC-03**: `POST`/`GET /api/iac/scan-config` manages scanner config (excluded paths, severity threshold, auto-scan); all 8 unit tests in `test_iac_scanner.py` pass
+- [x] **IAC-01**: `POST /api/iac/scan` accepts code content or a git repo URL and returns check results (`check_id`, `severity`, `status`, `message`, `line_ref`) across 25+ checks spanning Terraform, CloudFormation, and Kubernetes manifests
+- [x] **IAC-02**: `POST /api/container/scan` accepts an `image_name:tag` and returns vulnerability results (Trivy-backed when available, simulated fallback otherwise); `GET /api/iac/results` and `GET /api/container/results` return tenant-scoped scan history
+- [x] **IAC-03**: `POST`/`GET /api/iac/scan-config` manages scanner config (excluded paths, severity threshold, auto-scan); all 8 unit tests in `test_iac_scanner.py` pass
 
-*In progress as of 2026-07-05: implementation and a code review both ran (`24-REVIEW.md` — 16 findings, 5 critical) surfacing real defects — PASS/FAIL logic inverted for 12/17 Terraform checks, 5/9 Kubernetes checks always reporting FAIL regardless of manifest content, CloudFormation advertised but with zero implemented checks, a broken RBAC test-override causing 5/8 tests to fail, and a dashboard whose TS interfaces don't match the actual API response shape (crashes on every scan). A fix pass is underway to resolve all 16 findings, restyle the dashboard per `24-UI-SPEC.md` (currently inline-styled, inconsistent with house Tailwind convention), and wire it into app navigation (`24-CONTEXT.md` explicitly calls out that this phase must not repeat the orphaned-dashboard pattern seen in 14/18/20/21/22).*
+*Verified complete 2026-07-05: all 16 `24-REVIEW.md` findings (5 critical — inverted Terraform PASS/FAIL logic, Kubernetes always-FAIL override, missing CloudFormation checks, broken RBAC test override, dashboard/API type mismatch — plus 8 warning + 3 info findings) were fixed across commits `4b9b0f6`..`0acb855`. `pytest tests/test_iac_scanner.py` passes 8/8, re-run directly. Dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md` and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation (`view: 'iacContainer'`, Security (SecOps)) — confirmed reachable via production build chunk output, avoiding the orphaned-dashboard pattern seen in phases 14/18/20/21/22.*
 
 ## Out of Scope
 
@@ -213,9 +213,9 @@
 | API-02 | Phase 22 | Complete |
 | API-03 | Phase 22 | Complete |
 | API-04 | Phase 22 | Complete |
-| IAC-01 | Phase 24 | In progress — critical bugs found in review, fix underway |
-| IAC-02 | Phase 24 | In progress — critical bugs found in review, fix underway |
-| IAC-03 | Phase 24 | In progress — critical bugs found in review, fix underway |
+| IAC-01 | Phase 24 | Complete |
+| IAC-02 | Phase 24 | Complete |
+| IAC-03 | Phase 24 | Complete |
 
 **Coverage:**
 
@@ -225,7 +225,7 @@
 - v1.4 requirements: 4 total, all complete
 - v1.5 requirements: 2 total, 0 complete
 - v2.0 requirements: 30 total, all 30 complete as of 2026-07-05 (re-ran every phase's test suite directly and fixed 5 orphaned-dashboard nav-wiring gaps — see per-phase notes above and the milestone note at the top of this section)
-- v2.1 requirements: 3 total (IAC-01..03), 0 complete — Phase 24 implementation exists but review found 5 critical defects (inverted PASS/FAIL logic, missing CloudFormation checks, broken test auth override, dashboard crash); fix in progress
+- v2.1 requirements: 3 total (IAC-01..03), all complete — verified 2026-07-05 (8/8 tests pass, dashboard restyled and wired into navigation)
 - Unmapped: 0 ✓
 
 ---

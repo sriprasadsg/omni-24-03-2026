@@ -6,7 +6,7 @@
 - **v1.1** — Evidence Quality & Compliance Scoring: compliance status wiring, staleness detection, bulk upload, chain-of-custody audit trail, tenant compliance score. 4 phases, 11 plans, SCORE-01/02/03 + STATUS-01/02 + STALE-01/02 + COC-01/02 + BULK-01/02/03 + UI-01. Shipped 2026-06-22.
 - **v1.2** — Reporting Automation: scheduled compliance report generation and email delivery. 1 phase, SCHED-01/02.
 - **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
-- **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, in progress — code review found critical defects, fix underway).
+- **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, complete — verified 2026-07-05).
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -346,6 +346,6 @@ June 2026 audit.
 
 **Depends on:** Phase 23
 
-**Plans:** 1/1 planned — implemented, code review found 16 findings (5 critical), fix pass in progress (2026-07-05)
+**Plans:** 1/1 complete — all 16 review findings fixed, dashboard restyled and wired into navigation, verified 2026-07-05
 
-- [ ] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs) — implemented but `24-REVIEW.md` found inverted PASS/FAIL logic (12/17 Terraform checks), Kubernetes checks always failing, missing CloudFormation checks, a broken test auth override, and a dashboard/API type mismatch that crashes on scan; fixing now
+- [x] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs). All 16 `24-REVIEW.md` findings fixed (inverted PASS/FAIL logic, Kubernetes always-fail override, missing CloudFormation checks, broken test auth override, dashboard/API type mismatch, plus 8 warning/info findings) — 8/8 tests pass, re-run and confirmed. Dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md`, and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation (`view: 'iacContainer'`, Security (SecOps) section) — confirmed reachable via build chunk output.

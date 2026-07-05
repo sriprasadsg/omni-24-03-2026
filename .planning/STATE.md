@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Windows PowerShell Evidence
-status: In progress
-stopped_at: Phase 24 fix pass underway — 16 review findings (5 critical) being resolved, plus dashboard nav wiring
-last_updated: "2026-07-05T00:00:00.000Z"
+status: Complete
+stopped_at: Phase 24 complete — all 16 review findings fixed, dashboard restyled and wired into navigation
+last_updated: "2026-07-05T15:10:00.000Z"
 progress:
   total_phases: 24
-  completed_phases: 23
+  completed_phases: 24
   total_plans: 41
-  completed_plans: 40
-  percent: 96
+  completed_plans: 41
+  percent: 100
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 24 — iac-container-security (implementation exists, fixing 16 code-review findings + wiring nav)
+**Current focus:** All planned phases (1–24) complete. Next: define v2.2 or a new milestone.
 
 ## Current Phase
 
@@ -30,9 +30,9 @@ Goal: Implement all 9 phases (14–22) identified in the June 2026 audit against
 
 All 9 phases (14–22) verified complete this session: every phase's test suite was re-run directly and passes, and 5 dashboards that were fully built but never reachable in the app (`SaaSIntegrationsDashboard`, `PrivacyLegalDashboard`, `CloudAccountsDashboard`, `NotificationsDashboard`, `ApiExtensionsDashboard`) were wired into `App.tsx`/`Sidebar.tsx` navigation — the same class of gap `16-VERIFICATION.md` had caught for `ProgramsDashboard` a day earlier.
 
-**v2.1 Milestone — Windows PowerShell Evidence + IaC/Container Security: IN PROGRESS**
+**v2.1 Milestone — Windows PowerShell Evidence + IaC/Container Security: COMPLETE (verified 2026-07-05)**
 
-Phase 23 complete. Phase 24 (IaC & Container Security) has implementation + a code review (`24-REVIEW.md`, 16 findings, 5 critical) but the findings haven't been fixed yet — a fix pass is underway to resolve them, restyle the dashboard per its UI-SPEC, and wire it into navigation.
+Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md` findings (5 critical) fixed, 8/8 tests pass (re-run and confirmed), dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md`, and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation under Security (SecOps). Confirmed reachable via production build chunk output.
 
 ## Phases
 
@@ -61,7 +61,7 @@ Phase 23 complete. Phase 24 (IaC & Container Security) has implementation + a co
 | 21 | Notification Routing & Domain Scanner | Complete (v2.0) |
 | 22 | API Extensions (MCP, OCSF, CLI, DO) | Complete (v2.0) |
 | 23 | Windows PowerShell Evidence Collection | Complete (v2.1) |
-| 24 | IaC & Container Security | In Progress (v2.1) — fixing 16 review findings |
+| 24 | IaC & Container Security | Complete (v2.1) |
 
 ## Decisions
 
