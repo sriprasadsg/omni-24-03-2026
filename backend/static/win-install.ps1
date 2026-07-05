@@ -55,6 +55,35 @@ function Write-Step([string]$msg) { Write-Host "  > $msg" -ForegroundColor Cyan 
 function Write-Ok([string]$msg)   { Write-Host "  + $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
 
+# WR-05: verify a downloaded file's SHA-256 against the checksum the platform serves
+# alongside it, so a MITM-substituted binary/script is caught before it runs as SYSTEM.
+# This confirms transport integrity between this script and the platform only — it is
+# not a substitute for Authenticode signing.
+function Confirm-Checksum([string]$ApiUrl, [string]$RemoteName, [string]$LocalPath) {
+    $checksumUrl = "$ApiUrl/api/agent-updates/checksum/$RemoteName"
+    try {
+        $resp = Invoke-RestMethod -Uri $checksumUrl -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Write-Warn "Could not fetch checksum for $RemoteName from $checksumUrl`: $_"
+        return $false
+    }
+    $expected = $resp.sha256
+    if (-not $expected) {
+        Write-Warn "Checksum response for $RemoteName had no sha256 field."
+        return $false
+    }
+    $actual = (Get-FileHash -Algorithm SHA256 -Path $LocalPath).Hash
+    if ($actual -ieq $expected) {
+        Write-Ok "Checksum verified: $RemoteName"
+        return $true
+    }
+    Write-Host "`nERROR: Checksum mismatch for $RemoteName" -ForegroundColor Red
+    Write-Host "  Expected: $expected" -ForegroundColor Red
+    Write-Host "  Actual:   $actual" -ForegroundColor Red
+    Write-Host "  Refusing to install a file that does not match the platform's checksum." -ForegroundColor Red
+    return $false
+}
+
 # --- Uninstall -----------------------------------------------------------
 
 if ($Uninstall) {
@@ -101,6 +130,12 @@ try {
 } catch {
     Write-Host "`nERROR: Failed to download from $DownloadUrl`n  $_" -ForegroundColor Red
     Write-Host "  Ensure the platform server is reachable and try again." -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Step "Verifying binary checksum..."
+if (-not (Confirm-Checksum -ApiUrl $ApiUrl -RemoteName "omni-agent.exe" -LocalPath $TmpExe)) {
+    Remove-Item $TmpExe -ErrorAction SilentlyContinue
     exit 1
 }
 
@@ -155,7 +190,13 @@ Write-Step "Downloading Collect-Evidence.ps1..."
 try {
     Invoke-WebRequest -Uri "$ApiUrl/api/agent/collect-evidence-script" `
         -OutFile $EvidenceScript -UseBasicParsing -ErrorAction Stop
-    Write-Ok "Collect-Evidence.ps1 installed: $EvidenceScript"
+    if (Confirm-Checksum -ApiUrl $ApiUrl -RemoteName "Collect-Evidence.ps1" -LocalPath $EvidenceScript) {
+        Write-Ok "Collect-Evidence.ps1 installed: $EvidenceScript"
+    } else {
+        Remove-Item $EvidenceScript -ErrorAction SilentlyContinue
+        Write-Warn "Refusing to keep Collect-Evidence.ps1 that failed checksum verification."
+        Write-Warn "Evidence collection will be unavailable until script is present."
+    }
 } catch {
     Write-Warn "Could not download Collect-Evidence.ps1: $_"
     Write-Warn "Evidence collection will be unavailable until script is present."

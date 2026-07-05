@@ -3,6 +3,7 @@ import logging
 from fastapi.responses import FileResponse, JSONResponse
 import os
 import glob
+import hashlib
 import subprocess
 import time
 import uuid
@@ -212,25 +213,42 @@ async def get_latest_version(platform: str = "windows"):
         "release_date": os.path.getmtime(latest_file)
     }
 
+def _resolve_servable_path(filename: str) -> tuple[str, str]:
+    """Resolve a requested filename to its actual on-disk path.
+
+    Shared by /download and /checksum (WR-05) so a checksum can never be computed
+    from a different file than the one the download endpoint would actually serve.
+    """
+    if filename == "agent.py":
+        agent_path = os.path.join("..", "agent", "agent.py")
+        if os.path.exists(agent_path):
+            return agent_path, "agent.py"
+    if filename == "Collect-Evidence.ps1":
+        return AGENT_COLLECT_PS1, filename
+
+    target_path = os.path.join(BINARY_STORAGE_PATH, filename)
+    # Fallback: if requesting omni-agent.exe but it doesn't exist, try to find the latest version
+    if not os.path.exists(target_path) and filename == "omni-agent.exe":
+        files = glob.glob(os.path.join(BINARY_STORAGE_PATH, "omni-agent-*-windows.exe"))
+        if files:
+            target_path = max(files, key=os.path.getmtime)
+            filename = os.path.basename(target_path)
+    return target_path, filename
+
+
+def _sha256_of(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 @router.get("/download/{filename}")
 async def download_agent_binary(filename: str):
     # Allow downloading specific named files like 'omni-agent.exe' if they exist
     # or map 'omni-agent.exe' to the latest version
-    
-    # Special handling for Python agent
-    if filename == "agent.py":
-        agent_path = os.path.join("..", "agent", "agent.py")
-        if os.path.exists(agent_path):
-            return FileResponse(agent_path, filename="agent.py", media_type="text/plain")
-    
-    target_path = os.path.join(BINARY_STORAGE_PATH, filename)
-    
-    # Fallback: if requesting omni-agent.exe but it doesn't exist, try to find the latest version
-    if not os.path.exists(target_path) and filename == "omni-agent.exe":
-         files = glob.glob(os.path.join(BINARY_STORAGE_PATH, "omni-agent-*-windows.exe"))
-         if files:
-             target_path = max(files, key=os.path.getmtime)
-             filename = os.path.basename(target_path)
+    target_path, filename = _resolve_servable_path(filename)
 
     if not os.path.exists(target_path):
         # Auto-trigger build if file doesn't exist and it's the installer
@@ -248,6 +266,22 @@ async def download_agent_binary(filename: str):
         raise HTTPException(status_code=404, detail="Binary not found")
 
     return FileResponse(target_path, filename=filename, media_type="application/octet-stream")
+
+
+@router.get("/checksum/{filename}")
+async def get_agent_checksum(filename: str):
+    """Serve the SHA-256 of a servable agent binary/script (WR-05).
+
+    Installers fetch this before Copy-Item/service registration and compare it
+    against a local hash of what they actually downloaded, so a MITM-substituted
+    binary or evidence script is detected before it ever runs as SYSTEM. This only
+    protects the transport leg between this server and the installer — it does not
+    replace code signing.
+    """
+    target_path, resolved_filename = _resolve_servable_path(filename)
+    if not os.path.exists(target_path):
+        raise HTTPException(status_code=404, detail="Binary not found")
+    return {"filename": resolved_filename, "algorithm": "sha256", "sha256": _sha256_of(target_path)}
 
 
 @router.post("/build")
