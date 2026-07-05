@@ -181,7 +181,12 @@ export type AppView =
   | 'notificationsRouting'
   | 'apiExtensions'
   | 'iacContainer'
-  | 'privacyLegal';
+  | 'privacyLegal'
+  | 'accessReview'
+  | 'apiStatus'
+  | 'auditProgram'
+  | 'cookieConsent'
+  | 'executiveSummary';
 
 
 export type Permission =

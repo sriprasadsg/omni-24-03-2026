@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon } from './icons';
-import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon } from 'lucide-react';
+import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, UserCheck, ClipboardCheck, Cookie, RadioTower } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useFeatures } from '../contexts/FeaturesContext';
@@ -208,6 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             items: [
                 { view: 'dashboard', label: 'Overview', icon: <DashboardIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'cxo', label: 'CXO Insights', icon: <CrownIcon size={20} />, permission: 'view:cxo_dashboard', minTier: 'Enterprise', featureKey: 'cxo_dashboard' },
+                { view: 'executiveSummary', label: 'Executive Summary', icon: <BarChart3Icon size={20} />, permission: 'view:reporting' },
                 { view: 'unifiedOps', label: 'Unified Future Ops', icon: <DashboardIcon size={20} />, permission: 'view:unified_ops', minTier: 'Enterprise', featureKey: 'unified_ops' },
                 { view: 'proactiveInsights', label: 'Proactive Insights', icon: <LightbulbIcon size={20} />, permission: 'view:insights' },
                 { view: 'reporting', label: 'Reporting', icon: <BarChart3Icon size={20} />, permission: 'view:reporting' },
@@ -343,6 +344,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             items: [
                 { view: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'programs', label: 'Programs', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
+                { view: 'auditProgram', label: 'Audit Programs', icon: <ClipboardCheck size={20} />, permission: 'view:compliance' },
+                { view: 'accessReview', label: 'Access Reviews', icon: <UserCheck size={20} />, permission: 'view:compliance' },
+                { view: 'cookieConsent', label: 'Cookie Consent', icon: <Cookie size={20} />, permission: 'view:compliance' },
                 { view: 'complianceEvidence', label: 'Evidence Collector', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'saasIntegrations', label: 'SaaS Evidence Integrations', icon: <UploadCloudIcon size={20} />, permission: 'view:compliance' },
                 { view: 'remediationWorkflow', label: 'Remediation', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
@@ -400,6 +404,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'msspMonitoring', label: 'MSSP Monitoring', icon: <BuildingIcon size={20} />, permission: 'view:mssp' },
                 { view: 'knowledgeBase', label: 'Knowledge Base (RAG)', icon: <BookKeyIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
+                { view: 'apiStatus', label: 'API Status', icon: <RadioTower size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },
                 { view: 'tenantManagement', label: 'Tenants', icon: <BuildingIcon size={20} />, permission: 'manage:tenants' },
                 { view: 'bundleManagement', label: 'Feature Bundles', icon: <PuzzleIcon size={20} />, permission: 'manage:tenants' },

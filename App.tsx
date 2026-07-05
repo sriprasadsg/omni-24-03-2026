@@ -201,6 +201,11 @@ const ProblemManagementDashboard = lazy(() => import('./components/ProblemManage
 const ChangeManagementDashboard = lazy(() => import('./components/ChangeManagementDashboard'));
 const TicketWebhooksDashboard = lazy(() => import('./components/TicketWebhooksDashboard'));
 const NotificationPreferencesDashboard = lazy(() => import('./components/NotificationPreferencesDashboard'));
+const AccessReviewDashboard = lazy(() => import('./components/AccessReviewDashboard'));
+const ApiStatusDashboard = lazy(() => import('./components/ApiStatusDashboard').then(m => ({ default: m.ApiStatusDashboard })));
+const AuditProgramDashboard = lazy(() => import('./components/AuditProgramDashboard'));
+const CookieConsentDashboard = lazy(() => import('./components/CookieConsentDashboard'));
+const ExecutiveDashboard = lazy(() => import('./components/ExecutiveDashboard').then(m => ({ default: m.ExecutiveDashboard })));
 
 
 import * as api from './services/apiService';
@@ -395,6 +400,11 @@ const viewPermissionMap: Record<AppView, Permission> = {
   notificationsRouting: 'view:automation',
   apiExtensions: 'view:devsecops',
   iacContainer: 'view:cloud_security',
+  accessReview: 'view:compliance',
+  apiStatus: 'manage:settings',
+  auditProgram: 'view:compliance',
+  cookieConsent: 'view:compliance',
+  executiveSummary: 'view:reporting',
 };
 
 
@@ -1652,6 +1662,7 @@ const App: React.FC = () => {
     switch (currentView) {
       case 'dashboard': return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
       case 'cxo': return <ErrorBoundary name="CXODashboard"><CXODashboard /></ErrorBoundary>;
+      case 'executiveSummary': return <ErrorBoundary name="ExecutiveDashboard"><ExecutiveDashboard tenantId={activeTenantId} /></ErrorBoundary>;
       case 'reporting': return <ErrorBoundary name="ReportingDashboard"><ReportingDashboard historicalData={historicalData} assets={tenantData.assets} /></ErrorBoundary>;
       case 'agents': return <ErrorBoundary name="AgentsDashboard"><AgentsDashboard
         agents={tenantData.agents}
@@ -1685,6 +1696,9 @@ const App: React.FC = () => {
       case 'security': return <ErrorBoundary name="SecurityDashboard"><SecurityDashboard securityCases={tenantData.securityCases} playbooks={playbooks} securityEvents={tenantData.securityEvents} users={users} onCaseUpdate={handleCaseUpdate} onGeneratePlaybook={handleGeneratePlaybook} onAnalyzeImpact={handleAnalyzeImpact} threatIntelFeed={threatIntelFeed} /></ErrorBoundary>;
       case 'compliance': return <ErrorBoundary name="ComplianceDashboard"><ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} /></ErrorBoundary>;
       case 'programs': return <ErrorBoundary name="ProgramsDashboard"><ProgramsDashboard /></ErrorBoundary>;
+      case 'auditProgram': return <ErrorBoundary name="AuditProgramDashboard"><AuditProgramDashboard /></ErrorBoundary>;
+      case 'accessReview': return <ErrorBoundary name="AccessReviewDashboard"><AccessReviewDashboard /></ErrorBoundary>;
+      case 'cookieConsent': return <ErrorBoundary name="CookieConsentDashboard"><CookieConsentDashboard /></ErrorBoundary>;
       case 'saasIntegrations': return <ErrorBoundary name="SaaSIntegrationsDashboard"><SaaSIntegrationsDashboard /></ErrorBoundary>;
       case 'aiGovernance': return <ErrorBoundary name="AIGovernanceDashboard"><AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} /></ErrorBoundary>;
       case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} /></ErrorBoundary>;
@@ -1779,6 +1793,7 @@ const App: React.FC = () => {
       case 'advancedBi':
       case 'biDashboard': return <ErrorBoundary name="AdvancedBiDashboard"><AdvancedBiDashboard tenantId={activeTenantId || undefined} /></ErrorBoundary>;
       case 'systemHealth': return <ErrorBoundary name="SystemHealthDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading System Health...</div>}><SystemHealthDashboard /></Suspense></ErrorBoundary>;
+      case 'apiStatus': return <ErrorBoundary name="ApiStatusDashboard"><ApiStatusDashboard /></ErrorBoundary>;
       case 'predictiveHealth': return <ErrorBoundary name="PredictiveHealthDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Predictive Health...</div>}><PredictiveHealthDashboard /></Suspense></ErrorBoundary>;
       case 'goalSystem': return <ErrorBoundary name="GoalSystemDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Goal System...</div>}><GoalSystemDashboard /></Suspense></ErrorBoundary>;
       case 'integrationsHub': return <ErrorBoundary name="IntegrationsHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Integrations Hub...</div>}><IntegrationsHub /></Suspense></ErrorBoundary>;
