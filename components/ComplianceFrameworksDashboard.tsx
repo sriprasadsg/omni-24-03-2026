@@ -44,15 +44,16 @@ interface FrameworkSummary {
   };
 }
 
-const FRAMEWORK_IDS = ['nist_csf', 'cis_v8', 'iso27001_2022', 'hipaa', 'pci_dss', 'soc2'];
-const FRAMEWORK_COLORS: Record<string, string> = {
-  nist_csf: '#6366f1',
-  cis_v8: '#10b981',
-  iso27001_2022: '#06b6d4',
-  hipaa: '#ec4899',
-  pci_dss: '#f59e0b',
-  soc2: '#8b5cf6',
-};
+const FRAMEWORK_COLOR_PALETTE = [
+  '#6366f1', '#10b981', '#06b6d4', '#ec4899', '#f59e0b', '#8b5cf6',
+  '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#3b82f6', '#a855f7',
+];
+
+function colorForFramework(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return FRAMEWORK_COLOR_PALETTE[hash % FRAMEWORK_COLOR_PALETTE.length];
+}
 
 function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 28;
@@ -89,7 +90,7 @@ export function ComplianceFrameworksDashboard() {
   const canTriggerScan = currentUser?.role === 'Super Admin' || currentUser?.role === 'Tenant Admin';
 
   const [summary, setSummary] = useState<FrameworkSummary>({});
-  const [selected, setSelected] = useState<string>('nist_csf');
+  const [selected, setSelected] = useState<string>('');
   const [detail, setDetail] = useState<FrameworkResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -109,6 +110,7 @@ export function ComplianceFrameworksDashboard() {
   }, []);
 
   const fetchDetail = useCallback(async (fid: string, signal?: AbortSignal) => {
+    if (!fid) return;
     setDetailLoading(true);
     try {
       const res = await authFetch(`${API}/${fid}`, { signal });
@@ -139,12 +141,18 @@ export function ComplianceFrameworksDashboard() {
     }
   }, [selected, fetchSummary, fetchDetail]);
 
+  const frameworkIds = Object.keys(summary).sort();
+
   useEffect(() => {
     const controller = new AbortController();
     fetchSummary(controller.signal);
     return () => controller.abort();
   }, [fetchSummary]);
   useEffect(() => {
+    if (!selected && frameworkIds.length > 0) setSelected(frameworkIds[0]);
+  }, [frameworkIds, selected]);
+  useEffect(() => {
+    if (!selected) return;
     const controller = new AbortController();
     fetchDetail(selected, controller.signal);
     return () => controller.abort();
@@ -170,7 +178,7 @@ export function ComplianceFrameworksDashboard() {
         <div>
           <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>GRC</div>
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Automated control evaluation — NIST CSF · CIS v8 · ISO 27001 · HIPAA · PCI-DSS · SOC 2</p>
+          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           {canTriggerScan ? (
@@ -197,10 +205,13 @@ export function ComplianceFrameworksDashboard() {
       </div>
 
       {/* Framework score cards */}
+      {loading && frameworkIds.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 60 }}>Loading frameworks…</div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
-        {FRAMEWORK_IDS.map(fid => {
+        {frameworkIds.map(fid => {
           const s = summary[fid];
-          const color = FRAMEWORK_COLORS[fid] || '#6366f1';
+          const color = colorForFramework(fid);
           const isSelected = selected === fid;
           return (
             <div key={fid} onClick={() => setSelected(fid)} style={{
@@ -234,7 +245,7 @@ export function ComplianceFrameworksDashboard() {
           {/* Panel header */}
           <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Shield size={16} color={FRAMEWORK_COLORS[selected]} />
+              <Shield size={16} color={colorForFramework(selected)} />
               <span style={{ fontWeight: 700 }}>{detail.framework_name} v{detail.version}</span>
               <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>{detail.total} controls · evaluated {new Date(detail.evaluated_at).toLocaleTimeString()}</span>
             </div>
