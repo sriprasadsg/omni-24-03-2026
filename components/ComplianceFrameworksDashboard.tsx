@@ -99,13 +99,23 @@ export function ComplianceFrameworksDashboard() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   const fetchSummary = useCallback(async (signal?: AbortSignal) => {
     try {
       const res = await authFetch(`${API}/summary`, { signal });
-      if (res.ok) setSummary(await res.json());
+      if (res.ok) {
+        setSummary(await res.json());
+        setSummaryError(null);
+      } else {
+        setSummaryError(`Failed to load frameworks (HTTP ${res.status}).`);
+      }
     } catch (e) {
-      if ((e as any)?.name !== 'AbortError') console.error('Failed to load compliance summary:', e);
+      if ((e as any)?.name !== 'AbortError') {
+        console.error('Failed to load compliance summary:', e);
+        setSummaryError('Failed to load frameworks. Check backend connection.');
+      }
     }
     setLoading(false);
   }, []);
@@ -115,9 +125,17 @@ export function ComplianceFrameworksDashboard() {
     setDetailLoading(true);
     try {
       const res = await authFetch(`${API}/${fid}`, { signal });
-      if (res.ok) setDetail(await res.json());
+      if (res.ok) {
+        setDetail(await res.json());
+        setDetailError(null);
+      } else {
+        setDetailError(`Failed to load control detail (HTTP ${res.status}).`);
+      }
     } catch (e) {
-      if ((e as any)?.name !== 'AbortError') console.error('Failed to load compliance detail:', e);
+      if ((e as any)?.name !== 'AbortError') {
+        console.error('Failed to load compliance detail:', e);
+        setDetailError('Failed to load control detail. Check backend connection.');
+      }
     }
     setDetailLoading(false);
   }, []);
@@ -209,6 +227,21 @@ export function ComplianceFrameworksDashboard() {
         </div>
       </div>
 
+      {/* Summary error banner */}
+      {summaryError && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#fca5a5',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: '0.85em',
+        }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {summaryError}</span>
+          <button onClick={() => fetchSummary()} style={{
+            background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.35)', color: '#fca5a5',
+            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 600,
+          }}>Retry</button>
+        </div>
+      )}
+
       {/* Framework search */}
       {frameworkIds.length > 0 && (
         <div style={{ position: 'relative', marginBottom: 16, maxWidth: 360 }}>
@@ -264,6 +297,19 @@ export function ComplianceFrameworksDashboard() {
       </div>
 
       {/* Detail panel */}
+      {detailError && !detailLoading && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#fca5a5',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: '0.85em',
+        }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {detailError}</span>
+          <button onClick={() => fetchDetail(selected)} style={{
+            background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.35)', color: '#fca5a5',
+            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 600,
+          }}>Retry</button>
+        </div>
+      )}
       {detailLoading ? (
         <div style={{ textAlign: 'center', color: '#94a3b8', padding: 60 }}>Running control checks…</div>
       ) : detail && (
