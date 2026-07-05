@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, CheckCircle, XCircle, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, Download } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, Download, Search } from 'lucide-react';
 import { authFetch } from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
 
@@ -98,6 +98,7 @@ export function ComplianceFrameworksDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const fetchSummary = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -142,6 +143,10 @@ export function ComplianceFrameworksDashboard() {
   }, [selected, fetchSummary, fetchDetail]);
 
   const frameworkIds = Object.keys(summary).sort();
+  const query = search.trim().toLowerCase();
+  const visibleFrameworkIds = query
+    ? frameworkIds.filter(fid => fid.toLowerCase().includes(query) || (summary[fid]?.name || '').toLowerCase().includes(query))
+    : frameworkIds;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -204,12 +209,33 @@ export function ComplianceFrameworksDashboard() {
         </div>
       </div>
 
+      {/* Framework search */}
+      {frameworkIds.length > 0 && (
+        <div style={{ position: 'relative', marginBottom: 16, maxWidth: 360 }}>
+          <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={`Search ${frameworkIds.length} frameworks…`}
+            style={{
+              width: '100%', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
+              borderRadius: 8, padding: '8px 12px 8px 34px', color: '#f1f5f9', fontSize: '0.85em',
+              boxSizing: 'border-box', outline: 'none',
+            }}
+          />
+        </div>
+      )}
+
       {/* Framework score cards */}
       {loading && frameworkIds.length === 0 && (
         <div style={{ textAlign: 'center', color: '#94a3b8', padding: 60 }}>Loading frameworks…</div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
-        {frameworkIds.map(fid => {
+      {!loading && frameworkIds.length > 0 && visibleFrameworkIds.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 40 }}>No frameworks match "{search}".</div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, marginBottom: 28 }}>
+        {visibleFrameworkIds.map(fid => {
           const s = summary[fid];
           const color = colorForFramework(fid);
           const isSelected = selected === fid;
