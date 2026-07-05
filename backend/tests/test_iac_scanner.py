@@ -17,17 +17,26 @@ def _mkdb(collections=("iac_scan_results", "iac_scan_config", "container_scan_re
         c.find_one = AsyncMock(return_value=None)
         c.update_one = AsyncMock()
         setattr(db._db, col, c)
+    # rbac_service.get_user_permissions falls back to its in-memory default_roles
+    # table for any non-super-admin role as long as the DB lookup resolves to None.
+    db.roles = MagicMock()
+    db.roles.find_one = AsyncMock(return_value=None)
     return db
 
 def _build(module_name, mock_db, user):
     import importlib
     mod = importlib.import_module(module_name)
-    from rbac_service import rbac_service
+    from authentication_service import get_current_user
     app = FastAPI(); app.include_router(mod.router)
     t = MagicMock(); t.tenant_id = user.tenant_id; t.role = user.role
-    app.dependency_overrides[rbac_service.has_permission("view:dashboard")] = lambda: t
-    app.dependency_overrides[rbac_service.has_permission("manage:settings")] = lambda: t
+    # has_permission(...) is a factory — every route decorator call produces a
+    # distinct closure, so overriding by re-calling it here never matches the
+    # object actually bound into the router. get_current_user is the stable,
+    # singleton dependency every has_permission(...) closure wraps, so override
+    # that instead (see test_notification_service.py for the same pattern).
+    app.dependency_overrides[get_current_user] = lambda: t
     patcher = patch(f"{module_name}.get_database", return_value=mock_db); patcher.start()
+    rbac_patcher = patch("rbac_service.get_database", return_value=mock_db); rbac_patcher.start()
     return TestClient(app, raise_server_exceptions=False)
 
 def test_iac_scan_terraform_s3_public_acl():
@@ -59,7 +68,8 @@ def test_iac_scan_config():
 
 def test_container_scan_image():
     import container_scanner_service as cs
-    r = cs.scan_image("nginx:latest")
+    with patch("container_scanner_service._find_trivy", return_value=None):
+        r = cs.scan_image("nginx:latest")
     assert "scan_id" in r
     assert r["image"] == "nginx:latest"
     assert r["total"] > 0
@@ -71,11 +81,27 @@ def test_container_list_results():
     assert r.status_code == 200
 
 def test_iac_tenant_isolation():
-    db = _mkdb(); u = _mkuser("tenant-a", "user"); c = _build("iac_scanner_endpoints", db, u)
-    r = c.get("/api/iac/results")
+    db = _mkdb()
+    seeded = [
+        {"tenantId": "tenant-a", "scan_id": "a-1", "provider": "terraform", "total": 1, "fail": 0, "findings": [], "scanned_at": "2026-01-01T00:00:00Z"},
+        {"tenantId": "tenant-b", "scan_id": "b-1", "provider": "terraform", "total": 1, "fail": 0, "findings": [], "scanned_at": "2026-01-01T00:00:00Z"},
+    ]
+    def _find(query, *a, **kw):
+        matched = [d for d in seeded if d.get("tenantId") == query.get("tenantId")]
+        m = MagicMock(); m.sort = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=matched)))
+        return m
+    db._db.iac_scan_results.find = MagicMock(side_effect=_find)
+    u = _mkuser("tenant-a", "user"); c = _build("iac_scanner_endpoints", db, u)
+    with patch("iac_scanner_endpoints.get_tenant_id", return_value="tenant-a"):
+        r = c.get("/api/iac/results")
     assert r.status_code == 200
+    items = r.json()["items"]
+    assert any(i["scan_id"] == "a-1" for i in items), "tenant-a's own scan is missing"
+    assert all(i["scan_id"] != "b-1" for i in items), "tenant-b's scan leaked into tenant-a's results"
+    db._db.iac_scan_results.find.assert_called_with({"tenantId": "tenant-a"}, {"_id": 0})
 
 def test_container_vuln_severity_counts():
     import container_scanner_service as cs
-    r = cs.scan_image("test:latest")
+    with patch("container_scanner_service._find_trivy", return_value=None):
+        r = cs.scan_image("test:latest")
     assert r["critical"] + r["high"] + r["medium"] + r["low"] == r["total"]
