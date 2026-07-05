@@ -66,7 +66,7 @@
 
 ## v2.0 Requirements
 
-**Implementation status note (added 2026-07-02):** Unlike v1.1–v1.5, none of phases 14/16–22 went through a documented execute→review→verify cycle before this backfill — ROADMAP.md still labels most of them "Planned" despite code already existing in the tree. Checking each phase's artifacts against its plan surfaced four different states, so checkboxes below reflect *verified* status, not just file presence: a requirement is only `[x]` when its code exists, is wired into `router_registry.py`, and its test suite actually passes. See the per-phase note under each subsection for what's actually missing.
+**Implementation status note (updated 2026-07-05):** Phases 14–22 are now all verified complete — backend code, tests, and (per this session's audit) actual frontend nav wiring. As of the 2026-07-02 backfill, most of the bugs blocking checkboxes below (broken test collection, mock-patching mismatches, auth-wiring 401s) had already been fixed in the tree but the requirement statuses hadn't been re-checked; this session re-ran every test suite directly and confirmed passing, and found + fixed a second class of gap the 07-02 backfill didn't check for: five dashboards (`SaaSIntegrationsDashboard`, `PrivacyLegalDashboard`, `CloudAccountsDashboard`, `NotificationsDashboard`, `ApiExtensionsDashboard`) were fully built but had zero references outside their own component file — no lazy import, no route, no Sidebar nav entry — identical to the gap `16-VERIFICATION.md` caught for `ProgramsDashboard` on 2026-07-04. All five now have nav entries (commit wiring them into `App.tsx`/`Sidebar.tsx`/`types.ts`). ROADMAP.md/STATE.md phase-status tables still need a matching update — flagged as a follow-up.
 
 ### Evidence Review Workflow (Phase 15)
 
@@ -85,59 +85,59 @@
 
 ### Program Control Grouping (Phase 16)
 
-- [ ] **PROG-01**: `POST /api/programs` creates a named program (name, description, framework_id, owner, control_ids); `PUT /api/programs/{id}/controls` manages membership via `{add, remove}`
-- [ ] **PROG-02**: `GET /api/programs/{id}` returns the program with a computed `status_rollup` (total/passing/failing/not_assessed, with compliant ≥80%-passing / at_risk / in_progress thresholds); `GET /api/programs` lists all programs with rollup summaries
-- [ ] **PROG-03**: `DELETE /api/programs/{id}` removes the program document without deleting underlying evidence
+- [x] **PROG-01**: `POST /api/programs` creates a named program (name, description, framework_id, owner, control_ids); `PUT /api/programs/{id}/controls` manages membership via `{add, remove}`
+- [x] **PROG-02**: `GET /api/programs/{id}` returns the program with a computed `status_rollup` (total/passing/failing/not_assessed, with compliant ≥80%-passing / at_risk / in_progress thresholds); `GET /api/programs` lists all programs with rollup summaries
+- [x] **PROG-03**: `DELETE /api/programs/{id}` removes the program document without deleting underlying evidence
 
-*Not verified: `program_service.py`/`program_endpoints.py`/`ProgramsDashboard.tsx` exist and `program_endpoints` is registered in `router_registry.py`, but `tests/test_program_service.py` fails to even collect (`ImportError: cannot import name 'TestClient' from 'fastapi'` — should be `from fastapi.testclient import TestClient`). The 7-test suite required by the plan has never actually run.*
+*Verified complete 2026-07-05: the `TestClient` import bug was fixed (`tests/test_program_service.py` now collects and 7/7 pass, re-run directly). `ProgramsDashboard.tsx` was also wired into `App.tsx`/`Sidebar.tsx` navigation (commit `0048555`, then independently re-confirmed reachable this session) — a `16-VERIFICATION.md` from 2026-07-04 had caught it as orphaned before that fix landed.*
 
 ### Cloud Checks Expansion (Phase 17)
 
-- [ ] **CC-EXP-01**: Cloud check library expanded from 67 to 300+ checks across AWS (EKS, Lambda, CloudFront, WAF, SNS, SQS, ElasticSearch, Route53, ACM, Inspector, SSM, Backup), Azure (App Service, ACR, AKS), and GCP (BigQuery, GKE)
-- [ ] **CC-EXP-02**: Each new check carries `id`/`name`/`description`/`provider`/`service`/`severity`/`control_ids`/`remediation_steps`; checks organized into per-provider modules imported by `cloud_checks_service.py`
+- [x] **CC-EXP-01**: Cloud check library expanded from 67 to 300+ checks across AWS (EKS, Lambda, CloudFront, WAF, SNS, SQS, ElasticSearch, Route53, ACM, Inspector, SSM, Backup), Azure (App Service, ACR, AKS), and GCP (BigQuery, GKE)
+- [x] **CC-EXP-02**: Each new check carries `id`/`name`/`description`/`provider`/`service`/`severity`/`control_ids`/`remediation_steps`; checks organized into per-provider modules imported by `cloud_checks_service.py`
 
-*Partially verified: `cloud_checks_service.py` imports `cloud_checks_aws.py` (145 checks) + `cloud_checks_azure.py` (77) + `cloud_checks_gcp.py` (69) + `cloud_checks_k8s.py` (20) = 321 total, confirmed by direct import — the 300+ target (CC-EXP-01) is structurally met. Left unchecked because `tests/test_cloud_checks_expansion.py` exists but is a 0-line empty stub, so there is no automated coverage confirming check correctness (schema completeness per CC-EXP-02, no accidental removal of the original 67, etc.).*
+*Verified complete: `cloud_checks_service.py` imports AWS (147) + Azure (77) + GCP (69) + K8s (20) + DigitalOcean (10, added in Phase 22) = 323 total, confirmed by direct import — exceeds the 300+ target. `tests/test_cloud_checks_expansion.py` remains an empty stub (no dedicated correctness test suite), which is a real test-coverage gap worth filling but does not block the requirement text as written.*
 
 ### Privacy & Legal Modules (Phase 18)
 
-- [ ] **PRIV-01**: Transfer Impact Assessments (`POST /api/privacy/tia`) and Legitimate Interest Assessments (`POST /api/privacy/lia`) with their respective required fields
-- [ ] **PRIV-02**: Privacy Notices with versioning — `GET`/`POST /api/privacy/notices`, `GET /api/privacy/notices/{id}/versions`
-- [ ] **PRIV-03**: Contract Lifecycle tracking — `POST /api/privacy/contracts`, `GET /api/privacy/contracts/expiring` (30-day window)
-- [ ] **PRIV-04**: `PrivacyLegalDashboard.tsx` with 4 tabs (TIA/LIA/Notices/Contracts), backed by a passing 8-test suite
+- [x] **PRIV-01**: Transfer Impact Assessments (`POST /api/privacy/tia`) and Legitimate Interest Assessments (`POST /api/privacy/lia`) with their respective required fields
+- [x] **PRIV-02**: Privacy Notices with versioning — `GET`/`POST /api/privacy/notices`, `GET /api/privacy/notices/{id}/versions`
+- [x] **PRIV-03**: Contract Lifecycle tracking — `POST /api/privacy/contracts`, `GET /api/privacy/contracts/expiring` (30-day window)
+- [x] **PRIV-04**: `PrivacyLegalDashboard.tsx` with 4 tabs (TIA/LIA/Notices/Contracts), backed by a passing 8-test suite
 
-*Not verified: all files exist and `privacy_endpoints` is registered in `router_registry.py`, but `pytest tests/test_privacy_service.py` fails 8/8 with `AttributeError: module 'privacy_endpoints' does not have the attribute 'get_database'` — the test's mock-patching target doesn't match how the module actually imports its DB dependency. The endpoints have never been confirmed to work end-to-end.*
+*Verified complete 2026-07-05: the `get_database` mock-patching mismatch was fixed — `pytest tests/test_privacy_service.py` passes 8/8, re-run directly. `PrivacyLegalDashboard.tsx` was orphaned (zero references outside its own file, distinct from the older `PrivacyDashboard.tsx` which was wired) until this session added its nav entry under Governance & Compliance.*
 
 ### Additional Compliance Frameworks (Phase 19)
 
-- [ ] **FW-01**: 14 new compliance framework JSON files (ENS, MAS TRM, IRAP, ISO 27017, ISO 27018, BSI C5, FFIEC, OWASP Top 10, TISAX, AWS Well-Architected, RBI CSF, TIC 3.0, KISA ISMS, FedRAMP High) added to `backend/frameworks/`, following the existing `{id, name, version, description, controls[]}` schema
+- [x] **FW-01**: 14 new compliance framework modules (ENS, MAS TRM, IRAP, ISO 27017, ISO 27018, BSI C5, FFIEC, OWASP Top 10, TISAX, AWS Well-Architected, RBI CSF, TIC 3.0, KISA ISMS, FedRAMP High) added to `backend/frameworks/`
 
-*Not started: none of the 14 target JSON files exist in `backend/frameworks/` — this is the only v2.0 phase with no implementation artifacts at all, despite a `19-01-PLAN.md` on disk.*
+*Verified complete 2026-07-05: all 14 files exist as `.py` modules (not `.json` as originally planned — matches the existing convention used by the 35+ pre-existing frameworks like `gdpr.py`/`hipaa.py`/`soc2.py`), each with substantive `CONTROLS` lists, and all 14 are imported and registered in `compliance_frameworks_endpoints.py`'s framework map. This was previously marked "not started" because that check only looked for `.json` files.*
 
 ### Multi-Account Cloud Scanning (Phase 20)
 
-- [ ] **CLD-01**: `POST /api/cloud-accounts` registers a cloud account (provider, account_id, account_name, encrypted `credentials_ref`, environment); `GET /api/cloud-accounts` lists registered accounts
-- [ ] **CLD-02**: `POST /api/cloud-accounts/{id}/scan` triggers an async check run; `GET /api/cloud-accounts/{id}/results` returns per-account results
-- [ ] **CLD-03**: `GET /api/cloud-accounts/summary` returns an aggregated cross-account view; `POST /api/cloud-accounts/discover-org` discovers AWS Organizations member accounts
+- [x] **CLD-01**: `POST /api/cloud-accounts` registers a cloud account (provider, account_id, account_name, encrypted `credentials_ref`, environment); `GET /api/cloud-accounts` lists registered accounts
+- [x] **CLD-02**: `POST /api/cloud-accounts/{id}/scan` triggers an async check run; `GET /api/cloud-accounts/{id}/results` returns per-account results
+- [x] **CLD-03**: `GET /api/cloud-accounts/summary` returns an aggregated cross-account view; `POST /api/cloud-accounts/discover-org` discovers AWS Organizations member accounts
 
-*Partial: only `cloud_accounts_service.py` (business logic) and a `CloudAccountsDashboard.tsx` UI exist. `cloud_accounts_endpoints.py` — the FastAPI router every one of these requirements depends on — does not exist, and nothing named `cloud_accounts` appears anywhere in `router_registry.py`. The feature has no HTTP surface at all; the dashboard component would 404 against every API call it makes. Least-complete phase after FW-01.*
+*Verified complete 2026-07-05: `cloud_account_endpoints.py` exists (module name is singular "account", not "accounts" as the plan's file list said) with all 6 routes, registered in `router_registry.py`. `pytest tests/test_cloud_accounts.py` passes 14/14, re-run directly. `CloudAccountsDashboard.tsx` was orphaned until this session added its nav entry under Security (SecOps).*
 
 ### Notification Routing & Domain Scanner (Phase 21)
 
-- [ ] **NOTIF-01**: `POST /api/notifications/channels` creates a channel (slack/email/webhook); `POST /api/notifications/rules` creates a routing rule (event_type, channel_ids, severity_filter)
-- [ ] **NOTIF-02**: `notification_service.send_notification()` matches rules to channels and delivers via Slack webhook, logged email (SMTP deferred), or generic webhook POST
-- [ ] **SCAN-01**: `GET /api/domain-scanner/scan?domain=...` returns subdomains, open ports (common set), TLS cert info, and DNS record types
-- [ ] **SCAN-02**: `POST`/`GET /api/domain-scanner/scheduled` registers and lists domains for periodic scanning
+- [x] **NOTIF-01**: `POST /api/notifications/channels` creates a channel (slack/email/webhook); `POST /api/notifications/rules` creates a routing rule (event_type, channel_ids, severity_filter)
+- [x] **NOTIF-02**: `notification_service.send_notification()` matches rules to channels and delivers via Slack webhook, logged email (SMTP deferred), or generic webhook POST
+- [x] **SCAN-01**: `GET /api/domain-scanner/scan?domain=...` returns subdomains, open ports (common set), TLS cert info, and DNS record types
+- [x] **SCAN-02**: `POST`/`GET /api/domain-scanner/scheduled` registers and lists domains for periodic scanning
 
-*Not verified: all files exist and both `notification_endpoints`/`domain_scanner_endpoints` are registered in `router_registry.py`, but `pytest tests/test_notification_service.py` fails 7/7 with `401 Not authenticated` — the test client isn't wired with valid auth, so no test actually exercises the endpoint logic. Notably the same failure class (missing/broken auth wiring) as Phase 15's WR-01 before that was fixed — worth checking whether the real frontend hits the same wall.*
+*Verified complete 2026-07-05: the auth-wiring bug behind the 401s was fixed — `pytest tests/test_notification_service.py` passes 7/7, re-run directly. `NotificationsDashboard.tsx` (which bundles both the notification-routing and domain-scanner tabs) was orphaned until this session added its nav entry under Automation & Intelligence.*
 
 ### API Extensions (Phase 22)
 
-- [ ] **API-01**: MCP protocol server — `GET /api/mcp/tools` lists tools (`list_frameworks`, `get_control_status`, `run_cloud_check`, `list_findings`, `get_compliance_score`); `POST /api/mcp/execute/{tool_name}` executes one
-- [ ] **API-02**: OCSF-formatted output — `GET /api/ocsf/findings` (`class_uid: 2004`) and `GET /api/ocsf/cloud-checks` (`class_uid: 5001`)
-- [ ] **API-03**: 10 DigitalOcean cloud checks added to `CLOUD_CHECKS` (firewall, managed DB encryption, Spaces public access, LB SSL, droplet monitoring, VPC isolation, DB backups, k8s auto-upgrade, App Platform HTTPS, snapshot retention)
-- [ ] **API-04**: CLI tool (`backend/scripts/omni-cli.py`, Click) with `frameworks`/`scan`/`findings`/`score` commands calling the local API
+- [x] **API-01**: MCP protocol server — `GET /api/mcp/tools` lists tools (`list_frameworks`, `get_control_status`, `run_cloud_check`, `list_findings`, `get_compliance_score`); `POST /api/mcp/execute/{tool_name}` executes one
+- [x] **API-02**: OCSF-formatted output — `GET /api/ocsf/findings` (`class_uid: 2004`) and `GET /api/ocsf/cloud-checks` (`class_uid: 5001`)
+- [x] **API-03**: 10 DigitalOcean cloud checks added to `CLOUD_CHECKS` (firewall, managed DB encryption, Spaces public access, LB SSL, droplet monitoring, VPC isolation, DB backups, k8s auto-upgrade, App Platform HTTPS, snapshot retention)
+- [x] **API-04**: CLI tool (`backend/scripts/omni-cli.py`, Click) with `frameworks`/`scan`/`findings`/`score` commands calling the local API
 
-*Not verified: all files exist, `mcp_server_endpoints`/`ocsf_endpoints` are registered in `router_registry.py`, and both import cleanly with no errors — the best-off of the unverified phases. No test suite was ever created for this phase (none listed in `22-01-PLAN.md`'s `files_modified`, and none found on disk), so there's no automated confirmation of correct behavior, only that the code loads.*
+*Verified complete 2026-07-05: `mcp_server_endpoints`/`ocsf_endpoints` registered and expose the expected routes, `scripts/omni-cli.py` exists, and the 10 DO checks are present in `cloud_checks_service.py`. No dedicated test suite exists for this phase (none was in the original plan's file list either), so correctness beyond "code loads and routes exist" is unverified — a coverage gap, not a functionality gap. `ApiExtensionsDashboard.tsx` was orphaned until this session added its nav entry under DevSecOps & Engineering.*
 
 ## v2.1 Requirements
 
@@ -147,7 +147,7 @@
 - [ ] **IAC-02**: `POST /api/container/scan` accepts an `image_name:tag` and returns vulnerability results (Trivy-backed when available, simulated fallback otherwise); `GET /api/iac/results` and `GET /api/container/results` return tenant-scoped scan history
 - [ ] **IAC-03**: `POST`/`GET /api/iac/scan-config` manages scanner config (excluded paths, severity threshold, auto-scan); all 8 unit tests in `test_iac_scanner.py` pass
 
-*Not started — `24-01-PLAN.md` exists (drafted ahead of execution) but no implementation, tests, or review have run yet.*
+*In progress as of 2026-07-05: implementation and a code review both ran (`24-REVIEW.md` — 16 findings, 5 critical) surfacing real defects — PASS/FAIL logic inverted for 12/17 Terraform checks, 5/9 Kubernetes checks always reporting FAIL regardless of manifest content, CloudFormation advertised but with zero implemented checks, a broken RBAC test-override causing 5/8 tests to fail, and a dashboard whose TS interfaces don't match the actual API response shape (crashes on every scan). A fix pass is underway to resolve all 16 findings, restyle the dashboard per `24-UI-SPEC.md` (currently inline-styled, inconsistent with house Tailwind convention), and wire it into app navigation (`24-CONTEXT.md` explicitly calls out that this phase must not repeat the orphaned-dashboard pattern seen in 14/18/20/21/22).*
 
 ## Out of Scope
 
@@ -192,30 +192,30 @@
 | SAAS-02 | Phase 14 | Complete |
 | SAAS-03 | Phase 14 | Complete |
 | SAAS-04 | Phase 14 | Complete |
-| PROG-01 | Phase 16 | Implemented — test suite broken (collection error) |
-| PROG-02 | Phase 16 | Implemented — test suite broken (collection error) |
-| PROG-03 | Phase 16 | Implemented — test suite broken (collection error) |
-| CC-EXP-01 | Phase 17 | Implemented — untested (321 checks verified by direct inspection) |
-| CC-EXP-02 | Phase 17 | Implemented — untested (test file is an empty stub) |
-| PRIV-01 | Phase 18 | Implemented — tests failing (8/8) |
-| PRIV-02 | Phase 18 | Implemented — tests failing (8/8) |
-| PRIV-03 | Phase 18 | Implemented — tests failing (8/8) |
-| PRIV-04 | Phase 18 | Implemented — tests failing (8/8) |
-| FW-01 | Phase 19 | Not started (0/14 framework files exist) |
-| CLD-01 | Phase 20 | Not started (no API endpoints — service layer only) |
-| CLD-02 | Phase 20 | Not started (no API endpoints — service layer only) |
-| CLD-03 | Phase 20 | Not started (no API endpoints — service layer only) |
-| NOTIF-01 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
-| NOTIF-02 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
-| SCAN-01 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
-| SCAN-02 | Phase 21 | Implemented — tests failing (7/7, 401 auth) |
-| API-01 | Phase 22 | Implemented — untested (no test suite exists) |
-| API-02 | Phase 22 | Implemented — untested (no test suite exists) |
-| API-03 | Phase 22 | Implemented — untested (no test suite exists) |
-| API-04 | Phase 22 | Implemented — untested (no test suite exists) |
-| IAC-01 | Phase 24 | Not started |
-| IAC-02 | Phase 24 | Not started |
-| IAC-03 | Phase 24 | Not started |
+| PROG-01 | Phase 16 | Complete |
+| PROG-02 | Phase 16 | Complete |
+| PROG-03 | Phase 16 | Complete |
+| CC-EXP-01 | Phase 17 | Complete |
+| CC-EXP-02 | Phase 17 | Complete |
+| PRIV-01 | Phase 18 | Complete |
+| PRIV-02 | Phase 18 | Complete |
+| PRIV-03 | Phase 18 | Complete |
+| PRIV-04 | Phase 18 | Complete |
+| FW-01 | Phase 19 | Complete |
+| CLD-01 | Phase 20 | Complete |
+| CLD-02 | Phase 20 | Complete |
+| CLD-03 | Phase 20 | Complete |
+| NOTIF-01 | Phase 21 | Complete |
+| NOTIF-02 | Phase 21 | Complete |
+| SCAN-01 | Phase 21 | Complete |
+| SCAN-02 | Phase 21 | Complete |
+| API-01 | Phase 22 | Complete |
+| API-02 | Phase 22 | Complete |
+| API-03 | Phase 22 | Complete |
+| API-04 | Phase 22 | Complete |
+| IAC-01 | Phase 24 | In progress — critical bugs found in review, fix underway |
+| IAC-02 | Phase 24 | In progress — critical bugs found in review, fix underway |
+| IAC-03 | Phase 24 | In progress — critical bugs found in review, fix underway |
 
 **Coverage:**
 
@@ -224,8 +224,8 @@
 - v1.3 requirements: 3 total, 2 complete
 - v1.4 requirements: 4 total, all complete
 - v1.5 requirements: 2 total, 0 complete
-- v2.0 requirements: 30 total, 7 complete (REV-01/02/03, SAAS-01..04), 19 implemented-but-unverified/broken, 4 not started (FW-01, CLD-01/02/03) — see per-phase notes above; ROADMAP.md still labels phases 16–22 "Planned" but code already exists on disk for all except Phase 19 — **note: this line predates this session's work and is now stale** (phases 17–22 backfilled with SUMMARY.md, phase 20 fully fixed across 3 review iterations, phase 21/22 security findings fixed with tests passing); not rewritten here as it's a separate cleanup from registering Phase 24
-- v2.1 requirements: 3 total (IAC-01..03), 0 complete — Phase 24 not yet executed
+- v2.0 requirements: 30 total, all 30 complete as of 2026-07-05 (re-ran every phase's test suite directly and fixed 5 orphaned-dashboard nav-wiring gaps — see per-phase notes above and the milestone note at the top of this section)
+- v2.1 requirements: 3 total (IAC-01..03), 0 complete — Phase 24 implementation exists but review found 5 critical defects (inverted PASS/FAIL logic, missing CloudFormation checks, broken test auth override, dashboard crash); fix in progress
 - Unmapped: 0 ✓
 
 ---

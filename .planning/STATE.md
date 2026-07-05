@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Windows PowerShell Evidence
-status: Ready to plan
-stopped_at: Phase 14 Plan 01 complete — SaaS OAuth evidence integration
-last_updated: "2026-07-03T19:31:16.215Z"
+status: In progress
+stopped_at: Phase 24 fix pass underway — 16 review findings (5 critical) being resolved, plus dashboard nav wiring
+last_updated: "2026-07-05T00:00:00.000Z"
 progress:
-  total_phases: 18
-  completed_phases: 11
-  total_plans: 29
-  completed_plans: 22
-  percent: 61
+  total_phases: 24
+  completed_phases: 23
+  total_plans: 41
+  completed_plans: 40
+  percent: 96
 ---
 
 # Project State
@@ -20,15 +20,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 14 — saas-evidence-integration (Plan 01 complete)
+**Current focus:** Phase 24 — iac-container-security (implementation exists, fixing 16 code-review findings + wiring nav)
 
 ## Current Phase
 
-**v2.0 Milestone — GRC Feature Parity: PLANNED**
+**v2.0 Milestone — GRC Feature Parity: COMPLETE (verified 2026-07-05)**
 
-Goal: Implement all 9 phases (14–22) identified in the June 2026 audit against Comp AI, Probo, OpenLane Core, and Prowler. Phases are ready for execution via `/gsd-execute-phase`.
+Goal: Implement all 9 phases (14–22) identified in the June 2026 audit against Comp AI, Probo, OpenLane Core, and Prowler.
 
-Next phase to execute: Phase 14 (SaaS Evidence Integration)
+All 9 phases (14–22) verified complete this session: every phase's test suite was re-run directly and passes, and 5 dashboards that were fully built but never reachable in the app (`SaaSIntegrationsDashboard`, `PrivacyLegalDashboard`, `CloudAccountsDashboard`, `NotificationsDashboard`, `ApiExtensionsDashboard`) were wired into `App.tsx`/`Sidebar.tsx` navigation — the same class of gap `16-VERIFICATION.md` had caught for `ProgramsDashboard` a day earlier.
+
+**v2.1 Milestone — Windows PowerShell Evidence + IaC/Container Security: IN PROGRESS**
+
+Phase 23 complete. Phase 24 (IaC & Container Security) has implementation + a code review (`24-REVIEW.md`, 16 findings, 5 critical) but the findings haven't been fixed yet — a fix pass is underway to resolve them, restyle the dashboard per its UI-SPEC, and wire it into navigation.
 
 ## Phases
 
@@ -47,16 +51,17 @@ Next phase to execute: Phase 14 (SaaS Evidence Integration)
 | 11 | Security Hardening | Complete (v1.3) |
 | 12 | Agentic AI Integration | Complete (v1.4) |
 | 13 | AI Compliance Narratives | Complete (v1.5) |
-| 14 | SaaS Evidence Integration | Planned (v2.0) |
-| 15 | Evidence Review Workflow | Planned (v2.0) |
-| 16 | Program Control Grouping | Planned (v2.0) |
-| 17 | Cloud Checks Expansion | Planned (v2.0) |
-| 18 | Privacy & Legal Modules | Planned (v2.0) |
-| 19 | Additional Compliance Frameworks | Planned (v2.0) |
-| 20 | Multi-Account Cloud Scanning | Planned (v2.0) |
-| 21 | Notification Routing & Domain Scanner | Planned (v2.0) |
-| 22 | API Extensions (MCP, OCSF, CLI, DO) | Planned (v2.0) |
+| 14 | SaaS Evidence Integration | Complete (v2.0) |
+| 15 | Evidence Review Workflow | Complete (v2.0) |
+| 16 | Program Control Grouping | Complete (v2.0) |
+| 17 | Cloud Checks Expansion | Complete (v2.0) |
+| 18 | Privacy & Legal Modules | Complete (v2.0) |
+| 19 | Additional Compliance Frameworks | Complete (v2.0) |
+| 20 | Multi-Account Cloud Scanning | Complete (v2.0) |
+| 21 | Notification Routing & Domain Scanner | Complete (v2.0) |
+| 22 | API Extensions (MCP, OCSF, CLI, DO) | Complete (v2.0) |
 | 23 | Windows PowerShell Evidence Collection | Complete (v2.1) |
+| 24 | IaC & Container Security | In Progress (v2.1) — fixing 16 review findings |
 
 ## Decisions
 

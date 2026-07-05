@@ -5,8 +5,8 @@
 - **[v1.0](milestones/v1.0-ROADMAP.md)** — Security & Compliance Portal: Rust agent evidence parity, manual evidence uploads, audit-ready PDF/Excel export, remediation workflow. 5 phases, 11 plans, 16/16 requirements. Shipped 2026-06-18.
 - **v1.1** — Evidence Quality & Compliance Scoring: compliance status wiring, staleness detection, bulk upload, chain-of-custody audit trail, tenant compliance score. 4 phases, 11 plans, SCORE-01/02/03 + STATUS-01/02 + STALE-01/02 + COC-01/02 + BULK-01/02/03 + UI-01. Shipped 2026-06-22.
 - **v1.2** — Reporting Automation: scheduled compliance report generation and email delivery. 1 phase, SCHED-01/02.
-- **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Planned 2026-06-23.
-- **v2.1** — Windows PowerShell Evidence: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates. Phase 23.
+- **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
+- **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, in progress — code review found critical defects, fix underway).
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -154,21 +154,21 @@
 
 **Goal:** Close all feature gaps identified in the June 2026 audit against Comp AI, Probo, OpenLane Core, and Prowler. Add SaaS OAuth evidence, evidence review workflow, control grouping, privacy/legal modules, 14 new compliance frameworks, 300+ cloud checks, multi-account scanning, notification routing, domain scanning, and API extensions (MCP, OCSF, CLI, DigitalOcean).
 
-**Status:** Planned — phases 14–22 ready for execution
+**Status:** Complete — verified 2026-07-05, all 9 phases' test suites pass and dashboards wired into navigation
 
 **Phases:**
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 14 | SaaS Evidence Integration (GitHub, Jira, Okta, GWS, Slack OAuth) | In Progress (Plan 01 complete) |
-| 15 | Evidence Review Workflow (approve/reject/comment thread) | Planned |
-| 16 | Program Control Grouping (named programs + status rollup) | Planned |
-| 17 | Cloud Checks Expansion (67 → 300+ checks) | Planned |
-| 18 | Privacy & Legal Modules (TIA, LIA, Notices, Contracts) | Planned |
-| 19 | Additional Compliance Frameworks (14 new: FedRAMP High, ISO 27017/18, OWASP, BSI C5, etc.) | Planned |
-| 20 | Multi-Account Cloud Scanning (AWS Orgs, Azure Mgmt Groups, GCP Orgs) | Planned |
-| 21 | Notification Routing & Domain Scanner | Planned |
-| 22 | API Extensions (MCP server, OCSF, CLI, DigitalOcean checks) | Planned |
+| 14 | SaaS Evidence Integration (GitHub, Jira, Okta, GWS, Slack OAuth) | Complete |
+| 15 | Evidence Review Workflow (approve/reject/comment thread) | Complete |
+| 16 | Program Control Grouping (named programs + status rollup) | Complete |
+| 17 | Cloud Checks Expansion (67 → 300+ checks) | Complete |
+| 18 | Privacy & Legal Modules (TIA, LIA, Notices, Contracts) | Complete |
+| 19 | Additional Compliance Frameworks (14 new: FedRAMP High, ISO 27017/18, OWASP, BSI C5, etc.) | Complete |
+| 20 | Multi-Account Cloud Scanning (AWS Orgs, Azure Mgmt Groups, GCP Orgs) | Complete |
+| 21 | Notification Routing & Domain Scanner | Complete |
+| 22 | API Extensions (MCP server, OCSF, CLI, DigitalOcean checks) | Complete |
 
 ---
 
@@ -180,7 +180,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 22-01-PLAN.md — Backend: mcp_server_endpoints.py (/api/mcp), ocsf_endpoints.py (/api/ocsf), 10 DO checks, scripts/omni-cli.py (Click); Frontend: ApiExtensionsDashboard.tsx
+- [x] 22-01-PLAN.md — Backend: mcp_server_endpoints.py (/api/mcp), ocsf_endpoints.py (/api/ocsf), 10 DO checks, scripts/omni-cli.py (Click); Frontend: ApiExtensionsDashboard.tsx
 
 ---
 
@@ -192,7 +192,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 21-01-PLAN.md — Backend: notification_service.py, notification_endpoints.py, domain_scanner_service.py, domain_scanner_endpoints.py, 7-test suite; Frontend: NotificationsDashboard.tsx
+- [x] 21-01-PLAN.md — Backend: notification_service.py, notification_endpoints.py, domain_scanner_service.py, domain_scanner_endpoints.py, 7-test suite; Frontend: NotificationsDashboard.tsx
 
 ---
 
@@ -204,7 +204,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 20-01-PLAN.md — Backend: cloud_accounts_service.py, cloud_accounts_endpoints.py, 8-test suite; Frontend: CloudAccountsDashboard.tsx
+- [x] 20-01-PLAN.md — Backend: cloud_accounts_service.py, cloud_accounts_endpoints.py, 8-test suite; Frontend: CloudAccountsDashboard.tsx
 
 ---
 
@@ -216,7 +216,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 19-01-PLAN.md — 14 framework JSON files in backend/frameworks/
+- [x] 19-01-PLAN.md — 14 framework JSON files in backend/frameworks/
 
 ---
 
@@ -228,7 +228,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 18-01-PLAN.md — Backend: privacy_service.py, privacy_endpoints.py, 8-test suite; Frontend: PrivacyLegalDashboard.tsx (4 tabs)
+- [x] 18-01-PLAN.md — Backend: privacy_service.py, privacy_endpoints.py, 8-test suite; Frontend: PrivacyLegalDashboard.tsx (4 tabs)
 
 ---
 
@@ -240,7 +240,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 17-01-PLAN.md — Expand CLOUD_CHECKS list; split into per-provider modules if needed to stay under 500 lines
+- [x] 17-01-PLAN.md — Expand CLOUD_CHECKS list; split into per-provider modules if needed to stay under 500 lines
 
 ---
 
@@ -252,7 +252,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 16-01-PLAN.md — Backend: program_service.py, program_endpoints.py, 7-test suite; Frontend: ProgramsDashboard.tsx
+- [x] 16-01-PLAN.md — Backend: program_service.py, program_endpoints.py, 7-test suite; Frontend: ProgramsDashboard.tsx
 
 ---
 
@@ -264,7 +264,7 @@
 
 **Plans:** 1 plan
 
-- [ ] 15-01-PLAN.md — Backend: evidence_review_service.py, evidence_review_endpoints.py, 8-test suite; Frontend: EvidenceReviewPanel.tsx
+- [x] 15-01-PLAN.md — Backend: evidence_review_service.py, evidence_review_endpoints.py, 8-test suite; Frontend: EvidenceReviewPanel.tsx
 
 ---
 
@@ -346,6 +346,6 @@ June 2026 audit.
 
 **Depends on:** Phase 23
 
-**Plans:** 1/1 planned — 0/1 executed
+**Plans:** 1/1 planned — implemented, code review found 16 findings (5 critical), fix pass in progress (2026-07-05)
 
-- [ ] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs)
+- [ ] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs) — implemented but `24-REVIEW.md` found inverted PASS/FAIL logic (12/17 Terraform checks), Kubernetes checks always failing, missing CloudFormation checks, a broken test auth override, and a dashboard/API type mismatch that crashes on scan; fixing now
