@@ -71,6 +71,11 @@ function semanticBg(key: SemanticKey, alpha: number): string {
   return `rgba(${SEMANTIC[key].rgb},${alpha})`;
 }
 
+// 4-size / 2-weight type scale -- everything in this component maps onto one of these instead of
+// picking a one-off em value or weight per element.
+const FONT = { xs: '0.72em', sm: '0.78em', md: '0.88em', lg: '1.8em' } as const;
+const WEIGHT = { medium: 600, bold: 700 } as const;
+
 function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 28;
   const circ = 2 * Math.PI * r;
@@ -81,7 +86,7 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
       <circle cx={35} cy={35} r={r} fill="none" stroke={color} strokeWidth={6}
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round" transform="rotate(-90 35 35)" style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-      <text x={35} y={39} textAnchor="middle" fill="#f1f5f9" fontSize={13} fontWeight={900}>{score}%</text>
+      <text x={35} y={39} textAnchor="middle" fill="#f1f5f9" fontSize={13} fontWeight={WEIGHT.bold}>{score}%</text>
     </svg>
   );
 }
@@ -95,7 +100,7 @@ function StatusBadge({ status }: { status: string }) {
   };
   const c = cfg[status] || cfg.not_applicable;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: c.bg, color: c.color, borderRadius: 20, padding: '3px 10px', fontSize: '0.72em', fontWeight: 700 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: c.bg, color: c.color, borderRadius: 20, padding: '3px 10px', fontSize: FONT.xs, fontWeight: WEIGHT.bold }}>
       {c.icon} {c.label}
     </span>
   );
@@ -211,32 +216,35 @@ export function ComplianceFrameworksDashboard() {
 
   return (
     <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+      `}</style>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: SEMANTIC.primary.hex, marginBottom: 6 }}>GRC</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
+          <div style={{ fontSize: FONT.xs, fontWeight: WEIGHT.bold, letterSpacing: '0.12em', textTransform: 'uppercase', color: SEMANTIC.primary.hex, marginBottom: 6 }}>GRC</div>
+          <h1 style={{ fontSize: FONT.lg, fontWeight: WEIGHT.bold, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
+          <p style={{ color: '#94a3b8', fontSize: FONT.md, marginTop: 4 }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           {canTriggerScan ? (
             <button
               onClick={triggerScan}
               disabled={isScanning}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: isScanning ? semanticBg('primary', .08) : semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: '0.82em', opacity: isScanning ? 0.7 : 1 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: isScanning ? semanticBg('primary', .08) : semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: FONT.md, opacity: isScanning ? 0.7 : 1 }}>
               <RefreshCw size={13} style={{ animation: isScanning ? 'spin 1s linear infinite' : 'none' }} />
               {isScanning ? 'Dispatching…' : 'Scan All Agents'}
             </button>
           ) : (
             <button
               onClick={() => { fetchSummary(); fetchDetail(selected); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: FONT.md }}>
               <RefreshCw size={13} /> Re-evaluate
             </button>
           )}
           {scanMessage && (
-            <span style={{ fontSize: '0.75em', color: scanMessage.startsWith('Failed') ? SEMANTIC.fail.text : SEMANTIC.pass.text }}>
+            <span style={{ fontSize: FONT.sm, color: scanMessage.startsWith('Failed') ? SEMANTIC.fail.text : SEMANTIC.pass.text }}>
               {scanMessage}
             </span>
           )}
@@ -248,12 +256,12 @@ export function ComplianceFrameworksDashboard() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           background: semanticBg('fail', .1), border: `1px solid ${semanticBg('fail', .3)}`, color: SEMANTIC.fail.text,
-          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: '0.85em',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: FONT.md,
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {summaryError}</span>
           <button onClick={() => fetchSummary()} style={{
             background: semanticBg('fail', .15), border: `1px solid ${semanticBg('fail', .35)}`, color: SEMANTIC.fail.text,
-            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 600,
+            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: FONT.md, fontWeight: WEIGHT.medium,
           }}>Retry</button>
         </div>
       )}
@@ -269,7 +277,7 @@ export function ComplianceFrameworksDashboard() {
             placeholder={`Search ${frameworkIds.length} frameworks…`}
             style={{
               width: '100%', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
-              borderRadius: 8, padding: '8px 12px 8px 34px', color: '#f1f5f9', fontSize: '0.85em',
+              borderRadius: 8, padding: '8px 12px 8px 34px', color: '#f1f5f9', fontSize: FONT.md,
               boxSizing: 'border-box', outline: 'none',
             }}
           />
@@ -295,17 +303,17 @@ export function ComplianceFrameworksDashboard() {
               borderRadius: 14, padding: '20px 24px', cursor: 'pointer', transition: 'all 0.2s',
               display: 'flex', alignItems: 'center', gap: 20,
             }}>
-              {s ? <ScoreRing score={Math.round(s.score)} color={color} /> : <div style={{ width: 70, height: 70, background: 'rgba(255,255,255,.05)', borderRadius: '50%' }} />}
+              {s ? <ScoreRing score={Math.round(s.score)} color={color} /> : <div style={{ width: 70, height: 70, background: 'rgba(255,255,255,.05)', borderRadius: '50%', animation: 'pulse 1.5s ease-in-out infinite' }} />}
               <div>
-                <div style={{ fontWeight: 800, fontSize: '0.95em', marginBottom: 4 }}>{s?.name || fid}</div>
+                <div style={{ fontWeight: WEIGHT.bold, fontSize: FONT.md, marginBottom: 4 }}>{s?.name || fid}</div>
                 {s && (
-                  <div style={{ display: 'flex', gap: 10, fontSize: '0.78em' }}>
+                  <div style={{ display: 'flex', gap: 10, fontSize: FONT.sm }}>
                     <span style={{ color: SEMANTIC.pass.text }}>✓ {s.passed}</span>
                     <span style={{ color: SEMANTIC.partial.text }}>~ {s.partial}</span>
                     <span style={{ color: SEMANTIC.fail.text }}>✗ {s.failed}</span>
                   </div>
                 )}
-                {loading && <span style={{ color: '#94a3b8', fontSize: '0.78em' }}>Evaluating…</span>}
+                {loading && <span style={{ color: '#94a3b8', fontSize: FONT.sm }}>Evaluating…</span>}
               </div>
             </div>
           );
@@ -317,12 +325,12 @@ export function ComplianceFrameworksDashboard() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           background: semanticBg('fail', .1), border: `1px solid ${semanticBg('fail', .3)}`, color: SEMANTIC.fail.text,
-          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: '0.85em',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: FONT.md,
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {detailError}</span>
           <button onClick={() => fetchDetail(selected)} style={{
             background: semanticBg('fail', .15), border: `1px solid ${semanticBg('fail', .35)}`, color: SEMANTIC.fail.text,
-            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 600,
+            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: FONT.md, fontWeight: WEIGHT.medium,
           }}>Retry</button>
         </div>
       )}
@@ -334,15 +342,15 @@ export function ComplianceFrameworksDashboard() {
           <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <Shield size={16} color={colorForFramework(selected)} />
-              <span style={{ fontWeight: 700 }}>{detail.framework_name} v{detail.version}</span>
-              <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>{detail.total} controls · evaluated {new Date(detail.evaluated_at).toLocaleTimeString()}</span>
+              <span style={{ fontWeight: WEIGHT.bold }}>{detail.framework_name} v{detail.version}</span>
+              <span style={{ fontSize: FONT.sm, color: '#94a3b8' }}>{detail.total} controls · evaluated {new Date(detail.evaluated_at).toLocaleTimeString()}</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {['all', 'fail', 'partial', 'pass'].map(f => (
                 <button key={f} onClick={() => setFilterStatus(f)} style={{
                   background: filterStatus === f ? semanticBg('primary', .2) : 'transparent',
                   border: '1px solid rgba(255,255,255,.1)', color: filterStatus === f ? SEMANTIC.primary.text : '#94a3b8',
-                  borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 600, textTransform: 'capitalize',
+                  borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: FONT.sm, fontWeight: WEIGHT.medium, textTransform: 'capitalize',
                 }}>{f === 'all' ? `All (${detail.total})` : f === 'fail' ? `Fail (${detail.failed})` : f === 'partial' ? `Partial (${detail.partial})` : `Pass (${detail.passed})`}</button>
               ))}
             </div>
@@ -363,9 +371,9 @@ export function ComplianceFrameworksDashboard() {
                     cursor: 'pointer', userSelect: 'none',
                   }}>
                     {isOpen ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
-                    <span style={{ fontWeight: 700, fontSize: '0.88em' }}>{group}</span>
-                    <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>{filtered.length} controls</span>
-                    {gFails > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.75em', color: SEMANTIC.fail.text, background: semanticBg('fail', .1), borderRadius: 20, padding: '2px 10px' }}>{gFails} failing</span>}
+                    <span style={{ fontWeight: WEIGHT.bold, fontSize: FONT.md }}>{group}</span>
+                    <span style={{ fontSize: FONT.sm, color: '#94a3b8' }}>{filtered.length} controls</span>
+                    {gFails > 0 && <span style={{ marginLeft: 'auto', fontSize: FONT.sm, color: SEMANTIC.fail.text, background: semanticBg('fail', .1), borderRadius: 20, padding: '2px 10px' }}>{gFails} failing</span>}
                   </div>
                   {isOpen && filtered.map(ctrl => (
                     <div key={ctrl.id} style={{
@@ -374,12 +382,12 @@ export function ComplianceFrameworksDashboard() {
                       borderBottom: '1px solid rgba(255,255,255,.04)',
                       alignItems: 'start',
                     }}>
-                      <span style={{ fontSize: '0.78em', fontWeight: 700, color: '#94a3b8', fontFamily: 'monospace' }}>{ctrl.id}</span>
+                      <span style={{ fontSize: FONT.sm, fontWeight: WEIGHT.bold, color: '#94a3b8', fontFamily: 'monospace' }}>{ctrl.id}</span>
                       <div>
-                        <div style={{ fontSize: '0.85em', fontWeight: 600, marginBottom: 2 }}>{ctrl.title}</div>
-                        <div style={{ fontSize: '0.75em', color: '#94a3b8', lineHeight: 1.4 }}>{ctrl.description}</div>
+                        <div style={{ fontSize: FONT.md, fontWeight: WEIGHT.medium, marginBottom: 2 }}>{ctrl.title}</div>
+                        <div style={{ fontSize: FONT.sm, color: '#94a3b8', lineHeight: 1.4 }}>{ctrl.description}</div>
                       </div>
-                      <span style={{ fontSize: '0.78em', color: '#94a3b8', paddingTop: 2 }}>{ctrl.evidence}</span>
+                      <span style={{ fontSize: FONT.sm, color: '#94a3b8', paddingTop: 2 }}>{ctrl.evidence}</span>
                       <StatusBadge status={ctrl.status} />
                     </div>
                   ))}
