@@ -23,13 +23,17 @@ def scan_image(image_name: str) -> dict:
                 return _parse_trivy_output(scan_id, image_name, result.stdout)
             else:
                 logger.warning("Trivy scan failed (rc=%d): %s", result.returncode, result.stderr[:200])
+                return _simulated_results(scan_id, image_name, note=f"Trivy scan failed (rc={result.returncode}) — simulated results")
         except FileNotFoundError:
             logger.warning("Trivy binary not found at %s", trivy_path)
+            return _simulated_results(scan_id, image_name, note="Trivy not installed — simulated results")
         except subprocess.TimeoutExpired:
             logger.warning("Trivy scan timed out for %s", image_name)
+            return _simulated_results(scan_id, image_name, note="Trivy scan timed out — simulated results")
         except Exception as e:
             logger.error("Trivy scan error: %s", e)
-    return _simulated_results(scan_id, image_name)
+            return _simulated_results(scan_id, image_name, note=f"Trivy scan error: {e} — simulated results")
+    return _simulated_results(scan_id, image_name, note="Trivy not installed — simulated results")
 
 
 def _find_trivy() -> Optional[str]:
@@ -69,7 +73,6 @@ def _parse_trivy_output(scan_id: str, image_name: str, raw: str) -> dict:
 
 
 def _simulated_results(scan_id: str, image_name: str, note: str = "") -> dict:
-    import random
     vulns = [
         {"id": "CVE-2024-0001", "pkg_name": "libssl3", "installed_version": "3.0.11", "fixed_version": "3.0.12", "severity": "CRITICAL", "title": "Buffer overflow in TLS handshake", "description": "Heap buffer overflow in SSL_read"},
         {"id": "CVE-2024-0002", "pkg_name": "nginx", "installed_version": "1.24.0", "fixed_version": "1.25.3", "severity": "HIGH", "title": "HTTP/2 denial of service", "description": "HTTP/2 rapid reset attack"},
