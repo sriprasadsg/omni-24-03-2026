@@ -1,4 +1,4 @@
-"""IaC Scanner — 27 security checks for Terraform, K8s, CloudFormation manifests."""
+"""IaC Scanner — 26 security checks (17 Terraform, 9 Kubernetes). CloudFormation is detected but not yet checked."""
 import re, uuid, json, logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -21,8 +21,8 @@ IAC_CHECKS = [
     {"id": "tf-kms-rotation", "name": "KMS Key Rotation Disabled", "description": "KMS key should have rotation enabled", "provider": "terraform", "severity": "medium", "pattern": r'resource\s+"aws_kms_key"\s+"[^"]*"', "negative_pattern": r'rotation_enabled\s*=\s*false', "vulnerable_marker": True},
     {"id": "tf-s3-logging", "name": "S3 Bucket Logging Disabled", "description": "S3 bucket should have access logging", "provider": "terraform", "severity": "medium", "pattern": r'resource\s+"aws_s3_bucket"\s+"([^"]+)"', "negative_pattern": r'logging\s*\{'},
     {"id": "tf-vpc-flow-logs", "name": "VPC Flow Logs Disabled", "description": "VPC flow logs should be enabled", "provider": "terraform", "severity": "medium", "pattern": r'resource\s+"aws_vpc"\s+"([^"]*)"', "negative_pattern": r'resource\s+"aws_flow_log"'},
-    {"id": "tf-hardcoded-key", "name": "Hardcoded AWS Access Key", "description": "AWS access key should not be hardcoded", "provider": "terraform", "severity": "critical", "pattern": r'AKIA[0-9A-Z]{16}|aws_access_key_id|aws_secret_access_key', "negative_pattern": r'variable\s+"aws_access_key|var\.'},
-    {"id": "tf-plaintext-secret", "name": "Secret in Plaintext Variable", "description": "Sensitive variable without sensitive=true", "provider": "terraform", "severity": "critical", "pattern": r'variable\s+"(password|secret|token|key|credential|api_key)"', "negative_pattern": r'sensitive\s*=\s*true'},
+    {"id": "tf-hardcoded-key", "name": "Hardcoded AWS Access Key", "description": "AWS access key should not be hardcoded", "provider": "terraform", "severity": "critical", "pattern": r'AKIA[0-9A-Z]{16}|aws_access_key_id|aws_secret_access_key', "negative_pattern": r'variable\s+"aws_access_key|var\.', "scope_lines": 2},
+    {"id": "tf-plaintext-secret", "name": "Secret in Plaintext Variable", "description": "Sensitive variable without sensitive=true", "provider": "terraform", "severity": "critical", "pattern": r'variable\s+"(password|secret|token|key|credential|api_key)"', "negative_pattern": r'sensitive\s*=\s*true', "scope_lines": 5},
     {"id": "tf-ec2-admin", "name": "EC2 Admin Privileged True", "description": "EC2 instance should not run as admin", "provider": "terraform", "severity": "high", "pattern": r'resource\s+"aws_instance"\s+"[^"]*"', "negative_pattern": r'user_data.*admin|user_data.*root', "vulnerable_marker": True},
     {"id": "tf-s3-versioning", "name": "S3 Versioning Disabled", "description": "S3 versioning should be enabled", "provider": "terraform", "severity": "medium", "pattern": r'resource\s+"aws_s3_bucket"\s+"([^"]+)"', "negative_pattern": r'versioning\s*\{'},
     {"id": "tf-rds-deletion-protection", "name": "RDS Deletion Protection Disabled", "description": "RDS should have deletion protection", "provider": "terraform", "severity": "medium", "pattern": r'resource\s+"aws_db_instance"\s+"[^"]*"', "negative_pattern": r'deletion_protection\s*=\s*false', "vulnerable_marker": True},
@@ -46,7 +46,16 @@ def scan_code(code: str, filename: str = "") -> dict:
     """Scan code against IAC_CHECKS. Returns results dict."""
     ext = filename.rsplit(".", 1)[-1].lower() if filename else ""
     provider = _detect_provider(code, ext)
-    relevant = [c for c in IAC_CHECKS if c["provider"] == provider or provider == "unknown"]
+    scan_id = f"iac-{uuid.uuid4().hex[:12]}"
+    if provider == "cloudformation":
+        # No CloudFormation-specific checks are implemented yet; returning a clean
+        # 0-finding scan would be indistinguishable from "nothing to flag" in the UI.
+        return {"scan_id": scan_id, "provider": provider, "total": 0, "fail": 0, "findings": [],
+                "scanned_at": _now(), "warning": "CloudFormation checks are not yet implemented"}
+    if provider == "unknown":
+        return {"scan_id": scan_id, "provider": provider, "total": 0, "fail": 0, "findings": [],
+                "scanned_at": _now(), "warning": "Could not determine IaC provider (Terraform/Kubernetes/CloudFormation) from file content or extension"}
+    relevant = [c for c in IAC_CHECKS if c["provider"] == provider]
     findings = []
     for check in relevant:
         found = re.search(check["pattern"], code, re.MULTILINE | re.DOTALL)
@@ -55,7 +64,16 @@ def scan_code(code: str, filename: str = "") -> dict:
         negative = check.get("negative_pattern")
         has_negative = False
         if negative:
-            has_negative = bool(re.search(negative, code, re.MULTILINE | re.DOTALL))
+            scope_lines = check.get("scope_lines")
+            if scope_lines:
+                # Scope the mitigation search to nearby lines instead of the whole file,
+                # so an unrelated mitigation elsewhere can't mask this specific violation.
+                lines = code.split("\n")
+                match_line = code[:found.start()].count("\n")
+                window = "\n".join(lines[max(0, match_line - scope_lines): match_line + scope_lines + 1])
+                has_negative = bool(re.search(negative, window, re.MULTILINE | re.DOTALL))
+            else:
+                has_negative = bool(re.search(negative, code, re.MULTILINE | re.DOTALL))
         if check.get("vulnerable_marker"):
             # negative_pattern match confirms the vulnerable condition itself
             status = "FAIL" if has_negative else "PASS"
@@ -70,7 +88,6 @@ def scan_code(code: str, filename: str = "") -> dict:
             "severity": check["severity"], "status": status,
             "message": check["description"], "line": line_no,
         })
-    scan_id = f"iac-{uuid.uuid4().hex[:12]}"
     return {"scan_id": scan_id, "provider": provider, "total": len(findings), "fail": sum(1 for f in findings if f["status"] == "FAIL"), "findings": findings, "scanned_at": _now()}
 
 
