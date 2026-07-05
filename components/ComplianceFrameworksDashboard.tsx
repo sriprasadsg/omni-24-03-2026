@@ -55,6 +55,22 @@ function colorForFramework(id: string): string {
   return FRAMEWORK_COLOR_PALETTE[hash % FRAMEWORK_COLOR_PALETTE.length];
 }
 
+// Single source of truth for the recurring semantic colors (primary accent, pass/partial/fail
+// status) that were previously re-typed as raw hex/rgba literals across StatusBadge, the header,
+// score-card counts, filter tabs, and error banners.
+const SEMANTIC = {
+  primary: { hex: '#6366f1', rgb: '99,102,241', text: '#a5b4fc' },
+  pass: { hex: '#10b981', rgb: '16,185,129', text: '#6ee7b7' },
+  partial: { hex: '#f59e0b', rgb: '245,158,11', text: '#fcd34d' },
+  fail: { hex: '#ef4444', rgb: '239,68,68', text: '#fca5a5' },
+} as const;
+
+type SemanticKey = keyof typeof SEMANTIC;
+
+function semanticBg(key: SemanticKey, alpha: number): string {
+  return `rgba(${SEMANTIC[key].rgb},${alpha})`;
+}
+
 function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 28;
   const circ = 2 * Math.PI * r;
@@ -72,9 +88,9 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { bg: string; color: string; label: string; icon: React.ReactNode }> = {
-    pass: { bg: 'rgba(16,185,129,.12)', color: '#6ee7b7', label: 'Pass', icon: <CheckCircle size={11} /> },
-    partial: { bg: 'rgba(245,158,11,.12)', color: '#fcd34d', label: 'Partial', icon: <AlertTriangle size={11} /> },
-    fail: { bg: 'rgba(239,68,68,.12)', color: '#fca5a5', label: 'Fail', icon: <XCircle size={11} /> },
+    pass: { bg: semanticBg('pass', .12), color: SEMANTIC.pass.text, label: 'Pass', icon: <CheckCircle size={11} /> },
+    partial: { bg: semanticBg('partial', .12), color: SEMANTIC.partial.text, label: 'Partial', icon: <AlertTriangle size={11} /> },
+    fail: { bg: semanticBg('fail', .12), color: SEMANTIC.fail.text, label: 'Fail', icon: <XCircle size={11} /> },
     not_applicable: { bg: 'rgba(148,163,184,.1)', color: '#94a3b8', label: 'N/A', icon: null },
   };
   const c = cfg[status] || cfg.not_applicable;
@@ -199,7 +215,7 @@ export function ComplianceFrameworksDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>GRC</div>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: SEMANTIC.primary.hex, marginBottom: 6 }}>GRC</div>
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
           <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
         </div>
@@ -208,19 +224,19 @@ export function ComplianceFrameworksDashboard() {
             <button
               onClick={triggerScan}
               disabled={isScanning}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: isScanning ? 'rgba(99,102,241,.08)' : 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: '0.82em', opacity: isScanning ? 0.7 : 1 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: isScanning ? semanticBg('primary', .08) : semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: '0.82em', opacity: isScanning ? 0.7 : 1 }}>
               <RefreshCw size={13} style={{ animation: isScanning ? 'spin 1s linear infinite' : 'none' }} />
               {isScanning ? 'Dispatching…' : 'Scan All Agents'}
             </button>
           ) : (
             <button
               onClick={() => { fetchSummary(); fetchDetail(selected); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
               <RefreshCw size={13} /> Re-evaluate
             </button>
           )}
           {scanMessage && (
-            <span style={{ fontSize: '0.75em', color: scanMessage.startsWith('Failed') ? '#fca5a5' : '#6ee7b7' }}>
+            <span style={{ fontSize: '0.75em', color: scanMessage.startsWith('Failed') ? SEMANTIC.fail.text : SEMANTIC.pass.text }}>
               {scanMessage}
             </span>
           )}
@@ -231,12 +247,12 @@ export function ComplianceFrameworksDashboard() {
       {summaryError && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#fca5a5',
+          background: semanticBg('fail', .1), border: `1px solid ${semanticBg('fail', .3)}`, color: SEMANTIC.fail.text,
           borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: '0.85em',
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {summaryError}</span>
           <button onClick={() => fetchSummary()} style={{
-            background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.35)', color: '#fca5a5',
+            background: semanticBg('fail', .15), border: `1px solid ${semanticBg('fail', .35)}`, color: SEMANTIC.fail.text,
             borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 600,
           }}>Retry</button>
         </div>
@@ -284,9 +300,9 @@ export function ComplianceFrameworksDashboard() {
                 <div style={{ fontWeight: 800, fontSize: '0.95em', marginBottom: 4 }}>{s?.name || fid}</div>
                 {s && (
                   <div style={{ display: 'flex', gap: 10, fontSize: '0.78em' }}>
-                    <span style={{ color: '#6ee7b7' }}>✓ {s.passed}</span>
-                    <span style={{ color: '#fcd34d' }}>~ {s.partial}</span>
-                    <span style={{ color: '#fca5a5' }}>✗ {s.failed}</span>
+                    <span style={{ color: SEMANTIC.pass.text }}>✓ {s.passed}</span>
+                    <span style={{ color: SEMANTIC.partial.text }}>~ {s.partial}</span>
+                    <span style={{ color: SEMANTIC.fail.text }}>✗ {s.failed}</span>
                   </div>
                 )}
                 {loading && <span style={{ color: '#94a3b8', fontSize: '0.78em' }}>Evaluating…</span>}
@@ -300,12 +316,12 @@ export function ComplianceFrameworksDashboard() {
       {detailError && !detailLoading && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#fca5a5',
+          background: semanticBg('fail', .1), border: `1px solid ${semanticBg('fail', .3)}`, color: SEMANTIC.fail.text,
           borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: '0.85em',
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {detailError}</span>
           <button onClick={() => fetchDetail(selected)} style={{
-            background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.35)', color: '#fca5a5',
+            background: semanticBg('fail', .15), border: `1px solid ${semanticBg('fail', .35)}`, color: SEMANTIC.fail.text,
             borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 600,
           }}>Retry</button>
         </div>
@@ -324,8 +340,8 @@ export function ComplianceFrameworksDashboard() {
             <div style={{ display: 'flex', gap: 8 }}>
               {['all', 'fail', 'partial', 'pass'].map(f => (
                 <button key={f} onClick={() => setFilterStatus(f)} style={{
-                  background: filterStatus === f ? 'rgba(99,102,241,.2)' : 'transparent',
-                  border: '1px solid rgba(255,255,255,.1)', color: filterStatus === f ? '#a5b4fc' : '#94a3b8',
+                  background: filterStatus === f ? semanticBg('primary', .2) : 'transparent',
+                  border: '1px solid rgba(255,255,255,.1)', color: filterStatus === f ? SEMANTIC.primary.text : '#94a3b8',
                   borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 600, textTransform: 'capitalize',
                 }}>{f === 'all' ? `All (${detail.total})` : f === 'fail' ? `Fail (${detail.failed})` : f === 'partial' ? `Partial (${detail.partial})` : `Pass (${detail.passed})`}</button>
               ))}
@@ -349,7 +365,7 @@ export function ComplianceFrameworksDashboard() {
                     {isOpen ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
                     <span style={{ fontWeight: 700, fontSize: '0.88em' }}>{group}</span>
                     <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>{filtered.length} controls</span>
-                    {gFails > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.75em', color: '#fca5a5', background: 'rgba(239,68,68,.1)', borderRadius: 20, padding: '2px 10px' }}>{gFails} failing</span>}
+                    {gFails > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.75em', color: SEMANTIC.fail.text, background: semanticBg('fail', .1), borderRadius: 20, padding: '2px 10px' }}>{gFails} failing</span>}
                   </div>
                   {isOpen && filtered.map(ctrl => (
                     <div key={ctrl.id} style={{
