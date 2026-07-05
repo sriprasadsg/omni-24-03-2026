@@ -29,11 +29,6 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({ metrics })
     })).reverse(); // reverse to show time progressing left-to-right
   }, [metrics]);
 
-  // if (chartData.length === 0) {
-  //   return null;
-  // }
-
-  // Force disable for debugging
   if (chartData.length === 0) {
     return null;
   }

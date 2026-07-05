@@ -8,6 +8,7 @@ import { AiInsights } from './AiInsights';
 import { AiSystemHealth } from './AiSystemHealth';
 import { DashboardHeader } from './DashboardHeader';
 import { BusinessKpiChart } from './BusinessKpiChart';
+import { SystemHealthChart } from './SystemHealthChart';
 
 interface DashboardProps {
   metrics: Metric[];
@@ -27,6 +28,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ metrics, alerts, complianc
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {metrics.map((metric, i) => <MetricCard key={metric.id} metric={metric} index={i} />)}
       </div>
+
+      <SystemHealthChart metrics={metrics} />
 
       <AiInsights metrics={metrics} alerts={alerts} />
 
