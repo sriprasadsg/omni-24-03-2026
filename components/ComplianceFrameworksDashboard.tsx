@@ -76,6 +76,15 @@ function semanticBg(key: SemanticKey, alpha: number): string {
 const FONT = { xs: '0.72em', sm: '0.78em', md: '0.88em', lg: '1.8em' } as const;
 const WEIGHT = { medium: 600, bold: 700 } as const;
 
+// 4px-based spacing/radius scale -- every padding/margin/gap and border-radius value in this
+// component is one of these, instead of a bare pixel number picked per element.
+const SPACING = {
+  xxs: 2, xs: 4, sm: 6, md: 8, lg: 10, xl: 12, xxl: 16, xxxl: 20,
+  section: 24, page: 28, container: 32, iconInset: 34, emptyStateSm: 40,
+  indent: 48, emptyStateLg: 60,
+} as const;
+const RADIUS = { sm: 6, md: 8, lg: 14, pill: 20 } as const;
+
 function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 28;
   const circ = 2 * Math.PI * r;
@@ -100,7 +109,7 @@ function StatusBadge({ status }: { status: string }) {
   };
   const c = cfg[status] || cfg.not_applicable;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: c.bg, color: c.color, borderRadius: 20, padding: '3px 10px', fontSize: FONT.xs, fontWeight: WEIGHT.bold }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: SPACING.xs, background: c.bg, color: c.color, borderRadius: RADIUS.pill, padding: `${SPACING.xs}px ${SPACING.lg}px`, fontSize: FONT.xs, fontWeight: WEIGHT.bold }}>
       {c.icon} {c.label}
     </span>
   );
@@ -215,31 +224,31 @@ export function ComplianceFrameworksDashboard() {
     filterStatus === 'all' ? ctrls : ctrls.filter(c => c.status === filterStatus);
 
   return (
-    <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+    <div style={{ padding: `${SPACING.page}px ${SPACING.container}px`, color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.page }}>
         <div>
-          <div style={{ fontSize: FONT.xs, fontWeight: WEIGHT.bold, letterSpacing: '0.12em', textTransform: 'uppercase', color: SEMANTIC.primary.hex, marginBottom: 6 }}>GRC</div>
+          <div style={{ fontSize: FONT.xs, fontWeight: WEIGHT.bold, letterSpacing: '0.12em', textTransform: 'uppercase', color: SEMANTIC.primary.hex, marginBottom: SPACING.sm }}>GRC</div>
           <h1 style={{ fontSize: FONT.lg, fontWeight: WEIGHT.bold, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
-          <p style={{ color: '#94a3b8', fontSize: FONT.md, marginTop: 4 }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
+          <p style={{ color: '#94a3b8', fontSize: FONT.md, marginTop: SPACING.xs }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: SPACING.sm }}>
           {canTriggerScan ? (
             <button
               onClick={triggerScan}
               disabled={isScanning}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: isScanning ? semanticBg('primary', .08) : semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: FONT.md, opacity: isScanning ? 0.7 : 1 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm, background: isScanning ? semanticBg('primary', .08) : semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: RADIUS.md, padding: `${SPACING.md}px ${SPACING.xxl}px`, cursor: isScanning ? 'not-allowed' : 'pointer', fontSize: FONT.md, opacity: isScanning ? 0.7 : 1 }}>
               <RefreshCw size={13} style={{ animation: isScanning ? 'spin 1s linear infinite' : 'none' }} />
               {isScanning ? 'Dispatching…' : 'Scan All Agents'}
             </button>
           ) : (
             <button
               onClick={() => { fetchSummary(); fetchDetail(selected); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: FONT.md }}>
+              style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm, background: semanticBg('primary', .15), border: `1px solid ${semanticBg('primary', .3)}`, color: SEMANTIC.primary.text, borderRadius: RADIUS.md, padding: `${SPACING.md}px ${SPACING.xxl}px`, cursor: 'pointer', fontSize: FONT.md }}>
               <RefreshCw size={13} /> Re-evaluate
             </button>
           )}
@@ -254,22 +263,22 @@ export function ComplianceFrameworksDashboard() {
       {/* Summary error banner */}
       {summaryError && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.xl,
           background: semanticBg('fail', .1), border: `1px solid ${semanticBg('fail', .3)}`, color: SEMANTIC.fail.text,
-          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: FONT.md,
+          borderRadius: RADIUS.md, padding: `${SPACING.lg}px ${SPACING.xxl}px`, marginBottom: SPACING.xxl, fontSize: FONT.md,
         }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {summaryError}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: SPACING.md }}><AlertTriangle size={14} /> {summaryError}</span>
           <button onClick={() => fetchSummary()} style={{
             background: semanticBg('fail', .15), border: `1px solid ${semanticBg('fail', .35)}`, color: SEMANTIC.fail.text,
-            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: FONT.md, fontWeight: WEIGHT.medium,
+            borderRadius: RADIUS.sm, padding: `${SPACING.xs}px ${SPACING.xl}px`, cursor: 'pointer', fontSize: FONT.md, fontWeight: WEIGHT.medium,
           }}>Retry</button>
         </div>
       )}
 
       {/* Framework search */}
       {frameworkIds.length > 0 && (
-        <div style={{ position: 'relative', marginBottom: 16, maxWidth: 360 }}>
-          <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+        <div style={{ position: 'relative', marginBottom: SPACING.xxl, maxWidth: 360 }}>
+          <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: SPACING.xl, top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
             value={search}
@@ -277,7 +286,7 @@ export function ComplianceFrameworksDashboard() {
             placeholder={`Search ${frameworkIds.length} frameworks…`}
             style={{
               width: '100%', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
-              borderRadius: 8, padding: '8px 12px 8px 34px', color: '#f1f5f9', fontSize: FONT.md,
+              borderRadius: RADIUS.md, padding: `${SPACING.md}px ${SPACING.xl}px ${SPACING.md}px ${SPACING.iconInset}px`, color: '#f1f5f9', fontSize: FONT.md,
               boxSizing: 'border-box', outline: 'none',
             }}
           />
@@ -286,12 +295,12 @@ export function ComplianceFrameworksDashboard() {
 
       {/* Framework score cards */}
       {loading && frameworkIds.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 60 }}>Loading frameworks…</div>
+        <div style={{ textAlign: 'center', color: '#94a3b8', padding: SPACING.emptyStateLg }}>Loading frameworks…</div>
       )}
       {!loading && frameworkIds.length > 0 && visibleFrameworkIds.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 40 }}>No frameworks match "{search}".</div>
+        <div style={{ textAlign: 'center', color: '#94a3b8', padding: SPACING.emptyStateSm }}>No frameworks match "{search}".</div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: SPACING.xxl, marginBottom: SPACING.page }}>
         {visibleFrameworkIds.map(fid => {
           const s = summary[fid];
           const color = colorForFramework(fid);
@@ -300,14 +309,14 @@ export function ComplianceFrameworksDashboard() {
             <div key={fid} onClick={() => setSelected(fid)} style={{
               background: isSelected ? `${color}18` : 'rgba(255,255,255,.04)',
               border: `1px solid ${isSelected ? color + '60' : 'rgba(255,255,255,.08)'}`,
-              borderRadius: 14, padding: '20px 24px', cursor: 'pointer', transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', gap: 20,
+              borderRadius: RADIUS.lg, padding: `${SPACING.xxxl}px ${SPACING.section}px`, cursor: 'pointer', transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', gap: SPACING.xxxl,
             }}>
               {s ? <ScoreRing score={Math.round(s.score)} color={color} /> : <div style={{ width: 70, height: 70, background: 'rgba(255,255,255,.05)', borderRadius: '50%', animation: 'pulse 1.5s ease-in-out infinite' }} />}
               <div>
-                <div style={{ fontWeight: WEIGHT.bold, fontSize: FONT.md, marginBottom: 4 }}>{s?.name || fid}</div>
+                <div style={{ fontWeight: WEIGHT.bold, fontSize: FONT.md, marginBottom: SPACING.xs }}>{s?.name || fid}</div>
                 {s && (
-                  <div style={{ display: 'flex', gap: 10, fontSize: FONT.sm }}>
+                  <div style={{ display: 'flex', gap: SPACING.lg, fontSize: FONT.sm }}>
                     <span style={{ color: SEMANTIC.pass.text }}>✓ {s.passed}</span>
                     <span style={{ color: SEMANTIC.partial.text }}>~ {s.partial}</span>
                     <span style={{ color: SEMANTIC.fail.text }}>✗ {s.failed}</span>
@@ -323,34 +332,34 @@ export function ComplianceFrameworksDashboard() {
       {/* Detail panel */}
       {detailError && !detailLoading && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.xl,
           background: semanticBg('fail', .1), border: `1px solid ${semanticBg('fail', .3)}`, color: SEMANTIC.fail.text,
-          borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: FONT.md,
+          borderRadius: RADIUS.md, padding: `${SPACING.lg}px ${SPACING.xxl}px`, marginBottom: SPACING.xxl, fontSize: FONT.md,
         }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={14} /> {detailError}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: SPACING.md }}><AlertTriangle size={14} /> {detailError}</span>
           <button onClick={() => fetchDetail(selected)} style={{
             background: semanticBg('fail', .15), border: `1px solid ${semanticBg('fail', .35)}`, color: SEMANTIC.fail.text,
-            borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: FONT.md, fontWeight: WEIGHT.medium,
+            borderRadius: RADIUS.sm, padding: `${SPACING.xs}px ${SPACING.xl}px`, cursor: 'pointer', fontSize: FONT.md, fontWeight: WEIGHT.medium,
           }}>Retry</button>
         </div>
       )}
       {detailLoading ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', padding: 60 }}>Running control checks…</div>
+        <div style={{ textAlign: 'center', color: '#94a3b8', padding: SPACING.emptyStateLg }}>Running control checks…</div>
       ) : detail && (
-        <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: RADIUS.lg, overflow: 'hidden' }}>
           {/* Panel header */}
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: `${SPACING.xxl}px ${SPACING.section}px`, borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.xl }}>
               <Shield size={16} color={colorForFramework(selected)} />
               <span style={{ fontWeight: WEIGHT.bold }}>{detail.framework_name} v{detail.version}</span>
               <span style={{ fontSize: FONT.sm, color: '#94a3b8' }}>{detail.total} controls · evaluated {new Date(detail.evaluated_at).toLocaleTimeString()}</span>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: SPACING.md }}>
               {['all', 'fail', 'partial', 'pass'].map(f => (
                 <button key={f} onClick={() => setFilterStatus(f)} style={{
                   background: filterStatus === f ? semanticBg('primary', .2) : 'transparent',
                   border: '1px solid rgba(255,255,255,.1)', color: filterStatus === f ? SEMANTIC.primary.text : '#94a3b8',
-                  borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: FONT.sm, fontWeight: WEIGHT.medium, textTransform: 'capitalize',
+                  borderRadius: RADIUS.sm, padding: `${SPACING.xs}px ${SPACING.xl}px`, cursor: 'pointer', fontSize: FONT.sm, fontWeight: WEIGHT.medium, textTransform: 'capitalize',
                 }}>{f === 'all' ? `All (${detail.total})` : f === 'fail' ? `Fail (${detail.failed})` : f === 'partial' ? `Partial (${detail.partial})` : `Pass (${detail.passed})`}</button>
               ))}
             </div>
@@ -366,28 +375,28 @@ export function ComplianceFrameworksDashboard() {
               return (
                 <div key={group}>
                   <div onClick={() => toggleGroup(group)} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 24px',
+                    display: 'flex', alignItems: 'center', gap: SPACING.lg, padding: `${SPACING.xl}px ${SPACING.section}px`,
                     background: 'rgba(255,255,255,.02)', borderBottom: '1px solid rgba(255,255,255,.05)',
                     cursor: 'pointer', userSelect: 'none',
                   }}>
                     {isOpen ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
                     <span style={{ fontWeight: WEIGHT.bold, fontSize: FONT.md }}>{group}</span>
                     <span style={{ fontSize: FONT.sm, color: '#94a3b8' }}>{filtered.length} controls</span>
-                    {gFails > 0 && <span style={{ marginLeft: 'auto', fontSize: FONT.sm, color: SEMANTIC.fail.text, background: semanticBg('fail', .1), borderRadius: 20, padding: '2px 10px' }}>{gFails} failing</span>}
+                    {gFails > 0 && <span style={{ marginLeft: 'auto', fontSize: FONT.sm, color: SEMANTIC.fail.text, background: semanticBg('fail', .1), borderRadius: RADIUS.pill, padding: `${SPACING.xxs}px ${SPACING.lg}px` }}>{gFails} failing</span>}
                   </div>
                   {isOpen && filtered.map(ctrl => (
                     <div key={ctrl.id} style={{
                       display: 'grid', gridTemplateColumns: '90px 1fr 1fr auto',
-                      gap: 16, padding: '12px 24px 12px 48px',
+                      gap: SPACING.xxl, padding: `${SPACING.xl}px ${SPACING.section}px ${SPACING.xl}px ${SPACING.indent}px`,
                       borderBottom: '1px solid rgba(255,255,255,.04)',
                       alignItems: 'start',
                     }}>
                       <span style={{ fontSize: FONT.sm, fontWeight: WEIGHT.bold, color: '#94a3b8', fontFamily: 'monospace' }}>{ctrl.id}</span>
                       <div>
-                        <div style={{ fontSize: FONT.md, fontWeight: WEIGHT.medium, marginBottom: 2 }}>{ctrl.title}</div>
+                        <div style={{ fontSize: FONT.md, fontWeight: WEIGHT.medium, marginBottom: SPACING.xxs }}>{ctrl.title}</div>
                         <div style={{ fontSize: FONT.sm, color: '#94a3b8', lineHeight: 1.4 }}>{ctrl.description}</div>
                       </div>
-                      <span style={{ fontSize: FONT.sm, color: '#94a3b8', paddingTop: 2 }}>{ctrl.evidence}</span>
+                      <span style={{ fontSize: FONT.sm, color: '#94a3b8', paddingTop: SPACING.xxs }}>{ctrl.evidence}</span>
                       <StatusBadge status={ctrl.status} />
                     </div>
                   ))}
