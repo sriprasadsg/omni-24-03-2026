@@ -344,7 +344,13 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                         if match
                         else f"❌ TAMPERING DETECTED (Agent: {agent_hash[:8]}... vs Server: {server_hash[:8]}...)"
                     )
-                    evidence_content += f"\n\n## 3. Evidence Integrity\n**Agent Hash (SHA256):** `{agent_hash}`\n**Backend Verification:** {verification}\n"
+                    evidence_content += (
+                        f"\n\n## 3. Evidence Integrity\n**Agent Hash (SHA256):** `{agent_hash}`\n"
+                        f"**Backend Verification:** {verification}\n"
+                        f"*Note: this hash confirms transport integrity between the agent and server "
+                        f"only — it is computed and checked using content the agent itself supplied, so "
+                        f"it does not authenticate that the agent's collection was untampered.*\n"
+                    )
                 else:
                     evidence_content += "\n\n## 3. Evidence Integrity\n*Integrity hash not provided by agent.*"
 
