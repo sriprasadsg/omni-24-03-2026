@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: Executing
-stopped_at: Phase 25 Plan 02 (Cloud Checks Execution Gaps — CHK-02) complete — 18 CloudFormation IaC rules added, YAML detection bug fixed, stub removed
-last_updated: "2026-07-06T12:52:43.780Z"
+stopped_at: Phase 25 Plan 03 (Cloud Checks Execution Gaps — CHK-03) complete — container scan simulated flag added to both result paths, SIMULATED badge surfaced in 3 UI sites
+last_updated: "2026-07-06T12:59:41.256Z"
 progress:
   total_phases: 15
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 7
 ---
 
 # Project State
@@ -156,6 +156,7 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 - [Phase ?]: 25-02: 18 CFN rules added verbatim from RESEARCH.md Pattern 2 — parity with Terraform's 17 rules, scope_lines preserved on every greedy negative_pattern (ReDoS mitigation T-25-02)
 - [Phase ?]: 25-02: _CFN_TYPE_RE module-level regex fixes _detect_provider() YAML CloudFormation misclassification (pre-existing bug, T-25-02b) — checked in yaml/yml branch, json/template branch, and as extension-less fallback
 - [Phase ?]: 25-02: CloudFormation early-return stub in scan_code() removed — CFN now flows through the same provider-filtered IAC_CHECKS dispatch as Terraform/Kubernetes
+- [Phase 25]: 25-03: simulated field added purely additively (no fail-closed change) to preserve existing container fallback tests per Pitfall 4
 
 ## Performance Metrics
 
@@ -185,11 +186,12 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 | Phase 23 P02 | 336 | 9 tasks | 8 files |
 | Phase 25-cloud-checks-execution-gaps P01 | 12min | 2 tasks | 6 files |
 | Phase 25-cloud-checks-execution-gaps P02 | 5min | 2 tasks | 2 files |
+| Phase 25-cloud-checks-execution-gaps P03 | 6min | 2 tasks | 3 files |
 
 ## Last Session
 
-- **Timestamp:** 2026-06-23T17:45:23Z
-- **Stopped at:** Phase 25 Plan 02 (Cloud Checks Execution Gaps — CHK-02) complete — 18 CloudFormation IaC rules added, YAML detection bug fixed, stub removed
+- **Timestamp:** 2026-07-06T12:59:41.241Z
+- **Stopped at:** Phase 25 Plan 03 (Cloud Checks Execution Gaps — CHK-03) complete — container scan simulated flag added to both result paths, SIMULATED badge surfaced in 3 UI sites
 - **Resume file:** None
 
 ## Configuration
@@ -215,8 +217,8 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 
 ## Session
 
-**Last session:** 2026-07-06T12:52:43.764Z
-**Stopped at:** Phase 25 Plan 02 (Cloud Checks Execution Gaps — CHK-02) complete — 18 CloudFormation IaC rules added, YAML detection bug fixed, stub removed
+**Last session:** 2026-07-06T12:59:41.241Z
+**Stopped at:** Phase 25 Plan 03 (Cloud Checks Execution Gaps — CHK-03) complete — container scan simulated flag added to both result paths, SIMULATED badge surfaced in 3 UI sites
 **Resume file:** None
 
 ## Accumulated Context
