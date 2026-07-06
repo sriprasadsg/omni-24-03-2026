@@ -325,17 +325,19 @@ Not applicable — this phase does not touch any third-party API or protocol who
 | A3 | Subprocessors should use the push-array pattern (embedded in the vendor doc) rather than a separate top-level collection. | Don't Hand-Roll / Pattern 2 | If a subprocessor is expected to be independently queryable/searchable across all vendors (e.g., "which vendors use Subprocessor X"), the embedded-array design makes that a full collection scan instead of an indexed query. Given assessments/documents already use this pattern at similar or larger scale, risk is low. |
 | A4 | DPA create/sign/terminate should be gated on `_VENDOR_ADMIN_ROLES` (borrowed from `vendor_endpoints.py`), not left ungated like BAA's current `create_baa`. | Common Pitfalls — Pitfall 2 | If the intended role set differs (e.g., a legal/compliance-specific role should own DPA), this needs correction during plan-check or code review. Security-side risk is asymmetric (better to be gated and loosen later than the reverse), so this defaults to the safer choice. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should DPA reuse the `baa_endpoints.py` inline-router style (all logic in the endpoints file) or should it get its own `dpa_service.py` like vendor/risk do?**
    - What we know: BAA keeps everything in one file (169 lines); vendor/risk split service from endpoints.
    - What's unclear: Whether the planner should follow BAA's single-file style for maximum pattern fidelity, or the service-split style for consistency with vendor/risk (which VRISK-01 is nominally paired with in this phase).
    - Recommendation: Given CLAUDE.md's 500-line file cap and that BAA's own file is well under that limit, a single `dpa_endpoints.py` (BAA style) is simplest and most faithful to "mirror the BAA pattern" as literally instructed. Planner should pick this unless the DPA feature set grows large enough to warrant a split.
+   - **RESOLVED: single-file `backend/dpa_endpoints.py` (BAA style), as recommended — implemented in 26-01-PLAN.md.**
 
 2. **Does "subprocessor discovery" imply any external/automated discovery mechanism (e.g., scanning a vendor's published subprocessor list URL), or is it purely manual data entry?**
    - What we know: The phase description says "a vendor record can list its own subprocessors" — phrased as a data-completeness gap, not an automation gap. No existing code in this repo does any external subprocessor scraping/discovery.
    - What's unclear: Whether "discovery" is literal (automated) or just the noun used for the vendor-transparency-report feature common in GRC tools (Comp AI/Probo/OpenLane, per the audit that spawned this phase).
    - Recommendation: Scope as manual CRUD (add/list/remove) per Pattern 2 above — matches every comparable feature-parity audit finding in this milestone (all Tier 1 phases are "quick fixes," not new automation surfaces), and matches the "checkbox flag" → "tracked lifecycle" framing used for DPA (i.e., "make it trackable data," not "make it auto-detected").
+   - **RESOLVED: manual CRUD (add/list/remove), as recommended — implemented in 26-02-PLAN.md / 26-04-PLAN.md.**
 
 ## Environment Availability
 
