@@ -72,6 +72,10 @@ async def run_checks(payload: RunChecksPayload, current_user: TokenData = Depend
     """Trigger check evaluation against a connected cloud account."""
     if payload.provider not in ("aws", "azure", "gcp", "kubernetes", "digitalocean"):
         raise HTTPException(status_code=400, detail="provider must be aws, azure, gcp, kubernetes, or digitalocean")
-    return await cloud_checks_service.run_checks(
+    result = await cloud_checks_service.run_checks(
         payload.accountId, payload.provider, _tenant(current_user), payload.credentialsHint
     )
+    if result.get("error"):
+        status_code = 404 if result["error"] == "Cloud account not found" else 400
+        raise HTTPException(status_code=status_code, detail=result["error"])
+    return result

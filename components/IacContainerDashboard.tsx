@@ -74,9 +74,15 @@ async function describeError(r: Response, action: string): Promise<string> {
   }
 }
 
+function authHeaders() {
+  const token = sessionStorage.getItem('token') || sessionStorage.getItem('access_token');
+  return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
+
 export function IacContainerDashboard() {
   const [tab, setTab] = useState<TabType>('iac');
-  const [loading, setLoading] = useState(false);
+  const [iacLoading, setIacLoading] = useState(false);
+  const [containerLoading, setContainerLoading] = useState(false);
   const [error, setError] = useState('');
 
   // IaC state
@@ -91,26 +97,23 @@ export function IacContainerDashboard() {
   const [containerResult, setContainerResult] = useState<ContainerScanResponse | null>(null);
   const [containerHistory, setContainerHistory] = useState<ContainerScanResponse[]>([]);
 
-  const token = sessionStorage.getItem('token') || sessionStorage.getItem('access_token');
-  const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-
   const fetchIacHistory = useCallback(async () => {
     try {
-      const r = await fetch('/api/iac/results', { headers }).then(r => r.ok ? r.json() : null);
+      const r = await fetch('/api/iac/results', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
       if (r) setIacHistory(r.items || []);
     } catch { /* network error — leave existing history in place */ }
   }, []);
 
   const fetchContainerHistory = useCallback(async () => {
     try {
-      const r = await fetch('/api/container/results', { headers }).then(r => r.ok ? r.json() : null);
+      const r = await fetch('/api/container/results', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
       if (r) setContainerHistory(r.items || []);
     } catch { /* network error — leave existing history in place */ }
   }, []);
 
   const fetchIacConfig = useCallback(async () => {
     try {
-      const r = await fetch('/api/iac/scan-config', { headers }).then(r => r.ok ? r.json() : null);
+      const r = await fetch('/api/iac/scan-config', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
       if (r) setIacConfig(r.config);
     } catch { /* network error — leave existing config in place */ }
   }, []);
@@ -123,10 +126,10 @@ export function IacContainerDashboard() {
 
   const runIacScan = async () => {
     if (!iacCode.trim()) return;
-    setLoading(true); setError('');
+    setIacLoading(true); setError('');
     try {
       const r = await fetch('/api/iac/scan', {
-        method: 'POST', headers,
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ code: iacCode, filename: iacFilename }),
       });
       if (!r.ok) { setError(await describeError(r, 'Scan')); return; }
@@ -134,15 +137,15 @@ export function IacContainerDashboard() {
       setIacResult(data);
       fetchIacHistory();
     } catch (e: any) { setError(`Scan failed: ${e.message}`); }
-    finally { setLoading(false); }
+    finally { setIacLoading(false); }
   };
 
   const runContainerScan = async () => {
     if (!imageName.trim()) return;
-    setLoading(true); setError('');
+    setContainerLoading(true); setError('');
     try {
       const r = await fetch('/api/container/scan', {
-        method: 'POST', headers,
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ image_name: imageName }),
       });
       if (!r.ok) { setError(await describeError(r, 'Scan')); return; }
@@ -150,7 +153,7 @@ export function IacContainerDashboard() {
       setContainerResult(data);
       fetchContainerHistory();
     } catch (e: any) { setError(`Scan failed: ${e.message}`); }
-    finally { setLoading(false); }
+    finally { setContainerLoading(false); }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,9 +238,9 @@ export function IacContainerDashboard() {
               <textarea value={iacCode} onChange={e => setIacCode(e.target.value)}
                 placeholder={'Paste Terraform / K8s / CloudFormation code here...\n\ne.g.\nresource "aws_s3_bucket" "data" {\n  bucket = "my-bucket"\n  acl    = "public-read"\n}'}
                 className="w-full min-h-[240px] px-3 py-2 text-xs font-mono border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y" />
-              <button onClick={runIacScan} disabled={loading || !iacCode.trim()}
+              <button onClick={runIacScan} disabled={iacLoading || !iacCode.trim()}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                <Terminal className="w-4 h-4" /> {loading ? 'Scanning...' : 'Scan Code'}
+                <Terminal className="w-4 h-4" /> {iacLoading ? 'Scanning...' : 'Scan Code'}
               </button>
             </div>
           </div>
@@ -253,7 +256,7 @@ export function IacContainerDashboard() {
               )}
             </div>
             <div className="p-4">
-              {loading ? (
+              {iacLoading ? (
                 <Spinner />
               ) : !iacResult ? (
                 <div className="text-center text-gray-400 dark:text-gray-500 py-10">
@@ -330,9 +333,9 @@ export function IacContainerDashboard() {
                 <input value={imageName} onChange={e => setImageName(e.target.value)}
                   placeholder="nginx:latest"
                   className="flex-1 px-3 py-2 text-sm font-mono border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                <button onClick={runContainerScan} disabled={loading || !imageName.trim()}
+                <button onClick={runContainerScan} disabled={containerLoading || !imageName.trim()}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
-                  <Terminal className="w-4 h-4" /> {loading ? 'Scanning...' : 'Scan Image'}
+                  <Terminal className="w-4 h-4" /> {containerLoading ? 'Scanning...' : 'Scan Image'}
                 </button>
               </div>
               {containerResult?.note && (
@@ -349,7 +352,7 @@ export function IacContainerDashboard() {
               <span className="text-sm font-semibold text-gray-900 dark:text-white">Vulnerability Summary</span>
             </div>
             <div className="p-4">
-              {loading ? (
+              {containerLoading ? (
                 <Spinner />
               ) : !containerResult ? (
                 <div className="text-center text-gray-400 dark:text-gray-500 py-10">

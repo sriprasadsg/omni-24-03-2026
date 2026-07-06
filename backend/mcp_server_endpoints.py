@@ -79,6 +79,9 @@ async def execute_tool(tool_name: str, params: dict = Body(default={}), current_
             raise HTTPException(status_code=400, detail="provider must be aws, azure, gcp, kubernetes, or digitalocean")
         from cloud_checks_service import cloud_checks_service
         result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
+        if result.get("error"):
+            status_code = 404 if result["error"] == "Cloud account not found" else 400
+            raise HTTPException(status_code=status_code, detail=result["error"])
         return {"tool": tool_name, "result": result}
 
     if tool_name == "list_findings":

@@ -37,6 +37,8 @@ async def register_account(payload: Dict[str, Any] = Body(...), current_user: To
     db = get_database()
     if not payload.get("provider") or not payload.get("account_id"):
         raise HTTPException(status_code=400, detail="provider and account_id required")
+    if not isinstance(payload.get("account_id"), str):
+        raise HTTPException(status_code=400, detail="account_id must be a non-empty string")
     if payload.get("provider") not in _VALID_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"provider must be one of {sorted(_VALID_PROVIDERS)}")
     if payload.get("environment", "dev") not in _VALID_ENVS:
