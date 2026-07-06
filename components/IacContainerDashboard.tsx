@@ -34,6 +34,7 @@ interface ContainerScanResponse {
   scan_id: string;
   image: string;
   trivy: boolean;
+  simulated?: boolean;
   vulns: ContainerVuln[];
   total: number;
   critical: number;
@@ -358,7 +359,14 @@ export function IacContainerDashboard() {
                 </div>
               ) : (
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 font-mono">{containerResult.image}</p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{containerResult.image}</p>
+                    {containerResult.simulated && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-semibold">
+                        <AlertTriangle className="w-3 h-3 shrink-0" /> SIMULATED — not a real Trivy scan
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { label: 'Total', value: containerResult.total, className: 'text-gray-900 dark:text-white' },
@@ -381,7 +389,14 @@ export function IacContainerDashboard() {
           {containerResult && containerResult.vulns.length > 0 && (
             <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">Vulnerabilities</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  Vulnerabilities
+                  {containerResult.simulated && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded text-xs font-semibold">
+                      <AlertTriangle className="w-3 h-3 shrink-0" /> SIMULATED
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">{containerResult.vulns.length} findings</span>
               </div>
               <div className="p-4 overflow-x-auto">
@@ -425,6 +440,7 @@ export function IacContainerDashboard() {
                   <div key={i} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-900/40 rounded-lg text-xs">
                     <Server className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                     <span className="font-mono font-medium text-gray-700 dark:text-gray-300">{h.image}</span>
+                    {h.simulated && <span className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">sim</span>}
                     <span className="text-red-600 dark:text-red-400">{h.critical} critical</span>
                     <span className="text-orange-600 dark:text-orange-400">{h.high} high</span>
                     <span className="text-gray-500 dark:text-gray-400">{h.total} total</span>
