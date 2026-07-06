@@ -75,6 +75,13 @@ def test_container_scan_image():
     assert r["total"] > 0
     assert "vulns" in r
 
+def test_container_simulated_flag():
+    import container_scanner_service as cs
+    with patch("container_scanner_service._find_trivy", return_value=None):
+        r = cs.scan_image("nginx:latest")
+    assert r["simulated"] is True
+    assert r["total"] > 0
+
 def test_container_list_results():
     db = _mkdb(); u = _mkuser(); c = _build("container_scanner_endpoints", db, u)
     r = c.get("/api/container/results")

@@ -66,7 +66,7 @@ def _parse_trivy_output(scan_id: str, image_name: str, raw: str) -> dict:
         high = sum(1 for v in vulns if v["severity"] == "HIGH")
         medium = sum(1 for v in vulns if v["severity"] == "MEDIUM")
         low = sum(1 for v in vulns if v["severity"] == "LOW" or v["severity"] == "UNKNOWN")
-        return {"scan_id": scan_id, "image": image_name, "trivy": True, "vulns": vulns, "total": len(vulns), "critical": critical, "high": high, "medium": medium, "low": low, "scanned_at": _now()}
+        return {"scan_id": scan_id, "image": image_name, "trivy": True, "simulated": False, "vulns": vulns, "total": len(vulns), "critical": critical, "high": high, "medium": medium, "low": low, "scanned_at": _now()}
     except (json.JSONDecodeError, KeyError) as e:
         logger.warning("Failed to parse Trivy output: %s", e)
         return _simulated_results(scan_id, image_name, note="Trivy output parse failed")
@@ -85,7 +85,7 @@ def _simulated_results(scan_id: str, image_name: str, note: str = "") -> dict:
     h = sum(1 for v in vulns if v["severity"] == "HIGH")
     m = sum(1 for v in vulns if v["severity"] == "MEDIUM")
     l = sum(1 for v in vulns if v["severity"] == "LOW" or v["severity"] == "UNKNOWN")
-    result = {"scan_id": scan_id, "image": image_name, "trivy": False, "note": note or "Trivy not installed — simulated results", "vulns": vulns, "total": len(vulns), "critical": c, "high": h, "medium": m, "low": l, "scanned_at": _now()}
+    result = {"scan_id": scan_id, "image": image_name, "trivy": False, "simulated": True, "note": note or "Trivy not installed — simulated results", "vulns": vulns, "total": len(vulns), "critical": c, "high": h, "medium": m, "low": l, "scanned_at": _now()}
     return result
 
 
