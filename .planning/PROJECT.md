@@ -96,6 +96,10 @@ Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Rema
 | asyncio.run() over pytest-asyncio in tests | pytest-asyncio not installed; asyncio.run() creates fresh loop per call, no Python 3.12 lifecycle issues | Done — consistent across all 7 test files added in v1.0 |
 | compliance_remediation_tasks collection name | Avoids collision with `remediation_tasks` used by continuous_compliance_service | Done |
 | broadcast_remediation_update list() snapshot copy | Prevents set-mutation-during-iteration; matches broadcast_mitre_heatmap pattern | Done |
+| Provider-allowlist widening (Phase 25, CHK-01) touches all 4 duplicated gate locations in lockstep, not just the named execution gate | Leaving account registration narrower than execution would leave the multi-account UI flow still broken | Done — `cloud_checks_service.py`, `cloud_checks_endpoints.py`, `cloud_account_endpoints.py`, `mcp_server_endpoints.py` all widened together |
+| CloudFormation container-scan "simulated" data is labeled, not fail-closed (Phase 25, CHK-03) | Labeled simulated data is more useful to the user than an empty/error result when Trivy isn't installed; matches the existing `finops_service` simulated-spend precedent | Done — explicit `simulated` field + SIMULATED badge at 3 dashboard sites, verified via live browser run, not just code inspection |
+
+**Note (2026-07-06):** This file's Requirements/Milestone sections above still reflect the v1.1 era and were not kept current through v2.0/v2.1/v3.0 — a pre-existing maintenance gap, not something to silently paper over. A full catch-up pass is out of scope for a single phase's transition; flagged here for a future `/gsd-complete-milestone` pass.
 
 ## Evolution
 
@@ -108,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-21 after Phase 6 (asset-compliance-status-ui-fix)*
+*Last updated: 2026-07-06 after Phase 25 (cloud-checks-execution-gaps)*
