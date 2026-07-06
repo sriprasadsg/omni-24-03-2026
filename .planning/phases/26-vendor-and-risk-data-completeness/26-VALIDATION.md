@@ -40,17 +40,19 @@ Task IDs are assigned by the planner; requirement-level rows below are the contr
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | VRISK-01 | — | DPA create starts in `draft`, unsigned | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPACreate -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-01 | — | Single-party sign does NOT activate (mirrors a known BAA bug class) | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPASign::test_single_party_sign_does_not_activate -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-01 | — | Both-parties-signed activates DPA | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPASign::test_both_parties_signed_activates -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-01 | — | Terminate sets status + respects tenant filter | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPATerminate -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-01 | T-26-01 | Non-admin role forbidden from creating DPA (do not inherit BAA's ungated create_baa) | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPACreate::test_create_forbidden_for_non_admin -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-02 | — | Adding a subprocessor pushes to vendor's `subprocessors` array | unit | `pytest backend/tests/test_vendor_subprocessors.py::TestAddSubprocessor -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-02 | — | Removing a subprocessor pulls it from the array | unit | `pytest backend/tests/test_vendor_subprocessors.py::TestRemoveSubprocessor -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | VRISK-02 | T-26-02 | Subprocessor mutation respects tenant scope + RBAC | unit | `pytest backend/tests/test_vendor_subprocessors.py::TestSubprocessorRBAC -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RISK-01 | — | `create_risk` populates both `risk_score`/`inherent_risk_score` and `residual_risk_score` | unit | `pytest backend/tests/test_risk_inherent_residual.py::TestRiskCreate -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RISK-01 | — | `update_risk` recomputes residual score when residual inputs change | unit | `pytest backend/tests/test_risk_inherent_residual.py::TestRiskUpdate -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RISK-01 | — | Omitting residual inputs defaults residual == inherent (no silent risk overstatement/understatement) | unit | `pytest backend/tests/test_risk_inherent_residual.py::TestRiskDefaults -x` | ❌ W0 | ⬜ pending |
+| 26-01-T3 | 26-01 | 1 | VRISK-01 | — | DPA create starts in `draft`, unsigned | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPACreate -x` | ❌ W0 | ⬜ pending |
+| 26-01-T3 | 26-01 | 1 | VRISK-01 | — | Single-party sign does NOT activate (mirrors a known BAA bug class) | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPASign::test_single_party_sign_does_not_activate -x` | ❌ W0 | ⬜ pending |
+| 26-01-T3 | 26-01 | 1 | VRISK-01 | — | Both-parties-signed activates DPA | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPASign::test_both_parties_signed_activates -x` | ❌ W0 | ⬜ pending |
+| 26-01-T3 | 26-01 | 1 | VRISK-01 | T-26-02 | Terminate sets status + respects tenant filter | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPATerminate -x` | ❌ W0 | ⬜ pending |
+| 26-01-T3 | 26-01 | 1 | VRISK-01 | T-26-01 | Non-admin role forbidden from creating DPA (do not inherit BAA's ungated create_baa) | unit | `pytest backend/tests/test_dpa_endpoints.py::TestDPACreate::test_create_forbidden_for_non_admin -x` | ❌ W0 | ⬜ pending |
+| 26-02-T3 | 26-02 | 1 | VRISK-02 | T-26-03 | Adding a subprocessor pushes to vendor's `subprocessors` array | unit | `pytest backend/tests/test_vendor_subprocessors.py::TestAddSubprocessor -x` | ❌ W0 | ⬜ pending |
+| 26-02-T3 | 26-02 | 1 | VRISK-02 | T-26-03 | Removing a subprocessor pulls it from the array | unit | `pytest backend/tests/test_vendor_subprocessors.py::TestRemoveSubprocessor -x` | ❌ W0 | ⬜ pending |
+| 26-02-T3 | 26-02 | 1 | VRISK-02 | T-26-04 | Subprocessor mutation respects tenant scope + RBAC | unit | `pytest backend/tests/test_vendor_subprocessors.py::TestSubprocessorRBAC -x` | ❌ W0 | ⬜ pending |
+| 26-03-T3 | 26-03 | 1 | RISK-01 | — | `create_risk` populates both `risk_score`/`inherent_risk_score` and `residual_risk_score` | unit | `pytest backend/tests/test_risk_inherent_residual.py::TestRiskCreate -x` | ❌ W0 | ⬜ pending |
+| 26-03-T3 | 26-03 | 1 | RISK-01 | — | `update_risk` recomputes residual score when residual inputs change | unit | `pytest backend/tests/test_risk_inherent_residual.py::TestRiskUpdate -x` | ❌ W0 | ⬜ pending |
+| 26-03-T3 | 26-03 | 1 | RISK-01 | T-26-07 | Omitting residual inputs defaults residual == inherent (no silent risk overstatement/understatement) | unit | `pytest backend/tests/test_risk_inherent_residual.py::TestRiskDefaults -x` | ❌ W0 | ⬜ pending |
+| 26-04-T2 | 26-04 | 2 | VRISK-02 | T-26-09 | Vendor detail modal is reachable and lists/adds/removes subprocessors + shows DPA status | manual + build | `npm run build` (+ human click-through) | ❌ W0 | ⬜ pending |
+| 26-05-T2 | 26-05 | 2 | RISK-01 | T-26-11 | Residual Score column renders (legacy-safe) alongside the inherent Score; residual inputs submit | manual + build | `npm run build` (+ human click-through) | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

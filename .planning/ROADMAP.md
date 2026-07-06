@@ -391,9 +391,13 @@ deployment.
 
 **Depends on:** None (parallel-safe with Phase 25)
 
-**Plans:** 0 plans
+**Plans:** 5 plans
 
-- [ ] TBD (run /gsd-plan-phase 26 to break down)
+- [ ] 26-01-PLAN.md — VRISK-01: DPA lifecycle (create/sign/terminate) as a new /api/dpa router cloned from BAA, with vendor_id + explicit RBAC gate [Wave 1]
+- [ ] 26-02-PLAN.md — VRISK-02 backend: subprocessor add/list/remove on the vendor doc ($push/$pull) + tests [Wave 1]
+- [ ] 26-03-PLAN.md — RISK-01 backend: additive inherent/residual risk scoring in risk_service/risk_endpoints + tests [Wave 1]
+- [ ] 26-04-PLAN.md — VRISK-02 frontend: VendorDetailModal (subprocessor list/add/remove + DPA status), wired into VendorManagement [Wave 2]
+- [ ] 26-05-PLAN.md — RISK-01 frontend: Residual Score column in RiskRegister + residual inputs in RiskFormModal [Wave 2]
 
 ---
 
