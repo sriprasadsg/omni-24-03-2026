@@ -66,7 +66,7 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 | 22 | API Extensions (MCP, OCSF, CLI, DO) | Complete (v2.0) |
 | 23 | Windows PowerShell Evidence Collection | Complete (v2.1) |
 | 24 | IaC & Container Security | Complete (v2.1) |
-| 25 | Cloud Checks Execution Gaps | Planning (v3.0) |
+| 25 | Cloud Checks Execution Gaps | Planned — 3 plans, 2 waves, checker passed (v3.0) |
 | 26 | Vendor and Risk Data Completeness | Pending (v3.0) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Pending (v3.0) |
 | 28 | Governance Document Management | Pending (v3.0) |
