@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: Executing
-stopped_at: Phase 25 Plan 01 (Cloud Checks Execution Gaps — CHK-01) complete — kubernetes/digitalocean provider gates widened in lockstep across run_checks(), direct-run endpoint, account registration, and MCP tool
-last_updated: "2026-07-06T12:44:19.790Z"
+stopped_at: Phase 25 Plan 02 (Cloud Checks Execution Gaps — CHK-02) complete — 18 CloudFormation IaC rules added, YAML detection bug fixed, stub removed
+last_updated: "2026-07-06T12:52:43.780Z"
 progress:
   total_phases: 15
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -153,6 +153,9 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 - 14-02: OAuth popup cleanup uses setInterval poll on popup.closed to remove listener when user closes popup without completing auth
 - 14-02: pulling/disconnecting tracked as Record<string,boolean> keyed by connection ID to support independent per-provider loading states
 - [Phase ?]: 25-01: RUNNABLE_PROVIDERS widened to 5-tuple (aws, azure, gcp, kubernetes, digitalocean); all four provider-allowlist gates widened in a single lockstep commit so no gate accepts a provider another rejects
+- [Phase ?]: 25-02: 18 CFN rules added verbatim from RESEARCH.md Pattern 2 — parity with Terraform's 17 rules, scope_lines preserved on every greedy negative_pattern (ReDoS mitigation T-25-02)
+- [Phase ?]: 25-02: _CFN_TYPE_RE module-level regex fixes _detect_provider() YAML CloudFormation misclassification (pre-existing bug, T-25-02b) — checked in yaml/yml branch, json/template branch, and as extension-less fallback
+- [Phase ?]: 25-02: CloudFormation early-return stub in scan_code() removed — CFN now flows through the same provider-filtered IAC_CHECKS dispatch as Terraform/Kubernetes
 
 ## Performance Metrics
 
@@ -181,11 +184,12 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 | Phase 14-saas-evidence-integration P02 | ~2m | 2 tasks | 1 files |
 | Phase 23 P02 | 336 | 9 tasks | 8 files |
 | Phase 25-cloud-checks-execution-gaps P01 | 12min | 2 tasks | 6 files |
+| Phase 25-cloud-checks-execution-gaps P02 | 5min | 2 tasks | 2 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-06-23T17:45:23Z
-- **Stopped at:** context exhaustion at 84% (2026-06-27)
+- **Stopped at:** Phase 25 Plan 02 (Cloud Checks Execution Gaps — CHK-02) complete — 18 CloudFormation IaC rules added, YAML detection bug fixed, stub removed
 - **Resume file:** None
 
 ## Configuration
@@ -211,8 +215,8 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 
 ## Session
 
-**Last session:** 2026-07-06T12:41:53.459Z
-**Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
+**Last session:** 2026-07-06T12:52:43.764Z
+**Stopped at:** Phase 25 Plan 02 (Cloud Checks Execution Gaps — CHK-02) complete — 18 CloudFormation IaC rules added, YAML detection bug fixed, stub removed
 **Resume file:** None
 
 ## Accumulated Context

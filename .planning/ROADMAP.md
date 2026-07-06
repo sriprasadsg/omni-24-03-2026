@@ -342,7 +342,7 @@ deployment.
 
 | Phase | Name | Tier | Status |
 |-------|------|------|--------|
-| 25 | 1/3 | In Progress|  |
+| 25 | 2/3 | In Progress|  |
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Pending |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Pending |
 | 28 | Governance Document Management | 2 — medium | Pending |
@@ -369,11 +369,11 @@ deployment.
 
 **Depends on:** Phase 24
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 **Wave 1**
 
 - [x] 25-01-PLAN.md — CHK-01: widen the four provider-allowlist gates (RUNNABLE_PROVIDERS, cloud-checks /run, cloud-account registration, MCP run_cloud_check) so k8s + DigitalOcean checks are actually evaluated; fill the empty test_cloud_checks_expansion.py stub
-- [ ] 25-02-PLAN.md — CHK-02: real CloudFormation rule engine (18 cfn-* rules at parity with Terraform) in iac_scanner_service.py, fix the YAML-CFN `_detect_provider` bug, remove the "not yet implemented" stub
+- [x] 25-02-PLAN.md — CHK-02: real CloudFormation rule engine (18 cfn-* rules at parity with Terraform) in iac_scanner_service.py, fix the YAML-CFN `_detect_provider` bug, remove the "not yet implemented" stub
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
