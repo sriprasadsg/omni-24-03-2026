@@ -105,3 +105,71 @@ def test_container_vuln_severity_counts():
     with patch("container_scanner_service._find_trivy", return_value=None):
         r = cs.scan_image("test:latest")
     assert r["critical"] + r["high"] + r["medium"] + r["low"] == r["total"]
+
+def test_iac_scan_cfn_s3_public_acl():
+    code = 'Resources:\n  MyBucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      AccessControl: PublicRead'
+    r = iac.scan_code(code, "template.yaml")
+    assert r["provider"] == "cloudformation"
+    s3 = [f for f in r["findings"] if f["check_id"] == "cfn-s3-public-acl"]
+    assert len(s3) > 0, f"No cfn-s3-public-acl findings in {r['findings']}"
+    assert s3[0]["status"] == "FAIL"
+
+def test_iac_scan_cfn_sg_open_ssh():
+    code = (
+        'Resources:\n'
+        '  MySG:\n'
+        '    Type: AWS::EC2::SecurityGroup\n'
+        '    Properties:\n'
+        '      SecurityGroupIngress:\n'
+        '        - CidrIp: 0.0.0.0/0\n'
+        '          FromPort: 22\n'
+        '          ToPort: 22\n'
+        '          IpProtocol: tcp\n'
+    )
+    r = iac.scan_code(code, "template.yaml")
+    assert r["provider"] == "cloudformation"
+    sg = [f for f in r["findings"] if f["check_id"] == "cfn-sg-open-ssh"]
+    assert len(sg) > 0, f"No cfn-sg-open-ssh findings in {r['findings']}"
+    assert sg[0]["status"] == "FAIL"
+
+def test_iac_scan_cfn_rds_not_encrypted():
+    code = (
+        'Resources:\n'
+        '  MyDB:\n'
+        '    Type: AWS::RDS::DBInstance\n'
+        '    Properties:\n'
+        '      Engine: mysql\n'
+        '      StorageEncrypted: false\n'
+    )
+    r = iac.scan_code(code, "template.yaml")
+    assert r["provider"] == "cloudformation"
+    rds = [f for f in r["findings"] if f["check_id"] == "cfn-rds-not-encrypted"]
+    assert len(rds) > 0, f"No cfn-rds-not-encrypted findings in {r['findings']}"
+    assert rds[0]["status"] == "FAIL"
+
+def test_detect_provider_yaml_cloudformation():
+    code = 'Resources:\n  B:\n    Type: AWS::S3::Bucket'
+    assert iac._detect_provider(code, "yaml") == "cloudformation"
+
+def test_detect_provider_json_cloudformation():
+    code = '{"Resources": {"B": {"Type": "AWS::S3::Bucket"}}}'
+    assert iac._detect_provider(code, "json") == "cloudformation"
+
+def test_iac_scan_cfn_redos_bounded():
+    import time
+    vulnerable_block = (
+        'Resources:\n'
+        '  BadInstance:\n'
+        '    Type: AWS::EC2::Instance\n'
+        '    Properties:\n'
+        '      UserData: "IyEvYmluL2Jhc2ggYWRtaW4gc2V0dXA="\n'
+        '      # references admin setup in userdata\n'
+    )
+    filler_line = '  # ' + ('x' * 60) + '\n'
+    filler_count = 400000 // len(filler_line)
+    code = vulnerable_block + (filler_line * filler_count)
+    start = time.perf_counter()
+    r = iac.scan_code(code, "template.yaml")
+    elapsed = time.perf_counter() - start
+    assert r["provider"] == "cloudformation"
+    assert elapsed < 5.0, f"CFN scan took {elapsed}s on a large template (possible ReDoS)"
