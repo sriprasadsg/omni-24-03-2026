@@ -40,10 +40,10 @@ Task IDs are assigned by the planner; requirement-level rows below are the contr
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | EXP-01 | — | `GET /api/oscal/assessment-results?framework_id=X` returns a structurally-valid OSCAL assessment-results document (uuid, metadata required fields, results[] with reviewed-controls + findings) | unit | `pytest backend/tests/test_oscal_export.py -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | EXP-01 | T-27-01 | Tenant isolation: caller from tenant A cannot pull framework data scoped to tenant B | unit | `pytest backend/tests/test_oscal_export.py -x -k tenant` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | EXP-02 | — | `GET /api/container/results/{scan_id}/sbom` returns valid CycloneDX 1.6 JSON (bomFormat/specVersion/components/vulnerabilities, no duplicate bom-refs) | unit | `pytest backend/tests/test_container_sbom_export.py -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | EXP-02 | T-27-02 | Simulated scan results are flagged, not presented as authoritative evidence | unit | `pytest backend/tests/test_container_sbom_export.py -x -k simulated` | ❌ W0 | ⬜ pending |
+| T-27-01-01 | 27-01 | 1 | EXP-01 | — | `GET /api/oscal/assessment-results?framework_id=X` returns a structurally-valid OSCAL assessment-results document (uuid, metadata required fields, results[] with reviewed-controls + findings) | unit | `pytest backend/tests/test_oscal_export.py -x` | ❌ W0 | ⬜ pending |
+| T-27-01-01 | 27-01 | 1 | EXP-01 | T-27-01 | Tenant isolation: caller from tenant A cannot pull framework data scoped to tenant B | unit | `pytest backend/tests/test_oscal_export.py -x -k tenant` | ❌ W0 | ⬜ pending |
+| T-27-02-01 | 27-02 | 1 | EXP-02 | T-27-03 | `GET /api/container/results/{scan_id}/sbom` returns valid CycloneDX 1.6 JSON (bomFormat/specVersion/components/vulnerabilities, no duplicate bom-refs) + wrong-tenant scan_id returns 404 | unit | `pytest backend/tests/test_container_sbom_export.py -x` | ❌ W0 | ⬜ pending |
+| T-27-02-01 | 27-02 | 1 | EXP-02 | T-27-02 | Simulated scan results are flagged (metadata.properties omniagent:simulated), not presented as authoritative evidence | unit | `pytest backend/tests/test_container_sbom_export.py -x -k simulated` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

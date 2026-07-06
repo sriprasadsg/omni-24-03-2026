@@ -415,9 +415,10 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 2 plans, 1 wave
 
-- [ ] TBD (run /gsd-plan-phase 27 to break down)
+- [ ] 27-01-PLAN.md — OSCAL assessment-results export endpoint + builder + tests + dashboard button (EXP-01)
+- [ ] 27-02-PLAN.md — CycloneDX 1.6 SBOM export for scanned container images + tests + dashboard button (EXP-02)
 
 ---
 
