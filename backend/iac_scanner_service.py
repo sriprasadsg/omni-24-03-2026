@@ -1,4 +1,4 @@
-"""IaC Scanner — 26 security checks (17 Terraform, 9 Kubernetes). CloudFormation is detected but not yet checked."""
+"""IaC Scanner — 44 security checks (17 Terraform, 9 Kubernetes, 18 CloudFormation)."""
 import re, uuid, json, logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -36,6 +36,25 @@ IAC_CHECKS = [
     {"id": "k8s-no-network-policy", "name": "NetworkPolicy Missing", "description": "Namespace should have NetworkPolicy", "provider": "kubernetes", "severity": "medium", "pattern": r'kind:\s*Namespace', "negative_pattern": r'kind:\s*NetworkPolicy'},
     {"id": "k8s-ro-not-set", "name": "readOnlyRootFilesystem Not Set", "description": "Container should set readOnlyRootFilesystem", "provider": "kubernetes", "severity": "medium", "pattern": r'containers:', "negative_pattern": r'readOnlyRootFilesystem:\s*true'},
     {"id": "k8s-no-probes", "name": "Liveness/Readiness Probe Missing", "description": "Container should have health probes", "provider": "kubernetes", "severity": "low", "pattern": r'containers:', "negative_pattern": r'livenessProbe:|readinessProbe:'},
+    # ─── CloudFormation checks ──────────────────────────────────────────────
+    {"id": "cfn-s3-public-access", "name": "S3 Bucket Public Access Not Blocked", "description": "S3 bucket should have PublicAccessBlockConfiguration blocking public ACLs/policies", "provider": "cloudformation", "severity": "critical", "pattern": r'Type"?\s*:?\s*"?AWS::S3::Bucket', "negative_pattern": r'PublicAccessBlockConfiguration', "scope_lines": 15},
+    {"id": "cfn-s3-public-acl", "name": "S3 Bucket Public ACL", "description": "S3 bucket AccessControl should not be PublicRead/PublicReadWrite", "provider": "cloudformation", "severity": "critical", "pattern": r'Type"?\s*:?\s*"?AWS::S3::Bucket', "negative_pattern": r'AccessControl"?\s*:\s*"?PublicRead', "vulnerable_marker": True, "scope_lines": 15},
+    {"id": "cfn-iam-wildcard-action", "name": "IAM Policy Wildcard Action", "description": "IAM policy Statement.Action should not be \"*\"", "provider": "cloudformation", "severity": "critical", "pattern": r'Type"?\s*:?\s*"?AWS::IAM::(Policy|Role)', "negative_pattern": r'Action"?\s*:\s*\[?\s*"?\*"?', "vulnerable_marker": True, "scope_lines": 20},
+    {"id": "cfn-sg-open-ssh", "name": "Security Group Open SSH", "description": "SecurityGroupIngress should not allow 0.0.0.0/0 on port 22", "provider": "cloudformation", "severity": "critical", "pattern": r'Type"?\s*:?\s*"?AWS::EC2::SecurityGroup', "negative_pattern": r'CidrIp"?\s*:\s*"?0\.0\.0\.0/0.*(FromPort"?\s*:\s*22|ToPort"?\s*:\s*22)', "vulnerable_marker": True, "scope_lines": 15},
+    {"id": "cfn-sg-open-rdp", "name": "Security Group Open RDP", "description": "SecurityGroupIngress should not allow 0.0.0.0/0 on port 3389", "provider": "cloudformation", "severity": "critical", "pattern": r'Type"?\s*:?\s*"?AWS::EC2::SecurityGroup', "negative_pattern": r'CidrIp"?\s*:\s*"?0\.0\.0\.0/0.*(FromPort"?\s*:\s*3389|ToPort"?\s*:\s*3389)', "vulnerable_marker": True, "scope_lines": 15},
+    {"id": "cfn-ebs-not-encrypted", "name": "EBS Volume Encryption Disabled", "description": "AWS::EC2::Volume should have Encrypted: true", "provider": "cloudformation", "severity": "high", "pattern": r'Type"?\s*:?\s*"?AWS::EC2::Volume', "negative_pattern": r'Encrypted"?\s*:\s*false', "vulnerable_marker": True, "scope_lines": 10},
+    {"id": "cfn-rds-not-encrypted", "name": "RDS Storage Encryption Disabled", "description": "AWS::RDS::DBInstance StorageEncrypted should be true", "provider": "cloudformation", "severity": "high", "pattern": r'Type"?\s*:?\s*"?AWS::RDS::DBInstance', "negative_pattern": r'StorageEncrypted"?\s*:\s*false', "vulnerable_marker": True, "scope_lines": 20},
+    {"id": "cfn-eks-public-endpoint", "name": "EKS Cluster Public Endpoint", "description": "EndpointPublicAccess should be false (defaults to true if omitted)", "provider": "cloudformation", "severity": "high", "pattern": r'Type"?\s*:?\s*"?AWS::EKS::Cluster', "negative_pattern": r'EndpointPublicAccess"?\s*:\s*true', "vulnerable_marker": True, "scope_lines": 20},
+    {"id": "cfn-ec2-public-ip", "name": "EC2 Instance with Public IP", "description": "NetworkInterfaces should not set AssociatePublicIpAddress: true", "provider": "cloudformation", "severity": "high", "pattern": r'Type"?\s*:?\s*"?AWS::EC2::Instance', "negative_pattern": r'AssociatePublicIpAddress"?\s*:\s*true', "vulnerable_marker": True, "scope_lines": 20},
+    {"id": "cfn-elb-http-listener", "name": "Load Balancer HTTP Listener (no redirect)", "description": "ALB/NLB Listener should not use plain HTTP on port 80 without a redirect action", "provider": "cloudformation", "severity": "high", "pattern": r'Type"?\s*:?\s*"?AWS::ElasticLoadBalancingV2::Listener', "negative_pattern": r'Port"?\s*:\s*80\b', "vulnerable_marker": True, "scope_lines": 15},
+    {"id": "cfn-kms-rotation-disabled", "name": "KMS Key Rotation Disabled", "description": "EnableKeyRotation defaults to false if omitted — should be explicitly true", "provider": "cloudformation", "severity": "medium", "pattern": r'Type"?\s*:?\s*"?AWS::KMS::Key', "negative_pattern": r'EnableKeyRotation"?\s*:\s*true', "scope_lines": 10},
+    {"id": "cfn-s3-logging-disabled", "name": "S3 Bucket Logging Disabled", "description": "S3 bucket should configure LoggingConfiguration", "provider": "cloudformation", "severity": "medium", "pattern": r'Type"?\s*:?\s*"?AWS::S3::Bucket', "negative_pattern": r'LoggingConfiguration', "scope_lines": 15},
+    {"id": "cfn-vpc-flow-logs-missing", "name": "VPC Flow Logs Disabled", "description": "A VPC resource should have an accompanying AWS::EC2::FlowLog", "provider": "cloudformation", "severity": "medium", "pattern": r'Type"?\s*:?\s*"?AWS::EC2::VPC\b', "negative_pattern": r'Type"?\s*:?\s*"?AWS::EC2::FlowLog'},
+    {"id": "cfn-hardcoded-secret", "name": "Hardcoded AWS Access Key", "description": "AWS access key literal should not be hardcoded in template", "provider": "cloudformation", "severity": "critical", "pattern": r'AKIA[0-9A-Z]{16}'},
+    {"id": "cfn-plaintext-secret-param", "name": "Secret Parameter Without NoEcho", "description": "Password/secret/token Parameters should set NoEcho: true", "provider": "cloudformation", "severity": "critical", "pattern": r'(?i)(Password|Secret|Token|ApiKey|Credential)"?\s*:\s*\{?\s*"?Type"?\s*:\s*"?String', "negative_pattern": r'NoEcho"?\s*:\s*true', "scope_lines": 6},
+    {"id": "cfn-ec2-admin-userdata", "name": "EC2 UserData References Admin/Root", "description": "EC2 instance UserData should not reference admin/root elevation", "provider": "cloudformation", "severity": "high", "pattern": r'Type"?\s*:?\s*"?AWS::EC2::Instance', "negative_pattern": r'UserData.*(admin|root)', "scope_lines": 15},
+    {"id": "cfn-s3-versioning-disabled", "name": "S3 Versioning Disabled", "description": "S3 bucket should configure VersioningConfiguration Status: Enabled", "provider": "cloudformation", "severity": "medium", "pattern": r'Type"?\s*:?\s*"?AWS::S3::Bucket', "negative_pattern": r'VersioningConfiguration', "scope_lines": 15},
+    {"id": "cfn-rds-deletion-protection-disabled", "name": "RDS Deletion Protection Disabled", "description": "DeletionProtection defaults to false if omitted — should be explicitly true", "provider": "cloudformation", "severity": "medium", "pattern": r'Type"?\s*:?\s*"?AWS::RDS::DBInstance', "negative_pattern": r'DeletionProtection"?\s*:\s*true', "scope_lines": 20},
 ]
 
 
@@ -47,11 +66,6 @@ def scan_code(code: str, filename: str = "") -> dict:
     ext = filename.rsplit(".", 1)[-1].lower() if filename else ""
     provider = _detect_provider(code, ext)
     scan_id = f"iac-{uuid.uuid4().hex[:12]}"
-    if provider == "cloudformation":
-        # No CloudFormation-specific checks are implemented yet; returning a clean
-        # 0-finding scan would be indistinguishable from "nothing to flag" in the UI.
-        return {"scan_id": scan_id, "provider": provider, "total": 0, "fail": 0, "findings": [],
-                "scanned_at": _now(), "warning": "CloudFormation checks are not yet implemented"}
     if provider == "unknown":
         return {"scan_id": scan_id, "provider": provider, "total": 0, "fail": 0, "findings": [],
                 "scanned_at": _now(), "warning": "Could not determine IaC provider (Terraform/Kubernetes/CloudFormation) from file content or extension"}
@@ -91,19 +105,25 @@ def scan_code(code: str, filename: str = "") -> dict:
     return {"scan_id": scan_id, "provider": provider, "total": len(findings), "fail": sum(1 for f in findings if f["status"] == "FAIL"), "findings": findings, "scanned_at": _now()}
 
 
+_CFN_TYPE_RE = re.compile(r'"?Type"?\s*:\s*"?AWS::')
+
+
 def _detect_provider(code: str, ext: str) -> str:
     if ext in ("tf", "tfvars"):
         return "terraform"
     if ext in ("yaml", "yml"):
         if re.search(r'kind:\s*(Pod|Deployment|Service|Namespace|ConfigMap|Secret|NetworkPolicy|Ingress)', code):
             return "kubernetes"
-    if ext in ("json", "template"):
-        if '"Type" : "AWS::' in code or '"Type": "AWS::' in code:
+        if _CFN_TYPE_RE.search(code):
             return "cloudformation"
+    if ext in ("json", "template") and _CFN_TYPE_RE.search(code):
+        return "cloudformation"
     if re.search(r'resource\s+"aws_', code):
         return "terraform"
     if re.search(r'apiVersion:\s*(v1|apps/|batch/|rbac/)', code):
         return "kubernetes"
+    if _CFN_TYPE_RE.search(code):  # extension-less/unknown-extension fallback
+        return "cloudformation"
     return "unknown"
 
 
