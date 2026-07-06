@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
-status: Planning
-stopped_at: Phase 25 (Cloud Checks Execution Gaps) planning in progress — roadmap scaffolded with 14 new phases (25-38)
-last_updated: "2026-07-06T00:00:00.000Z"
+status: Executing
+stopped_at: Phase 25 Plan 01 (Cloud Checks Execution Gaps — CHK-01) complete — kubernetes/digitalocean provider gates widened in lockstep across run_checks(), direct-run endpoint, account registration, and MCP tool
+last_updated: "2026-07-06T12:44:19.790Z"
 progress:
-  total_phases: 38
-  completed_phases: 24
-  total_plans: 41
-  completed_plans: 41
-  percent: 63
+  total_phases: 15
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 1
+  percent: 0
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phases 1–24 complete. v3.0 (Phases 25–38) scaffolded from a 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler; Phase 25 is being planned now.
+**Current focus:** Phase 25 — Cloud Checks Execution Gaps
 
 ## Current Phase
 
@@ -152,6 +152,7 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 - 14-02: router_registry.py saas_integration_endpoints already registered in wave 1 (line 142) — no change needed in wave 2
 - 14-02: OAuth popup cleanup uses setInterval poll on popup.closed to remove listener when user closes popup without completing auth
 - 14-02: pulling/disconnecting tracked as Record<string,boolean> keyed by connection ID to support independent per-provider loading states
+- [Phase ?]: 25-01: RUNNABLE_PROVIDERS widened to 5-tuple (aws, azure, gcp, kubernetes, digitalocean); all four provider-allowlist gates widened in a single lockstep commit so no gate accepts a provider another rejects
 
 ## Performance Metrics
 
@@ -179,6 +180,7 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 | 14-saas-evidence-integration | 01 | ~4m | 4 | 4 |
 | Phase 14-saas-evidence-integration P02 | ~2m | 2 tasks | 1 files |
 | Phase 23 P02 | 336 | 9 tasks | 8 files |
+| Phase 25-cloud-checks-execution-gaps P01 | 12min | 2 tasks | 6 files |
 
 ## Last Session
 
@@ -209,7 +211,7 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 
 ## Session
 
-**Last session:** 2026-06-27T07:11:47.336Z
+**Last session:** 2026-07-06T12:41:53.459Z
 **Stopped at:** Phase 14 Plan 01 complete — SaaS OAuth evidence integration
 **Resume file:** None
 

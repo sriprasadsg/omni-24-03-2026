@@ -155,7 +155,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Cloud Checks Execution Gaps (Phase 25) — Tier 1
 
-- [ ] **CHK-01**: Kubernetes and DigitalOcean checks, already defined in `cloud_checks_service.py`, are actually evaluated by `run_checks()` instead of being catalog-only
+- [x] **CHK-01**: Kubernetes and DigitalOcean checks, already defined in `cloud_checks_service.py`, are actually evaluated by `run_checks()` instead of being catalog-only
 - [ ] **CHK-02**: CloudFormation IaC scanning implements a real rule engine (replacing the current `"CloudFormation checks are not yet implemented"` stub), at rule-count parity with the existing Terraform/Kubernetes checks
 - [ ] **CHK-03**: Container image scanning fails closed with an explicit "Trivy not available" result, or clearly labels simulated CVE data as simulated, instead of presenting fallback data as real scan results
 
