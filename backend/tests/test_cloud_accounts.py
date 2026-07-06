@@ -58,6 +58,16 @@ def test_register_gcp_account():
     r = c.post("/api/cloud-accounts", json={"provider": "gcp", "account_id": "project-123", "account_name": "GCP Prod"})
     assert r.status_code == 200
 
+def test_register_kubernetes_account():
+    db = _mkdb(); c = _build(db, _mkuser())
+    r = c.post("/api/cloud-accounts", json={"provider": "kubernetes", "account_id": "cluster-1", "account_name": "K8s Prod"})
+    assert r.status_code == 200, f"Got {r.status_code}"
+
+def test_register_digitalocean_account():
+    db = _mkdb(); c = _build(db, _mkuser())
+    r = c.post("/api/cloud-accounts", json={"provider": "digitalocean", "account_id": "do-123", "account_name": "DO Prod"})
+    assert r.status_code == 200, f"Got {r.status_code}"
+
 def test_list_accounts():
     db = _mkdb(); c = _build(db, _mkuser())
     r = c.get("/api/cloud-accounts")
