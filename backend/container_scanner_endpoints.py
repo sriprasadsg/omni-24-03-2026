@@ -1,6 +1,6 @@
 """Container Scanner API — scan image, list results."""
 import re
-from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response
 from database import get_database
 from auth_types import TokenData
 from tenant_context import get_tenant_id
@@ -24,6 +24,7 @@ _IMAGE_NAME_RE = re.compile(
 @limiter.limit("10/minute")
 async def scan_image(
     request: Request,
+    response: Response,
     image_name: str = Body(..., embed=True),
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
 ):
