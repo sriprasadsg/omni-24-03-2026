@@ -1,11 +1,12 @@
 ---
 phase: 25-cloud-checks-execution-gaps
 verified: 2026-07-06T13:24:25Z
-status: human_needed
+status: passed
 score: 15/15 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Open the IaC & Container dashboard (Security → SecOps → iacContainer), run a container scan in an environment without Trivy, and confirm the SIMULATED badge shows on the summary panel, the vulnerabilities table header, and the scan-history row."
     expected: "A yellow/AlertTriangle 'SIMULATED' badge/chip/tag is visibly present at all three sites for a simulated scan result, and absent for real-Trivy results or history rows with no simulated flag."
     why_human: "Visual prominence/placement of the badge across 3 render sites requires a human to view the actually-rendered dashboard; code inspection confirms the conditional JSX exists at all three sites (verified below) but not that it reads as 'unmissable' at runtime. This item was explicitly deferred to end-of-phase by 25-03-PLAN.md Task 2's <human-check> block and flagged human_judgment: true in 25-03-SUMMARY.md."
