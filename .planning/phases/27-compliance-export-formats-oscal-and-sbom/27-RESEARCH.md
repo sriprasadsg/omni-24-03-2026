@@ -340,22 +340,25 @@ _load(app, "oscal_endpoints",             "router")   # NEW — add immediately 
 
 **If this table is empty:** N/A — see rows above; all three should be confirmed with the user or explicitly decided by the planner before/during implementation.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact OSCAL implementation-status mapping (see A1)**
    - What we know: OSCAL defines 5 valid values (`implemented`, `partial`, `planned`, `alternative`, `not-applicable`); this platform has its own ~5-value status vocabulary that doesn't semantically align 1:1.
    - What's unclear: Whether `Non-Compliant` should map to `not-applicable` (wrong per OSCAL semantics — reserved for out-of-scope controls) or whether a different modeling choice is needed (e.g. using OSCAL's `observations[]`/`risks[]` arrays instead of overloading `implementation-status` for failure states).
    - Recommendation: Planner should treat `Non-Compliant` findings as `implementation-status: "planned"` (control is in-scope, assessed, not yet fully implemented) rather than `not-applicable`, and additionally emit a `target.status.reason` or an `observations[]` entry describing the specific gap — this is the closer OSCAL-idiomatic pattern for "assessed and failing." Confirm with user if compliance-domain precision matters for this export's downstream consumers (e.g. FedRAMP submission vs. internal dashboard mirror).
+   - **RESOLVED: `Non-Compliant` maps to `implementation-status: "planned"` + an `observations[]` gap note, as recommended — implemented in 27-01-PLAN.md.**
 
 2. **Should SBOM export be gated on `simulated: false` (see A3)?**
    - What we know: `container_scanner_service.py` transparently falls back to hardcoded fake CVE data when Trivy is unavailable; the `simulated` boolean field already exists on every scan result (added Phase 25).
    - What's unclear: Whether the platform should refuse to export an SBOM for simulated scans (safer, but reduces feature availability in environments without Trivy installed) or export with a visible `simulated` flag embedded in the CycloneDX metadata (more permissive, matches existing dashboard behavior which already surfaces `containerResult.simulated` to the user).
    - Recommendation: Embed the flag (option b) — consistent with how `ContainerScanDashboard.tsx`/`IacContainerDashboard.tsx` already surface `simulated` in the UI rather than hiding simulated data. Blocking export entirely would be a UX regression relative to existing CVE-view behavior.
+   - **RESOLVED: flag embedded via `metadata.properties`, export not blocked, as recommended — implemented in 27-02-PLAN.md.**
 
 3. **Does OSCAL export need a `component-definition` variant in addition to `assessment-results`?**
    - What we know: EXP-01 says "OSCAL-conformant JSON for control/evidence data" — `assessment-results` (control status + evidence-backed findings) is the closer semantic fit than `component-definition` (which models reusable control implementations for a software component, not assessment outcomes).
    - What's unclear: Whether a future phase (e.g. Phase 28 Governance Document Management) expects a `component-definition` or `system-security-plan` (SSP) export instead/also.
    - Recommendation: Scope this phase strictly to `assessment-results` per the closer requirement match; do not build `component-definition` speculatively.
+   - **RESOLVED: scoped strictly to `assessment-results`, as recommended — implemented in 27-01-PLAN.md.**
 
 ## Environment Availability
 
