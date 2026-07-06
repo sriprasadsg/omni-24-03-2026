@@ -149,6 +149,83 @@
 
 *Verified complete 2026-07-05: all 16 `24-REVIEW.md` findings (5 critical — inverted Terraform PASS/FAIL logic, Kubernetes always-FAIL override, missing CloudFormation checks, broken RBAC test override, dashboard/API type mismatch — plus 8 warning + 3 info findings) were fixed across commits `4b9b0f6`..`0acb855`. `pytest tests/test_iac_scanner.py` passes 8/8, re-run directly. Dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md` and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation (`view: 'iacContainer'`, Security (SecOps)) — confirmed reachable via production build chunk output, avoiding the orphaned-dashboard pattern seen in phases 14/18/20/21/22.*
 
+## v3.0 Requirements
+
+Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source — 41 implemented, 10 partial, 15 absent, 3 differentiators). The 25 non-implemented/partial items below are tiered by risk/cost: Tier 1 (quick fixes to existing partial work), Tier 2 (medium-scope new features), Tier 3 (major architectural bets, planned last).
+
+### Cloud Checks Execution Gaps (Phase 25) — Tier 1
+
+- [ ] **CHK-01**: Kubernetes and DigitalOcean checks, already defined in `cloud_checks_service.py`, are actually evaluated by `run_checks()` instead of being catalog-only
+- [ ] **CHK-02**: CloudFormation IaC scanning implements a real rule engine (replacing the current `"CloudFormation checks are not yet implemented"` stub), at rule-count parity with the existing Terraform/Kubernetes checks
+- [ ] **CHK-03**: Container image scanning fails closed with an explicit "Trivy not available" result, or clearly labels simulated CVE data as simulated, instead of presenting fallback data as real scan results
+
+### Vendor and Risk Data Completeness (Phase 26) — Tier 1
+
+- [ ] **VRISK-01**: DPA lifecycle (create/sign/terminate) is tracked with the same rigor as the existing BAA lifecycle in `baa_endpoints.py`, not just a checkbox flag
+- [ ] **VRISK-02**: Subprocessor discovery — a vendor record can list its own subprocessors, surfaced in the vendor risk view
+- [ ] **RISK-01**: The risk register scores both inherent (pre-mitigation) and residual (post-mitigation) risk, not a single blended `risk_score`
+
+### Compliance Export Formats (Phase 27) — Tier 1
+
+- [ ] **EXP-01**: Compliance control/evidence data is exportable as an OSCAL-conformant JSON document
+- [ ] **EXP-02**: Software Bill of Materials (CycloneDX or SPDX) export for scanned container images/assets
+
+### Governance Document Management (Phase 28) — Tier 2
+
+- [ ] **DOC-01**: Versioned policy/procedure documents with an approval workflow, reusing the existing generic `approval_service.py` engine
+- [ ] **DOC-02**: Electronic signature capture on approved documents, with a signed-PDF export proving who signed and when
+
+### Public Trust Center (Phase 29) — Tier 2
+
+- [ ] **TRUST-01**: Trust Center data is persisted in the database (replacing the current in-memory singleton in `trust_service.py`) and survives restarts
+- [ ] **TRUST-02**: A real unauthenticated public route serves the trust page (every route in `trust_endpoints.py` currently requires `get_current_user`); NDA-gated documents require a real external access-request/approval flow
+- [ ] **TRUST-03**: Tenants can serve their trust page from a custom domain
+
+### AI Questionnaire Auto-Answer (Phase 30) — Tier 2
+
+- [ ] **RAG-01**: An uploaded inbound security questionnaire gets draft answers grounded in the tenant's own evidence/control data (RAG over existing compliance data)
+- [ ] **RAG-02**: Every AI-drafted answer is held for human review/edit — no answer reaches "submitted" without an explicit human approval step
+
+### FAIR Risk Quantification (Phase 31) — Tier 2
+
+- [ ] **FAIR-01**: A risk can optionally be scored using FAIR-style quantitative loss-exceedance inputs (loss magnitude range × event frequency), in addition to the existing qualitative likelihood×impact scoring
+
+### Cloud and SaaS Provider Expansion (Phase 32) — Tier 2
+
+- [ ] **PROV-01**: OCI, Alibaba Cloud, and Cloudflare integrations actually poll for findings instead of only storing connection config
+- [ ] **PROV-02**: Microsoft 365 (distinct from Azure AD/Entra) and MongoDB Atlas are added as scanned providers
+- [ ] **PROV-03**: GitHub, Okta, Google Workspace, Slack, and Jira gain native posture checks (pass/fail security configuration checks), not just evidence-pull
+- [ ] **PROV-04**: Attack-path visualization prefers real findings whenever they exist, and clearly labels the demo-seed fallback as such in the UI
+
+### Workflow Automation Connectors (Phase 33) — Tier 2
+
+- [ ] **WF-01**: A dedicated n8n community node for the platform's webhook events
+- [ ] **WF-02**: A dedicated Zapier integration ("Zap" template) for the platform's webhook events
+
+### Passkey and WebAuthn Authentication (Phase 34) — Tier 3
+
+- [ ] **AUTH-01**: Users can register and log in with a WebAuthn/FIDO2 passkey as an alternative to password/SSO/TOTP, with no regression to existing SAML/OIDC/TOTP flows
+
+### GraphQL API (Phase 35) — Tier 3
+
+- [ ] **GQL-01**: A GraphQL endpoint exposes the core compliance/evidence/risk data model for read queries
+- [ ] **GQL-02**: GraphQL resolvers enforce the same tenant-isolation and RBAC rules as the equivalent REST endpoints
+
+### Fine-Grained Relationship-Based Authorization (Phase 36) — Tier 3
+
+- [ ] **REBAC-01**: A design doc evaluates OpenFGA/Zanzibar-style ReBAC against the current RBAC model for this platform's actual permission needs, with a clear adopt/don't-adopt recommendation
+- [ ] **REBAC-02**: If adopted, core permission checks for at least one high-value resource type are migrated to the ReBAC model without regressing existing RBAC behavior elsewhere
+
+### Spec-Compliant MCP Server (Phase 37) — Tier 3
+
+- [ ] **MCP-01**: The existing REST-shaped `/api/mcp` endpoint is replaced or supplemented by a real MCP server using the official `mcp` SDK over stdio/SSE transport
+- [ ] **MCP-02**: All tool-catalog entries currently exposed via the REST wrapper remain available through the spec-compliant server
+
+### Interactive AI Security Assistant (Phase 38) — Tier 3
+
+- [ ] **ASSIST-01**: A conversational chat UI lets a user ask natural-language questions about their compliance/security posture
+- [ ] **ASSIST-02**: Answers are grounded in the tenant's live findings/compliance data (reusing Phase 30's RAG infrastructure where applicable), with sources cited
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -216,6 +293,37 @@
 | IAC-01 | Phase 24 | Complete |
 | IAC-02 | Phase 24 | Complete |
 | IAC-03 | Phase 24 | Complete |
+| CHK-01 | Phase 25 | Planned |
+| CHK-02 | Phase 25 | Planned |
+| CHK-03 | Phase 25 | Planned |
+| VRISK-01 | Phase 26 | Planned |
+| VRISK-02 | Phase 26 | Planned |
+| RISK-01 | Phase 26 | Planned |
+| EXP-01 | Phase 27 | Planned |
+| EXP-02 | Phase 27 | Planned |
+| DOC-01 | Phase 28 | Planned |
+| DOC-02 | Phase 28 | Planned |
+| TRUST-01 | Phase 29 | Planned |
+| TRUST-02 | Phase 29 | Planned |
+| TRUST-03 | Phase 29 | Planned |
+| RAG-01 | Phase 30 | Planned |
+| RAG-02 | Phase 30 | Planned |
+| FAIR-01 | Phase 31 | Planned |
+| PROV-01 | Phase 32 | Planned |
+| PROV-02 | Phase 32 | Planned |
+| PROV-03 | Phase 32 | Planned |
+| PROV-04 | Phase 32 | Planned |
+| WF-01 | Phase 33 | Planned |
+| WF-02 | Phase 33 | Planned |
+| AUTH-01 | Phase 34 | Planned |
+| GQL-01 | Phase 35 | Planned |
+| GQL-02 | Phase 35 | Planned |
+| REBAC-01 | Phase 36 | Planned |
+| REBAC-02 | Phase 36 | Planned |
+| MCP-01 | Phase 37 | Planned |
+| MCP-02 | Phase 37 | Planned |
+| ASSIST-01 | Phase 38 | Planned |
+| ASSIST-02 | Phase 38 | Planned |
 
 **Coverage:**
 
@@ -226,6 +334,7 @@
 - v1.5 requirements: 2 total, 0 complete
 - v2.0 requirements: 30 total, all 30 complete as of 2026-07-05 (re-ran every phase's test suite directly and fixed 5 orphaned-dashboard nav-wiring gaps — see per-phase notes above and the milestone note at the top of this section)
 - v2.1 requirements: 3 total (IAC-01..03), all complete — verified 2026-07-05 (8/8 tests pass, dashboard restyled and wired into navigation)
+- v3.0 requirements: 33 total (CHK-01..03, VRISK-01/02, RISK-01, EXP-01/02, DOC-01/02, TRUST-01..03, RAG-01/02, FAIR-01, PROV-01..04, WF-01/02, AUTH-01, GQL-01/02, REBAC-01/02, MCP-01/02, ASSIST-01/02), 0 complete — roadmap scaffolded 2026-07-06 from the feature-parity audit, Phase 25 planning underway
 - Unmapped: 0 ✓
 
 ---

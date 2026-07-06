@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: — Windows PowerShell Evidence
-status: Complete
-stopped_at: Phase 24 complete — all 16 review findings fixed, dashboard restyled and wired into navigation
-last_updated: "2026-07-05T15:10:00.000Z"
+milestone: v3.0
+milestone_name: — Competitive Feature Closure
+status: Planning
+stopped_at: Phase 25 (Cloud Checks Execution Gaps) planning in progress — roadmap scaffolded with 14 new phases (25-38)
+last_updated: "2026-07-06T00:00:00.000Z"
 progress:
-  total_phases: 24
+  total_phases: 38
   completed_phases: 24
   total_plans: 41
   completed_plans: 41
-  percent: 100
+  percent: 63
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** All planned phases (1–24) complete. Next: define v2.2 or a new milestone.
+**Current focus:** Phases 1–24 complete. v3.0 (Phases 25–38) scaffolded from a 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler; Phase 25 is being planned now.
 
 ## Current Phase
 
@@ -33,6 +33,10 @@ All 9 phases (14–22) verified complete this session: every phase's test suite 
 **v2.1 Milestone — Windows PowerShell Evidence + IaC/Container Security: COMPLETE (verified 2026-07-05)**
 
 Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md` findings (5 critical) fixed, 8/8 tests pass (re-run and confirmed), dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md`, and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation under Security (SecOps). Confirmed reachable via production build chunk output.
+
+**v3.0 Milestone — Competitive Feature Closure: PLANNING (started 2026-07-06)**
+
+14 new phases (25–38) added to the roadmap from a feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source: 41 implemented, 10 partial, 15 absent, 3 unique differentiators). Ordered in 3 risk tiers — quick fixes (25–27), medium features (28–33), architectural bets (34–38). Phase 25 is the first through the full research → plan → verify pipeline.
 
 ## Phases
 
@@ -62,6 +66,20 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 | 22 | API Extensions (MCP, OCSF, CLI, DO) | Complete (v2.0) |
 | 23 | Windows PowerShell Evidence Collection | Complete (v2.1) |
 | 24 | IaC & Container Security | Complete (v2.1) |
+| 25 | Cloud Checks Execution Gaps | Planning (v3.0) |
+| 26 | Vendor and Risk Data Completeness | Pending (v3.0) |
+| 27 | Compliance Export Formats (OSCAL and SBOM) | Pending (v3.0) |
+| 28 | Governance Document Management | Pending (v3.0) |
+| 29 | Public Trust Center | Pending (v3.0) |
+| 30 | AI Questionnaire Auto-Answer | Pending (v3.0) |
+| 31 | FAIR Risk Quantification | Pending (v3.0) |
+| 32 | Cloud and SaaS Provider Expansion | Pending (v3.0) |
+| 33 | Workflow Automation Connectors | Pending (v3.0) |
+| 34 | Passkey and WebAuthn Authentication | Pending (v3.0) |
+| 35 | GraphQL API | Pending (v3.0) |
+| 36 | Fine-Grained Relationship-Based Authorization | Pending (v3.0) |
+| 37 | Spec-Compliant MCP Server | Pending (v3.0) |
+| 38 | Interactive AI Security Assistant | Pending (v3.0) |
 
 ## Decisions
 
@@ -200,3 +218,4 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 ### Roadmap Evolution
 
 - Phase 24 added: IaC & Container Security (Terraform/CloudFormation/Kubernetes scanning + container image vulnerability scanning). A `24-01-PLAN.md` already existed on disk (drafted ahead of execution, never wired into ROADMAP.md) — registered as Phase 24 in ROADMAP.md and REQUIREMENTS.md (IAC-01..03) reusing the existing directory/plan rather than generating a new one, so `/gsd-autonomous --only 24` can discover and execute it.
+- v3.0 milestone added 2026-07-06: 14 new phases (25–38) scaffolded from a feature-parity audit run the same day against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source — 41 implemented, 10 partial, 15 absent). Phases are ordered in 3 risk tiers — Tier 1 quick fixes (25–27), Tier 2 medium features (28–33), Tier 3 architectural bets (34–38: GraphQL, ReBAC, real MCP protocol, public Trust Center, passkeys). User explicitly chose "everything, in tiers" over a smaller subset. Requirements CHK/VRISK/RISK/EXP/DOC/TRUST/RAG/FAIR/PROV/WF/AUTH/GQL/REBAC/MCP/ASSIST added to REQUIREMENTS.md. Phase 25 is the first to go through full research → plan → verify.

@@ -7,6 +7,7 @@
 - **v1.2** — Reporting Automation: scheduled compliance report generation and email delivery. 1 phase, SCHED-01/02.
 - **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
 - **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, complete — verified 2026-07-05).
+- **v3.0** — Competitive Feature Closure: 14 phases (25–38) closing the 25 gaps from the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler — cloud-check execution gaps, vendor/risk data completeness, OSCAL/SBOM export, governance documents, a real public Trust Center, AI questionnaire auto-answer, FAIR risk quantification, provider expansion, workflow connectors, passkeys, GraphQL, ReBAC, a spec-compliant MCP server, and an interactive AI security assistant. In progress — Phase 25 planning underway.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -330,6 +331,255 @@ deployment.
 - `components/WindowsInstallTab.tsx` — 3-step install UI + 28-checks panel
 - `components/AssetComplianceList.tsx` — purple "PS" source badge
 - `components/AgentInstallation.tsx` — Windows tab integration
+
+## v3.0 — Competitive Feature Closure
+
+**Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
+
+**Status:** Planned — roadmap scaffolded 2026-07-06, Phase 25 planning in progress
+
+**Phases:**
+
+| Phase | Name | Tier | Status |
+|-------|------|------|--------|
+| 25 | Cloud Checks Execution Gaps | 1 — quick fixes | Planning |
+| 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Pending |
+| 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Pending |
+| 28 | Governance Document Management | 2 — medium | Pending |
+| 29 | Public Trust Center | 2 — medium | Pending |
+| 30 | AI Questionnaire Auto-Answer | 2 — medium | Pending |
+| 31 | FAIR Risk Quantification | 2 — medium | Pending |
+| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Pending |
+| 33 | Workflow Automation Connectors | 2 — medium | Pending |
+| 34 | Passkey and WebAuthn Authentication | 3 — architectural | Pending |
+| 35 | GraphQL API | 3 — architectural | Pending |
+| 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Pending |
+| 37 | Spec-Compliant MCP Server | 3 — architectural | Pending |
+| 38 | Interactive AI Security Assistant | 3 — architectural | Pending |
+
+---
+
+## Phase 25: Cloud Checks Execution Gaps
+
+**Milestone:** v3.0 (Tier 1 — quick fixes)
+
+**Goal:** Close the gap between what `cloud_checks_service.py` catalogs and what it actually runs. Kubernetes and DigitalOcean checks are defined but never evaluated by `run_checks()`; CloudFormation IaC scanning returns an explicit "not yet implemented" stub instead of real rules; container image scanning silently fakes CVE results when Trivy isn't installed instead of saying so.
+
+**Requirements:** CHK-01 (K8s + DigitalOcean checks actually evaluated), CHK-02 (real CloudFormation rule engine at parity with the existing Terraform/K8s rule counts), CHK-03 (container scan fails closed / labels simulated results instead of presenting them as real)
+
+**Depends on:** Phase 24
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 25 to break down)
+
+---
+
+## Phase 26: Vendor and Risk Data Completeness
+
+**Milestone:** v3.0 (Tier 1 — quick fixes)
+
+**Goal:** Extend the existing vendor and risk modules to close three data-completeness gaps found in the audit: DPA lifecycle is a checkbox flag (BAA already has a full create/sign/terminate lifecycle — DPA should match it), subprocessor discovery doesn't exist at all, and the risk register scores a single blended `risk_score` instead of distinguishing inherent (pre-mitigation) from residual (post-mitigation) risk.
+
+**Requirements:** VRISK-01 (DPA lifecycle tracking), VRISK-02 (subprocessor discovery on the vendor record), RISK-01 (inherent vs. residual risk scoring)
+
+**Depends on:** None (parallel-safe with Phase 25)
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 26 to break down)
+
+---
+
+## Phase 27: Compliance Export Formats (OSCAL and SBOM)
+
+**Milestone:** v3.0 (Tier 1 — quick fixes)
+
+**Goal:** Add two machine-readable export formats the awesome-compliance audit flagged as table stakes for "audit-ready" output, alongside the existing PDF/Excel/CSV/OCSF exports: OSCAL-conformant JSON for control/evidence data, and SBOM (CycloneDX or SPDX) for scanned container images and assets.
+
+**Requirements:** EXP-01 (OSCAL export), EXP-02 (SBOM export)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 27 to break down)
+
+---
+
+## Phase 28: Governance Document Management
+
+**Milestone:** v3.0 (Tier 2 — medium)
+
+**Goal:** Add real governance-document management — versioned policy/procedure documents with an approval workflow (reusing the existing generic `approval_service.py` engine rather than building a new one) and electronic signature capture with signed-PDF export. Today `policy_endpoints.py` is if/then automation rules, not governance docs — this is genuinely new surface, not an extension.
+
+**Requirements:** DOC-01 (versioned documents + approval workflow), DOC-02 (e-signature capture + signed-PDF export)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 28 to break down)
+
+---
+
+## Phase 29: Public Trust Center
+
+**Milestone:** v3.0 (Tier 2 — medium)
+
+**Goal:** Turn the existing internal-only trust module into a real customer-facing Trust Center: move `trust_service.py` off its in-memory singleton onto the database, add an actual unauthenticated public route (every route currently requires `get_current_user`), build a real NDA-gated access-request flow for an external visitor, and support serving the page from a custom domain.
+
+**Requirements:** TRUST-01 (DB-backed persistence), TRUST-02 (real public route + NDA gating flow), TRUST-03 (custom domain)
+
+**Depends on:** Phase 28 (governance documents feed the trust center's public document library)
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 29 to break down)
+
+---
+
+## Phase 30: AI Questionnaire Auto-Answer
+
+**Milestone:** v3.0 (Tier 2 — medium)
+
+**Goal:** Today the platform only sends questionnaires *out* to vendors (`questionnaire_service.py`). Add the inverse: when this tenant receives an inbound security questionnaire, draft answers grounded in its own evidence/control data via RAG, and hold every draft for human review before it can be marked submitted.
+
+**Requirements:** RAG-01 (grounded auto-draft from evidence/control data), RAG-02 (mandatory human review gate before submission)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 30 to break down)
+
+---
+
+## Phase 31: FAIR Risk Quantification
+
+**Milestone:** v3.0 (Tier 2 — medium)
+
+**Goal:** Add an optional FAIR-style quantitative layer (loss magnitude range × event frequency → dollarized loss-exceedance) to the risk register, alongside the existing qualitative likelihood×impact scoring — for risks where a dollar figure matters more than a heatmap position.
+
+**Requirements:** FAIR-01 (quantitative loss-exceedance scoring as an alternative/addition to qualitative risk scoring)
+
+**Depends on:** Phase 26 (extends the risk register work from that phase)
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 31 to break down)
+
+---
+
+## Phase 32: Cloud and SaaS Provider Expansion
+
+**Milestone:** v3.0 (Tier 2 — medium)
+
+**Goal:** Close the remaining provider-breadth gaps versus Prowler: OCI/Alibaba/Cloudflare currently only store connection config with no real polling, Microsoft 365 and MongoDB Atlas aren't scanned providers at all, and GitHub/Okta/Google Workspace/Slack/Jira only support evidence-pull (no native posture checks). Also upgrade attack-path visualization to prefer real findings over the demo-seed fallback, and label the fallback clearly when it's showing.
+
+**Requirements:** PROV-01 (real polling for OCI/Alibaba/Cloudflare), PROV-02 (M365 + MongoDB Atlas as scanned providers), PROV-03 (native posture checks for the 5 OAuth SaaS providers), PROV-04 (attack-path prefers real findings, labels demo fallback)
+
+**Depends on:** Phase 25 (same cloud-checks subsystem)
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 32 to break down)
+
+---
+
+## Phase 33: Workflow Automation Connectors
+
+**Milestone:** v3.0 (Tier 2 — medium)
+
+**Goal:** The generic webhook system (`webhook_service.py`) can already point at an n8n or Zapier webhook URL, but there's no dedicated connector for either. Ship a real n8n community node and a Zapier integration so GRC event notifications reach either platform without hand-built HTTP config.
+
+**Requirements:** WF-01 (n8n community node), WF-02 (Zapier integration)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 33 to break down)
+
+---
+
+## Phase 34: Passkey and WebAuthn Authentication
+
+**Milestone:** v3.0 (Tier 3 — architectural)
+
+**Goal:** Add WebAuthn/FIDO2 passkey registration and login as an alternative to password/SSO/TOTP. SAML, OIDC, and TOTP MFA already exist (`sso_service.py`, `mfa_service.py`) — passkeys are the one auth method OpenLane has that this platform doesn't.
+
+**Requirements:** AUTH-01 (WebAuthn passkey registration + login, alongside existing auth methods — no regression to SAML/OIDC/TOTP)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 34 to break down)
+
+---
+
+## Phase 35: GraphQL API
+
+**Milestone:** v3.0 (Tier 3 — architectural)
+
+**Goal:** Stand up a GraphQL layer alongside the existing FastAPI REST surface for the core compliance/evidence/risk data model, matching Probo and OpenLane. The hard part isn't the schema — it's making sure every resolver enforces the same tenant-isolation and RBAC checks the REST endpoints already have, so the new surface can't become an auth bypass.
+
+**Requirements:** GQL-01 (GraphQL endpoint + schema for core read queries), GQL-02 (resolvers enforce tenant isolation + RBAC at parity with REST)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 35 to break down)
+
+---
+
+## Phase 36: Fine-Grained Relationship-Based Authorization
+
+**Milestone:** v3.0 (Tier 3 — architectural)
+
+**Goal:** Evaluate OpenFGA/Zanzibar-style relationship-based authorization against the current RBAC model (`rbac_service.py`). This is the riskiest item in the milestone — start with a design doc and a recommendation, and only migrate a single high-value resource type's permission checks if the recommendation is to adopt, without regressing RBAC behavior anywhere else.
+
+**Requirements:** REBAC-01 (design doc + recommendation), REBAC-02 (migrate one resource type's checks, conditional on REBAC-01's recommendation)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 36 to break down)
+
+---
+
+## Phase 37: Spec-Compliant MCP Server
+
+**Milestone:** v3.0 (Tier 3 — architectural)
+
+**Goal:** Replace the current REST-shaped `/api/mcp` endpoint (no `mcp` SDK, not a real stdio/SSE transport) with a spec-compliant MCP server, so this platform's tools are usable by actual MCP clients (Claude Desktop, etc.), not just a REST-API-shaped imitation.
+
+**Requirements:** MCP-01 (spec-compliant MCP server via the official SDK), MCP-02 (all existing tool-catalog entries remain available through it)
+
+**Depends on:** None
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 37 to break down)
+
+---
+
+## Phase 38: Interactive AI Security Assistant
+
+**Milestone:** v3.0 (Tier 3 — architectural)
+
+**Goal:** Add a Prowler-Lighthouse-equivalent conversational assistant — a chat UI where a user asks natural-language questions about their compliance/security posture and gets answers grounded in live findings data, with sources cited. `chat_window.py` today is an unrelated admin-to-endpoint-user remote chat tool, not an AI assistant.
+
+**Requirements:** ASSIST-01 (conversational chat UI), ASSIST-02 (answers grounded in live compliance/findings data, sources cited)
+
+**Depends on:** Phase 30 (reuses the RAG grounding infrastructure built there)
+
+**Plans:** 0 plans
+
+- [ ] TBD (run /gsd-plan-phase 38 to break down)
 
 ---
 
