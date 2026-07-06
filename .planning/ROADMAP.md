@@ -336,13 +336,13 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** Planned — roadmap scaffolded 2026-07-06, Phase 25 planning in progress
+**Status:** In progress — Phase 25 complete (verified 2026-07-06), 1/14 phases done
 
 **Phases:**
 
 | Phase | Name | Tier | Status |
 |-------|------|------|--------|
-| 25 | 3/3 | Complete   | 2026-07-06 |
+| 25 | Cloud Checks Execution Gaps | 1 — quick fixes | Complete (2026-07-06) |
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Pending |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Pending |
 | 28 | Governance Document Management | 2 — medium | Pending |
