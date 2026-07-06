@@ -21,7 +21,7 @@ MCP_TOOLS = {
     },
     "run_cloud_check": {
         "description": "Run a cloud security check against a provider account",
-        "params": {"provider": "string (aws/azure/gcp)", "account_id": "string"},
+        "params": {"provider": "string (aws/azure/gcp/kubernetes/digitalocean)", "account_id": "string"},
     },
     "list_findings": {
         "description": "List security findings with optional severity filter",
@@ -75,8 +75,8 @@ async def execute_tool(tool_name: str, params: dict = Body(default={}), current_
         provider = params.get("provider", "")
         if not isinstance(account_id, str) or not account_id:
             raise HTTPException(status_code=400, detail="account_id must be a non-empty string")
-        if provider not in ("aws", "azure", "gcp"):
-            raise HTTPException(status_code=400, detail="provider must be aws, azure, or gcp")
+        if provider not in ("aws", "azure", "gcp", "kubernetes", "digitalocean"):
+            raise HTTPException(status_code=400, detail="provider must be aws, azure, gcp, kubernetes, or digitalocean")
         from cloud_checks_service import cloud_checks_service
         result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
         return {"tool": tool_name, "result": result}

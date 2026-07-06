@@ -70,8 +70,8 @@ async def get_account_results(
 @router.post("/run")
 async def run_checks(payload: RunChecksPayload, current_user: TokenData = Depends(get_current_user)):
     """Trigger check evaluation against a connected cloud account."""
-    if payload.provider not in ("aws", "azure", "gcp"):
-        raise HTTPException(status_code=400, detail="provider must be aws, azure, or gcp")
+    if payload.provider not in ("aws", "azure", "gcp", "kubernetes", "digitalocean"):
+        raise HTTPException(status_code=400, detail="provider must be aws, azure, gcp, kubernetes, or digitalocean")
     return await cloud_checks_service.run_checks(
         payload.accountId, payload.provider, _tenant(current_user), payload.credentialsHint
     )
