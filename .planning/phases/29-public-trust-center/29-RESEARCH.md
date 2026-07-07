@@ -385,27 +385,31 @@ async def security_txt():
 | A4 | Reusing the existing `manage:compliance`/`view:compliance` RBAC permissions for the admin-side trust-center routes (unchanged from today) is sufficient, consistent with Phase 28's resolved RBAC decision | Architectural Responsibility Map | Low risk — this is a continuation of the existing route's current RBAC gate (`_TRUST_ADMIN_ROLES` in `trust_endpoints.py` today), not a new decision |
 | A5 | Approved external visitors receive access to NDA-gated documents through an out-of-band mechanism (e.g., an admin manually emailing a link, or granting access via the existing authenticated flow) rather than a new second authentication system built specifically for external approved visitors | Architecture Patterns → Anti-Patterns | If the actual requirement is "an approved external visitor can then log into a lightweight portal and download the NDA'd document directly," that is meaningfully more scope (a second, lower-privilege auth system) than TRUST-02's literal wording implies — flagged as Open Question 4 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does the public trust page need visual/brand parity with the rest of the app (full React/Tailwind styling), or is a simple, clean static HTML page sufficient for v1?**
+1. **Does the public trust page need visual/brand parity with the rest of the app (full React/Tailwind styling), or is a simple, clean static HTML page sufficient for v1?** (RESOLVED)
    - What we know: The existing SPA has no unauthenticated render path; a static HTML page is the lightest-weight correct architecture (Assumption A1).
    - What's unclear: Product/brand expectations for a page external prospects/auditors will see and judge the company by.
    - Recommendation: Build the static HTML page first (matches "lightest-weight approach that satisfies the requirement"); if visual parity is later confirmed as a hard requirement, a follow-up phase can add a second Vite entry point reusing the existing Tailwind config without touching the backend contract.
+   - **RESOLVED: adopting the recommendation (static HTML + vanilla JS, no React, no new Vite entry). Rationale: no client-side router exists to hang a gated-vs-public view off of; building visual parity would require nontrivial multi-entry Vite scaffolding this codebase has zero precedent for. Implemented in the plan covering TRUST-02's public-page delivery.**
 
-2. **What does "custom domain" (TRUST-03) need to cover: Host-header resolution against an operator-configured domain (this research's recommendation), or full self-service domain management with automated TLS?**
+2. **What does "custom domain" (TRUST-03) need to cover: Host-header resolution against an operator-configured domain (this research's recommendation), or full self-service domain management with automated TLS?** (RESOLVED)
    - What we know: Zero existing precedent for either in this codebase; Host-header resolution is a small, well-understood addition; automated TLS/DNS management is a substantial infrastructure project with no existing dependency to build on.
    - What's unclear: Whether tenants configure their custom domain themselves via a UI, or whether this is an operator/support-assisted setup (e.g., a support engineer sets `trust_domain` via an internal API call after manually verifying DNS).
    - Recommendation: Default to the lightweight Host-header approach with `trust_domain` set via an authenticated admin API call (cloning the existing `tenant_endpoints.py` branding-update pattern), and explicitly document that DNS/CNAME pointing and TLS termination are the tenant's/operator's reverse-proxy responsibility — not something this phase provisions.
+   - **RESOLVED (user-confirmed via AskUserQuestion, 2026-07-07): Host-header resolution against a `tenants.trust_domain` field. DNS/CNAME + TLS termination are explicitly out of scope for this phase's application code — documented as the operator's/reverse-proxy's responsibility. No automated ACME/TLS provisioning, no DNS verification UI. Implemented in the plan covering TRUST-03.**
 
-3. **Is NDA-gated access-request approval a manual admin decision (today's model, unchanged) or does this phase need any auto-approval logic?**
+3. **Is NDA-gated access-request approval a manual admin decision (today's model, unchanged) or does this phase need any auto-approval logic?** (RESOLVED)
    - What we know: `update_request_status` already exists and is authenticated-admin-only; nothing in TRUST-02's wording implies automation.
    - What's unclear: Whether product wants zero-touch approval for some cases (e.g., pre-vetted domains).
    - Recommendation: Keep it fully manual for v1 (matches today's existing admin flow, adds the least scope) — flag any auto-approval rule engine as a deferred idea unless a human confirms otherwise.
+   - **RESOLVED: adopting the recommendation (fully manual admin approval via existing `update_request_status`, unchanged). Rationale: nothing in TRUST-02 implies automation, and this is the lowest-risk, least-scope continuation of the existing authenticated admin flow. No auto-approval rule engine is in scope for this phase.**
 
-4. **After an access request is approved, how does the external visitor actually receive the NDA-gated document — a new lightweight external-viewer auth system, or an out-of-band mechanism (email link, existing file-share token) outside this phase's scope?**
+4. **After an access request is approved, how does the external visitor actually receive the NDA-gated document — a new lightweight external-viewer auth system, or an out-of-band mechanism (email link, existing file-share token) outside this phase's scope?** (RESOLVED)
    - What we know: TRUST-02's literal wording is "NDA-gated documents require a real external access-request/approval flow" — it describes the *request* and *approval*, not necessarily the delivery mechanism.
    - What's unclear: Whether "gated access" implies the visitor then gets some kind of ongoing authenticated access, or a one-time delivery.
    - Recommendation: Scope this phase to request + approval only, with delivery handled out-of-band (e.g., an admin manually shares the document via the existing `file_share_endpoints.access_share` token mechanism after approving) — this reuses an existing capability instead of building a second external-facing auth system. Confirm with a human if ongoing self-service access for approved visitors is actually required.
+   - **RESOLVED (user-confirmed via AskUserQuestion, 2026-07-07): out-of-band delivery via the existing `file_share_endpoints.access_share` token mechanism. This phase implements request + admin-approval only — no new external-viewer authentication system.**
 
 ## Environment Availability
 
