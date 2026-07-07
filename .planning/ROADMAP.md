@@ -485,9 +485,14 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 6 plans
 
-- [ ] TBD (run /gsd-plan-phase 30 to break down)
+- [ ] 30-01-PLAN.md — Tenant-scope rag_service.py + add temperature/max_tokens to ai_service (RAG-01)
+- [ ] 30-02-PLAN.md — Inbound-questionnaire intake service/endpoints (.xlsx/.csv + manual) (RAG-01)
+- [ ] 30-03-PLAN.md — Answer-review state machine + submit guard, RBAC, server-derived identity (RAG-02)
+- [ ] 30-04-PLAN.md — Grounded answer-draft service (RAG + generation + insufficient-evidence fallback) (RAG-01)
+- [ ] 30-05-PLAN.md — End-to-end HTTP test + opt-in RAGAS/Phoenix eval scaffold (RAG-01/02)
+- [ ] 30-06-PLAN.md — Frontend: inbound intake UI + evidence-grounded review queue + nav wiring (RAG-01/02)
 
 ---
 
