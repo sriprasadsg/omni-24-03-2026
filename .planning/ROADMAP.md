@@ -458,9 +458,20 @@ deployment.
 
 **Depends on:** Phase 28 (governance documents feed the trust center's public document library)
 
-**Plans:** 0 plans
+**Plans:** 4 plans, 3 waves
 
-- [ ] TBD (run /gsd-plan-phase 29 to break down)
+**Wave 1**
+
+- [ ] 29-01-PLAN.md — TRUST-01/03 backend: DB-back trust_service.py (trust_profiles/trust_access_requests), repoint admin routes at the async service, trust_slug/trust_domain on db.tenants + test scaffold
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution
+- [ ] 29-03-PLAN.md — TRUST-01/03 admin frontend: TrustCenter.tsx profile edit form + Custom Domain field + Copy Link + approve/deny toasts/aria-labels, apiService.updateTrustProfile()
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py
 
 ---
 
