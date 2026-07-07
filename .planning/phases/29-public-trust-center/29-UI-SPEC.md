@@ -1,7 +1,7 @@
 ---
 phase: 29
 slug: public-trust-center
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-07
@@ -148,7 +148,7 @@ Accent reserved for (both surfaces, explicit — never "all interactive elements
 | Empty state — no access requests | "No access requests yet — approved and denied requests will also appear here once visitors submit them." (existing `p-8 text-center text-gray-500` empty-state pattern, reused verbatim from the file's current `{requests.length === 0 && ...}` block — do not restyle) |
 | Error state — profile save fails | `showToast('Could not save trust profile. Please try again.', 'error')` (existing toast pattern) |
 | Error state — approve/deny action fails | `showToast('Could not update request status. Please try again.', 'error')` |
-| Destructive confirmation | **Approve/Deny are NOT destructive-delete actions** — they are reversible status transitions on a request record (an admin can re-open review later via the existing `update_request_status` call), and this phase does not change that interaction model per the phase brief's "incremental, not a redesign" instruction. Keep the existing icon-only `UserCheck`/`XCircle` buttons with no confirmation modal — this matches what's already shipped. Do not add a confirmation dialog to Approve/Deny; that would be new scope beyond "verify and only spec what's missing."
+| Destructive confirmation | **Approve/Deny are NOT destructive-delete actions** — they are reversible status transitions on a request record (an admin can re-open review later via the existing `update_request_status` call), and this phase does not change that interaction model per the phase brief's "incremental, not a redesign" instruction. Keep the existing icon-only `UserCheck`/`XCircle` buttons with no confirmation modal — this matches what's already shipped. Do not add a confirmation dialog to Approve/Deny; that would be new scope beyond "verify and only spec what's missing." **Accessibility (checker Dimension 2 finding):** these icon-only buttons must carry `aria-label="Approve request"` / `aria-label="Deny request"` respectively — add this attribute when touching these buttons for the toast-wiring change below, even though the buttons themselves are pre-existing and not otherwise being rebuilt.
 | Success feedback — approve/deny action succeeds | `showToast('Request approved.', 'success')` / `showToast('Request denied.', 'success')` — currently the file updates state silently with no toast; adding this toast call is the one small UX addition in scope, using the already-established `utils/toast.ts` bus |
 
 ---
@@ -201,11 +201,11 @@ No shadcn registries are in use. This phase introduces no new npm/pip packages f
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (FLAG resolved — aria-label requirement added to Copywriting Contract above)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS (documented exception — Surface B keeps existing 3-weight scale for continuity, not a new violation)
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved (gsd-ui-checker, 2026-07-07)
