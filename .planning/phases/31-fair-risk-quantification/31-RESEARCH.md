@@ -319,32 +319,30 @@ def execute_remediation_script(script_content: str, script_type: str):
 
 **If this table is empty:** N/A — see entries above; all are flagged as Open Questions where a human product decision materially changes scope.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Is a simplified two-factor FAIR model (LEF × LM, each min/likely/max) the right scope, or does the product need the fuller Open FAIR ontology (TEF × Vulnerability → LEF; Primary/Secondary Loss × loss forms → LM)?**
+1. **Is a simplified two-factor FAIR model (LEF × LM, each min/likely/max) the right scope, or does the product need the fuller Open FAIR ontology (TEF × Vulnerability → LEF; Primary/Secondary Loss × loss forms → LM)?** (RESOLVED)
    - What we know: FAIR-01's requirement text says "loss magnitude range × event frequency" — literally the two-factor shape.
    - What's unclear: Whether "FAIR-style" in the phase goal implies stakeholders expect Open-FAIR-Institute rigor (e.g., for a security/audit team already trained on the full methodology) or just a lightweight quantitative alternative to the heatmap.
-   - Recommendation: Build the two-factor model first (matches the requirement's literal wording and this codebase's "nothing more than asked" convention); the same Monte Carlo core supports a later expansion to TEF/Vulnerability decomposition without a schema rewrite (just additional input fields multiplying into LEF).
+   - Recommendation: Build the two-factor model first.
+   - **RESOLVED: adopting the recommendation.** The requirement text literally specifies the two-factor shape ("loss magnitude range × event frequency") — building the fuller Open FAIR ontology would be scope creep beyond what FAIR-01 actually asks for, contrary to CLAUDE.md's "do what has been asked; nothing more." Two-factor model it is; the Monte Carlo core supports later expansion without a schema rewrite if ever needed.
 
-2. **Should FAIR results be a single current snapshot per risk, or a timestamped history of every simulation run?**
+2. **Should FAIR results be a single current snapshot per risk, or a timestamped history of every simulation run?** (RESOLVED)
    - What we know: FAIR-01's wording implies "a risk can optionally be scored," not "a risk can track its scoring history over time."
    - What's unclear: Whether re-running a simulation after updating mitigation plans should overwrite the prior result or preserve it for trend analysis.
-   - Recommendation: Start with a single current-snapshot `fair_results` field on the risk doc (simplest, matches Phase 29's "no versioning needed" reasoning for a similarly-shaped feature); a `risk_fair_simulations` history collection is a clean additive follow-up if trend-over-time is later confirmed as wanted.
+   - **RESOLVED: adopting the recommendation.** Single current-snapshot `fair_results` field on the risk doc — matches Phase 29's "no versioning needed" precedent for a similarly-shaped feature. A history collection is a clean additive follow-up if trend-over-time is ever confirmed as wanted.
 
-3. **Triangular vs. PERT (Beta-PERT) distribution for LEF/LM sampling — does the product need the smoother, mode-weighted PERT curve, or is triangular's simplicity preferable for v1?**
+3. **Triangular vs. PERT (Beta-PERT) distribution for LEF/LM sampling?** (RESOLVED)
    - What we know: Both are standard, accepted FAIR input distribution shapes; triangular is simpler to implement and explain to a user filling in three numbers.
-   - What's unclear: Whether downstream consumers (e.g., an eventual audit or a FAIR-trained risk analyst persona) have an expectation of PERT specifically.
-   - Recommendation: Ship triangular for v1 (lower implementation/explanation complexity, same Monte Carlo scaffolding); note that swapping to PERT later is a one-line change (`rng.triangular` → a PERT-reparameterized `rng.beta`) with no schema impact.
+   - **RESOLVED: adopting the recommendation.** Triangular for v1 — lower implementation/explanation complexity, same Monte Carlo scaffolding, and a one-line, no-schema-impact change to PERT later if ever needed. Purely a statistical implementation detail, not a product-visible decision.
 
-4. **Does the FAIR output need to numerically reconcile with, or influence, the existing qualitative `risk_score`/`residual_risk_score` in any way (e.g., auto-suggesting a qualitative bucket from the dollar range)?**
+4. **Does the FAIR output need to numerically reconcile with, or influence, the existing qualitative `risk_score`/`residual_risk_score` in any way?** (RESOLVED)
    - What we know: FAIR-01 says "in addition to," and this codebase's convention (Phase 26's residual work) treats every new scoring dimension as strictly additive/parallel, never derived from or feeding back into another.
-   - What's unclear: Whether a future dashboard/report wants a unified "risk severity" view blending both.
-   - Recommendation: Keep them fully independent for this phase (per Anti-Patterns) — no conversion formula, no auto-suggestion. If a unified view is wanted later, it should be an explicit, separately-designed feature (e.g., "show FAIR range if present, else show qualitative bucket," a display-layer choice, not a data-model reconciliation).
+   - **RESOLVED: adopting the recommendation.** Fully independent — no conversion formula, no auto-suggestion. Matches both the requirement's literal "in addition to" wording and the established Phase 26 additive-scoring convention.
 
-5. **Loss magnitude input granularity: a single blended LM range per risk, or per-loss-category ranges (e.g., separate Productivity/Response/Replacement/Fines/Reputation ranges per Open FAIR's 6 loss forms, summed)?**
+5. **Loss magnitude input granularity: a single blended LM range per risk, or per-loss-category ranges?** (RESOLVED)
    - What we know: The phase's additional_context describes "loss magnitude range" (singular) — the simplest reading is one LM range per risk.
-   - What's unclear: Whether a more granular per-category breakdown is expected for auditability/explainability of the dollar figure.
-   - Recommendation: Start with a single blended LM range (matches A1's simplified two-factor scope); per-category breakdown is a natural additive expansion (sum N independent triangular LM samples instead of 1) if later required, using the identical Monte Carlo core.
+   - **RESOLVED: adopting the recommendation.** Single blended LM range — matches Q1's two-factor scope resolution and the singular wording. Per-category breakdown remains a natural additive expansion (sum N independent triangular samples) if later required.
 
 ## Environment Availability
 
