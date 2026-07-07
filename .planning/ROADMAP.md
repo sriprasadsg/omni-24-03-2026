@@ -513,9 +513,11 @@ deployment.
 
 **Depends on:** Phase 26 (extends the risk register work from that phase)
 
-**Plans:** 0 plans
+**Plans:** 3 plans
 
-- [ ] TBD (run /gsd-plan-phase 31 to break down)
+- [ ] 31-01-PLAN.md — Backend: run_fair_simulation() Monte Carlo + validated FairInputs + tenant-scoped POST /{id}/fair-simulation + pytest suite (FAIR-01)
+- [ ] 31-02-PLAN.md — Frontend: runFairSimulation API + Risk type + new RiskFairModal.tsx + FAIR column/trigger in RiskRegister.tsx (FAIR-01)
+- [ ] 31-03-PLAN.md — Human-verify checkpoint: FAIR quantify flow reachable and usable in the running app (FAIR-01)
 
 ---
 
