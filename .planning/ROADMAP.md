@@ -486,11 +486,18 @@ deployment.
 **Depends on:** None
 
 **Plans:** 6 plans
+**Wave 1**
 
 - [ ] 30-01-PLAN.md — Tenant-scope rag_service.py + add temperature/max_tokens to ai_service (RAG-01)
 - [ ] 30-02-PLAN.md — Inbound-questionnaire intake service/endpoints (.xlsx/.csv + manual) (RAG-01)
 - [ ] 30-03-PLAN.md — Answer-review state machine + submit guard, RBAC, server-derived identity (RAG-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 30-04-PLAN.md — Grounded answer-draft service (RAG + generation + insufficient-evidence fallback) (RAG-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 30-05-PLAN.md — End-to-end HTTP test + opt-in RAGAS/Phoenix eval scaffold (RAG-01/02)
 - [ ] 30-06-PLAN.md — Frontend: inbound intake UI + evidence-grounded review queue + nav wiring (RAG-01/02)
 
