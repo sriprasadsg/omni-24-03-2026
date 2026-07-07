@@ -432,9 +432,19 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 3 plans, 3 waves
 
-- [ ] TBD (run /gsd-plan-phase 28 to break down)
+**Wave 1**
+
+- [ ] 28-01-PLAN.md — DOC-01 backend: versioned governance documents (embedded versions[]) + approval delegation to the existing `approval_service.py` engine; publish gated on live approval status
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 28-02-PLAN.md — DOC-02 backend: ESIGN/UETA-baseline e-signature capture (server-derived identity/IP/UA/timestamp, approval re-check) + signed-PDF export (reportlab + html.escape)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 28-03-PLAN.md — Frontend: `GovernanceDocumentsDashboard.tsx` + mandatory `App.tsx`/`Sidebar.tsx`/`types.ts` nav-wiring (DOC-01/DOC-02)
 
 ---
 
