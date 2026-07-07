@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: Ready to plan
-stopped_at: Phase 25 Plan 03 (Cloud Checks Execution Gaps — CHK-03) complete — container scan simulated flag added to both result paths, SIMULATED badge surfaced in 3 UI sites
-last_updated: "2026-07-06T14:07:23.442Z"
+stopped_at: Phase 29 (Public Trust Center) planning complete — 4 plans, 3 waves, plan-checker passed, UI-SPEC approved
+last_updated: "2026-07-07T19:40:00.000Z"
 progress:
   total_phases: 15
   completed_phases: 1
-  total_plans: 4
+  total_plans: 14
   completed_plans: 3
   percent: 7
 ---
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 25 complete. Phase 26 — Vendor and Risk Data Completeness — ready to plan.
+**Current focus:** Phase 25 complete and executed. Phases 26, 27, 28, 29 planned and ready to execute. Phases 30-38 not yet planned.
 
 ## Current Phase
 
@@ -39,6 +39,10 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 14 new phases (25–38) added to the roadmap from a feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source: 41 implemented, 10 partial, 15 absent, 3 unique differentiators). Ordered in 3 risk tiers — quick fixes (25–27), medium features (28–33), architectural bets (34–38).
 
 Phase 25 (Cloud Checks Execution Gaps) complete and verified 2026-07-06: full pipeline (research → pattern-map → plan → plan-check → execute → code-review → fix → goal-verify → security-verify → UAT). Code review found and fixed 2 critical CloudFormation rule PASS/FAIL inversions plus 6 warnings. Goal verification: 15/15 must-haves confirmed. The one human-verification item (SIMULATED badge visual prominence) was confirmed by actually running the app end-to-end — backend+frontend dev servers, headless Chrome driven via raw CDP, real login, real scan trigger, screenshot — which also surfaced and fixed a real pre-existing bug (`container_scanner_endpoints.py` missing the `response: Response` param slowapi's rate limiter requires, causing every real `/api/container/scan` request to 500; unit tests never caught it since they bypass the route/middleware stack). 1/14 v3.0 phases complete.
+
+Phases 26 (Vendor and Risk Data Completeness), 27 (Compliance Export Formats — OSCAL and SBOM), and 28 (Governance Document Management) planned and plan-checker-passed 2026-07-07; not yet executed.
+
+Phase 29 (Public Trust Center) planned and plan-checker-passed 2026-07-07 — retrofits the internal-only `trust_service.py`/`trust_endpoints.py`/`TrustCenter.tsx` module into a real customer-facing surface. Research corrected the phase brief's own framing: this is not the first public route in the codebase (`agent_registry_endpoints.register_agent` already does it) — the plan clones that existing tenant-resolution pattern rather than inventing one. This was the first v3.0 phase to trip the UI safety gate (block:true — `frontend: true`, no UI-SPEC), so `/gsd-ui-phase 29` ran first (gsd-ui-researcher → gsd-ui-checker, approved with 2 non-blocking FLAGs, one aria-label gap closed inline). Two genuine scope decisions from research's Open Questions were confirmed with the user via AskUserQuestion: custom domain (TRUST-03) scoped to Host-header resolution only (no automated TLS/DNS), and NDA-gated document delivery scoped to out-of-band sharing via the existing `file_share_endpoints.access_share` mechanism (no new external-viewer auth system). 4 plans across 3 waves, all 3 requirements (TRUST-01/02/03) covered, plan-checker passed clean on first pass. Planner agent hit a session-limit failure on first dispatch (no partial PLAN.md written); retried identically after the reset and succeeded. 5/14 v3.0 phases planned (25 also executed); 26/27/28/29 planned only.
 
 ## Phases
 
@@ -72,7 +76,7 @@ Phase 25 (Cloud Checks Execution Gaps) complete and verified 2026-07-06: full pi
 | 26 | Vendor and Risk Data Completeness | Planned — 5 plans, 2 waves, checker passed (v3.0) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Planned — 2 plans, 1 wave, checker passed (v3.0) |
 | 28 | Governance Document Management | Planned — 3 plans, 3 waves, checker passed (v3.0) |
-| 29 | Public Trust Center | Pending (v3.0) |
+| 29 | Public Trust Center | Planned — 4 plans, 3 waves, checker passed (v3.0) |
 | 30 | AI Questionnaire Auto-Answer | Pending (v3.0) |
 | 31 | FAIR Risk Quantification | Pending (v3.0) |
 | 32 | Cloud and SaaS Provider Expansion | Pending (v3.0) |
@@ -193,8 +197,8 @@ Phase 25 (Cloud Checks Execution Gaps) complete and verified 2026-07-06: full pi
 ## Last Session
 
 - **Timestamp:** 2026-07-06T14:10:00.000Z
-- **Stopped at:** Phase 25 (Cloud Checks Execution Gaps) complete — verified, secured, UAT passed. Ready to plan Phase 26.
-- **Resume file:** None
+- **Stopped at:** Phase 29 UI-SPEC approved
+- **Resume file:** .planning/phases/29-public-trust-center/29-UI-SPEC.md
 
 ## Configuration
 
@@ -219,7 +223,7 @@ Phase 25 (Cloud Checks Execution Gaps) complete and verified 2026-07-06: full pi
 
 ## Session
 
-**Last session:** 2026-07-06T14:10:00.000Z
+**Last session:** 2026-07-07T10:45:05.390Z
 **Stopped at:** Phase 25 (Cloud Checks Execution Gaps) complete — verified, secured, UAT passed. Ready to plan Phase 26.
 **Resume file:** None
 
