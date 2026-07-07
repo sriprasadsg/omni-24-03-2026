@@ -514,9 +514,16 @@ deployment.
 **Depends on:** Phase 26 (extends the risk register work from that phase)
 
 **Plans:** 3 plans
+**Wave 1**
 
 - [ ] 31-01-PLAN.md — Backend: run_fair_simulation() Monte Carlo + validated FairInputs + tenant-scoped POST /{id}/fair-simulation + pytest suite (FAIR-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 31-02-PLAN.md — Frontend: runFairSimulation API + Risk type + new RiskFairModal.tsx + FAIR column/trigger in RiskRegister.tsx (FAIR-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 31-03-PLAN.md — Human-verify checkpoint: FAIR quantify flow reachable and usable in the running app (FAIR-01)
 
 ---
