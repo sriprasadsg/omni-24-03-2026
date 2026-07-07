@@ -365,28 +365,29 @@ const fetchAll = useCallback(async () => {
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Typed name + explicit consent checkbox + server-derived IP/UA/timestamp is a legally-sufficient "electronic signature capture" baseline (ESIGN Act/UETA) for this platform's compliance-governance use case | Architecture Patterns → Pattern 3 | If the tenant's actual legal/compliance requirements demand a stronger signature standard (e.g. for regulated industries requiring qualified/advanced electronic signatures under eIDAS, or explicit two-factor re-authentication at signing time), this baseline would be insufficient and require a follow-up phase. This is a product/legal decision, not a technical one — flag for user confirmation before locking as the final design. |
+| A1 | Typed name + explicit consent checkbox + server-derived IP/UA/timestamp is a legally-sufficient "electronic signature capture" baseline (ESIGN Act/UETA) for this platform's compliance-governance use case | Architecture Patterns → Pattern 3 | **RESOLVED (user confirmed):** lightweight baseline accepted as sufficient for this phase's scope. Document in the plan as the ESIGN/UETA-baseline standard (not a DocuSign/qualified-signature replacement) so future readers know the deliberate scope boundary. |
 | A2 | Embedding `versions[]` as an array inside the document doc (not a separate collection) will scale adequately for expected document/version counts | Architecture Patterns → Pattern 2 | If a tenant accumulates hundreds of versions per document (unlikely for policy/procedure documents, which typically revise a handful of times per year), the embedded-array read pattern could become a performance concern; low risk given the existing `privacy_notices` precedent has run without issue |
-| A3 | Reusing `view:compliance`/`manage:compliance` RBAC permissions (already granted broadly to Security Analyst/Compliance/Admin roles) is sufficient rather than introducing a new `manage:governance_documents` permission | Common Pitfalls / RBAC (implicit) | If governance-document approval authority should be restricted to a narrower role (e.g. only a "Compliance Officer" role, distinct from general `view:compliance` holders), reusing the broad permission would under-restrict who can approve/sign documents — a security/least-privilege consideration the planner should confirm with the user or check `rbac_service.py`'s full role list before finalizing |
+| A3 | Reusing `view:compliance`/`manage:compliance` RBAC permissions (already granted broadly to Security Analyst/Compliance/Admin roles) is sufficient rather than introducing a new `manage:governance_documents` permission | Common Pitfalls / RBAC (implicit) | **RESOLVED (user confirmed):** reuse existing `manage:compliance` role, matching every other Tier 1/2 phase's RBAC pattern in this milestone. No new role/permission surface for this phase. |
 
-**If this table is empty:** N/A — three assumptions logged above; recommend surfacing A1 and A3 to the user during planning (not something research alone can settle).
-
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does the approval workflow need to be role-configurable per tenant, or is a single fixed reviewer role (e.g. "ComplianceOfficer") sufficient for v1?**
    - What we know: `approval_service.create_approval_request` accepts an arbitrary `workflow_steps` list, so multi-role/multi-step is already supported by the engine.
    - What's unclear: Whether DOC-01 requires the tenant admin to configure approvers, or whether a fixed single-step "any compliance-role user can approve" flow is acceptable for this phase's scope.
    - Recommendation: Default to a single-step workflow (`approvers` = list of tenant users holding `manage:compliance`), matching Tier-2 "medium scope" sizing; defer configurable multi-step workflows to a later phase if requested.
+   - **RESOLVED: single fixed-role workflow, as recommended (consistent with the manage:compliance RBAC decision above) — implement in 28-01-PLAN.md.**
 
 2. **Should "publish" be a distinct state from "approved," or does approval == publish?**
    - What we know: `privacy_service.create_notice` treats "created" and "published" as the same event (no separate publish step); BAA's `sign` → `active` transition is the closer analog to "approval unlocks an active/effective state."
    - What's unclear: Whether the phase needs a document to be approved but held back from being tenant-visible until an explicit "publish" action, or whether `approved` should immediately make the document visible/effective.
    - Recommendation: Add a distinct `published` state gated behind `approved`, since governance documents (unlike privacy notices) often need a scheduled effective date — but treat this as Claude's discretion unless CONTEXT.md says otherwise (none exists for this phase).
+   - **RESOLVED: distinct `published` state gated behind `approved`, as recommended — implement in 28-01-PLAN.md.**
 
 3. **Does DOC-02's "signed-PDF export" need multiple signers (e.g. document owner AND approver both sign) or a single signer?**
    - What we know: BAA's two-party pattern (`signed_by_us`/`signed_by_vendor`) shows this codebase already has a working two-signer precedent.
    - What's unclear: Whether governance documents need multi-signer support (e.g. document author + approving officer) or a single acknowledging signature is sufficient for v1.
    - Recommendation: Design `signatures: []` as an array from the start (not fixed named fields like BAA's `signed_by_us`/`signed_by_vendor`) so it trivially supports 1-to-N signers without a schema migration later.
+   - **RESOLVED: `signatures: []` array from the start, as recommended — implement in 28-02-PLAN.md (or wherever DOC-02 lands).**
 
 ## Environment Availability
 
