@@ -71,7 +71,7 @@ Phase 25 (Cloud Checks Execution Gaps) complete and verified 2026-07-06: full pi
 | 25 | Cloud Checks Execution Gaps | Complete (v3.0) |
 | 26 | Vendor and Risk Data Completeness | Planned — 5 plans, 2 waves, checker passed (v3.0) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Planned — 2 plans, 1 wave, checker passed (v3.0) |
-| 28 | Governance Document Management | Pending (v3.0) |
+| 28 | Governance Document Management | Planned — 3 plans, 3 waves, checker passed (v3.0) |
 | 29 | Public Trust Center | Pending (v3.0) |
 | 30 | AI Questionnaire Auto-Answer | Pending (v3.0) |
 | 31 | FAIR Risk Quantification | Pending (v3.0) |
