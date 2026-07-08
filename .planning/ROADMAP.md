@@ -538,9 +538,13 @@ deployment.
 
 **Depends on:** Phase 25 (same cloud-checks subsystem)
 
-**Plans:** 0 plans
+**Plans:** 5 plans, 2 waves
 
-- [ ] TBD (run /gsd-plan-phase 32 to break down)
+- [ ] 32-01-PLAN.md — PROV-01: OCI/Alibaba/Cloudflare real-poll SIEM ingest modules + dispatch/secret-set wiring + package-legitimacy checkpoint (Wave 1)
+- [ ] 32-02-PLAN.md — PROV-02/PROV-01: M365 + MongoDB Atlas check catalogs, four-gate lockstep widening, additive simulated provenance flag (Wave 1)
+- [ ] 32-03-PLAN.md — PROV-03: native SaaS posture checks reusing pull_*_evidence into saas_check_results (Wave 1)
+- [ ] 32-04-PLAN.md — PROV-04: rewire attack-path endpoint to the real service, simulated flag + edge-field fix + SIMULATED badge (Wave 1)
+- [ ] 32-05-PLAN.md — PROV-02: M365 (Graph secureScores) + MongoDB Atlas (Admin API) real findings ingestion into cloud_findings + scan hook (Wave 2)
 
 ---
 
