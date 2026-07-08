@@ -470,22 +470,19 @@ async def poll_mongodb_atlas_findings(config: dict, tenant_id: str) -> int:
 
 **If this table is empty:** N/A — see rows above.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Is `cloud_integrations_endpoints.py` really PROV-01's sole intended target, or should `cloud_account_endpoints.py`'s `_VALID_PROVIDERS` (and the `AddCloudAccountModal.tsx` frontend, which already offers OCI/Alibaba/Cloudflare as options that 400 today) also be widened?**
+1. **Is `cloud_integrations_endpoints.py` really PROV-01's sole intended target, or should `cloud_account_endpoints.py`'s `_VALID_PROVIDERS` (and the `AddCloudAccountModal.tsx` frontend, which already offers OCI/Alibaba/Cloudflare as options that 400 today) also be widened?** (RESOLVED)
    - What we know: The phase description's exact phrase "only store connection config with no real polling" matches `cloud_integrations_endpoints.py`'s behavior precisely (confirmed by direct read of `create_integration()`/`test_integration()`). Separately, `AddCloudAccountModal.tsx` (a *different* frontend surface, feeding `cloud_account_endpoints.py`) already lists OCI/Alibaba/Cloudflare as selectable providers, but that endpoint's `_VALID_PROVIDERS` set doesn't include them — so submitting that form for those three providers 400s today, an independent pre-existing bug.
-   - What's unclear: Whether PROV-01's Definition of Done requires fixing *both* surfaces, or just the one the requirement text most precisely matches.
-   - Recommendation: Scope PROV-01 to `cloud_integrations_endpoints.py` only (primary interpretation, backed by exact language match). Flag the `AddCloudAccountModal.tsx`/`cloud_account_endpoints.py` 400-on-submit bug as a related-but-separate finding for the planner to explicitly accept as out-of-scope or fold in as a small bonus fix — it is NOT required to satisfy PROV-01's literal text either way.
+   - **RESOLVED: PROV-01's primary target is `cloud_integrations_endpoints.py` (exact language match), AND the `cloud_account_endpoints.py` `_VALID_PROVIDERS` 400-on-submit bug is folded in as a small lockstep fix** — this follows Phase 25's recorded Key Decision (PROJECT.md: "provider-allowlist lockstep widening"), where exactly this class of allowlist mismatch was fixed across `cloud_account_endpoints.py`/`cloud_checks_endpoints.py`/`mcp_server_endpoints.py` in lockstep. Leaving a UI that 400s on submit for providers this same phase is making pollable would be an obvious inconsistency.
 
-2. **Should PROV-02's M365/MongoDB Atlas check catalogs also get a `cloud_findings`-populating ingest path (breaking the "every check always PASSes" precedent), given this phase is already building real-poll ingest infrastructure for PROV-01 that could plausibly be reused?**
+2. **Should PROV-02's M365/MongoDB Atlas check catalogs also get a `cloud_findings`-populating ingest path (breaking the "every check always PASSes" precedent), given this phase is already building real-poll ingest infrastructure for PROV-01 that could plausibly be reused?** (RESOLVED)
    - What we know: `cloud_findings` is never written by any code path today, for any provider. PROV-01 is, coincidentally, building exactly the kind of real-poll ingest machinery that *could* populate it for M365 (via Graph Security API's `secureScores`) and MongoDB Atlas (via the Admin API), if the planner wanted PROV-02 to be more than catalog-only.
-   - What's unclear: PROV-02's requirement text says only "added as scanned providers," which is satisfied by catalog-only extension consistent with existing behavior; going further would be scope expansion beyond the literal requirement and beyond what any existing provider does.
-   - Recommendation: Ship catalog-only for PROV-02 (consistent, smaller, matches every existing provider's actual behavior). If the user wants M365/MongoDB Atlas to be the *first* provider with real findings-population, that's a deliberate, explicit scope decision to confirm before planning, not a research default.
+   - **RESOLVED (user-confirmed via AskUserQuestion, 2026-07-08): Real findings ingestion.** M365 (Microsoft Graph secureScores, auth via the already-resolvable `msal`) and MongoDB Atlas (Admin API via `requests.auth.HTTPDigestAuth`, zero new dependencies) become the FIRST providers whose checks evaluate against real polled findings written to `cloud_findings`, reusing the real-poll ingest machinery PROV-01 builds. This deliberately breaks the "always PASS against an empty collection" precedent — the plan must ensure checks for providers WITHOUT ingested findings still behave sanely (i.e., the existing catalog-only providers keep their current behavior unchanged; no regression), and results sourced from real findings should be distinguishable from catalog-only evaluations (extend the Phase 25 `simulated`-flag labeling convention: catalog-only evaluations against an empty findings set are the "simulated"-equivalent case).
 
-3. **For PROV-04's edge-field-name fix, is there any other frontend consumer of `AttackPathEdge` besides `AttackPathDashboard.tsx` that would need updating too?**
+3. **For PROV-04's edge-field-name fix, is there any other frontend consumer of `AttackPathEdge` besides `AttackPathDashboard.tsx` that would need updating too?** (RESOLVED)
    - What we know: `AttackPathDashboard.tsx` is the only `.tsx` file (outside stale `.claude/worktrees/` snapshots, which are not live code) that references `AttackPath`/edge fields, per this session's grep.
-   - What's unclear: Whether any other in-flight phase (e.g., a not-yet-merged worktree) touches this type.
-   - Recommendation: Low risk — proceed with the fix; a final grep for `AttackPathEdge`/`\.edges\b` immediately before merging is cheap insurance.
+   - **RESOLVED: adopting the recommendation** — proceed with the fix; include a final grep for `AttackPathEdge`/`\.edges\b` in the task's verify step as cheap insurance.
 
 ## Environment Availability
 
