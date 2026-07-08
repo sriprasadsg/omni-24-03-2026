@@ -563,9 +563,13 @@ deployment.
 **Depends on:** None
 
 **Plans:** 4 plans, 2 waves
+**Wave 1**
 
 - [ ] 33-01-PLAN.md — API-key authentication path (hash-at-rest + get_current_user_or_api_key + wire webhook routes) [Wave 1]
 - [ ] 33-02-PLAN.md — Outbound webhook HMAC-SHA256 signing fix (clone ticket_webhook_service, sign exact bytes) [Wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 33-03-PLAN.md — n8n community node (WF-01) — integrations/n8n-nodes-omniagent/ [Wave 2]
 - [ ] 33-04-PLAN.md — Zapier integration (WF-02) — integrations/zapier-omniagent/ [Wave 2]
 

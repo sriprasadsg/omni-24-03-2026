@@ -82,7 +82,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 30 | AI Questionnaire Auto-Answer | Planned — 6 plans, 3 waves, checker passed (v3.0) |
 | 31 | FAIR Risk Quantification | Planned — 3 plans, 3 waves, checker passed (v3.0) |
 | 32 | Cloud and SaaS Provider Expansion | Planned — 5 plans, 2 waves, checker passed (v3.0) |
-| 33 | Workflow Automation Connectors | Pending (v3.0) |
+| 33 | Workflow Automation Connectors | Planned — 4 plans, 2 waves, checker passed (v3.0) |
 | 34 | Passkey and WebAuthn Authentication | Pending (v3.0) |
 | 35 | GraphQL API | Pending (v3.0) |
 | 36 | Fine-Grained Relationship-Based Authorization | Pending (v3.0) |
