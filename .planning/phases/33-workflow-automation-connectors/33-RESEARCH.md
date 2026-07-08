@@ -433,22 +433,25 @@ return {"id": key_id, "name": key_doc["name"], "key": plaintext, "createdAt": no
 | A4 | The initial "Event" selector for both connectors should be the actual event-type strings found emitted in this codebase today (`agent.offline`, `security.alert`, `compliance.violation`, plus others found in the call-site grep), not a larger, aspirational catalog | Summary | Low risk — additive; more event types can be added to the selector list later without breaking either connector's architecture |
 | A5 | Publishing either package to npm (`npm publish`) / submitting the Zapier app for platform review is an out-of-scope, manual, post-phase operator action, not something this phase's execution should attempt | Architecture Patterns → Anti-Patterns | If a human expects the connectors to be live/discoverable on npm or in Zapier's app directory by the end of this phase, this assumption under-delivers — flagged as Open Question 2 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does WF-02 require the full `zapier-platform-core` CLI app scaffold (this research's recommendation, Assumption A1), or would "Zapier-friendly" REST endpoints plus documentation for wiring up Zapier's generic Webhooks app satisfy the requirement at lower effort?**
+1. **Does WF-02 require the full `zapier-platform-core` CLI app scaffold (this research's recommendation, Assumption A1), or would "Zapier-friendly" REST endpoints plus documentation for wiring up Zapier's generic Webhooks app satisfy the requirement at lower effort?** (RESOLVED)
    - What we know: The requirement text says "a dedicated Zapier integration ('Zap' template)" — the phrase "Zap template" specifically implies a named, discoverable integration a user finds and connects to by name, not a manual HTTP-config walkthrough.
    - What's unclear: Whether "dedicated" requires the integration to actually be published/discoverable in Zapier's app directory, or whether a locally-buildable, unpublished CLI app satisfies the phase's Definition of Done.
    - Recommendation: Build the full CLI app scaffold (superset of the lighter option); leave `zapier push`/app-directory submission as a documented manual follow-up.
+   - **RESOLVED: full CLI app scaffold.** The phase goal's own wording — "without hand-built HTTP config" — rules out the lighter REST-endpoints option, since that option still requires users to hand-configure Zapier's generic Webhooks app. The requirement's "dedicated Zapier integration ('Zap' template)" phrase confirms a named integration. `zapier push`/directory submission stays a documented manual follow-up (see Q2).
 
-2. **Should this phase's execution actually publish `n8n-nodes-omniagent` to npm and submit the Zapier app for platform review, or is "source exists, compiles, lints/validates clean" the actual Definition of Done?**
+2. **Should this phase's execution actually publish `n8n-nodes-omniagent` to npm and submit the Zapier app for platform review, or is "source exists, compiles, lints/validates clean" the actual Definition of Done?** (RESOLVED)
    - What we know: Both publishing actions require external accounts/credentials (an npm publish token with permission to publish under whatever org/scope is chosen; a Zapier developer account) that this execution environment has no confirmed access to.
    - What's unclear: Whether a human has (or wants to set up) those credentials as part of this phase, or treats publishing as a separate, manual release step.
    - Recommendation: Scope this phase to "source, compiled/linted/validated clean, committed to this repo" — treat publishing as an explicit manual follow-up documented in each package's README, not an automated task.
+   - **RESOLVED: adopting the recommendation.** Publishing requires external credentials (npm publish token, Zapier developer account) that this execution environment does not have, and publication is an outward-facing, hard-to-reverse action that must be a deliberate human step regardless. Definition of Done = source committed, TS compile + n8n lint green, `zapier validate` + offline unit tests green, publishing instructions in each package's README.
 
-3. **Should the API-key auth prerequisite (Pattern 3) be scoped narrowly to `/api/webhooks` only, or should it become a general-purpose auth path other future integrations can also use?**
+3. **Should the API-key auth prerequisite (Pattern 3) be scoped narrowly to `/api/webhooks` only, or should it become a general-purpose auth path other future integrations can also use?** (RESOLVED)
    - What we know: The immediate need is `/api/webhooks`; a general-purpose `get_current_user_or_api_key` dependency (as designed in Pattern 3) is trivially reusable by any future route without extra cost.
    - What's unclear: Whether product wants API-key scopes/permissions (e.g. "webhooks:write" vs. full tenant access) from day one, or whether tenant-wide access via API key is acceptable for v1.
    - Recommendation: Implement the dependency generally (any route can `Depends()` it), but grant API-key-authenticated requests only the `"api-integration"` role scoped to the webhook routes for v1 — expanding scope granularity is a natural, low-risk follow-up if needed.
+   - **RESOLVED: adopting the recommendation.** General-purpose `get_current_user_or_api_key` dependency, but API-key-authenticated requests carry only the narrow `"api-integration"` role and are applied ONLY to the webhook-subscription/event routes the two connectors need for v1. Security-conservative (least privilege at the new system boundary, per CLAUDE.md's input-validation-at-boundaries rule), trivially widened later.
 
 ## Environment Availability
 
