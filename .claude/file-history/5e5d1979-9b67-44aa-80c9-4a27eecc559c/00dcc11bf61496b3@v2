@@ -1,0 +1,137 @@
+---
+phase: 24-iac-container-security
+plan: 01
+type: execute
+wave: 1
+depends_on: []
+files_modified:
+  - backend/iac_scanner_service.py
+  - backend/iac_scanner_endpoints.py
+  - backend/tests/test_iac_scanner.py
+  - backend/container_scanner_service.py
+  - backend/container_scanner_endpoints.py
+  - backend/router_registry.py
+  - components/IacContainerDashboard.tsx
+autonomous: true
+requirements:
+  - IAC-01
+  - IAC-02
+  - IAC-03
+must_haves:
+  truths:
+    - "POST /api/iac/scan accepts code content or git repo URL, returns check results as {check_id, severity, status (pass/fail/warning), message, line_ref} per Terraform/CloudFormation/Kubernetes manifest (IAC-01)"
+    - "IaC checks defined for: Terraform (S3 public ACL, IAM wildcard action, security group open SSH/RDP, unencrypted EBS, unencrypted RDS, admin privileged=true, KMS key rotation disabled, logging disabled, VPC flow logs disabled, secret in plaintext variable, hardcoded AWS access key, HTTP listener on ALB, EKS public endpoint, S3 bucket logging disabled, EC2 instance with public IP); CloudFormation (same checks mapped to CF resource types); Kubernetes (privileged container, runAsRoot, hostNetwork, hostPID, no resource limits, no network policy, secrets as env vars, admission webhook missing) — 25+ checks total (IAC-01)"
+    - "iac_scanner_service scans file by file: Terraform .tf files parsed for resource blocks, CloudFormation .yaml/.json parsed for Resources, Kubernetes .yaml manifests parsed for kind/apiVersion (IAC-01)"
+    - "POST /api/container/scan accepts image_name:tag, returns scan result with {image, vulns: [{id, severity, package, installed_version, fixed_version, description}], total_vulns, critical_count, high_count, medium_count, low_count} (IAC-02)"
+    - "Container scanner uses Trivy CLI in subprocess if available, else returns simulated results with a note Trivy not installed (IAC-02)"
+    - "GET /api/iac/results and GET /api/container/results return historical scan results scoped to tenant (IAC-02)"
+    - "POST /api/iac/scan-config sets scanner config: excluded_paths, severity_threshold, auto_scan_enabled; GET /api/iac/scan-config returns current config (IAC-03)"
+    - "All 8 unit tests pass (IAC-03)"
+    - "IacContainerDashboard.tsx has 2 tabs: IaC Scanner (upload/code input, results table with pass/fail badges) and Container Scanner (image input, vulns table with severity-colored rows)"
+    - "router_registry.py registers iac_scanner_endpoints and container_scanner_endpoints"
+  artifacts:
+    - path: "backend/iac_scanner_service.py"
+      provides: "iac_scanner: scan_code, scan_repo, list_results, IAC_CHECKS (25+ check definitions)"
+    - path: "backend/iac_scanner_endpoints.py"
+      provides: "router at /api/iac — POST /scan, POST /scan-repo, GET /results, GET/POST /scan-config"
+    - path: "backend/container_scanner_service.py"
+      provides: "container_scanner: scan_image, list_results, _parse_trivy_output"
+    - path: "backend/container_scanner_endpoints.py"
+      provides: "router at /api/container — POST /scan, GET /results"
+    - path: "backend/tests/test_iac_scanner.py"
+      provides: "8-test TDD suite"
+    - path: "components/IacContainerDashboard.tsx"
+      provides: "2-tab UI for IaC + Container scanning with results history"
+
+<objective>
+Implement IaC (Infrastructure as Code) scanning and Container image vulnerability scanning — two features requested by DevOps and security engineering teams as the #1 gap versus Checkov, Trivy, and Snyk.
+
+**IaC Scanner — 25+ check definitions:**
+
+Terraform checks (tf):
+| # | Check Name | Severity |
+|---|-----------|----------|
+| 1 | S3 Bucket Public ACL | critical |
+| 2 | IAM Policy Wildcard Action | critical |
+| 3 | Security Group Open SSH (0.0.0.0/0) | critical |
+| 4 | Security Group Open RDP (0.0.0.0/0) | critical |
+| 5 | EBS Volume Encryption Disabled | high |
+| 6 | RDS Storage Encryption Disabled | high |
+| 7 | EKS Cluster Public Endpoint | high |
+| 8 | EC2 Instance with Public IP | high |
+| 9 | ALB HTTP Listener (no redirect) | high |
+| 10 | KMS Key Rotation Disabled | medium |
+| 11 | S3 Bucket Logging Disabled | medium |
+| 12 | VPC Flow Logs Disabled | medium |
+| 13 | Hardcoded AWS Access Key | critical |
+| 14 | Secret in Plaintext Variable | critical |
+| 15 | EC2 Admin Privileged True | high |
+| 16 | EBS Volume Not Encrypted | high |
+| 17 | S3 Versioning Disabled | medium |
+| 18 | RDS Deletion Protection Disabled | medium |
+
+Kubernetes checks (k8s manifest):
+| # | Check Name | Severity |
+|---|-----------|----------|
+| 19 | Privileged Container Allowed | critical |
+| 20 | Container Runs as Root | high |
+| 21 | hostNetwork Enabled | high |
+| 22 | hostPID/hostIPC Enabled | high |
+| 23 | Container Without Resource Limits | medium |
+| 24 | Secrets as Environment Variables | high |
+| 25 | NetworkPolicy Missing | medium |
+| 26 | readOnlyRootFilesystem Not Set | medium |
+| 27 | Liveness/Readiness Probe Missing | low |
+
+**Scan engine (iac_scanner_service.py):**
+- `IAC_CHECKS` — module-level list of check dicts (same schema as CLOUD_CHECKS in cloud_checks_service.py)
+- `scan_code(code: str, filename: str)` — splits by file extension (.tf/.yaml/.yml/.json), runs regex-based resource detection, evaluates each check against matched resources
+- `scan_repo(repo_url: str)` — placeholder for git clone + scan (MVP: returns same structure with note about git support)
+- `list_results(db, tenant_id)` — returns historical scan results
+- Results stored in `iac_scan_results` collection
+
+**Container scanner (container_scanner_service.py):**
+- `scan_image(image_name: str)` — tries Trivy CLI (`trivy image --format json {image}`), parses JSON output; if Trivy not found, returns simulated results
+- `list_results(db, tenant_id)` — returns historical scan results
+- Results stored in `container_scan_results` collection with image_name, total_vulns, breakdown by severity
+
+**TDD order (8 tests):**
+1. test_iac_scan_terraform_s3_public_acl — scan TF code with S3 public ACL → critical fail
+2. test_iac_scan_k8s_privileged — scan K8s manifest with privileged=true → critical fail
+3. test_iac_scan_clean_tf — scan clean TF code → all pass
+4. test_iac_scan_config_get_set — POST/GET scan-config roundtrip
+5. test_container_scan_image — scan image → returns structure with vulns
+6. test_container_list_results — GET results → paginated list
+7. test_iac_tenant_isolation — tenant-a cannot see tenant-b results
+8. test_container_vuln_severity_counts — vulns correctly count by severity
+
+**IacContainerDashboard.tsx tab layout:**
+```
+[IaC Scanner] [Container Scanner]
+
+IaC Scanner tab:
+  ┌────────────────────────────────────────────┐
+  │ Code Input (paste or file upload)          │
+  │ [Scan]                                      │
+  │ ┌──────┬──────────┬────────┬────────┐      │
+  │ │Check │ Severity │ Status │ Line   │      │
+  │ ├──────┼──────────┼────────┼────────┤      │
+  │ │S3Pub │ Critical │  FAIL  │ 12     │      │
+  │ │IAMA  │ Critical │  PASS  │ -      │      │
+  │ └──────┴──────────┴────────┴────────┘      │
+  └────────────────────────────────────────────┘
+
+Container Scanner tab:
+  ┌────────────────────────────────────────────┐
+  │ Image: [nginx:latest          ] [Scan]      │
+  │ Total vulns: 42  ● Critical: 3 ● High: 8   │
+  │ ┌──────────┬────────┬──────────────────┐    │
+  │ │ Package  │ Sever  │ Fix Version      │    │
+  │ ├──────────┼────────┼──────────────────┤    │
+  │ │ libssl   │ CRIT   │ 3.0.12           │    │
+  │ │ nginx    │ HIGH   │ 1.25.3           │    │
+  │ └──────────┴────────┴──────────────────┘    │
+  └────────────────────────────────────────────┘
+```
+
+Output: 7 files, 8 passing tests, IaC scanning + container vuln scanning

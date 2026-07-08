@@ -1,0 +1,8 @@
+{
+  "id": "34",
+  "subject": "Create backend/container_scanner_service.py",
+  "description": "Container scanner service: Trivy integration + simulated fallback",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,27 @@
+name: Validate Skills
+
+on:
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/**"
+      - "AGENTS.md"
+      - "README.md"
+      - ".claude-plugin/**"
+      - ".cursor-plugin/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate all skills
+        run: python scripts/quick_validate.py skills/together-*
+
+      - name: Check generated artifacts are in sync
+        run: ./scripts/publish.sh --check

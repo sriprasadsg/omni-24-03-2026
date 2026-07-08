@@ -1,0 +1,195 @@
+#Requires -RunAsAdministrator
+<#
+.SYNOPSIS
+    Installs (or uninstalls) the OmniAgent Rust Windows service.
+
+.DESCRIPTION
+    Copies the agent binary to C:\Program Files\OmniAgent\, writes config.yaml,
+    creates the "OmniAgentRust" service under the LocalSystem (SYSTEM) account so
+    every PowerShell evidence command runs with full administrator privileges.
+
+.PARAMETER ApiUrl
+    Backend API base URL.  Example: https://my-platform.example.com
+
+.PARAMETER RegistrationKey
+    Tenant registration key shown in the platform Settings page.
+
+.PARAMETER Uninstall
+    Stop and remove the service and installation directory.
+
+.EXAMPLE
+    # Install
+    .\install-service.ps1 -ApiUrl https://platform.example.com -RegistrationKey reg_abc123
+
+.EXAMPLE
+    # Uninstall
+    .\install-service.ps1 -Uninstall
+#>
+
+[CmdletBinding(SupportsShouldProcess)]
+param(
+    [string]$ApiUrl          = "http://localhost:5000",
+    [string]$RegistrationKey = "",
+    [switch]$Uninstall
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$ServiceName = "OmniAgentRust"
+$DisplayName = "Enterprise OmniAgent (Rust)"
+$Description = "Enterprise security compliance agent — collects evidence, runs CISSP/PCI/ISO checks."
+$InstallDir  = "$env:ProgramFiles\OmniAgent"
+$ExeName     = "enterprise-omni-agent.exe"
+$ExeDst      = Join-Path $InstallDir $ExeName
+$ConfigDst   = Join-Path $InstallDir "config.yaml"
+$LogDir      = Join-Path $InstallDir "logs"
+
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+function Write-Step([string]$msg) { Write-Host "  > $msg" -ForegroundColor Cyan }
+function Write-Ok([string]$msg)   { Write-Host "  ✓ $msg" -ForegroundColor Green }
+function Write-Warn([string]$msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
+
+# ── Uninstall path ─────────────────────────────────────────────────────────────
+
+if ($Uninstall) {
+    Write-Host "`n[OmniAgent] Uninstalling service..." -ForegroundColor Magenta
+
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($svc) {
+        Write-Step "Stopping service..."
+        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        Write-Step "Removing service..."
+        & sc.exe delete $ServiceName | Out-Null
+        Write-Ok "Service removed."
+    } else {
+        Write-Warn "Service '$ServiceName' not found — skipping."
+    }
+
+    if (Test-Path $InstallDir) {
+        Write-Step "Removing install directory $InstallDir ..."
+        Remove-Item -Recurse -Force $InstallDir
+        Write-Ok "Directory removed."
+    }
+
+    Write-Host "`n[OmniAgent] Uninstall complete.`n" -ForegroundColor Green
+    exit 0
+}
+
+# ── Install path ───────────────────────────────────────────────────────────────
+
+Write-Host "`n[OmniAgent] Installing Windows service..." -ForegroundColor Magenta
+
+# 1. Locate the EXE next to this script (or in target\release\)
+$ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ExeSrc      = $null
+$candidates  = @(
+    Join-Path $ScriptDir $ExeName,
+    Join-Path $ScriptDir "target\release\$ExeName",
+    Join-Path $ScriptDir "target\x86_64-pc-windows-msvc\release\$ExeName"
+)
+foreach ($c in $candidates) {
+    if (Test-Path $c) { $ExeSrc = $c; break }
+}
+
+if (-not $ExeSrc) {
+    Write-Host "`nERROR: Cannot find $ExeName.`n  Looked in:`n" -ForegroundColor Red
+    $candidates | ForEach-Object { Write-Host "    $_" }
+    Write-Host "`n  Build first:  cargo build --release`n  Then re-run this script.`n" -ForegroundColor Yellow
+    exit 1
+}
+
+# 2. Stop and remove existing service (clean upgrade)
+$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existing) {
+    Write-Step "Stopping existing service for upgrade..."
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    & sc.exe delete $ServiceName | Out-Null
+    Start-Sleep -Seconds 1
+    Write-Ok "Old service removed."
+}
+
+# 3. Create install directory
+Write-Step "Creating $InstallDir ..."
+New-Item -ItemType Directory -Force -Path $InstallDir  | Out-Null
+New-Item -ItemType Directory -Force -Path $LogDir      | Out-Null
+
+# 4. Copy binary
+Write-Step "Copying $ExeName ..."
+Copy-Item -Path $ExeSrc -Destination $ExeDst -Force
+Write-Ok "Binary installed: $ExeDst"
+
+# 5. Write config.yaml (next to EXE — matches config.rs path logic)
+if (-not (Test-Path $ConfigDst) -or $RegistrationKey) {
+    Write-Step "Writing config.yaml ..."
+    $config = @"
+api_base_url: $ApiUrl
+registration_key: $RegistrationKey
+interval_seconds: 60
+"@
+    Set-Content -Path $ConfigDst -Value $config -Encoding UTF8
+    Write-Ok "Config written: $ConfigDst"
+} else {
+    Write-Warn "config.yaml already exists — skipping (use -RegistrationKey to overwrite)."
+}
+
+# 6. Create service — LocalSystem = SYSTEM account (full admin, no PATH stripping issues)
+Write-Step "Creating Windows service '$ServiceName' ..."
+& sc.exe create $ServiceName `
+    binPath= "`"$ExeDst`"" `
+    start= auto `
+    obj= LocalSystem `
+    DisplayName= $DisplayName | Out-Null
+
+# Set description
+& sc.exe description $ServiceName $Description | Out-Null
+
+# Configure failure recovery: restart after 5 s, 3 consecutive failures
+& sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null
+
+Write-Ok "Service created (LocalSystem, auto-start)."
+
+# 7. Set service to delayed auto-start so network is available on boot
+Write-Step "Setting delayed auto-start..."
+& sc.exe config $ServiceName start= delayed-auto | Out-Null
+Write-Ok "Delayed auto-start configured."
+
+# 8. Grant service binary ACL: SYSTEM full control, Administrators read/execute
+Write-Step "Setting ACL on binary..."
+$acl = Get-Acl $ExeDst
+$acl.SetAccessRuleProtection($true, $false)
+$sysRule  = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    "NT AUTHORITY\SYSTEM", "FullControl", "Allow")
+$admRule  = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    "BUILTIN\Administrators", "ReadAndExecute", "Allow")
+$acl.AddAccessRule($sysRule)
+$acl.AddAccessRule($admRule)
+Set-Acl -Path $ExeDst -AclObject $acl
+Write-Ok "ACL set (SYSTEM=FullControl, Administrators=ReadAndExecute)."
+
+# 9. Start the service
+Write-Step "Starting service..."
+Start-Service -Name $ServiceName
+$svc = Get-Service -Name $ServiceName
+Write-Ok "Service status: $($svc.Status)"
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+
+Write-Host @"
+
+[OmniAgent] Installation complete.
+
+  Service : $ServiceName
+  Account : LocalSystem (SYSTEM — full administrator privileges)
+  Binary  : $ExeDst
+  Config  : $ConfigDst
+  Logs    : $LogDir\omni-agent.log
+
+  To verify:  Get-Service $ServiceName
+  To view log: Get-Content "$LogDir\omni-agent.log" -Tail 50 -Wait
+  To uninstall: .\install-service.ps1 -Uninstall
+
+"@ -ForegroundColor Green

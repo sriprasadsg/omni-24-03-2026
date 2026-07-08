@@ -17,6 +17,11 @@ class RiskCreate(BaseModel):
     mitigation_plan: str = None
     ai_system_id: str = None
     vendor_id: str = None
+    # Risk-01 residual fields
+    residual_likelihood: int = None
+    residual_impact: int = None
+    inherent_likelihood: int = None
+    inherent_impact: int = None
 
 class RiskUpdate(BaseModel):
     title: str = None
@@ -27,6 +32,11 @@ class RiskUpdate(BaseModel):
     impact: int = None
     owner: str = None
     mitigation_plan: str = None
+    # Risk-01 residual fields
+    residual_likelihood: int = None
+    residual_impact: int = None
+    inherent_likelihood: int = None
+    inherent_impact: int = None
 
 def _risk_tenant(current_user: TokenData) -> str:
     tid = getattr(current_user, "tenant_id", None) or None

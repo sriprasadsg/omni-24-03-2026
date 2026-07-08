@@ -8,8 +8,8 @@ mod ai_core;
 mod remediation;
 mod remote_access;
 
-use api::BackendClient;
-use capabilities::CapabilityManager;
+use rust_agent::api::BackendClient;
+use rust_agent::capabilities::CapabilityManager;
 use ai_core::AICore;
 use remediation::RemediationEngine;
 use remote_access::RemoteAccess;
@@ -68,22 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(instructions) => {
                 for instruction in instructions {
                     info!("Received instruction: {}", instruction.id);
-                    
-                    // Hook for AI Analysis Instruction
-                    if instruction.payload["type"] == "ai_analysis" {
-                         // Gather data
-                         let metrics = capability_manager.lock().await.collect_metrics();
-                         // Analyze
-                         if let Ok(analysis) = ai_core.analyze_system_health(&metrics).await {
-                             info!("AI Analysis Result: {}", analysis);
-                             // If remediation recommended, execute
-                             if analysis["health_score"].as_i64().unwrap_or(100) < 50 {
-                                 info!("Health Critical! Executing remediation...");
-                                 remediation.execute_plan(&analysis["recommendation_plan"]);
-                             }
-                         }
-                    }
-                    
+
                     // Standard Execution
                     let result = capability_manager.lock().await.execute_instruction(&instruction).await;
                     if let Err(e) = client.send_instruction_result(&instruction.id, result).await {

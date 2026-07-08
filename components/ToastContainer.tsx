@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircleIcon, XCircleIcon, InfoIcon, XIcon } from './icons';
+import { CheckCircleIcon, XCircleIcon, InfoIcon, AlertTriangleIcon, XIcon } from './icons';
 import { ToastEvent, EVENT_NAME } from '../utils/toast';
 
 const ICONS = {
   success: <CheckCircleIcon size={16} className="text-green-400 flex-shrink-0" />,
   error: <XCircleIcon size={16} className="text-red-400 flex-shrink-0" />,
   info: <InfoIcon size={16} className="text-blue-400 flex-shrink-0" />,
+  warning: <AlertTriangleIcon size={16} className="text-amber-400 flex-shrink-0" />,
 };
 
 const BG = {
   success: 'border-green-500/30 bg-green-500/10',
   error: 'border-red-500/30 bg-red-500/10',
   info: 'border-blue-500/30 bg-blue-500/10',
+  warning: 'border-amber-500/30 bg-amber-500/10',
 };
 
 interface ActiveToast extends ToastEvent {
@@ -36,7 +38,7 @@ const ToastItem: React.FC<{ toast: ActiveToast; onDismiss: (id: string) => void 
     return () => clearInterval(tick);
   }, [toast.id, toast.duration, onDismiss]);
 
-  const barColor = toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+  const barColor = toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500';
 
   return (
     <div

@@ -1,0 +1,31 @@
+use std::{net::UdpSocket, time::Duration};
+use reqwest::Client;
+
+pub fn build_client() -> Client {
+    Client::builder()
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(5))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .expect("HTTP client")
+}
+
+pub fn local_ip() -> String {
+    UdpSocket::bind("0.0.0.0:0")
+        .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
+        .map(|a| a.ip().to_string())
+        .unwrap_or_else(|_| "unknown".into())
+}
+
+pub async fn run_ps(cmd: &str) -> String {
+    let fut = tokio::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
+        .output();
+    tokio::time::timeout(Duration::from_secs(15), fut)
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+

@@ -1,0 +1,13 @@
+{
+  "name": "togetherai-skills",
+  "owner": {
+    "name": "Together AI"
+  },
+  "plugins": [
+    {
+      "name": "togetherai-skills",
+      "description": "Agent Skills for Together AI platform — inference, training, embeddings, audio, video, images, function calling, and infrastructure",
+      "source": "./"
+    }
+  ]
+}

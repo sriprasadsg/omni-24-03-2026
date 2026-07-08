@@ -1,0 +1,94 @@
+/*!
+ * Enterprise OmniAgent — Rust edition (v2.0.0)
+ * Full feature parity with Python agent via capability modules.
+ * Native Windows Service via windows-service crate — no WinSW or .NET needed.
+ */
+
+mod config;
+mod http;
+mod caps;
+mod poll;
+mod agent;
+
+use std::sync::{Arc, atomic::AtomicBool};
+
+const SERVICE_NAME: &str = "OmniAgentRust";
+
+// ── Windows Service wrapper (compiled only on Windows) ─────────────────────────
+
+#[cfg(windows)]
+mod win_svc {
+    use super::{agent, SERVICE_NAME};
+    use std::{ffi::OsString, sync::{Arc, OnceLock, atomic::{AtomicBool, Ordering}}, time::Duration};
+    use windows_service::{
+        define_windows_service, service_dispatcher,
+        service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType},
+        service_control_handler::{self, ServiceControlHandlerResult},
+    };
+
+    static RUNNING: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
+    define_windows_service!(ffi_service_main, svc_main);
+
+    fn svc_main(_args: Vec<OsString>) {
+        let running = RUNNING.get().cloned().unwrap_or_else(|| Arc::new(AtomicBool::new(true)));
+        let stop_flag = running.clone();
+
+        let handler = move |ctrl| match ctrl {
+            ServiceControl::Stop | ServiceControl::Shutdown => {
+                stop_flag.store(false, Ordering::Relaxed);
+                ServiceControlHandlerResult::NoError
+            }
+            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+            _ => ServiceControlHandlerResult::NotImplemented,
+        };
+
+        let Ok(handle) = service_control_handler::register(SERVICE_NAME, handler) else { return };
+        let mk_status = |state: ServiceState, accepted: ServiceControlAccept| ServiceStatus {
+            service_type:       ServiceType::OWN_PROCESS,
+            current_state:      state,
+            controls_accepted:  accepted,
+            exit_code:          ServiceExitCode::Win32(0),
+            checkpoint:         0,
+            wait_hint:          Duration::default(),
+            process_id:         None,
+        };
+
+        let _ = handle.set_service_status(mk_status(
+            ServiceState::Running,
+            ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+        ));
+
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(agent::agent_loop(running));
+
+        let _ = handle.set_service_status(mk_status(ServiceState::Stopped, ServiceControlAccept::empty()));
+    }
+
+    pub fn try_start(running: Arc<AtomicBool>) -> bool {
+        let _ = RUNNING.set(running);
+        service_dispatcher::start(SERVICE_NAME, ffi_service_main).is_ok()
+    }
+}
+
+// ── Entry point ────────────────────────────────────────────────────────────────
+
+fn main() {
+    let running = Arc::new(AtomicBool::new(true));
+
+    // Windows Service mode (started by SCM via services.msc or sc.exe)
+    #[cfg(windows)]
+    if win_svc::try_start(running.clone()) {
+        return;
+    }
+
+    // Console / direct-launch mode (double-click or --console)
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(agent::agent_loop(running));
+}

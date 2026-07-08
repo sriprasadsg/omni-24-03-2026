@@ -1,0 +1,59 @@
+phase: 14-saas-evidence-integration
+plan: 02
+type: execute
+wave: 2
+depends_on:
+  - 14-01
+files_modified:
+  - components/SaaSIntegrationsDashboard.tsx
+  - backend/router_registry.py
+autonomous: true
+requirements:
+  - SAAS-04
+must_haves:
+  truths:
+    - "SaaSIntegrationsDashboard.tsx shows all 5 provider cards (GitHub, Jira, Okta, Google Workspace, Slack) with Connect / Disconnect buttons and connection status (SAAS-04)"
+    - "Connect button opens OAuth redirect in a popup window; on callback the popup closes and the parent refreshes the connection list (SAAS-04)"
+    - "Each connected integration shows last_synced timestamp, evidence_count, and a Pull Evidence Now button (SAAS-04)"
+    - "Pull Evidence Now triggers POST /api/saas/connections/{id}/pull-evidence with loading spinner and toast on success/error (SAAS-04)"
+    - "router_registry.py has _load(app, 'saas_integration_endpoints', 'router') in the Compliance & Governance section"
+    - "Component is under 500 lines"
+  artifacts:
+    - path: "components/SaaSIntegrationsDashboard.tsx"
+      provides: "Provider cards, OAuth popup flow, Pull Evidence Now, status display"
+    - path: "backend/router_registry.py"
+      provides: "saas_integration_endpoints route registration"
+
+<objective>
+Build the SaaS Integrations management UI and wire the router so the backend is reachable.
+
+**Component design:**
+
+Provider card layout:
+```
+┌─────────────────────────────────────────┐
+│ [GitHub icon]  GitHub                   │
+│ Branch protection, PR evidence, SAST    │
+│ Status: ● Connected  Last sync: 2h ago  │
+│ Evidence collected: 12 records          │
+│ [Pull Evidence Now]  [Disconnect]       │
+└─────────────────────────────────────────┘
+```
+
+OAuth popup flow:
+1. User clicks Connect → window.open("/api/saas/connect/{provider}", "oauth", "width=600,height=700")
+2. User authorises in popup → backend exchanges code for token → stores encrypted → returns success HTML that calls window.opener.postMessage('saas_connected', '*')
+3. Parent window receives message → closes popup → refetches connections
+
+Implementation steps:
+1. Add `_load(app, "saas_integration_endpoints", "router")` to router_registry.py after `_load(app, "cookie_consent_endpoints", "router")`
+2. Write SaaSIntegrationsDashboard.tsx:
+   - PROVIDER_CATALOG: array of {id, name, logo, description, controls[]}
+   - useEffect: fetch /api/saas/connections → map to connected/disconnected state
+   - connectProvider(provider): window.open popup + postMessage listener
+   - pullEvidence(connectionId): POST with loading state
+   - disconnectProvider(connectionId): DELETE with confirm dialog
+   - Render: 5 provider cards in a 2-col grid
+
+Output: Dashboard component + router registration; SaaS integration fully accessible from UI
+</objective>

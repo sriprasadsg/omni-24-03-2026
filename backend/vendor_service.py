@@ -135,6 +135,32 @@ class VendorService:
             },
         }
 
+    async def add_subprocessor(self, vendor_id: str, subprocessor_data: Dict[str, Any], tenant_id: Optional[str] = None, role: str = "") -> Optional[Dict]:
+        db = get_database()
+        filt = {"id": vendor_id, **self._scope(role, tenant_id)}
+        vendor = await db.vendors.find_one(filt)
+        if not vendor:
+            return None
+        sp = {
+            "id": str(uuid.uuid4()),
+            **subprocessor_data,
+        }
+        await db.vendors.update_one(filt, {"$push": {"subprocessors": sp}})
+        return sp
+
+    async def remove_subprocessor(self, vendor_id: str, subprocessor_id: str, tenant_id: Optional[str] = None, role: str = "") -> bool:
+        db = get_database()
+        filt = {"id": vendor_id, **self._scope(role, tenant_id)}
+        result = await db.vendors.update_one(filt, {"$pull": {"subprocessors": {"id": subprocessor_id}}})
+        return result.matched_count > 0
+
+    async def get_subprocessors(self, vendor_id: str, tenant_id: Optional[str] = None, role: str = "") -> List[Dict]:
+        db = get_database()
+        vendor = await db.vendors.find_one({"id": vendor_id, **self._scope(role, tenant_id)}, {"_id": 0, "subprocessors": 1})
+        if not vendor:
+            return []
+        return vendor.get("subprocessors", [])
+
     async def add_document(self, vendor_id: str, doc_data: Dict[str, Any], tenant_id: Optional[str] = None, role: str = "") -> bool:
         db = get_database()
         doc = {

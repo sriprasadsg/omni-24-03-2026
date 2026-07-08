@@ -1,0 +1,6 @@
+{
+  "name": "togetherai-skills",
+  "description": "Agent Skills for Together AI platform — inference, training, embeddings, audio, video, images, function calling, and infrastructure",
+  "version": "0.1.0",
+  "contextFileName": "agents/AGENTS.md"
+}

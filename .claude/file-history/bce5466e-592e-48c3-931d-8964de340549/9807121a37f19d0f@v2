@@ -1,0 +1,84 @@
+phase: 16-program-control-grouping
+plan: 01
+type: execute
+wave: 1
+depends_on: []
+files_modified:
+  - backend/program_service.py
+  - backend/program_endpoints.py
+  - backend/tests/test_program_service.py
+  - backend/router_registry.py
+  - components/ProgramsDashboard.tsx
+autonomous: true
+requirements:
+  - PROG-01
+  - PROG-02
+  - PROG-03
+must_haves:
+  truths:
+    - "POST /api/programs creates a named program with name, description, framework_id, owner, and optional control_ids list (PROG-01)"
+    - "PUT /api/programs/{program_id}/controls accepts {add: [...], remove: [...]} to manage control membership (PROG-01)"
+    - "GET /api/programs/{program_id} returns the program with controls embedded and a computed status_rollup: {total, passing, failing, not_assessed} (PROG-02)"
+    - "status_rollup.status is 'compliant' when passing >= total*0.8 and failing == 0, else 'at_risk' when failing > 0, else 'in_progress' (PROG-02)"
+    - "GET /api/programs returns all programs for the tenant with status_rollup summary on each (PROG-02)"
+    - "DELETE /api/programs/{program_id} removes the program document (control_evidence documents are NOT deleted) (PROG-03)"
+    - "All 7 unit tests in test_program_service.py pass green"
+    - "ProgramsDashboard.tsx renders program list with status badges, control count, progress bar, and create/edit/delete actions"
+    - "router_registry.py registers program_endpoints"
+  artifacts:
+    - path: "backend/program_service.py"
+      provides: "ProgramService: create, get, list, update_controls, delete, _compute_status_rollup"
+    - path: "backend/program_endpoints.py"
+      provides: "router at /api/programs — CRUD + /controls management"
+    - path: "backend/tests/test_program_service.py"
+      provides: "7-test TDD suite"
+    - path: "components/ProgramsDashboard.tsx"
+      provides: "Program list with status rollup, control count, create/manage UI"
+
+<objective>
+Implement control grouping into named programs so organizations can track compliance across logical security domains (e.g., "Access Control Program", "Encryption Program") instead of framework-flat control lists — closing the gap versus Probo and OpenLane Core.
+
+**Program document schema:**
+```json
+{
+  "id": "prog-{uuid}",
+  "tenantId": "...",
+  "name": "Access Control Program",
+  "description": "...",
+  "framework_id": "soc2",
+  "owner": "...",
+  "control_ids": ["ctrl-001", "ctrl-002"],
+  "created_at": "...",
+  "updated_at": "..."
+}
+```
+
+**Status rollup logic:**
+- For each control_id, look up latest compliance check result in `compliance_results` collection
+- Count passing (status=pass), failing (status=fail), not_assessed (no result)
+- `compliant`: passing >= 80% of total AND failing == 0
+- `at_risk`: any failing > 0
+- `in_progress`: else (some passing, rest not_assessed)
+
+**TDD order:**
+1. Write 7 tests RED:
+   - test_create_program
+   - test_add_controls_to_program
+   - test_remove_controls_from_program
+   - test_status_rollup_compliant
+   - test_status_rollup_at_risk
+   - test_list_programs_includes_rollup
+   - test_tenant_isolation
+
+2. Implement program_service.py (GREEN)
+3. Implement program_endpoints.py (router at /api/programs)
+4. Register in router_registry.py
+5. Build ProgramsDashboard.tsx:
+   - Program cards in a 2-col grid
+   - Status badge: green "Compliant", yellow "In Progress", red "At Risk"
+   - Progress bar showing passing/total controls
+   - "Manage Controls" button → modal with control picker (search + select)
+   - "New Program" button → name/description/framework/owner form
+
+Output: 5 files, 7 passing tests, programs fully browsable with live rollup status
+</objective>

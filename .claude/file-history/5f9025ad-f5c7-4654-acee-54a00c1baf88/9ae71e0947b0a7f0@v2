@@ -1,0 +1,316 @@
+---
+phase: 09-compliance-score-dashboard
+plan: 01
+type: execute
+wave: 1
+depends_on: []
+files_modified:
+  - backend/compliance_score_endpoints.py
+  - backend/router_registry.py
+  - backend/compliance_status_endpoints.py
+  - backend/compliance_bulk_evidence_endpoints.py
+  - backend/tests/test_compliance_score.py
+autonomous: true
+requirements:
+  - SCORE-01
+  - SCORE-02
+  - SCORE-03
+
+must_haves:
+  truths:
+    - "GET /api/compliance/score returns HTTP 200 with overall_score (0.0–100.0), frameworks list, computed_at, and tenant_id"
+    - "Score uses severity weights: Critical=4, High=3, Medium=2, Low=1; all-Compliant yields 100.0, all Non-Compliant yields 0.0"
+    - "Per-framework breakdown includes framework_id, framework_name, short_name, score, passing, failing, partial, total_controls"
+    - "Cache hit path returns cached payload without touching MongoDB"
+    - "Cache key compliance:score:{tenant_id} is invalidated after each evidence write (upload, delete, bulk, status-patch)"
+    - "compliance_frameworks queried with {} (global, no tenantId); asset_compliance queried via TenantIsolatedCollection (auto-injects tenantId)"
+    - "compliance_score_endpoints registered in _REQUIRED_ROUTERS — startup aborts if it fails to load"
+    - "Super admin uses cache key compliance:score:__super__ (separate from per-tenant keys)"
+    - "Controls with no asset_compliance records are excluded from the score denominator"
+  artifacts:
+    - path: "backend/compliance_score_endpoints.py"
+      provides: "GET /api/compliance/score — severity-weighted score computation + caching"
+      max_lines: 200
+    - path: "backend/tests/test_compliance_score.py"
+      provides: "8-test suite covering SCORE-01, SCORE-02, SCORE-03"
+    - path: "backend/router_registry.py"
+      provides: "compliance_score_endpoints in _REQUIRED_ROUTERS + _load() call"
+  key_links:
+    - from: "backend/compliance_score_endpoints.py"
+      to: "backend/database.py"
+      via: "get_database() — db.compliance_frameworks (raw, global) and db.asset_compliance (TenantIsolatedCollection)"
+    - from: "backend/compliance_score_endpoints.py"
+      to: "backend/cache_service.py"
+      via: "cache.get / cache.set / invalidate_cache"
+    - from: "backend/compliance_bulk_evidence_endpoints.py"
+      to: "backend/cache_service.py"
+      via: "invalidate_cache(f'compliance:score:{tenant_id}') after successful commit"
+---
+
+<objective>
+Deliver the backend for Phase 9: a severity-weighted compliance score endpoint, per-tenant
+Redis caching, cache invalidation on all evidence write paths, and a complete test suite.
+
+Purpose: SCORE-01 requires a live compliance score on the dashboard; SCORE-02 requires
+severity weighting; SCORE-03 requires per-framework breakdown. The backend computation runs
+server-side (tenant isolation, data volume) and is cached per-tenant (TTL 300s) to avoid
+a full MongoDB aggregation on every dashboard load.
+
+Output:
+- backend/compliance_score_endpoints.py (new, ≤200 lines)
+- backend/tests/test_compliance_score.py (new, 8 test cases)
+- backend/router_registry.py (2 lines added)
+- backend/compliance_status_endpoints.py (1 invalidate_cache call added)
+- backend/compliance_bulk_evidence_endpoints.py (1 invalidate_cache call added)
+Note: compliance_evidence_endpoints.py is at 495 lines — NOT modified. Single-file
+upload/delete paths rely on the 300 s TTL for natural score-cache expiry.
+</objective>
+
+<execution_context>
+@$HOME/.claude/gsd-core/workflows/execute-plan.md
+@$HOME/.claude/gsd-core/templates/summary.md
+</execution_context>
+
+<context>
+@.planning/PROJECT.md
+@.planning/ROADMAP.md
+@.planning/STATE.md
+@.planning/phases/09-compliance-score-dashboard/09-RESEARCH.md
+@backend/compliance_reporting_data.py
+@backend/cache_service.py
+@backend/router_registry.py
+@backend/database.py
+@backend/tests/test_evidence_lifecycle.py
+</context>
+
+<tasks>
+
+<task type="auto" tdd="true">
+  <name>Task 1: Create test_compliance_score.py (Wave-0 RED — all 8 tests failing)</name>
+  <files>backend/tests/test_compliance_score.py</files>
+  <behavior>
+    - test_score_endpoint_happy_path: GET /api/compliance/score with mocked DB returns 200, overall_score between 0 and 100, frameworks list non-empty (SCORE-01)
+    - test_score_tenant_isolation: Two tenants with different asset_compliance records receive independent scores; tenant-b's controls do not appear in tenant-a's score (SCORE-01)
+    - test_score_cache_hit: Second call to the endpoint with same tenant returns cached payload; DB find is called only once total across both calls (SCORE-01)
+    - test_score_empty_tenant: No asset_compliance records for tenant returns overall_score 0.0, frameworks list with total_controls 0 (SCORE-01)
+    - test_severity_weight_formula: One Critical Non-Compliant control lowers score more than one Low Non-Compliant control given identical passing controls (SCORE-02)
+    - test_score_extremes: All Compliant controls yields overall_score 100.0; all Non-Compliant controls yields overall_score 0.0 (SCORE-02)
+    - test_per_framework_breakdown: Response contains frameworks list; each entry has framework_id, framework_name, short_name, score, passing, failing, partial, total_controls (SCORE-03)
+    - test_cache_invalidated_on_upload: After successful bulk evidence upload, invalidate_cache is called with a key matching compliance:score:{tenant_id} (SCORE-01)
+  </behavior>
+  <action>
+    Create backend/tests/test_compliance_score.py following the asyncio.run() + TestClient + MagicMock/AsyncMock pattern from test_evidence_lifecycle.py (decision 02-01: pytest-asyncio not installed).
+
+    File header: sys.path.insert to parent directory (same as test_evidence_lifecycle.py lines 18-19).
+
+    Write two shared mock helpers at module level:
+
+    _make_mock_frameworks_db(frameworks_data): returns a MagicMock whose compliance_frameworks.find() is an AsyncMock returning an async iterator over frameworks_data. Each framework in frameworks_data should be a dict with keys: id, name, shortName, controls (list of dicts with keys: id, category). The mock must also support async for (use AsyncMock with __aiter__ returning an async iterator or patch motor cursor behaviour consistently with test_evidence_lifecycle.py).
+
+    _make_mock_ac_db(ac_docs, frameworks_data=None): returns a MagicMock whose asset_compliance.find() is an AsyncMock returning an async iterator over ac_docs. If frameworks_data provided, also mock compliance_frameworks. Each ac_doc should have keys: controlId, status, tenantId.
+
+    Use app.dependency_overrides[get_current_user] to inject a MagicMock user with tenant_id and role attributes. Clear overrides in teardown or use a context pattern. No pytest fixtures — use plain functions with asyncio.run() for async logic, or synchronous TestClient calls where possible.
+
+    For test_score_cache_hit: use unittest.mock.patch to patch cache.get to return a pre-built payload on the second call, asserting DB was hit only once.
+
+    For test_cache_invalidated_on_upload: patch invalidate_cache in compliance_bulk_evidence_endpoints and POST to /api/compliance/evidence/bulk with a minimal valid zip (one .pdf entry, b'%PDF-1.4 fake') and JSON manifest. Assert the patched invalidate_cache was awaited with an argument containing the tenant_id. Reuse the _make_zip_bytes helper from test_bulk_evidence_upload.py (or inline it) to build the zip bytes.
+
+    All 8 tests must FAIL (ImportError or NameError or AssertionError) at this point because compliance_score_endpoints.py does not exist yet. This is the RED phase.
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform/backend && source venv/bin/activate && python3 -m pytest tests/test_compliance_score.py -x -q 2>&1 | tail -5</automated>
+  </verify>
+  <done>test_compliance_score.py exists; running pytest on it produces errors (import errors or assertion errors) confirming RED state; the file is under 500 lines.</done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task 2: Implement compliance_score_endpoints.py and register router (GREEN)</name>
+  <files>backend/compliance_score_endpoints.py, backend/router_registry.py</files>
+  <behavior>
+    - GET /api/compliance/score returns {"overall_score": float, "frameworks": [...], "computed_at": str, "tenant_id": str}
+    - SEVERITY_WEIGHTS = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1} applied per-control based on category mapping
+    - Compliant controls contribute full weight; Warning controls contribute weight * 0.5 (partial credit, consistent with compliance_frameworks_endpoints.py _score() pattern)
+    - Non-Compliant controls contribute 0
+    - Controls with no asset_compliance record excluded from denominator
+    - Cache key is "compliance:score:{tenant_id}" for regular users; "compliance:score:__super__" for super admin roles
+    - compliance_frameworks queried with db._db.compliance_frameworks.find({}) (raw motor — global collection, bypasses TenantIsolatedCollection)
+    - asset_compliance queried with db.asset_compliance.find({"controlId": {"$in": control_ids}}) (TenantIsolatedCollection auto-injects tenantId)
+    - _score_status() defined inline (7 lines, copied from compliance_reporting_data.py to avoid circular import risk per RESEARCH.md Pitfall 5)
+    - Category-to-severity static mapping: "Access Control", "Cryptography", "Incident Response" map to "Critical"; "Audit", "Configuration", "Vulnerability" map to "High"; "Operations", "Risk Management" map to "Medium"; default "Low"
+    - All unhandled exceptions caught, logged, and re-raised as HTTPException 500
+  </behavior>
+  <action>
+    Create backend/compliance_score_endpoints.py. Keep it under 200 lines.
+
+    Imports: fastapi (APIRouter, Depends, HTTPException), database (get_database), authentication_service (get_current_user), cache_service (cache, invalidate_cache), logging, datetime (datetime, timezone).
+
+    Define at module level:
+    - logger = logging.getLogger(__name__)
+    - router = APIRouter()
+    - _SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+    - SEVERITY_WEIGHTS = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
+    - _CATEGORY_SEVERITY: dict mapping category strings to severity strings (see behavior above; default via dict.get fallback to "Low")
+    - _score_status(status: str) -> str inline function: normalises to Compliant / Non-Compliant / Warning (copy verbatim from compliance_reporting_data.py lines 22-28 — same logic, avoids import)
+
+    Define _weighted_score(controls_with_status: list[dict]) -> float:
+    - Iterates controls; each must have keys "severity" and "status_norm"
+    - weight = SEVERITY_WEIGHTS.get(c["severity"], 1)
+    - total_weight += weight
+    - if status_norm == "Compliant": passing_weight += weight
+    - elif status_norm == "Warning": passing_weight += weight * 0.5
+    - return 0.0 if total_weight == 0 else round(passing_weight / total_weight * 100, 1)
+
+    Define async get_compliance_score(current_user=Depends(get_current_user)):
+    - Decorated with @router.get("/api/compliance/score")
+    - Extract tenant_id = getattr(current_user, "tenant_id", None) or ""
+    - Extract user_role = getattr(current_user, "role", "")
+    - is_super = user_role in _SUPER_ROLES
+    - cache_key = "compliance:score:__super__" if is_super else f"compliance:score:{tenant_id}"
+    - Check cache.get(cache_key); if not None, return cached value immediately
+    - db = get_database()
+    - Fetch frameworks: use db._db.compliance_frameworks.find({}) (raw motor, global collection — RESEARCH.md Pitfall 1). Collect all framework docs into a list with [doc async for doc in cursor].
+    - For each framework, build control_id_list from fw["controls"] (list of dicts with "id" key). Build a dict control_meta mapping control_id -> {"severity": _CATEGORY_SEVERITY.get(c.get("category",""), "Low"), "fw_id": fw["id"]}.
+    - Build all_control_ids = list(control_meta.keys())
+    - Fetch asset_compliance: use db.asset_compliance.find({"controlId": {"$in": all_control_ids}}) — TenantIsolatedCollection auto-injects tenantId for regular users.
+    - Collapse to one status per controlId (last-write wins; use a dict keyed by controlId).
+    - For each framework: filter controls to those that appear in the asset_compliance dict; compute per-framework score via _weighted_score; build FrameworkScore dict.
+    - Compute overall score: _weighted_score across all controls that have an asset_compliance record.
+    - Build payload dict: {"overall_score": float, "frameworks": [FrameworkScore dicts], "computed_at": datetime.now(timezone.utc).isoformat(), "tenant_id": tenant_id}
+    - cache.set(cache_key, payload, ttl=300)
+    - return payload
+    - Wrap in try/except: re-raise HTTPException as-is; log and raise HTTPException(500) for all others.
+
+    FrameworkScore dict keys: framework_id, framework_name, short_name, score, passing, failing, partial, total_controls.
+    Derive passing/failing/partial counts from the status_norm of each control's ac doc.
+
+    Register in router_registry.py:
+    - Add "compliance_score_endpoints" to the _REQUIRED_ROUTERS frozenset (after "compliance_bulk_evidence_endpoints")
+    - Add _load(app, "compliance_score_endpoints", "router") immediately after the compliance_bulk_evidence_endpoints _load call (line ~132)
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform/backend && source venv/bin/activate && python3 -m pytest tests/test_compliance_score.py -x -q 2>&1 | tail -10</automated>
+  </verify>
+  <done>All 8 tests in test_compliance_score.py pass; compliance_score_endpoints.py is under 200 lines; router_registry.py has compliance_score_endpoints in _REQUIRED_ROUTERS.</done>
+</task>
+
+<task type="auto">
+  <name>Task 3: Add cache invalidation to high-frequency evidence write paths</name>
+  <files>backend/compliance_status_endpoints.py, backend/compliance_bulk_evidence_endpoints.py</files>
+  <action>
+    CONSTRAINT: compliance_evidence_endpoints.py is at 495 lines and has no existing cache_service import.
+    Adding "from cache_service import invalidate_cache" (1 line) + 4 call sites (4 lines) = 5 new lines → 500 total,
+    which violates CLAUDE.md "under 500". Therefore, do NOT modify compliance_evidence_endpoints.py.
+    Those 4 paths (single-file upload/delete) rely on the 300 s cache TTL for natural expiry — acceptable latency.
+
+    Add "from cache_service import invalidate_cache" to the imports of both:
+    - backend/compliance_status_endpoints.py  (89 lines — plenty of room)
+    - backend/compliance_bulk_evidence_endpoints.py  (229 lines — plenty of room)
+
+    In backend/compliance_status_endpoints.py, add:
+      await invalidate_cache(f"compliance:score:{resolved_tenant_id}")
+    immediately before the return {"success": True, ...} at the end of patch_asset_compliance_status.
+    Use resolved_tenant_id (the asset's authoritative tenant, already in scope from the asset lookup).
+
+    In backend/compliance_bulk_evidence_endpoints.py, add:
+      await invalidate_cache(f"compliance:score:{tenant_id}")
+    after the commit loop closes (i.e., after the for-loop that builds committed[]) but before the
+    return statement — so it fires once per successful batch, not once per file.
+    tenant_id is already in scope from the top of the function.
+
+    Do not add invalidate_cache inside error branches or exception handlers — only on the success path.
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform/backend && source venv/bin/activate && python3 -m pytest tests/test_compliance_score.py -x -q && wc -l compliance_evidence_endpoints.py compliance_status_endpoints.py compliance_bulk_evidence_endpoints.py</automated>
+  </verify>
+  <done>
+    - test_cache_invalidated_on_upload passes (cache invalidation on bulk upload confirmed)
+    - All 8 tests in test_compliance_score.py pass
+    - compliance_evidence_endpoints.py is unchanged at 495 lines (no cache import added)
+    - compliance_status_endpoints.py and compliance_bulk_evidence_endpoints.py both under 500 lines
+    - grep confirms invalidate_cache appears in compliance_status_endpoints.py and compliance_bulk_evidence_endpoints.py
+  </done>
+</task>
+
+</tasks>
+
+<threat_model>
+## Trust Boundaries
+
+| Boundary | Description |
+|----------|-------------|
+| client → GET /api/compliance/score | JWT-authenticated; tenant_id extracted from verified token, never from request body or query param |
+| backend → MongoDB compliance_frameworks | Global collection, no tenant injection — correct; frameworks are platform-wide reference data |
+| backend → MongoDB asset_compliance | TenantIsolatedCollection auto-injects tenantId from request context — prevents cross-tenant reads |
+| backend → Redis/fakeredis | Cache key includes tenant_id from JWT; super admin uses separate key |
+
+## STRIDE Threat Register
+
+| Threat ID | Category | Component | Disposition | Mitigation Plan |
+|-----------|----------|-----------|-------------|-----------------|
+| T-09-01 | Information Disclosure | cache key in get_compliance_score | mitigate | Cache key = "compliance:score:{tenant_id}" from JWT; super admin key is "compliance:score:__super__" — no cross-tenant cache collision |
+| T-09-02 | Tampering | cache_key derivation | mitigate | tenant_id from JWT (get_current_user dependency), not from user-supplied input; key is not user-controllable |
+| T-09-03 | Denial of Service | repeated GET /api/compliance/score cache-busting | accept | TTL=300s limits recomputation to once per 5 min per tenant; rate_limiter.py is already applied globally |
+| T-09-04 | Spoofing | unauthenticated access to score endpoint | mitigate | get_current_user dependency raises 401 on missing/invalid JWT; consistent with all other compliance endpoints |
+| T-09-05 | Information Disclosure | asset_compliance raw motor bypass | mitigate | Score endpoint uses db.asset_compliance (TenantIsolatedCollection) not db._db.asset_compliance; reviewed in Task 2 action |
+| T-09-SC | Tampering | npm/pip installs | accept | No new packages in this plan; all implementation uses existing project dependencies (no install tasks) |
+</threat_model>
+
+<verification>
+Full backend verification after Wave 1:
+
+```bash
+cd /home/user/enterprise-omni-agent-ai-platform/backend && source venv/bin/activate
+
+# All score tests pass
+python3 -m pytest tests/test_compliance_score.py -x -q
+
+# Full test suite must not regress
+python3 -m pytest tests/ -x -q
+
+# File size guards
+wc -l compliance_score_endpoints.py        # must be <= 200
+wc -l compliance_evidence_endpoints.py     # must be <= 500
+wc -l compliance_status_endpoints.py       # must be <= 500
+wc -l compliance_bulk_evidence_endpoints.py # must be <= 500
+
+# Router registration confirmed
+grep -c "compliance_score_endpoints" router_registry.py  # must be >= 2 (frozenset + _load)
+
+# Cache invalidation confirmed in high-frequency write paths
+# compliance_evidence_endpoints.py is intentionally unchanged (495 lines, < 500 limit)
+grep -c "invalidate_cache" compliance_status_endpoints.py     # must be >= 1
+grep -c "invalidate_cache" compliance_bulk_evidence_endpoints.py # must be >= 1
+```
+</verification>
+
+<success_criteria>
+- GET /api/compliance/score returns valid JSON with overall_score, frameworks, computed_at, tenant_id
+- Severity weighting verified: all-Compliant = 100.0, all-Non-Compliant = 0.0
+- Per-framework breakdown has correct shape (SCORE-03)
+- Cache hit path skips DB (confirmed by test_score_cache_hit)
+- Cache invalidated on evidence upload (confirmed by test_cache_invalidated_on_upload)
+- compliance_score_endpoints in _REQUIRED_ROUTERS (startup aborts on load failure)
+- All 8 tests pass; full test suite (tests/) green
+- No file exceeds 500 lines
+</success_criteria>
+
+<nyquist_validation>
+## Requirement → Test Coverage
+
+| Req ID | Behavior Under Test | Test Name | Automated Command |
+|--------|--------------------|-----------|--------------------|
+| SCORE-01 | Endpoint returns 200 with valid score payload | test_score_endpoint_happy_path | pytest tests/test_compliance_score.py::test_score_endpoint_happy_path -x |
+| SCORE-01 | Tenant isolation — tenant-b controls excluded from tenant-a score | test_score_tenant_isolation | pytest tests/test_compliance_score.py::test_score_tenant_isolation -x |
+| SCORE-01 | Cache hit returns cached payload without DB round-trip | test_score_cache_hit | pytest tests/test_compliance_score.py::test_score_cache_hit -x |
+| SCORE-01 | Empty tenant yields overall_score 0.0 | test_score_empty_tenant | pytest tests/test_compliance_score.py::test_score_empty_tenant -x |
+| SCORE-01 | Cache invalidated after evidence upload | test_cache_invalidated_on_upload | pytest tests/test_compliance_score.py::test_cache_invalidated_on_upload -x |
+| SCORE-02 | Critical failure lowers score more than Low failure | test_severity_weight_formula | pytest tests/test_compliance_score.py::test_severity_weight_formula -x |
+| SCORE-02 | All-Compliant = 100.0, all-Non-Compliant = 0.0 | test_score_extremes | pytest tests/test_compliance_score.py::test_score_extremes -x |
+| SCORE-03 | Per-framework breakdown has correct keys and counts | test_per_framework_breakdown | pytest tests/test_compliance_score.py::test_per_framework_breakdown -x |
+
+All 8 test cases created in Wave-0 (Task 1, RED phase) before implementation (Task 2, GREEN phase). Sampling rate: full suite on every task commit.
+</nyquist_validation>
+
+<output>
+Create `.planning/phases/09-compliance-score-dashboard/09-01-SUMMARY.md` when done.
+</output>

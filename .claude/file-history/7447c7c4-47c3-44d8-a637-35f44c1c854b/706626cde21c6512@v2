@@ -1,0 +1,114 @@
+"""Background coroutines started during the application lifespan."""
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
+
+
+async def monitor_agent_status():
+    """Background task to mark agents as Offline if inactive > 5 min (10× missed 30 s heartbeat)."""
+    import websocket_manager
+    from database import get_database
+    from tenant_context import set_tenant_id
+
+    while True:
+        try:
+            await asyncio.sleep(30)
+            set_tenant_id("platform-admin")
+            db = get_database()
+            threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+            result = await db.agents.update_many(
+                {
+                    "status": "Online",
+                    "lastSeen": {"$lt": threshold.isoformat()},
+                },
+                {"$set": {"status": "Offline"}},
+            )
+            if result.modified_count > 0:
+                logger.info("[Monitor] Marked %d stale agents as Offline", result.modified_count)
+
+                affected_agents = await db.agents.find(
+                    {"status": "Offline", "lastSeen": {"$lt": threshold.isoformat()}}
+                ).to_list(length=result.modified_count)
+
+                for agent in affected_agents:
+                    tenant_id = agent.get("tenantId")
+                    if tenant_id:
+                        await websocket_manager.broadcast_agent_status_change(
+                            tenant_id=tenant_id,
+                            agent_id=agent.get("id"),
+                            status="Offline",
+                            details={"reason": "Heartbeat timeout"},
+                        )
+
+                from notification_manager import notification_manager
+                await notification_manager.send_notification(
+                    "agent.offline",
+                    {"count": result.modified_count, "timestamp": datetime.now().isoformat()},
+                    "platform-admin",
+                )
+        except Exception as e:
+            logger.error("[Monitor] Error in stale agent check: %s", e)
+
+
+async def _start_xdr_correlation_scanner() -> None:
+    """
+    Background task: fetch all active tenant IDs from MongoDB and run
+    the XDR correlation engine against each one every 5 minutes.
+    """
+    _log = logging.getLogger("xdr_scanner")
+    _log.info("XDR correlation scanner starting (interval=300s)")
+
+    while True:
+        try:
+            from correlation_engine import get_correlation_engine
+            from database import get_database
+            db = get_database()
+            # INTENTIONAL: platform-admin task — passes raw db to engine
+            tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
+            engine = get_correlation_engine(db._db)
+            for tenant in tenants:
+                tid = tenant.get("id")
+                if tid:
+                    try:
+                        found = await engine.correlate_events(tid, time_window_minutes=60)
+                        if found:
+                            _log.info("XDR: %d correlation(s) for tenant %s", len(found), tid)
+                    except Exception as _te:
+                        _log.error("XDR correlation error for tenant %s: %s", tid, _te)
+        except Exception as _e:
+            _log.error("XDR scanner cycle error: %s", _e)
+
+        await asyncio.sleep(300)
+
+
+async def compliance_evidence_sweep_loop():
+    """Delegate to the dedicated compliance automation service."""
+    from compliance_auto_evidence_service import compliance_evidence_sweep_loop as _loop
+    await _loop()
+
+
+async def refresh_mitre_heatmap_loop():
+    """Recompute and broadcast MITRE ATT&CK heatmap to connected tenants every 60 seconds."""
+    import websocket_manager
+    from mitre_service import get_coverage_heatmap
+
+    _log = logging.getLogger(__name__ + ".mitre_refresh")
+    _log.info("MITRE heatmap auto-refresh loop started (interval=60s)")
+
+    while True:
+        await asyncio.sleep(60)
+        try:
+            tenant_ids = websocket_manager.get_connected_tenant_ids()
+            for tenant_id in tenant_ids:
+                if not tenant_id or tenant_id == "platform-admin":
+                    continue
+                try:
+                    heatmap = await get_coverage_heatmap(tenant_id)
+                    await websocket_manager.broadcast_mitre_heatmap(tenant_id, heatmap)
+                except Exception as _te:
+                    _log.debug("MITRE refresh failed for tenant %s: %s", tenant_id, _te)
+        except Exception as _e:
+            _log.error("MITRE heatmap refresh loop error: %s", _e)

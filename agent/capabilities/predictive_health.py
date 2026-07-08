@@ -133,35 +133,23 @@ class PredictiveHealthCapability(BaseCapability):
         cpu_threshold = float(self.config.get("cpu_throttle_threshold", 95))
         sustained = int(self.config.get("sustained_samples", 5))
 
-        # Compute baselines to avoid alerting on workloads that normally run hot
-        mem_baseline = (
-            sum(list(self.metrics_history["memory"])[:-sustained]) /
-            max(1, len(self.metrics_history["memory"]) - sustained)
-        ) if len(self.metrics_history["memory"]) > sustained else 0.0
-        cpu_baseline = (
-            sum(list(self.metrics_history["cpu"])[:-sustained]) /
-            max(1, len(self.metrics_history["cpu"]) - sustained)
-        ) if len(self.metrics_history["cpu"]) > sustained else 0.0
-
-        # 1. Critical Memory Exhaustion → Restart (only if above baseline + threshold)
+        # 1. Critical Memory Exhaustion → Restart
         if len(self.metrics_history["memory"]) > sustained:
             recent_mem = list(self.metrics_history["memory"])[-sustained:]
-            effective_mem_threshold = max(mem_threshold, mem_baseline + 10)
-            if all(m > effective_mem_threshold for m in recent_mem):
+            if all(m > mem_threshold for m in recent_mem):
                 return {
                     "action": "restart_agent",
-                    "reason": f"Sustained memory usage >{effective_mem_threshold:.0f}% for {sustained} samples",
+                    "reason": f"Critical Memory Usage: sustained >{mem_threshold:.0f}% for {sustained} samples",
                     "timestamp": datetime.now().isoformat(),
                 }
 
         # 2. Critical CPU Usage → Throttle
         if len(self.metrics_history["cpu"]) > sustained:
             recent_cpu = list(self.metrics_history["cpu"])[-sustained:]
-            effective_cpu_threshold = max(cpu_threshold, cpu_baseline + 10)
-            if all(c > effective_cpu_threshold for c in recent_cpu):
+            if all(c > cpu_threshold for c in recent_cpu):
                 return {
                     "action": "throttle",
-                    "reason": f"Sustained CPU usage >{effective_cpu_threshold:.0f}% for {sustained} samples",
+                    "reason": f"Critical CPU Usage: sustained >{cpu_threshold:.0f}% for {sustained} samples",
                     "timestamp": datetime.now().isoformat(),
                 }
 

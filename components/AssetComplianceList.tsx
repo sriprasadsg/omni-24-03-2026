@@ -28,7 +28,7 @@ interface AssetComplianceListProps {
     control: Control;
     assets: Asset[];
     complianceData: AssetCompliance[];
-    onUpdateStatus: (assetId: string, status: AssetCompliance['status']) => Promise<void>;
+    onUpdateStatus: (assetId: string, status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence') => Promise<void>;
     onUploadEvidence: (assetId: string, file: File, description?: string) => void;
     onIngestEvidence: (assetId: string, fileName: string, content: string) => Promise<void>;
     onDeleteEvidence: (assetId: string, controlId: string, evidenceId: string) => Promise<void>;
@@ -47,7 +47,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
     const [deletingMap, setDeletingMap] = useState<Record<string, boolean>>({});
     const [updatingMap, setUpdatingMap] = useState<Record<string, boolean>>({});
 
-    const handleUpdateStatus = async (assetId: string, status: AssetCompliance['status']) => {
+    const handleUpdateStatus = async (assetId: string, status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence') => {
         setUpdatingMap(prev => ({ ...prev, [assetId]: true }));
         try {
             await onUpdateStatus(assetId, status);

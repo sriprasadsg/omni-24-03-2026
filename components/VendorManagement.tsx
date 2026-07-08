@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import * as api from '../services/apiService';
 import { VendorFormModal } from './VendorFormModal';
+import { VendorDetailModal } from './VendorDetailModal';
 
 interface Vendor {
     id: string;
@@ -172,7 +173,14 @@ export default function VendorManagement() {
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="text-gray-400 hover:text-teal-600 p-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedVendor(vendor);
+                                            }}
+                                            className="text-gray-400 hover:text-teal-600 p-2 transition-colors"
+                                            title="View vendor details"
+                                        >
                                             <MoreHorizontal className="w-5 h-5" />
                                         </button>
                                     </td>
@@ -190,7 +198,14 @@ export default function VendorManagement() {
                     fetchVendors();
                 }}
             />
-        </div >
+
+            {/* Vendor Detail Modal */}
+            <VendorDetailModal
+                vendor={selectedVendor}
+                isOpen={!!selectedVendor}
+                onClose={() => setSelectedVendor(null)}
+            />
+        </div>
     );
 }
 

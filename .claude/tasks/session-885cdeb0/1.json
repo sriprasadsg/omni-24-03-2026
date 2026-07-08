@@ -1,0 +1,9 @@
+{
+  "id": "1",
+  "subject": "Create iac_scanner_service.py with 25+ IaC checks & scan engine",
+  "description": "Implement IAC_CHECKS (25+ check definitions for Terraform, CloudFormation, K8s), scan_code(), scan_repo(), list_results() with regex-based resource detection",
+  "activeForm": "Creating IaC scanner service",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

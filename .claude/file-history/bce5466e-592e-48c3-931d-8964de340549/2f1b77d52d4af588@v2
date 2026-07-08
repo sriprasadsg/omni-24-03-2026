@@ -1,0 +1,505 @@
+/*!
+ * Remaining capability modules: runtime_security, predictive_health, ueba,
+ * sbom_analysis, web_monitor, vss_manager, log_shipper, compliance_evidence,
+ * vendor_risk, backup_verifier, deception_monitor, ticket_reporter,
+ * cloud_metadata, agent_update.
+ */
+use std::time::Duration;
+use reqwest::Client;
+use serde_json::{json, Value};
+use sysinfo::System;
+use chrono::Utc;
+
+fn ps_json(s: &str) -> Value {
+    if s.is_empty() || s == "null" { return Value::Null; }
+    serde_json::from_str(s).unwrap_or(Value::String(s.to_string()))
+}
+
+// ── Runtime security ───────────────────────────────────────────────────────────
+
+pub async fn run_runtime_security() -> Value {
+    let cmd = r#"
+$findings = @()
+# Processes running from temp directories (common malware indicator)
+Get-Process -EA SilentlyContinue | Where-Object {$_.Path -like '*\Temp\*' -or $_.Path -like '*\AppData\Local\Temp\*'} | ForEach-Object {
+    $findings += [PSCustomObject]@{type='process_from_temp';pid=$_.Id;name=$_.Name;path=$_.Path}
+}
+# Processes with no image path (potential process hollowing)
+Get-WmiObject Win32_Process -EA SilentlyContinue | Where-Object {-not $_.ExecutablePath -and $_.ProcessId -gt 8} | Select-Object -First 20 | ForEach-Object {
+    $findings += [PSCustomObject]@{type='no_image_path';pid=$_.ProcessId;name=$_.Name;cmdline=$_.CommandLine}
+}
+# High-risk LOLBins running
+@('wscript','cscript','mshta','regsvr32','rundll32','msiexec','certutil','bitsadmin') | ForEach-Object {
+    Get-Process $_ -EA SilentlyContinue | ForEach-Object {
+        $findings += [PSCustomObject]@{type='lolbin_running';pid=$_.Id;name=$_.Name;path=$_.Path}
+    }
+}
+# Unsigned executables in startup (check with Get-AuthenticodeSignature)
+$su = $env:APPDATA + '\Microsoft\Windows\Start Menu\Programs\Startup'
+Get-ChildItem $su -EA SilentlyContinue | Where-Object {$_.Extension -in '.exe','.dll','.ps1','.bat','.vbs'} | ForEach-Object {
+    $sig = Get-AuthenticodeSignature $_.FullName -EA SilentlyContinue
+    if ($sig -and $sig.Status -ne 'Valid') {
+        $findings += [PSCustomObject]@{type='unsigned_startup';name=$_.Name;path=$_.FullName;sig_status=$sig.Status}
+    }
+}
+$findings | ConvertTo-Json -Compress -Depth 2
+"#;
+    // WMI Win32_Process.ExecutablePath and Get-AuthenticodeSignature require admin.
+    let out = crate::http::run_ps_admin(cmd).await;
+    let findings = ps_json(&out);
+    let count = findings.as_array().map(|a| a.len()).unwrap_or(0);
+    json!({"status": "success", "threats_detected": count > 0, "findings_count": count, "findings": findings})
+}
+
+// ── Predictive health ──────────────────────────────────────────────────────────
+
+pub async fn run_predictive_health() -> Value {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    let cpu = sys.global_cpu_info().cpu_usage();
+    let mem_pct = sys.used_memory() as f32 / sys.total_memory().max(1) as f32 * 100.0;
+
+    let disks: Vec<Value> = {
+        use sysinfo::Disks;
+        Disks::new_with_refreshed_list().iter().map(|d| {
+            let free_pct = d.available_space() as f64 / d.total_space().max(1) as f64 * 100.0;
+            json!({"drive": d.mount_point().to_string_lossy(), "free_pct": free_pct, "total_gb": d.total_space() as f64 / 1_073_741_824.0})
+        }).collect()
+    };
+
+    let mut predictions = vec![];
+    if cpu > 90.0 { predictions.push(json!({"metric": "cpu", "value": cpu, "risk": "critical", "prediction": "System unresponsive risk"})); }
+    else if cpu > 75.0 { predictions.push(json!({"metric": "cpu", "value": cpu, "risk": "warning"})); }
+    if mem_pct > 85.0 { predictions.push(json!({"metric": "memory", "value": mem_pct, "risk": "critical", "prediction": "OOM risk within hours"})); }
+    for disk in &disks {
+        let fp = disk["free_pct"].as_f64().unwrap_or(100.0);
+        if fp < 5.0 { predictions.push(json!({"metric": "disk", "drive": disk["drive"], "free_pct": fp, "risk": "critical", "prediction": "Disk full imminent"})); }
+        else if fp < 15.0 { predictions.push(json!({"metric": "disk", "drive": disk["drive"], "free_pct": fp, "risk": "warning"})); }
+    }
+
+    let score = (100.0f32 - (predictions.len() as f32 * 15.0).min(100.0)) as u32;
+    json!({"status": "success", "health_score": score, "predictions": predictions, "metrics": {"cpu": cpu, "memory_pct": mem_pct, "disks": disks}})
+}
+
+// ── UEBA ───────────────────────────────────────────────────────────────────────
+
+/// UEBA reads the Windows Security event log which requires admin/SYSTEM privileges.
+pub async fn run_ueba_scan() -> Value {
+    let cmd = r"
+$events = Get-WinEvent -FilterHashtable @{LogName='Security';Id=@(4624,4625,4648,4720,4722,4723,4724,4726)} -MaxEvents 300 -EA SilentlyContinue | ForEach-Object {
+    [PSCustomObject]@{
+        time=$_.TimeCreated.ToString('o'); id=$_.Id
+        type=switch($_.Id){4624{'logon_success'}4625{'logon_failure'}4648{'explicit_logon'}4720{'account_created'}4722{'account_enabled'}4723{'pw_change'}4724{'pw_reset'}4726{'account_deleted'}default{'other'}}
+        user=if($_.Properties.Count -gt 5){$_.Properties[5].Value}else{''}
+        ip=if($_.Properties.Count -gt 18){$_.Properties[18].Value}else{''}
+    }
+}
+$failures = $events | Where-Object {$_.id -eq 4625} | Group-Object user | Sort-Object Count -Descending | Select-Object @{N='user';E={$_.Name}},@{N='count';E={$_.Count}}
+$anomalies = $failures | Where-Object {$_.count -gt 5} | ForEach-Object {[PSCustomObject]@{user=$_.user;failure_count=$_.count;alert='Potential brute force'}}
+$off_hours = $events | Where-Object {$_.id -eq 4624 -and $_.time -ne '' -and ([DateTime]$_.time).Hour -notin (7..18)} | Select-Object -First 20
+[PSCustomObject]@{event_count=$events.Count;failure_summary=$failures;anomalies=$anomalies;off_hours_logons=$off_hours} | ConvertTo-Json -Compress -Depth 3
+";
+    let out = crate::http::run_ps_admin(cmd).await;
+    json!({"status": "success", "ueba": ps_json(&out)})
+}
+
+// ── SBOM analysis ──────────────────────────────────────────────────────────────
+
+pub async fn run_sbom_analysis() -> Value {
+    let cmd = r#"
+$components = @()
+foreach ($p in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+    Get-ItemProperty $p -EA SilentlyContinue | Where-Object {$_.DisplayName} | ForEach-Object {
+        $components += [PSCustomObject]@{name=$_.DisplayName;version=$_.DisplayVersion;publisher=$_.Publisher;install_date=$_.InstallDate;type='installed_app'}
+    }
+}
+Get-WindowsOptionalFeature -Online -EA SilentlyContinue | Where-Object State -eq 'Enabled' | Select-Object -First 50 | ForEach-Object {
+    $components += [PSCustomObject]@{name=$_.FeatureName;version='builtin';publisher='Microsoft';install_date='N/A';type='windows_feature'}
+}
+Get-WindowsDriver -Online -EA SilentlyContinue | Select-Object -First 50 | ForEach-Object {
+    $components += [PSCustomObject]@{name=$_.OriginalFileName;version=$_.Version;publisher=$_.ProviderName;install_date=$_.Date;type='driver'}
+}
+[PSCustomObject]@{sbom_version='1.0';component_count=$components.Count;components=$components;generated_at=(Get-Date -Format 'o');host=$env:COMPUTERNAME} | ConvertTo-Json -Compress -Depth 2
+"#;
+    // Get-WindowsOptionalFeature and Get-WindowsDriver require admin.
+    let out = crate::http::run_ps_admin(cmd).await;
+    json!({"status": "success", "sbom": ps_json(&out)})
+}
+
+// ── Web monitor ────────────────────────────────────────────────────────────────
+
+pub async fn run_web_monitor(urls: &[String]) -> Value {
+    let client = Client::builder().timeout(Duration::from_secs(5)).danger_accept_invalid_certs(true)
+        .build().unwrap_or_else(|_| Client::new());
+    let defaults = [
+        "http://localhost:5000/health".to_string(),
+        "https://www.google.com".to_string(),
+    ];
+    let check_list: Vec<&str> = if urls.is_empty() {
+        defaults.iter().map(|s| s.as_str()).collect()
+    } else {
+        urls.iter().map(|s| s.as_str()).collect()
+    };
+    let mut results = vec![];
+    for url in check_list {
+        let start = std::time::Instant::now();
+        match client.get(url).send().await {
+            Ok(r)  => results.push(json!({"url": url, "http_status": r.status().as_u16(), "latency_ms": start.elapsed().as_millis(), "healthy": r.status().is_success()})),
+            Err(e) => results.push(json!({"url": url, "http_status": 0, "error": e.to_string(), "healthy": false})),
+        }
+    }
+    let healthy = results.iter().filter(|r| r["healthy"].as_bool().unwrap_or(false)).count();
+    json!({"status": "success", "endpoints_checked": results.len(), "healthy": healthy, "results": results})
+}
+
+// ── VSS manager ────────────────────────────────────────────────────────────────
+
+pub async fn run_vss_status() -> Value {
+    let cmd = r"
+$shadows = Get-WmiObject Win32_ShadowCopy -EA SilentlyContinue | ForEach-Object {
+    [PSCustomObject]@{id=$_.ID;volume=$_.VolumeName;created=$_.ConvertToDateTime($_.InstallDate).ToString('o');state=$_.State}
+}
+$svc = Get-Service -Name VSS -EA SilentlyContinue
+[PSCustomObject]@{service_status=if($svc){$svc.Status}else{'NotFound'};shadow_count=($shadows | Measure-Object).Count;shadows=$shadows} | ConvertTo-Json -Compress -Depth 3
+";
+    // VSS WMI queries require Administrator.
+    let out = crate::http::run_ps_admin(cmd).await;
+    json!({"status": "success", "vss": ps_json(&out)})
+}
+
+pub async fn create_vss_snapshot() -> Value {
+    let cmd = r"
+try {
+    $result = (Get-WmiObject -List Win32_ShadowCopy).Create('C:\','ClientAccessible')
+    [PSCustomObject]@{return_value=$result.ReturnValue;shadow_id=$result.ShadowID} | ConvertTo-Json -Compress
+} catch { [PSCustomObject]@{return_value=-1;error=$_.Exception.Message} | ConvertTo-Json -Compress }
+";
+    let out = crate::http::run_ps_admin(cmd).await;
+    json!({"status": "success", "snapshot": ps_json(&out)})
+}
+
+// ── Log shipper ────────────────────────────────────────────────────────────────
+
+pub async fn ship_logs(client: &Client, base: &str, id: &str, token: &str) -> Value {
+    // Reading the Windows Security event log requires Administrator privileges.
+    let cmd = r"Get-WinEvent -LogName Security -MaxEvents 100 -EA SilentlyContinue | Select-Object @{N='time';E={$_.TimeCreated.ToString('o')}},@{N='id';E={$_.Id}},@{N='level';E={$_.LevelDisplayName}},@{N='msg';E={$_.Message.Substring(0,[Math]::Min($_.Message.Length,150))}} | ConvertTo-Json -Compress";
+    let logs = ps_json(&crate::http::run_ps_admin(cmd).await);
+    let url = format!("{}/api/agents/{}/logs", base, id);
+    match client.post(&url).bearer_auth(token)
+        .json(&json!({"source": "Windows Security Log", "agent_id": id, "entries": logs, "shipped_at": Utc::now().to_rfc3339()}))
+        .send().await
+    {
+        Ok(r)  => json!({"status": "success", "shipped": true, "http_status": r.status().as_u16()}),
+        Err(e) => json!({"status": "error", "error": e.to_string()}),
+    }
+}
+
+// ── Admin privilege check ──────────────────────────────────────────────────────
+
+/// Report current admin privilege level, username, and Windows integrity level.
+/// Used by collect_compliance_evidence and included in every heartbeat.
+pub async fn check_admin_privilege() -> Value {
+    let cmd = r#"
+$id  = [Security.Principal.WindowsIdentity]::GetCurrent()
+$pr  = New-Object Security.Principal.WindowsPrincipal($id)
+$adm = $pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$il  = 'Unknown'
+try {
+    $wg = & cmd /c "whoami /groups 2>&1" 2>&1 | Out-String
+    if     ($wg -match 'System Mandatory Level') { $il = 'System'    }
+    elseif ($wg -match 'High Mandatory Level')   { $il = 'High'      }
+    elseif ($wg -match 'Medium Mandatory Level') { $il = 'Medium'    }
+    elseif ($wg -match 'Low Mandatory Level')    { $il = 'Low'       }
+} catch {}
+[PSCustomObject]@{
+    is_admin        = $adm
+    username        = $id.Name
+    integrity_level = $il
+    run_as          = if ($adm) { 'Administrator' } else { 'Standard User — evidence may be incomplete' }
+    can_collect_all = $adm
+} | ConvertTo-Json -Compress
+"#;
+    let out = crate::http::run_ps(cmd).await;
+    ps_json(&out)
+}
+
+// ── Compliance evidence collector ──────────────────────────────────────────────
+
+/// Collect full compliance evidence from the endpoint.
+/// Runs privileged PowerShell commands via run_ps_admin so they succeed both when
+/// the agent is a Windows SYSTEM service and when elevated interactively.
+pub async fn collect_compliance_evidence() -> Value {
+    let (privilege, compliance, persistence, fim, hotfixes) = tokio::join!(
+        check_admin_privilege(),
+        crate::caps::run_compliance_check(),
+        crate::caps::run_persistence_scan(),
+        crate::caps::run_fim_scan(&[]),
+        crate::http::run_ps_admin(
+            "Get-HotFix | Select-Object \
+             @{N='id';E={$_.HotFixID}},\
+             @{N='desc';E={$_.Description}},\
+             @{N='date';E={if($_.InstalledOn){$_.InstalledOn.ToString('yyyy-MM-dd')}else{'unknown'}}} \
+             | ConvertTo-Json -Compress"
+        ),
+    );
+    json!({
+        "status": "success",
+        "admin_privilege": privilege,
+        "evidence": {
+            "compliance_checks":    compliance.get("compliance_checks"),
+            "persistence_findings": persistence.get("findings"),
+            "fim_hashes":           fim.get("hashes"),
+            "applied_hotfixes":     ps_json(&hotfixes),
+            "collected_at":         Utc::now().to_rfc3339(),
+        }
+    })
+}
+
+// ── Vendor risk ────────────────────────────────────────────────────────────────
+
+pub async fn run_vendor_risk_scan() -> Value {
+    let high_risk = ["TeamViewer", "AnyDesk", "LogMeIn", "GoToMyPC", "ScreenConnect",
+                     "CCleaner", "Avast", "AVG", "Kaspersky", "Baidu", "360 Total Security",
+                     "Adobe Flash", "Silverlight", "QuickTime", "Java 6", "Java 7", "Java 8"];
+    let eol_prod  = ["Windows XP", "Windows 7", "Windows 8", "Windows Vista",
+                     "Internet Explorer", "Adobe Flash Player", "Microsoft Silverlight",
+                     "Python 2", "PHP 5", "PHP 7.0", "PHP 7.1", "OpenSSL 1.0"];
+
+    let sw = crate::caps::collect_software().await;
+    let list = sw.get("software").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let mut risks = vec![];
+    for item in &list {
+        let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+        for hr in &high_risk {
+            if name.contains(&hr.to_lowercase()) {
+                risks.push(json!({"software": item["name"], "risk_type": "high_risk_vendor", "pattern": hr}));
+            }
+        }
+        for eol in &eol_prod {
+            if name.contains(&eol.to_lowercase()) {
+                risks.push(json!({"software": item["name"], "risk_type": "end_of_life", "pattern": eol}));
+            }
+        }
+    }
+    json!({"status": "success", "risk_count": risks.len(), "risks_found": !risks.is_empty(), "risks": risks})
+}
+
+// ── Backup verifier ────────────────────────────────────────────────────────────
+
+pub async fn verify_backups() -> Value {
+    let cmd = r"
+$bk = @{}
+try { $rp = Get-ComputerRestorePoint -EA SilentlyContinue | Select-Object -Last 3; $bk['restore_points'] = ($rp | ForEach-Object {[PSCustomObject]@{desc=$_.Description;created=$_.CreationTime}}) } catch {}
+try { $vss = (Get-WmiObject Win32_ShadowCopy -EA SilentlyContinue | Measure-Object).Count; $bk['vss_shadow_copies'] = $vss } catch {}
+try { $wbad = wbadmin get versions 2>&1 | Select-String 'Backup time' | Select-Object -Last 1; $bk['last_wbadmin_backup'] = if($wbad){$wbad.Line.Trim()}else{'No backup found'} } catch {}
+try { $fh = Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\FileHistory' -EA SilentlyContinue; $bk['file_history_enabled'] = ($fh -ne $null) } catch {}
+$bk | ConvertTo-Json -Compress -Depth 3
+";
+    let out = crate::http::run_ps(cmd).await;
+    json!({"status": "success", "backup_status": ps_json(&out)})
+}
+
+// ── Deception monitor ──────────────────────────────────────────────────────────
+
+pub async fn check_deception_monitor() -> Value {
+    let cmd = r#"
+$d = 'C:\ProgramData\OmniAgent\Honeypot'
+New-Item -ItemType Directory -Force -Path $d | Out-Null
+$canary_files = @{
+    'passwords.txt'   = "username=admin`npassword=Admin@12345!"
+    'credentials.csv' = "user,password`nadmin,Sup3r$ecret"
+    'db_config.ini'   = "[database]`nhost=prod-db.internal`npassword=DBAdmin2024"
+}
+foreach ($f in $canary_files.GetEnumerator()) {
+    $fp = Join-Path $d $f.Key
+    if (-not (Test-Path $fp)) { $f.Value | Out-File $fp -Encoding UTF8 }
+}
+$results = Get-ChildItem $d -EA SilentlyContinue | ForEach-Object {
+    [PSCustomObject]@{file=$_.Name;last_access=$_.LastAccessTime.ToString('o');last_write=$_.LastWriteTime.ToString('o');triggered=($_.LastAccessTime -gt (Get-Date).AddHours(-1))}
+}
+$results | ConvertTo-Json -Compress -Depth 2
+"#;
+    let out = crate::http::run_ps(cmd).await;
+    let files = ps_json(&out);
+    let triggered = files.as_array()
+        .and_then(|a| a.iter().find(|f| f["triggered"].as_bool().unwrap_or(false)))
+        .is_some();
+    json!({"status": "success", "deception_triggered": triggered, "canary_files": files})
+}
+
+// ── Ticket reporter ────────────────────────────────────────────────────────────
+
+pub async fn create_ticket(client: &Client, base: &str, id: &str, token: &str, title: &str, description: &str, severity: &str) -> Value {
+    // POST to agent-key-authenticated endpoint — agent token accepted by verify_agent_key
+    let url = format!("{}/api/agents/{}/ticket", base, id);
+    match client.post(&url).bearer_auth(token)
+        .json(&json!({"title": title, "description": description, "priority": severity, "tags": ["agent-raised", "omni-agent-rust"]}))
+        .send().await
+    {
+        Ok(r)  => json!({"status": "success", "ticket_created": true, "http_status": r.status().as_u16()}),
+        Err(e) => json!({"status": "error", "error": e.to_string()}),
+    }
+}
+
+// ── Cloud metadata ─────────────────────────────────────────────────────────────
+
+pub async fn collect_cloud_metadata() -> Value {
+    let client = Client::builder().timeout(Duration::from_secs(2))
+        .danger_accept_invalid_certs(true).build().unwrap_or_else(|_| Client::new());
+
+    // AWS IMDSv1
+    if let Ok(r) = client.get("http://169.254.169.254/latest/meta-data/instance-id").send().await {
+        if r.status().is_success() {
+            let iid = r.text().await.unwrap_or_default();
+            if !iid.trim().is_empty() {
+                let az = match client.get("http://169.254.169.254/latest/meta-data/placement/availability-zone").send().await {
+                    Ok(ar) => ar.text().await.unwrap_or_default(),
+                    Err(_) => String::new(),
+                };
+                let it = match client.get("http://169.254.169.254/latest/meta-data/instance-type").send().await {
+                    Ok(tr) => tr.text().await.unwrap_or_default(),
+                    Err(_) => String::new(),
+                };
+                return json!({"status": "success", "cloud": "aws", "instance_id": iid.trim(), "availability_zone": az.trim(), "instance_type": it.trim()});
+            }
+        }
+    }
+
+    // Azure IMDS
+    if let Ok(r) = client.get("http://169.254.169.254/metadata/instance?api-version=2021-02-01")
+        .header("Metadata", "true").send().await
+    {
+        if r.status().is_success() {
+            if let Ok(data) = r.json::<Value>().await {
+                return json!({"status": "success", "cloud": "azure", "metadata": data});
+            }
+        }
+    }
+
+    // GCP metadata
+    if let Ok(r) = client.get("http://metadata.google.internal/computeMetadata/v1/instance/id")
+        .header("Metadata-Flavor", "Google").send().await
+    {
+        if r.status().is_success() {
+            let gcp_id = r.text().await.unwrap_or_default();
+            return json!({"status": "success", "cloud": "gcp", "instance_id": gcp_id.trim()});
+        }
+    }
+
+    json!({"status": "success", "cloud": "bare_metal_or_private", "cloud_detected": false})
+}
+
+// ── Remediation executor ──────────────────────────────────────────────────────
+
+pub async fn run_remediation(client: &Client, base: &str, agent_id: &str, token: &str) -> Value {
+    let url = format!("{}/api/remediation/requests", base);
+    let jobs: Vec<serde_json::Value> = match client.get(&url).bearer_auth(token).send().await {
+        Ok(r) if r.status().is_success() => r.json().await.unwrap_or_default(),
+        _ => return json!({"status": "success", "executed": 0, "note": "No remediation endpoint or no jobs"}),
+    };
+
+    let my_jobs: Vec<_> = jobs.iter()
+        .filter(|j| j.get("agent_id").and_then(|v| v.as_str()) == Some(agent_id)
+                 && j.get("status").and_then(|v| v.as_str()) == Some("approved"))
+        .collect();
+
+    let mut executed = 0u32;
+    for job in &my_jobs {
+        let cmd = job.get("command").and_then(|v| v.as_str()).unwrap_or("");
+        let job_id = job.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        if cmd.is_empty() { continue; }
+
+        let result = tokio::process::Command::new(crate::http::PS_EXE)
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", cmd])
+            .output().await;
+        let (out, code) = match result {
+            Ok(o) => (String::from_utf8_lossy(&o.stdout).trim().to_string(), o.status.code().unwrap_or(-1)),
+            Err(e) => (e.to_string(), -1),
+        };
+
+        let result_url = format!("{}/api/remediation/requests/{}/result", base, job_id);
+        let _ = client.post(&result_url).bearer_auth(token)
+            .json(&json!({"output": out, "exit_code": code, "status": "executed"}))
+            .send().await;
+        executed += 1;
+    }
+
+    json!({"status": "success", "jobs_found": my_jobs.len(), "executed": executed})
+}
+
+// ── Process injection simulation ──────────────────────────────────────────────
+
+pub async fn run_process_injection_sim(technique: &str) -> Value {
+    let technique = if technique.is_empty() { "memory_write" } else { technique };
+
+    let script = match technique {
+        "memory_write" => r#"
+$proc = Start-Process notepad -PassThru -WindowStyle Hidden
+Start-Sleep -Milliseconds 500
+$h = [System.Diagnostics.Process]::GetProcessById($proc.Id)
+$sim = "Benign Simulation Payload"
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($sim)
+Write-Output "Simulated WriteProcessMemory: pid=$($proc.Id) bytes=$($bytes.Length)"
+Stop-Process -Id $proc.Id -Force 2>$null
+"#,
+        "shellcode_stub" => r#"
+$buf = [byte[]](0x90,0x90,0x90,0xC3)  # NOP sled + RET — benign stub
+$base = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($buf.Length)
+[System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $base, $buf.Length)
+Write-Output "Simulated shellcode stub allocated at: $base (benign NOP+RET)"
+[System.Runtime.InteropServices.Marshal]::FreeHGlobal($base)
+"#,
+        _ => r#"Write-Output "Unknown technique; supported: memory_write, shellcode_stub""#,
+    };
+
+    let out = tokio::process::Command::new(crate::http::PS_EXE)
+        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .output().await;
+
+    match out {
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            json!({"status": "success", "technique": technique, "simulation_output": stdout,
+                   "note": "Benign simulation — no real injection performed"})
+        },
+        Err(e) => json!({"status": "error", "technique": technique, "error": e.to_string()}),
+    }
+}
+
+// ── Agent update check + self-update ──────────────────────────────────────────
+
+pub async fn check_agent_update(client: &Client, base: &str, current_version: &str) -> Value {
+    let version_url = format!("{}/api/agents/version", base);
+    let data: Value = match client.get(&version_url).send().await {
+        Ok(r) if r.status().is_success() => r.json().await.unwrap_or(json!({})),
+        _ => return json!({"status": "success", "current_version": current_version, "update_available": false, "note": "Version endpoint not reachable"}),
+    };
+    let latest = data.get("version").and_then(|v| v.as_str()).unwrap_or(current_version);
+    let update_available = latest != current_version;
+    if !update_available {
+        return json!({"status": "success", "current_version": current_version, "latest_version": latest, "update_available": false});
+    }
+    // Download and apply update via batch script (can't overwrite running .exe on Windows directly)
+    let download_url = match data.get("download_url").and_then(|v| v.as_str()) {
+        Some(u) => u.to_string(),
+        None => format!("{}/static/omni-agent.exe", base),
+    };
+    let update_script = format!(r#"
+$new = Join-Path $env:TEMP 'omni-agent-new.exe'
+$bat = Join-Path $env:TEMP 'agent-update.bat'
+try {{ Invoke-WebRequest -Uri '{url}' -OutFile $new -UseBasicParsing -TimeoutSec 120 }} catch {{ exit 1 }}
+$self = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+@"
+@echo off
+timeout /t 2 /nobreak >nul
+copy /y "{new_placeholder}" "%~f0.exe.update" >nul 2>&1
+copy /y "{new_placeholder}" "$self" >nul 2>&1
+del /f /q "{new_placeholder}" >nul 2>&1
+net start OmniAgentService >nul 2>&1
+"@ | Out-File -FilePath $bat -Encoding ascii
+net stop OmniAgentService >nul 2>&1
+Start-Process cmd -ArgumentList "/c $bat" -WindowStyle Hidden
+"#, url = download_url, new_placeholder = r"$new");
+    let out = crate::http::run_ps(&update_script).await;
+    json!({"status": "success", "current_version": current_version, "latest_version": latest, "update_available": true, "update_initiated": true, "output": out})
+}

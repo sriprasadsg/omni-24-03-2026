@@ -1,0 +1,113 @@
+phase: 19-compliance-frameworks
+plan: 01
+type: execute
+wave: 1
+depends_on: []
+files_modified:
+  - backend/frameworks/ens.json
+  - backend/frameworks/mas_trm.json
+  - backend/frameworks/irap.json
+  - backend/frameworks/iso_27017.json
+  - backend/frameworks/iso_27018.json
+  - backend/frameworks/bsi_c5.json
+  - backend/frameworks/ffiec.json
+  - backend/frameworks/owasp_top10.json
+  - backend/frameworks/tisax.json
+  - backend/frameworks/aws_well_architected.json
+  - backend/frameworks/rbi_csf.json
+  - backend/frameworks/tic_3_0.json
+  - backend/frameworks/kisa_isms.json
+  - backend/frameworks/fedramp_high.json
+autonomous: true
+requirements:
+  - FW-01
+must_haves:
+  truths:
+    - "14 new framework JSON files added to backend/frameworks/ directory (FW-01)"
+    - "Each framework JSON follows the same schema as existing frameworks: {id, name, version, description, controls: [{id, title, description, domain, required}]} (FW-01)"
+    - "ENS (Esquema Nacional de Seguridad) — Spanish government framework, 75+ controls across 5 dimensions (FW-01)"
+    - "MAS TRM (Monetary Authority of Singapore Technology Risk Management) — financial services, 30+ controls (FW-01)"
+    - "IRAP (Information Security Registered Assessors Program) — Australian government, 40+ controls (FW-01)"
+    - "ISO 27017 (Cloud Security) — 37 controls extending ISO 27001 for cloud (FW-01)"
+    - "ISO 27018 (Cloud Privacy) — 25 controls for PII protection in cloud (FW-01)"
+    - "BSI C5 (German Cloud Security) — 17 domains, 55+ controls (FW-01)"
+    - "FFIEC (Federal Financial Institutions) — 5 domains, 50+ controls (FW-01)"
+    - "OWASP Top 10 (2021) — 10 risk categories as compliance controls (FW-01)"
+    - "TISAX (Automotive Information Security) — 6 assessment objectives, 40+ controls (FW-01)"
+    - "AWS Well-Architected Framework Security Pillar — 6 best practice areas, 32 questions as controls (FW-01)"
+    - "RBI CSF (Reserve Bank of India Cyber Security Framework) — 6 domains, 30+ controls (FW-01)"
+    - "TIC 3.0 (Trusted Internet Connections) — 5 use cases, 20+ controls (FW-01)"
+    - "KISA ISMS (Korea Information Security Management System) — 12 domains, 80+ controls (FW-01)"
+    - "FedRAMP High — extends FedRAMP Moderate, 421 controls from NIST 800-53 High baseline (FW-01)"
+    - "All framework files are valid JSON and loadable by the existing framework loader (FW-01)"
+  artifacts:
+    - path: "backend/frameworks/ens.json"
+      provides: "ENS framework with 75+ controls"
+    - path: "backend/frameworks/mas_trm.json"
+      provides: "MAS TRM with 30+ controls"
+    - path: "backend/frameworks/irap.json"
+      provides: "IRAP with 40+ controls"
+    - path: "backend/frameworks/iso_27017.json"
+      provides: "ISO 27017 cloud security controls"
+    - path: "backend/frameworks/iso_27018.json"
+      provides: "ISO 27018 cloud privacy controls"
+    - path: "backend/frameworks/bsi_c5.json"
+      provides: "BSI C5 cloud security"
+    - path: "backend/frameworks/ffiec.json"
+      provides: "FFIEC financial controls"
+    - path: "backend/frameworks/owasp_top10.json"
+      provides: "OWASP Top 10 2021"
+    - path: "backend/frameworks/tisax.json"
+      provides: "TISAX automotive security"
+    - path: "backend/frameworks/aws_well_architected.json"
+      provides: "AWS Well-Architected Security Pillar"
+    - path: "backend/frameworks/rbi_csf.json"
+      provides: "RBI Cyber Security Framework"
+    - path: "backend/frameworks/tic_3_0.json"
+      provides: "TIC 3.0 use cases"
+    - path: "backend/frameworks/kisa_isms.json"
+      provides: "KISA ISMS K-domains"
+    - path: "backend/frameworks/fedramp_high.json"
+      provides: "FedRAMP High 421-control baseline"
+
+<objective>
+Add 14 new compliance frameworks to the frameworks directory to reach feature parity with Probo and Comp AI which both support a much wider range of regional and industry-specific frameworks.
+
+**Implementation approach:** Read one existing framework file (e.g., nist_800_53.json) to confirm the exact JSON schema, then create each new framework file following the same structure.
+
+**Priority order** (most requested by enterprise compliance teams):
+1. FedRAMP High (US government — large enterprise demand)
+2. ISO 27017 / ISO 27018 (cloud-specific ISO extensions — very common)
+3. OWASP Top 10 (developer teams, widely recognized)
+4. BSI C5 (Germany — EU enterprise)
+5. TISAX (automotive — large vertical)
+6. MAS TRM (Singapore financial — APAC)
+7. FFIEC (US financial — banking)
+8. ENS (Spain government)
+9. IRAP (Australia government)
+10. RBI CSF (India financial)
+11. KISA ISMS (South Korea)
+12. TIC 3.0 (US government network)
+13. AWS Well-Architected Security Pillar
+
+**Schema to follow:**
+```json
+{
+  "id": "iso_27017",
+  "name": "ISO/IEC 27017:2015",
+  "version": "2015",
+  "description": "Code of practice for information security controls based on ISO/IEC 27002 for cloud services",
+  "controls": [
+    {
+      "id": "ISO27017-6.3.1",
+      "title": "Shared roles and responsibilities within a cloud computing environment",
+      "description": "Roles and responsibilities of cloud service customers and cloud service providers shall be defined and documented.",
+      "domain": "Organization of Information Security",
+      "required": true
+    }
+  ]
+}
+```
+
+Output: 14 JSON files in backend/frameworks/, all with meaningful control lists (not stub data)
+</objective>

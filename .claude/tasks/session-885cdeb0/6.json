@@ -1,0 +1,9 @@
+{
+  "id": "6",
+  "subject": "Create IacContainerDashboard.tsx with 2-tab UI",
+  "description": "IaC Scanner tab (code input, results table with pass/fail badges) and Container Scanner tab (image input, vulns table with severity-colored rows)",
+  "activeForm": "Creating dashboard UI",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,6 @@
+#!/bin/bash
+cd /tmp
+curl -fsSL "https://registry.npmjs.org/@opengsd/gsd-core/-/gsd-core-1.6.0.tgz" -o gsd-core-1.6.0.tgz
+tar -xzf gsd-core-1.6.0.tgz -C /tmp/gsd-core-pkg
+node /tmp/gsd-core-pkg/package/bin/install.js --claude --global 2>&1
+echo "EXIT_CODE: $?"

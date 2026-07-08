@@ -573,7 +573,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                         Run Diagnostics
                                     </button>
                                 )}
-                                {agent.platform === 'windows' && (
+                                {agent.platform === 'Windows' && (
                                     <button type="button" onClick={handlePushUpdate} disabled={isUpdating}
                                         className="flex items-center px-3 py-2 text-sm font-medium text-teal-700 bg-white dark:bg-gray-700 border border-teal-300 dark:border-teal-600 rounded-md shadow-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 focus:outline-none disabled:opacity-50"
                                         title="Push agent binary update"

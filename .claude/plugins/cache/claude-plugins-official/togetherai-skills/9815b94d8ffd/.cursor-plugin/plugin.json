@@ -1,0 +1,23 @@
+{
+  "name": "togetherai-skills",
+  "description": "Agent Skills for Together AI platform \u2014 inference, training, embeddings, audio, video, images, function calling, and infrastructure",
+  "version": "1.0.0",
+  "author": {
+    "name": "Together AI"
+  },
+  "homepage": "https://github.com/togethercomputer/skills",
+  "repository": "https://github.com/togethercomputer/skills",
+  "license": "MIT",
+  "keywords": [
+    "together-ai",
+    "inference",
+    "fine-tuning",
+    "gpu",
+    "llm",
+    "embeddings",
+    "images",
+    "video",
+    "audio"
+  ],
+  "skills_directory": "skills"
+}

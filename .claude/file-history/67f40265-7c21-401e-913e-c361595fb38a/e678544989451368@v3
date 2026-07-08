@@ -1,0 +1,490 @@
+"""
+Windows agent installer builders.
+
+Priority chain:
+  EXE  → makensis (NSIS)  → ZIP fallback
+  MSI  → wixl (msitools)  → ZIP fallback
+
+Install tools:  sudo apt-get install -y nsis msitools
+
+Auto-start strategy:
+  A PowerShell script (setup_svc.ps1) is embedded in every installer.
+  It runs at install time to:
+    1. Detect the full Python executable path (not just 'python' from PATH)
+    2. pip-install agent requirements using that Python
+    3. Register an AtStartup Task Scheduler task that runs as SYSTEM
+    4. Start the agent immediately without waiting for a reboot
+  AtStartup fires on every system boot regardless of which user logs in.
+"""
+
+import asyncio
+import logging
+import os
+import shutil
+import tempfile
+import uuid
+from pathlib import Path
+
+import yaml
+from fastapi import BackgroundTasks, HTTPException
+from fastapi.responses import Response
+
+logger = logging.getLogger(__name__)
+
+_AGENT_EXCLUDE = shutil.ignore_patterns(
+    "__pycache__", "*.pyc", "*.key", "*.db", "*.log",
+    "venv", ".venv", "node_modules", "dist", "build", "*.spec",
+    "config.yaml",  # always written fresh with tenant credentials
+)
+
+
+# ── Shared helpers ─────────────────────────────────────────────────────────────
+
+def _agent_src(base_dir: Path) -> Path:
+    src = base_dir / "agent"
+    if not src.is_dir():
+        raise HTTPException(status_code=500, detail="Source agent directory not found on server")
+    return src
+
+
+def cleanup_temp_dir(path: str) -> None:
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+    except Exception as exc:
+        logger.debug("temp dir cleanup failed: %s", exc)
+
+
+def _config_yaml(api_url: str, registration_key: str) -> dict:
+    return {
+        "agent_id": None,
+        "agent_token": None,
+        "api_base_url": api_url,
+        "interval_seconds": 30,
+        "max_cpu_percent": 20,
+        "agentic_mode_enabled": False,
+        "registration_key": registration_key,
+    }
+
+
+async def _run(args: list, cwd: str, timeout: int = 300) -> bytes:
+    proc = await asyncio.create_subprocess_exec(
+        *args, cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except (asyncio.TimeoutError, TimeoutError):
+        raise HTTPException(status_code=503, detail=f"{args[0]} timed out after {timeout}s")
+    if proc.returncode != 0:
+        snippet = (stderr or b"").decode(errors="replace")[-500:]
+        logger.error("%s failed:\n%s", args[0], snippet)
+        raise HTTPException(status_code=503, detail=f"{args[0]} build failed: {snippet}")
+    return stderr
+
+
+# ── setup_svc.ps1 — embedded in all Windows installers ────────────────────────
+
+def _setup_svc_ps1(api_url: str, reg_key: str) -> str:
+    """
+    PowerShell script embedded in every installer.
+    Runs at install time to register AtStartup Task Scheduler entry and start agent.
+    Uses $PSScriptRoot so it works regardless of install directory.
+    """
+    return f"""\
+#Requires -RunAsAdministrator
+$ErrorActionPreference = 'Continue'
+
+# The script sits in $INSTDIR — use that as the install root
+$InstallDir = $PSScriptRoot
+
+# Write tenant config.yaml
+$config = @"
+api_base_url: {api_url}
+registration_key: {reg_key}
+agent_id: null
+agent_token: null
+interval_seconds: 30
+max_cpu_percent: 20
+agentic_mode_enabled: false
+"@
+[IO.File]::WriteAllText([IO.Path]::Combine($InstallDir, 'config.yaml'), $config)
+
+# Locate Python — try standard installers, py launcher, then fallback
+$py = $null
+foreach ($candidate in @(
+    (Get-Command python  -ErrorAction SilentlyContinue)?.Source,
+    (Get-Command python3 -ErrorAction SilentlyContinue)?.Source,
+    (Get-Command py      -ErrorAction SilentlyContinue)?.Source,
+    "$env:LOCALAPPDATA\\Programs\\Python\\Python312\\python.exe",
+    "$env:LOCALAPPDATA\\Programs\\Python\\Python311\\python.exe",
+    "$env:LOCALAPPDATA\\Programs\\Python\\Python310\\python.exe",
+    "C:\\Python312\\python.exe",
+    "C:\\Python311\\python.exe",
+    "C:\\Python310\\python.exe"
+)) {{
+    if ($candidate -and (Test-Path $candidate -ErrorAction SilentlyContinue)) {{
+        $py = $candidate; break
+    }}
+}}
+if (-not $py) {{ $py = 'python.exe' }}
+Write-Host "Using Python: $py"
+
+# Install pip dependencies
+Write-Host "Installing Python dependencies..."
+& $py -m pip install -r (Join-Path $InstallDir 'requirements.txt') --quiet 2>&1
+
+# Remove stale task if upgrading
+Unregister-ScheduledTask -TaskName 'OmniAgent' -Confirm:$false -ErrorAction SilentlyContinue
+
+# Register AtStartup task running as SYSTEM
+$agentScript = Join-Path $InstallDir 'agent.py'
+$action    = New-ScheduledTaskAction -Execute $py -Argument "`"$agentScript`"" -WorkingDirectory $InstallDir
+$trigger   = New-ScheduledTaskTrigger -AtStartup
+$settings  = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit 0 `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -StartWhenAvailable `
+    -MultipleInstances IgnoreNew
+$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
+
+Register-ScheduledTask -TaskName 'OmniAgent' `
+    -Action $action -Trigger $trigger `
+    -Settings $settings -Principal $principal -Force | Out-Null
+
+Write-Host "OmniAgent registered as system startup task."
+
+# Start immediately without waiting for a reboot
+Start-ScheduledTask -TaskName 'OmniAgent'
+Write-Host "OmniAgent started."
+"""
+
+
+# ── NSIS EXE builder ───────────────────────────────────────────────────────────
+
+def _nsis_file_commands(pkg_dir: Path) -> str:
+    lines: list[str] = []
+    skip_dirs = {"__pycache__", "venv", ".venv", "node_modules", "dist", "build", ".git"}
+
+    for root, dirs, files in os.walk(pkg_dir):
+        dirs[:] = sorted(d for d in dirs if d not in skip_dirs)
+        rel = os.path.relpath(root, pkg_dir)
+        install_path = "$INSTDIR" if rel == "." else f"$INSTDIR\\{rel.replace('/', chr(92))}"
+        payload = sorted(f for f in files if not f.endswith(".pyc") and f not in {"buffer.db"})
+        if not payload:
+            continue
+        lines.append(f'  SetOutPath "{install_path}"')
+        for fname in payload:
+            lines.append(f'  File "{os.path.join(root, fname)}"')
+
+    return "\n".join(lines)
+
+
+def _build_nsi_script(tenant_name: str, file_commands: str, outfile: str) -> str:
+    def esc(s: str) -> str:
+        return s.replace('"', '$\\"')
+
+    return f"""; OmniAgent Installer — auto-generated
+!include "MUI2.nsh"
+!include "LogicLib.nsh"
+
+Name "OmniAgent 2.0 — {esc(tenant_name)}"
+OutFile "{outfile}"
+InstallDir "$PROGRAMFILES64\\OmniAgent"
+RequestExecutionLevel admin
+SetCompressor lzma
+
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!define MUI_FINISHPAGE_TEXT "OmniAgent installed for {esc(tenant_name)}.$\\r$\\nThe agent is now running and will start automatically on every boot."
+!insertmacro MUI_PAGE_FINISH
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_LANGUAGE "English"
+
+!define UNINST "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OmniAgent"
+
+Section "OmniAgent"
+  SectionIn RO
+
+{file_commands}
+
+  ; setup_svc.ps1 handles: config.yaml, pip install, AtStartup task, immediate start
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\\setup_svc.ps1"'
+
+  WriteRegStr   HKLM "${{UNINST}}" "DisplayName"     "OmniAgent"
+  WriteRegStr   HKLM "${{UNINST}}" "DisplayVersion"  "2.0.0"
+  WriteRegStr   HKLM "${{UNINST}}" "Publisher"       "Enterprise OmniAgent AI Platform"
+  WriteRegStr   HKLM "${{UNINST}}" "InstallDir"      "$INSTDIR"
+  WriteRegStr   HKLM "${{UNINST}}" "UninstallString" '"$INSTDIR\\Uninstall.exe"'
+  WriteRegDWORD HKLM "${{UNINST}}" "NoModify" 1
+  WriteRegDWORD HKLM "${{UNINST}}" "NoRepair" 1
+  WriteUninstaller "$INSTDIR\\Uninstall.exe"
+SectionEnd
+
+Section "Uninstall"
+  ; Stop and remove the scheduled task
+  ExecWait 'powershell -NoProfile -Command "Stop-ScheduledTask -TaskName OmniAgent -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName OmniAgent -Confirm:$$false -ErrorAction SilentlyContinue"' $0
+  RMDir /r "$INSTDIR"
+  DeleteRegKey HKLM "${{UNINST}}"
+SectionEnd
+"""
+
+
+async def build_exe(
+    tenant_id: str, tenant_name: str, registration_key: str,
+    api_url: str, background_tasks: BackgroundTasks, base_dir: Path,
+) -> Response:
+    """Build a Windows EXE installer using NSIS (makensis)."""
+    makensis = shutil.which("makensis")
+    if not makensis:
+        raise HTTPException(
+            status_code=503,
+            detail="makensis not installed. Run: sudo apt-get install -y nsis",
+        )
+
+    agent_src = _agent_src(base_dir)
+    tenant_safe = tenant_name.replace(" ", "-").lower()
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_exe_{tenant_id}_"))
+    try:
+        pkg_dir = temp_dir / "pkg"
+        shutil.copytree(agent_src, pkg_dir, ignore=_AGENT_EXCLUDE)
+
+        # Write setup_svc.ps1 into the package — it handles config, pip, and startup task
+        (pkg_dir / "setup_svc.ps1").write_text(
+            _setup_svc_ps1(api_url, registration_key), encoding="utf-8"
+        )
+
+        file_cmds = _nsis_file_commands(pkg_dir)
+        if not file_cmds.strip():
+            raise HTTPException(status_code=500, detail="No agent files found to package")
+
+        exe_out = temp_dir / f"OmniAgent-{tenant_safe}-Setup.exe"
+        nsi_path = temp_dir / "install.nsi"
+        nsi_path.write_text(
+            _build_nsi_script(tenant_name, file_cmds, str(exe_out)), encoding="utf-8"
+        )
+
+        logger.info("Building NSIS EXE for tenant %s", tenant_id)
+        await _run([makensis, str(nsi_path)], cwd=str(temp_dir), timeout=300)
+
+        if not exe_out.exists():
+            raise HTTPException(status_code=503, detail="NSIS build produced no output file")
+
+        content = exe_out.read_bytes()
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition":
+                     f'attachment; filename="OmniAgent-{tenant_safe}-Setup.exe"'},
+        )
+    except HTTPException:
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise
+    except Exception as exc:
+        logger.error("EXE build failed for %s: %s", tenant_id, exc)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise HTTPException(status_code=500, detail="Failed to build Windows EXE installer")
+
+
+# ── wixl MSI builder ───────────────────────────────────────────────────────────
+
+def _generate_wxs(tenant_id: str, tenant_name: str, files_root: Path) -> str:
+    skip_dirs = {"__pycache__", "venv", ".venv", "node_modules", "dist", "build", ".git"}
+
+    entries: list[tuple[Path, Path]] = []
+    for root, dirs, files in os.walk(files_root):
+        dirs[:] = sorted(d for d in dirs if d not in skip_dirs)
+        root_path = Path(root)
+        rel_root = root_path.relative_to(files_root)
+        for fname in sorted(files):
+            if fname.endswith(".pyc") or fname in {"buffer.db"}:
+                continue
+            entries.append((root_path / fname, rel_root))
+
+    def file_guid(rel: str) -> str:
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"omni-{tenant_id}-{rel}")).upper()
+
+    upgrade_guid = str(uuid.uuid5(uuid.NAMESPACE_URL, "omni-agent-upgrade-code")).upper()
+
+    # Build directory ID map
+    dir_ids: dict[str, str] = {}
+    for _, rel_root in entries:
+        for depth in range(len(rel_root.parts)):
+            key = str(Path(*rel_root.parts[: depth + 1]))
+            if key not in dir_ids:
+                safe = key.replace("/", "_").replace("\\", "_").replace(".", "_").replace("-", "_")
+                dir_ids[key] = f"Dir_{safe}"
+
+    def dir_xml(parent_key: str = "", indent: int = 10) -> str:
+        depth = len(parent_key.split("/")) if parent_key else 0
+        out = ""
+        for key, did in sorted(dir_ids.items()):
+            parts = key.replace("\\", "/").split("/")
+            if len(parts) != depth + 1:
+                continue
+            if "/".join(parts[:-1]) != parent_key:
+                continue
+            pad = " " * indent
+            out += f'{pad}<Directory Id="{did}" Name="{parts[-1]}">\n'
+            out += dir_xml(key, indent + 2)
+            out += f'{pad}</Directory>\n'
+        return out
+
+    components, refs = [], []
+    for i, (abs_path, rel_root) in enumerate(entries):
+        comp_id = f"Comp{i:05d}"
+        file_id = f"File{i:05d}"
+        rel_str = str(rel_root / abs_path.name)
+        guid = file_guid(rel_str)
+        dir_key = str(rel_root) if rel_root.parts else ""
+        dir_id = dir_ids.get(dir_key, "INSTALLDIR")
+        components.append(
+            f'      <Component Id="{comp_id}" Guid="{{{guid}}}" Directory="{dir_id}">\n'
+            f'        <File Id="{file_id}" Source="{abs_path}" Name="{abs_path.name}" KeyPath="yes"/>\n'
+            f'      </Component>'
+        )
+        refs.append(f'      <ComponentRef Id="{comp_id}"/>')
+
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="{tenant_name} OmniAgent" Language="1033" Version="2.0.0"
+           Manufacturer="Enterprise OmniAgent AI Platform" UpgradeCode="{{{upgrade_guid}}}">
+    <Package InstallerVersion="300" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
+    <MediaTemplate EmbedCab="yes"/>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="OmniAgent">
+{dir_xml('', 10)}
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Complete" Level="1">
+{chr(10).join(refs)}
+    </Feature>
+
+{chr(10).join(components)}
+
+    <CustomAction Id="RunSetup" Type="34" Directory="INSTALLDIR"
+      ExeCommand="cmd /c powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File setup_svc.ps1"/>
+
+    <InstallExecuteSequence>
+      <Custom Action="RunSetup" After="InstallFiles">NOT Installed</Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>
+"""
+
+
+async def build_msi(
+    tenant_id: str, tenant_name: str, registration_key: str,
+    api_url: str, background_tasks: BackgroundTasks, base_dir: Path,
+) -> Response:
+    """Build a Windows MSI installer using wixl (msitools)."""
+    wixl = shutil.which("wixl")
+    if not wixl:
+        raise HTTPException(
+            status_code=503,
+            detail="wixl not installed. Run: sudo apt-get install -y msitools",
+        )
+
+    agent_src = _agent_src(base_dir)
+    tenant_safe = tenant_name.replace(" ", "-").lower()
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_msi_{tenant_id}_"))
+    try:
+        pkg_dir = temp_dir / "pkg"
+        shutil.copytree(agent_src, pkg_dir, ignore=_AGENT_EXCLUDE)
+
+        # Write setup_svc.ps1 into the package — runs via MSI CustomAction
+        (pkg_dir / "setup_svc.ps1").write_text(
+            _setup_svc_ps1(api_url, registration_key), encoding="utf-8"
+        )
+
+        wxs_path = temp_dir / "install.wxs"
+        wxs_path.write_text(_generate_wxs(tenant_id, tenant_name, pkg_dir), encoding="utf-8")
+
+        msi_out = temp_dir / f"OmniAgent-{tenant_safe}-Setup.msi"
+        logger.info("Building wixl MSI for tenant %s", tenant_id)
+        await _run([wixl, "-a", "x64", "-o", str(msi_out), str(wxs_path)],
+                   cwd=str(temp_dir), timeout=300)
+
+        if not msi_out.exists():
+            raise HTTPException(status_code=503, detail="wixl produced no output file")
+
+        content = msi_out.read_bytes()
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition":
+                     f'attachment; filename="OmniAgent-{tenant_safe}-Setup.msi"'},
+        )
+    except HTTPException:
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise
+    except Exception as exc:
+        logger.error("MSI build failed for %s: %s", tenant_id, exc)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise HTTPException(status_code=500, detail="Failed to build Windows MSI installer")
+
+
+# ── ZIP fallback ───────────────────────────────────────────────────────────────
+
+async def build_windows_zip(
+    tenant_id: str, tenant_name: str, registration_key: str,
+    api_url: str, background_tasks: BackgroundTasks, base_dir: Path,
+) -> Response:
+    """Last-resort fallback when NSIS/wixl are not installed."""
+    agent_src = _agent_src(base_dir)
+    tenant_safe = tenant_name.replace(" ", "-").lower()
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_win_{tenant_id}_"))
+    try:
+        content_dir = temp_dir / "content"
+        agent_dest = content_dir / "OmniAgent"
+        shutil.copytree(agent_src, agent_dest, ignore=_AGENT_EXCLUDE)
+
+        cfg = _config_yaml(api_url, registration_key)
+        with open(agent_dest / "config.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(cfg, f, default_flow_style=False, sort_keys=True)
+
+        # Include the same setup_svc.ps1 so manual installs also get AtStartup
+        (agent_dest / "setup_svc.ps1").write_text(
+            _setup_svc_ps1(api_url, registration_key), encoding="utf-8"
+        )
+
+        readme = (
+            f"OmniAgent for {tenant_name}\r\n"
+            "================================\r\n\r\n"
+            "Requirements: Python 3.9+\r\n\r\n"
+            "Install (PowerShell as Administrator):\r\n"
+            "  cd OmniAgent\r\n"
+            "  powershell -ExecutionPolicy Bypass -File setup_svc.ps1\r\n\r\n"
+            "This registers the agent as an AtStartup Task Scheduler task\r\n"
+            "running as SYSTEM and starts it immediately.\r\n\r\n"
+            f"API URL: {api_url}\r\n"
+        )
+        (content_dir / "README.txt").write_text(readme, encoding="utf-8")
+
+        zip_base = str(temp_dir / f"OmniAgent-{tenant_safe}-windows")
+        shutil.make_archive(zip_base, "zip", root_dir=str(content_dir), base_dir=".")
+        content = Path(f"{zip_base}.zip").read_bytes()
+
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        return Response(
+            content=content,
+            media_type="application/zip",
+            headers={"Content-Disposition":
+                     f'attachment; filename="OmniAgent-{tenant_safe}-windows.zip"'},
+        )
+    except HTTPException:
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise
+    except Exception as exc:
+        logger.error("Windows ZIP build failed for %s: %s", tenant_id, exc)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise HTTPException(status_code=500, detail="Failed to build Windows agent package")

@@ -1,0 +1,9 @@
+{
+  "id": "4",
+  "subject": "Create container_scanner_endpoints.py with /api/container/* routes",
+  "description": "POST /scan, GET /results endpoints",
+  "activeForm": "Creating container scanner endpoints",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,78 @@
+phase: 18-privacy-legal-modules
+plan: 01
+type: execute
+wave: 1
+depends_on: []
+files_modified:
+  - backend/privacy_service.py
+  - backend/privacy_endpoints.py
+  - backend/tests/test_privacy_service.py
+  - backend/router_registry.py
+  - components/PrivacyLegalDashboard.tsx
+autonomous: true
+requirements:
+  - PRIV-01
+  - PRIV-02
+  - PRIV-03
+  - PRIV-04
+must_haves:
+  truths:
+    - "Transfer Impact Assessments (TIA): POST /api/privacy/tia creates TIA with fields: transfer_name, data_categories, source_country, destination_country, legal_basis, safeguards, risk_level (low/medium/high), status (draft/approved/rejected) (PRIV-01)"
+    - "Legitimate Interest Assessments (LIA): POST /api/privacy/lia creates LIA with: purpose, necessity_test (text), balancing_test (text), outcome (approved/rejected), data_subjects (PRIV-01)"
+    - "Privacy Notices: GET /api/privacy/notices lists all notices; POST /api/privacy/notices creates notice with title, version, content_html, effective_date, applies_to; GET /api/privacy/notices/{id}/versions returns version history (PRIV-02)"
+    - "Contract Lifecycle: POST /api/privacy/contracts creates contract with vendor_name, type (DPA/MSA/NDA/SCC), status (draft/review/signed/expired), expiry_date, parties; GET /api/privacy/contracts/expiring returns contracts expiring within 30 days (PRIV-03)"
+    - "All 8 unit tests in test_privacy_service.py pass green (PRIV-04)"
+    - "PrivacyLegalDashboard.tsx has 4 tabs: TIA, LIA, Notices, Contracts — each with list + create form"
+    - "router_registry.py registers privacy_endpoints"
+  artifacts:
+    - path: "backend/privacy_service.py"
+      provides: "PrivacyService: create_tia, list_tia, create_lia, list_lia, create_notice, list_notices, get_notice_versions, create_contract, list_contracts, get_expiring_contracts"
+    - path: "backend/privacy_endpoints.py"
+      provides: "router at /api/privacy"
+    - path: "backend/tests/test_privacy_service.py"
+      provides: "8-test TDD suite"
+    - path: "components/PrivacyLegalDashboard.tsx"
+      provides: "4-tab UI for TIA, LIA, Notices, Contracts"
+
+<objective>
+Implement Privacy & Legal modules covering Transfer Impact Assessments, Legitimate Interest Assessments, Privacy Notices with versioning, and Contract Lifecycle — closing the gap versus Probo and Comp AI which both have privacy/legal modules that GRC teams need for GDPR/CCPA compliance.
+
+**MongoDB collections:**
+- `privacy_tia` — Transfer Impact Assessments
+- `privacy_lia` — Legitimate Interest Assessments
+- `privacy_notices` — Notices with version array: `[{version, content_html, published_at}]`
+- `privacy_contracts` — Contract records
+
+**TDD order (8 tests):**
+1. test_create_tia
+2. test_create_lia_with_balancing_test
+3. test_create_privacy_notice
+4. test_notice_version_history
+5. test_create_contract
+6. test_expiring_contracts_filter
+7. test_tia_risk_level_validation (must be low/medium/high)
+8. test_tenant_isolation
+
+**PrivacyLegalDashboard.tsx tab layout:**
+```
+[TIA] [LIA] [Notices] [Contracts]
+
+TIA tab:
+  ┌─────────────────────────────────────┐
+  │ Transfer Impact Assessments         │
+  │ [+ New TIA]                         │
+  │ EU→US transfer    High risk  Draft  │
+  │ UK→India transfer Med risk   Apprvd │
+  └─────────────────────────────────────┘
+
+Contracts tab (expiry warning):
+  ┌─────────────────────────────────────┐
+  │ ⚠ 2 contracts expiring in 30 days  │
+  │ Vendor DPA   expires 2026-07-01    │
+  └─────────────────────────────────────┘
+```
+
+**Privacy Notice versioning:** Each update to a notice creates a new version entry in the `versions` array with timestamp; GET /versions returns history sorted newest-first.
+
+Output: 5 files, 8 passing tests, full privacy/legal module with 4 functional sub-modules
+</objective>

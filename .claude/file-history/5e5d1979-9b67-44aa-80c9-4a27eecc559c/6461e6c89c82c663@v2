@@ -1,0 +1,49 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-06-27T07:23:42Z",
+  "phase": "15",
+  "phase_name": "evidence-review-workflow",
+  "phase_dir": "15-evidence-review-workflow",
+  "plan": 1,
+  "task": 6,
+  "total_tasks": 6,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Create evidence_review_service.py", "status": "done"},
+    {"id": 2, "name": "Create evidence_review_endpoints.py + router registration", "status": "done"},
+    {"id": 3, "name": "Create test_evidence_review.py (8 TDD tests)", "status": "done"},
+    {"id": 4, "name": "Update types.ts with evidence status field", "status": "done"},
+    {"id": 5, "name": "Create EvidenceReviewPanel.tsx (review thread UI)", "status": "done"},
+    {"id": 6, "name": "Wire panel into AssetComplianceList.tsx", "status": "done"}
+  ],
+  "remaining_tasks": [
+    {"id": 7, "name": "Run tests: python -m pytest tests/test_evidence_review.py -v", "status": "not_started"},
+    {"id": 8, "name": "TypeScript check: npx tsc --noEmit", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "Permission classifier blocks test execution from Claude", "type": "technical", "workaround": "Run `! cd backend && python -m pytest tests/test_evidence_review.py -v` manually in prompt"}
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Run Python tests for evidence review", "context": "Permission blocked; run manually with `!` prefix", "blocking": true},
+    {"action": "Run TypeScript type check", "context": "Verify no TS errors in modified files", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Evidence review stored in separate evidence_reviews collection, evidence status tracked inline on asset_compliance.evidence[].status", "rationale": "Separate collection allows multiple reviews per evidence while status field enables quick filtering", "phase": "15"},
+    {"decision": "Role-gated: admin/super_admin/compliance_reviewer can make review decisions, any user can submit for review", "rationale": "Matches existing project role patterns and auth_service role checks", "phase": "15"},
+    {"decision": "Used existing asyncio.run() test pattern (not pytest-asyncio)", "rationale": "Consistent with test_powershell_evidence.py and test_saas_integration.py patterns already in the project", "phase": "15"}
+  ],
+  "uncommitted_files": [
+    "backend/evidence_review_service.py",
+    "backend/evidence_review_endpoints.py",
+    "backend/tests/test_evidence_review.py",
+    "backend/router_registry.py",
+    "components/EvidenceReviewPanel.tsx",
+    "components/AssetComplianceList.tsx",
+    "types.ts",
+    ".planning/STATE.md",
+    ".planning/ROADMAP.md"
+  ],
+  "next_action": "Run `python -m pytest tests/test_evidence_review.py -v` to verify 8 tests pass, then `npx tsc --noEmit` for TypeScript check. If tests pass, commit with message: `feat(phase-15): evidence review workflow — submit, approve, reject, request-changes lifecycle`",
+  "context_notes": "Phase 15 (Evidence Review Workflow) fully implemented. Backend: service layer with 5 functions, 5 FastAPI endpoints, 8 TDD tests. Frontend: EvidenceReviewPanel component with review thread/status badges/role-gated actions wired into AssetComplianceList. Need test + TS verification then commit. Next phase: 16-program-control-grouping."
+}

@@ -1,0 +1,87 @@
+phase: 21-notification-domain-scanner
+plan: 01
+type: execute
+wave: 1
+depends_on: []
+files_modified:
+  - backend/notification_service.py
+  - backend/notification_endpoints.py
+  - backend/domain_scanner_service.py
+  - backend/domain_scanner_endpoints.py
+  - backend/tests/test_notification_service.py
+  - backend/router_registry.py
+  - components/NotificationsDashboard.tsx
+autonomous: true
+requirements:
+  - NOTIF-01
+  - NOTIF-02
+  - SCAN-01
+  - SCAN-02
+must_haves:
+  truths:
+    - "POST /api/notifications/channels creates a notification channel: type (slack/email/webhook), name, config (url/email/webhook_url) (NOTIF-01)"
+    - "POST /api/notifications/rules creates a routing rule: event_type (finding_created/control_failed/evidence_expired/review_overdue/cert_expiring), channel_ids, severity_filter, tenant_id (NOTIF-01)"
+    - "notification_service.send_notification(event_type, payload, tenant_id) looks up matching rules, sends to each matched channel (NOTIF-02)"
+    - "Slack sending: POST to webhook_url with {text: formatted_message} using httpx (NOTIF-02)"
+    - "Email sending: log to app logger as INFO with formatted message (actual SMTP is deferred — structure ready) (NOTIF-02)"
+    - "Webhook sending: POST payload as JSON to webhook_url with Content-Type: application/json (NOTIF-02)"
+    - "GET /api/domain-scanner/scan?domain=example.com returns subdomains (passive DNS lookup via socket.getaddrinfo), open ports list for common ports [80,443,8080,8443,8888], TLS certificate info (expiry, issuer, SAN), DNS record types (A, MX, TXT, NS) (SCAN-01)"
+    - "POST /api/domain-scanner/scheduled registers a domain for periodic scanning; GET /api/domain-scanner/scheduled returns all scheduled domains (SCAN-02)"
+    - "All 7 tests in test_notification_service.py pass green"
+    - "NotificationsDashboard.tsx has 2 tabs: Notifications (channel + rule management) and Domain Scanner (ad-hoc scan + scheduled domains)"
+    - "router_registry.py registers notification_endpoints and domain_scanner_endpoints"
+  artifacts:
+    - path: "backend/notification_service.py"
+      provides: "NotificationService: create_channel, list_channels, create_rule, list_rules, send_notification, _send_slack, _send_webhook"
+    - path: "backend/notification_endpoints.py"
+      provides: "router at /api/notifications"
+    - path: "backend/domain_scanner_service.py"
+      provides: "DomainScannerService: scan_domain, schedule_domain, list_scheduled"
+    - path: "backend/domain_scanner_endpoints.py"
+      provides: "router at /api/domain-scanner"
+    - path: "backend/tests/test_notification_service.py"
+      provides: "7-test TDD suite"
+    - path: "components/NotificationsDashboard.tsx"
+      provides: "Channels/Rules config and Domain Scanner UI"
+
+<objective>
+Implement two features identified in the audit:
+
+**1. Notification Routing** — lets GRC teams get alerted in Slack/email/webhook when compliance events occur (finding created, control failed, evidence expired). Closes gap versus Probo which has full notification routing.
+
+**Notification channel schema:**
+```json
+{"id": "chan-{uuid}", "tenantId": "...", "type": "slack", "name": "Security Slack", "config": {"url": "https://hooks.slack.com/..."}}
+```
+
+**Routing rule schema:**
+```json
+{"id": "rule-{uuid}", "tenantId": "...", "event_type": "control_failed", "severity_filter": ["high","critical"], "channel_ids": ["chan-abc"]}
+```
+
+**2. Domain/Subdomain Scanner** — lightweight external attack surface scanner. Closes gap versus Probo's domain monitoring feature.
+
+Domain scan returns:
+```json
+{
+  "domain": "example.com",
+  "subdomains": ["www.example.com", "api.example.com"],
+  "open_ports": {"80": true, "443": true, "8080": false},
+  "tls": {"expiry": "2026-12-01", "issuer": "Let's Encrypt", "san": ["example.com", "*.example.com"]},
+  "dns": {"A": ["1.2.3.4"], "MX": ["mail.example.com"], "TXT": ["v=spf1..."], "NS": ["ns1.example.com"]}
+}
+```
+
+Use Python's built-in `socket`, `ssl`, `dns.resolver` (dnspython package) for scan — no external services.
+
+**TDD order (7 tests):**
+1. test_create_slack_channel
+2. test_create_notification_rule
+3. test_send_notification_routes_to_matching_channels
+4. test_severity_filter_excludes_low_severity
+5. test_domain_scan_returns_structure
+6. test_schedule_domain
+7. test_tenant_isolation_channels
+
+Output: 6 files, 7 tests passing, notifications routable + domain scanner functional
+</objective>

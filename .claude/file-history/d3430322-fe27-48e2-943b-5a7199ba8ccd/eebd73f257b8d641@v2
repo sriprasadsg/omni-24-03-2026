@@ -1,0 +1,9 @@
+const { spawn } = require('child_process');
+const proc = spawn('npx', ['-y', '--package=@opengsd/gsd-core@latest', '--', 'gsd-core', '--claude', '--global'], {
+  stdio: 'inherit',
+  shell: true
+});
+proc.on('exit', (code) => {
+  console.log('EXIT_CODE:' + code);
+  process.exit(code || 0);
+});

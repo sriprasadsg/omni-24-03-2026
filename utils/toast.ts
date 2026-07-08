@@ -3,7 +3,7 @@
  * is needed. Any component can call showToast() and ToastContainer will render it.
  */
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastEvent {
   id: string;

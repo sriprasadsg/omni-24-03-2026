@@ -1,0 +1,745 @@
+---
+phase: 23
+plan: "02"
+wave: 2
+title: "PowerShell Scripts: Full Rebuild — Installer + Evidence Collector"
+depends_on: ["23-01"]
+autonomous: true
+files_modified:
+  - backend/static/win-install.ps1
+  - backend/static/Collect-Evidence.ps1
+  - agent-rust/install-service.ps1
+  - agent/installer/install_agent.ps1
+  - agent/installer/Configure-Agent.ps1
+  - agent/installer/Collect-Evidence.ps1
+  - agent/installer/OmniAgent-Setup.iss
+must_haves:
+  - backend/static/win-install.ps1 rebuilt — installs service AND sets up evidence collection
+  - backend/static/Collect-Evidence.ps1 NEW — collects all 28 Windows compliance checks and POSTs to /api/powershell-evidence/submit
+  - agent/installer/OmniAgent-Setup.iss NEW — Inno Setup script for clickable EXE installer
+  - All check names exactly match COMPLIANCE_CHECK_MAPPINGS keys in compliance_evidence_processor.py
+  - Content hash computed as SHA256 of evidence_content before POST
+artifacts:
+  - backend/static/win-install.ps1
+  - backend/static/Collect-Evidence.ps1
+  - agent-rust/install-service.ps1
+  - agent/installer/install_agent.ps1
+  - agent/installer/Configure-Agent.ps1
+  - agent/installer/Collect-Evidence.ps1
+  - agent/installer/OmniAgent-Setup.iss
+---
+
+# Plan 23-02: PowerShell Scripts Full Rebuild
+
+## Goal
+
+Rebuild every Windows installation file so that agents:
+1. Install cleanly as a Windows Service (existing capability — preserved)
+2. Collect all 28 compliance checks via PowerShell immediately after install
+3. Submit evidence to `POST /api/powershell-evidence/submit` (Plan 23-01)
+4. Run daily via Windows Task Scheduler
+5. Are distributable as a clickable EXE via Inno Setup
+
+## Files
+
+### Task 1 — Rebuild `backend/static/win-install.ps1`
+
+This file is served at `GET /api/agent/install-script`. Rebuild it to add evidence
+collection setup after service installation. Keep under 200 lines.
+
+```powershell
+#Requires -RunAsAdministrator
+<#
+.SYNOPSIS
+    Downloads and installs the OmniAgent Rust Windows service with PowerShell
+    evidence collection.
+
+.PARAMETER ApiUrl
+    Backend API base URL. Example: http://192.168.1.100:5000
+
+.PARAMETER RegistrationKey
+    Tenant registration key shown in Settings / Agents page.
+
+.PARAMETER BackendUrl
+    Alias for -ApiUrl (backwards-compatible).
+
+.PARAMETER SkipFirstRun
+    Skip the immediate evidence collection run after install.
+
+.PARAMETER Uninstall
+    Stop and remove the service, scheduled task, and installation directory.
+
+.EXAMPLE
+    .\win-install.ps1 -ApiUrl http://192.168.1.100:5000 -RegistrationKey reg_abc123
+
+.EXAMPLE
+    .\win-install.ps1 -Uninstall
+#>
+[CmdletBinding(SupportsShouldProcess)]
+param(
+    [string]$ApiUrl          = "",
+    [string]$BackendUrl      = "",
+    [string]$RegistrationKey = "",
+    [switch]$SkipFirstRun,
+    [switch]$Uninstall
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+if (-not $ApiUrl -and $BackendUrl) { $ApiUrl = $BackendUrl }
+if (-not $ApiUrl) { $ApiUrl = "http://localhost:5000" }
+$ApiUrl = $ApiUrl.TrimEnd("/")
+
+$ServiceName    = "OmniAgentRust"
+$DisplayName    = "Enterprise OmniAgent (Rust)"
+$Description    = "Enterprise security compliance agent — collects evidence, runs CIS/PCI/ISO checks."
+$InstallDir     = "$env:ProgramFiles\OmniAgent"
+$ExeName        = "omni-agent.exe"
+$ExeDst         = Join-Path $InstallDir $ExeName
+$ConfigDst      = Join-Path $InstallDir "config.yaml"
+$EvidenceScript = Join-Path $InstallDir "Collect-Evidence.ps1"
+$LogDir         = Join-Path $InstallDir "logs"
+$TaskName       = "OmniAgentEvidenceCollection"
+
+function Write-Step([string]$msg) { Write-Host "  > $msg" -ForegroundColor Cyan }
+function Write-Ok([string]$msg)   { Write-Host "  + $msg" -ForegroundColor Green }
+function Write-Warn([string]$msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
+```
+
+**Uninstall section** — also removes scheduled task:
+```powershell
+if ($Uninstall) {
+    # ... stop service, delete service, remove dir (existing logic) ...
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Ok "Scheduled task removed."
+    exit 0
+}
+```
+
+**Install section additions** (after binary + service setup):
+
+```powershell
+# 4. Write config.yaml (same as before, add evidence fields)
+Set-Content -Path $ConfigDst -Encoding UTF8 -Value @"
+api_base_url: $ApiUrl
+registration_key: $RegistrationKey
+interval_seconds: 60
+evidence_collection: true
+evidence_interval_hours: 24
+"@
+
+# 5. Download Collect-Evidence.ps1 from platform
+Write-Step "Downloading Collect-Evidence.ps1..."
+try {
+    Invoke-WebRequest -Uri "$ApiUrl/api/agent/collect-evidence-script" `
+        -OutFile $EvidenceScript -UseBasicParsing -ErrorAction Stop
+    Write-Ok "Collect-Evidence.ps1 installed: $EvidenceScript"
+} catch {
+    Write-Warn "Could not download Collect-Evidence.ps1: $_"
+    Write-Warn "Evidence collection will be unavailable until script is present."
+}
+
+# 6. Register daily scheduled task
+Write-Step "Creating scheduled task '$TaskName'..."
+$action  = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$EvidenceScript`""
+$trigger = New-ScheduledTaskTrigger -Daily -At "06:00"
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
+    -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 5)
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
+    -Settings $settings -Principal $principal -Force | Out-Null
+Write-Ok "Scheduled task registered (daily at 06:00, runs as SYSTEM)."
+
+# 7. First evidence run (unless skipped)
+if (-not $SkipFirstRun -and (Test-Path $EvidenceScript)) {
+    Write-Step "Running initial evidence collection..."
+    & powershell.exe -NonInteractive -ExecutionPolicy Bypass -File $EvidenceScript
+    Write-Ok "Initial evidence collection complete."
+}
+```
+
+**Summary block** — add evidence lines:
+```
+  Evidence : $EvidenceScript
+  Task     : $TaskName (daily 06:00 SYSTEM)
+  To collect now: powershell -File "$EvidenceScript"
+```
+
+---
+
+### Task 2 — Create `backend/static/Collect-Evidence.ps1`
+
+New file served at `GET /api/agent/collect-evidence-script`. Max 450 lines.
+
+**Structure:**
+```powershell
+#Requires -RunAsAdministrator
+<#
+.SYNOPSIS
+    Collects Windows compliance evidence and submits to OmniAgent platform.
+.DESCRIPTION
+    Runs 28 CIS/NIST/PCI compliance checks using PowerShell and submits
+    structured evidence to POST /api/powershell-evidence/submit.
+    Reads api_base_url and registration_key from config.yaml in the same directory.
+.EXAMPLE
+    .\Collect-Evidence.ps1
+    .\Collect-Evidence.ps1 -ApiUrl http://192.168.1.100:5000 -RegKey reg_abc123
+    .\Collect-Evidence.ps1 -DryRun   # print results, do not submit
+#>
+param(
+    [string]$ApiUrl  = "",
+    [string]$RegKey  = "",
+    [switch]$DryRun
+)
+```
+
+**Config loading** (reads config.yaml if params not supplied):
+```powershell
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ConfigFile = Join-Path $ScriptDir "config.yaml"
+if ((-not $ApiUrl -or -not $RegKey) -and (Test-Path $ConfigFile)) {
+    Get-Content $ConfigFile | ForEach-Object {
+        if ($_ -match '^api_base_url:\s*(.+)$')     { if (-not $ApiUrl) { $ApiUrl = $Matches[1].Trim() } }
+        if ($_ -match '^registration_key:\s*(.+)$') { if (-not $RegKey) { $RegKey = $Matches[1].Trim() } }
+    }
+}
+if (-not $ApiUrl) { $ApiUrl = "http://localhost:5000" }
+$ApiUrl = $ApiUrl.TrimEnd("/")
+```
+
+**Helper functions:**
+```powershell
+function Get-SHA256([string]$text) {
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+    $hash  = [System.Security.Cryptography.SHA256]::Create()
+    [BitConverter]::ToString($hash.ComputeHash($bytes)).Replace("-","").ToLower()
+}
+
+function New-Check([string]$Name, [string]$Status, [string]$Details, [string]$Content) {
+    @{
+        check            = $Name
+        status           = $Status
+        details          = $Details
+        evidence_content = $Content
+        content_hash     = Get-SHA256 $Content
+    }
+}
+```
+
+**28 check implementations** — one function per check, each returning `New-Check`:
+
+```powershell
+function Check-WindowsFirewall {
+    $result = Get-NetFirewallProfile | Select-Object Name, Enabled | Format-Table -AutoSize | Out-String
+    $all = Get-NetFirewallProfile
+    $status = if ($all | Where-Object { -not $_.Enabled }) { "Fail" } else { "Pass" }
+    New-Check "Windows Firewall Profiles" $status "Domain/Private/Public profiles enabled: $($all.Enabled -join ',')" $result
+}
+
+function Check-WindowsDefender {
+    $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $content = $mp | Select-Object AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge | Format-Table -AutoSize | Out-String
+    $status = if ($mp -and $mp.AntivirusEnabled -and $mp.RealTimeProtectionEnabled) { "Pass" } else { "Fail" }
+    New-Check "Windows Defender Antivirus" $status "AV: $($mp.AntivirusEnabled), RTP: $($mp.RealTimeProtectionEnabled)" $content
+}
+
+function Check-PasswordMinLength {
+    $content = net accounts | Out-String
+    $minLen = if ($content -match 'Minimum password length\s+(\d+)') { [int]$Matches[1] } else { 0 }
+    $status = if ($minLen -ge 12) { "Pass" } elseif ($minLen -ge 8) { "Warning" } else { "Fail" }
+    New-Check "Password Policy (Min Length)" $status "Minimum password length: $minLen" $content
+}
+
+function Check-GuestAccount {
+    $guest = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
+    $content = $guest | Select-Object Name, Enabled | Format-Table | Out-String
+    $status = if (-not $guest -or -not $guest.Enabled) { "Pass" } else { "Fail" }
+    New-Check "Guest Account Disabled" $status "Guest enabled: $($guest.Enabled)" $content
+}
+
+function Check-RDPNla {
+    try {
+        $val = (Get-ItemProperty "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name UserAuthentication -EA Stop).UserAuthentication
+        $status = if ($val -eq 1) { "Pass" } else { "Fail" }
+        $content = "UserAuthentication registry value: $val"
+    } catch { $status = "Warning"; $content = "Registry key not found" }
+    New-Check "RDP NLA Required" $status "NLA enabled: $($val -eq 1)" $content
+}
+
+function Check-BitLocker {
+    $vols = Get-BitLockerVolume -ErrorAction SilentlyContinue
+    $content = $vols | Select-Object MountPoint, VolumeStatus, ProtectionStatus | Format-Table | Out-String
+    $osVol = $vols | Where-Object { $_.MountPoint -eq "C:" }
+    $status = if ($osVol -and $osVol.ProtectionStatus -eq "On") { "Pass" } else { "Fail" }
+    New-Check "BitLocker Encryption" $status "C: Protection: $($osVol.ProtectionStatus)" $content
+}
+
+function Check-SecureBoot {
+    try {
+        $sb = Confirm-SecureBootUEFI -ErrorAction Stop
+        $status = if ($sb) { "Pass" } else { "Fail" }
+        $content = "SecureBootUEFI: $sb"
+    } catch { $status = "Warning"; $content = "SecureBoot not supported on this platform" }
+    New-Check "Secure Boot" $status $content $content
+}
+
+function Check-WindowsUpdate {
+    $svc = Get-Service -Name wuauserv -ErrorAction SilentlyContinue
+    $content = $svc | Select-Object Name, Status, StartType | Format-Table | Out-String
+    $status = if ($svc -and $svc.Status -eq "Running") { "Pass" } elseif ($svc) { "Warning" } else { "Fail" }
+    New-Check "Windows Update Service" $status "Status: $($svc.Status)" $content
+}
+
+function Check-UAC {
+    $val = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name EnableLUA -EA SilentlyContinue).EnableLUA
+    $status = if ($val -eq 1) { "Pass" } else { "Fail" }
+    New-Check "User Access Control" $status "EnableLUA: $val" "EnableLUA registry value: $val"
+}
+
+function Check-AuditPolicy {
+    $content = (auditpol /get /category:* 2>&1) | Out-String
+    $hasSuccess = $content -match 'Success'
+    $status = if ($hasSuccess) { "Pass" } else { "Warning" }
+    New-Check "Audit Logging Policy" $status "Audit policy configured: $hasSuccess" $content
+}
+
+function Check-NetworkPorts {
+    $risky = @(23, 21, 69, 135, 137, 138, 139, 445, 1433, 3306, 5432)
+    $listening = Get-NetTCPConnection -State Listen -EA SilentlyContinue | Where-Object { $_.LocalPort -in $risky }
+    $content = $listening | Select-Object LocalAddress, LocalPort, State | Format-Table | Out-String
+    $status = if (-not $listening) { "Pass" } else { "Fail" }
+    New-Check "Risky Network Ports" $status "Risky ports open: $($listening.LocalPort -join ', ')" $content
+}
+
+function Check-TLS {
+    $tls10 = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name Enabled -EA SilentlyContinue).Enabled
+    $tls12 = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name Enabled -EA SilentlyContinue).Enabled
+    $content = "TLS 1.0 Server Enabled: $tls10`nTLS 1.2 Server Enabled: $tls12"
+    $status = if ($tls10 -eq 0 -and $tls12 -ne 0) { "Pass" } elseif ($tls10 -eq 0) { "Warning" } else { "Fail" }
+    New-Check "TLS Security Config" $status "TLS1.0 disabled: $($tls10 -eq 0), TLS1.2 enabled: $($tls12 -ne 0)" $content
+}
+
+function Check-ProhibitedSoftware {
+    $prohibited = @("uTorrent","BitTorrent","LimeWire","Napster","Kazaa","eMule","Ares")
+    $installed = Get-ItemProperty @(
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    ) -EA SilentlyContinue | Where-Object { $prohibited -contains $_.DisplayName -or ($prohibited | Where-Object { $_.DisplayName -like "*$_*" }) }
+    $content = if ($installed) { $installed | Select-Object DisplayName | Format-Table | Out-String } else { "No prohibited software found." }
+    $status = if (-not $installed) { "Pass" } else { "Fail" }
+    New-Check "Prohibited Software" $status "Prohibited apps installed: $($installed.Count)" $content
+}
+
+function Check-MaxPasswordAge {
+    $content = net accounts | Out-String
+    $age = if ($content -match 'Maximum password age \(days\)\s+(\d+|Never)') { $Matches[1] } else { "Unknown" }
+    $status = if ($age -ne "Never" -and $age -ne "Unknown" -and [int]$age -le 90) { "Pass" } else { "Fail" }
+    New-Check "Maximum Password Age" $status "Maximum password age: $age days" $content
+}
+
+function Check-AccountLockout {
+    $content = net accounts | Out-String
+    $threshold = if ($content -match 'Lockout threshold\s+(\d+|Never)') { $Matches[1] } else { "Unknown" }
+    $status = if ($threshold -ne "Never" -and $threshold -ne "Unknown" -and [int]$threshold -le 10) { "Pass" } else { "Fail" }
+    New-Check "Account Lockout Policy" $status "Lockout threshold: $threshold" $content
+}
+
+function Check-PasswordComplexity {
+    $tmp = "$env:TEMP\secpol_$(Get-Random).cfg"
+    secedit /export /cfg $tmp /quiet 2>$null
+    $content = if (Test-Path $tmp) { Get-Content $tmp | Out-String; Remove-Item $tmp -EA SilentlyContinue } else { "secedit export failed" }
+    $complex = $content -match 'PasswordComplexity = 1'
+    $status = if ($complex) { "Pass" } else { "Fail" }
+    New-Check "Password Complexity" $status "PasswordComplexity enabled: $complex" $content
+}
+
+function Check-PasswordHistory {
+    $content = net accounts | Out-String
+    $hist = if ($content -match 'Length of password history maintained\s+(\d+|None)') { $Matches[1] } else { "Unknown" }
+    $status = if ($hist -ne "None" -and $hist -ne "Unknown" -and [int]$hist -ge 10) { "Pass" } else { "Warning" }
+    New-Check "Password History" $status "Password history: $hist" $content
+}
+
+function Check-MinPasswordAge {
+    $content = net accounts | Out-String
+    $age = if ($content -match 'Minimum password age \(days\)\s+(\d+)') { $Matches[1] } else { "0" }
+    $status = if ([int]$age -ge 1) { "Pass" } else { "Warning" }
+    New-Check "Minimum Password Age" $status "Minimum password age: $age days" $content
+}
+
+function Check-RemoteDesktopService {
+    $svc = Get-Service -Name TermService -EA SilentlyContinue
+    $rdpEnabled = (Get-ItemProperty "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name fDenyTSConnections -EA SilentlyContinue).fDenyTSConnections
+    $content = "Service: $($svc.Status), fDenyTSConnections: $rdpEnabled"
+    $status = if ($rdpEnabled -eq 1) { "Pass" } else { "Warning" }
+    New-Check "Remote Desktop Service" $status "RDP connections denied: $($rdpEnabled -eq 1)" $content
+}
+
+function Check-SMBv1 {
+    $feature = Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -EA SilentlyContinue
+    $content = "SMB1Protocol State: $($feature.State)"
+    $status = if ($feature.State -eq "Disabled") { "Pass" } else { "Fail" }
+    New-Check "SMBv1 Protocol Disabled" $status "SMBv1 disabled: $($feature.State -eq 'Disabled')" $content
+}
+
+function Check-LLMNR {
+    $llmnr = (Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name EnableMulticast -EA SilentlyContinue).EnableMulticast
+    $nb    = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces\*" -Name NetbiosOptions -EA SilentlyContinue | Select-Object -First 1).NetbiosOptions
+    $content = "LLMNR EnableMulticast: $llmnr, NetBIOS NetbiosOptions: $nb"
+    $status = if ($llmnr -eq 0) { "Pass" } else { "Warning" }
+    New-Check "LLMNR/NetBIOS Protection" $status "LLMNR disabled: $($llmnr -eq 0)" $content
+}
+
+function Check-PSScriptBlockLogging {
+    $val = (Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name EnableScriptBlockLogging -EA SilentlyContinue).EnableScriptBlockLogging
+    $content = "EnableScriptBlockLogging: $val"
+    $status = if ($val -eq 1) { "Pass" } else { "Fail" }
+    New-Check "PowerShell Script Block Logging" $status "Script Block Logging: $($val -eq 1)" $content
+}
+
+function Check-WinRM {
+    $svc = Get-Service -Name WinRM -EA SilentlyContinue
+    $content = $svc | Select-Object Name, Status, StartType | Format-Table | Out-String
+    $status = if ($svc -and $svc.Status -eq "Stopped") { "Pass" } elseif ($svc) { "Warning" } else { "Pass" }
+    New-Check "WinRM Service Status" $status "WinRM Status: $($svc.Status)" $content
+}
+
+function Check-CredentialGuard {
+    $dg = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -EA SilentlyContinue
+    $content = $dg | Format-List | Out-String
+    $enabled = $dg.SecurityServicesRunning -contains 1
+    $status = if ($enabled) { "Pass" } else { "Warning" }
+    New-Check "Credential Guard" $status "Credential Guard running: $enabled" $content
+}
+
+function Check-DeviceGuard {
+    $dg = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -EA SilentlyContinue
+    $content = $dg | Format-List | Out-String
+    $enabled = $dg.CodeIntegrityPolicyEnforcementStatus -ge 1
+    $status = if ($enabled) { "Pass" } else { "Warning" }
+    New-Check "Device Guard/WDAC" $status "WDAC enforced: $enabled" $content
+}
+
+function Check-ExploitProtection {
+    $mit = Get-ProcessMitigation -System -EA SilentlyContinue
+    $dep  = $mit.DEP.Enable -eq "ON"
+    $aslr = $mit.ASLR.ForceRelocateImages -eq "ON"
+    $content = $mit | Format-List | Out-String
+    $status = if ($dep -and $aslr) { "Pass" } elseif ($dep -or $aslr) { "Warning" } else { "Fail" }
+    New-Check "Exploit Protection (DEP/ASLR)" $status "DEP: $dep, ASLR: $aslr" $content
+}
+
+function Check-ASR {
+    $prefs = Get-MpPreference -EA SilentlyContinue
+    $rules = $prefs.AttackSurfaceReductionRules_Ids
+    $content = "ASR Rules: $($rules -join ', ')"
+    $status = if ($rules -and $rules.Count -gt 0) { "Pass" } else { "Warning" }
+    New-Check "Attack Surface Reduction" $status "ASR rules count: $($rules.Count)" $content
+}
+
+function Check-ControlledFolderAccess {
+    $prefs = Get-MpPreference -EA SilentlyContinue
+    $cfa = $prefs.EnableControlledFolderAccess
+    $content = "EnableControlledFolderAccess: $cfa"
+    $status = if ($cfa -eq 1) { "Pass" } elseif ($cfa -eq 2) { "Warning" } else { "Fail" }
+    New-Check "Controlled Folder Access" $status "CFA mode: $cfa" $content
+}
+```
+
+**Main execution block:**
+```powershell
+$Hostname = $env:COMPUTERNAME
+Write-Host "`n[OmniAgent] Collecting Windows compliance evidence for $Hostname..." -ForegroundColor Cyan
+
+$checks = @(
+    Check-WindowsFirewall
+    Check-WindowsDefender
+    Check-PasswordMinLength
+    Check-GuestAccount
+    Check-RDPNla
+    Check-BitLocker
+    Check-SecureBoot
+    Check-WindowsUpdate
+    Check-UAC
+    Check-AuditPolicy
+    Check-NetworkPorts
+    Check-TLS
+    Check-ProhibitedSoftware
+    Check-MaxPasswordAge
+    Check-AccountLockout
+    Check-PasswordComplexity
+    Check-PasswordHistory
+    Check-MinPasswordAge
+    Check-RemoteDesktopService
+    Check-SMBv1
+    Check-LLMNR
+    Check-PSScriptBlockLogging
+    Check-WinRM
+    Check-CredentialGuard
+    Check-DeviceGuard
+    Check-ExploitProtection
+    Check-ASR
+    Check-ControlledFolderAccess
+)
+
+# Print per-check results
+foreach ($c in $checks) {
+    $color = if ($c.status -eq "Pass") { "Green" } elseif ($c.status -eq "Warning") { "Yellow" } else { "Red" }
+    Write-Host "  [$($c.status.PadRight(7))] $($c.check)" -ForegroundColor $color
+}
+
+$pass    = ($checks | Where-Object { $_.status -eq "Pass" }).Count
+$fail    = ($checks | Where-Object { $_.status -eq "Fail" }).Count
+$warning = ($checks | Where-Object { $_.status -eq "Warning" }).Count
+Write-Host "`n  Results: $pass pass, $warning warning, $fail fail out of $($checks.Count) checks`n" -ForegroundColor Cyan
+
+if ($DryRun) {
+    Write-Host "[DryRun] Not submitting evidence. Use without -DryRun to submit." -ForegroundColor Yellow
+    exit 0
+}
+
+# Submit to backend
+$payload = @{
+    hostname = $Hostname
+    checks   = $checks
+} | ConvertTo-Json -Depth 5
+
+$headers = @{
+    "Content-Type"      = "application/json"
+    "X-Registration-Key" = $RegKey
+}
+
+try {
+    $response = Invoke-RestMethod `
+        -Uri     "$ApiUrl/api/powershell-evidence/submit" `
+        -Method  POST `
+        -Headers $headers `
+        -Body    $payload `
+        -TimeoutSec 30
+    Write-Host "[OK] Evidence submitted: $($response.accepted) checks accepted" -ForegroundColor Green
+} catch {
+    Write-Host "[ERROR] Submission failed: $_" -ForegroundColor Red
+    exit 1
+}
+```
+
+---
+
+### Task 3 — Add evidence script endpoint to `backend/agent_download_endpoints.py`
+
+Add route to serve `Collect-Evidence.ps1`:
+
+```python
+@router.get("/collect-evidence-script")
+async def serve_collect_evidence_script():
+    """Serve the Windows PowerShell evidence collector script (no auth required)."""
+    script_path = Path(__file__).parent / "static" / "Collect-Evidence.ps1"
+    if not script_path.is_file():
+        raise HTTPException(status_code=503, detail="Evidence script not found on server")
+    content = script_path.read_text(encoding="utf-8")
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="Collect-Evidence.ps1"'},
+    )
+```
+
+---
+
+### Task 4 — Rebuild `agent-rust/install-service.ps1`
+
+Keep existing service install logic. Add after binary copy + config write:
+
+```powershell
+# Download Collect-Evidence.ps1 from platform
+$EvidenceScript = Join-Path $InstallDir "Collect-Evidence.ps1"
+Write-Step "Downloading Collect-Evidence.ps1..."
+try {
+    Invoke-WebRequest -Uri "$ApiUrl/api/agent/collect-evidence-script" `
+        -OutFile $EvidenceScript -UseBasicParsing -ErrorAction Stop
+    Write-Ok "Evidence collector installed: $EvidenceScript"
+} catch {
+    Write-Warn "Could not download Collect-Evidence.ps1 — skipping evidence setup"
+}
+
+# Register Windows Scheduled Task
+$action    = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$EvidenceScript`""
+$trigger   = New-ScheduledTaskTrigger -Daily -At "06:00"
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+Register-ScheduledTask -TaskName "OmniAgentEvidenceCollection" `
+    -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
+Write-Ok "Scheduled task registered (daily 06:00, SYSTEM)."
+```
+
+---
+
+### Task 5 — Rebuild `agent/installer/install_agent.ps1`
+
+The Python-agent installer. Add evidence collection section after service registration:
+
+1. Copy `Collect-Evidence.ps1` from the distribution folder (or download from platform)
+2. Register scheduled task (same as above)
+3. Update config.yaml to include `evidence_collection: true`
+4. Optionally run first evidence collection
+
+---
+
+### Task 6 — Update `agent/installer/Configure-Agent.ps1`
+
+Add new config fields to the generated `config.yaml`:
+
+```powershell
+evidence_collection: true
+evidence_interval_hours: 24
+evidence_submit_url: $ApiUrl/api/powershell-evidence/submit
+```
+
+Also add `-EvidenceCollection` switch to allow opting out:
+```powershell
+[switch]$SkipEvidenceCollection
+```
+
+---
+
+### Task 7 — Create `agent/installer/OmniAgent-Setup.iss` (Inno Setup script)
+
+New file: a fully-functional Inno Setup 6 script that builds a Windows installer EXE
+(`OmniAgent-Setup.exe`). The compiled EXE is a separate build artifact — this file is
+the source that a CI/CD pipeline (or `iscc.exe`) compiles to produce the EXE.
+
+```pascal
+; OmniAgent-Setup.iss — Inno Setup 6 installer script
+; Build: iscc.exe OmniAgent-Setup.iss
+; Output: dist/OmniAgent-Setup.exe
+
+#define MyAppName      "Enterprise OmniAgent"
+#define MyAppVersion   "2.1.0"
+#define MyAppPublisher "Enterprise OmniAgent"
+#define MyAppURL       "https://github.com/enterprise-omni-agent-ai-platform"
+#define MyAppExeName   "omni-agent.exe"
+#define MyServiceName  "OmniAgentRust"
+#define MyInstallDir   "{autopf}\OmniAgent"
+
+[Setup]
+AppId={{B4E7C1D2-3F8A-4E9B-A012-5C6D7E8F90A1}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+DefaultDirName={#MyInstallDir}
+DefaultGroupName={#MyAppName}
+OutputDir=dist
+OutputBaseFilename=OmniAgent-Setup
+SetupIconFile=assets\omniagent.ico
+Compression=lzma2/ultra64
+SolidCompression=yes
+PrivilegesRequired=admin
+MinVersion=10.0.17763
+WizardStyle=modern
+WizardResizable=yes
+UninstallDisplayName={#MyAppName}
+UninstallDisplayIcon={app}\{#MyAppExeName}
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=Enterprise OmniAgent Installer
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[CustomMessages]
+english.ApiUrlLabel=OmniAgent Platform URL (e.g. https://omni.company.com:5000):
+english.RegKeyLabel=Tenant Registration Key (from Settings > Agents):
+english.SkipFirstRunLabel=Skip immediate evidence collection after install
+
+[Tasks]
+Name: "firstrun"; Description: "Run first evidence collection now"; GroupDescription: "Evidence Collection"; Flags: checked
+
+[Files]
+Source: "..\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Collect-Evidence.ps1";              DestDir: "{app}"; Flags: ignoreversion
+Source: "Configure-Agent.ps1";               DestDir: "{app}"; Flags: ignoreversion
+Source: "uninstall_agent.ps1";               DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{group}\Configure OmniAgent"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\Configure-Agent.ps1"""; WorkingDir: "{app}"
+Name: "{group}\Collect Evidence Now"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\Collect-Evidence.ps1"""; WorkingDir: "{app}"
+Name: "{group}\Uninstall OmniAgent"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\uninstall_agent.ps1"""; WorkingDir: "{app}"
+
+[Code]
+var
+  ApiUrlPage: TInputQueryWizardPage;
+  ApiUrlEdit, RegKeyEdit: TEdit;
+  SkipFirstRunCheck: TCheckBox;
+
+procedure InitializeWizard;
+begin
+  ApiUrlPage := CreateInputQueryPage(wpSelectDir,
+    'OmniAgent Configuration', 'Enter your platform connection details.',
+    'These settings will be saved to config.yaml in the installation directory.');
+  ApiUrlPage.Add('Platform URL (e.g. http://192.168.1.100:5000):', False);
+  ApiUrlPage.Add('Tenant Registration Key:', False);
+  ApiUrlPage.Values[0] := 'http://localhost:5000';
+end;
+
+function GetApiUrl(Param: String): String;
+begin
+  Result := ApiUrlPage.Values[0];
+end;
+
+function GetRegKey(Param: String): String;
+begin
+  Result := ApiUrlPage.Values[1];
+end;
+
+[Run]
+; Write config.yaml
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NonInteractive -ExecutionPolicy Bypass -Command ""Set-Content -Path '{app}\config.yaml' -Encoding UTF8 -Value ('api_base_url: {code:GetApiUrl}' + [Environment]::NewLine + 'registration_key: {code:GetRegKey}' + [Environment]::NewLine + 'interval_seconds: 60' + [Environment]::NewLine + 'evidence_collection: true')"""; \
+  Flags: runhidden; StatusMsg: "Writing configuration...";
+
+; Install Windows service
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NonInteractive -ExecutionPolicy Bypass -Command ""sc.exe create {#MyServiceName} binPath= '\"{app}\{#MyAppExeName}\"' start= delayed-auto obj= LocalSystem DisplayName= 'Enterprise OmniAgent (Rust)' | Out-Null; sc.exe description {#MyServiceName} 'Enterprise security compliance agent'; sc.exe failure {#MyServiceName} reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null; Start-Service {#MyServiceName}"""; \
+  Flags: runhidden; StatusMsg: "Installing Windows service...";
+
+; Register scheduled task for daily evidence collection
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NonInteractive -ExecutionPolicy Bypass -Command ""$a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NonInteractive -ExecutionPolicy Bypass -File \"{app}\Collect-Evidence.ps1\"'; $t = New-ScheduledTaskTrigger -Daily -At '06:00'; $p = New-ScheduledTaskPrincipal -UserId SYSTEM -RunLevel Highest; Register-ScheduledTask -TaskName OmniAgentEvidenceCollection -Action $a -Trigger $t -Principal $p -Force"""; \
+  Flags: runhidden; StatusMsg: "Creating evidence collection schedule...";
+
+; First evidence run (if task selected)
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\Collect-Evidence.ps1"""; \
+  Flags: runhidden; StatusMsg: "Running initial evidence collection..."; \
+  Tasks: firstrun;
+
+[UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NonInteractive -ExecutionPolicy Bypass -Command ""Stop-Service {#MyServiceName} -Force -EA SilentlyContinue; sc.exe delete {#MyServiceName}; Unregister-ScheduledTask -TaskName OmniAgentEvidenceCollection -Confirm:$false -EA SilentlyContinue"""; \
+  Flags: runhidden;
+```
+
+---
+
+### Task 8 — Copy `Collect-Evidence.ps1` to `agent/installer/`
+
+The evidence collector script must exist in both:
+- `backend/static/Collect-Evidence.ps1` (served from backend, for download-based installs)
+- `agent/installer/Collect-Evidence.ps1` (bundled in distribution package / EXE installer)
+
+Both files must be identical. The canonical source is `backend/static/Collect-Evidence.ps1`;
+`agent/installer/Collect-Evidence.ps1` is a copy.
+
+## Acceptance Criteria
+
+- [ ] `backend/static/win-install.ps1` — sets up service + downloads Collect-Evidence.ps1 + registers scheduled task
+- [ ] `backend/static/Collect-Evidence.ps1` — implements all 28 checks with correct names matching COMPLIANCE_CHECK_MAPPINGS
+- [ ] `GET /api/agent/collect-evidence-script` endpoint serves Collect-Evidence.ps1
+- [ ] `agent-rust/install-service.ps1` — updated with evidence collection setup
+- [ ] `agent/installer/install_agent.ps1` — updated with evidence collection setup
+- [ ] `agent/installer/Configure-Agent.ps1` — adds `evidence_collection: true` to config.yaml
+- [ ] `agent/installer/OmniAgent-Setup.iss` — valid Inno Setup 6 script producing EXE installer
+- [ ] `agent/installer/Collect-Evidence.ps1` — copy of backend/static version
+- [ ] All 28 check function names match `COMPLIANCE_CHECK_MAPPINGS` keys exactly

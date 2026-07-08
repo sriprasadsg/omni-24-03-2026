@@ -1,9 +1,17 @@
 import platform
 import logging
 import subprocess
-import winreg
 from typing import Dict, Any
 from .base import BaseCapability
+
+# winreg is a Windows-only stdlib module. Every call site below already
+# checks platform.system() == "Windows" before touching it, but the bare
+# import breaks importing this module (and the whole capabilities package)
+# on Linux/macOS.
+if platform.system() == "Windows":
+    import winreg
+else:
+    winreg = None
 
 logger = logging.getLogger(__name__)
 

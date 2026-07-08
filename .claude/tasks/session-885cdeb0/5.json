@@ -1,0 +1,9 @@
+{
+  "id": "5",
+  "subject": "Create 8-test TDD suite for IaC + Container scanner",
+  "description": "Tests: TF S3 public ACL, K8s privileged, clean TF, config roundtrip, container scan, list results, tenant isolation, vuln severity counts",
+  "activeForm": "Creating test suite",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

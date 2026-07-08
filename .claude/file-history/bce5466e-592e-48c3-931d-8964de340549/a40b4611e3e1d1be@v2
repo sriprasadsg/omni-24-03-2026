@@ -1,0 +1,182 @@
+name: Compliance Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'Cloud provider to scan (aws / azure / gcp / all)'
+        required: false
+        default: all
+      severity:
+        description: 'Minimum severity (critical / high / medium / all)'
+        required: false
+        default: high
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to GitHub Security tab
+
+jobs:
+  cloud-compliance-scan:
+    name: Cloud Compliance Checks
+    runs-on: ubuntu-latest
+    env:
+      OMNI_API_URL: ${{ secrets.OMNI_API_URL }}
+      OMNI_API_TOKEN: ${{ secrets.OMNI_API_TOKEN }}
+      PROVIDER: ${{ github.event.inputs.provider || 'all' }}
+      SEVERITY: ${{ github.event.inputs.severity || 'high' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Trigger compliance scan
+        id: scan
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys, requests
+
+          api_url = os.environ["OMNI_API_URL"].rstrip("/")
+          token   = os.environ["OMNI_API_TOKEN"]
+          provider = os.environ.get("PROVIDER", "all")
+          severity = os.environ.get("SEVERITY", "high")
+
+          headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+          # Trigger a scan run
+          r = requests.post(f"{api_url}/api/cloud-checks/run",
+                            json={"provider": None if provider == "all" else provider},
+                            headers=headers, timeout=120)
+          r.raise_for_status()
+          print(f"Scan triggered: {r.json()}")
+
+          # Fetch results
+          params = {"severity": severity} if severity != "all" else {}
+          r = requests.get(f"{api_url}/api/cloud-checks/results", params=params,
+                           headers=headers, timeout=30)
+          r.raise_for_status()
+          results = r.json()
+
+          failing = [c for c in results if c.get("status") == "fail"]
+          print(f"Total checks: {len(results)} | Failing: {len(failing)}")
+
+          # Write summary
+          with open("scan-results.json", "w") as f:
+              json.dump(results, f, indent=2)
+
+          # Set output for next step
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"failing_count={len(failing)}\n")
+              f.write(f"total_count={len(results)}\n")
+
+          # Exit non-zero if critical findings (does not fail the workflow — see continue-on-error)
+          critical = [c for c in failing if c.get("severity") == "critical"]
+          if critical:
+              print(f"::warning::Found {len(critical)} critical compliance finding(s)")
+          EOF
+        continue-on-error: true
+
+      - name: Convert results to SARIF
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import json, datetime
+
+          try:
+              with open("scan-results.json") as f:
+                  results = json.load(f)
+          except (FileNotFoundError, json.JSONDecodeError):
+              results = []
+
+          SEV_MAP = {"critical": "error", "high": "error", "medium": "warning", "low": "note"}
+
+          rules = []
+          rule_ids = set()
+          violations = []
+
+          for check in results:
+              if check.get("status") != "fail":
+                  continue
+              rid = check.get("id", "UNKNOWN")
+              if rid not in rule_ids:
+                  rule_ids.add(rid)
+                  rules.append({
+                      "id": rid,
+                      "name": check.get("name", rid),
+                      "shortDescription": {"text": check.get("description", rid)},
+                      "helpUri": "https://docs.omniagent.io/cloud-checks",
+                      "properties": {
+                          "tags": [check.get("provider", "cloud"), check.get("service", "")],
+                          "precision": "high",
+                          "problem.severity": SEV_MAP.get(check.get("severity", "medium"), "warning"),
+                      },
+                  })
+              violations.append({
+                  "ruleId": rid,
+                  "level": SEV_MAP.get(check.get("severity", "medium"), "warning"),
+                  "message": {"text": check.get("description", rid)},
+                  "locations": [{"physicalLocation": {"artifactLocation": {"uri": "cloud-infrastructure"}}}],
+              })
+
+          sarif = {
+              "version": "2.1.0",
+              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+              "runs": [{
+                  "tool": {"driver": {
+                      "name": "OmniAgent Compliance Scanner",
+                      "version": "1.0.0",
+                      "informationUri": "https://docs.omniagent.io",
+                      "rules": rules,
+                  }},
+                  "results": violations,
+              }],
+          }
+
+          with open("compliance-results.sarif", "w") as f:
+              json.dump(sarif, f, indent=2)
+          print(f"SARIF written: {len(violations)} violation(s), {len(rules)} rule(s)")
+          EOF
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: compliance-results.sarif
+          category: cloud-compliance
+        continue-on-error: true
+
+      - name: Upload raw results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-scan-${{ github.run_id }}
+          path: |
+            scan-results.json
+            compliance-results.sarif
+          retention-days: 30
+
+      - name: Post summary
+        if: always()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ## Compliance Scan Summary
+
+          | Metric | Value |
+          |--------|-------|
+          | Total checks | ${{ steps.scan.outputs.total_count || 'N/A' }} |
+          | Failing | ${{ steps.scan.outputs.failing_count || 'N/A' }} |
+          | Provider | ${{ env.PROVIDER }} |
+          | Severity filter | ${{ env.SEVERITY }} |
+
+          Results uploaded to GitHub Security tab (SARIF) and as workflow artifact.
+          EOF

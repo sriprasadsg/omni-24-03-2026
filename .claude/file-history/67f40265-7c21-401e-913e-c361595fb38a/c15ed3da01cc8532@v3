@@ -1,0 +1,16 @@
+JWT_SECRET_KEY=O3MFBToBGYiiY_aZafQtHgVQmaRouzzn9rS3azye2QynpvEo1D4mgzqRhdlwgFD9ZoUxWiwlkh6fmBmYaySerA
+SUPER_ADMIN_PASSWORD=Admin@2030
+# CORS_ORIGINS — leave unset to auto-detect local IPs; set explicitly for production
+# CORS_ORIGINS=https://app.yourdomain.com
+MONGODB_URL=mongodb://127.0.0.1:27017
+REDIS_URL=redis://127.0.0.1:6379/0
+MONGODB_DB_NAME=omni_platform
+VIRUSTOTAL_API_KEY=6ac54f06d433d0caf0abb881d1410d0189fa66b7dbd5f73700007b73116b3e2d
+LLM_PROVIDER=ollama
+LLM_MODEL=SecurityExpert:latest
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=SecurityExpert:latest
+
+# VITE_GEMINI_API_KEY must NOT be set — keys must not be bundled into the frontend.
+# Gemini calls are proxied through the backend. Set GEMINI_API_KEY for server-side use only.
+GEMINI_API_KEY=AIzaSyDVN6ccV7gcKa7NXPmumok-XPOKi6TjdeM

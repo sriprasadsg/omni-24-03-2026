@@ -4426,4 +4426,58 @@ export const fetchControlAuditLog = async (controlId: string): Promise<{ entries
     }
 };
 
+// ── Vendor Subprocessors (Phase 26-02) ───────────────────────────────────────────
+export interface Subprocessor {
+    id: string;
+    name: string;
+    location: string;
+    description: string;
+}
+
+export const fetchVendorSubprocessors = async (vendorId: string): Promise<Subprocessor[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/vendors/${vendorId}/subprocessors`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+};
+
+export const addVendorSubprocessor = async (vendorId: string, data: { name: string; location?: string; description?: string }): Promise<Subprocessor> => {
+    const res = await authFetch(`${API_BASE}/vendors/${vendorId}/subprocessors`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to add subprocessor');
+    return res.json();
+};
+
+export const removeVendorSubprocessor = async (vendorId: string, subprocessorId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/vendors/${vendorId}/subprocessors/${subprocessorId}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to remove subprocessor');
+};
+
+// ── DPA Management (Phase 26-01) ───────────────────────────────────────────────
+export interface DPA {
+    id: string;
+    business_associate: string;
+    vendor_id?: string;
+    status: 'draft' | 'active' | 'terminated' | 'expired';
+    signed_by_us: boolean;
+    signed_by_vendor: boolean;
+}
+
+export const fetchDPAs = async (): Promise<DPA[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/dpa`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+};
+
 

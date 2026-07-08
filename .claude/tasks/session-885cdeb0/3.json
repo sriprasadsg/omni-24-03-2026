@@ -1,0 +1,9 @@
+{
+  "id": "3",
+  "subject": "Create container_scanner_service.py with Trivy integration",
+  "description": "scan_image() with Trivy CLI subprocess or simulated fallback, list_results(), vuln severity counting",
+  "activeForm": "Creating container scanner service",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

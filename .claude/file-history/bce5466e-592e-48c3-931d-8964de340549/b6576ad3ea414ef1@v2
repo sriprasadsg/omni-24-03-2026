@@ -1,0 +1,132 @@
+---
+phase: 23
+plan: "03"
+wave: 3
+title: "Frontend: Windows Agent Install UI + Evidence Display Updates"
+depends_on: ["23-01", "23-02"]
+autonomous: true
+files_modified:
+  - components/AgentInstallation.tsx
+must_haves:
+  - Windows install tab shows the new 3-step install flow (download + install + collect evidence)
+  - Shows one-liner command to run Collect-Evidence.ps1 independently
+  - Lists all 28 compliance checks grouped by category with expected pass/fail outcomes
+  - Source badge "PowerShell" appears alongside "Rust Agent" for Windows evidence in evidence pages
+artifacts:
+  - components/AgentInstallation.tsx
+---
+
+# Plan 23-03: Frontend Windows Agent Install UI + Evidence Display
+
+## Goal
+
+Update the Windows tab in `AgentInstallation.tsx` to reflect the new installation
+capabilities — three steps (install service, setup evidence, collect now) — and show
+the full list of 28 compliance checks that will be collected. Evidence from PowerShell
+already appears in compliance pages via the existing `asset_compliance` system; this
+plan adds the install-tab improvements and the PowerShell source badge.
+
+## Context
+
+- `GET /api/agent/install-script` → `backend/static/win-install.ps1` (rebuilt in 23-02)
+- `GET /api/agent/collect-evidence-script` → `backend/static/Collect-Evidence.ps1` (new 23-02)
+- Evidence written by PS script shows in `AssetComplianceList.tsx` / `FrameworkDetail.tsx`
+  via `asset_compliance` collection — no changes needed to evidence display pages themselves
+- `AgentInstallation.tsx` has a `windows` platform tab; currently only shows service install
+
+## Tasks
+
+### Task 1 — Update Windows install tab in `AgentInstallation.tsx`
+
+Read the full file first. The Windows tab section currently shows a single command block
+for downloading and running `win-install.ps1`. Update it to show three code blocks:
+
+**Step 1 — Install Agent Service:**
+```powershell
+# Run as Administrator in PowerShell
+$url = "{backendUrl}/api/agent/install-script"
+$key = "{registrationKey}"
+Invoke-WebRequest -Uri $url -OutFile win-install.ps1 -UseBasicParsing
+.\win-install.ps1 -ApiUrl {backendUrl} -RegistrationKey $key
+```
+
+**Step 2 — Collect Evidence Now (optional immediate run):**
+```powershell
+# After installation, collect evidence immediately
+$evidenceScript = "C:\Program Files\OmniAgent\Collect-Evidence.ps1"
+powershell -ExecutionPolicy Bypass -File $evidenceScript
+```
+
+**Step 3 — Standalone Evidence Collection (if agent not installed):**
+```powershell
+# Run as Administrator — collect evidence without installing the service
+$url = "{backendUrl}/api/agent/collect-evidence-script"
+Invoke-WebRequest -Uri $url -OutFile Collect-Evidence.ps1 -UseBasicParsing
+.\Collect-Evidence.ps1 -ApiUrl {backendUrl} -RegKey {registrationKey}
+```
+
+Also add a collapsible panel **"28 Windows Compliance Checks"** listing all checks
+grouped by category:
+
+| Category | Checks |
+|---|---|
+| Firewall & Network | Windows Firewall Profiles, Risky Network Ports, TLS Security Config, SMBv1 Protocol Disabled, LLMNR/NetBIOS Protection |
+| Antivirus & Endpoint | Windows Defender Antivirus, Exploit Protection (DEP/ASLR), Attack Surface Reduction, Controlled Folder Access |
+| Authentication | Password Policy (Min Length), Guest Account Disabled, Maximum Password Age, Account Lockout Policy, Password Complexity, Password History, Minimum Password Age, User Access Control |
+| Remote Access | RDP NLA Required, Remote Desktop Service, WinRM Service Status |
+| Encryption & Boot | BitLocker Encryption, Secure Boot |
+| Patching & Updates | Windows Update Service |
+| Audit & Logging | Audit Logging Policy, PowerShell Script Block Logging |
+| Advanced Security | Credential Guard, Device Guard/WDAC |
+| Compliance Ops | Prohibited Software |
+
+Render as an expandable `<details>` block or a toggle controlled by `useState`.
+
+### Task 2 — PowerShell source badge
+
+In `AssetComplianceList.tsx` or wherever the `agent_type` / `systemGenerated` badge is
+rendered, add a "PowerShell" badge variant:
+
+- `agent_type === "powershell"` → purple badge `PS`
+- `agent_type === "rust"` → existing green badge
+- `systemGenerated && !agent_type` → existing "Auto" badge
+
+Check where `agent_type` is currently used in the evidence badge rendering and add the
+PowerShell case there. If the badge is in a shared component (e.g. a source badge helper),
+add to that. Only edit files that already render `agent_type`.
+
+### Task 3 — Download EXE/MSI link in Windows tab
+
+Add a prominent download button for the Inno Setup EXE installer:
+
+```tsx
+<a
+  href={`${backendUrl}/api/agent/download/OmniAgent-Setup.exe`}
+  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+  download
+>
+  <DownloadIcon size={16} />
+  Download OmniAgent-Setup.exe (Windows Installer)
+</a>
+```
+
+Note: The actual EXE is served from `/api/agent-updates/download/OmniAgent-Setup.exe` —
+this endpoint already exists in `agent_download_endpoints.py` via the generic download
+handler. If the EXE file isn't present on the server yet (it's a build artifact),
+the link gracefully 404s with a message in the description: "Build from source using
+`iscc.exe agent/installer/OmniAgent-Setup.iss`".
+
+## File Constraints
+
+- `components/AgentInstallation.tsx` — read first, keep under 500 lines
+- If the file is already close to 500 lines, extract the Windows tab content into
+  a `WindowsInstallTab.tsx` sub-component and import it
+
+## Acceptance Criteria
+
+- [ ] Windows tab shows 3 distinct code blocks (install service, collect now, standalone)
+- [ ] All 28 check names displayed grouped by category in a toggleable panel
+- [ ] Download EXE installer button rendered in Windows tab header
+- [ ] `agent_type === "powershell"` renders purple "PS" badge in evidence source column
+- [ ] Existing Linux / Docker / Kubernetes tabs are unchanged
+- [ ] No TypeScript compilation errors

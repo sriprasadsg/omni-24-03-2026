@@ -1,0 +1,105 @@
+# Milestone Archive: v1.0 — Enterprise OmniAgent Security & Compliance Portal
+
+**Archived:** 2026-06-20
+**Status:** Complete
+**Timeline:** 2026-06-17 → 2026-06-18 (2 days)
+
+---
+
+## Milestone Summary
+
+Five phases, 11 plans, ~61 commits. Completed the brownfield security compliance portal with four new capabilities: Rust agent evidence parity, manual evidence uploads, audit-ready export, and remediation workflow — verified end-to-end with integration tests across all tenant isolation boundaries.
+
+---
+
+## Phases
+
+### Phase 1: Rust Agent Evidence Parity — Complete (2026-06-17)
+
+**Goal:** Rust agent heartbeat compliance data flows through `compliance_evidence_processor` identically to the Python agent, producing evidence records in the same DB schema.
+
+**Plans:**
+- `01-01`: Extended `process_automated_evidence` with optional `agent_type` param; fixed heartbeat import from `compliance_evidence_processor` (not transitive re-export). 2 files, 2 commits.
+- `01-02`: Pytest unit test with mocked DB validates RUST-01/02/03 — direct import path, `agent_type=rust` in all `$set` calls, all 9 representative control IDs present. 1 file, 1 commit.
+
+**Requirements satisfied:** RUST-01, RUST-02, RUST-03
+
+---
+
+### Phase 2: Manual Evidence Uploads — Complete (2026-06-17)
+
+**Goal:** Authenticated users can attach files to compliance controls, view them alongside automated evidence, and delete them.
+
+**Plans:**
+- `02-01`: Backend evidence upload hardening — 25 MB cap, magic-byte MIME validation, full metadata (uploaded_by, description, tenantId, source, systemGenerated), asset-scoped DELETE with owner/admin RBAC + disk cleanup. 3 files, 3 commits.
+- `02-02`: Frontend evidence UI — fixed multipart Content-Type boundary bug, added description input, Manual/Automated source badges, confirm-guarded delete button, `deleteComplianceEvidence` API wrapper wired through FrameworkDetail. 3 files, 2 commits.
+
+**Requirements satisfied:** EVID-01, EVID-02, EVID-03, EVID-04, EVID-05
+
+---
+
+### Phase 3: Audit-Ready Export — Complete (2026-06-18)
+
+**Goal:** Per-tenant, per-framework PDF and Excel compliance reports complete and auditor-ready.
+
+**Plans:**
+- `03-01`: Data layer — `_flatten_evidence` with `[Auto]`/`[Manual]` labelling and `auto_count`/`manual_count`, `STATUS_LEGEND` constant mapping internal vocabulary to Pass/Fail/Partial/No-Data, legacy download tenant-ownership check, `tenant_id` threaded through service → data chain. 4 files, 3 commits.
+- `03-02`: Renderers — tenant-name and export-date headers added to PDF subtitle and XLSX overview; `Auto Evidence` / `Manual Evidence` columns rendered in both; `_generate_pdf` / `_generate_excel` / `_generate_all_excel` accept `tenant_id`. 4 files, 2 commits.
+
+**Requirements satisfied:** AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04
+
+---
+
+### Phase 4: Remediation Workflow — Complete (2026-06-18)
+
+**Goal:** Failed controls get assignable tasks; resolution triggers re-scan and evidence update automatically.
+
+**Plans:**
+- `04-00`: Foundation — failing REM-01..04 test scaffold; Rust poll.rs `"Run Compliance Scan"` match-arm fix (string mismatch with Python agent); `broadcast_remediation_update` broadcaster in `websocket_manager`. 3 files, 3 commits.
+- `04-01`: Backend — `compliance_remediation_service.py` (CRUD + dispatch_rescan two-hop agent lookup); `/api/compliance-remediation` router (POST/GET/PATCH tasks, POST suggest); `IncidentAnalyzer.suggest_remediation` via guardrail-wrapped LLM; REM-04 broadcast hook in `report_instruction_result`; `RemediationTask` TypeScript interface + 4 apiService helpers. 7 files, 3 commits.
+- `04-02`: Frontend — `RemediationTaskModal` (create/edit form with AI suggest button); `RemediationDashboard` (filterable list, live `remediation_update` WebSocket patching, resolve action); Sidebar nav item; App.tsx lazy route. 4 files, 3 commits.
+
+**Requirements satisfied:** REM-01, REM-02, REM-03, REM-04
+
+---
+
+### Phase 5: Integration and E2E Verification — Complete (2026-06-18)
+
+**Goal:** All four capabilities compose end-to-end within a single tenant context; tenant isolation holds across all boundaries.
+
+**Plans:**
+- `05-00`: Gap fixes — GAP-1: `_tenant_filter` uses `getattr()` (TokenData is a dataclass, not a dict); GAP-2: `list_compliance_reports` queries `db.compliance_reports` instead of `os.listdir`; GAP-3: `process_automated_evidence` accepts `fallback_tenant_id` for first-heartbeat orphaning. RED then GREEN TDD cycle. 5 files, 4 commits.
+- `05-01`: Integration tests — golden-path (heartbeat→evidence→flatten→remediation in single tenant); 5 cross-tenant isolation tests (report download 403, owner allowed, list scoped, task filter, evidence upload 403); 2 regression tests (3-arg backward compat, report_instruction_result call path). Final suite: 56 passed, 1 skipped. 3 files, 2 commits.
+
+**Requirements satisfied:** (cross-cutting verification — all 16 v1 requirements re-verified end-to-end)
+
+---
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| Phases | 5 |
+| Plans | 11 |
+| Commits | ~61 |
+| Timeline | 2026-06-17 → 2026-06-18 (2 days) |
+| v1 Requirements | 16/16 |
+| Test files created | 7 |
+| Backend files modified | 20+ |
+| Frontend files modified | 10+ |
+| Final test suite | 378 passed, 0 failed, 1 skipped |
+
+---
+
+## Key Accomplishments
+
+1. **Rust-Python evidence parity** — Rust agent heartbeats now produce identically-structured evidence records in MongoDB, with `agent_type: rust` preserved at document and evidence-array level; all 12 Windows compliance checks mapped to correct framework control IDs
+2. **Magic-byte MIME validation** — File uploads validated with stdlib byte-signature checking, not just Content-Type header; path-traversal guard with `str(resolved).startswith(str(_safe_dir) + os.sep)` prevents sibling-path bypass
+3. **Auditor-ready PDF/Excel** — Both renderers include tenant name, export date, and Auto/Manual evidence columns; STATUS_LEGEND maps internal vocabulary to auditor standard Pass/Fail/Partial/No-Data
+4. **Remediation loop closed** — Failed control → task creation → AI-suggested steps → mark Resolved → re-scan dispatched to agent → evidence arrives → control status updated in real time via WebSocket `remediation_update` events
+5. **Tenant isolation hardened** — Three runtime bugs discovered and fixed in Phase 5: TokenData.get() crash, os.listdir info-leak, first-heartbeat tenant orphaning; 5 cross-tenant isolation tests now guard these boundaries
+6. **378-test clean baseline** — All 92 cross-test isolation failures from `importlib.reload()` contamination and Python 3.12 asyncio event-loop lifecycle fixed; clean baseline established for v1.1+
+
+---
+
+*Archived: 2026-06-20 via /gsd-complete-milestone*

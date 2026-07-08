@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "plugins": {
+    "caveman@caveman": [
+      {
+        "scope": "user",
+        "installPath": "/home/user/.claude/plugins/cache/caveman/caveman/25d22f864ad6",
+        "version": "25d22f864ad6",
+        "installedAt": "2026-06-26T09:09:40.448Z",
+        "lastUpdated": "2026-06-26T09:09:40.448Z",
+        "gitCommitSha": "25d22f864ad68cc447a4cb93aefde918aa4aec9f"
+      }
+    ],
+    "togetherai-skills@claude-plugins-official": [
+      {
+        "scope": "project",
+        "projectPath": "/home/user/enterprise-omni-agent-ai-platform",
+        "installPath": "/home/user/.claude/plugins/cache/claude-plugins-official/togetherai-skills/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-06-26T09:12:58.485Z",
+        "lastUpdated": "2026-06-26T09:17:31.841Z"
+      }
+    ]
+  }
+}

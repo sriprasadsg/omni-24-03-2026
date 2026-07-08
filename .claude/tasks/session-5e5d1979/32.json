@@ -1,0 +1,8 @@
+{
+  "id": "32",
+  "subject": "Create backend/iac_scanner_service.py",
+  "description": "IaC scanner service: 27 check definitions, regex-based scan engine",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

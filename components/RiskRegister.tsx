@@ -177,8 +177,10 @@ export default function RiskRegister() {
                         <thead className="bg-gray-50 dark:bg-[#0b0c0e] text-gray-500 dark:text-gray-400 uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-3 font-medium">Risk Title</th>
+                                        <th className="px-6 py-3 font-medium">Inherent 
+                                        <th className="px-6 py-3 font-medium">Residual 
                                 <th className="px-6 py-3 font-medium">Category</th>
-                                <th className="px-6 py-3 font-medium">Score</th>
+                                <th className="px-6 py-3 font-medium">
                                 <th className="px-6 py-3 font-medium">Status</th>
                                 <th className="px-6 py-3 font-medium">Owner</th>
                                 <th className="px-6 py-3 font-medium text-right">Actions</th>

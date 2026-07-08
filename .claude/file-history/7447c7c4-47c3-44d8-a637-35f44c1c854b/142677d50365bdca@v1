@@ -1,0 +1,203 @@
+---
+phase: 04-remediation-workflow
+plan: 01
+type: execute
+wave: 1
+depends_on: ["04-00"]
+files_modified:
+  - backend/compliance_remediation_service.py
+  - backend/compliance_remediation_endpoints.py
+  - backend/ai_service.py
+  - backend/agent_tasks_endpoints.py
+  - backend/router_registry.py
+  - types.ts
+  - services/apiService.ts
+autonomous: true
+requirements: [REM-01, REM-03, REM-04]
+
+must_haves:
+  truths:
+    - "POST creates a compliance remediation task in compliance_remediation_tasks with title, assignee, due_date, description, status=open, tenant-scoped"
+    - "GET lists tasks for the caller's tenant, filterable by status open/in_progress/resolved"
+    - "PATCH status=resolved dispatches a 'Run Compliance Scan' instruction to the task's agent via agent_instructions + send_to_agent"
+    - "When re-scan evidence arrives, the backend broadcasts a remediation_update event to the tenant"
+    - "Creating a task can request AI-suggested remediation steps via ai_service"
+  artifacts:
+    - path: "backend/compliance_remediation_service.py"
+      provides: "DB logic for compliance_remediation_tasks + dispatch_rescan"
+      exports: ["create_task", "list_tasks", "get_task", "update_task", "dispatch_rescan"]
+    - path: "backend/compliance_remediation_endpoints.py"
+      provides: "CRUD + dispatch + AI-suggest HTTP routes, tenant-scoped"
+      contains: "APIRouter"
+      max_lines: 500
+    - path: "types.ts"
+      provides: "RemediationTask interface + 'remediationWorkflow' AppView"
+      contains: "RemediationTask"
+    - path: "services/apiService.ts"
+      provides: "createRemediationTask / getRemediationTasks / updateRemediationTask / suggestRemediation API helpers"
+      contains: "createRemediationTask"
+  key_links:
+    - from: "backend/compliance_remediation_endpoints.py"
+      to: "compliance_remediation_service"
+      via: "import compliance_remediation_service as svc; await svc.create_task(...)"
+      pattern: "svc\\.(create_task|list_tasks|update_task|dispatch_rescan)"
+    - from: "backend/compliance_remediation_service.update_task"
+      to: "db.agent_instructions.insert_one"
+      via: "dispatch_rescan on status->resolved"
+      pattern: "agent_instructions.insert_one"
+    - from: "backend/agent_tasks_endpoints.report_instruction_result"
+      to: "broadcast_remediation_update"
+      via: "post-evidence broadcast for open tasks matching control_id"
+      pattern: "broadcast_remediation_update"
+    - from: "backend/router_registry.py"
+      to: "compliance_remediation_endpoints.router"
+      via: "_load in required register_all_routers body"
+      pattern: "compliance_remediation_endpoints"
+---
+
+<objective>
+Build the backend for the compliance remediation workflow: a service module for tenant-scoped CRUD over the new `compliance_remediation_tasks` collection, an HTTP router exposing create/list/patch/AI-suggest, the AI suggestion method on ai_service, the REM-04 broadcast hook in report_instruction_result, router registration, and the frontend types + apiService helpers that Wave 2 consumes.
+
+Purpose: Deliver REM-01 (task creation), REM-03 (re-scan dispatch on Resolve), and REM-04's server half (broadcast on post-rescan evidence). Splitting the service out of the endpoints file keeps both under the 500-line CLAUDE.md limit. Defining the RemediationTask type and apiService helpers here gives Wave 2's UI the contracts it needs.
+
+Output: backend/compliance_remediation_service.py, backend/compliance_remediation_endpoints.py, suggest_remediation() on ai_service.IncidentAnalyzer, a broadcast call in agent_tasks_endpoints.report_instruction_result, one _load line in router_registry.py, RemediationTask + 'remediationWorkflow' in types.ts, 4 helpers in services/apiService.ts.
+</objective>
+
+<execution_context>
+@$HOME/.claude/gsd-core/workflows/execute-plan.md
+@$HOME/.claude/gsd-core/templates/summary.md
+</execution_context>
+
+<context>
+@.planning/PROJECT.md
+@.planning/ROADMAP.md
+@.planning/STATE.md
+@.planning/phases/04-remediation-workflow/04-RESEARCH.md
+@.planning/phases/04-remediation-workflow/04-PATTERNS.md
+@.planning/phases/04-remediation-workflow/AI-SPEC.md
+@backend/mdr_endpoints.py
+@backend/agent_tasks_endpoints.py
+@backend/compliance_scans_endpoints.py
+@backend/ai_service.py
+@backend/router_registry.py
+@services/apiService.ts
+</context>
+
+<tasks>
+
+<task type="auto" tdd="true">
+  <name>Task 1: Service module + AI suggestion method (REM-01, REM-03)</name>
+  <files>backend/compliance_remediation_service.py, backend/ai_service.py</files>
+  <behavior>
+    - create_task(db, data, tenant_filter, created_by) inserts a doc with uuid id, status='open', tenantId from tenant_filter, timestamps; returns it without _id (test_rem01_create_task_persists).
+    - list_tasks(db, tenant_filter, status=None, control_id=None) builds a Mongo query merging tenant_filter plus optional status/control_id; returns a capped list (test_rem02_list_tasks_filters_by_status).
+    - update_task(db, task_id, updates, tenant_filter, created_by): applies updates; when updates['status']=='resolved', calls dispatch_rescan; returns updated doc or None.
+    - dispatch_rescan(db, task, created_by): resolves agent_id (task.agent_id else assets.find_one.agentId); if none returns {'dispatched': False, 'reason': ...}; else inserts 'Run Compliance Scan' into agent_instructions and best-effort send_to_agent (test_rem03_resolve_dispatches_rescan).
+  </behavior>
+  <action>
+Create backend/compliance_remediation_service.py with pure async DB logic over `db.compliance_remediation_tasks` (NEW collection — do NOT use `remediation_tasks`, which collides with continuous_compliance_service per 04-RESEARCH.md Anti-Pattern). Follow the Code Examples in 04-RESEARCH.md (create_task lines 460-487; dispatch lines 322-352):
+
+- `create_task(db, data, tenant_filter, created_by)` (REM-01): doc with `id=str(uuid.uuid4())`, fields title/control_id/asset_id/framework_id/status='open'/priority(default 'medium')/assignee/due_date/description/resolution_notes=None/agent_id/ai_suggestion=None/tenantId=tenant_filter.get('tenantId','')/created_by/created_at/updated_at (ISO via datetime.now(timezone.utc).isoformat()). If agent_id absent but asset_id present, resolve via `db.assets.find_one({'id': asset_id})` then `.get('agentId')` (Open Question 3, RESOLVED). insert_one, pop `_id`, return task.
+- `list_tasks(db, tenant_filter, status=None, control_id=None)` (REM-02): `query = {**tenant_filter}`; add status/control_id keys if provided; `return await db.compliance_remediation_tasks.find(query).to_list(length=500)` with `_id` stripped (DoS cap per Security Domain).
+- `get_task(db, task_id, tenant_filter)`: find_one({'id': task_id, **tenant_filter}), strip `_id`.
+- `update_task(db, task_id, updates, tenant_filter, created_by)` (REM-03): set updates['updated_at']; update_one({'id': task_id, **tenant_filter}, {'$set': updates}); if matched_count==0 return None; re-fetch; if updates.get('status')=='resolved' call dispatch_rescan and attach result under task['dispatch']; return task.
+- `dispatch_rescan(db, task, created_by)` (REM-03): resolve agent_id from task.get('agent_id') else two-hop `db.assets.find_one({'id': task.get('asset_id')})` then agentId (Pitfall 2: if none return `{'dispatched': False, 'reason': 'No agent enrolled for this asset'}` — do NOT raise). Insert into `db.agent_instructions` the shape from compliance_scans_endpoints.py lines 68-76: `{agent_id, instruction: 'Run Compliance Scan', status: 'pending', created_at, created_by, priority: 'high', control_id: task['control_id'], remediation_task_id: task['id']}`. Then best-effort `from websocket_manager import send_to_agent; sent = await send_to_agent(agent_id, {'action':'compliance_scan','instruction':'Run Compliance Scan','control_id': task['control_id'],'task_id': task['id']})` in try/except (non-fatal if offline). Return `{'dispatched': True, 'agent_id': agent_id, 'pushed': sent}`.
+
+Use plain dicts in the service (Pydantic validation lives in the endpoint layer); never `.dict()`. Keep under 500 lines.
+
+Extend `ai_service.IncidentAnalyzer` (backend/ai_service.py) with `async def suggest_remediation(self, control_id, control_description, failure_reason, asset_context) -> str` per AI-SPEC.md: build the exact prompt (control, failure reason, asset type/OS; ask for 3-5 numbered steps ending in a verification step) inline, then `return await self.generate_text(prompt, source='remediation_suggestion')` (signature confirmed at ai_service.py line 205 — guardrails already applied). Keep it ~20 lines, no helper methods — ai_service.py is 493 lines; do not push it materially over 500.
+  </action>
+  <verify>
+    <automated>cd backend && python -m pytest tests/test_remediation_workflow.py::test_rem01_create_task_persists tests/test_remediation_workflow.py::test_rem02_list_tasks_filters_by_status tests/test_remediation_workflow.py::test_rem03_resolve_dispatches_rescan -q 2>&1 | grep -Ev '^#' | grep -q 'passed' && python -c "import ast; t=ast.parse(open('compliance_remediation_service.py').read()); names={n.name for n in ast.walk(t) if isinstance(n,(ast.AsyncFunctionDef,ast.FunctionDef))}; assert {'create_task','list_tasks','get_task','update_task','dispatch_rescan'} <= names, names; print('OK')"</automated>
+  </verify>
+  <done>compliance_remediation_service exports create_task/list_tasks/get_task/update_task/dispatch_rescan; REM-01/02/03 tests pass; ai_service.IncidentAnalyzer.suggest_remediation routes through generate_text(source='remediation_suggestion'); both files under 500 lines.</done>
+</task>
+
+<task type="auto">
+  <name>Task 2: HTTP router + registration + REM-04 broadcast hook (REM-01, REM-03, REM-04)</name>
+  <files>backend/compliance_remediation_endpoints.py, backend/router_registry.py, backend/agent_tasks_endpoints.py</files>
+  <action>
+Create backend/compliance_remediation_endpoints.py following the mdr_endpoints.py analog (04-PATTERNS.md lines 25-151). Prefix `/api/compliance-remediation` (NOT `/api/remediation` — owned by backend/remediation_endpoints.py for the vulnerability domain; reuse would collide on `GET /` and `/{id}`). Imports: `from authentication_service import get_current_user`, `import compliance_remediation_service as svc`, `from database import get_database`, FastAPI APIRouter/Depends/HTTPException/Query, Pydantic BaseModel/Field, typing.Optional.
+
+Copy `_SUPER_ADMIN_ROLES` and `_tenant_filter(user)` verbatim from 04-PATTERNS.md lines 52-58. Pydantic models:
+- `TaskCreate`: title `Field(..., min_length=1, max_length=300)`, control_id str, asset_id str = "", framework_id str = "", assignee str = "", due_date Optional[str]=None, description str = "" (max_length=4000), priority str = "medium" (V5 input validation).
+- `TaskUpdate`: all Optional — status, assignee, due_date, resolution_notes, description.
+
+Routes (all `Depends(get_current_user)`, all apply `tf = _tenant_filter(current_user)`):
+- `POST /tasks` status_code=201 (REM-01): `await svc.create_task(get_database(), body.model_dump(), tenant_filter=tf, created_by=current_user.get('email') or current_user.get('username') or 'unknown')`.
+- `GET /tasks` (REM-02): `status: Optional[str]=Query(None)`, `control_id: Optional[str]=Query(None)` then `await svc.list_tasks(get_database(), tf, status=status, control_id=control_id)`.
+- `PATCH /tasks/{task_id}` (REM-03): `result = await svc.update_task(get_database(), task_id, body.model_dump(exclude_none=True), tf, created_by=...)`; `if result is None: raise HTTPException(404, 'Task not found')`; if the resolve dispatched (`result.get('dispatch',{}).get('dispatched')`), call `await broadcast_remediation_update(tf.get('tenantId') or result.get('tenantId',''), {'task_id': task_id, 'status': result.get('status'), 'control_id': result.get('control_id')})` in try/except (immediate optimistic UI update). Return result.
+- `POST /tasks/{task_id}/suggest` (REM-01 AI assist): get_task, 404 if missing; load asset via `db.assets.find_one({'id': task['asset_id']})` for asset_type/os; call `ai_service.IncidentAnalyzer().suggest_remediation(...)` (use the module-level analyzer singleton the codebase already exposes if present, else instantiate IncidentAnalyzer()); persist as `ai_suggestion` via `db.compliance_remediation_tasks.update_one`; return `{'suggestion': text}`.
+
+Use `body.model_dump(exclude_none=True)` on updates (Pydantic v2 — never `.dict()`). Keep under 500 lines.
+
+Register in backend/router_registry.py: add `_load(app, "compliance_remediation_endpoints", "router")` inside the REQUIRED `register_all_routers` body, in the "Compliance & Governance" section (after line 114, the vendor_endpoints line) — NOT in `_OPTIONAL` (Pitfall 5: optional registration silently drops Phase 4 endpoints on import error).
+
+Wire REM-04 in backend/agent_tasks_endpoints.py `report_instruction_result` (lines 55-89): after the existing `process_automated_evidence(hostname, result, db)` call (line 85), add a guarded block — resolve `tenant_id = _tenant.get('tenant_id') or _tenant.get('tenantId') or _tenant.get('id','')` (A1 RESOLVED: _tenant is available here), then query `db.compliance_remediation_tasks` for open tasks whose `control_id` matches each control in `result.get('compliance_checks', [])` and `tenantId==tenant_id`, and `from websocket_manager import broadcast_remediation_update; await broadcast_remediation_update(tenant_id, {'task_id': t['id'], 'control_id': t['control_id'], 'status': 'evidence_updated'})`. Wrap the whole block in try/except so a broadcast failure never breaks result posting (Pitfall 3). Do not change the existing `{'status': 'ok'}` response.
+  </action>
+  <verify>
+    <automated>cd backend && python -c "import compliance_remediation_endpoints as m; assert m.router.prefix=='/api/compliance-remediation', m.router.prefix; paths={r.path for r in m.router.routes}; assert any(p.endswith('/tasks') for p in paths) and any('suggest' in p for p in paths), paths; print('routes OK')" && grep -q 'compliance_remediation_endpoints' router_registry.py && python -c "s=open('agent_tasks_endpoints.py').read(); assert 'broadcast_remediation_update' in s; print('REM-04 hook OK')"</automated>
+  </verify>
+  <done>compliance_remediation_endpoints router mounts at /api/compliance-remediation with POST/GET /tasks, PATCH /tasks/{id}, POST /tasks/{id}/suggest; registered in the required router_registry section; report_instruction_result broadcasts remediation_update for matching open tasks after evidence processing; all files under 500 lines.</done>
+</task>
+
+<task type="auto">
+  <name>Task 3: Frontend RemediationTask type + apiService helpers (REM-01, REM-02, REM-03)</name>
+  <files>types.ts, services/apiService.ts</files>
+  <action>
+In types.ts: add the `RemediationTask` interface from 04-PATTERNS.md lines 368-384 (id, title, control_id, framework_id, asset_id?, status union 'open'|'in_progress'|'resolved'|'dismissed', priority union 'low'|'medium'|'high'|'critical', assignee?, due_date?, description?, resolution_notes?, ai_suggestion?, agent_id?, created_by, created_at, updated_at, tenantId). Use `interface` (codebase convention for object shapes). `tenantId` is camelCase in TS even though backend stores snake-case internally (04-PATTERNS.md gotcha). Add `'remediationWorkflow'` to the `AppView` union (starts types.ts line 5; insert near `'complianceEvidence'` at line 91).
+
+In services/apiService.ts: add four exported helpers following the tasks CRUD block analog (lines 3820-3852) and 04-PATTERNS.md lines 186-235. Use the existing `API_BASE` const and `authFetch` (auto-sets JSON Content-Type — never set it manually). URL prefix MUST match the backend router exactly (`/compliance-remediation/tasks`):
+- `createRemediationTask(body: { title; control_id; asset_id?; framework_id?; assignee?; due_date?; description?; priority? })` -> POST `${API_BASE}/compliance-remediation/tasks`, throw on !res.ok, return json.
+- `getRemediationTasks(status?: string)` -> GET `${API_BASE}/compliance-remediation/tasks` with optional `?status=` query; try/catch returning `[]` on failure (read-call convention).
+- `updateRemediationTask(id: string, updates: { status?; assignee?; due_date?; resolution_notes?; description? })` -> PATCH `${API_BASE}/compliance-remediation/tasks/${id}`, throw on !res.ok, return json.
+- `suggestRemediation(taskId: string)` -> POST `${API_BASE}/compliance-remediation/tasks/${taskId}/suggest` with empty JSON body, throw on !res.ok, return json (`{ suggestion }`).
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform && grep -q 'interface RemediationTask' types.ts && grep -q "'remediationWorkflow'" types.ts && grep -q 'createRemediationTask' services/apiService.ts && grep -q 'compliance-remediation/tasks' services/apiService.ts && echo "frontend contracts present"</automated>
+  </verify>
+  <done>types.ts exports RemediationTask and includes 'remediationWorkflow' in AppView; services/apiService.ts exports createRemediationTask/getRemediationTasks/updateRemediationTask/suggestRemediation all targeting /compliance-remediation/tasks; matches the backend router prefix.</done>
+</task>
+
+</tasks>
+
+<threat_model>
+## Trust Boundaries
+
+| Boundary | Description |
+|----------|-------------|
+| browser client to API | task create/list/patch carry user-controlled fields; must be validated and tenant-scoped |
+| API to MongoDB | every read/write must apply _tenant_filter; cross-tenant access is the primary risk |
+| API to agent (instruction queue + Socket.IO) | dispatch must target only the task's own agent |
+| backend to browser (Socket.IO) | broadcast_remediation_update must emit only to the task's tenant |
+
+## STRIDE Threat Register
+
+| Threat ID | Category | Component | Disposition | Mitigation Plan |
+|-----------|----------|-----------|-------------|-----------------|
+| T-04-03 | Information Disclosure | GET/PATCH /tasks | mitigate | `_tenant_filter(current_user)` applied to every query; super-admins get `{}`, all others scoped to tenantId (04-PATTERNS.md Pattern 1) |
+| T-04-04 | Tampering | TaskCreate body | mitigate | Pydantic `Field(min_length, max_length)` on title/description; priority/status constrained at service layer (V5) |
+| T-04-05 | Elevation of Privilege | dispatch_rescan agent target | mitigate | agent_id resolved server-side from the task's own asset_id; client cannot inject an arbitrary agent into the instruction |
+| T-04-06 | Denial of Service | GET /tasks list | mitigate | `to_list(length=500)` cap on the list query (Security Domain) |
+| T-04-07 | Information Disclosure | suggest_remediation LLM call | mitigate | generate_text(source='remediation_suggestion') runs guardrail_service input+output scans (AI-SPEC.md) |
+| T-04-SC | Tampering | npm/pip/cargo installs | accept | No package installs in this phase (04-RESEARCH.md Package Legitimacy Audit: N/A); all libs pre-existing |
+</threat_model>
+
+<verification>
+- REM-01/02/03 service tests pass: `cd backend && python -m pytest tests/test_remediation_workflow.py -q`.
+- Router imports and mounts at `/api/compliance-remediation`; registered in router_registry required section.
+- `report_instruction_result` contains a broadcast_remediation_update call (REM-04 server half).
+- Frontend: `grep` confirms RemediationTask, 'remediationWorkflow', and the four apiService helpers targeting `/compliance-remediation/tasks`.
+</verification>
+
+<success_criteria>
+- REM-01: a task is created and persisted, tenant-scoped, with all required fields.
+- REM-03: resolving a task dispatches "Run Compliance Scan" to the resolved agent.
+- REM-04 (server): post-rescan evidence triggers a remediation_update broadcast.
+- Frontend contracts (type + API helpers) exist for Wave 2 to consume.
+- All backend files remain under 500 lines.
+</success_criteria>
+
+<output>
+Create `.planning/phases/04-remediation-workflow/04-01-SUMMARY.md` when done.
+</output>

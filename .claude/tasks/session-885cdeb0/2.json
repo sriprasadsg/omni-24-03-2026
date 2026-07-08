@@ -1,0 +1,9 @@
+{
+  "id": "2",
+  "subject": "Create iac_scanner_endpoints.py with /api/iac/* routes",
+  "description": "POST /scan, POST /scan-repo, GET /results, GET/POST /scan-config endpoints",
+  "activeForm": "Creating IaC scanner endpoints",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

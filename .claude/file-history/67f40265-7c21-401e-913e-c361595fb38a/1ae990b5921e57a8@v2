@@ -1,0 +1,203 @@
+/*!
+ * CISSP 8-Domain Security Assessment via PowerShell.
+ * Returns overall score, per-domain breakdown, and a compliance_checks list
+ * compatible with the backend's process_automated_evidence().
+ */
+use serde_json::{json, Value};
+
+async fn ps(cmd: &str) -> (String, i32) {
+    match tokio::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
+        .output().await
+    {
+        Ok(out) => (String::from_utf8_lossy(&out.stdout).into_owned(),
+                    out.status.code().unwrap_or(-1)),
+        Err(_)  => (String::new(), -1),
+    }
+}
+
+fn score(p: u32, t: u32) -> f64 { if t == 0 { 100.0 } else { p as f64 / t as f64 * 100.0 } }
+fn risk(s: f64) -> &'static str {
+    if s >= 80.0 { "Low" } else if s >= 60.0 { "Medium" } else if s >= 40.0 { "High" } else { "Critical" }
+}
+fn chk(ok: bool, name: &str, pass_msg: &str, fail_msg: &str) -> Value {
+    json!({ "check": name, "status": if ok { "Pass" } else { "Fail" },
+            "details": if ok { pass_msg } else { fail_msg } })
+}
+
+// Domain 1: Security & Risk Management
+async fn domain1() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (acct, _) = ps("net accounts").await;
+
+    let min_len = acct.lines().find(|l| l.contains("Minimum password length"))
+        .and_then(|l| l.split_whitespace().last()).and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
+    if min_len > 0 { p += 1; }
+    checks.push(chk(min_len > 0, "Password Policy (Min Length)",
+        &format!("Min password length: {min_len}."), "No minimum password length set."));
+
+    let lockout = acct.lines().find(|l| l.contains("Lockout threshold"))
+        .and_then(|l| l.split_whitespace().last()).and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
+    if lockout > 0 { p += 1; }
+    checks.push(chk(lockout > 0, "Account Lockout Policy",
+        &format!("Lockout after {lockout} attempts."), "No lockout threshold — brute-force risk."));
+
+    let (audit, _) = ps("auditpol /get /category:* 2>&1 | Select-String 'Success|Failure' | Measure-Object | Select-Object -ExpandProperty Count").await;
+    let audit_ok = audit.trim().parse::<u32>().unwrap_or(0) > 0;
+    if audit_ok { p += 1; }
+    checks.push(chk(audit_ok, "Audit Logging Policy", "Security audit policies configured.", "No audit policy found."));
+
+    let s = score(p, 3);
+    (json!({ "domain": "Security & Risk Management", "domain_id": 1, "score": s, "risk_level": risk(s), "passed": p, "total": 3 }), checks)
+}
+
+// Domain 2: Asset Security
+async fn domain2() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (bl, _) = ps("manage-bde -status C: 2>&1").await;
+    let enc = bl.contains("Protection On");
+    if enc { p += 1; }
+    checks.push(chk(enc, "BitLocker Encryption", "C: drive is BitLocker protected.", "BitLocker not enabled on C:."));
+
+    let (sw, _) = ps("(Get-WmiObject Win32_Product | Measure-Object).Count").await;
+    let sw_ok = sw.trim().parse::<u32>().unwrap_or(0) > 0;
+    if sw_ok { p += 1; }
+    checks.push(chk(sw_ok, "Software Asset Inventory", "Software assets inventoried.", "Unable to enumerate installed software."));
+
+    let s = score(p, 2);
+    (json!({ "domain": "Asset Security", "domain_id": 2, "score": s, "risk_level": risk(s), "passed": p, "total": 2 }), checks)
+}
+
+// Domain 3: Security Architecture & Engineering
+async fn domain3() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (sb, _) = ps("Confirm-SecureBootUEFI 2>&1").await;
+    let sb_ok = sb.trim().eq_ignore_ascii_case("true");
+    if sb_ok { p += 1; }
+    checks.push(chk(sb_ok, "Secure Boot", "Secure Boot is active.", "Secure Boot not enabled or BIOS-mode system."));
+
+    let (smb1, _) = ps("(Get-SmbServerConfiguration).EnableSMB1Protocol").await;
+    let smb1_off = smb1.trim().eq_ignore_ascii_case("false");
+    if smb1_off { p += 1; }
+    checks.push(chk(smb1_off, "SMBv1 Protocol Disabled", "SMBv1 is disabled.", "SMBv1 enabled — EternalBlue risk."));
+
+    let (dep, _) = ps("Get-ProcessMitigation -System 2>&1 | Select-Object -First 3").await;
+    let dep_ok = dep.len() > 10 && !dep.contains("Error");
+    if dep_ok { p += 1; }
+    checks.push(chk(dep_ok, "Exploit Protection (DEP/ASLR)", "System exploit protections configured.", "Exploit protection status unknown."));
+
+    let s = score(p, 3);
+    (json!({ "domain": "Security Architecture & Engineering", "domain_id": 3, "score": s, "risk_level": risk(s), "passed": p, "total": 3 }), checks)
+}
+
+// Domain 4: Communication & Network Security
+async fn domain4() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (fw, _) = ps("(Get-NetFirewallProfile | Where-Object {$_.Enabled -eq $true} | Measure-Object).Count").await;
+    let fw_ok = fw.trim().parse::<u32>().unwrap_or(0) >= 2;
+    if fw_ok { p += 1; }
+    checks.push(chk(fw_ok, "Windows Firewall Profiles", "Firewall active on 2+ profiles.", "Firewall not enabled on all profiles."));
+
+    let (rdp, _) = ps("(Get-Service TermService).Status").await;
+    let rdp_off = !rdp.trim().eq_ignore_ascii_case("running");
+    if rdp_off { p += 1; }
+    checks.push(chk(rdp_off, "Remote Desktop Service", "RDP not running.", "RDP running — ensure NLA is enforced."));
+
+    let s = score(p, 2);
+    (json!({ "domain": "Communication & Network Security", "domain_id": 4, "score": s, "risk_level": risk(s), "passed": p, "total": 2 }), checks)
+}
+
+// Domain 5: Identity & Access Management
+async fn domain5() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (uac, _) = ps(r"(Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System).EnableLUA").await;
+    let uac_on = uac.trim() == "1";
+    if uac_on { p += 1; }
+    checks.push(chk(uac_on, "User Access Control", "UAC is enabled.", "UAC disabled — privilege escalation risk."));
+
+    let (adm, _) = ps(r"(net localgroup Administrators | Select-String '@' | Measure-Object).Count").await;
+    let adm_ok = adm.trim().parse::<u32>().unwrap_or(99) <= 3;
+    if adm_ok { p += 1; }
+    checks.push(chk(adm_ok, "Privileged Account Count", "Admin group within limit.", "Too many administrator accounts."));
+
+    let s = score(p, 2);
+    (json!({ "domain": "Identity & Access Management", "domain_id": 5, "score": s, "risk_level": risk(s), "passed": p, "total": 2 }), checks)
+}
+
+// Domain 6: Security Assessment & Testing
+async fn domain6() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (wu, _) = ps("(Get-Service wuauserv).Status").await;
+    let wu_ok = wu.trim().eq_ignore_ascii_case("running");
+    if wu_ok { p += 1; }
+    checks.push(chk(wu_ok, "Windows Update Service", "Windows Update running.", "Windows Update service not running."));
+
+    let (wd, _) = ps("(Get-MpComputerStatus).RealTimeProtectionEnabled 2>&1").await;
+    let av_ok = wd.trim().eq_ignore_ascii_case("true");
+    if av_ok { p += 1; }
+    checks.push(chk(av_ok, "Windows Defender Antivirus", "Real-time protection active.", "Windows Defender not active."));
+
+    let s = score(p, 2);
+    (json!({ "domain": "Security Assessment & Testing", "domain_id": 6, "score": s, "risk_level": risk(s), "passed": p, "total": 2 }), checks)
+}
+
+// Domain 7: Security Operations
+async fn domain7() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (ps_log, _) = ps(r"(Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging -ErrorAction SilentlyContinue).EnableScriptBlockLogging").await;
+    let log_ok = ps_log.trim() == "1";
+    if log_ok { p += 1; }
+    checks.push(chk(log_ok, "PowerShell Script Block Logging", "PS script block logging enabled.", "PS script block logging disabled."));
+
+    let (wr, _) = ps("(Get-Service WinRM).Status").await;
+    let winrm_off = !wr.trim().eq_ignore_ascii_case("running");
+    if winrm_off { p += 1; }
+    checks.push(chk(winrm_off, "WinRM Status", "WinRM not running.", "WinRM running — ensure access restriction."));
+
+    let s = score(p, 2);
+    (json!({ "domain": "Security Operations", "domain_id": 7, "score": s, "risk_level": risk(s), "passed": p, "total": 2 }), checks)
+}
+
+// Domain 8: Software Development Security
+async fn domain8() -> (Value, Vec<Value>) {
+    let mut p = 0u32; let mut checks = Vec::new();
+    let (smb_sign, _) = ps("(Get-SmbServerConfiguration).EnableSMBSigning").await;
+    let sign_ok = smb_sign.trim().eq_ignore_ascii_case("true");
+    if sign_ok { p += 1; }
+    checks.push(chk(sign_ok, "SMB Signing", "SMB signing enforced.", "SMB signing not enforced — relay attacks possible."));
+
+    let (cg, _) = ps(r"(Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard -ErrorAction SilentlyContinue).EnableVirtualizationBasedSecurity").await;
+    let cg_ok = cg.trim() == "1";
+    if cg_ok { p += 1; }
+    checks.push(chk(cg_ok, "Credential Guard / VBS", "Virtualization-based security enabled.", "Credential Guard not enabled."));
+
+    let s = score(p, 2);
+    (json!({ "domain": "Software Development Security", "domain_id": 8, "score": s, "risk_level": risk(s), "passed": p, "total": 2 }), checks)
+}
+
+pub async fn run_cissp_assessment() -> Value {
+    let (d1, c1) = domain1().await;
+    let (d2, c2) = domain2().await;
+    let (d3, c3) = domain3().await;
+    let (d4, c4) = domain4().await;
+    let (d5, c5) = domain5().await;
+    let (d6, c6) = domain6().await;
+    let (d7, c7) = domain7().await;
+    let (d8, c8) = domain8().await;
+
+    let domains = [&d1, &d2, &d3, &d4, &d5, &d6, &d7, &d8];
+    let all_checks: Vec<Value> = [c1, c2, c3, c4, c5, c6, c7, c8].into_iter().flatten().collect();
+
+    let total_score = domains.iter()
+        .filter_map(|d| d.get("score").and_then(|s| s.as_f64()))
+        .sum::<f64>() / domains.len() as f64;
+
+    json!({
+        "status": "success",
+        "overall_score": (total_score * 10.0).round() / 10.0,
+        "risk_level": risk(total_score),
+        "domains_assessed": 8,
+        "domains": [d1, d2, d3, d4, d5, d6, d7, d8],
+        "compliance_checks": all_checks,
+    })
+}

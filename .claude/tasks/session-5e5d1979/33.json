@@ -1,0 +1,8 @@
+{
+  "id": "33",
+  "subject": "Create backend/iac_scanner_endpoints.py",
+  "description": "IaC scanner endpoints: POST/scan, POST/scan-repo, GET/results, GET/POST scan-config",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}

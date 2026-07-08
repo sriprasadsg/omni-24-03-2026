@@ -1,0 +1,347 @@
+---
+phase: 10-scheduled-reports
+plan: 01
+type: tdd
+wave: 1
+depends_on: []
+files_modified:
+  - backend/tests/test_scheduled_reports.py
+  - backend/scheduled_reports_service.py
+  - backend/scheduled_reports_endpoints.py
+autonomous: true
+requirements:
+  - SCHED-01
+  - SCHED-02
+
+must_haves:
+  truths:
+    - "An admin can create a schedule with a specific compliance framework (e.g. SOC 2) and see that framework reflected on the schedule card"
+    - "When a compliance schedule runs (manually or on timer), recipients receive an email with a full controls+evidence PDF attached, not a generic summary table"
+    - "Every delivery attempt (success or failure) is recorded; the admin can retrieve this history via the API"
+    - "The Run Now button triggers delivery without a 404 error (run-now URL bug is fixed)"
+    - "Creating a schedule when SMTP is not configured returns a 422 with 'SMTP not configured' — no silent failure"
+  artifacts:
+    - path: "backend/tests/test_scheduled_reports.py"
+      provides: "Failing then passing test suite for all SCHED-01 and SCHED-02 backend changes"
+      min_lines: 80
+    - path: "backend/scheduled_reports_service.py"
+      provides: "framework_id/framework_name fields, _generate_pdf wiring, _write_delivery_log helper, SMTP validation"
+      contains: "_write_delivery_log"
+    - path: "backend/scheduled_reports_endpoints.py"
+      provides: "GET /{schedule_id}/history endpoint; create endpoint raises 422 on missing SMTP config"
+      contains: "/history"
+  key_links:
+    - from: "backend/scheduled_reports_service.py (_deliver_report)"
+      to: "backend/compliance_reporting_pdf.py (_generate_pdf)"
+      via: "conditional call when schedule['framework_id'] is set and report_type in ('compliance_summary','custom_framework')"
+      pattern: "_generate_pdf\\(schedule\\[.framework_id.\\]"
+    - from: "backend/scheduled_reports_service.py (_deliver_report / run_report_now / start_report_scheduler)"
+      to: "backend/scheduled_reports_service.py (_write_delivery_log)"
+      via: "called in both success and exception paths for every delivery attempt"
+      pattern: "_write_delivery_log"
+    - from: "backend/scheduled_reports_endpoints.py (history route)"
+      to: "backend/scheduled_reports_service.py (get_delivery_history)"
+      via: "GET /api/reports/scheduled/{id}/history"
+      pattern: "get_delivery_history"
+---
+
+<objective>
+Wire the compliance PDF generator into the scheduled delivery pipeline, add per-run delivery
+logging, and expose a delivery history endpoint. This plan uses TDD: all tests are written
+and confirmed failing before any implementation code is written.
+
+Purpose: SCHED-01 requires per-framework PDF delivery. SCHED-02 requires delivery history.
+Both gaps are in the backend service layer. No new packages are needed.
+
+Output: A passing test file, an updated service (under 500 lines), and an updated endpoints
+file with the history route and the run-now URL fix confirmed already present.
+</objective>
+
+<execution_context>
+@$HOME/.claude/gsd-core/workflows/execute-plan.md
+@$HOME/.claude/gsd-core/templates/summary.md
+</execution_context>
+
+<context>
+@.planning/ROADMAP.md
+@.planning/phases/10-scheduled-reports/10-RESEARCH.md
+
+# Source files — read in full before any edits
+@backend/scheduled_reports_service.py
+@backend/scheduled_reports_endpoints.py
+@backend/compliance_reporting_pdf.py
+@backend/compliance_reports_endpoints.py
+
+# Test pattern reference
+@backend/tests/test_smoke_endpoints.py
+@backend/tests/test_core_endpoints.py
+</context>
+
+<tasks>
+
+<task type="tdd" tdd="true">
+  <name>Task 1 (RED): Write failing tests for framework_id field, _generate_pdf wiring, delivery logging, and history endpoint</name>
+  <files>backend/tests/test_scheduled_reports.py</files>
+  <behavior>
+    - test_create_schedule_with_framework_id: POST to /api/reports/scheduled with payload
+      {"name":"SOC2 Weekly","report_type":"compliance_summary","frequency":"weekly",
+      "delivery_channel":"email","recipients":["a@b.com"],"framework_id":"soc2",
+      "framework_name":"SOC 2"} — the resulting schedule document must contain
+      framework_id="soc2" and framework_name="SOC 2". Must FAIL before implementation
+      because create_schedule() does not yet persist framework_id.
+
+    - test_list_schedules_returns_framework_id: When db.report_schedules.find returns a
+      doc that includes framework_id and framework_name, GET /api/reports/scheduled must
+      include those fields in the response JSON. Must FAIL because the interface does not
+      yet pass them through.
+
+    - test_run_now_calls_generate_pdf_when_framework_set: Call svc.run_report_now() with
+      a schedule document that has framework_id="soc2". Patch
+      scheduled_reports_service._generate_pdf_for_schedule to assert it is called with
+      framework_id="soc2". Must FAIL because the wiring does not exist yet.
+
+    - test_run_now_writes_delivery_log_on_success: After a successful run_report_now(),
+      assert db.report_delivery_logs.insert_one was called once with a document containing
+      status="success" and schedule_id matching the input. Must FAIL because
+      _write_delivery_log does not exist.
+
+    - test_run_now_writes_delivery_log_on_failure: Patch email_service to raise an
+      exception during delivery. Assert db.report_delivery_logs.insert_one is called with
+      status="failure" and a non-empty "error" field. Must FAIL for the same reason.
+
+    - test_delivery_history_endpoint_returns_logs: Add db.report_delivery_logs.find mock
+      returning two log documents. GET /api/reports/scheduled/{id}/history must return
+      {"logs": [...], "total": 2}. Must FAIL because the route does not exist.
+
+    - test_create_schedule_smtp_not_configured_returns_422: Patch
+      db.smtp_config.find_one to return None. POST to create a schedule with
+      delivery_channel="email" must return HTTP 422 with detail containing
+      "SMTP not configured". Must FAIL because the validation does not exist.
+  </behavior>
+  <action>
+    Create backend/tests/test_scheduled_reports.py using the exact test harness pattern from
+    test_smoke_endpoints.py and test_core_endpoints.py:
+
+    - sys.path.insert to backend/, no pytest-asyncio, synchronous test methods (not async),
+      TestClient from fastapi.testclient, FastAPI app with dependency_overrides for
+      get_current_user, get_database patched via unittest.mock.patch at the module level.
+
+    - Use a _col() helper that returns a MagicMock with AsyncMock for find_one, insert_one,
+      update_one, find().to_list(), and count_documents. The mock for report_delivery_logs
+      must have find().sort().to_list() chained (not find().to_list()) because the history
+      query will sort by run_at descending.
+
+    - For test_run_now_calls_generate_pdf_when_framework_set and the delivery log tests,
+      patch "scheduled_reports_service.email_service" at the module level (not the
+      email_service module directly) so the patch lands on the imported symbol.
+
+    - For the SMTP validation test, patch "scheduled_reports_service.get_database" so that
+      the returned mock db.smtp_config.find_one returns None (coroutine returning None —
+      use AsyncMock(return_value=None)).
+
+    - Run the tests immediately after writing: `cd /home/user/enterprise-omni-agent-ai-platform && python -m pytest backend/tests/test_scheduled_reports.py -v 2>&1 | tail -30`
+      Every test MUST fail (FAILED or ERROR). If any test accidentally passes, that test
+      was written incorrectly — it must be tightened until it fails for the right reason.
+
+    - Do not write any implementation code in this task. The test file is the only artifact.
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform && python -m pytest backend/tests/test_scheduled_reports.py -v 2>&1 | tail -20</automated>
+  </verify>
+  <done>All 7 tests exist in test_scheduled_reports.py and every one reports FAILED or ERROR when run. Zero tests pass.</done>
+</task>
+
+<task type="tdd" tdd="true">
+  <name>Task 2 (GREEN): Implement framework_id schema, _write_delivery_log, _generate_pdf wiring, SMTP validation, and history service function</name>
+  <files>backend/scheduled_reports_service.py</files>
+  <behavior>
+    - create_schedule() persists framework_id and framework_name from data dict (both optional, default None).
+    - create_schedule() validates SMTP when delivery_channel == "email": calls
+      db.smtp_config.find_one({}); if result is None, raises ValueError("SMTP not configured").
+    - update_schedule() allows updating framework_id and framework_name (add to the allowed fields list).
+    - _deliver_report() checks: if schedule has framework_id set AND report_type is in
+      ("compliance_summary", "custom_framework") AND format == "pdf", call
+      compliance_reporting_pdf._generate_pdf(schedule["framework_id"], _REPORTS_DIR, tenant_id)
+      instead of _build_pdf(report_data). Read the resulting file from disk as bytes for the
+      attachment; delete the file after reading (ephemeral per open question resolution). The
+      existing _build_pdf() path remains the fallback for non-compliance types or missing framework_id.
+    - _REPORTS_DIR is imported from compliance_reports_endpoints._REPORTS_DIR — do NOT
+      hardcode the string "static/reports" a second time. Import with:
+      `from compliance_reports_endpoints import _REPORTS_DIR`
+    - _write_delivery_log(db, schedule, status, error, filename) inserts one document to
+      db.report_delivery_logs with fields: id (uuid4), schedule_id, tenant_id, framework_id,
+      run_at (UTC ISO), recipients, status, error, format, filename.
+    - _deliver_report() is changed to return the filename (or None) so callers can pass it
+      to _write_delivery_log.
+    - run_report_now() wraps delivery in try/except: on success calls
+      _write_delivery_log(db, schedule, "success", None, filename); on exception calls
+      _write_delivery_log(db, schedule, "failure", str(exc), None) then re-raises.
+    - start_report_scheduler() loop likewise calls _write_delivery_log after each delivery
+      attempt (success path sets last_error=None on the schedule doc and writes a success
+      log; failure path writes a failure log — existing last_error update on the schedule doc
+      is retained).
+    - get_delivery_history(schedule_id, tenant_id, role, limit=50) queries
+      db.report_delivery_logs with filter {schedule_id: schedule_id} (plus tenant_id filter
+      when role != "super_admin"), sorts by run_at descending, returns list of up to `limit`
+      docs with _id stripped.
+    - Line count: scheduled_reports_service.py must remain under 500 lines after all edits.
+      If adding these changes would push it over 500 lines, extract _write_delivery_log and
+      get_delivery_history into a new file backend/report_delivery_log_service.py (imports
+      from there are fine — keep the public interface the same).
+    - Confirm send_report is awaited correctly (return await, not return) — fix the missing
+      await bug flagged in RESEARCH.md pitfall #6 if present.
+  </behavior>
+  <action>
+    Read backend/scheduled_reports_service.py in full before editing. Then apply all changes
+    using Edit (scoped replacements only — never rewrite the whole file with Write).
+
+    Order of edits:
+    1. Add `from compliance_reports_endpoints import _REPORTS_DIR` near the top imports
+       (after existing imports).
+    2. In create_schedule(), add framework_id and framework_name to the schedule dict
+       (after the "filters" field, before "enabled"):
+         "framework_id": data.get("framework_id") or None,
+         "framework_name": data.get("framework_name") or None,
+       Also add the SMTP validation block at the top of create_schedule(), after the
+       delivery_channel check and the email recipient check:
+         if delivery_channel == "email":
+             smtp_cfg = await db.smtp_config.find_one({})
+             if not smtp_cfg:
+                 raise ValueError("SMTP not configured")
+    3. In update_schedule(), add "framework_id" and "framework_name" to the allowed fields
+       tuple in the for-loop.
+    4. Add _write_delivery_log() function after the existing _calculate_next_run() function.
+    5. Edit _deliver_report() to:
+       a. Accept tenant_id as a third parameter.
+       b. In the email/pdf branch, check if schedule.get("framework_id") and
+          report_type in ("compliance_summary", "custom_framework") before calling
+          _build_pdf; if true, call compliance_reporting_pdf._generate_pdf() instead,
+          read the bytes, delete the temp file.
+       c. Return the filename string (or None) at the end of the email branch.
+    6. Edit run_report_now() to pass tenant_id to _deliver_report and wrap in try/except
+       that calls _write_delivery_log on both outcomes.
+    7. Edit start_report_scheduler() loop likewise.
+    8. Add get_delivery_history() function at the end of the file.
+
+    After edits, verify line count: `wc -l backend/scheduled_reports_service.py`
+    If > 499, split _write_delivery_log and get_delivery_history into
+    backend/report_delivery_log_service.py and update imports accordingly.
+
+    Run tests: `cd /home/user/enterprise-omni-agent-ai-platform && python -m pytest backend/tests/test_scheduled_reports.py -v 2>&1 | tail -30`
+    All 7 must pass (GREEN).
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform && python -m pytest backend/tests/test_scheduled_reports.py -v 2>&1 | tail -20</automated>
+  </verify>
+  <done>All 7 tests in test_scheduled_reports.py pass. wc -l backend/scheduled_reports_service.py reports 499 or fewer lines.</done>
+</task>
+
+<task type="auto">
+  <name>Task 3: Add GET /history endpoint, ensure collection index is created at startup, and confirm run-now route matches frontend expectation</name>
+  <files>backend/scheduled_reports_endpoints.py, backend/app_startup.py</files>
+  <action>
+    Part A — scheduled_reports_endpoints.py:
+
+    Read the file. It is 96 lines and has room to grow.
+
+    Add a GET route for delivery history:
+      @router.get("/{schedule_id}/history")
+      async def get_delivery_history(schedule_id: str, current_user=Depends(get_current_user)):
+          logs = await svc.get_delivery_history(schedule_id, _tid(current_user), _role(current_user))
+          return {"logs": logs, "total": len(logs)}
+
+    Confirm the existing create_schedule endpoint surfaces the ValueError from the service
+    layer as HTTP 422 (not 400). The current except clause catches ValueError and raises
+    HTTPException(status_code=400). Change status_code from 400 to 422 so the frontend
+    can display the "SMTP not configured" detail message (the frontend already reads
+    d.detail from non-ok responses per ScheduledReportsDashboard.tsx line 103).
+
+    The run-now route in the backend is already `/{schedule_id}/run-now` (line 90) — no
+    backend change needed. The URL mismatch is fixed in the frontend (Wave 2 Plan 02).
+    Add a comment above the route confirming the canonical URL:
+      # Canonical route: POST /{schedule_id}/run-now — frontend must call /run-now not /run
+
+    Part B — app_startup.py:
+
+    Read app_startup.py. Find where other collection indexes are created (search for
+    create_index). Add the report_delivery_logs index in the same location:
+      await db.report_delivery_logs.create_index(
+          [("schedule_id", 1), ("run_at", -1)],
+          name="schedule_history_idx"
+      )
+    This ensures history queries never do a full-collection scan even at high log volume.
+
+    After edits, verify:
+    - `wc -l backend/scheduled_reports_endpoints.py` — must be under 500
+    - Run the full test suite: `cd /home/user/enterprise-omni-agent-ai-platform && python -m pytest backend/tests/test_scheduled_reports.py backend/tests/test_smoke_endpoints.py -v 2>&1 | tail -30`
+  </action>
+  <verify>
+    <automated>cd /home/user/enterprise-omni-agent-ai-platform && python -m pytest backend/tests/test_scheduled_reports.py backend/tests/test_smoke_endpoints.py -v 2>&1 | tail -30</automated>
+  </verify>
+  <done>
+    GET /api/reports/scheduled/{id}/history route exists in scheduled_reports_endpoints.py.
+    create_schedule ValueError maps to HTTP 422.
+    report_delivery_logs index creation is present in app_startup.py.
+    All previously passing tests continue to pass.
+  </done>
+</task>
+
+</tasks>
+
+<threat_model>
+## Trust Boundaries
+
+| Boundary | Description |
+|----------|-------------|
+| HTTP API → service layer | Authenticated requests from tenant admins. Tenant isolation enforced by _tid() helper — all DB queries filter by tenant_id unless role == super_admin. |
+| Service layer → email delivery | Outbound SMTP. Recipient addresses come from tenant-supplied schedule data. |
+| Service layer → filesystem | _generate_pdf() writes to static/reports/. Ephemeral files deleted after attach. |
+| Background scheduler → MongoDB | Unattended loop reads report_schedules. No external input surface; only attacks via previously-stored schedule documents. |
+
+## STRIDE Threat Register
+
+| Threat ID | Category | Component | Disposition | Mitigation Plan |
+|-----------|----------|-----------|-------------|-----------------|
+| T-10-01 | Spoofing | GET /history endpoint | mitigate | Existing get_current_user JWT dependency enforces identity; _tid() raises 403 if tenant context absent |
+| T-10-02 | Tampering | framework_id field in create payload | mitigate | framework_id is a plain string passed to _generate_pdf(); the PDF generator calls db.compliance_frameworks find — if framework_id does not exist, it returns empty data (not an error path). No shell execution or path construction from framework_id. |
+| T-10-03 | Information Disclosure | GET /history cross-tenant | mitigate | get_delivery_history filters by tenant_id when role != super_admin; super_admin access is role-checked by existing auth middleware |
+| T-10-04 | Denial of Service | scheduler loop generating unbounded PDFs | mitigate | Due-schedules query has to_list(length=50) cap; ephemeral PDF deleted after each send so disk does not fill |
+| T-10-05 | Elevation of Privilege | SMTP config validation bypass | accept | SMTP config is platform-level (not per-tenant); check is a soft guard to prevent useless schedule creation — not a security boundary |
+| T-10-06 | Information Disclosure | PDF temporary file readable by other tenants | mitigate | File is deleted immediately after bytes read; static/reports/ is not publicly browsable (download endpoint enforces tenant check) |
+| T-10-SC | Tampering | npm/pip/cargo installs | accept | No new packages installed in this plan — stdlib + already-present reportlab and email_service only |
+</threat_model>
+
+<verification>
+Full backend verification after all three tasks:
+
+```bash
+cd /home/user/enterprise-omni-agent-ai-platform
+python -m pytest backend/tests/test_scheduled_reports.py -v
+python -m pytest backend/tests/ -v --tb=short 2>&1 | tail -40
+wc -l backend/scheduled_reports_service.py
+wc -l backend/scheduled_reports_endpoints.py
+```
+
+Expected:
+- test_scheduled_reports.py: 7/7 PASSED
+- Full backend test suite: no regressions
+- scheduled_reports_service.py: 499 lines or fewer
+- scheduled_reports_endpoints.py: under 500 lines
+</verification>
+
+<success_criteria>
+- test_create_schedule_with_framework_id: schedule document includes framework_id and framework_name
+- test_list_schedules_returns_framework_id: list response includes framework fields
+- test_run_now_calls_generate_pdf_when_framework_set: compliance PDF generator is invoked instead of generic _build_pdf
+- test_run_now_writes_delivery_log_on_success: report_delivery_logs.insert_one called with status="success"
+- test_run_now_writes_delivery_log_on_failure: report_delivery_logs.insert_one called with status="failure"
+- test_delivery_history_endpoint_returns_logs: GET /history returns {"logs":[...],"total":N}
+- test_create_schedule_smtp_not_configured_returns_422: 422 returned when SMTP absent
+- scheduled_reports_service.py is 499 lines or fewer
+- app_startup.py creates schedule_history_idx index on report_delivery_logs
+- run-now route comment present in endpoints file confirming canonical URL
+</success_criteria>
+
+<output>
+Create `.planning/phases/10-scheduled-reports/10-01-SUMMARY.md` when done.
+</output>

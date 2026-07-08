@@ -1,0 +1,7 @@
+[
+  {
+    "name": "togetherai-skills",
+    "source": "https://github.com/togethercomputer/skills",
+    "description": "Agent Skills for Together AI platform — inference, training, embeddings, audio, video, images, function calling, and infrastructure"
+  }
+]

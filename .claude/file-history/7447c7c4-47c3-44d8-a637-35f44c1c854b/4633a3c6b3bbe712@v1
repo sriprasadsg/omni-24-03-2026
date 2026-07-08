@@ -1,0 +1,360 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { UploadIcon } from './icons';
+import { fetchAgents, authFetch } from '../services/apiService';
+import { Agent } from '../types';
+import { SoftwareDeploymentHistoryTab } from './SoftwareDeploymentHistoryTab';
+import { SoftwareDeployConfigPanel } from './SoftwareDeployConfigPanel';
+import { SoftwareAgentSelector } from './SoftwareAgentSelector';
+import { SoftwareDeployModal } from './SoftwareDeployModal';
+import { SoftwareInventoryTab } from './SoftwareInventoryTab';
+import { showToast } from '../utils/toast';
+
+export const SoftwareDeployment: React.FC = () => {
+    const [agents, setAgents] = useState<Agent[]>([]);
+    const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
+    const [packageId, setPackageId] = useState('');
+    const [installArgs, setInstallArgs] = useState('');
+    const [action, setAction] = useState<'install' | 'upgrade' | 'uninstall'>('install');
+    const [isDeploying, setIsDeploying] = useState(false);
+    const [inventory, setInventory] = useState<any[]>([]);
+    const [inventoryLoading, setInventoryLoading] = useState(false);
+    const [deployResult, setDeployResult] = useState<{ success: boolean; message: string; taskIds?: string[] } | null>(null);
+    const [showDeployModal, setShowDeployModal] = useState(false);
+    const [filter, setFilter] = useState('');
+    const [confirmUninstall, setConfirmUninstall] = useState(false);
+    const [activeTab, setActiveTab] = useState<'store' | 'repo' | 'history' | 'installed'>('store');
+    const [repoFiles, setRepoFiles] = useState<any[]>([]);
+    const [activeTaskIds, setActiveTaskIds] = useState<string[]>([]);
+    const [taskStatuses, setTaskStatuses] = useState<Record<string, any>>({});
+    const [deployHistory, setDeployHistory] = useState<any[]>([]);
+    const [now, setNow] = useState(Date.now());
+    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        const t = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        let mounted = true;
+        fetchAgents().then(data => { if (mounted) setAgents(data); });
+        fetchRepoFiles(controller.signal);
+        fetchDeployHistory(controller.signal);
+        fetchInventory();
+        return () => { mounted = false; controller.abort(); };
+    }, []);
+
+    useEffect(() => {
+        if (action !== 'uninstall') setConfirmUninstall(false);
+    }, [action]);
+
+    useEffect(() => {
+        if (activeTaskIds.length === 0) return;
+        const interval = setInterval(async () => {
+            const updates: Record<string, any> = {};
+            let allDone = true;
+            for (const taskId of activeTaskIds) {
+                try {
+                    const res = await authFetch(`/api/tasks/${taskId}`);
+                    const data = await res.json();
+                    updates[taskId] = data;
+                    const s = (data.status || '').toLowerCase();
+                    if (s === 'pending' || s === 'sent' || s === 'started') allDone = false;
+                } catch (e) { console.error('Task poll error', e); }
+            }
+            setTaskStatuses(prev => ({ ...prev, ...updates }));
+            if (allDone) {
+                setActiveTaskIds([]);
+                fetchDeployHistory();
+            }
+        }, 2000);
+        return () => clearInterval(interval);
+    }, [activeTaskIds]);
+
+    useEffect(() => {
+        const hasPending = deployHistory.some(t => {
+            const s = (t.status || '').toLowerCase();
+            return s === 'pending' || s === 'sent';
+        });
+        if (!hasPending) return;
+        const interval = setInterval(fetchDeployHistory, 4000);
+        return () => clearInterval(interval);
+    }, [deployHistory]);
+
+    const fetchInventory = async () => {
+        setInventoryLoading(true);
+        try {
+            const res = await authFetch('/api/software/inventory');
+            if (res.ok) setInventory(await res.json());
+        } catch (e) { console.error('Failed to load inventory', e); }
+        finally { setInventoryLoading(false); }
+    };
+
+    const handleInventoryUninstall = async (packageId: string, agentIds: string[]) => {
+        setIsDeploying(true);
+        try {
+            const res = await authFetch('/api/software/deploy', {
+                method: 'POST',
+                body: JSON.stringify({ agentIds, packageId, action: 'uninstall' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Uninstall dispatched to ${agentIds.length} agent(s)`, 'success');
+                if (data.taskIds) setActiveTaskIds(data.taskIds);
+                setTimeout(fetchDeployHistory, 800);
+                setTimeout(fetchInventory, 3000);
+            } else {
+                showToast(data.error || 'Uninstall failed', 'error');
+            }
+        } catch (e: any) { showToast(e.toString(), 'error'); }
+        finally { setIsDeploying(false); }
+    };
+
+    const fetchDeployHistory = async (signal?: AbortSignal) => {
+        try {
+            const res = await authFetch('/api/software/tasks', { signal });
+            if (res.ok) {
+                const data = await res.json();
+                setDeployHistory(Array.isArray(data) ? data : []);
+            }
+        } catch (e) { if ((e as any)?.name !== 'AbortError') console.error('Failed to load deploy history', e); }
+    };
+
+    const fetchRepoFiles = async (signal?: AbortSignal) => {
+        try {
+            const res = await authFetch('/api/software/repository', { signal });
+            if (res.ok) setRepoFiles(await res.json());
+        } catch (e) { if ((e as any)?.name !== 'AbortError') console.error('Failed to load repo', e); }
+    };
+
+    const filteredAgents = useMemo(() =>
+        agents.filter(a =>
+            a.hostname.toLowerCase().includes(filter.toLowerCase()) ||
+            a.platform.toLowerCase().includes(filter.toLowerCase())
+        ), [agents, filter]);
+
+    const handleSelectAll = () => {
+        if (selectedAgentIds.size === filteredAgents.length) setSelectedAgentIds(new Set());
+        else setSelectedAgentIds(new Set(filteredAgents.map(a => a.id)));
+    };
+
+    const toggleSelection = (id: string) => {
+        const s = new Set(selectedAgentIds);
+        s.has(id) ? s.delete(id) : s.add(id);
+        setSelectedAgentIds(s);
+    };
+
+    const handleDeploy = async () => {
+        if (!packageId || selectedAgentIds.size === 0) return;
+        if (action === 'uninstall' && !confirmUninstall) return;
+        setIsDeploying(true);
+        setDeployResult(null);
+        setTaskStatuses({});
+        setConfirmUninstall(false);
+        try {
+            const effectiveAction = activeTab === 'repo' ? 'install_from_repo' : action;
+            const res = await authFetch('/api/software/deploy', {
+                method: 'POST',
+                body: JSON.stringify({
+                    agentIds: Array.from(selectedAgentIds),
+                    packageId,
+                    action: effectiveAction,
+                    installArgs: activeTab === 'repo' ? installArgs : undefined
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setDeployResult({ success: true, message: data.message, taskIds: data.taskIds });
+                setShowDeployModal(true);
+                if (data.taskIds) setActiveTaskIds(data.taskIds);
+                setTimeout(fetchDeployHistory, 800);
+            } else {
+                setDeployResult({ success: false, message: data.error || 'Deployment failed' });
+                setShowDeployModal(true);
+            }
+        } catch (e: any) {
+            setDeployResult({ success: false, message: e.toString() });
+        } finally {
+            setIsDeploying(false);
+        }
+    };
+
+    const handleRepoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const token = sessionStorage.getItem('token');
+            const res = await fetch('/api/software/upload', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            });
+            if (res.ok) {
+                showToast('File uploaded successfully', 'success');
+                fetchRepoFiles();
+                setPackageId(file.name);
+                setActiveTab('repo');
+            } else {
+                const err = await res.json();
+                showToast(`Upload failed: ${err.detail || 'Error'}`, 'error');
+            }
+        } catch (e) { showToast('Upload error: ' + e, 'error'); }
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const text = event.target?.result as string;
+                if (text.includes('\0') || text.startsWith('MZ')) {
+                    showToast('Error: Binary files are not supported. Upload a plain text package list.', 'error');
+                    return;
+                }
+                if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+                    const data = JSON.parse(text);
+                    if (Array.isArray(data)) showToast('Bulk upload parsed ' + data.length + ' items', 'info');
+                } else {
+                    const lines = text.split('\n').filter(l => l.trim());
+                    if (lines.length > 0) {
+                        setPackageId(lines[0]);
+                        showToast(`Loaded ${lines.length} packages. Populating first: ${lines[0]}`, 'info');
+                    }
+                }
+            } catch { showToast('Failed to parse file.', 'error'); }
+        };
+        reader.readAsText(file);
+    };
+
+    const isDeployDisabled = isDeploying || !packageId || selectedAgentIds.size === 0
+        || (action === 'uninstall' && !confirmUninstall);
+
+    const activePendingCount = deployHistory.filter(t => {
+        const s = (t.status || '').toLowerCase();
+        return s === 'pending' || s === 'sent';
+    }).length;
+
+    const toggleExpand = (id: string) => {
+        setExpandedRows(prev => {
+            const s = new Set(prev);
+            s.has(id) ? s.delete(id) : s.add(id);
+            return s;
+        });
+    };
+
+    return (
+        <div className="h-full flex flex-col space-y-6 p-6">
+            <div className="flex justify-between items-center flex-shrink-0">
+                <div>
+                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                        Software Deployment Hub
+                    </h1>
+                    <p className="text-slate-400">Mass install, update, and uninstall software across your fleet</p>
+                </div>
+                {activeTab !== 'history' && (
+                    <label className="btn-secondary cursor-pointer flex items-center space-x-2">
+                        <UploadIcon className="w-4 h-4" />
+                        <span>Upload Package List</span>
+                        <input type="file" className="hidden" accept=".json,.csv,.txt" onChange={handleFileUpload} />
+                    </label>
+                )}
+            </div>
+
+            <div className="flex space-x-1 bg-slate-800 p-1 rounded-lg w-fit flex-shrink-0">
+                <button
+                    onClick={() => { setActiveTab('store'); setConfirmUninstall(false); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'store' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Official Store (Winget)
+                </button>
+                <button
+                    onClick={() => { setActiveTab('repo'); setConfirmUninstall(false); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'repo' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Custom Repository
+                </button>
+                <button
+                    onClick={() => setActiveTab('history')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${activeTab === 'history' ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <span>Deployment History</span>
+                    {activePendingCount > 0 && (
+                        <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
+                            {activePendingCount}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => { setActiveTab('installed'); fetchInventory(); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${activeTab === 'installed' ? 'bg-green-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <span>Installed Software</span>
+                    {inventory.length > 0 && (
+                        <span className="bg-green-500/30 text-green-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
+                            {inventory.length}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {activeTab === 'installed' ? (
+                <SoftwareInventoryTab
+                    inventory={inventory}
+                    loading={inventoryLoading}
+                    onRefresh={fetchInventory}
+                    onUninstall={handleInventoryUninstall}
+                />
+            ) : activeTab === 'history' ? (
+                <SoftwareDeploymentHistoryTab
+                    deployHistory={deployHistory}
+                    activePendingCount={activePendingCount}
+                    expandedRows={expandedRows}
+                    now={now}
+                    onToggleExpand={toggleExpand}
+                    onRefresh={() => fetchDeployHistory()}
+                />
+            ) : (
+                <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+                    <SoftwareDeployConfigPanel
+                        activeTab={activeTab}
+                        packageId={packageId}
+                        action={action}
+                        installArgs={installArgs}
+                        confirmUninstall={confirmUninstall}
+                        selectedAgentIds={selectedAgentIds}
+                        repoFiles={repoFiles}
+                        isDeploying={isDeploying}
+                        isDeployDisabled={isDeployDisabled}
+                        taskStatuses={taskStatuses}
+                        onPackageIdChange={setPackageId}
+                        onActionChange={setAction}
+                        onInstallArgsChange={setInstallArgs}
+                        onConfirmUninstallChange={setConfirmUninstall}
+                        onDeploy={handleDeploy}
+                        onFileUpload={handleFileUpload}
+                        onRepoUpload={handleRepoUpload}
+                    />
+                    <SoftwareAgentSelector
+                        filteredAgents={filteredAgents}
+                        selectedAgentIds={selectedAgentIds}
+                        filter={filter}
+                        onFilterChange={setFilter}
+                        onSelectAll={handleSelectAll}
+                        onToggle={toggleSelection}
+                    />
+                </div>
+            )}
+
+            <SoftwareDeployModal
+                isOpen={showDeployModal}
+                result={deployResult}
+                onClose={() => setShowDeployModal(false)}
+                onViewHistory={() => setActiveTab('history')}
+            />
+        </div>
+    );
+};

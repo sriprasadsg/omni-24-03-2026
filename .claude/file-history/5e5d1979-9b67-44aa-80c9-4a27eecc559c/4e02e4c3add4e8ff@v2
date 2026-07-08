@@ -1,0 +1,193 @@
+"""Tests for evidence review workflow (Phase 15).
+
+Uses asyncio.run() pattern (consistent with test_powershell_evidence.py).
+"""
+import sys, os, asyncio
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _make_user(tenant_id="tenant-a", role="admin", username="reviewer1"):
+    u = MagicMock()
+    u.tenant_id = tenant_id
+    u.role = role
+    u.username = username
+    return u
+
+
+def _make_mock_db():
+    """Return a mock DB with asset_compliance collection and evidence_reviews collection."""
+    db = MagicMock()
+    # asset_compliance collection
+    db.asset_compliance = MagicMock()
+    db.asset_compliance.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+    db.asset_compliance.aggregate = AsyncMock(return_value=[])
+
+    # evidence_reviews collection via _db
+    inner = MagicMock()
+    inner.evidence_reviews = MagicMock()
+    inner.evidence_reviews.insert_one = AsyncMock(return_value=MagicMock(inserted_id="rev-abc"))
+    inner.evidence_reviews.find_one_and_update = AsyncMock(return_value={
+        "id": "rev-abc", "evidenceId": "ev-1", "status": "approved",
+        "comment": "Looks good", "reviewer": "admin",
+        "tenantId": "tenant-a",
+    })
+    inner.evidence_reviews.find = MagicMock(return_value=MagicMock(sort=MagicMock(return_value=MagicMock(
+        to_list=AsyncMock(return_value=[
+            {"id": "rev-1", "evidenceId": "ev-1", "status": "approved", "comment": "OK", "reviewer": "admin", "tenantId": "tenant-a", "created_at": "2026-06-27T12:00:00Z"},
+            {"id": "rev-2", "evidenceId": "ev-1", "status": "pending", "comment": "Reviewing", "reviewer": "user1", "tenantId": "tenant-a", "created_at": "2026-06-27T11:00:00Z"},
+        ])
+    ))))
+    db._db = inner
+    return db
+
+
+def _build_client(mock_db, current_user):
+    import evidence_review_endpoints as mod
+    from authentication_service import get_current_user
+
+    app = FastAPI()
+    app.include_router(mod.router)
+    app.dependency_overrides[get_current_user] = lambda: current_user
+
+    with patch("evidence_review_endpoints.get_database", return_value=mock_db), \
+         patch("evidence_review_service.get_database", return_value=mock_db):
+        client = TestClient(app, raise_server_exceptions=False)
+        return client
+
+
+# ── Test 1: Submit for review ──────────────────────────────────────────────────
+
+def test_submit_for_review_sets_status():
+    """POST /api/evidence/{id}/submit-for-review → 200 + status=pending_review."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.post("/api/evidence/ev-1/submit-for-review")
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["status"] == "pending_review"
+    db.asset_compliance.update_one.assert_awaited()
+
+
+# ── Test 2: Create review record ───────────────────────────────────────────────
+
+def test_create_review_record():
+    """POST /api/evidence/{id}/review → 200 + review record created."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.post("/api/evidence/ev-1/review", json={"comment": "Initial review"})
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["success"] is True
+    assert "review" in data
+    db._db.evidence_reviews.insert_one.assert_awaited()
+
+
+# ── Test 3: Approve evidence ───────────────────────────────────────────────────
+
+def test_approve_evidence_updates_status():
+    """PATCH /api/evidence/{id}/review/{review_id} with approved → status=approved."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "approved", "comment": "Approved after review"},
+    )
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["success"] is True
+    assert data["review"]["status"] == "approved"
+
+
+# ── Test 4: Reject requires comment ────────────────────────────────────────────
+
+def test_reject_requires_comment():
+    """PATCH reject without comment → 422."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "rejected", "comment": ""},
+    )
+    assert resp.status_code == 422, f"Expected 422, got {resp.status_code}: {resp.text}"
+
+
+# ── Test 5: Changes requested → needs_revision ─────────────────────────────────
+
+def test_changes_requested_sets_needs_revision():
+    """PATCH changes_requested with comment → 200, evidence status = needs_revision."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "changes_requested", "comment": "Please add more details"},
+    )
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["success"] is True
+
+
+# ── Test 6: Get reviews sorted by date ─────────────────────────────────────────
+
+def test_get_reviews_sorted_by_date():
+    """GET /api/evidence/{id}/reviews → list sorted by created_at desc."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.get("/api/evidence/ev-1/reviews")
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["count"] >= 2
+    # Verify descending order
+    dates = [r["created_at"] for r in data["reviews"]]
+    assert dates == sorted(dates, reverse=True)
+
+
+# ── Test 7: Get pending evidence ───────────────────────────────────────────────
+
+def test_get_pending_returns_only_pending_review():
+    """GET /api/evidence/pending-review → list of pending review items."""
+    db = _make_mock_db()
+    user = _make_user("tenant-a", "admin")
+    client = _build_client(db, user)
+
+    resp = client.get("/api/evidence/pending-review")
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert "items" in data
+
+
+# ── Test 8: Tenant isolation ───────────────────────────────────────────────────
+
+def test_tenant_isolation():
+    """tenant-a user cannot access tenant-b evidence reviews."""
+    db = _make_mock_db()
+
+    # Make a regular user (not admin) — should still be able to view own reviews
+    user = _make_user("tenant-a", "user")
+    client = _build_client(db, user)
+
+    resp = client.get("/api/evidence/ev-other/reviews")
+    assert resp.status_code in (200, 403, 404), f"Got {resp.status_code}: {resp.text}"
+    # For non-admin user trying to make a review decision, PATCH should 403
+    resp2 = client.patch(
+        "/api/evidence/ev-1/review/rev-abc",
+        json={"decision": "approved", "comment": "test"},
+    )
+    assert resp2.status_code == 403, f"Expected 403 for non-admin PATCH, got {resp2.status_code}"

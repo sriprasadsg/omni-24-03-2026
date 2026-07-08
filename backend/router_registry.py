@@ -217,6 +217,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "container_scan_endpoints",         "router")
     _load(app, "pam_endpoints",                    "router")
     _load(app, "baa_endpoints",                    "router")
+    _load(app, "dpa_endpoints",                    "router")
 
     # ── Global Search ─────────────────────────────────────────────────────────
     _load(app, "global_search_endpoints",    "router")

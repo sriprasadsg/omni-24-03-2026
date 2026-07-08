@@ -10,6 +10,11 @@ router = APIRouter(prefix="/api/vendors", tags=["Vendor Management"])
 _VENDOR_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
 
 
+class SubprocessorCreate(BaseModel):
+    name: str
+    location: str = ""
+    description: str = ""
+
 class VendorCreate(BaseModel):
     name: str
     website: str
@@ -98,6 +103,31 @@ async def upload_vendor_document(
     if not success:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return {"message": "Document uploaded successfully"}
+
+@router.get("/{vendor_id}/subprocessors")
+async def get_vendor_subprocessors(vendor_id: str, current_user: TokenData = Depends(get_current_user)):
+    tid, role = _v_ctx(current_user)
+    return await vendor_service.get_subprocessors(vendor_id, tenant_id=tid, role=role)
+
+@router.post("/{vendor_id}/subprocessors")
+async def add_subprocessor(vendor_id: str, sp: SubprocessorCreate, current_user: TokenData = Depends(get_current_user)):
+    if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    tid, role = _v_ctx(current_user)
+    result = await vendor_service.add_subprocessor(vendor_id, sp.dict(), tenant_id=tid, role=role)
+    if not result:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    return result
+
+@router.delete("/{vendor_id}/subprocessors/{sub_id}")
+async def remove_subprocessor(vendor_id: str, sub_id: str, current_user: TokenData = Depends(get_current_user)):
+    if getattr(current_user, "role", "") not in _VENDOR_ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    tid, role = _v_ctx(current_user)
+    success = await vendor_service.remove_subprocessor(vendor_id, sub_id, tenant_id=tid, role=role)
+    if not success:
+        raise HTTPException(status_code=404, detail="Vendor or subprocessor not found")
+    return {"message": "Subprocessor removed successfully"}
 
 @router.get("/questionnaire/template")
 def get_questionnaire_template(current_user: TokenData = Depends(get_current_user)):

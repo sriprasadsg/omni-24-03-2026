@@ -1,0 +1,300 @@
+{
+  "version": 4,
+  "lastComputedDate": "2026-06-25",
+  "dailyActivity": [
+    {
+      "date": "2026-06-08",
+      "messageCount": 466,
+      "sessionCount": 1,
+      "toolCallCount": 84
+    },
+    {
+      "date": "2026-06-15",
+      "messageCount": 756,
+      "sessionCount": 0,
+      "toolCallCount": 169
+    },
+    {
+      "date": "2026-06-16",
+      "messageCount": 2504,
+      "sessionCount": 0,
+      "toolCallCount": 521
+    },
+    {
+      "date": "2026-06-17",
+      "messageCount": 2589,
+      "sessionCount": 1,
+      "toolCallCount": 1786
+    },
+    {
+      "date": "2026-06-18",
+      "messageCount": 2577,
+      "sessionCount": 0,
+      "toolCallCount": 993
+    },
+    {
+      "date": "2026-06-19",
+      "messageCount": 3011,
+      "sessionCount": 1,
+      "toolCallCount": 798
+    },
+    {
+      "date": "2026-06-21",
+      "messageCount": 1062,
+      "sessionCount": 1,
+      "toolCallCount": 871
+    },
+    {
+      "date": "2026-06-22",
+      "messageCount": 1426,
+      "sessionCount": 0,
+      "toolCallCount": 1224
+    },
+    {
+      "date": "2026-06-23",
+      "messageCount": 3412,
+      "sessionCount": 1,
+      "toolCallCount": 1344
+    },
+    {
+      "date": "2026-06-24",
+      "messageCount": 808,
+      "sessionCount": 0,
+      "toolCallCount": 267
+    },
+    {
+      "date": "2026-06-25",
+      "messageCount": 793,
+      "sessionCount": 16,
+      "toolCallCount": 193
+    }
+  ],
+  "dailyModelTokens": [
+    {
+      "date": "2026-06-08",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 59130
+      }
+    },
+    {
+      "date": "2026-06-15",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 78144
+      }
+    },
+    {
+      "date": "2026-06-16",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 1293341
+      }
+    },
+    {
+      "date": "2026-06-17",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 1071673,
+        "claude-haiku-4-5-20251001": 40014,
+        "claude-opus-4-8": 113588
+      }
+    },
+    {
+      "date": "2026-06-18",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 1160953,
+        "claude-opus-4-8": 22047
+      }
+    },
+    {
+      "date": "2026-06-19",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 808654,
+        "claude-opus-4-8": 113975
+      }
+    },
+    {
+      "date": "2026-06-21",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 414781,
+        "claude-opus-4-8": 55989
+      }
+    },
+    {
+      "date": "2026-06-22",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 773153,
+        "claude-opus-4-8": 41716
+      }
+    },
+    {
+      "date": "2026-06-23",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 1671443
+      }
+    },
+    {
+      "date": "2026-06-24",
+      "tokensByModel": {
+        "claude-sonnet-4-6": 240228
+      }
+    },
+    {
+      "date": "2026-06-25",
+      "tokensByModel": {
+        "gemma4:latest": 54864,
+        "google/diffusiongemma-26b-a4b-it": 263275,
+        "mistralai/mistral-large-3-675b-instruct-2512": 162754,
+        "mimo-auto": 946606,
+        "deepseek-v4-flash-free": 779799,
+        "xiaomi/mimo-v2.5-20260422": 1131546,
+        "nvidia/nemotron-3-ultra-550b-a55b-20260604:free": 5495809,
+        "cohere/north-mini-code-20260617:free": 1567777,
+        "deepseek-v4-flash": 726851
+      }
+    }
+  ],
+  "modelUsage": {
+    "gemma4:latest": {
+      "inputTokens": 54855,
+      "outputTokens": 9,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "claude-sonnet-4-6": {
+      "inputTokens": 484040,
+      "outputTokens": 7087460,
+      "cacheReadInputTokens": 969624461,
+      "cacheCreationInputTokens": 56451555,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "google/diffusiongemma-26b-a4b-it": {
+      "inputTokens": 261783,
+      "outputTokens": 1492,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "mistralai/mistral-large-3-675b-instruct-2512": {
+      "inputTokens": 162570,
+      "outputTokens": 184,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "mimo-auto": {
+      "inputTokens": 945218,
+      "outputTokens": 1388,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "deepseek-v4-flash-free": {
+      "inputTokens": 761885,
+      "outputTokens": 17914,
+      "cacheReadInputTokens": 2583296,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "xiaomi/mimo-v2.5-20260422": {
+      "inputTokens": 1031228,
+      "outputTokens": 100318,
+      "cacheReadInputTokens": 5014144,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b-20260604:free": {
+      "inputTokens": 5479642,
+      "outputTokens": 16167,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "cohere/north-mini-code-20260617:free": {
+      "inputTokens": 1560424,
+      "outputTokens": 7353,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "deepseek-v4-flash": {
+      "inputTokens": 691341,
+      "outputTokens": 35510,
+      "cacheReadInputTokens": 5795200,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "claude-opus-4-8": {
+      "inputTokens": 202171,
+      "outputTokens": 145144,
+      "cacheReadInputTokens": 17019526,
+      "cacheCreationInputTokens": 2529930,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    },
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 558,
+      "outputTokens": 39456,
+      "cacheReadInputTokens": 5261657,
+      "cacheCreationInputTokens": 472494,
+      "webSearchRequests": 0,
+      "costUSD": 0,
+      "contextWindow": 0,
+      "maxOutputTokens": 0
+    }
+  },
+  "totalSessions": 21,
+  "totalMessages": 19404,
+  "longestSession": {
+    "sessionId": "67f40265-7c21-401e-913e-c361595fb38a",
+    "duration": 765743041,
+    "messageCount": 5172,
+    "timestamp": "2026-06-08T12:11:49.502Z"
+  },
+  "firstSessionDate": "2026-06-08T12:11:49.502Z",
+  "hourCounts": {
+    "1": 1,
+    "2": 1,
+    "12": 1,
+    "13": 4,
+    "14": 1,
+    "15": 2,
+    "17": 1,
+    "18": 1,
+    "19": 4,
+    "20": 2,
+    "21": 2,
+    "22": 1
+  },
+  "totalSpeculationTimeSavedMs": 0
+}

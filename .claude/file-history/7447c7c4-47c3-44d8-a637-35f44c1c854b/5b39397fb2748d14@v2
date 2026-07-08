@@ -1,0 +1,79 @@
+# Requirements Archive: v1.0 — Enterprise OmniAgent Security & Compliance Portal
+
+**Archived:** 2026-06-20
+**Status:** All 16 v1 requirements complete
+
+---
+
+## Rust Agent Evidence Parity
+
+- [x] **RUST-01**: Rust agent heartbeat compliance data (`meta.compliance_enforcement`) is processed by `compliance_evidence_processor` with identical logic to the Python agent
+  - *Outcome: Validated in Phase 1 (01-01). Direct import from `compliance_evidence_processor` established; `agent_type` kwarg passed through.*
+- [x] **RUST-02**: Evidence records written by the Rust agent appear in the same DB schema and format as Python agent evidence, with `agent_type: rust` metadata preserved
+  - *Outcome: Validated in Phase 1 (01-01). `agent_type` written at document level and in evidence array entry.*
+- [x] **RUST-03**: All 12 compliance checks the Rust agent reports (Firewall Profiles, Windows Defender, BitLocker Encryption, User Access Control, Remote Desktop Service, SMBv1 Protocol Disabled, Password Policy, Audit Logging Policy, Windows Update Service, PowerShell Script Block Logging, WinRM Status, Secure Boot) produce evidence records mapped to the correct framework control IDs via `COMPLIANCE_CHECK_MAPPINGS`
+  - *Outcome: Validated in Phase 1 (01-02). All 12 check names present in payload; 9 representative control IDs verified in unit test.*
+
+## Manual Evidence Uploads
+
+- [x] **EVID-01**: Authenticated user can upload a file (PDF, PNG, JPEG, DOCX, XLSX — max 25 MB) as evidence for a specific compliance control
+  - *Outcome: Validated in Phase 2 (02-01, 02-02). 25 MB cap enforced; 6 MIME types allowed; upload endpoint wired in frontend.*
+- [x] **EVID-02**: Uploaded evidence is stored per-tenant with control ID, uploader identity, timestamp, and user-provided description
+  - *Outcome: Validated in Phase 2 (02-01). Evidence record includes `uploaded_by`, `description`, `tenantId`, `source: manual`, `systemGenerated: false`.*
+- [x] **EVID-03**: Uploaded evidence appears alongside automated (agent-collected) evidence in the control detail view in the frontend
+  - *Outcome: Validated in Phase 2 (02-02). Manual/Automated source badges rendered in AssetComplianceList per evidence row.*
+- [x] **EVID-04**: User can delete their own uploaded evidence; admin can delete any tenant's uploaded evidence
+  - *Outcome: Validated in Phase 2 (02-01). Asset-scoped DELETE endpoint enforces owner/admin RBAC + tenant isolation; disk cleanup with path-traversal guard.*
+- [x] **EVID-05**: File uploads are validated against an allowlist of MIME types and rejected if the type does not match the extension
+  - *Outcome: Validated in Phase 2 (02-01). `_check_magic()` helper validates leading byte signatures (stdlib only, no new packages); mismatch returns 400.*
+
+## Audit-Ready Export
+
+- [x] **AUDIT-01**: User can export a compliance report for a selected framework as PDF showing: framework name, tenant name, export date, list of controls with Pass/Fail/Partial/No-Data status, and evidence count per control
+  - *Outcome: Validated in Phase 3 (03-02). PDF subtitle paragraph includes `Tenant: {name}` and `Export Date: {YYYY-MM-DD}`.*
+- [x] **AUDIT-02**: User can export the same report as Excel (XLSX) with one row per control and evidence summary in columns
+  - *Outcome: Validated in Phase 3 (03-02). XLSX overview gains tenant name row; Control Details sheet auto-inherits new columns.*
+- [x] **AUDIT-03**: Export includes both automated evidence (agent-collected) and manual evidence (uploaded files) per control, clearly labelled by source
+  - *Outcome: Validated in Phase 3 (03-01, 03-02). `_flatten_evidence` prefixes names `[Auto]`/`[Manual]`; `Auto Evidence`/`Manual Evidence` count columns in both PDF and XLSX.*
+- [x] **AUDIT-04**: Export is strictly scoped per-tenant — a tenant user only sees and exports their own compliance data; cross-tenant data never appears in an export
+  - *Outcome: Validated in Phase 3 (03-01) and Phase 5 (05-01). Legacy download route checks report ownership; `_generate_csv` threaded with `tenant_id`; cross-tenant download returns 403 (test verified).*
+
+## Remediation Workflow
+
+- [x] **REM-01**: A failed or non-compliant control can have a remediation task created, with title, assignee (agent or user), due date, and description
+  - *Outcome: Validated in Phase 4 (04-01, 04-02). `compliance_remediation_service.create_task` + `RemediationTaskModal` form; Pydantic field validation.*
+- [x] **REM-02**: Remediation tasks are listed in a dedicated view with filterable status: Open, In Progress, Resolved
+  - *Outcome: Validated in Phase 4 (04-02). `RemediationDashboard` with status filter chips; server-side status query param.*
+- [x] **REM-03**: When a remediation task is marked Resolved, a re-scan instruction is dispatched to the assigned agent for the associated control
+  - *Outcome: Validated in Phase 4 (04-01, 04-00). `dispatch_rescan` inserts `"Run Compliance Scan"` to `agent_instructions`; Rust agent match arm added in poll.rs.*
+- [x] **REM-04**: Control compliance status updates automatically when new evidence arrives post-remediation, reflecting the latest agent check result
+  - *Outcome: Validated in Phase 4 (04-00, 04-01, 04-02). Two-stage broadcast: PATCH broadcasts optimistic UI; `report_instruction_result` broadcasts on evidence arrival; frontend WebSocket listener patches task list in real time.*
+
+---
+
+## Traceability
+
+| Requirement | Phase | Status | Outcome |
+|-------------|-------|--------|---------|
+| RUST-01 | Phase 1 | Complete (01-01) | Direct import + agent_type kwarg |
+| RUST-02 | Phase 1 | Complete (01-01) | agent_type in doc + evidence array |
+| RUST-03 | Phase 1 | Complete (01-01) | All 12 checks mapped |
+| EVID-01 | Phase 2 | Complete (02-01) | 25 MB cap, 6 MIME types, upload endpoint |
+| EVID-02 | Phase 2 | Complete (02-01) | Full metadata stored per-tenant |
+| EVID-03 | Phase 2 | Complete (02-02) | Source badges in control detail view |
+| EVID-04 | Phase 2 | Complete (02-01) | Owner/admin RBAC DELETE with disk cleanup |
+| EVID-05 | Phase 2 | Complete (02-01) | Magic-byte MIME validation |
+| AUDIT-01 | Phase 3 | Complete (03-02) | Tenant name + export date in PDF |
+| AUDIT-02 | Phase 3 | Complete (03-02) | Tenant name + Auto/Manual columns in XLSX |
+| AUDIT-03 | Phase 3 | Complete (03-01, 03-02) | [Auto]/[Manual] labels in data layer + renderers |
+| AUDIT-04 | Phase 3 | Complete (03-01) | Ownership check + tenant_id threaded |
+| REM-01 | Phase 4 | Complete (04-01, 04-02) | CRUD + RemediationTaskModal |
+| REM-02 | Phase 4 | Complete (04-02) | RemediationDashboard with filter |
+| REM-03 | Phase 4 | Complete (04-00, 04-01) | dispatch_rescan + Rust match arm |
+| REM-04 | Phase 4 | Complete (04-00, 04-01, 04-02) | Two-stage broadcast + WS frontend |
+
+**Coverage:** 16/16 v1 requirements complete. 0 dropped. 0 adjusted scope.
+
+---
+
+*Archived: 2026-06-20 via /gsd-complete-milestone*

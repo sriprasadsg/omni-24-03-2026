@@ -5,7 +5,10 @@
       "Bash(ls -la /home/user/.claude/jobs/0fa3fca4/tmp/gsd-review-ollama-15.md)",
       "Bash(cat /home/user/.claude/jobs/0fa3fca4/tmp/gsd-review-ollama-15.md)",
       "Bash(git add *)",
-      "Bash(grep -v \"^ M .claude/settings.local.json$\\\\|^D  \\\\.claude\")"
+      "Bash(grep -v \"^ M .claude/settings.local.json$\\\\|^D  \\\\.claude\")",
+      "Skill(gsd-ui-review)",
+      "Bash(python3 -m unittest agent.test_self_healing -v)",
+      "Skill(gsd-plan-phase)"
     ]
   },
   "enabledMcpjsonServers": [

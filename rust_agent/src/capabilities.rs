@@ -961,4 +961,3 @@ impl CapabilityManager {
         })
     }
 }
-}

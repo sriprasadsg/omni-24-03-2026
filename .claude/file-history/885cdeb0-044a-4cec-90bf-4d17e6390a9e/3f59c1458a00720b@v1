@@ -1,0 +1,80 @@
+"""Tests for Phase 24 — IaC Scanner + Container Scanner."""
+import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi import FastAPI, TestClient
+import iac_scanner_service as iac
+
+def _mkuser(t="tenant-a", r="admin"):
+    u = MagicMock(); u.tenant_id = t; u.role = r; return u
+
+def _mkdb(collections=("iac_scan_results", "iac_scan_config", "container_scan_results")):
+    db = MagicMock()
+    for col in collections:
+        c = MagicMock()
+        c.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))
+        c.find = MagicMock(return_value=MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))))
+        c.find_one = AsyncMock(return_value=None)
+        c.update_one = AsyncMock()
+        setattr(db._db, col, c)
+    return db
+
+def _build(module_name, mock_db, user):
+    import importlib
+    mod = importlib.import_module(module_name)
+    from rbac_service import rbac_service
+    app = FastAPI(); app.include_router(mod.router)
+    t = MagicMock(); t.tenant_id = user.tenant_id; t.role = user.role
+    app.dependency_overrides[rbac_service.has_permission("view:dashboard")] = lambda: t
+    app.dependency_overrides[rbac_service.has_permission("manage:settings")] = lambda: t
+    patcher = patch(f"{module_name}.get_database", return_value=mock_db); patcher.start()
+    return TestClient(app, raise_server_exceptions=False)
+
+def test_iac_scan_terraform_s3_public_acl():
+    code = 'resource "aws_s3_bucket" "bad" { bucket = "public-bucket"; acl = "public-read" }'
+    r = iac.scan_code(code, "main.tf")
+    s3 = [f for f in r["findings"] if f["check_id"] == "tf-s3-public-acl"]
+    assert len(s3) > 0, f"No S3 findings in {r['findings']}"
+    assert s3[0]["status"] == "FAIL"
+
+def test_iac_scan_k8s_privileged():
+    code = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: bad\nspec:\n  containers:\n  - name: app\n    securityContext:\n      privileged: true'
+    r = iac.scan_code(code, "pod.yaml")
+    priv = [f for f in r["findings"] if f["check_id"] == "k8s-privileged"]
+    assert len(priv) > 0
+    assert priv[0]["status"] == "FAIL"
+
+def test_iac_scan_clean_tf():
+    code = 'resource "aws_s3_bucket" "good" { bucket = "good-bucket" }'
+    r = iac.scan_code(code, "main.tf")
+    s3 = [f for f in r["findings"] if f["check_id"] == "tf-s3-public-acl"]
+    assert len(s3) == 0 or s3[0]["status"] == "PASS"
+
+def test_iac_scan_config():
+    db = _mkdb(); u = _mkuser(); c = _build("iac_scanner_endpoints", db, u)
+    r = c.get("/api/iac/scan-config")
+    assert r.status_code == 200
+    r2 = c.post("/api/iac/scan-config", json={"severity_threshold": "high", "auto_scan_enabled": True})
+    assert r2.status_code == 200
+
+def test_container_scan_image():
+    import container_scanner_service as cs
+    r = cs.scan_image("nginx:latest")
+    assert "scan_id" in r
+    assert r["image"] == "nginx:latest"
+    assert r["total"] > 0
+    assert "vulns" in r
+
+def test_container_list_results():
+    db = _mkdb(); u = _mkuser(); c = _build("container_scanner_endpoints", db, u)
+    r = c.get("/api/container/results")
+    assert r.status_code == 200
+
+def test_iac_tenant_isolation():
+    db = _mkdb(); u = _mkuser("tenant-a", "user"); c = _build("iac_scanner_endpoints", db, u)
+    r = c.get("/api/iac/results")
+    assert r.status_code == 200
+
+def test_container_vuln_severity_counts():
+    import container_scanner_service as cs
+    r = cs.scan_image("test:latest")
+    assert r["critical"] + r["high"] + r["medium"] + r["low"] == r["total"]
