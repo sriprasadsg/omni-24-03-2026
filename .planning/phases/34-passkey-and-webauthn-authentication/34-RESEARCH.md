@@ -479,22 +479,25 @@ assertion = device.get(options_json_from_server, origin="https://app.example.com
 
 **If this table is empty:** N/A — see entries above.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should passkey login support "discoverable"/usernameless flow (no email typed first, the authenticator itself surfaces which account) or only the "identify first, then authenticate" flow this research's diagrams show?**
+1. **Should passkey login support "discoverable"/usernameless flow (no email typed first, the authenticator itself surfaces which account) or only the "identify first, then authenticate" flow this research's diagrams show?** (RESOLVED)
    - What we know: `generate_authentication_options()` supports `allow_credentials=[]` (omitted) for a fully discoverable/usernameless flow, where the browser's autofill or a resident-key-capable authenticator lets the user pick an account without typing an email first; `LoginPage.tsx` currently always collects an email for password login, so an email-first passkey flow is the more consistent minimal addition.
    - What's unclear: Whether product wants the more modern "just tap your passkey, no email typed" UX (requires `resident_key=ResidentKeyRequirement.REQUIRED` at registration time, `@simplewebauthn/browser`'s `browserSupportsWebAuthnAutofill()` + `autocomplete="webauthn"` on the login input) from day one, or whether email-first is acceptable for v1.
    - Recommendation: Ship email-first for v1 (simpler, smaller diff, matches `LoginPage.tsx`'s existing input-first pattern) — this doesn't foreclose adding discoverable/usernameless login later, since it's purely an additive frontend UX change plus one registration-option flag, not a backend rearchitecture.
+   - **RESOLVED: adopting the recommendation (email-first for v1).** Smallest diff consistent with the existing login UX; usernameless remains a purely additive follow-up.
 
-2. **Does AUTH-01 require passkey enrollment to be gated behind an already-authenticated session only (registering a *second* factor for an existing account), or should new-user signup also support "sign up with a passkey" (no password at all)?**
+2. **Does AUTH-01 require passkey enrollment to be gated behind an already-authenticated session only (registering a *second* factor for an existing account), or should new-user signup also support "sign up with a passkey" (no password at all)?** (RESOLVED)
    - What we know: The requirement text says "register and log in with a WebAuthn/FIDO2 passkey as an alternative to password/SSO/TOTP" — this reads as an alternative *login* method for existing accounts, and the diagrams/patterns above assume registration happens from within `UserProfilePage.tsx` (already logged in via password).
    - What's unclear: Whether "register" in AUTH-01's wording includes a passwordless-signup flow (new tenant/user creation with no password at all), which would touch `authentication_endpoints.signup` — currently untouched by this research's recommendations.
    - Recommendation: Scope this phase to "add a passkey to an existing, already-authenticated account, then use it to log in thereafter" (the OpenLane-parity gap this phase is closing) — passwordless *signup* is a larger, separate scope decision (every account still needs *some* recovery mechanism if the passkey is lost, which has real product/support implications) and should be a deferred idea unless a human confirms it's actually wanted for this phase.
+   - **RESOLVED: adopting the recommendation.** AUTH-01's literal wording ("an alternative to password/SSO/TOTP") is satisfied by enrollment-while-authenticated + passkey login. Passwordless signup is explicitly a deferred idea, not built this phase.
 
-3. **What happens when a user's only passkey is lost/unavailable — is there a recovery/account-lockout consideration for AUTH-01, or is this out of scope because password/TOTP/SSO remain available as fallbacks?**
+3. **What happens when a user's only passkey is lost/unavailable — is there a recovery/account-lockout consideration for AUTH-01, or is this out of scope because password/TOTP/SSO remain available as fallbacks?** (RESOLVED)
    - What we know: AUTH-01 explicitly frames passkeys as "an alternative to password/SSO/TOTP" (not a replacement) — if passkey enrollment always requires an existing authenticated session (per Open Question 2's recommendation), the user's password (or SSO) always remains a valid fallback login method by construction, so there is no new account-lockout risk this phase introduces.
    - What's unclear: Nothing, given the Open Question 2 recommendation — flagging this only to make the reasoning explicit for the planner, since "what if the passkey is lost" is a natural first question and the answer ("the account still has its original login method") should be stated rather than left implicit.
    - Recommendation: No new recovery mechanism needed for v1, precisely because this phase (per Open Question 2's recommended scope) never makes a passkey the *only* credential on an account.
+   - **RESOLVED: adopting the recommendation.** Follows directly from Q2's resolution — the original login method always remains valid, so no new lockout risk is introduced. The plan should state this explicitly in the passkey-management UI copy (a lost passkey can be removed and re-enrolled after logging in with the original method).
 
 ## Environment Availability
 
