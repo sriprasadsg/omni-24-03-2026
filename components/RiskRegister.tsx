@@ -20,6 +20,9 @@ interface Risk {
     mitigation_plan?: string;
     created_at: string;
     updated_at: string;
+    // Residual fields (RISK-01)
+    inherent_risk_score?: number;
+    residual_risk_score?: number;
 }
 
 export default function RiskRegister() {
@@ -177,10 +180,9 @@ export default function RiskRegister() {
                         <thead className="bg-gray-50 dark:bg-[#0b0c0e] text-gray-500 dark:text-gray-400 uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-3 font-medium">Risk Title</th>
-                                        <th className="px-6 py-3 font-medium">Inherent 
-                                        <th className="px-6 py-3 font-medium">Residual 
                                 <th className="px-6 py-3 font-medium">Category</th>
-                                <th className="px-6 py-3 font-medium">
+                                <th className="px-6 py-3 font-medium">Inherent Score</th>
+                                <th className="px-6 py-3 font-medium">Residual Score</th>
                                 <th className="px-6 py-3 font-medium">Status</th>
                                 <th className="px-6 py-3 font-medium">Owner</th>
                                 <th className="px-6 py-3 font-medium text-right">Actions</th>
@@ -204,6 +206,11 @@ export default function RiskRegister() {
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded-md text-xs font-semibold ${level.color}`}>
                                                 {risk.risk_score} ({level.label})
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded-md text-xs font-semibold ${risk.risk_score === (risk as any).residual_risk_score ? 'text-blue-500' : 'text-green-600 '}`}>
+                                                {(risk as any).residual_risk_score || (risk as any).risk_score} ({risk.category})
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">

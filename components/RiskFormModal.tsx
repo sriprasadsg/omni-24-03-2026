@@ -15,7 +15,9 @@ export const RiskFormModal: React.FC<RiskFormModalProps> = ({ isOpen, onClose, o
     status: 'Open',
     likelihood: 1,
     impact: 1,
-    owner: ''
+    owner: '',
+    residual_likelihood: 1,
+    residual_impact: 1
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -109,6 +111,30 @@ export const RiskFormModal: React.FC<RiskFormModalProps> = ({ isOpen, onClose, o
                 max="5"
                 value={formData.impact}
                 onChange={e => setFormData({ ...formData, impact: parseInt(e.target.value) })}
+                className="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Residual Likelihood (1-5)</label>
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={formData.residual_likelihood}
+                onChange={e => setFormData({ ...formData, residual_likelihood: parseInt(e.target.value) })}
+                className="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Residual Impact (1-5)</label>
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={formData.residual_impact}
+                onChange={e => setFormData({ ...formData, residual_impact: parseInt(e.target.value) })}
                 className="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>

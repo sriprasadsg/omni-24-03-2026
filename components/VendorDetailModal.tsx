@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import * as api from '../services/apiService';
-import { useToast } from '../contexts/ToastContext';
+import { showToast } from '../utils/toast';
 
 interface Subprocessor {
     id: string;
@@ -32,7 +32,8 @@ export function VendorDetailModal({ vendor, isOpen, onClose }: VendorDetailModal
     const [loading, setLoading] = useState(false);
     const [adding, setAdding] = useState(false);
     const [newSubprocessor, setNewSubprocessor] = useState({ name: '', location: '', description: '' });
-    const { showToast } = useToast();
+    // const { showToast } = useToast(); // Remove this line
+
 
     useEffect(() => {
         if (isOpen && vendor) {

@@ -8,7 +8,9 @@
       "Bash(grep -v \"^ M .claude/settings.local.json$\\\\|^D  \\\\.claude\")",
       "Skill(gsd-ui-review)",
       "Bash(python3 -m unittest agent.test_self_healing -v)",
-      "Skill(gsd-plan-phase)"
+      "Skill(gsd-plan-phase)",
+      "Bash(pytest backend/tests/test_dpa_endpoints.py backend/tests/test_vendor_subprocessors.py backend/tests/test_risk_inherent_residual.py -x)",
+      "Bash(npm run *)"
     ]
   },
   "enabledMcpjsonServers": [
