@@ -401,6 +401,12 @@ export function IacContainerDashboard() {
                   )}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">{containerResult.vulns.length} findings</span>
+                <button
+                  onClick={() => exportSbom(containerResult.scan_id)}
+                  className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                >
+                  Export SBOM
+                </button>
               </div>
               <div className="p-4 overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">

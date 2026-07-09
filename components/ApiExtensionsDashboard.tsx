@@ -22,6 +22,7 @@ export const ApiExtensionsDashboard: React.FC = () => {
   const [toolResult, setToolResult] = useState<any>(null);
   const [running, setRunning] = useState('');
   const [toolInputs, setToolInputs] = useState<any>({});
+  const [oscalFw, setOscalfw] = useState('soc2');
 
   const runTool = async (name: string) => {
     setRunning(name);
@@ -80,6 +81,23 @@ export const ApiExtensionsDashboard: React.FC = () => {
             <pre className="whitespace-pre-wrap">{JSON.stringify(toolResult, null, 2)}</pre>
           </div>
         )}
+      </div>
+
+      {/* OSCAL Export */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">OSCAL Export</h3>
+        <div className="flex gap-2">
+          <input
+            className="px-2 py-2 border rounded text-xs dark:bg-gray-800"
+            placeholder="Framework ID (e.g., soc2)"
+            value={oscalFw}
+            onChange={(e) => setOscalfw(e.target.value)}
+          />
+          <button onClick={() => exportOcsf(`/api/oscal/assessment-results?framework_id=${oscalFw}`, `assessment-results-${oscalFw}-oscal.json`)}
+            className="px-4 py-2 bg-green-600 text-white text-xs rounded">
+            Export OSCAL
+          </button>
+        </div>
       </div>
 
       {/* OCSF Export */}

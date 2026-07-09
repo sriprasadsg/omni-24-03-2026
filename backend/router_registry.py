@@ -240,6 +240,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "domain_scanner_endpoints",   "router")
     _load(app, "mcp_server_endpoints",       "router")
     _load(app, "ocsf_endpoints",              "router")
+    _load(app, "oscal_endpoints",             "router")
     _load(app, "analytics_endpoints",        "router")
     _load(app, "settings_endpoints",         "router")
     _load(app, "log_endpoints",              "router")
