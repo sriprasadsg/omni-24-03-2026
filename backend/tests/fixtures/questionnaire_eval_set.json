@@ -1,0 +1,187 @@
+[
+  {
+    "id": "1",
+    "category": "critical-path",
+    "question_text": "Does your system support single sign-on (SSO) via SAML?",
+    "evidence": [
+      {
+        "source": "bilateral_saas_endpoints.py",
+        "content": "# SAML is fully supported; integration with Okta and Azure AD"
+      }
+    ],
+    "expected_confidence": "high",
+    "gold_answer": ""
+  },
+  {
+    "id": "2",
+    "category": "critical-path",
+    "question_text": "Is data at rest encrypted using AES-256?",
+    "evidence": [
+      {
+        "source": "compliance_status_endpoints.py",
+        "content": "All databases are encrypted at rest using AES-256, per security hardening doc."
+      }
+    ],
+    "expected_confidence": "high",
+    "gold_answer": ""
+  },
+  {
+    "id": "3",
+    "category": "optimistic-drift",
+    "question_text": "How often are access reviews performed?",
+    "evidence": [
+      {
+        "source": "access_review_endpoints.py",
+        "content": "Access reviews are performed quarterly."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "4",
+    "category": "scope-mismatch",
+    "question_text": "Do you provide a data residency guarantee for EU customers?",
+    "evidence": [
+      {
+        "source": "data_residency_endpoints.py",
+        "content": "Data residency in EU is offered for customers on the EU data center plan."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "5",
+    "category": "scope-mismatch",
+    "question_text": "What is your incident response SLA?",
+    "evidence": [
+      {
+        "source": "incident_response_policy.py",
+        "content": "Incident response follows a 4‑hour SLA for critical events, per policy."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "6",
+    "category": "scope-mismatch",
+    "question_text": "Can you export logs in CSV format?",
+    "evidence": [
+      {
+        "source": "log_endpoints.py",
+        "content": "Logs can be exported via /api/logs/export?format=csv."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "7",
+    "category": "zero-evidence",
+    "question_text": "Is there a live demo of the compliance dashboard?",
+    "evidence": [],
+    "expected_confidence": "high",
+    "gold_answer": ""
+  },
+  {
+    "id": "8",
+    "category": "zero-evidence",
+    "question_text": "Do you support WebAuthn passkeys?",
+    "evidence": [],
+    "expected_confidence": "high",
+    "gold_answer": ""
+  },
+  {
+    "id": "9",
+    "category": "stale-evidence",
+    "question_text": "What is the retention period for audit logs?",
+    "evidence": [
+      {
+        "source": "retention_endpoints.py",
+        "content": "Audit logs are retained for 365 days."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "10",
+    "category": "cross-tenant-adversarial",
+    "question_text": "What authentication methods do you support?",
+    "evidence": [
+      {
+        "source": "auth_endpoints.py",
+        "content": "Supported methods: password, MFA (TOTP), SSO (Okta, Azure AD)."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "11",
+    "category": "cross-tenant-adversarial",
+    "question_text": "Do you store any PII?",
+    "evidence": [
+      {
+        "source": "privacy_evidence.py",
+        "content": "No PII is stored; only hashed identifiers."
+      }
+    ],
+    "expected_confidence": "high",
+    "gold_answer": ""
+  },
+  {
+    "id": "12",
+    "category": "cross-tenant-adversarial",
+    "question_text": "Can you sign an NDA for a proof‑of‑concept?",
+    "evidence": [
+      {
+        "source": "nda_endpoints.py",
+        "content": "NDA execution is handled by legal;"
+      }
+    ],
+    "expected_confidence": "low",
+    "gold_answer": ""
+  },
+  {
+    "id": "13",
+    "category": "cross-tenant-adversarial",
+    "question_text": "Is your SaaS audit log immutable?",
+    "evidence": [
+      {
+        "source": "audit_log_immutability.py",
+        "content": "Audit logs are immutable for 90 days."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  },
+  {
+    "id": "14",
+    "category": "cross-tenant-adversarial",
+    "question_text": "Do you support multi‑factor authentication?",
+    "evidence": [
+      {
+        "source": "mfa_endpoints.py",
+        "content": "MFA supported via TOTP and SMS."
+      }
+    ],
+    "expected_confidence": "high",
+    "gold_answer": ""
+  },
+  {
+    "id": "15",
+    "category": "cross-tenant-adversarial",
+    "question_text": "Can you export evidence as OSCAL?",
+    "evidence": [
+      {
+        "source": "oscals_endpoints.py",
+        "content": "OSCAL export endpoint is /api/oscp/export."
+      }
+    ],
+    "expected_confidence": "medium",
+    "gold_answer": ""
+  }
+]

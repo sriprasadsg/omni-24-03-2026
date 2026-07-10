@@ -1,0 +1,5 @@
+# Opt‑in eval tooling – DO NOT install into runtime
+ragas==0.4.3
+arize-phoenix==17.20.0
+opentelemetry-sdk==1.43.0
+# Install via: pip install -r backend/requirements-eval.txt
