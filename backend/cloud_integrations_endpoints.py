@@ -16,7 +16,7 @@ from auth_utils import get_current_user
 # ── Secret field encryption (Fernet) ─────────────────────────────────────────
 # INTEGRATION_ENCRYPTION_KEY must be a URL-safe base64-encoded 32-byte key.
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-_SECRET_FIELDS = frozenset({"client_secret", "service_account_json", "aws_secret_key"})
+_SECRET_FIELDS = frozenset({"client_secret", "service_account_json", "aws_secret_key", "oci_private_key", "access_key_secret", "cf_api_token"})
 _ENC_PREFIX = "enc:"
 
 _logger = logging.getLogger(__name__)
@@ -176,7 +176,7 @@ SUPPORTED_PROVIDERS = {
 
 def _mask_secrets(config: Dict[str, Any]) -> Dict[str, Any]:
     masked = {}
-    secret_keys = {"client_secret", "service_account_json", "aws_secret_key"}
+    secret_keys = {"client_secret", "service_account_json", "aws_secret_key", "oci_private_key", "access_key_secret", "cf_api_token"}
     for k, v in config.items():
         if k in secret_keys and v:
             masked[k] = "***CONFIGURED***"
@@ -339,6 +339,15 @@ async def test_integration(
         elif provider == "gcp_chronicle":
             from gcp_scc_ingest import poll_gcp_chronicle
             count = await poll_gcp_chronicle(config, integ.get("tenant_id", ""))
+        elif provider == "oci_cloud_guard":
+            from oci_ingest import poll_oci_cloud_guard_problems
+            count = await poll_oci_cloud_guard_problems(config, integ.get("tenant_id", ""))
+        elif provider == "alibaba_sas":
+            from alibaba_ingest import poll_alibaba_sas_alerts
+            count = await poll_alibaba_sas_alerts(config, integ.get("tenant_id", ""))
+        elif provider == "cloudflare_zero_trust":
+            from cloudflare_ingest import poll_cloudflare_zero_trust_events
+            count = await poll_cloudflare_zero_trust_events(config, integ.get("tenant_id", ""))
         elif provider in ("aws_guardduty", "aws_securityhub"):
             count = 0
 
@@ -384,6 +393,15 @@ async def trigger_cloud_discovery(
             elif provider in ("gcp_scc", "gcp_chronicle"):
                 from gcp_scc_ingest import poll_gcp_scc_findings
                 real_count += await poll_gcp_scc_findings(config, tenant_id)
+            elif provider == "oci_cloud_guard":
+                from oci_ingest import poll_oci_cloud_guard_problems
+                real_count += await poll_oci_cloud_guard_problems(config, tenant_id)
+            elif provider == "alibaba_sas":
+                from alibaba_ingest import poll_alibaba_sas_alerts
+                real_count += await poll_alibaba_sas_alerts(config, tenant_id)
+            elif provider == "cloudflare_zero_trust":
+                from cloudflare_ingest import poll_cloudflare_zero_trust_events
+                real_count += await poll_cloudflare_zero_trust_events(config, tenant_id)
         except Exception as e:
             logger.warning("Cloud provider poll failed for %s: %s", provider, e)
 

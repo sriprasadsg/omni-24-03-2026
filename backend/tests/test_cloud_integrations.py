@@ -86,3 +86,59 @@ class TestIngestModules:
             )
         assert count == 1
         assert db.security_events.insert_many.called
+
+def _app(router, user):
+    app = FastAPI()
+    app.include_router(router)
+    # The endpoint uses auth_utils.get_current_user
+    app.dependency_overrides[get_current_user] = lambda: user
+    return app
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Endpoint Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestEndpoints:
+
+    def test_secret_masking(self):
+        from cloud_integrations_endpoints import router
+        integration = {
+            "_id": "i1",
+            "id": "i1", "tenant_id": "t1", "provider": "oci_cloud_guard",
+            "config": {
+                "oci_tenancy_ocid": "ocid1.tenancy..",
+                "oci_private_key": "---BEGIN PRIVATE KEY---...",
+                "access_key_secret": "supersecret",
+                "cf_api_token": "tokentokentoken",
+            }
+        }
+        col = _col()
+        col.find.return_value.to_list = AsyncMock(return_value=[integration])
+        db = _db(cloud_integrations=col)
+        app = _app(router, _user(role="admin"))
+
+        with patch("cloud_integrations_endpoints.get_database", return_value=db):
+            res = TestClient(app).get("/api/cloud-integrations")
+
+        assert res.status_code == 200
+        res_config = res.json()["integrations"][0]["config"]
+        assert res_config["oci_private_key"] == "***CONFIGURED***"
+        assert res_config["access_key_secret"] == "***CONFIGURED***"
+        assert res_config["cf_api_token"] == "***CONFIGURED***"
+        assert "BEGIN PRIVATE KEY" not in res.text
+
+    def test_test_integration_endpoint(self):
+        from cloud_integrations_endpoints import router
+        integration = {"id": "i1", "tenant_id": "t1", "provider": "oci_cloud_guard", "config": {}}
+        col = _col(find_one=AsyncMock(return_value=integration))
+        db = _db(cloud_integrations=col)
+        app = _app(router, _user(role="admin"))
+
+        with patch("cloud_integrations_endpoints.get_database", return_value=db), \
+             patch("oci_ingest.poll_oci_cloud_guard_problems", new_callable=AsyncMock) as mock_poll:
+            mock_poll.return_value = 5
+            res = TestClient(app).post("/api/cloud-integrations/i1/test")
+
+        assert res.status_code == 200
+        assert res.json()["events_ingested"] == 5
+        mock_poll.assert_called_once()
