@@ -117,6 +117,7 @@ class AttackPathService:
                     "impact": "Critical" if target.get("sensitivityLevel") == "Critical" else "High",
                     "openVulnerabilities": len(entry_vulns),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "simulated": False,
                 }
                 paths.append(path)
 
@@ -192,6 +193,7 @@ class AttackPathService:
                 "impact": s["impact"],
                 "openVulnerabilities": s["open_vulns"],
                 "timestamp": now,
+                "simulated": True,
             })
         return paths
 
