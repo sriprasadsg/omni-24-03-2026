@@ -1387,6 +1387,15 @@ export const createRisk = async (riskData: any): Promise<Risk> => {
     return await res.json();
 };
 
+export const runFairSimulation = async (riskId: string, inputs: { lef_min: number; lef_likely: number; lef_max: number; lm_min: number; lm_likely: number; lm_max: number; iterations?: number }): Promise<Risk> => {
+    const res = await authFetch(`${API_BASE}/risks/${riskId}/fair-simulation`, {
+        method: 'POST',
+        body: JSON.stringify(inputs)
+    });
+    if (!res.ok) throw new Error("Failed to run FAIR simulation");
+    return await res.json();
+};
+
 export const fetchVendors = async (): Promise<Vendor[]> => {
     try {
         const res = await authFetch(`${API_BASE}/vendors`);

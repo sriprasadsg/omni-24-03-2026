@@ -15,6 +15,7 @@ import uuid, os, logging
 from datetime import datetime, timezone
 from typing import Optional
 from cryptography.fernet import Fernet
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,21 @@ async def scan_account(db, account_id: str, tenant_id: str) -> dict:
     )
     try:
         provider = account.get("provider", "aws")
+
+        # PROV-02: Ingest real findings for M365/Atlas before run_checks
+        if provider == "microsoft365":
+            from m365_ingest import poll_m365_secure_scores
+            creds = _decrypt(account.get("credentials_ref", ""))
+            try: config = json.loads(creds)
+            except: config = {}
+            await poll_m365_secure_scores(config, account_id, tenant_id)
+        elif provider == "mongodb_atlas":
+            from mongodb_atlas_ingest import poll_mongodb_atlas_findings
+            creds = _decrypt(account.get("credentials_ref", ""))
+            try: config = json.loads(creds)
+            except: config = {}
+            await poll_mongodb_atlas_findings(config, account_id, tenant_id)
+
         result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
         await db._db.cloud_accounts.update_one(
             {"id": account_id, "tenantId": tenant_id}, {"$set": {"scan_status": "idle", "last_scan": _now()}}
@@ -171,3 +187,8 @@ def _encrypt(plain: str) -> str:
     if not plain:
         return plain
     return _FERNET.encrypt(plain.encode()).decode()
+
+def _decrypt(enc: str) -> str:
+    if not enc:
+        return enc
+    return _FERNET.decrypt(enc.encode()).decode()

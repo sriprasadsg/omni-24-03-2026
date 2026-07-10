@@ -1,6 +1,6 @@
 """Tests for Phase 30-03: Questionnaire Answer Review Service."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import sys
 import os
@@ -12,164 +12,192 @@ from backend.questionnaire_answer_review_service import (
     mark_submitted,
     list_reviews,
     list_pending_drafts,
+    QUESTIONNAIRE_ANSWER_REVIEWS_COL,
+    QUESTIONNAIRE_ANSWER_DRAFTS_COL,
 )
 
-@pytest.fixture
-def mock_db():
-    """Create mock database with both collections."""
-    db = MagicMock()
-    db["questionnaire_answer_reviews"] = AsyncMock()
-    db["questionnaire_answer_drafts"] = AsyncMock()
-    return db
+TEST_DRAFT_ID = "draft-123"
+TEST_REVIEW_ID = "review-123"
+TEST_TENANT_ID = "tenant-123"
 
-def test_create_review_success(mock_db):
-    """Test creating a review for a valid draft."""
-    # Mock the draft query
-    mock_draft = {"id": "draft-1", "tenantId": "tenant-1", "status": "pending_review"}
-    mock_db["questionnaire_answer_drafts"].find_one = AsyncMock(return_value=mock_draft)
+def make_mock_db():
+    """Use an object with attribute-based collection access for proper mock chaining."""
+    class MockDB:
+        def __init__(self):
+            self.reviews = AsyncMock()
+            self.drafts = AsyncMock()
+        def __getitem__(self, key):
+            if key == "questionnaire_answer_reviews":
+                return self.reviews
+            elif key == "questionnaire_answer_drafts":
+                return self.drafts
+            return AsyncMock()
+    return MockDB()
 
-    # Mock the review insertion
-    mock_db["questionnaire_answer_reviews"].insert_one = AsyncMock()
+def set_pending_draft(db):
+    db.drafts.find_one = AsyncMock(return_value={"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "pending_review"})
 
-    review = create_review("draft-1", mock_db, "tenant-1")
+@pytest.mark.asyncio
+async def test_create_review_success():
+    """Create review for valid pending draft."""
+    db = make_mock_db()
+    set_pending_draft(db)
+    db.reviews.insert_one = AsyncMock()
+
+    review = await create_review(TEST_DRAFT_ID, db, TEST_TENANT_ID)
 
     assert review is not None
     assert review["id"].startswith("qar-")
-    assert review["draftId"] == "draft-1"
-    assert review["tenantId"] == "tenant-1"
+    assert review["draftId"] == TEST_DRAFT_ID
+    assert review["tenantId"] == TEST_TENANT_ID
     assert review["status"] == "pending"
-
-    mock_db["questionnaire_answer_drafts"].find_one.assert_called_once_with(
-        {"id": "draft-1", "tenantId": "tenant-1", "status": "pending_review"}
+    db.drafts.find_one.assert_called_once_with(
+        {"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "pending_review"}
     )
-    mock_db["questionnaire_answer_reviews"].insert_one.assert_called_once()
+    db.reviews.insert_one.assert_called_once()
 
-def test_create_review_draft_not_found(mock_db):
-    """Test creating a review for a draft that doesn't exist."""
-    mock_db["questionnaire_answer_drafts"].find_one = AsyncMock(return_value=None)
+@pytest.mark.asyncio
+async def test_create_review_draft_not_found():
+    """Create review for non-existent draft returns None."""
+    db = make_mock_db()
+    db.drafts.find_one = AsyncMock(return_value=None)
 
-    review = create_review("draft-not-found", mock_db, "tenant-1")
-
+    review = await create_review("non-existent", db, TEST_TENANT_ID)
     assert review is None
-    mock_db["questionnaire_answer_drafts"].find_one.assert_called_once_with(
-        {"id": "draft-not-found", "tenantId": "tenant-1", "status": "pending_review"}
+
+@pytest.mark.asyncio
+async def test_create_review_draft_wrong_status():
+    """Create review for draft not in pending_review returns None."""
+    db = make_mock_db()
+    # Mock returns None when filter doesn't match (status != pending_review)
+    async def find_one_mock(filter_dict):
+        if filter_dict.get("status") == "pending_review":
+            return None  # draft exists but wrong status
+        return None
+    db.drafts.find_one = AsyncMock(side_effect=find_one_mock)
+
+    review = await create_review(TEST_DRAFT_ID, db, TEST_TENANT_ID)
+    assert review is None
+
+@pytest.mark.asyncio
+async def test_update_review_decision_success():
+    """Update review decision propagates to draft."""
+    db = make_mock_db()
+    db.reviews.find_one_and_update = AsyncMock(
+        return_value={"id": TEST_REVIEW_ID, "draftId": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "pending"}
+    )
+    db.drafts.update_one = AsyncMock()
+    db.drafts.find_one = AsyncMock(
+        return_value={"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "approved"}
     )
 
-def test_create_review_draft_wrong_status(mock_db):
-    """Test creating a review for a draft that is not in pending_review state."""
-    # Mock a draft with a different status
-    mock_draft = {"id": "draft-1", "tenantId": "tenant-1", "status": "submitted"}
-    mock_db["questionnaire_answer_drafts"].find_one = AsyncMock(return_value=mock_draft)
-
-    review = create_review("draft-1", mock_db, "tenant-1")
-
-    assert review is None  # Should return None for wrong status
-    mock_db["questionnaire_answer_drafts"].find_one.assert_called_once_with(
-        {"id": "draft-1", "tenantId": "tenant-1", "status": "pending_review"}
-    )
-
-def test_update_review_decision_success(mock_db):
-    """Test updating review decision for a pending review."""
-    # Mock the review
-    mock_review = {"id": "rev-1", "draftId": "draft-1", "tenantId": "tenant-1", "status": "pending"}
-    mock_db["questionnaire_answer_reviews"].find_one_and_update = AsyncMock(return_value=mock_review)
-    mock_db["questionnaire_answer_drafts"].update_one = AsyncMock()
-    mock_db["questionnaire_answer_drafts"].find_one = AsyncMock(return_value={
-        "id": "draft-1", "tenantId": "tenant-1", "status": "approved"
-    })
-
-    result = update_review_decision(
-        "review-1", "draft-1", "approved", "Looks good", mock_db, "tenant-1",
-        decided_by="user1", edited_answer_text=None
+    result = await update_review_decision(
+        TEST_REVIEW_ID, TEST_DRAFT_ID, "approved", "Looks good", db, TEST_TENANT_ID,
+        decided_by="reviewer1", edited_answer_text=None
     )
 
     assert result is not None
-    assert result["id"] == "draft-1"
-
-    mock_db["questionnaire_answer_reviews"].find_one_and_update.assert_called_once_with(
-        {"id": "review-1", "draftId": "draft-1", "tenantId": "tenant-1", "status": "pending"},
-        {"$set": {"status": "completed", "comment": "Looks good", "decided_by": "user1", "updated_at": pytest.ANY}}
+    assert result["id"] == TEST_DRAFT_ID
+    db.reviews.find_one_and_update.assert_called_once_with(
+        {"id": TEST_REVIEW_ID, "draftId": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "pending"},
+        {"$set": {"status": "completed", "comment": "Looks good", "decided_by": "reviewer1", "updated_at": ANY}},
     )
-    mock_db["questionnaire_answer_drafts"].update_one.assert_called_once_with(
-        {"id": "draft-1", "tenantId": "tenant-1"},
-        {"$set": {
-            "status": "approved",
-            "reviewerId": "user1",
-            "decidedAt": pytest.ANY,
-            "reviewComment": "Looks good",
-            "updatedAt": pytest.ANY
-        }}
+    db.drafts.update_one.assert_called_once_with(
+        {"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID},
+        {"$set": {"status": "approved", "reviewerId": "reviewer1", "decidedAt": ANY, "reviewComment": "Looks good", "updatedAt": ANY}}
     )
 
-def test_update_review_decision_invalid_decision(mock_db):
-    """Test updating review with invalid decision."""
+@pytest.mark.asyncio
+async def test_update_review_decision_invalid():
+    """Invalid decision raises ValueError."""
+    db = make_mock_db()
     with pytest.raises(ValueError, match="invalid decision"):
-        update_review_decision(
-            "review-1", "draft-1", "invalid_decision", "comment", mock_db, "tenant-1",
-            decided_by="user1"
+        await update_review_decision(
+            TEST_REVIEW_ID, TEST_DRAFT_ID, "invalid_decision", "Some comment", db, TEST_TENANT_ID,
         )
 
-def test_update_review_decision_comment_required(mock_db):
-    """Test that comment is required for certain decisions."""
+@pytest.mark.asyncio
+async def test_update_review_decision_comment_required():
+    """Missing comment for reject/needs_revision raises ValueError."""
+    db = make_mock_db()
     with pytest.raises(ValueError, match="comment required"):
-        update_review_decision(
-            "review-1", "draft-1", "rejected", None, mock_db, "tenant-1",
-            decided_by="user1"
+        await update_review_decision(
+            TEST_REVIEW_ID, TEST_DRAFT_ID, "rejected", None, db, TEST_TENANT_ID,
         )
 
-def test_mark_submitted_success(mock_db):
-    """Test marking a draft as submitted when it's approved."""
-    mock_draft = {"id": "draft-1", "tenantId": "tenant-1", "status": "approved"}
-    mock_db["questionnaire_answer_drafts"].find_one_and_update = AsyncMock(return_value=mock_draft)
+@pytest.mark.asyncio
+async def test_mark_submitted_success():
+    """Mark approved draft as submitted."""
+    db = make_mock_db()
+    db.drafts.find_one_and_update = AsyncMock(
+        return_value={"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "approved"}
+    )
 
-    result = mark_submitted("draft-1", mock_db, "tenant-1", "user1")
+    result = await mark_submitted(TEST_DRAFT_ID, db, TEST_TENANT_ID, "reviewer1")
 
     assert result is not None
-    assert result["id"] == "draft-1"
-
-    mock_db["questionnaire_answer_drafts"].find_one_and_update.assert_called_once_with(
-        {"id": "draft-1", "tenantId": "tenant-1", "status": "approved"},
-        {"$set": {"status": "submitted", "submitted_by": "user1", "submitted_at": pytest.ANY, "updatedAt": pytest.ANY}},
+    assert result["id"] == TEST_DRAFT_ID
+    db.drafts.find_one_and_update.assert_called_once_with(
+        {"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "approved"},
+        {"$set": {"status": "submitted", "submitted_by": "reviewer1", "submitted_at": ANY, "updatedAt": ANY}},
         return_document=True
     )
 
-def test_mark_submitted_draft_not_approved(mock_db):
-    """Test marking a draft as submitted when it's not in approved state."""
-    mock_draft = {"id": "draft-1", "tenantId": "tenant-1", "status": "pending_review"}
-    mock_db["questionnaire_answer_drafts"].find_one_and_update = AsyncMock(return_value=None)
+@pytest.mark.asyncio
+async def test_mark_submitted_not_approved():
+    """Non-approved draft returns None from mark_submitted."""
+    db = make_mock_db()
+    db.drafts.find_one_and_update = AsyncMock(return_value=None)
 
-    result = mark_submitted("draft-1", mock_db, "tenant-1", "user1")
+    result = await mark_submitted(TEST_DRAFT_ID, db, TEST_TENANT_ID, "reviewer1")
+    assert result is None
 
-    assert result is None  # Should return None for wrong status
+@pytest.mark.asyncio
+async def test_list_reviews():
+    """List reviews returns sorted list."""
+    db = make_mock_db()
+    cursor = AsyncMock()
+    cursor.to_list = AsyncMock(return_value=[{"id": "rev-1"}])
+    sort_mock = MagicMock(return_value=cursor)
+    db.reviews.find = MagicMock(return_value=MagicMock(sort=sort_mock))
 
-    mock_db["questionnaire_answer_drafts"].find_one_and_update.assert_called_once_with(
-        {"id": "draft-1", "tenantId": "tenant-1", "status": "approved"},
-        {"$set": {"status": "submitted", "submitted_by": "user1", "submitted_at": pytest.ANY, "updatedAt": pytest.ANY}},
-        return_document=True
-    )
-
-def test_list_reviews(mock_db):
-    """Test listing reviews for a draft."""
-    mock_reviews = [{"id": "rev-1", "draftId": "draft-1", "tenantId": "tenant-1", "status": "pending"}]
-    mock_db["questionnaire_answer_reviews"].find.return_value.to_list = AsyncMock(return_value=mock_reviews)
-
-    result = list_reviews("draft-1", mock_db, "tenant-1")
+    result = await list_reviews(TEST_DRAFT_ID, db, TEST_TENANT_ID)
 
     assert len(result) == 1
-    assert result[0]["id"] == "rev-1"
-    mock_db["questionnaire_answer_reviews"].find.assert_called_once_with(
-        {"draftId": "draft-1", "tenantId": "tenant-1"}
-    )
+    db.reviews.find.assert_called_once_with({"draftId": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID})
 
-def test_list_pending_drafts(mock_db):
-    """Test listing pending drafts for a tenant."""
-    mock_drafts = [{"id": "draft-1", "tenantId": "tenant-1", "status": "pending_review"}]
-    mock_db["questionnaire_answer_drafts"].find.return_value.to_list = AsyncMock(return_value=mock_drafts)
+@pytest.mark.asyncio
+async def test_list_reviews_empty():
+    """List reviews returns empty list when none exist."""
+    db = make_mock_db()
+    cursor = AsyncMock()
+    cursor.to_list = AsyncMock(return_value=[])
+    sort_mock = MagicMock(return_value=cursor)
+    db.reviews.find = MagicMock(return_value=MagicMock(sort=sort_mock))
 
-    result = list_pending_drafts(mock_db, "tenant-1")
+    result = await list_reviews(TEST_DRAFT_ID, db, TEST_TENANT_ID)
+    assert result == []
+
+@pytest.mark.asyncio
+async def test_list_pending_drafts():
+    """List pending drafts returns drafts."""
+    db = make_mock_db()
+    cursor = AsyncMock()
+    cursor.to_list = AsyncMock(return_value=[{"id": "draft-1", "status": "pending_review"}])
+    db.drafts.find = MagicMock(return_value=cursor)
+
+    result = await list_pending_drafts(db, TEST_TENANT_ID)
 
     assert len(result) == 1
     assert result[0]["id"] == "draft-1"
-    mock_db["questionnaire_answer_drafts"].find.assert_called_once_with(
-        {"tenantId": "tenant-1", "status": "pending_review"}
-    )
+
+@pytest.mark.asyncio
+async def test_list_pending_drafts_empty():
+    """List pending drafts returns empty list."""
+    db = make_mock_db()
+    cursor = AsyncMock()
+    cursor.to_list = AsyncMock(return_value=[])
+    db.drafts.find = MagicMock(return_value=cursor)
+
+    result = await list_pending_drafts(db, TEST_TENANT_ID)
+    assert result == []

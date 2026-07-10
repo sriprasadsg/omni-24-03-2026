@@ -1,6 +1,7 @@
 import React from 'react';
 import { AttackPath } from '../types';
 import { NetworkIcon, ShieldAlertIcon, BoxIcon } from './icons';
+import { AlertTriangle } from 'lucide-react';
 
 interface AttackPathDashboardProps {
     attackPaths: AttackPath[];

@@ -14,7 +14,18 @@
       "Bash(git commit *)",
       "Bash(/gsd-pause-work *)",
       "Skill(gsd-pause-work)",
-      "Skill(gsd-execute-phase)"
+      "Skill(gsd-execute-phase)",
+      "Skill(gsd-resume-work)",
+      "Skill(gsd-audit-fix)",
+      "Bash(python3 -m pytest tests/test_trust_center.py -k \"persistence or tenant or admin_auth\" -v)",
+      "Bash(python3 -m pytest tests/test_trust_center.py -k \"test_profile_persists_across_fresh_db_handle\" -v --showlocals)",
+      "Bash(python3 -m pytest backend/tests/test_trust_center.py -v)",
+      "Skill(gsd-progress)",
+      "Bash(python3 *)",
+      "Bash(python *)",
+      "Bash(pip show *)",
+      "Bash(pip install *)",
+      "WebFetch(domain:pypi.org)"
     ]
   },
   "enabledMcpjsonServers": [

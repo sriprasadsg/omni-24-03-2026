@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {
-    AlertTriangle, Shield, CheckCircle, TrendingUp, Plus, Search, Filter,
-    MoreHorizontal, Edit2, Trash2, Zap, Cloud, Users, FileText
-} from 'lucide-react';
+import { AlertTriangle, Shield, CheckCircle, TrendingUp, Plus, Search, Filter, MoreHorizontal, Edit2, Trash2, Zap, Cloud, Users, FileText, DollarSign } from 'lucide-react';
 import * as api from '../services/apiService';
 import { RiskFormModal } from './RiskFormModal';
+import { RiskFairModal } from './RiskFairModal'; // Import RiskFairModal
 
 // Types (should eventually be moved to types.ts)
 interface Risk {
@@ -23,6 +21,9 @@ interface Risk {
     // Residual fields (RISK-01)
     inherent_risk_score?: number;
     residual_risk_score?: number;
+    // FAIR fields
+    fair_inputs?: { lef_min: number; lef_likely: number; lef_max: number; lm_min: number; lm_likely: number; lm_max: number; iterations?: number };
+    fair_results?: { mean: number; p10: number; p50: number; p90: number; exceedance_curve: { loss: number; probability: number }[] };
 }
 
 export default function RiskRegister() {
@@ -31,7 +32,7 @@ export default function RiskRegister() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState<string>('All');
     const [showAddModal, setShowAddModal] = useState(false);
-    const [selectedRisk, setSelectedRisk] = useState<Risk | null>(null);
+    const [fairRisk, setFairRisk] = useState<Risk | null>(null);
 
     useEffect(() => {
         fetchRisks();
@@ -63,6 +64,16 @@ export default function RiskRegister() {
             case 'Third-Party': return <Users className="w-4 h-4" />;
             default: return <AlertTriangle className="w-4 h-4" />;
         }
+    };
+
+    const formatCurrency = (value: number) => {
+        if (value >= 1_000_000) {
+            return `$${(value / 1_000_000).toFixed(1)}M`;
+        }
+        if (value >= 1_000) {
+            return `$${(value / 1_000).toFixed(0)}K`;
+        }
+        return `$${value.toFixed(0)}`;
     };
 
     const filteredRisks = risks.filter(risk =>
@@ -183,6 +194,7 @@ export default function RiskRegister() {
                                 <th className="px-6 py-3 font-medium">Category</th>
                                 <th className="px-6 py-3 font-medium">Inherent Score</th>
                                 <th className="px-6 py-3 font-medium">Residual Score</th>
+                                <th className="px-6 py-3 font-medium">FAIR</th>
                                 <th className="px-6 py-3 font-medium">Status</th>
                                 <th className="px-6 py-3 font-medium">Owner</th>
                                 <th className="px-6 py-3 font-medium text-right">Actions</th>
@@ -214,6 +226,15 @@ export default function RiskRegister() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
+                                            {risk.fair_results ? (
+                                                <span className="px-2 py-1 rounded-md text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                                                    {formatCurrency(risk.fair_results.p10)}-{formatCurrency(risk.fair_results.p90)} (90% CI)
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400 text-xs">Not quantified</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${risk.status === 'Open' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/10 dark:text-red-400 dark:border-red-900/30' :
                                                 risk.status === 'Mitigated' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/10 dark:text-green-400 dark:border-green-900/30' :
                                                     'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
@@ -229,6 +250,12 @@ export default function RiskRegister() {
                                             <div className="flex justify-end gap-2">
                                                 <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
                                                     <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setFairRisk(risk)}
+                                                    title="Quantify with FAIR"
+                                                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors">
+                                                    <DollarSign className="w-4 h-4" />
                                                 </button>
                                                 <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                                                     <Trash2 className="w-4 h-4" />
@@ -247,6 +274,15 @@ export default function RiskRegister() {
                 onClose={() => setShowAddModal(false)}
                 onSubmit={async (data) => {
                     await api.createRisk(data);
+                    fetchRisks();
+                }}
+            />
+            <RiskFairModal
+                isOpen={!!fairRisk}
+                risk={fairRisk}
+                onClose={() => setFairRisk(null)}
+                onComplete={() => {
+                    setFairRisk(null);
                     fetchRisks();
                 }}
             />

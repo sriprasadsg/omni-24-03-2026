@@ -364,6 +364,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'riskRegister', label: 'Risk Register', icon: <ShieldAlertIcon size={20} />, permission: 'view:compliance' },
                 { view: 'vendorManagement', label: 'Vendor Mgmt', icon: <UsersIcon size={20} />, permission: 'view:compliance' },
                 { view: 'trustCenter', label: 'Trust Center', icon: <Globe size={20} />, permission: 'view:compliance' },
+                { view: 'trustPage', label: 'Public Trust Page Preview', icon: <Globe size={20} />, permission: 'view:compliance' },
                 { view: 'secureFileShare', label: 'Secure Share', icon: <Lock size={20} />, permission: 'manage:compliance_evidence' },
                 { view: 'securityTraining', label: 'Training', icon: <BookKeyIcon size={20} />, permission: 'view:compliance' },
                 { view: 'aiGovernance', label: 'AI Governance', icon: <BotIcon size={20} />, permission: 'view:ai_governance' },

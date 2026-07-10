@@ -85,6 +85,7 @@ import { InteractiveVoiceBot } from './components/InteractiveVoiceBot';
 import { CharacterTourBot } from './components/CharacterTourBot';
 const VendorManagement = lazy(() => import('./components/VendorManagement'));
 const TrustCenter = lazy(() => import('./components/TrustCenter'));
+const TrustPage = lazy(() => import('./components/TrustPage'));
 const SecureFileShare = lazy(() => import('./components/SecureFileShare'));
 const SecurityTraining = lazy(() => import('./components/SecurityTraining'));
 const LLMOpsDashboard = lazy(() => import('./components/LLMOpsDashboard'));
@@ -1793,6 +1794,7 @@ const App: React.FC = () => {
       case 'riskRegister': return <ErrorBoundary name="RiskRegister"><RiskRegister /></ErrorBoundary>;
       case 'vendorManagement': return <ErrorBoundary name="VendorManagement"><VendorManagement /></ErrorBoundary>;
       case 'trustCenter': return <ErrorBoundary name="TrustCenter"><TrustCenter /></ErrorBoundary>;
+      case 'trustPage': return <ErrorBoundary name="TrustPage"><TrustPage /></ErrorBoundary>;
       case 'secureFileShare': return <ErrorBoundary name="SecureFileShare"><SecureFileShare /></ErrorBoundary>;
       case 'securityTraining': return <ErrorBoundary name="SecurityTraining"><SecurityTraining /></ErrorBoundary>;
       case 'complianceOracle': return <ErrorBoundary name="ComplianceOracleDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ComplianceOracleDashboard /></Suspense></ErrorBoundary>;

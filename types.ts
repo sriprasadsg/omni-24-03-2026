@@ -7,6 +7,7 @@ export type AppView =
   | 'riskRegister'
   | 'vendorManagement'
   | 'trustCenter'
+  | 'trustPage'
   | 'secureFileShare'
   | 'securityTraining'
   | 'reporting'
@@ -1271,9 +1272,9 @@ export interface AttackPathNode {
   vulnerabilities: number;
 }
 export interface AttackPathEdge {
-  from: string;
-  to: string;
-  label: string; // e.g., 'Exploits CVE-2023-1234'
+  source: string;
+  target: string;
+  vulnerability: string; // e.g., 'CVE-2023-1234'
 }
 export interface AttackPath {
   id: string;
@@ -1281,6 +1282,7 @@ export interface AttackPath {
   name: string;
   nodes: AttackPathNode[];
   edges: AttackPathEdge[];
+  simulated?: boolean;
 }
 
 export interface ServiceTemplate {
@@ -1568,6 +1570,8 @@ export interface Risk {
     mitigation_plan?: string;
     created_at: string;
     updated_at: string;
+    fair_inputs?: { lef_min: number; lef_likely: number; lef_max: number; lm_min: number; lm_likely: number; lm_max: number; iterations?: number };
+    fair_results?: { mean: number; p10: number; p50: number; p90: number; exceedance_curve: { loss: number; probability: number }[] };
 }
 
 export interface VendorAssessment {
