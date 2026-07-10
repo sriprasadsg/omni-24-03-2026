@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from saas_posture_checks_service import saas_posture_checks_service
+import saas_posture_checks_service as m
 
 # Test harness based on _chain/_mkdb convention
 def _chain(result):
@@ -33,7 +33,7 @@ async def test_run_posture_checks_reshaping():
     ]
 
     with patch("saas_integration_service.saas_integration_service.pull_all_evidence", new_callable=AsyncMock, return_value=mock_evidence):
-        result = await saas_posture_checks_service.run_posture_checks(connection, db)
+        result = await m.saas_posture_checks_service.run_posture_checks(connection, db)
 
     assert result["ran"] == 3  # 3 checks defined for GitHub
 
