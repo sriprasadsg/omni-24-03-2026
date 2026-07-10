@@ -106,6 +106,10 @@ slowapi>=0.1.9                 # FastAPI rate limiter
 # ── Cloud Security Integrations ───────────────────────────────────────────────
 google-cloud-securitycenter>=1.23.0   # GCP Security Command Center ingest
 azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Analytics
+oci>=2.181.1
+aliyun-python-sdk-core-v3>=2.13.33
+cloudflare>=5.4.0
+msal>=1.37.0
 
 # ── Code Review Graph ─────────────────────────────────────────────────────────
 # code-review-graph>=2.3.0           # Optional: code knowledge graph (install separately if needed)
