@@ -48,10 +48,30 @@ async def test_run_checks_evaluates_digitalocean():
     assert result["ran"] == 10, f"Got {result}"
 
 
+async def test_run_checks_evaluates_microsoft365():
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "microsoft365"}
+    db = _mkdb(account)
+    with patch("database.get_database", return_value=db):
+        result = await m.cloud_checks_service.run_checks("acct-1", "microsoft365", "tenant-a")
+    assert result.get("error") is None, f"Got {result}"
+    assert result["ran"] == 2, f"Got {result}" # M365_CHECKS has 2 entries
+
+
+async def test_run_checks_evaluates_mongodb_atlas():
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "mongodb_atlas"}
+    db = _mkdb(account)
+    with patch("database.get_database", return_value=db):
+        result = await m.cloud_checks_service.run_checks("acct-1", "mongodb_atlas", "tenant-a")
+    assert result.get("error") is None, f"Got {result}"
+    assert result["ran"] == 2, f"Got {result}" # MONGODB_ATLAS_CHECKS has 2 entries
+
+
 async def test_coverage_denominator_includes_new_providers():
     from cloud_checks_service import RUNNABLE_PROVIDERS, _RUNNABLE_CHECKS_COUNT, CLOUD_CHECKS
     assert "kubernetes" in RUNNABLE_PROVIDERS, f"Got {RUNNABLE_PROVIDERS}"
     assert "digitalocean" in RUNNABLE_PROVIDERS, f"Got {RUNNABLE_PROVIDERS}"
+    assert "microsoft365" in RUNNABLE_PROVIDERS, f"Got {RUNNABLE_PROVIDERS}"
+    assert "mongodb_atlas" in RUNNABLE_PROVIDERS, f"Got {RUNNABLE_PROVIDERS}"
     assert _RUNNABLE_CHECKS_COUNT == len(CLOUD_CHECKS), (
         f"Denominator {_RUNNABLE_CHECKS_COUNT} != total catalogued checks {len(CLOUD_CHECKS)}"
     )
