@@ -7,6 +7,12 @@ interface AttackPathDashboardProps {
     attackPaths: AttackPath[];
 }
 
+const SimulatedBadge: React.FC = () => (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-semibold">
+        <AlertTriangle className="w-3 h-3 shrink-0" /> SIMULATED — demo scenario, no real assets/vulnerabilities found
+    </span>
+);
+
 const NodeCard: React.FC<{ node: AttackPath['nodes'][0] }> = ({ node }) => {
     const icons = {
         'Public Asset': <ShieldAlertIcon className="text-red-500" size={24} />,
@@ -56,7 +62,8 @@ export const AttackPathDashboard: React.FC<AttackPathDashboardProps> = ({ attack
             </header>
 
             <div className="glass-premium rounded-3xl p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8">
+                <div className="absolute top-0 right-0 p-8 flex flex-col items-end gap-2">
+                    {displayPath.simulated && <SimulatedBadge />}
                     <div className="px-4 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-xs font-black uppercase tracking-widest animate-pulse border border-red-500/20">
                         High Priority Scenario
                     </div>
@@ -80,7 +87,7 @@ export const AttackPathDashboard: React.FC<AttackPathDashboardProps> = ({ attack
                                         <div className="h-16 w-1 bg-gradient-to-b from-primary-500 to-indigo-500 rounded-full relative shadow-[0_0_15px_rgba(79,70,229,0.5)]">
                                             <div className="absolute top-1/2 left-4 whitespace-nowrap">
                                                 <div className="bg-white/5 dark:bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-black text-indigo-500 uppercase tracking-widest">
-                                                    {(displayPath.edges || []).find(e => e.from === node.id)?.label}
+                                                    {(displayPath.edges || []).find(e => e.source === node.id)?.vulnerability}
                                                 </div>
                                             </div>
                                         </div>
