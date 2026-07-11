@@ -1,6 +1,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import saas_posture_checks_service as m
+import saas_posture_checks_service as svc
+import saas_posture_checks_endpoints as ep
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from authentication_service import get_current_user
+from auth_types import TokenData
 
 # Test harness based on _chain/_mkdb convention
 def _chain(result):
@@ -14,6 +19,18 @@ def _mkdb():
     db.saas_check_results.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
     return db
 
+
+def _user(role="security_analyst", tenant_id="tenant-a"):
+    return TokenData(username="test@example.com", role=role, tenant_id=tenant_id, mfa_verified=True)
+
+@pytest.fixture
+def client():
+    app = FastAPI()
+    app.include_router(ep.router)
+    app.dependency_overrides[get_current_user] = lambda: _user()
+    return TestClient(app)
+
+# --- Service Tests ---
 @pytest.mark.asyncio
 async def test_run_posture_checks_reshaping():
     """Assert fail->FAIL, pass->PASS, missing->NO-DATA mapping."""
@@ -33,7 +50,7 @@ async def test_run_posture_checks_reshaping():
     ]
 
     with patch("saas_integration_service.saas_integration_service.pull_all_evidence", new_callable=AsyncMock, return_value=mock_evidence):
-        result = await m.saas_posture_checks_service.run_posture_checks(connection, db)
+        result = await svc.saas_posture_checks_service.run_posture_checks(connection, db)
 
     assert result["ran"] == 3  # 3 checks defined for GitHub
 
@@ -49,3 +66,56 @@ async def test_run_posture_checks_reshaping():
     assert results_by_id["gh-sd-001"] == "FAIL" # SECURE_DEV (fail)
     assert results_by_id["gh-sc-001"] == "PASS" # SOURCE_CODE (pass)
     assert results_by_id["gh-sp-001"] == "NO-DATA" # SEC_PATCH (missing)
+
+# --- Endpoint Tests ---
+def test_endpoint_posture_run_success(client):
+    connection = {"id": "conn-1", "tenant_id": "tenant-a", "provider": "github"}
+    with patch("database.get_db") as mock_get_db:
+        db = _mkdb()
+        db.saas_connections.find_one = AsyncMock(return_value=connection)
+        mock_get_db.return_value = db
+        # Patch the service call
+        with patch("saas_posture_checks_endpoints.svc.saas_posture_checks_service.run_posture_checks", new_callable=AsyncMock, return_value={"ran": 1}):
+            response = client.post("/api/saas/posture-checks/conn-1/run")
+    assert response.status_code == 200
+    assert response.json()["ran"] == 1
+
+def test_endpoint_posture_run_cross_tenant_denied(client):
+    connection = {"id": "conn-1", "tenant_id": "tenant-b", "provider": "github"}
+    with patch("database.get_db") as mock_get_db:
+        db = MagicMock()
+        db.saas_connections.find_one = AsyncMock(return_value=connection)
+        mock_get_db.return_value = db
+        response = client.post("/api/saas/posture-checks/conn-1/run")
+    assert response.status_code == 403
+
+def test_endpoint_list_results_success(client):
+    tenant_id = "tenant-a"
+    connection_id = "conn-1"
+    connection = {"id": connection_id, "tenant_id": tenant_id, "provider": "github"}
+    mock_results = [{"id": "scr-1", "checkName": "Mock Check", "result": "PASS"}]
+
+    with patch("database.get_db") as mock_get_db:
+        db = MagicMock()
+        db.saas_connections.find_one = AsyncMock(return_value=connection)
+        db.saas_check_results.find.return_value.to_list = AsyncMock(return_value=mock_results)
+        mock_get_db.return_value = db
+        response = client.get(f"/api/saas/posture-checks/{connection_id}/results")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert response.json()["items"][0]["checkName"] == "Mock Check"
+
+def test_endpoint_list_results_cross_tenant_denied(client):
+    connection_id = "conn-1"
+    # User's tenant is 'tenant-a' by default in _user()
+    connection = {"id": connection_id, "tenant_id": "tenant-b", "provider": "github"}
+
+    with patch("database.get_db") as mock_get_db:
+        db = MagicMock()
+        db.saas_connections.find_one = AsyncMock(return_value=connection)
+        mock_get_db.return_value = db
+        response = client.get(f"/api/saas/posture-checks/{connection_id}/results")
+
+    assert response.status_code == 403
+

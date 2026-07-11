@@ -162,6 +162,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "compliance_score_endpoints", "router")
     _load(app, "saas_integration_endpoints", "router")
     _load(app, "saas_posture_checks_endpoints", "router")
+    _load(app, "saas_posture_checks_endpoints", "router")
     _load(app, "powershell_evidence_endpoints", "router")
     _load(app, "program_endpoints",             "router")
     _load(app, "evidence_review_endpoints", "router")
