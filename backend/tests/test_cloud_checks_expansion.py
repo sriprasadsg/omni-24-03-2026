@@ -16,7 +16,7 @@ def _chain(result):
     return c
 
 
-def _mkdb(account):
+def _mkdb(account, findings=None):
     # cloud_checks_service.run_checks() accesses db.cloud_accounts /
     # db.cloud_findings / db.cloud_check_results directly with NO db._db
     # prefix (unlike iac_scanner_service, which uses db._db).
@@ -24,9 +24,14 @@ def _mkdb(account):
     db.cloud_accounts = MagicMock()
     db.cloud_accounts.find_one = AsyncMock(return_value=account)
     db.cloud_findings = MagicMock()
-    db.cloud_findings.find = MagicMock(return_value=_chain([]))
+    db.cloud_findings.find = MagicMock(return_value=_chain(findings if findings is not None else []))
     db.cloud_check_results = MagicMock()
-    db.cloud_check_results.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+    captured_docs = []
+    async def _capture(filter, update, upsert=False):
+        captured_docs.append(update.get("$set", {}))
+        return MagicMock(modified_count=1)
+    db.cloud_check_results.update_one = AsyncMock(side_effect=_capture)
+    db._captured = captured_docs
     return db
 
 
@@ -54,7 +59,7 @@ async def test_run_checks_evaluates_microsoft365():
     with patch("database.get_database", return_value=db):
         result = await m.cloud_checks_service.run_checks("acct-1", "microsoft365", "tenant-a")
     assert result.get("error") is None, f"Got {result}"
-    assert result["ran"] == 2, f"Got {result}" # M365_CHECKS has 2 entries
+    assert result["ran"] == 6, f"Got {result}" # M365_CHECKS has 6 entries
 
 
 async def test_run_checks_evaluates_mongodb_atlas():
@@ -63,7 +68,64 @@ async def test_run_checks_evaluates_mongodb_atlas():
     with patch("database.get_database", return_value=db):
         result = await m.cloud_checks_service.run_checks("acct-1", "mongodb_atlas", "tenant-a")
     assert result.get("error") is None, f"Got {result}"
-    assert result["ran"] == 2, f"Got {result}" # MONGODB_ATLAS_CHECKS has 2 entries
+    assert result["ran"] == 6, f"Got {result}" # MONGODB_ATLAS_CHECKS has 6 entries
+
+
+async def test_simulated_flag_true_when_no_findings():
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "kubernetes"}
+    db = _mkdb(account, findings=[])
+    with patch("database.get_database", return_value=db):
+        await m.cloud_checks_service.run_checks("acct-1", "kubernetes", "tenant-a")
+    docs = db._captured
+    assert len(docs) > 0
+    for d in docs:
+        assert d.get("simulated") is True, f"expected simulated=True, got {d.get('simulated')}"
+        assert d["result"] == "PASS"
+
+
+async def test_simulated_flag_false_when_findings_present():
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "kubernetes"}
+    findings = [{"severity": "high", "title": "Some Finding", "checkId": "k8s-001"}]
+    db = _mkdb(account, findings=findings)
+    with patch("database.get_database", return_value=db):
+        await m.cloud_checks_service.run_checks("acct-1", "kubernetes", "tenant-a")
+    docs = db._captured
+    assert len(docs) > 0
+    for d in docs:
+        assert d.get("simulated") is False, f"expected simulated=False, got {d.get('simulated')}"
+
+
+async def test_no_regression_for_existing_providers():
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "kubernetes"}
+    db = _mkdb(account, findings=[])
+    with patch("database.get_database", return_value=db):
+        result = await m.cloud_checks_service.run_checks("acct-1", "kubernetes", "tenant-a")
+    assert result["ran"] == 20
+    docs = db._captured
+    assert all(d["result"] == "PASS" for d in docs)
+    assert all(d.get("simulated") is True for d in docs)
+
+
+async def test_all_gates_accept_microsoft365_and_mongodb_atlas():
+    """microsoft365 and mongodb_atlas must pass through all four CSPM gates in lockstep."""
+    from cloud_account_endpoints import _VALID_PROVIDERS
+    from cloud_checks_service import RUNNABLE_PROVIDERS
+    assert "microsoft365" in _VALID_PROVIDERS
+    assert "mongodb_atlas" in _VALID_PROVIDERS
+    assert "microsoft365" in RUNNABLE_PROVIDERS
+    assert "mongodb_atlas" in RUNNABLE_PROVIDERS
+
+
+async def test_registration_gates_accept_oci_alibaba_cloudflare():
+    """oci/alibaba/cloudflare pass through the 3 registration/validation gates but NOT RUNNABLE_PROVIDERS."""
+    from cloud_account_endpoints import _VALID_PROVIDERS
+    from cloud_checks_service import RUNNABLE_PROVIDERS
+    assert "oci" in _VALID_PROVIDERS
+    assert "alibaba" in _VALID_PROVIDERS
+    assert "cloudflare" in _VALID_PROVIDERS
+    assert "oci" not in RUNNABLE_PROVIDERS
+    assert "alibaba" not in RUNNABLE_PROVIDERS
+    assert "cloudflare" not in RUNNABLE_PROVIDERS
 
 
 async def test_coverage_denominator_includes_new_providers():

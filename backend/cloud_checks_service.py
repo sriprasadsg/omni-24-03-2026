@@ -77,6 +77,7 @@ class CloudChecksService:
         significant_findings = [f for f in findings_raw if f.get("severity") in ("critical", "high", "medium")]
         failing_titles = {f.get("title", "").lower() for f in significant_findings}
         failing_ids = {f.get("checkId", "").lower() for f in significant_findings}
+        has_real_findings = len(findings_raw) > 0
 
         now = datetime.now(timezone.utc).isoformat()
         upserted = 0
@@ -101,6 +102,7 @@ class CloudChecksService:
                 "frameworks": check["frameworks"],
                 "remediation": check["remediation"],
                 "detail": "Based on imported findings from native cloud scanner." if in_findings else "No matching findings found.",
+                "simulated": not has_real_findings,
                 "checked_at": now,
             }
             await db.cloud_check_results.update_one(
