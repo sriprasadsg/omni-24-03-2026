@@ -163,12 +163,14 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "saas_integration_endpoints", "router")
     _load(app, "saas_posture_checks_endpoints", "router")
     _load(app, "saas_posture_checks_endpoints", "router")
+    _load(app, "saas_posture_checks_endpoints", "router")
     _load(app, "powershell_evidence_endpoints", "router")
     _load(app, "program_endpoints",             "router")
     _load(app, "evidence_review_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
+    _load(app, "ai_assistant_endpoints",   "router")
     _load(app, "ai_services.training_endpoints", "router")
     _load(app, "ai_system_endpoints",      "router")
     _load(app, "ai_remediation_service",   "router")
@@ -245,6 +247,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "domain_scanner_endpoints",   "router")
     _load(app, "mcp_server_endpoints",       "router")
     _load(app, "ocsf_endpoints",              "router")
+    _load(app, "oscal_endpoints",             "router") # NEW
     _load(app, "oscal_endpoints",             "router")
     _load(app, "analytics_endpoints",        "router")
     _load(app, "settings_endpoints",         "router")
@@ -295,6 +298,8 @@ def register_all_routers(app: FastAPI) -> None:
         ("deception_endpoints",             {}),
         ("jit_access_endpoints",            {}),
         ("incident_warroom_endpoints",      {}),
+        ("passkey_endpoints",               {}), # NEW
+        ("graphql_endpoints",               {}), # NEW
         ("privacy_endpoints",               {}),
         ("scheduled_reports_endpoints",     {}),
         ("retention_endpoints",             {}),
