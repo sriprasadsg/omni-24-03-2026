@@ -1,0 +1,22 @@
+{
+  "name": "zapier-omniagent",
+  "version": "0.1.0",
+  "description": "Zapier Platform CLI app for the OmniAgent GRC platform — GRC Event REST Hook trigger",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --recursive test --timeout 10000"
+  },
+  "engines": {
+    "node": ">=18",
+    "npm": ">=9"
+  },
+  "dependencies": {
+    "zapier-platform-core": "^19.0.0"
+  },
+  "devDependencies": {
+    "mocha": "^10.8.2",
+    "nock": "^13.5.6",
+    "zapier-platform-cli": "^19.0.0"
+  },
+  "private": true
+}
