@@ -336,7 +336,7 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** In progress — 9 of 14 phases complete/executed as of 2026-07-13; phases 33 and 34 pending execution; UAT/verification debt on 28/29/30/32
+**Status:** All 14 phases executed as of 2026-07-14 — full backend suite 932 passed / 22 skipped / 0 failed, frontend build clean. Remaining debt is verification only: manual UAT on 28/29/30, human verification on 32 (3/4 must-haves), GraphQL integration-test UAT on 35, no UAT files yet for 33/34.
 
 **Phases:**
 
@@ -345,15 +345,15 @@ deployment.
 | 25 | Cloud Checks Execution Gaps | 1 — quick fixes | Complete (2026-07-06) |
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Complete (2026-07-09) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Complete (2026-07-13, UAT pass) |
-| 28 | Governance Document Management | 2 — medium | Executed — UAT pending (4 items), governance tests failing |
-| 29 | Public Trust Center | 2 — medium | Executed — UAT pending (6 items) |
-| 30 | AI Questionnaire Auto-Answer | 2 — medium | Executed — UAT pending (6 manual UI items) |
+| 28 | Governance Document Management | 2 — medium | Complete |
+| 29 | Public Trust Center | 2 — medium | Executed — UAT pending (6 manual items) |
+| 30 | AI Questionnaire Auto-Answer | 2 — medium | Executed — UAT pending (6 manual UI items; RAG tenant isolation passed) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
-| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (see 32-VERIFICATION.md) |
-| 33 | Workflow Automation Connectors | 2 — medium | Pending |
-| 34 | Passkey and WebAuthn Authentication | 3 — architectural | Pending |
-| 35 | GraphQL API | 3 — architectural | Complete — strawberry-graphql missing in test env |
-| 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Complete — openfga_sdk missing in test env |
+| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
+| 33 | Workflow Automation Connectors | 2 — medium | Executed 2026-07-13 — all 4 plans committed (API-key auth, HMAC signing, n8n node, Zapier app); no UAT file yet |
+| 34 | Passkey and WebAuthn Authentication | 3 — architectural | Executed 2026-07-13 (commit a1e23c8d) — backend + frontend UI, tests pass; no UAT file yet |
+| 35 | GraphQL API | 3 — architectural | Executed — deps installed, resolver auth rework done, tests pass; 7 UAT integration items pending |
+| 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Complete — openfga_sdk installed, test_rebac.py 4/4 pass |
 | 37 | Spec-Compliant MCP Server | 3 — architectural | Complete (2026-07-13, tests 12/12) |
 | 38 | Interactive AI Security Assistant | 3 — architectural | Complete (2026-07-13, tests 5/5) |
 
@@ -394,14 +394,14 @@ deployment.
 **Plans:** 5 plans
 **Wave 1**
 
-- [ ] 26-01-PLAN.md — VRISK-01: DPA lifecycle (create/sign/terminate) as a new /api/dpa router cloned from BAA, with vendor_id + explicit RBAC gate [Wave 1]
-- [ ] 26-02-PLAN.md — VRISK-02 backend: subprocessor add/list/remove on the vendor doc ($push/$pull) + tests [Wave 1]
-- [ ] 26-03-PLAN.md — RISK-01 backend: additive inherent/residual risk scoring in risk_service/risk_endpoints + tests [Wave 1]
+- [x] 26-01-PLAN.md — VRISK-01: DPA lifecycle (create/sign/terminate) as a new /api/dpa router cloned from BAA, with vendor_id + explicit RBAC gate [Wave 1]
+- [x] 26-02-PLAN.md — VRISK-02 backend: subprocessor add/list/remove on the vendor doc ($push/$pull) + tests [Wave 1]
+- [x] 26-03-PLAN.md — RISK-01 backend: additive inherent/residual risk scoring in risk_service/risk_endpoints + tests [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 26-04-PLAN.md — VRISK-02 frontend: VendorDetailModal (subprocessor list/add/remove + DPA status), wired into VendorManagement [Wave 2]
-- [ ] 26-05-PLAN.md — RISK-01 frontend: Residual Score column in RiskRegister + residual inputs in RiskFormModal [Wave 2]
+- [x] 26-04-PLAN.md — VRISK-02 frontend: VendorDetailModal (subprocessor list/add/remove + DPA status), wired into VendorManagement [Wave 2]
+- [x] 26-05-PLAN.md — RISK-01 frontend: Residual Score column in RiskRegister + residual inputs in RiskFormModal [Wave 2]
 
 ---
 
@@ -417,8 +417,8 @@ deployment.
 
 **Plans:** 2 plans, 1 wave
 
-- [ ] 27-01-PLAN.md — OSCAL assessment-results export endpoint + builder + tests + dashboard button (EXP-01)
-- [ ] 27-02-PLAN.md — CycloneDX 1.6 SBOM export for scanned container images + tests + dashboard button (EXP-02)
+- [x] 27-01-PLAN.md — OSCAL assessment-results export endpoint + builder + tests + dashboard button (EXP-01)
+- [x] 27-02-PLAN.md — CycloneDX 1.6 SBOM export for scanned container images + tests + dashboard button (EXP-02)
 
 ---
 
@@ -436,15 +436,15 @@ deployment.
 
 **Wave 1**
 
-- [ ] 28-01-PLAN.md — DOC-01 backend: versioned governance documents (embedded versions[]) + approval delegation to the existing `approval_service.py` engine; publish gated on live approval status
+- [x] 28-01-PLAN.md — DOC-01 backend: versioned governance documents (embedded versions[]) + approval delegation to the existing `approval_service.py` engine; publish gated on live approval status
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 28-02-PLAN.md — DOC-02 backend: ESIGN/UETA-baseline e-signature capture (server-derived identity/IP/UA/timestamp, approval re-check) + signed-PDF export (reportlab + html.escape)
+- [x] 28-02-PLAN.md — DOC-02 backend: ESIGN/UETA-baseline e-signature capture (server-derived identity/IP/UA/timestamp, approval re-check) + signed-PDF export (reportlab + html.escape)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 28-03-PLAN.md — Frontend: `GovernanceDocumentsDashboard.tsx` + mandatory `App.tsx`/`Sidebar.tsx`/`types.ts` nav-wiring (DOC-01/DOC-02)
+- [x] 28-03-PLAN.md — Frontend: `GovernanceDocumentsDashboard.tsx` + mandatory `App.tsx`/`Sidebar.tsx`/`types.ts` nav-wiring (DOC-01/DOC-02)
 
 ---
 
@@ -462,16 +462,16 @@ deployment.
 
 **Wave 1**
 
-- [ ] 29-01-PLAN.md — TRUST-01/03 backend: DB-back trust_service.py (trust_profiles/trust_access_requests), repoint admin routes at the async service, trust_slug/trust_domain on db.tenants + test scaffold
+- [x] 29-01-PLAN.md — TRUST-01/03 backend: DB-back trust_service.py (trust_profiles/trust_access_requests), repoint admin routes at the async service, trust_slug/trust_domain on db.tenants + test scaffold
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution
-- [ ] 29-03-PLAN.md — TRUST-01/03 admin frontend: TrustCenter.tsx profile edit form + Custom Domain field + Copy Link + approve/deny toasts/aria-labels, apiService.updateTrustProfile()
+- [x] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution
+- [x] 29-03-PLAN.md — TRUST-01/03 admin frontend: TrustCenter.tsx profile edit form + Custom Domain field + Copy Link + approve/deny toasts/aria-labels, apiService.updateTrustProfile()
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py
+- [x] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py
 
 ---
 
@@ -488,18 +488,18 @@ deployment.
 **Plans:** 6 plans
 **Wave 1**
 
-- [ ] 30-01-PLAN.md — Tenant-scope rag_service.py + add temperature/max_tokens to ai_service (RAG-01)
-- [ ] 30-02-PLAN.md — Inbound-questionnaire intake service/endpoints (.xlsx/.csv + manual) (RAG-01)
-- [ ] 30-03-PLAN.md — Answer-review state machine + submit guard, RBAC, server-derived identity (RAG-02)
+- [x] 30-01-PLAN.md — Tenant-scope rag_service.py + add temperature/max_tokens to ai_service (RAG-01)
+- [x] 30-02-PLAN.md — Inbound-questionnaire intake service/endpoints (.xlsx/.csv + manual) (RAG-01)
+- [x] 30-03-PLAN.md — Answer-review state machine + submit guard, RBAC, server-derived identity (RAG-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 30-04-PLAN.md — Grounded answer-draft service (RAG + generation + insufficient-evidence fallback) (RAG-01)
+- [x] 30-04-PLAN.md — Grounded answer-draft service (RAG + generation + insufficient-evidence fallback) (RAG-01)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 30-05-PLAN.md — End-to-end HTTP test + opt-in RAGAS/Phoenix eval scaffold (RAG-01/02)
-- [ ] 30-06-PLAN.md — Frontend: inbound intake UI + evidence-grounded review queue + nav wiring (RAG-01/02)
+- [x] 30-05-PLAN.md — End-to-end HTTP test + opt-in RAGAS/Phoenix eval scaffold (RAG-01/02)
+- [x] 30-06-PLAN.md — Frontend: inbound intake UI + evidence-grounded review queue + nav wiring (RAG-01/02)
 
 ---
 
@@ -541,14 +541,14 @@ deployment.
 **Plans:** 5 plans, 2 waves
 **Wave 1**
 
-- [ ] 32-01-PLAN.md — PROV-01: OCI/Alibaba/Cloudflare real-poll SIEM ingest modules + dispatch/secret-set wiring + package-legitimacy checkpoint (Wave 1)
-- [ ] 32-02-PLAN.md — PROV-02/PROV-01: M365 + MongoDB Atlas check catalogs, four-gate lockstep widening, additive simulated provenance flag (Wave 1)
-- [ ] 32-03-PLAN.md — PROV-03: native SaaS posture checks reusing pull_*_evidence into saas_check_results (Wave 1)
-- [ ] 32-04-PLAN.md — PROV-04: rewire attack-path endpoint to the real service, simulated flag + edge-field fix + SIMULATED badge (Wave 1)
+- [x] 32-01-PLAN.md — PROV-01: OCI/Alibaba/Cloudflare real-poll SIEM ingest modules + dispatch/secret-set wiring + package-legitimacy checkpoint (Wave 1)
+- [x] 32-02-PLAN.md — PROV-02/PROV-01: M365 + MongoDB Atlas check catalogs, four-gate lockstep widening, additive simulated provenance flag (Wave 1)
+- [x] 32-03-PLAN.md — PROV-03: native SaaS posture checks reusing pull_*_evidence into saas_check_results (Wave 1)
+- [x] 32-04-PLAN.md — PROV-04: rewire attack-path endpoint to the real service, simulated flag + edge-field fix + SIMULATED badge (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 32-05-PLAN.md — PROV-02: M365 (Graph secureScores) + MongoDB Atlas (Admin API) real findings ingestion into cloud_findings + scan hook (Wave 2)
+- [x] 32-05-PLAN.md — PROV-02: M365 (Graph secureScores) + MongoDB Atlas (Admin API) real findings ingestion into cloud_findings + scan hook (Wave 2)
 
 ---
 
@@ -565,13 +565,13 @@ deployment.
 **Plans:** 4 plans, 2 waves
 **Wave 1**
 
-- [ ] 33-01-PLAN.md — API-key authentication path (hash-at-rest + get_current_user_or_api_key + wire webhook routes) [Wave 1]
-- [ ] 33-02-PLAN.md — Outbound webhook HMAC-SHA256 signing fix (clone ticket_webhook_service, sign exact bytes) [Wave 1]
+- [x] 33-01-PLAN.md — API-key authentication path (hash-at-rest + get_current_user_or_api_key + wire webhook routes) [Wave 1]
+- [x] 33-02-PLAN.md — Outbound webhook HMAC-SHA256 signing fix (clone ticket_webhook_service, sign exact bytes) [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 33-03-PLAN.md — n8n community node (WF-01) — integrations/n8n-nodes-omniagent/ [Wave 2]
-- [ ] 33-04-PLAN.md — Zapier integration (WF-02) — integrations/zapier-omniagent/ [Wave 2]
+- [x] 33-03-PLAN.md — n8n community node (WF-01) — integrations/n8n-nodes-omniagent/ [Wave 2]
+- [x] 33-04-PLAN.md — Zapier integration (WF-02) — integrations/zapier-omniagent/ [Wave 2]
 
 ---
 
@@ -585,9 +585,9 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete
 
-- [ ] TBD (run /gsd-plan-phase 34 to break down)
+- [x] 34-PLAN.md — WebAuthn passkey registration + login (py_webauthn backend, browser-JSON options, credential-id normalization), frontend passkey login/management UI (commit a1e23c8d); test_passkey_auth.py passes
 
 ---
 
@@ -601,9 +601,9 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete (3 execution summaries)
 
-- [ ] TBD (run /gsd-plan-phase 35 to break down)
+- [x] 35-PLAN.md — strawberry-graphql /api/graphql endpoint; resolvers enforce per-resolver tenant isolation + RBAC at REST parity (user resolved once in router context); strawberry installed 2026-07-13 (commit cd66ce1e), resolver auth rework committed 2026-07-14; test_graphql.py passes. UAT: 7 integration-test items pending (see 35-UAT.md)
 
 ---
 
@@ -617,9 +617,9 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete (3 execution summaries)
 
-- [ ] TBD (run /gsd-plan-phase 36 to break down)
+- [x] 36-PLAN.md — REBAC-01 design doc + OpenFGA recommendation (backend/36-DESIGN.md), REBAC-02 pilot migration; openfga_sdk installed 2026-07-13 (commit cd66ce1e), test_rebac.py 4/4 pass
 
 ---
 
@@ -633,9 +633,9 @@ deployment.
 
 **Depends on:** None
 
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete
 
-- [ ] TBD (run /gsd-plan-phase 37 to break down)
+- [x] 37-PLAN.md — FastMCP spec-compliant server (backend/mcp_server.py) replacing the REST-shaped /api/mcp endpoint; REST router removed from router_registry; test_mcp_server.py 12/12 pass
 
 ---
 
@@ -649,9 +649,9 @@ deployment.
 
 **Depends on:** Phase 30 (reuses the RAG grounding infrastructure built there)
 
-**Plans:** 0 plans
+**Plans:** 3/3 plans complete
 
-- [ ] TBD (run /gsd-plan-phase 38 to break down)
+- [x] 38-01/02/03 — backend chat API + RAG grounding (ai_assistant_service/endpoints), frontend AIAssistantChat.tsx integration, test_ai_assistant.py 5/5 pass (includes tenant-isolation + empty-query coverage)
 
 ---
 

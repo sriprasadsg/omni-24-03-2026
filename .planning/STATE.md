@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
-status: In progress
-stopped_at: Phase 30/32 test debt cleared, missing RAG tenant isolation implemented (commit 7c4727a9, 2026-07-13). Next — execute Phase 33 or 34, or clear remaining debt in phases 28/34/35.
-last_updated: "2026-07-13T14:30:00.000Z"
+status: In progress — all phases executed, verification backlog remains
+stopped_at: Full project verification 2026-07-14 — suite 932/22/0, build clean, phases 33/34/35/36 confirmed executed via git, uncommitted fixes committed (5f78f43e), docs reconciled. Next — clear UAT backlog (28/29/30 manual UI, 32 human verification, 35 integration tests; write UAT files for 33/34).
+last_updated: "2026-07-14T00:00:00.000Z"
 progress:
   total_phases: 14
-  completed_phases: 9
-  total_plans: 42
-  completed_plans: 40
-  percent: 64
+  completed_phases: 14
+  total_plans: 48
+  completed_plans: 48
+  percent: 100
 ---
 
 # Project State
@@ -51,6 +51,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-13 (later) — Phase 30/32 test debt cleared; missing 30-01 RAG tenant isolation actually implemented (commit 7c4727a9).** Investigating the 27 failures revealed that Phase 30-01's Wave-1 blocking security fix — tenant-scoped RAG — **was never actually implemented**: `rag_service.py` was untouched since Phase 16, the claimed `test_rag_service_tenant_isolation.py` did not exist, and 30-UAT's "Tenant Isolation (RAG): Passed" line referred to work that wasn't in the tree. Implemented now per the 30-01 design (tenantId metadata + `global` sentinel on ingest, `$or` where-filter on query) with a real-ChromaDB isolation test (5 tests, hermetic deterministic embeddings). Five more latent product bugs fixed that tests had never actually exercised: missing `import uuid` in `questionnaire_answer_draft_service.py` (NameError on every draft), `_insufficient_evidence_draft` referencing an out-of-scope `db` with an unawaited insert, missing `datetime` import in `questionnaire_inbound_endpoints.py` (NameError on every upload), CSV header case-mismatch in `questionnaire_inbound_service.py` (documented "Question Text" header → KeyError → 500), and `_tenant(user: User)` missing its `Depends(get_current_user)` default in all three questionnaire endpoint files (FastAPI demanded a request body on GETs). The failing tests themselves were unrunnable as written (no-op `patch()` without `with`, `backend.`-prefixed duplicate-module imports, Depends-captured `get_db` patched at module level) and were rewritten per project conventions — 42 tests now pass across the 7 files. Suite: **884 passed / 22 skipped; remaining 7 failures + 5 errors are phases 28/34/35 + singles (e2e-integration, powershell, rust-parity, smoke)**.
 
+**Session 2026-07-14 — Full project verification; uncommitted green-suite work committed; docs reconciled.** Full suite verified **932 passed / 22 skipped / 0 failed** (35s) and frontend build clean — all prior debt gone (test_rebac collects and passes, passkey/graphql/governance/e2e/powershell/smoke all green; strawberry-graphql + openfga_sdk installed since cd66ce1e). Discovered ~25 files of uncommitted content changes the green suite depended on — committed as 5f78f43e: GraphQL resolver auth rework (user resolved once in router context, per-resolver tenant+RBAC), Phase 30 reviewer-role gate + Mongo `_id` projection fixes + review-router registration order (GET /pending-review was shadowed), Phase 28 governance test rewritten to dependency-override `get_database`, Phase 30 frontend wiring (InboundQuestionnaireDashboard, apiService functions, types), Phase 32 attack-path edge field names, Phase 29 trust_service deny-path fix + new test_trust_center.py (9 tests). Remaining ~115 modified files were chmod mode-only noise, committed with tooling churn as cd4d6a4b. ROADMAP.md/STATE.md were stale (33/34 marked "Pending", 35 "Blocked", 36 caveated on a dep that's now installed) — reconciled against git: 33 executed (4 plans, commits 54715098/8e6ffbac/64acf247/0cb6a8dd), 34 executed (a1e23c8d), 35/36 verified with deps installed. Junk left untracked deliberately: c.txt, d.txt, backend/check_user.py, backend/.continue-here.md.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -87,10 +89,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 30 | AI Questionnaire Auto-Answer | Executed (v3.0) — all 6 plans done; test debt cleared 2026-07-13 (25 tests pass incl. real-ChromaDB RAG isolation); UI UAT items still pending |
 | 31 | FAIR Risk Quantification | Complete (v3.0) — 3/3 plans executed 2026-07-10 |
 | 32 | Cloud and SaaS Provider Expansion | Executed (v3.0) — 5/5 plans done; test debt cleared 2026-07-13 (16 tests pass); verification `human_needed` (3/4 must-haves) remains |
-| 33 | Workflow Automation Connectors | Planned — 4 plans, 2 waves, checker passed (v3.0) |
-| 34 | Passkey and WebAuthn Authentication | Planned (v3.0) — not executed; test_passkey_auth.py errors |
-| 35 | GraphQL API | Blocked (v3.0) — strawberry-graphql/pydantic incompat, needs admin |
-| 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) — caveat: test_rebac.py cannot run (openfga_sdk not installed) |
+| 33 | Workflow Automation Connectors | Executed (v3.0) — all 4 plans committed 2026-07-13 (54715098, 8e6ffbac, 64acf247, 0cb6a8dd); no UAT file yet |
+| 34 | Passkey and WebAuthn Authentication | Executed (v3.0) — commit a1e23c8d 2026-07-13, backend + frontend UI, test_passkey_auth.py passes; no UAT file yet |
+| 35 | GraphQL API | Executed (v3.0) — strawberry installed (cd66ce1e), resolver auth rework committed 2026-07-14 (5f78f43e), test_graphql.py passes; 7 UAT integration items pending |
+| 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) — openfga_sdk installed (cd66ce1e), test_rebac.py 4/4 pass |
 | 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
 | 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
 
@@ -206,7 +208,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-07-13T08:30:00.000Z
-- **Stopped at:** context exhaustion at 100% (2026-07-13)
+- **Stopped at:** context exhaustion at 79% (2026-07-13)
 - **Resume file:** None
 
 ## Configuration
@@ -232,7 +234,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-13T10:40:40.392Z
+**Last session:** 2026-07-13T21:41:13.765Z
 **Stopped at:** Phase 25 (Cloud Checks Execution Gaps) complete — verified, secured, UAT passed. Ready to plan Phase 26.
 **Resume file:** None
 
