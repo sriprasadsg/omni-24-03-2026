@@ -336,7 +336,7 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** In progress — Phase 25 complete (verified 2026-07-06), 1/14 phases done
+**Status:** In progress — 9 of 14 phases complete/executed as of 2026-07-13; phases 33 and 34 pending execution; UAT/verification debt on 28/29/30/32
 
 **Phases:**
 
@@ -344,18 +344,18 @@ deployment.
 |-------|------|------|--------|
 | 25 | Cloud Checks Execution Gaps | 1 — quick fixes | Complete (2026-07-06) |
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Complete (2026-07-09) |
-| 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Pending |
-| 28 | Governance Document Management | 2 — medium | Pending |
-| 29 | Public Trust Center | 2 — medium | Pending |
-| 30 | AI Questionnaire Auto-Answer | 2 — medium | Pending |
+| 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Complete (2026-07-13, UAT pass) |
+| 28 | Governance Document Management | 2 — medium | Executed — UAT pending (4 items), governance tests failing |
+| 29 | Public Trust Center | 2 — medium | Executed — UAT pending (6 items) |
+| 30 | AI Questionnaire Auto-Answer | 2 — medium | Executed — UAT pending (6 manual UI items) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
-| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Pending |
+| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (see 32-VERIFICATION.md) |
 | 33 | Workflow Automation Connectors | 2 — medium | Pending |
 | 34 | Passkey and WebAuthn Authentication | 3 — architectural | Pending |
-| 35 | GraphQL API | 3 — architectural | Pending |
-| 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Pending |
-| 37 | Spec-Compliant MCP Server | 3 — architectural | Pending |
-| 38 | Interactive AI Security Assistant | 3 — architectural | Pending |
+| 35 | GraphQL API | 3 — architectural | Complete — strawberry-graphql missing in test env |
+| 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Complete — openfga_sdk missing in test env |
+| 37 | Spec-Compliant MCP Server | 3 — architectural | Complete (2026-07-13, tests 12/12) |
+| 38 | Interactive AI Security Assistant | 3 — architectural | Complete (2026-07-13, tests 5/5) |
 
 ---
 
