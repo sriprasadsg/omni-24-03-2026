@@ -1,143 +1,202 @@
-"""End-to-end integration test for Phase 30: AI Questionnaire Auto-Answer.
-Drives the complete pipeline: create question set -> generate draft -> review -> approve -> submit.
-"""
-import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import FastAPI
-import uuid
+"""Phase 30 e2e — AI questionnaire auto-answer pipeline.
 
+Drives the full path over HTTP against a mocked db/RAG/LLM:
+create question set → generate grounded draft → create review → approve →
+submit. Also asserts the T3 guard: a draft that never reached "approved"
+cannot be submitted.
+"""
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from backend.authentication_service import get_current_user
-from backend.database import get_database
-import backend.questionnaire_inbound_endpoints as inbound
-import backend.questionnaire_answer_draft_endpoints as draft
-import backend.questionnaire_answer_review_endpoints as review
-import backend.questionnaire_answer_draft_service as draft_service
+from unittest.mock import AsyncMock, MagicMock, patch
 
-def make_mock_user(username="testuser", tenant_id="tenant-123"):
-    u = MagicMock()
-    u.username = username
-    u.tenant_id = tenant_id
-    u.roles = ["user", "compliance_reviewer"]
-    return u
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
-@pytest.fixture
-def app():
-    a = FastAPI()
-    a.include_router(inbound.router)
-    a.include_router(draft.router)
-    a.include_router(review.router)
-    # Mock auth for all routers
-    with patch('authentication_service.get_current_user', lambda: make_mock_user()):
-        yield a
+from authentication_service import get_current_user
+import questionnaire_inbound_endpoints as inbound_mod
+import questionnaire_answer_draft_endpoints as draft_ep_mod
+import questionnaire_answer_review_endpoints as review_ep_mod
+from questionnaire_inbound_service import questionnaire_inbound_service
 
-@pytest.fixture
-def mock_db():
-    m = MagicMock()
-    m.questionnaire_inbound = AsyncMock()
-    m.questionnaire_answer_drafts = AsyncMock()
-    m.questionnaire_answer_reviews = AsyncMock()
-    return m
+TENANT = "tenant-123"
 
-@pytest.mark.asyncio
-async def test_questionnaire_pipeline_e2e(app, mock_db):
-    "Full path: create -> generate -> review -> approve -> submit."
 
-    with patch('backend.database.get_database', return_value=mock_db), \
-         patch('backend.questionnaire_inbound_service.get_database', return_value=mock_db), \
-         patch('backend.questionnaire_answer_draft_service.get_database', return_value=mock_db), \
-         patch('backend.questionnaire_answer_review_service.get_database', return_value=mock_db), \
-         patch('backend.rag_service.rag_service.query', new_callable=AsyncMock) as mock_rag, \
-         patch('backend.ai_service.ai_service.generate_text', new_callable=AsyncMock) as mock_ai:
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-        # 1. Setup mocks
-        mock_rag.return_value = [{"source": "doc1", "content": "MFA is required."}]
-        mock_ai.return_value = '{"answer_text": "Yes, we have MFA.", "confidence": "high", "cited_indices": [0]}'
+def _make_col():
+    col = MagicMock()
+    col.insert_one = AsyncMock()
+    col.update_one = AsyncMock()
+    col.find_one = AsyncMock(return_value=None)
+    col.find_one_and_update = AsyncMock(return_value=None)
+    cursor = MagicMock()
+    cursor.sort = MagicMock(return_value=cursor)
+    cursor.to_list = AsyncMock(return_value=[])
+    col.find = MagicMock(return_value=cursor)
+    return col
 
-        # Mock inbound creation
-        qni_id = f"qni-{uuid.uuid4().hex}"
-        mock_db.questionnaire_inbound.insert_one = AsyncMock()
 
-        # Mock draft creation
-        qad_id = f"qad-{uuid.uuid4().hex}"
-        mock_db.questionnaire_answer_drafts.insert_one = AsyncMock()
-        mock_db.questionnaire_answer_drafts.find_one = AsyncMock(return_value={
-            "id": qad_id, "tenantId": "tenant-123", "status": "pending_review",
-            "answerText": "Yes, we have MFA."
-        })
+def _make_db():
+    """Supports both attribute access (draft service) and subscription (review service)."""
+    cols = {
+        "questionnaire_inbound": _make_col(),
+        "questionnaire_answer_drafts": _make_col(),
+        "questionnaire_answer_reviews": _make_col(),
+    }
+    db = MagicMock()
+    db.__getitem__ = MagicMock(side_effect=cols.__getitem__)
+    for name, col in cols.items():
+        setattr(db, name, col)
+    return db, cols
 
-        # Mock review creation
-        qar_id = f"qar-{uuid.uuid4().hex}"
-        mock_db.questionnaire_answer_reviews.insert_one = AsyncMock()
 
-        # Mock review update
-        mock_db.questionnaire_answer_reviews.find_one_and_update = AsyncMock(return_value={
-            "id": qar_id, "status": "pending"
-        })
+def _make_client():
+    app = FastAPI()
+    app.include_router(inbound_mod.router)
+    app.include_router(draft_ep_mod.router)
+    app.include_router(review_ep_mod.router)
+    user = MagicMock()
+    user.username = "testuser"
+    user.tenant_id = TENANT
+    app.dependency_overrides[get_current_user] = lambda: user
+    return TestClient(app)
 
-        # Mock draft update to approved
-        mock_db.questionnaire_answer_drafts.update_one = AsyncMock()
-        mock_db.questionnaire_answer_drafts.find_one.side_effect = [
-            # first call for create_review
-            {"id": qad_id, "tenantId": "tenant-123", "status": "pending_review"},
-            # second call after update_review_decision
-            {"id": qad_id, "tenantId": "tenant-123", "status": "approved"},
-            # third call for mark_submitted
-            {"id": qad_id, "tenantId": "tenant-123", "status": "approved"}
-        ]
 
-        # Mock final submission
-        mock_db.questionnaire_answer_drafts.find_one_and_update = AsyncMock(return_value={
-            "id": qad_id, "status": "submitted"
-        })
+def _pipeline_patches(db):
+    rag = MagicMock()
+    rag.query = MagicMock(return_value=[
+        {"id": "ev1", "content": "MFA is required for all users.", "source": "doc1",
+         "tenantId": TENANT, "relevance": 0.1},
+    ])
+    ai = MagicMock()
+    ai.generate_text = AsyncMock(return_value=(
+        '{"answer_text": "Yes, we have MFA.", "confidence": "high", "cited_indices": [0]}'
+    ))
+    get_db = MagicMock(return_value=db)
+    return (
+        patch("questionnaire_answer_draft_service.rag_service", rag),
+        patch("questionnaire_answer_draft_service.ai_service", ai),
+        patch("questionnaire_answer_draft_endpoints.get_database", get_db),
+        patch("questionnaire_answer_review_endpoints.get_database", get_db),
+        patch.object(questionnaire_inbound_service, "_db", get_db),
+        rag,
+    )
 
-        client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
-        # 1. Create Inbound Set
-        resp = await client.post("/api/questionnaires/inbound/", json={"title": "Test Set"})
+# ---------------------------------------------------------------------------
+# Full pipeline
+# ---------------------------------------------------------------------------
+
+def test_questionnaire_pipeline_e2e():
+    db, cols = _make_db()
+    client = _make_client()
+    p_rag, p_ai, p_db1, p_db2, p_db3, rag = _pipeline_patches(db)
+
+    with p_rag, p_ai, p_db1, p_db2, p_db3:
+        # 1. Create inbound question set
+        resp = client.post("/api/questionnaires/inbound/", json={"title": "Test Set"})
         assert resp.status_code == 200
 
-        # 2. Generate Draft
-        resp = await client.post("/api/questionnaire-answer-drafts/generate", params={
-            "question_id": "q1", "question_text": "Do you have MFA?"
-        })
+        # 2. Generate grounded draft (RAG + LLM, held for review)
+        resp = client.post(
+            "/api/questionnaire-answer-drafts/generate",
+            params={"question_id": "q1", "question_text": "Do you have MFA?"},
+        )
         assert resp.status_code == 200
+        draft = resp.json()
+        qad_id = draft["id"]
+        assert draft["status"] == "pending_review"
+        assert draft["answerText"] == "Yes, we have MFA."
+        assert draft["sourceEvidenceIds"] == ["doc1"]
+        # retrieval was tenant-scoped
+        assert rag.query.call_args.args[2] == TENANT
 
-        # 3. Create Review
-        resp = await client.post(f"/api/questionnaire-answer-drafts/{qad_id}/review")
-        assert resp.status_code == 200
-
-        # 4. Approve Review
-        resp = await client.patch(f"/api/questionnaire-answer-drafts/{qad_id}/review/{qar_id}", json={
-            "decision": "approved", "comment": "Verified."
+        # 3. Create review (draft must be pending_review)
+        cols["questionnaire_answer_drafts"].find_one = AsyncMock(return_value={
+            "id": qad_id, "tenantId": TENANT, "status": "pending_review",
         })
+        resp = client.post(f"/api/questionnaire-answer-drafts/{qad_id}/review")
+        assert resp.status_code == 200
+        qar_id = resp.json()["id"]
+
+        # 4. Approve
+        cols["questionnaire_answer_reviews"].find_one_and_update = AsyncMock(return_value={
+            "id": qar_id, "draftId": qad_id, "status": "pending",
+        })
+        cols["questionnaire_answer_drafts"].find_one = AsyncMock(return_value={
+            "id": qad_id, "tenantId": TENANT, "status": "approved",
+        })
+        resp = client.patch(
+            f"/api/questionnaire-answer-drafts/{qad_id}/review/{qar_id}",
+            json={"decision": "approved", "comment": "Verified."},
+        )
         assert resp.status_code == 200
         assert resp.json()["status"] == "approved"
 
-        # 5. Submit Draft
-        resp = await client.post(f"/api/questionnaire-answer-drafts/{qad_id}/submit")
+        # 5. Submit (T3: transition query filters on approved)
+        cols["questionnaire_answer_drafts"].find_one_and_update = AsyncMock(return_value={
+            "id": qad_id, "tenantId": TENANT, "status": "submitted",
+        })
+        resp = client.post(f"/api/questionnaire-answer-drafts/{qad_id}/submit")
         assert resp.status_code == 200
         assert resp.json()["status"] == "submitted"
+        query = cols["questionnaire_answer_drafts"].find_one_and_update.call_args.args[0]
+        assert query["status"] == "approved"
 
-@pytest.mark.asyncio
-async def test_questionnaire_submit_bypass_rejection(app, mock_db):
-    "Assertion: Direct pending_review -> submit call is rejected (T3)."
 
-    qad_id = "qad-bypass"
-    with patch('backend.database.get_database', return_value=mock_db), \
-         patch('backend.questionnaire_answer_review_service.get_database', return_value=mock_db):
+def test_questionnaire_submit_bypass_rejection():
+    """T3 guard: a pending_review draft can never be submitted directly."""
+    db, cols = _make_db()
+    client = _make_client()
+    # find_one_and_update filters on status "approved" → no match → None
+    cols["questionnaire_answer_drafts"].find_one_and_update = AsyncMock(return_value=None)
 
-        # Implementation uses find_one_and_update with status:"approved" filter.
-        # If draft is pending_review, query returns None.
-        mock_db.questionnaire_answer_drafts.find_one_and_update = AsyncMock(return_value=None)
+    with patch("questionnaire_answer_review_endpoints.get_database", MagicMock(return_value=db)):
+        resp = client.post("/api/questionnaire-answer-drafts/qad-bypass/submit")
 
-        client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
-        resp = await client.post(f"/api/questionnaire-answer-drafts/{qad_id}/submit")
+    assert resp.status_code == 409
+    assert "must be in approved state" in resp.json()["detail"]
 
-        # Service returns None -> Endpoint returns 409
-        assert resp.status_code == 409
-        assert "must be in approved state" in resp.json()["detail"]
+
+def test_generate_insufficient_evidence_when_rag_empty():
+    """No retrieved evidence → insufficient_evidence draft, still pending_review."""
+    db, _ = _make_db()
+    client = _make_client()
+    p_rag, p_ai, p_db1, p_db2, p_db3, rag = _pipeline_patches(db)
+    rag.query = MagicMock(return_value=[])
+
+    with p_rag, p_ai, p_db1, p_db2, p_db3:
+        resp = client.post(
+            "/api/questionnaire-answer-drafts/generate",
+            params={"question_id": "q2", "question_text": "Do you have SOC3?"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["confidence"] == "insufficient_evidence"
+    assert body["status"] == "pending_review"
+    assert body["answerText"] == ""
+
+
+def test_generate_hallucination_guard():
+    """Confident answer citing zero evidence is rejected → insufficient_evidence."""
+    db, _ = _make_db()
+    client = _make_client()
+    p_rag, p_ai, p_db1, p_db2, p_db3, _ = _pipeline_patches(db)
+
+    with p_rag, p_ai, p_db1, p_db2, p_db3:
+        with patch(
+            "questionnaire_answer_draft_service.ai_service.generate_text",
+            AsyncMock(return_value='{"answer_text": "Definitely yes.", "confidence": "high", "cited_indices": []}'),
+        ):
+            resp = client.post(
+                "/api/questionnaire-answer-drafts/generate",
+                params={"question_id": "q3", "question_text": "Are you ISO 42001 certified?"},
+            )
+
+    assert resp.status_code == 200
+    assert resp.json()["confidence"] == "insufficient_evidence"

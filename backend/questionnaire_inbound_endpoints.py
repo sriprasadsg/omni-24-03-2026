@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from authentication_service import get_current_user
@@ -6,7 +7,7 @@ from questionnaire_inbound_service import questionnaire_inbound_service, Questio
 
 router = APIRouter(prefix="/api/questionnaires/inbound", tags=["Inbound Questionnaires"])
 
-async def _tenant(user: User) -> str:
+async def _tenant(user: User = Depends(get_current_user)) -> str:
     """Helper to extract tenant_id from current_user, ensuring tenant isolation."""
     if not user.tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID not found for user")

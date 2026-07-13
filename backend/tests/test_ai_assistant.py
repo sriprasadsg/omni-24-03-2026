@@ -25,16 +25,28 @@ from ai_assistant_service import chat
 # Fixture data
 # ---------------------------------------------------------------------------
 
+# Flat shape as returned by rag_service.query()
 _RAG_DOCS = [
     {
         "id": "doc1",
         "content": "This is a compliance document snippet.",
-        "metadata": {"tenantId": "test-tenant", "source": "SOC2 Spec"},
+        "source": "SOC2 Spec",
+        "tenantId": "test-tenant",
+        "relevance": 0.1,
+    },
+    {
+        "id": "doc-global",
+        "content": "Shared security standard snippet.",
+        "source": "NIST 800-53",
+        "tenantId": "global",
+        "relevance": 0.2,
     },
     {
         "id": "doc-other-tenant",
         "content": "Another tenant's confidential snippet.",
-        "metadata": {"tenantId": "other-tenant", "source": "Internal"},
+        "source": "Internal",
+        "tenantId": "other-tenant",
+        "relevance": 0.3,
     },
 ]
 
@@ -109,9 +121,10 @@ async def test_assistant_chat_service():
 
     assert result["answer"]
     ids = [s["id"] for s in result["sources"]]
-    assert "doc1" in ids       # RAG knowledge-base chunk
-    assert "AC-1" in ids       # failing compliance control
-    assert "RISK-1" in ids     # open critical risk
+    assert "doc1" in ids        # tenant's own RAG chunk
+    assert "doc-global" in ids  # shared "global" knowledge is allowed
+    assert "AC-1" in ids        # failing compliance control
+    assert "RISK-1" in ids      # open critical risk
 
 
 async def test_assistant_chat_service_tenant_isolation():

@@ -38,21 +38,22 @@ async def chat(
     context_parts: list[str] = []
 
     # ── 1. RAG knowledge base ──────────────────────────────────────────────────
-    # NOTE: rag_service.query() is NOT tenant-scoped. Filter results client-side
-    # using the stored tenant metadata so we never leak across tenants.
-    raw_context = rag_service.query(query, n_results=5)
+    # Server-side tenant scoping plus a client-side metadata filter as
+    # defense-in-depth against untagged legacy chunks.
+    raw_context = rag_service.query(query, n_results=5, tenant_id=tenant_id)
     if raw_context:
         for item in raw_context:
-            src_tenant = item.get("metadata", {}).get("tenantId", "")
-            # Skip results from other tenants (metadata may be absent on old entries)
-            if src_tenant and src_tenant != tenant_id:
+            src_tenant = item.get("tenantId") or item.get("metadata", {}).get("tenantId", "")
+            # Skip results from other tenants; "global" chunks are shared
+            # knowledge (tag may be absent on legacy entries)
+            if src_tenant and src_tenant not in (tenant_id, "global"):
                 continue
             snippet = (item.get("content") or "")[:300]
             context_parts.append(f"[RAG] {snippet}")
             sources.append({
                 "type": "rag",
                 "id": item.get("id", ""),
-                "title": item.get("metadata", {}).get("source", "knowledge base"),
+                "title": item.get("source") or item.get("metadata", {}).get("source", "knowledge base"),
                 "snippet": snippet,
             })
 

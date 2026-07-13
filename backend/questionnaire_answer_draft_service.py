@@ -10,6 +10,7 @@ It must:
 """
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -105,10 +106,10 @@ async def draft_answer_for_question(
     """
     set_tenant_id(tenant_id)
 
-    # 1. Retrieve (tenant-scoped)
-    retrieved = await rag_service.query(question_text, _MAX_CHUNKS, tenant_id)
+    # 1. Retrieve (tenant-scoped; rag_service.query is synchronous)
+    retrieved = rag_service.query(question_text, _MAX_CHUNKS, tenant_id)
     if not retrieved:
-        return _insufficient_evidence_draft(question_id, tenant_id, question_text, question_set_id)
+        return await _insufficient_evidence_draft(question_id, tenant_id, question_text, question_set_id, db=db)
 
     # 2. Build prompt & generate
     prompt = _build_prompt(retrieved, question_text)
@@ -116,8 +117,8 @@ async def draft_answer_for_question(
 
     # 3. Guardrail: BLOCKED:/Error: strings route to insufficient evidence
     if raw.startswith(("BLOCKED:", "Error:")):
-        return _insufficient_evidence_draft(
-            question_id, tenant_id, question_text, question_set_id, reason=raw[:120]
+        return await _insufficient_evidence_draft(
+            question_id, tenant_id, question_text, question_set_id, reason=raw[:120], db=db
         )
 
     # 4. Parse JSON robustly
@@ -139,8 +140,8 @@ async def draft_answer_for_question(
         )
     except (ValidationError, KeyError, json.JSONDecodeError) as exc:
         logger.warning("[QuestionnaireAutoAnswer] validation/JSON failed: %s", exc)
-        return _insufficient_evidence_draft(
-            question_id, tenant_id, question_text, question_set_id, reason=str(exc)[:120]
+        return await _insufficient_evidence_draft(
+            question_id, tenant_id, question_text, question_set_id, reason=str(exc)[:120], db=db
         )
 
     # 5. Insert draft with pending_review status (hard T3 guard: never auto-submitted)
@@ -166,12 +167,13 @@ async def draft_answer_for_question(
     return draft_doc
 
 
-def _insufficient_evidence_draft(
+async def _insufficient_evidence_draft(
     question_id: str,
     tenant_id: str,
     question_text: str,
     question_set_id: Optional[str] = None,
     reason: Optional[str] = None,
+    db=None,
 ) -> Dict[str, Any]:
     doc = {
         "id": f"qad-{uuid.uuid4().hex}",
@@ -191,7 +193,8 @@ def _insufficient_evidence_draft(
     if reason:
         doc["reason"] = reason
     # Still insert to allow reviewer to see "insufficient evidence" as a draft record
-    db["questionnaire_answer_drafts"].insert_one(doc)
+    if db is not None:
+        await db["questionnaire_answer_drafts"].insert_one(doc)
     return doc
 
 

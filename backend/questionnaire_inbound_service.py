@@ -55,10 +55,14 @@ class QuestionnaireInboundService:
         if filename.endswith(".csv"):
             decoded_content = content_bytes.decode("utf-8")
             reader = csv.DictReader(io.StringIO(decoded_content))
-            headers = [h.strip().lower() for h in reader.fieldnames]
+            fieldnames = reader.fieldnames or []
+            headers = [h.strip().lower() for h in fieldnames]
             question_col = self._find_question_column(headers)
+            # DictReader rows are keyed by the ORIGINAL header, not the
+            # normalized one used for matching
+            original_col = fieldnames[headers.index(question_col)]
             for i, row in enumerate(reader):
-                text = self._sanitize_question_text(row[question_col])
+                text = self._sanitize_question_text(row[original_col])
                 if text:
                     questions.append({"id": uuid4().hex, "text": text, "rowIndex": i})
         elif filename.endswith((".xlsx", ".xls")):

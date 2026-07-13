@@ -15,7 +15,7 @@ from database import get_database
 
 router = APIRouter(prefix="/api/questionnaire-answer-drafts", tags=["Questionnaire Answer Review"])
 
-async def _tenant(user: User) -> str:
+async def _tenant(user: User = Depends(get_current_user)) -> str:
     if not user.tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID not found for user")
     return user.tenant_id
@@ -46,10 +46,13 @@ async def update_review_decision_endpoint(
     edited_answer_text = body.get("edited_answer_text")
     if not decision:
         raise HTTPException(status_code=400, detail="decision required")
-    draft = await update_review_decision(
-        review_id, draft_id, decision, comment, get_database(), tenant_id,
-        decided_by=user.username, edited_answer_text=edited_answer_text
-    )
+    try:
+        draft = await update_review_decision(
+            review_id, draft_id, decision, comment, get_database(), tenant_id,
+            decided_by=user.username, edited_answer_text=edited_answer_text
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if draft is None:
         raise HTTPException(status_code=404, detail="Review or draft not found, or already decided")
     return draft

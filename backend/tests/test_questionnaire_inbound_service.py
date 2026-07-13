@@ -1,126 +1,200 @@
-"""Tests for Phase 30-02: Inbound Questionnaire Intake."""
-import pytest
+"""Phase 30 tests — inbound questionnaire intake (30-02).
+
+Manual creation, tenant-scoped listing/get, and CSV upload parsing
+(including the case-insensitive header match against DictReader's
+original-case row keys).
+"""
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from authentication_service import get_current_user
+import questionnaire_inbound_endpoints as ep_mod
+from questionnaire_inbound_service import questionnaire_inbound_service
 
-from backend.questionnaire_inbound_endpoints import router
-from backend.questionnaire_inbound_service import questionnaire_inbound_service
+TENANT = "test_tenant"
 
-def make_mock_user():
-    u = MagicMock()
-    u.username = "testuser"
-    u.tenant_id = "test_tenant"
-    u.roles = ["user"]
-    return u
+TEST_SET = {
+    "id": "qni-1", "tenantId": TENANT, "title": "T",
+    "questions": [{"id": "q1", "text": "Q?", "rowIndex": 0}],
+    "status": "Draft", "createdBy": "testuser",
+    "created_at": "2000-01-01", "updated_at": "2000-01-01",
+}
 
-@pytest.fixture
-def app():
-    a = FastAPI()
-    a.include_router(router)
-    # Patch the exact import used by questionnaire_inbound_endpoints
-    a.dependency_overrides[router.routes[0].dependencies[0].dependency] = lambda: make_mock_user()
-    # The above won't work directly; we patch at module level instead
-    return a
+BASE = "/api/questionnaires/inbound"
 
-@pytest.fixture(autouse=True)
-def mock_auth():
-    # Patch the exact module where get_current_user is imported in questionnaire_inbound_endpoints
-    with patch('authentication_service.get_current_user', lambda: make_mock_user()):
-        yield
 
-@pytest.fixture
-def mock_db():
-    m = MagicMock()
-    m.questionnaire_inbound = AsyncMock()
-    m.questionnaire_inbound.find.return_value.to_list = AsyncMock(return_value=[])
-    return m
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-TEST_SET = {"id":"qni-1","tenantId":"test_tenant","title":"T","questions":[{"id":"q1","text":"Q?","rowIndex":0}],"status":"Draft","createdBy":"testuser","created_at":"2000-01-01","updated_at":"2000-01-01"}
+def _make_db():
+    col = MagicMock()
+    col.insert_one = AsyncMock()
+    col.update_one = AsyncMock()
+    col.find_one = AsyncMock(return_value=None)
+    cursor = MagicMock()
+    cursor.to_list = AsyncMock(return_value=[])
+    col.find = MagicMock(return_value=cursor)
+    db = MagicMock()
+    db.questionnaire_inbound = col
+    return db
 
-def test_app_fixture(app):
-    assert app is not None
 
-@pytest.mark.asyncio
-async def test_create_success(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.insert_one = AsyncMock()
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.post("/api/questionnaires/inbound/", json={"title":"T","questions":[{"text":"Q?"}]})
-        assert r.status_code == 200
-        assert r.json()["id"].startswith("qni-")
-        assert r.json()["status"] == "Draft"
+def _db_patch(db):
+    """The service binds self._db = get_database at init — patch the instance attr."""
+    return patch.object(questionnaire_inbound_service, "_db", MagicMock(return_value=db))
 
-@pytest.mark.asyncio
-async def test_list_empty(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.get("/api/questionnaires/inbound/")
-        assert r.status_code == 200
-        assert r.json() == []
 
-@pytest.mark.asyncio
-async def test_list_with_data(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.find.return_value.to_list = AsyncMock(return_value=[TEST_SET])
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.get("/api/questionnaires/inbound/")
-        assert r.status_code == 200
-        assert len(r.json()) == 1
+def _make_client():
+    app = FastAPI()
+    app.include_router(ep_mod.router)
+    user = MagicMock()
+    user.username = "testuser"
+    user.tenant_id = TENANT
+    app.dependency_overrides[get_current_user] = lambda: user
+    return TestClient(app)
 
-@pytest.mark.asyncio
-async def test_get_found(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.find_one = AsyncMock(return_value=TEST_SET)
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.get("/api/questionnaires/inbound/qni-1")
-        assert r.status_code == 200
-        assert r.json()["id"] == TEST_SET["id"]
 
-@pytest.mark.asyncio
-async def test_get_not_found(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.find_one = AsyncMock(return_value=None)
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.get("/api/questionnaires/inbound/qni-x")
-        assert r.status_code == 404
+# ---------------------------------------------------------------------------
+# Create / list / get
+# ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_upload_csv_happy(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.find_one = AsyncMock(return_value={"id":"qni-1","tenantId":"test_tenant","questions":[]})
-        mock_db.questionnaire_inbound.update_one = AsyncMock()
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.post("/api/questionnaires/inbound/qni-1/upload", files={"file":("t.csv",b"Question Text\nQ1?\nQ2?","text/csv")})
-        assert r.status_code == 200
-        assert len(r.json()["questions"]) == 2
-        assert r.json()["questions"][0]["text"] == "Q1?"
+def test_create_success():
+    db = _make_db()
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.post(f"{BASE}/", json={"title": "T", "questions": [{"text": "Q?"}]})
 
-@pytest.mark.asyncio
-async def test_upload_bad_header(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.find_one = AsyncMock(return_value={"id":"qni-1","tenantId":"test_tenant","questions":[]})
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.post("/api/questionnaires/inbound/qni-1/upload", files={"file":("t.csv",b"BadHeader\nv1\nv2","text/csv")})
-        assert r.status_code == 400
-        assert "No recognized question column header" in r.json()["detail"]
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"].startswith("qni-")
+    assert body["status"] == "Draft"
+    assert body["tenantId"] == TENANT
+    db.questionnaire_inbound.insert_one.assert_awaited_once()
 
-@pytest.mark.asyncio
-async def test_upload_not_found(app, mock_db):
-    with patch('backend.questionnaire_inbound_service.get_database') as gdb:
-        mock_db.questionnaire_inbound.find_one = AsyncMock(return_value=None)
-        gdb.return_value = mock_db
-        c = TestClient(app)
-        r = c.post("/api/questionnaires/inbound/qni-x/upload", files={"file":("t.csv",b"Question Text\nQ?.","text/csv")})
-        assert r.status_code == 404
+
+def test_list_empty():
+    db = _make_db()
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.get(f"{BASE}/")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_list_with_data():
+    db = _make_db()
+    db.questionnaire_inbound.find.return_value.to_list = AsyncMock(return_value=[TEST_SET])
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.get(f"{BASE}/")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    # tenant scoping enforced in the query
+    query = db.questionnaire_inbound.find.call_args.args[0]
+    assert query == {"tenantId": TENANT}
+
+
+def test_get_found():
+    db = _make_db()
+    db.questionnaire_inbound.find_one = AsyncMock(return_value=TEST_SET)
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.get(f"{BASE}/qni-1")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "qni-1"
+
+
+def test_get_not_found():
+    db = _make_db()
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.get(f"{BASE}/qni-x")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# CSV upload
+# ---------------------------------------------------------------------------
+
+def test_upload_csv_happy():
+    db = _make_db()
+    db.questionnaire_inbound.find_one = AsyncMock(return_value={
+        "id": "qni-1", "tenantId": TENANT, "questions": [],
+    })
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.post(
+            f"{BASE}/qni-1/upload",
+            files={"file": ("t.csv", b"Question Text\nQ1?\nQ2?", "text/csv")},
+        )
+
+    assert resp.status_code == 200
+    questions = resp.json()["questions"]
+    assert len(questions) == 2
+    assert questions[0]["text"] == "Q1?"
+    assert questions[1]["text"] == "Q2?"
+    db.questionnaire_inbound.update_one.assert_awaited_once()
+
+
+def test_upload_csv_lowercase_header():
+    db = _make_db()
+    db.questionnaire_inbound.find_one = AsyncMock(return_value={
+        "id": "qni-1", "tenantId": TENANT, "questions": [],
+    })
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.post(
+            f"{BASE}/qni-1/upload",
+            files={"file": ("t.csv", b"question\nQ1?", "text/csv")},
+        )
+    assert resp.status_code == 200
+    assert len(resp.json()["questions"]) == 1
+
+
+def test_upload_bad_header():
+    db = _make_db()
+    db.questionnaire_inbound.find_one = AsyncMock(return_value={
+        "id": "qni-1", "tenantId": TENANT, "questions": [],
+    })
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.post(
+            f"{BASE}/qni-1/upload",
+            files={"file": ("t.csv", b"BadHeader\nv1\nv2", "text/csv")},
+        )
+    assert resp.status_code == 400
+    assert "No recognized question column header" in resp.json()["detail"]
+
+
+def test_upload_unsupported_type():
+    db = _make_db()
+    db.questionnaire_inbound.find_one = AsyncMock(return_value={
+        "id": "qni-1", "tenantId": TENANT, "questions": [],
+    })
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.post(
+            f"{BASE}/qni-1/upload",
+            files={"file": ("t.pdf", b"%PDF-", "application/pdf")},
+        )
+    assert resp.status_code == 400
+    assert "Unsupported file type" in resp.json()["detail"]
+
+
+def test_upload_not_found():
+    db = _make_db()  # find_one → None
+    client = _make_client()
+    with _db_patch(db):
+        resp = client.post(
+            f"{BASE}/qni-x/upload",
+            files={"file": ("t.csv", b"Question Text\nQ?", "text/csv")},
+        )
+    assert resp.status_code == 404

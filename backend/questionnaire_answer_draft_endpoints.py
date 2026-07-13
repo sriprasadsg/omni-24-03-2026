@@ -11,7 +11,7 @@ from database import get_database
 
 router = APIRouter(prefix="/api/questionnaire-answer-drafts", tags=["Questionnaire Answer Drafts"])
 
-async def _tenant(user: User) -> str:
+async def _tenant(user: User = Depends(get_current_user)) -> str:
     if not user.tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID not found for user")
     return user.tenant_id
