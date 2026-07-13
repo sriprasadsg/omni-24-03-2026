@@ -1,0 +1,40 @@
+{
+  "name": "n8n-nodes-omniagent",
+  "version": "0.1.0",
+  "description": "n8n community node for the OmniAgent GRC platform — trigger workflows from GRC webhook events (agent.offline, security.alert, compliance.violation)",
+  "keywords": [
+    "n8n-community-node-package",
+    "omniagent",
+    "grc",
+    "compliance",
+    "webhook"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --ext .ts",
+    "prepublishOnly": "npm run build && npm run lint"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/OmniAgentApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/OmniAgentTrigger/OmniAgentTrigger.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "^2.16.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "eslint-plugin-n8n-nodes-base": "^1.16.7",
+    "n8n-workflow": "^2.16.0",
+    "typescript": "^5.7.3"
+  }
+}
