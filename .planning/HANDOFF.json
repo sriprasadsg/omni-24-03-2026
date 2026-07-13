@@ -21,7 +21,7 @@
     {"id": 8, "name": "Phase 33: Workflow Automation Connectors — 4 plans ready, not executed", "status": "not_started"},
     {"id": 9, "name": "Phase 34: Passkey/WebAuthn — planned, not executed (test_passkey_auth.py errors)", "status": "not_started"},
     {"id": 10, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"},
-    {"id": 11, "name": "Clear pre-existing test debt: 27 failures + 14 errors (phase 30 questionnaire x19, phase 32 posture/ingest x8, singles in 28/34/35)", "status": "not_started"},
+    {"id": 11, "name": "Clear remaining test debt: 7 failures + 5 errors (phase 28 governance, 34 passkey, 35 graphql, plus e2e-integration/powershell/rust-parity/smoke singles). Phase 30 (21) and 32 (8) cleared in 7c4727a9.", "status": "in_progress"},
     {"id": 12, "name": "UAT backlog: phases 28 (4 items), 29 (6), 30 (6), 32 (1 must-have human_needed)", "status": "not_started"},
     {"id": 13, "name": "Install openfga_sdk so test_rebac.py can run (Phase 36 caveat; breaks full-suite collection — use --ignore until fixed)", "status": "not_started"}
   ],
@@ -43,6 +43,6 @@
     {"decision": "test_mcp_server.py tests the FastMCP instance (mcp.list_tools/call_tool), not HTTP routes", "rationale": "Phase 37 removed the REST-shaped /api/mcp surface; the protocol layer is the real contract. call_tool returns (content, structured) tuple on mcp 1.28 for typed tools.", "phase": "37"}
   ],
   "uncommitted_files": [],
-  "next_action": "Execute Phase 33 (plans ready) or Phase 34, or clear the pre-existing test failures in phases 30/32 (largest debt clusters).",
-  "context_notes": "Phases 36 (ReBAC), 37 (MCP Server), and 38 (AI Assistant) complete; plans 37-03 and 38-03 verified 2026-07-13 with tests passing (commit c06d5369). Full suite: 846 passed, 22 skipped, 27 failed + 14 errors all pre-existing (verified identical on parent commit). Run tests with backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py from repo root. Junk file c.txt at repo root (from Phase 32) and misplaced .planning/phases/27-UAT.md still to clean up."
+  "next_action": "Execute Phase 33 (plans ready) or Phase 34, or clear the remaining test debt in phases 28/34/35.",
+  "context_notes": "Phases 36-38 complete (c06d5369). Phase 30/32 test debt cleared 2026-07-13 (7c4727a9): 884 passed, 22 skipped; remaining 7 failures + 5 errors are phases 28/34/35 + e2e-integration/powershell/rust-parity/smoke singles. IMPORTANT: 30-01's tenant-scoped RAG had never actually been implemented despite SUMMARY/UAT claiming it passed — implemented in 7c4727a9 with a real-ChromaDB isolation test; treat other unverified phase summaries with suspicion. Run tests with backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py from repo root. Junk file c.txt at repo root (from Phase 32) and misplaced .planning/phases/27-UAT.md still to clean up."
 }

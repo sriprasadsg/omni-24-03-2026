@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress
-stopped_at: Phases 37 and 38 complete (plans 37-03 and 38-03 verified 2026-07-13). Next — execute Phase 33 or 34, or clear pre-existing test failures in phases 28/30/32.
-last_updated: "2026-07-13T13:27:54.000Z"
+stopped_at: Phase 30/32 test debt cleared, missing RAG tenant isolation implemented (commit 7c4727a9, 2026-07-13). Next — execute Phase 33 or 34, or clear remaining debt in phases 28/34/35.
+last_updated: "2026-07-13T14:30:00.000Z"
 progress:
   total_phases: 14
   completed_phases: 9
@@ -49,6 +49,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-13 — Phases 37/38 closed out, backend import chain repaired.** A full project verification found `backend/app.py` had an unconditional `from graphql_endpoints import` after the socketio wrap (added during Phase 35), which — with `strawberry` uninstallable — broke every backend import and all test runs, and would have thrown `AttributeError` even with strawberry present (`socketio.ASGIApp` has no `include_router`; the router is already registered as optional in `router_registry.py`). Removed (commit c06d5369). Two more Phase 38 defects fixed in the same commit: `ai_assistant_endpoints.py` defined `ChatRequestBody(BaseModel)` before importing `BaseModel` (NameError at import), and called `.chat()` on a module-level `ai_assistant_service = None` that nothing ever initialized (AttributeError on every real request) — endpoints now call `chat()` directly. Both Phase 37 and 38 test files were rewritten and pass: the old `test_mcp_server.py` imported a nonexistent `main` module and tested pre-Phase-37 REST routes that no longer exist; it now tests the real FastMCP server (12/12). `test_ai_assistant.py` used `backend.`-prefixed imports that made every patch a no-op and mocked Motor's sync `find()` as async; rewritten per project conventions (5/5, includes tenant-isolation and empty-query coverage). Full suite: **846 passed, 22 skipped, 27 failures + 14 errors — all pre-existing** (verified identical on the parent commit): Phase 30 questionnaire (19), Phase 32 posture/ingest (8), singles in 28/34/35, plus `test_rebac.py` breaking collection because `openfga_sdk` isn't installed (run with `--ignore=backend/tests/test_rebac.py`). Tests must run via `backend/venv/bin/python -m pytest` — the system Python has no pytest and the env is externally managed.
 
+**Session 2026-07-13 (later) — Phase 30/32 test debt cleared; missing 30-01 RAG tenant isolation actually implemented (commit 7c4727a9).** Investigating the 27 failures revealed that Phase 30-01's Wave-1 blocking security fix — tenant-scoped RAG — **was never actually implemented**: `rag_service.py` was untouched since Phase 16, the claimed `test_rag_service_tenant_isolation.py` did not exist, and 30-UAT's "Tenant Isolation (RAG): Passed" line referred to work that wasn't in the tree. Implemented now per the 30-01 design (tenantId metadata + `global` sentinel on ingest, `$or` where-filter on query) with a real-ChromaDB isolation test (5 tests, hermetic deterministic embeddings). Five more latent product bugs fixed that tests had never actually exercised: missing `import uuid` in `questionnaire_answer_draft_service.py` (NameError on every draft), `_insufficient_evidence_draft` referencing an out-of-scope `db` with an unawaited insert, missing `datetime` import in `questionnaire_inbound_endpoints.py` (NameError on every upload), CSV header case-mismatch in `questionnaire_inbound_service.py` (documented "Question Text" header → KeyError → 500), and `_tenant(user: User)` missing its `Depends(get_current_user)` default in all three questionnaire endpoint files (FastAPI demanded a request body on GETs). The failing tests themselves were unrunnable as written (no-op `patch()` without `with`, `backend.`-prefixed duplicate-module imports, Depends-captured `get_db` patched at module level) and were rewritten per project conventions — 42 tests now pass across the 7 files. Suite: **884 passed / 22 skipped; remaining 7 failures + 5 errors are phases 28/34/35 + singles (e2e-integration, powershell, rust-parity, smoke)**.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -82,9 +84,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Complete (v3.0) |
 | 28 | Governance Document Management | Complete (v3.0) |
 | 29 | Public Trust Center | Complete (v3.0) |
-| 30 | AI Questionnaire Auto-Answer | Executed (v3.0) — all 6 plans done; UAT mostly pending (19 pre-existing test failures) |
+| 30 | AI Questionnaire Auto-Answer | Executed (v3.0) — all 6 plans done; test debt cleared 2026-07-13 (25 tests pass incl. real-ChromaDB RAG isolation); UI UAT items still pending |
 | 31 | FAIR Risk Quantification | Complete (v3.0) — 3/3 plans executed 2026-07-10 |
-| 32 | Cloud and SaaS Provider Expansion | Executed (v3.0) — 5/5 plans done; verification `human_needed` (3/4 must-haves), 8 pre-existing test failures |
+| 32 | Cloud and SaaS Provider Expansion | Executed (v3.0) — 5/5 plans done; test debt cleared 2026-07-13 (16 tests pass); verification `human_needed` (3/4 must-haves) remains |
 | 33 | Workflow Automation Connectors | Planned — 4 plans, 2 waves, checker passed (v3.0) |
 | 34 | Passkey and WebAuthn Authentication | Planned (v3.0) — not executed; test_passkey_auth.py errors |
 | 35 | GraphQL API | Blocked (v3.0) — strawberry-graphql/pydantic incompat, needs admin |
