@@ -296,6 +296,7 @@ async def generate_api_key(
         "id": key_id,
         "name": data.get("name", "API Key"),
         "key": plaintext[:12] + "••••••••••••",   # store only prefix for display
+        "keyHash": hashlib.sha256(plaintext.encode()).hexdigest(),
         "createdAt": now,
         "userId": data.get("userId") or getattr(current_user, "username", ""),
     }

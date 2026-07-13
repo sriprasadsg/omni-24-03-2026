@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
+from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
 from datetime import datetime, timezone
 import uuid
@@ -99,7 +100,7 @@ async def handle_zoho_webhook(request: Request, payload: Dict[str, Any]):
     return result
 
 @router.get("")
-async def get_webhooks(current_user: TokenData = Depends(get_current_user)):
+async def get_webhooks(current_user: TokenData = Depends(get_current_user_or_api_key)):
     """Get all configured webhooks"""
     db = get_database()
     caller_role = getattr(current_user, "role", "")
@@ -111,7 +112,7 @@ async def get_webhooks(current_user: TokenData = Depends(get_current_user)):
 @router.post("")
 async def create_webhook(
     webhook_data: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user_or_api_key)
 ):
     """Create a new webhook"""
     db = get_database()
@@ -140,7 +141,7 @@ async def create_webhook(
     return new_webhook
 
 @router.delete("/{webhook_id}")
-async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user_or_api_key)):
     """Delete a webhook"""
     db = get_database()
     query: dict = {"id": webhook_id}
@@ -188,7 +189,7 @@ async def update_webhook(
 async def get_webhook_deliveries(
     webhook_id: str,
     limit: int = 50,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user_or_api_key),
 ):
     """Get real delivery history for a webhook from the webhook_deliveries collection."""
     db = get_database()
