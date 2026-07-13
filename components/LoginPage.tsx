@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { startAuthentication } from '@simplewebauthn/browser';
 import { useUser } from '../contexts/UserContext';
 import { BotIcon, MailIcon, KeyIcon } from './icons';
 import { User } from '../types';
@@ -49,6 +50,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
             window.location.reload();
         }
         return success;
+    };
+
+    const handlePasskeyLogin = async () => {
+        setError('');
+        setIsLoading(true);
+        try {
+            const { challenge_key, options } = await api.passkeyLoginOptions();
+            const credential = await startAuthentication({ optionsJSON: options });
+            await api.passkeyLoginVerify(credential, challenge_key);
+            window.location.reload();
+        } catch (err: any) {
+            console.error('Passkey login error:', err);
+            if (err?.name === 'NotAllowedError') {
+                setError('Passkey sign-in was cancelled.');
+            } else {
+                setError('Passkey sign-in failed. Try your password instead.');
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -247,6 +268,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                             </a>
                         </>
                     )}
+
+                    {/* Passkey Sign-in */}
+                    <button
+                        type="button"
+                        onClick={handlePasskeyLogin}
+                        disabled={isLoading}
+                        className="mt-4 w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl text-slate-200 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                    >
+                        <KeyIcon size={16} className="text-primary-400" />
+                        Sign in with a passkey
+                    </button>
 
                     {/* Divider */}
                     <div className="mt-6 flex items-center gap-3">

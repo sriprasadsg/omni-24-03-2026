@@ -1,9 +1,12 @@
 import os
+import json
+import secrets
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from pydantic import BaseModel
+from webauthn import options_to_json
 from auth_types import TokenData
 from authentication_service import get_current_user, create_access_token, create_refresh_token
 from passkey_service import (
@@ -28,6 +31,7 @@ class LoginOptionsRequest(BaseModel):
 
 class LoginVerifyRequest(BaseModel):
     credential: dict
+    challenge_key: str
 
 @router.post("/register/options")
 async def passkey_register_options(
@@ -42,7 +46,8 @@ async def passkey_register_options(
         username=current_user.username,
         display_name=current_user.username
     )
-    return options
+    # options_to_json handles bytes→base64url and snake→camelCase for the browser API
+    return json.loads(options_to_json(options))
 
 @router.post("/register/verify")
 async def passkey_register_verify(
@@ -54,13 +59,16 @@ async def passkey_register_verify(
         raise HTTPException(status_code=403, detail="Tenant context required")
 
     from passkey_service import verify_and_store_registration
-    cred = await verify_and_store_registration(
-        user_id=current_user.tenant_id,
-        credential_response=data.credential,
-        db=None,
-        users_collection=None,
-        tenant_id=current_user.tenant_id
-    )
+    try:
+        cred = await verify_and_store_registration(
+            user_id=current_user.tenant_id,
+            credential_response=data.credential,
+            db=None,
+            users_collection=None,
+            tenant_id=current_user.tenant_id
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Passkey registration failed")
     return {"success": True, "credential": cred}
 
 @router.post("/login/options")
@@ -68,14 +76,18 @@ async def passkey_register_verify(
 async def passkey_login_options(
     request: Request
 ):
-    """Generate authentication options for passkey login."""
-    # For unauthenticated login, we'll need the credential ID from the client
-    # The client sends the username/email first, then we look up the credentials
-    # For now, we just generate options without a specific user
-    # The client will need to provide the credential ID in the verify step
-    challenge = None
-    options = await build_authentication_options("temp")
-    return options
+    """Generate authentication options for passkey login (usernameless flow).
+
+    The challenge is stored under a random one-shot key the client must echo
+    back at verify time — it cannot be keyed on a user because the user is
+    unknown until the authenticator responds with a discoverable credential.
+    """
+    challenge_key = secrets.token_urlsafe(16)
+    options = await build_authentication_options(f"login:{challenge_key}")
+    return {
+        "challenge_key": challenge_key,
+        "options": json.loads(options_to_json(options)),
+    }
 
 @router.post("/login/verify")
 @limiter.limit("10/minute")
@@ -84,26 +96,31 @@ async def passkey_login_verify(
     data: LoginVerifyRequest
 ):
     """Verify passkey authentication and return JWT tokens."""
-    # We need to look up the user by the credential ID
-    cred_id_hex = data.credential.get("id") or data.credential.get("rawId")
-    if not cred_id_hex:
+    # We need to look up the user by the credential ID (hex at rest, base64url from browsers)
+    from passkey_service import credential_id_candidates
+    cred_id_raw = data.credential.get("id") or data.credential.get("rawId")
+    if not cred_id_raw:
         raise HTTPException(status_code=400, detail="Missing credential id")
 
     # Look up user by credential ID
     user_doc = await mongodb.db.users.find_one(
-        {"webauthn_credentials.credential_id": cred_id_hex},
+        {"webauthn_credentials.credential_id": {"$in": credential_id_candidates(cred_id_raw)}},
         {"id": 1, "webauthn_credentials": 1, "tenantId": 1, "username": 1, "role": 1}
     )
     if not user_doc:
         raise HTTPException(status_code=401, detail="Invalid credential")
 
     from passkey_service import verify_authentication
-    auth_result = await verify_authentication(
-        user_key=user_doc["id"],
-        credential_response=data.credential,
-        db=None,
-        users_collection=None
-    )
+    try:
+        auth_result = await verify_authentication(
+            user_key=f"login:{data.challenge_key}",
+            credential_response=data.credential,
+            db=None,
+            users_collection=None
+        )
+    except ValueError:
+        # expired/replayed challenge, unknown credential, or failed verification
+        raise HTTPException(status_code=401, detail="Passkey authentication failed")
 
     # Create tokens
     access_token = create_access_token({

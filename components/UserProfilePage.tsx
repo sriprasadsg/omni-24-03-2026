@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useUser } from '../contexts/UserContext';
-import { UserIcon, PencilIcon, SaveIcon, XIcon, ShieldCheckIcon, ShieldAlertIcon } from './icons';
+import { UserIcon, PencilIcon, SaveIcon, XIcon, ShieldCheckIcon, ShieldAlertIcon, KeyIcon } from './icons';
 import MFASetupWizard from './MFASetupWizard';
-import { authFetch } from '../services/apiService';
+import PasskeySetupModal from './PasskeySetupModal';
+import { authFetch, listPasskeys, deletePasskey } from '../services/apiService';
 
 interface UserProfilePageProps {
   onProfileUpdate: (updates: { name: string; avatar: string; }) => void;
@@ -36,6 +37,15 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
     const [disableError, setDisableError] = useState('');
     const [disableLoading, setDisableLoading] = useState(false);
 
+    // Passkey state
+    const [passkeys, setPasskeys] = useState<any[]>([]);
+    const [showPasskeySetup, setShowPasskeySetup] = useState(false);
+    const [passkeyError, setPasskeyError] = useState('');
+
+    const refreshPasskeys = () => {
+        listPasskeys().then(setPasskeys).catch(() => setPasskeys([]));
+    };
+
     useEffect(() => {
         if (currentUser) {
             setName(currentUser.name);
@@ -51,7 +61,18 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
                 setMfaBackupRemaining(d.backup_codes_remaining ?? 0);
             })
             .catch(() => {});
+        refreshPasskeys();
     }, []);
+
+    const handleRemovePasskey = async (credentialId: string) => {
+        setPasskeyError('');
+        try {
+            await deletePasskey(credentialId);
+            refreshPasskeys();
+        } catch (e: any) {
+            setPasskeyError(e.message || 'Failed to remove passkey');
+        }
+    };
 
     if (!currentUser) {
         return <div>Loading user profile...</div>;
@@ -199,6 +220,56 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
                     )}
                 </div>
 
+                {/* Passkeys */}
+                <div className="py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <KeyIcon size={24} className={passkeys.length > 0 ? 'text-green-500' : 'text-gray-400'} />
+                            <div>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">Passkeys (WebAuthn)</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {passkeys.length > 0
+                                        ? `${passkeys.length} passkey${passkeys.length !== 1 ? 's' : ''} registered`
+                                        : 'Sign in with Touch ID, Windows Hello, or a security key'}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowPasskeySetup(true)}
+                            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                        >
+                            Register a new passkey
+                        </button>
+                    </div>
+
+                    {passkeyError && <p className="mt-2 text-xs text-red-500">{passkeyError}</p>}
+
+                    {passkeys.length > 0 && (
+                        <ul className="mt-4 divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            {passkeys.map((pk) => (
+                                <li key={pk.credential_id} className="flex items-center justify-between px-4 py-3">
+                                    <div>
+                                        <p className="text-sm text-gray-900 dark:text-gray-200 font-mono">
+                                            {String(pk.credential_id).slice(0, 16)}…
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Added {pk.created_at ? new Date(pk.created_at).toLocaleDateString() : 'unknown'}
+                                            {pk.last_used_at ? ` · last used ${new Date(pk.last_used_at).toLocaleDateString()}` : ' · never used'}
+                                            {pk.transports?.length ? ` · ${pk.transports.join(', ')}` : ''}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleRemovePasskey(pk.credential_id)}
+                                        className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    >
+                                        Remove
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
                 {/* Inline disable form */}
                 {showDisableMfa && (
                     <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg space-y-3">
@@ -222,6 +293,14 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
                     </div>
                 )}
             </div>
+
+            {/* Passkey Setup Modal overlay */}
+            {showPasskeySetup && (
+                <PasskeySetupModal
+                    onClose={() => setShowPasskeySetup(false)}
+                    onRegistered={refreshPasskeys}
+                />
+            )}
 
             {/* MFA Setup Wizard overlay */}
             {showMfaSetup && (

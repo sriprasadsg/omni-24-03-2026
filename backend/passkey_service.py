@@ -1,9 +1,17 @@
 import os
 import time
+import base64
 import webauthn
 import secrets
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timezone
+
+from webauthn.helpers.cose import COSEAlgorithmIdentifier
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria,
+    ResidentKeyRequirement,
+    UserVerificationRequirement,
+)
 
 # Module-level constants and in-memory challenge store
 _webauthn_challenges: Dict[Tuple[str, str], Tuple[bytes, float]] = {}
@@ -43,6 +51,21 @@ def _get_origin() -> str:
 RP_ID = _get_rp_id()
 ORIGIN = _get_origin()
 
+def credential_id_candidates(raw_id: str) -> list:
+    """Return possible stored representations of a client-supplied credential id.
+
+    Credentials are persisted as hex (verification.credential_id.hex()), but
+    browsers send the id base64url-encoded — accept either form.
+    """
+    candidates = [raw_id]
+    try:
+        decoded = base64.urlsafe_b64decode(raw_id + "=" * (-len(raw_id) % 4)).hex()
+        if decoded and decoded not in candidates:
+            candidates.append(decoded)
+    except Exception:
+        pass
+    return candidates
+
 async def build_registration_options(user_id: str, username: str, display_name: str) -> dict:
     """Generate public key credential creation options."""
     user_id_bytes = user_id.encode("utf-8")
@@ -55,15 +78,10 @@ async def build_registration_options(user_id: str, username: str, display_name: 
         user_name=username,
         user_display_name=display_name,
         challenge=challenge,
-        pubkey_cred_params=[
-            webauthn.PublicKeyCredentialParameters(
-                type="public-key",
-                alg=-7,  # ES256
-            ),
-        ],
-        authenticator_selection=webauthn.AuthenticatorSelectionCriteria(
-            user_verification="preferred",
-            resident_key="preferred",
+        supported_pub_key_algs=[COSEAlgorithmIdentifier.ECDSA_SHA_256],
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            user_verification=UserVerificationRequirement.PREFERRED,
+            resident_key=ResidentKeyRequirement.PREFERRED,
         ),
     )
     return options
@@ -81,9 +99,10 @@ async def verify_and_store_registration(user_id: str, credential_response: dict,
         expected_rp_id=RP_ID,
     )
 
-    credential_id = verification.credential_data.credential_id
-    public_key = verification.credential_data.public_key
-    sign_count = verification.credential_data.sign_count
+    # webauthn 3.x: VerifiedRegistration exposes these fields flat
+    credential_id = verification.credential_id
+    public_key = verification.credential_public_key
+    sign_count = verification.sign_count
 
     cred_doc = {
         "credential_id": credential_id.hex(),
@@ -107,7 +126,7 @@ async def build_authentication_options(user_key: str) -> dict:
     options = webauthn.generate_authentication_options(
         rp_id=RP_ID,
         challenge=challenge,
-        user_verification="preferred",
+        user_verification=UserVerificationRequirement.PREFERRED,
     )
     return options
 
@@ -116,18 +135,19 @@ async def verify_authentication(user_key: str, credential_response: dict, db, us
     expected_challenge = consume_challenge(user_key, "authentication")
     if not expected_challenge:
         raise ValueError("Challenge expired or missing")
-    cred_id_hex = credential_response.get("id") or credential_response.get("rawId")
-    if not cred_id_hex:
+    cred_id_raw = credential_response.get("id") or credential_response.get("rawId")
+    if not cred_id_raw:
         raise ValueError("Missing credential id in response")
+    cred_ids = credential_id_candidates(cred_id_raw)
     from database import mongodb
     user_doc = await mongodb.db.users.find_one(
-        {"webauthn_credentials.credential_id": cred_id_hex},
+        {"webauthn_credentials.credential_id": {"$in": cred_ids}},
         {"id": 1, "webauthn_credentials": 1, "tenantId": 1},
     )
     if not user_doc:
         raise ValueError("Credential not found")
     stored_cred_obj = next(
-        (c for c in user_doc.get("webauthn_credentials", []) if c.get("credential_id") == cred_id_hex),
+        (c for c in user_doc.get("webauthn_credentials", []) if c.get("credential_id") in cred_ids),
         None,
     )
     if not stored_cred_obj:
@@ -144,7 +164,7 @@ async def verify_authentication(user_key: str, credential_response: dict, db, us
 
     new_sign_count = verification.new_sign_count
     await mongodb.db.users.update_one(
-        {"id": user_doc["id"], "webauthn_credentials.credential_id": cred_id_hex},
+        {"id": user_doc["id"], "webauthn_credentials.credential_id": stored_cred_obj["credential_id"]},
         {
             "$set": {
                 "webauthn_credentials.$.sign_count": new_sign_count,

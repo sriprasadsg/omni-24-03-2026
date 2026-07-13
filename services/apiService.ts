@@ -390,6 +390,66 @@ export const login = async (username: string, password: string): Promise<any> =>
     return data;
 };
 
+// --- Passkeys (WebAuthn) ---
+
+export const passkeyRegisterOptions = async (): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/passkey/register/options`, { method: 'POST', body: JSON.stringify({}) });
+    if (!res.ok) throw new Error('Failed to get passkey registration options');
+    return await res.json();
+};
+
+export const passkeyRegisterVerify = async (credential: any): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/passkey/register/verify`, {
+        method: 'POST',
+        body: JSON.stringify({ credential }),
+    });
+    if (!res.ok) throw new Error('Passkey registration failed');
+    return await res.json();
+};
+
+export const passkeyLoginOptions = async (): Promise<any> => {
+    // Unauthenticated — part of the login flow
+    const res = await fetch(`${API_BASE}/passkey/login/options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+    });
+    if (res.status === 429) throw new Error('Too many attempts. Please wait a moment and try again.');
+    if (!res.ok) throw new Error('Failed to get passkey login options');
+    return await res.json();
+};
+
+export const passkeyLoginVerify = async (credential: any, challengeKey: string): Promise<any> => {
+    const res = await fetch(`${API_BASE}/passkey/login/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential, challenge_key: challengeKey }),
+    });
+    if (res.status === 429) throw new Error('Too many attempts. Please wait a moment and try again.');
+    if (!res.ok) throw new Error('Passkey sign-in failed');
+    const data = await res.json();
+    if (data.access_token) {
+        _sessionEnding = false;
+        _lastRefreshFailTime = 0;
+        sessionStorage.setItem('token', data.access_token);
+        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
+    }
+    return data;
+};
+
+export const listPasskeys = async (): Promise<any[]> => {
+    const res = await authFetch(`${API_BASE}/passkey/credentials`);
+    if (!res.ok) throw new Error('Failed to list passkeys');
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+};
+
+export const deletePasskey = async (credentialId: string): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/passkey/credentials/${encodeURIComponent(credentialId)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete passkey');
+    return await res.json();
+};
+
 export const fetchCurrentUser = async (): Promise<any> => {
     try {
         const token = sessionStorage.getItem('token');
