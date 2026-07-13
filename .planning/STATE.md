@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: Ready to plan
-stopped_at: Phase 31 complete. Phase 32 execution pending.
-last_updated: "2026-07-10T14:16:25.600Z"
+stopped_at: Phase 36 complete. Plan 36-01 executed.
+last_updated: "2026-07-13T08:30:00.000Z"
 progress:
   total_phases: 15
-  completed_phases: 5
+  completed_phases: 13
   total_plans: 42
-  completed_plans: 23
-  percent: 33
+  completed_plans: 59
+  percent: 100
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 32 — cloud-and-saas-provider-expansion
+**Current focus:** Phase 36 — fine-grained-relationship-based-authorization
 
 ## Current Phase
 
@@ -40,7 +40,8 @@ Phase 23 complete. Phase 24 (IaC & Container Security) — all 16 `24-REVIEW.md`
 
 Phase 25 (Cloud Checks Execution Gaps) complete and verified 2026-07-06: full pipeline (research → pattern-map → plan → plan-check → execute → code-review → fix → goal-verify → security-verify → UAT). Code review found and fixed 2 critical CloudFormation rule PASS/FAIL inversions plus 6 warnings. Goal verification: 15/15 must-haves confirmed. The one human-verification item (SIMULATED badge visual prominence) was confirmed by actually running the app end-to-end — backend+frontend dev servers, headless Chrome driven via raw CDP, real login, real scan trigger, screenshot — which also surfaced and fixed a real pre-existing bug (`container_scanner_endpoints.py` missing the `response: Response` param slowapi's rate limiter requires, causing every real `/api/container/scan` request to 500; unit tests never caught it since they bypass the route/middleware stack). 1/14 v3.0 phases complete.
 
-Phases 26 (Vendor and Risk Data Completeness), 27 (Compliance Export Formats — OSCAL and SBOM), and 28 (Governance Document Management) planned and plan-checker-passed 2026-07-07; not yet executed.
+Phases 26 (Vendor and Risk Data Completeness) **complete and verified 2026-07-12** (Phase 27 completed before this was updated).
+Phases 27 (Compliance Export Formats — OSCAL and SBOM) **complete and verified 2026-07-12**.
 
 Phase 29 (Public Trust Center) planned and plan-checker-passed 2026-07-07 — retrofits the internal-only `trust_service.py`/`trust_endpoints.py`/`TrustCenter.tsx` module into a real customer-facing surface. Research corrected the phase brief's own framing: this is not the first public route in the codebase (`agent_registry_endpoints.register_agent` already does it) — the plan clones that existing tenant-resolution pattern rather than inventing one. This was the first v3.0 phase to trip the UI safety gate (block:true — `frontend: true`, no UI-SPEC), so `/gsd-ui-phase 29` ran first (gsd-ui-researcher → gsd-ui-checker, approved with 2 non-blocking FLAGs, one aria-label gap closed inline). Two genuine scope decisions from research's Open Questions were confirmed with the user via AskUserQuestion: custom domain (TRUST-03) scoped to Host-header resolution only (no automated TLS/DNS), and NDA-gated document delivery scoped to out-of-band sharing via the existing `file_share_endpoints.access_share` mechanism (no new external-viewer auth system). 4 plans across 3 waves, all 3 requirements (TRUST-01/02/03) covered, plan-checker passed clean on first pass. Planner agent hit a session-limit failure on first dispatch (no partial PLAN.md written); retried identically after the reset and succeeded. 5/14 v3.0 phases planned (25 also executed); 26/27/28/29 planned only.
 
@@ -84,14 +85,15 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 32 | Cloud and SaaS Provider Expansion | Planned — 5 plans, 2 waves, checker passed (v3.0) |
 | 33 | Workflow Automation Connectors | Planned — 4 plans, 2 waves, checker passed (v3.0) |
 | 34 | Passkey and WebAuthn Authentication | Pending (v3.0) |
-| 35 | GraphQL API | Pending (v3.0) |
-| 36 | Fine-Grained Relationship-Based Authorization | Pending (v3.0) |
+| 35 | GraphQL API | Complete (v3.0) |
+| 36 | Fine-Grained Relationship-Based Authorization | Phase 36 complete — Plan 36-01 executed (v3.0) |
 | 37 | Spec-Compliant MCP Server | Pending (v3.0) |
 | 38 | Interactive AI Security Assistant | Pending (v3.0) |
 
 ## Decisions
 
-- agent_type added as trailing optional param (str | None = None) to preserve backward compatibility with all existing callers
+- ReBAC Engine Selection: Chose OpenFGA over SpiceDB for its superior Python client maturity (`openfga-client-py`), active development ecosystem, and flexible deployment models.
+- ReBAC Architecture: Adopted a sidecar pattern to isolate policy decisions from business logic, ensuring scalability and consistency across the platform.
 - Direct import from compliance_evidence_processor eliminates fragile transitive re-export via compliance_endpoints
 - Pytest unit test with AsyncMock DB chosen over live-server script for CI compatibility; __main__ live mode retained
 - 02-01: asyncio.run() used for async test cases (pytest-asyncio not installed); consistent with existing test_rust_heartbeat_parity.py pattern
@@ -195,12 +197,13 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 25-cloud-checks-execution-gaps P01 | 12min | 2 tasks | 6 files |
 | Phase 25-cloud-checks-execution-gaps P02 | 5min | 2 tasks | 2 files |
 | Phase 25-cloud-checks-execution-gaps P03 | 6min | 2 tasks | 3 files |
+| Phase 36-fine-grained-relationship-based-authorization 36-01 | ~5min | 1 task | 1 file |
 
 ## Last Session
 
-- **Timestamp:** 2026-07-10T02:00:00.000Z
-- **Stopped at:** context exhaustion at 75% (2026-07-10)
-- **Resume file:** .planning/phases/30-ai-questionnaire-auto-answer/30-05-PLAN.md
+- **Timestamp:** 2026-07-13T08:30:00.000Z
+- **Stopped at:** Phase 36 Plan 36-01 complete — ReBAC design document created and committed.
+- **Resume file:** None
 
 ## Configuration
 
@@ -225,7 +228,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-10T05:50:16.352Z
+**Last session:** 2026-07-12T09:48:03.626Z
 **Stopped at:** Phase 25 (Cloud Checks Execution Gaps) complete — verified, secured, UAT passed. Ready to plan Phase 26.
 **Resume file:** None
 
