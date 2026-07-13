@@ -1,3 +1,4 @@
+import numpy as np
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -27,6 +28,8 @@ class Risk(BaseModel):
     residual_likelihood: Optional[int] = None
     residual_impact: Optional[int] = None
     residual_risk_score: Optional[int] = None
+    fair_inputs: Optional[Dict[str, Any]] = None
+    fair_results: Optional[Dict[str, Any]] = None
 
 _RISK_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 

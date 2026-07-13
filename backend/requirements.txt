@@ -67,6 +67,9 @@ arize-phoenix>=4.0.0,<5.0.0
 openinference-instrumentation-anthropic>=0.1.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.24.0,<2.0.0
 
+# ── ReBAC Client ──────────────────────────────────────────────────────────────
+openfga>=0.6.0,<1.0.0          # OpenFGA client for Zanzibar-style ReBAC
+
 # ── Payment Gateways ─────────────────────────────────────────────────────────
 stripe>=9.0.0,<12.0.0          # Stripe payment processing
 paypalrestsdk>=1.13.1          # PayPal REST SDK
@@ -109,7 +112,18 @@ azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Ana
 oci>=2.181.1
 aliyun-python-sdk-core-v3>=2.13.33
 cloudflare>=5.4.0
+
+oci>=2.181.1
+aliyun-python-sdk-core-v3>=2.13.33
+cloudflare>=5.4.0
 msal>=1.37.0
 
+# ── GraphQL ──────────────────────────────────────────────────────────────────
+strawberry-graphql[fastapi]
+
+# ── WebAuthn / Passkeys ──────────────────────────────────────────────────────
+webauthn>=3.0.0,<4.0.0
+
 # ── Code Review Graph ─────────────────────────────────────────────────────────
+mcp
 # code-review-graph>=2.3.0           # Optional: code knowledge graph (install separately if needed)

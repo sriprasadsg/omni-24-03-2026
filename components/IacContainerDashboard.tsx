@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Upload, Terminal, Server, FileCode } from 'lucide-react';
+import { showToast } from '../utils/toast';
 
 interface IaCResult {
   check_id: string;
@@ -96,6 +97,18 @@ export function IacContainerDashboard() {
   const [imageName, setImageName] = useState('nginx:latest');
   const [containerResult, setContainerResult] = useState<ContainerScanResponse | null>(null);
   const [containerHistory, setContainerHistory] = useState<ContainerScanResponse[]>([]);
+
+  const exportSbom = async (scanId: string) => {
+    try {
+      const res = await fetch(`/api/container/results/${scanId}/sbom`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `sbom-${scanId}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      showToast(`Exported sbom-${scanId}.json`, 'success');
+    } catch { showToast('Export failed', 'error'); }
+  };
 
   const fetchIacHistory = useCallback(async () => {
     try {

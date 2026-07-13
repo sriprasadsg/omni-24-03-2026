@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 from database import get_database
 from authentication_service import get_current_user
+from rebac_service import get_reback_service, ReBACService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+rebac: ReBACService = get_reback_service()
 
 _SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
@@ -202,6 +204,13 @@ async def add_compliance_control(
     from tenant_context import get_tenant_id
     tid = get_tenant_id() or _user_tenant(current_user)
     fw_filter = await _resolve_fw_filter(db, framework_id, tid, _user_role(current_user))
+
+    # ReBAC check: does the current user have 'add_control' permission on this framework?
+    user_fga = f"user:{current_user.username}"
+    # OpenFGA object format: type:id, e.g., "framework:framework_id"
+    if not await rebac.check_permission(user_fga, "add_control", "framework", framework_id):
+        raise HTTPException(status_code=403, detail="Not authorized to add controls to this framework via ReBAC")
+
     result = await db.compliance_frameworks.update_one(
         fw_filter,
         {"$push": {"controls": new_control}},

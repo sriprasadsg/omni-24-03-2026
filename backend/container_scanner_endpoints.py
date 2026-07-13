@@ -1,5 +1,7 @@
 """Container Scanner API — scan image, list results."""
 import re
+import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response
 from database import get_database
 from auth_types import TokenData
@@ -19,6 +21,51 @@ _IMAGE_NAME_RE = re.compile(
     r'(?::[a-zA-Z0-9_.-]+|@sha256:[a-f0-9]{64})$'
 )
 
+_CDX_SEV_MAP = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low", "UNKNOWN": "unknown"}
+
+def _to_cyclonedx(scan_result: dict) -> dict:
+    components, comp_ref = [], {}
+    for v in scan_result.get("vulns", []):
+        key = (v["pkg_name"], v["installed_version"])
+        if key not in comp_ref:
+            ref = f"pkg:{v['pkg_name']}@{v['installed_version']}"
+            comp_ref[key] = ref
+            components.append({
+                "type": "library",
+                "bom-ref": ref,
+                "name": v["pkg_name"],
+                "version": v["installed_version"],
+                "purl": f"pkg:generic/{v['pkg_name']}@{v['installed_version']}",
+            })
+    vulnerabilities = [{
+        "id": v["id"],
+        "source": {"name": "NVD"},
+        "ratings": [{"severity": _CDX_SEV_MAP.get(v["severity"], "unknown")}],
+        "description": v.get("description", ""),
+        "affects": [{"ref": comp_ref[(v["pkg_name"], v["installed_version"])]}],
+    } for v in scan_result.get("vulns", [])]
+
+    cdx = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+        "version": 1,
+        "metadata": {"component": {"type": "container", "name": scan_result.get("image", "")}},
+        "components": components,
+        "vulnerabilities": vulnerabilities,
+    }
+    if scan_result.get("simulated"):
+        cdx["metadata"]["properties"] = [{"name": "omniagent:simulated", "value": "true"}]
+    return cdx
+
+@router.get("/results/{scan_id}/sbom")
+async def container_result_sbom(scan_id: str, current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
+    db = get_database()
+    tenant_id = get_tenant_id()
+    result = await db._db.container_scan_results.find_one({"scan_id": scan_id, "tenantId": tenant_id}, {"_id": 0})
+    if not result:
+        raise HTTPException(status_code=404, detail="Scan result not found")
+    return _to_cyclonedx(result)
 
 @router.post("/scan")
 @limiter.limit("10/minute")

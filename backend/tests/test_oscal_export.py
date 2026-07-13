@@ -34,7 +34,7 @@ class TestOscagAssessmentResults:
         ]
 
         with patch.object(self.mod, "_build_report_data", new=AsyncMock(return_value=(mock_framework, [], mock_control_rows))):
-            resp = self.client.get("/assessment-results?framework_id=soc2")
+            resp = self.client.get("/api/oscal/assessment-results?framework_id=soc2")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -56,7 +56,7 @@ class TestOscagAssessmentResults:
         ]
 
         with patch.object(self.mod, "_build_report_data", new=AsyncMock(return_value=(mock_framework, [], mock_control_rows))):
-            resp = self.client.get("/assessment-results?framework_id=soc2")
+            resp = self.client.get("/api/oscal/assessment-results?framework_id=soc2")
 
         findings = resp.json()["assessment-results"]["results"][0]["findings"]
         assert len(findings) == 2
@@ -72,7 +72,7 @@ class TestOscagAssessmentResults:
         ]
 
         with patch.object(self.mod, "_build_report_data", new=AsyncMock(return_value=(mock_framework, [], mock_control_rows))):
-            resp = self.client.get("/assessment-results?framework_id=soc2")
+            resp = self.client.get("/api/oscal/assessment-results?framework_id=soc2")
 
         finding = resp.json()["assessment-results"]["results"][0]["findings"][0]
         assert finding["status"]["state"] == "planned"
@@ -85,7 +85,7 @@ class TestOscagAssessmentResults:
 
         app = _app_with_limiter(self.mod.router, no_tenant_user)
         client = TestClient(app)
-        resp = client.get("/assessment-results?framework_id=soc2")
+        resp = client.get("/api/oscal/assessment-results?framework_id=soc2")
         assert resp.status_code == 403
         assert "Tenant context required" in resp.json().get("detail", "")
 
@@ -94,6 +94,6 @@ class TestOscagAssessmentResults:
         mock_framework = {"id": "soc2", "name": "SOC2"}
 
         with patch.object(self.mod, "_build_report_data", new=AsyncMock(side_effect=ValueError("Framework not found"))):
-            resp = self.client.get("/assessment-results?framework_id=soc2")
+            resp = self.client.get("/api/oscal/assessment-results?framework_id=soc2")
 
         assert resp.status_code == 404

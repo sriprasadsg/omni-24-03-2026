@@ -10,7 +10,7 @@ import logging
 router = APIRouter(prefix="/api/cloud-accounts", tags=["Cloud Accounts"])
 logger = logging.getLogger(__name__)
 
-_VALID_PROVIDERS = {"aws", "azure", "gcp", "kubernetes", "digitalocean"}
+_VALID_PROVIDERS = {"aws", "azure", "gcp", "kubernetes", "digitalocean", "microsoft365", "mongodb_atlas", "oci", "alibaba", "cloudflare"}
 _VALID_ENVS = {"prod", "staging", "dev"}
 
 

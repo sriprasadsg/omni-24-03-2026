@@ -6,6 +6,7 @@ from authentication_service import get_current_user
 from rbac_utils import is_super_admin
 from rate_limiter import limiter
 from datetime import datetime, timezone
+import hashlib
 import uuid
 import secrets
 

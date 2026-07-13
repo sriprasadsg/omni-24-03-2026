@@ -25,7 +25,12 @@
       "Bash(python *)",
       "Bash(pip show *)",
       "Bash(pip install *)",
-      "WebFetch(domain:pypi.org)"
+      "WebFetch(domain:pypi.org)",
+      "Bash(npx tsc *)",
+      "Skill(gsd-verify-work)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Skill(deep-research)"
     ]
   },
   "enabledMcpjsonServers": [

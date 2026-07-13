@@ -118,4 +118,3 @@ def test_endpoint_list_results_cross_tenant_denied(client):
         response = client.get(f"/api/saas/posture-checks/{connection_id}/results")
 
     assert response.status_code == 403
-
