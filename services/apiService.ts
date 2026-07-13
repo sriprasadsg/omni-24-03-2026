@@ -4616,3 +4616,183 @@ export const fetchDPAs = async (): Promise<DPA[]> => {
 };
 
 
+
+// --- Inbound Questionnaires + AI Answer Drafts (Phase 30, RAG-01/RAG-02) ---
+
+export interface InboundQuestionnaireSet {
+    id: string;
+    tenantId: string;
+    title: string;
+    questions: { id: string; text: string; rowIndex?: number }[];
+    status: string;
+    createdBy?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AnswerDraftDoc {
+    id: string;
+    tenantId: string;
+    questionSetId?: string | null;
+    questionId: string;
+    questionText: string;
+    answerText: string;
+    original_answer_text?: string;
+    confidence: 'high' | 'medium' | 'low' | 'insufficient_evidence';
+    sourceEvidenceIds: string[];
+    sourceEvidence: { source: string; content: string }[];
+    status: 'pending_review' | 'approved' | 'rejected' | 'needs_revision' | 'submitted';
+    reviewerId?: string;
+    decidedAt?: string;
+    reviewComment?: string;
+    submitted_by?: string;
+    submitted_at?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface DraftReview {
+    id: string;
+    draftId: string;
+    status: string;
+    comment?: string | null;
+    decided_by?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+const _asArray = <T,>(data: unknown): T[] =>
+    Array.isArray(data) ? data as T[] : ((data as { items?: T[]; drafts?: T[]; reviews?: T[] })?.items
+        || (data as { drafts?: T[] })?.drafts
+        || (data as { reviews?: T[] })?.reviews
+        || []);
+
+export const listInboundQuestionnaires = async (): Promise<InboundQuestionnaireSet[]> => {
+    const res = await authFetch(`${API_BASE}/questionnaires/inbound/`);
+    if (!res.ok) throw new Error('Failed to load inbound questionnaires');
+    return _asArray<InboundQuestionnaireSet>(await res.json());
+};
+
+export const createInboundQuestionnaire = async (
+    title: string,
+    questions?: { text: string }[],
+): Promise<InboundQuestionnaireSet> => {
+    const res = await authFetch(`${API_BASE}/questionnaires/inbound/`, {
+        method: 'POST',
+        body: JSON.stringify({ title, questions }),
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'Failed to create questionnaire');
+    }
+    return await res.json();
+};
+
+export const uploadInboundQuestionnaire = async (qid: string, file: File): Promise<InboundQuestionnaireSet> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await authFetch(`${API_BASE}/questionnaires/inbound/${qid}/upload`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'Failed to upload questionnaire file');
+    }
+    return await res.json();
+};
+
+export const getInboundQuestionnaire = async (qid: string): Promise<InboundQuestionnaireSet> => {
+    const res = await authFetch(`${API_BASE}/questionnaires/inbound/${qid}`);
+    if (!res.ok) throw new Error('Questionnaire set not found');
+    return await res.json();
+};
+
+// The backend drafts one answer per call (POST /generate with query params),
+// so generating for a whole set loops over its questions sequentially.
+export const generateAnswerDraft = async (
+    questionId: string,
+    questionText: string,
+    questionSetId?: string,
+): Promise<AnswerDraftDoc> => {
+    const params = new URLSearchParams({ question_id: questionId, question_text: questionText });
+    if (questionSetId) params.set('question_set_id', questionSetId);
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/generate?${params.toString()}`, {
+        method: 'POST',
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'Draft generation failed');
+    }
+    return await res.json();
+};
+
+export const generateAnswerDrafts = async (set: InboundQuestionnaireSet): Promise<AnswerDraftDoc[]> => {
+    const drafts: AnswerDraftDoc[] = [];
+    for (const q of set.questions) {
+        drafts.push(await generateAnswerDraft(q.id, q.text, set.id));
+    }
+    return drafts;
+};
+
+export const listAnswerDrafts = async (): Promise<AnswerDraftDoc[]> => {
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/`);
+    if (!res.ok) throw new Error('Failed to load answer drafts');
+    return _asArray<AnswerDraftDoc>(await res.json());
+};
+
+export const listPendingReviewDrafts = async (): Promise<AnswerDraftDoc[]> => {
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/pending-review`);
+    if (!res.ok) throw new Error('Failed to load pending drafts');
+    return _asArray<AnswerDraftDoc>(await res.json());
+};
+
+export const listDraftReviews = async (draftId: string): Promise<DraftReview[]> => {
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/${draftId}/reviews`);
+    if (!res.ok) throw new Error('Failed to load reviews');
+    return _asArray<DraftReview>(await res.json());
+};
+
+export const createDraftReview = async (draftId: string): Promise<DraftReview> => {
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/${draftId}/review`, {
+        method: 'POST',
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'Failed to create review');
+    }
+    return await res.json();
+};
+
+// NEVER sends reviewer identity — the backend derives it from the session
+// (RAG-02/T5 server-derived identity).
+export const decideDraftReview = async (
+    draftId: string,
+    reviewId: string,
+    decision: 'approved' | 'rejected' | 'needs_revision',
+    comment: string,
+    editedAnswerText?: string,
+): Promise<AnswerDraftDoc> => {
+    const body: Record<string, string> = { decision, comment };
+    if (editedAnswerText !== undefined) body.edited_answer_text = editedAnswerText;
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/${draftId}/review/${reviewId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'Decision failed');
+    }
+    return await res.json();
+};
+
+export const submitAnswerDraft = async (draftId: string): Promise<AnswerDraftDoc> => {
+    const res = await authFetch(`${API_BASE}/questionnaire-answer-drafts/${draftId}/submit`, {
+        method: 'POST',
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'Submit failed');
+    }
+    return await res.json();
+};

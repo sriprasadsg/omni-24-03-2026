@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
-import { FileTextIcon } from './icons/FileTextIcon';
+import { FileTextIcon } from './icons';
 
 interface GovernanceDocument {
   id: string;
@@ -54,7 +54,7 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
       showToast('Document created', 'success');
       setShowCreateForm(false);
       setNewDocTitle(''); setNewDocContent('');
-      fetchData();
+      fetchDocuments();
     } catch { showToast('Failed', 'error'); }
   };
 
@@ -67,7 +67,7 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
       });
       if (!res.ok) { showToast('Failed to add version', 'error'); return; }
       showToast('Version added', 'success');
-      fetchData();
+      fetchDocuments();
     } catch { showToast('Failed', 'error'); }
   };
 
@@ -76,7 +76,7 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
       const res = await authFetch(`/api/governance/documents/${docId}/submit-for-approval`, { method: 'POST' });
       if (!res.ok) { showToast('Failed to submit', 'error'); return; }
       showToast('Submitted for approval', 'success');
-      fetchData();
+      fetchDocuments();
     } catch { showToast('Failed', 'error'); }
   };
 
@@ -85,7 +85,7 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
       const res = await authFetch(`/api/governance/documents/${docId}/publish`, { method: 'POST' });
       if (!res.ok) { showToast('Failed to publish', 'error'); return; }
       showToast('Published', 'success');
-      fetchData();
+      fetchDocuments();
     } catch { showToast('Failed', 'error'); }
   };
 
@@ -102,7 +102,7 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
       showToast('Signed', 'success');
       setShowSignModal({ open: false, docId: null });
       setSignTypedName(''); setSignConsent(false);
-      fetchData();
+      fetchDocuments();
     } catch { showToast('Failed', 'error'); }
   };
 

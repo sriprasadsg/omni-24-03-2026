@@ -43,8 +43,9 @@ class User:
     email: str
     role: str
     tenant_id: str
-    created_at: datetime
-    updated_at: datetime
+    # ISO-8601 strings — the platform stores timestamps as isoformat() strings
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 @strawberry.type
 class Tenant:

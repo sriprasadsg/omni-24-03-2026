@@ -38,6 +38,7 @@ const CloudSecurityDashboard = lazy(() => import('./components/CloudSecurityDash
 const SecurityDashboard = lazy(() => import('./components/SecurityDashboard').then(m => ({ default: m.SecurityDashboard })));
 const ComplianceDashboard = lazy(() => import('./components/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })));
 const ProgramsDashboard = lazy(() => import('./components/ProgramsDashboard').then(m => ({ default: m.ProgramsDashboard })));
+const InboundQuestionnaireDashboard = lazy(() => import('./components/InboundQuestionnaireDashboard').then(m => ({ default: m.InboundQuestionnaireDashboard })));
 const SaaSIntegrationsDashboard = lazy(() => import('./components/SaaSIntegrationsDashboard'));
 const PrivacyLegalDashboard = lazy(() => import('./components/PrivacyLegalDashboard').then(m => ({ default: m.PrivacyLegalDashboard })));
 const CloudAccountsDashboard = lazy(() => import('./components/CloudAccountsDashboard').then(m => ({ default: m.CloudAccountsDashboard })));
@@ -240,6 +241,9 @@ const viewPermissionMap: Record<AppView, Permission> = {
   security: 'view:security',
   compliance: 'view:compliance',
   programs: 'view:compliance',
+  inboundQuestionnaires: 'view:compliance',
+  trustPage: 'view:compliance',
+  aiAssistantChat: 'view:dashboard',
   aiGovernance: 'view:ai_governance',
   finops: 'view:finops',
   auditLog: 'view:audit_log',
@@ -1713,6 +1717,7 @@ const App: React.FC = () => {
       case 'security': return <ErrorBoundary name="SecurityDashboard"><SecurityDashboard securityCases={tenantData.securityCases} playbooks={playbooks} securityEvents={tenantData.securityEvents} users={users} onCaseUpdate={handleCaseUpdate} onGeneratePlaybook={handleGeneratePlaybook} onAnalyzeImpact={handleAnalyzeImpact} threatIntelFeed={threatIntelFeed} /></ErrorBoundary>;
       case 'compliance': return <ErrorBoundary name="ComplianceDashboard"><ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} /></ErrorBoundary>;
       case 'programs': return <ErrorBoundary name="ProgramsDashboard"><ProgramsDashboard /></ErrorBoundary>;
+      case 'inboundQuestionnaires': return <ErrorBoundary name="InboundQuestionnaireDashboard"><InboundQuestionnaireDashboard /></ErrorBoundary>;
       case 'auditProgram': return <ErrorBoundary name="AuditProgramDashboard"><AuditProgramDashboard /></ErrorBoundary>;
       case 'accessReview': return <ErrorBoundary name="AccessReviewDashboard"><AccessReviewDashboard /></ErrorBoundary>;
       case 'cookieConsent': return <ErrorBoundary name="CookieConsentDashboard"><CookieConsentDashboard /></ErrorBoundary>;

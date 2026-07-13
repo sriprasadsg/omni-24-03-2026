@@ -41,14 +41,15 @@ class QuestionnaireInboundService:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await self._db().questionnaire_inbound.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     async def list_question_sets(self, tenant_id: str) -> List[Dict[str, Any]]:
-        cursor = self._db().questionnaire_inbound.find({"tenantId": tenant_id})
+        cursor = self._db().questionnaire_inbound.find({"tenantId": tenant_id}, {"_id": 0})
         return await cursor.to_list(length=None)
 
     async def get_question_set(self, qid: str, tenant_id: str) -> Optional[Dict[str, Any]]:
-        return await self._db().questionnaire_inbound.find_one({"id": qid, "tenantId": tenant_id})
+        return await self._db().questionnaire_inbound.find_one({"id": qid, "tenantId": tenant_id}, {"_id": 0})
 
     async def parse_upload(self, filename: str, content_bytes: bytes) -> List[Dict[str, Any]]:
         questions: List[Dict[str, Any]] = []

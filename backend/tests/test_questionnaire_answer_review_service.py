@@ -140,7 +140,8 @@ async def test_mark_submitted_success():
     db.drafts.find_one_and_update.assert_called_once_with(
         {"id": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID, "status": "approved"},
         {"$set": {"status": "submitted", "submitted_by": "reviewer1", "submitted_at": ANY, "updatedAt": ANY}},
-        return_document=True
+        return_document=True,
+        projection={"_id": 0},
     )
 
 @pytest.mark.asyncio
@@ -164,7 +165,7 @@ async def test_list_reviews():
     result = await list_reviews(TEST_DRAFT_ID, db, TEST_TENANT_ID)
 
     assert len(result) == 1
-    db.reviews.find.assert_called_once_with({"draftId": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID})
+    db.reviews.find.assert_called_once_with({"draftId": TEST_DRAFT_ID, "tenantId": TEST_TENANT_ID}, {"_id": 0})
 
 @pytest.mark.asyncio
 async def test_list_reviews_empty():

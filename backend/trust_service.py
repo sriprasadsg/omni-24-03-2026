@@ -79,6 +79,9 @@ class TrustService:
                 if status == 'Approved':
                     req.approved_at = datetime.now().isoformat()
                     req.approved_by = approved_by
+                else:
+                    req.approved_at = None
+                    req.approved_by = None
                 return req
         return None
 

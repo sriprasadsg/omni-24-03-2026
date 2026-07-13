@@ -662,9 +662,9 @@ export const ATTACK_PATHS_DATA: AttackPath[] = [
             { id: 'node-4', type: 'Crown Jewel', label: 'Customer PII Data', vulnerabilities: 0 },
         ],
         edges: [
-            { from: 'node-1', to: 'node-2', label: 'Leaked IAM credentials' },
-            { from: 'node-2', to: 'node-3', label: 'Exploits CVE-2023-5678' },
-            { from: 'node-3', to: 'node-4', label: 'Has read access' },
+            { source: 'node-1', target: 'node-2', vulnerability: 'Leaked IAM credentials' },
+            { source: 'node-2', target: 'node-3', vulnerability: 'Exploits CVE-2023-5678' },
+            { source: 'node-3', target: 'node-4', vulnerability: 'Has read access' },
         ]
     }
 ];

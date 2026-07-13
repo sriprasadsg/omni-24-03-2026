@@ -49,6 +49,7 @@ async def create_review(draft_id: str, db, tenant_id: str) -> Dict[str, Any]:
         "updated_at": _now_iso(),
     }
     await db[QUESTIONNAIRE_ANSWER_REVIEWS_COL].insert_one(review_doc)
+    review_doc.pop("_id", None)
     return review_doc
 
 
@@ -87,7 +88,7 @@ async def update_review_decision(
         {"id": draft_id, "tenantId": tenant_id},
         {"$set": draft_update},
     )
-    return await db[QUESTIONNAIRE_ANSWER_DRAFTS_COL].find_one({"id": draft_id, "tenantId": tenant_id})
+    return await db[QUESTIONNAIRE_ANSWER_DRAFTS_COL].find_one({"id": draft_id, "tenantId": tenant_id}, {"_id": 0})
 
 
 async def mark_submitted(draft_id: str, db, tenant_id: str, submitted_by: str) -> Optional[Dict[str, Any]]:
@@ -97,11 +98,12 @@ async def mark_submitted(draft_id: str, db, tenant_id: str, submitted_by: str) -
         {"id": draft_id, "tenantId": tenant_id, "status": "approved"},
         {"$set": {"status": "submitted", "submitted_by": submitted_by, "submitted_at": now, "updatedAt": now}},
         return_document=True,
+        projection={"_id": 0},
     )
 
 
 async def list_reviews(draft_id: str, db, tenant_id: str):
-    cursor = db[QUESTIONNAIRE_ANSWER_REVIEWS_COL].find({"draftId": draft_id, "tenantId": tenant_id}).sort("created_at", -1)
+    cursor = db[QUESTIONNAIRE_ANSWER_REVIEWS_COL].find({"draftId": draft_id, "tenantId": tenant_id}, {"_id": 0}).sort("created_at", -1)
     return await cursor.to_list(length=None)
 
 

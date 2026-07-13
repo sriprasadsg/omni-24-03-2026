@@ -143,7 +143,8 @@ class TestSecurityScansEndpoints:
         app.dependency_overrides[get_current_user] = lambda: tenant_user
         self.app = app
         self._user = tenant_user
-        self.db = _db("vulnerability_scan_jobs", "assets", "attack_paths", "patches", "alerts")
+        self.db = _db("vulnerability_scan_jobs", "assets", "attack_paths", "patches", "alerts",
+                      "vulnerabilities", "cspm_findings")
 
     def test_schedule_scan_creates_job(self):
         with patch("security_scans_endpoints.get_database", return_value=self.db):

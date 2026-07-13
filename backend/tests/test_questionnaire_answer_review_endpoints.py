@@ -53,12 +53,13 @@ def _make_db():
     return db, cols
 
 
-def _make_client():
+def _make_client(role: str = "admin"):
     app = FastAPI()
     app.include_router(ep_mod.router)
     user = MagicMock()
     user.username = "testuser"
     user.tenant_id = TENANT
+    user.role = role
     app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)
 
@@ -225,3 +226,26 @@ def test_list_pending_drafts_success():
     # tenant scoping enforced in the query
     query = cols[QUESTIONNAIRE_ANSWER_DRAFTS_COL].find.call_args.args[0]
     assert query["tenantId"] == TENANT
+
+
+# ---------------------------------------------------------------------------
+# Reviewer role gate (RAG-02 defense-in-depth — mirrors evidence_review_endpoints)
+# ---------------------------------------------------------------------------
+
+def test_decision_denied_for_non_reviewer_role():
+    db, _ = _make_db()
+    client = _make_client(role="viewer")
+    with _db_patch(db):
+        resp = client.patch(
+            f"{BASE}/{DRAFT_ID}/review/qar-1",
+            json={"decision": "approved", "comment": "ok"},
+        )
+    assert resp.status_code == 403
+
+
+def test_submit_denied_for_non_reviewer_role():
+    db, _ = _make_db()
+    client = _make_client(role="user")
+    with _db_patch(db):
+        resp = client.post(f"{BASE}/{DRAFT_ID}/submit")
+    assert resp.status_code == 403

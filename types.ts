@@ -22,6 +22,8 @@ export type AppView =
   | 'security'
   | 'compliance'
   | 'programs'
+  | 'inboundQuestionnaires'
+  | 'aiAssistantChat'
   | 'aiGovernance'
   | 'finops'
   | 'auditLog'
@@ -1603,6 +1605,8 @@ export interface TrustProfile {
     description: string;
     contact_email: string;
     logo_url: string;
+    trust_slug?: string;
+    trust_domain?: string;
     compliance_frameworks: string[];
     public_documents: { name: string, url: string }[];
     private_documents: { name: string, url: string }[];

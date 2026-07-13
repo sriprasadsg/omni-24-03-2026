@@ -164,6 +164,7 @@ async def draft_answer_for_question(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     await db["questionnaire_answer_drafts"].insert_one(draft_doc)
+    draft_doc.pop("_id", None)
     return draft_doc
 
 
@@ -195,15 +196,16 @@ async def _insufficient_evidence_draft(
     # Still insert to allow reviewer to see "insufficient evidence" as a draft record
     if db is not None:
         await db["questionnaire_answer_drafts"].insert_one(doc)
+        doc.pop("_id", None)
     return doc
 
 
 async def list_pending_drafts(db, tenant_id: str):
-    cursor = db["questionnaire_answer_drafts"].find({"tenantId": tenant_id, "status": "pending_review"})
+    cursor = db["questionnaire_answer_drafts"].find({"tenantId": tenant_id, "status": "pending_review"}, {"_id": 0})
     return await cursor.to_list(length=None)
 
 async def get_draft(draft_id: str, tenant_id: str, db):
-    return await db["questionnaire_answer_drafts"].find_one({"id": draft_id, "tenantId": tenant_id})
+    return await db["questionnaire_answer_drafts"].find_one({"id": draft_id, "tenantId": tenant_id}, {"_id": 0})
 
 async def update_draft_status(draft_id: str, tenant_id: str, update: Dict[str, Any], db):
     return await db["questionnaire_answer_drafts"].find_one_and_update(

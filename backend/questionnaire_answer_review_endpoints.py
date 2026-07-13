@@ -15,10 +15,22 @@ from database import get_database
 
 router = APIRouter(prefix="/api/questionnaire-answer-drafts", tags=["Questionnaire Answer Review"])
 
+# Kept in sync by hand with the equivalent literal in evidence_review_endpoints.py
+# and components/QuestionnaireAnswerReviewPanel.tsx (_REVIEWER_ROLES).
+_REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer"}
+
 async def _tenant(user: User = Depends(get_current_user)) -> str:
     if not user.tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID not found for user")
     return user.tenant_id
+
+
+def _require_reviewer(user: User) -> None:
+    if getattr(user, "role", None) not in _REVIEWER_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins and compliance reviewers can make review decisions",
+        )
 
 
 @router.post("/{draft_id}/review", response_model=Dict[str, Any])
@@ -41,6 +53,7 @@ async def update_review_decision_endpoint(
     user: User = Depends(get_current_user),
     tenant_id: str = Depends(_tenant),
 ) -> Dict[str, Any]:
+    _require_reviewer(user)
     decision = body.get("decision")
     comment = body.get("comment")
     edited_answer_text = body.get("edited_answer_text")
@@ -64,6 +77,7 @@ async def submit_draft_endpoint(
     user: User = Depends(get_current_user),
     tenant_id: str = Depends(_tenant),
 ) -> Dict[str, Any]:
+    _require_reviewer(user)
     draft = await mark_submitted(draft_id, get_database(), tenant_id, user.username)
     if draft is None:
         raise HTTPException(status_code=409, detail="Draft must be in approved state to submit")

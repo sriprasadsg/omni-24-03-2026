@@ -149,8 +149,11 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "soa_endpoints",             "router")
     _load(app, "questionnaire_endpoints",   "router")
     _load(app, "questionnaire_inbound_endpoints", "router")
-    _load(app, "questionnaire_answer_draft_endpoints", "router")
+    # Review router MUST register before the draft router: both share the
+    # /api/questionnaire-answer-drafts prefix, and the draft router's bare
+    # GET /{draft_id} would otherwise shadow GET /pending-review.
     _load(app, "questionnaire_answer_review_endpoints", "router")
+    _load(app, "questionnaire_answer_draft_endpoints", "router")
     _load(app, "maturity_endpoints",        "router")
     _load(app, "audit_program_endpoints",   "router")
     _load(app, "cookie_consent_endpoints",  "router")
@@ -245,7 +248,8 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "webhook_endpoints",          "router")
     _load(app, "notification_endpoints",     "router")
     _load(app, "domain_scanner_endpoints",   "router")
-    _load(app, "mcp_server_endpoints",       "router")
+    # mcp_server_endpoints no longer exposes a REST router — Phase 37 replaced
+    # it with the standalone FastMCP server (backend/mcp_server.py).
     _load(app, "ocsf_endpoints",              "router")
     _load(app, "oscal_endpoints",             "router") # NEW
     _load(app, "oscal_endpoints",             "router")

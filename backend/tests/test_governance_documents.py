@@ -28,24 +28,24 @@ def mock_db():
 
 @pytest.fixture
 def client(mock_db):
+    # rbac_utils' permission check resolves roles through its own get_database
     with patch('rbac_utils.get_database', return_value=mock_db):
-        with patch('governance_document_endpoints.get_database', return_value=mock_db):
-            # This is the critical patch for database.mongodb.db
-            with patch('database.mongodb.db', new_callable=MagicMock, return_value=mock_db.governance_documents.database):
-                from authentication_service import get_current_user
-                from governance_document_endpoints import router
-                from rbac_utils import require_permission
+        from authentication_service import get_current_user
+        from database import get_database
+        from governance_document_endpoints import router
 
-                app = FastAPI()
-                app.include_router(router)
-                # Mock auth
-                mock_user = MagicMock(spec=TokenData)
-                mock_user.tenant_id = 'tenant-a'
-                mock_user.role = 'admin'
-                mock_user.username = 'user@tenant.com'
-                app.dependency_overrides[get_current_user] = lambda: mock_user
-                app.dependency_overrides[require_permission] = lambda perm: lambda: mock_user
-                yield TestClient(app, raise_server_exceptions=True)
+        app = FastAPI()
+        app.include_router(router)
+        # db=Depends(get_database) captured the function object at import —
+        # override the dependency, don't patch the module attribute
+        app.dependency_overrides[get_database] = lambda: mock_db
+        # Mock auth
+        mock_user = MagicMock(spec=TokenData)
+        mock_user.tenant_id = 'tenant-a'
+        mock_user.role = 'admin'
+        mock_user.username = 'user@tenant.com'
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        yield TestClient(app, raise_server_exceptions=True)
 
 # ─── tests ─────────────────────────────────────────────────────────────────
 
