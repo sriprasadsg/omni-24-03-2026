@@ -62,6 +62,7 @@ def _make_client():
     user = MagicMock()
     user.username = "testuser"
     user.tenant_id = TENANT
+    user.role = "admin"
     app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)
 

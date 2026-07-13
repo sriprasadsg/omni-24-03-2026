@@ -36,6 +36,7 @@ async def create_document(
     except Exception as e:
         _log.error("Failed to create document: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    return doc
 
 
 @router.get("/documents")

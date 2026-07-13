@@ -30,7 +30,26 @@
       "Skill(gsd-verify-work)",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "Skill(deep-research)"
+      "Skill(deep-research)",
+      "Bash(timeout 240 backend/venv/bin/python -m pytest backend/tests/test_ai_assistant.py backend/tests/test_mcp_server.py -q)",
+      "Bash(timeout 300 venv/bin/python -m pytest tests/test_ai_assistant.py tests/test_mcp_server.py -q)",
+      "Bash(timeout 300 backend/venv/bin/python -m pytest backend/tests/test_ai_assistant.py -q)",
+      "Bash(backend/venv/bin/pip list *)",
+      "Bash(backend/venv/bin/python -c \"import mcp; print\\('mcp OK', mcp.__file__\\)\")",
+      "Bash(timeout 300 backend/venv/bin/python -m pytest backend/tests/test_mcp_server.py -q)",
+      "Bash(timeout 300 backend/venv/bin/python -m pytest backend/tests/test_mcp_server.py backend/tests/test_ai_assistant.py -q)",
+      "Bash(timeout 590 backend/venv/bin/python -m pytest backend/tests -q --timeout=60)",
+      "Bash(timeout 590 backend/venv/bin/python -m pytest backend/tests -q)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(timeout 590 backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py)",
+      "Bash(pip list *)",
+      "Bash(backend/venv/bin/pip install *)",
+      "Bash(backend/venv/bin/python -m pytest backend/tests/test_graphql.py -v --tb=short)",
+      "Bash(backend/venv/bin/python -m pytest backend/tests/test_rebac.py -v --tb=short)",
+      "Bash(curl *)",
+      "Skill(run)",
+      "Bash(backend/venv/bin/python *)",
+      "Bash(../backend/venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 5000)"
     ]
   },
   "enabledMcpjsonServers": [
