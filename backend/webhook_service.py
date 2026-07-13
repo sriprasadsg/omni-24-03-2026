@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import ipaddress
+import json
 import logging
 import re
 import httpx
@@ -91,9 +94,16 @@ class WebhookService:
         # Default headers
         headers['Content-Type'] = 'application/json'
         headers['User-Agent'] = 'Omni-Agent-Platform/1.0'
-        
+
+        # Sign the exact bytes sent on the wire (never httpx json= — it re-serializes
+        # independently, so the receiver's HMAC over the raw body would not match)
+        body = json.dumps(payload)
+        if hook.get('secret'):
+            sig = hmac.new(hook['secret'].encode(), body.encode(), hashlib.sha256).hexdigest()
+            headers['X-Webhook-Signature'] = f"sha256={sig}"
+
         try:
-            response = await client.post(url, json=payload, headers=headers, timeout=10.0)
+            response = await client.post(url, content=body, headers=headers, timeout=10.0)
             success = response.status_code >= 200 and response.status_code < 300
             
             # Update webhook status
