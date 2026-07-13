@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
-status: Ready to plan
-stopped_at: Phase 36 complete. Plan 36-01 executed.
-last_updated: "2026-07-13T10:40:40.408Z"
+status: In progress
+stopped_at: Phases 37 and 38 complete (plans 37-03 and 38-03 verified 2026-07-13). Next — execute Phase 33 or 34, or clear pre-existing test failures in phases 28/30/32.
+last_updated: "2026-07-13T13:27:54.000Z"
 progress:
-  total_phases: 15
-  completed_phases: 10
+  total_phases: 14
+  completed_phases: 9
   total_plans: 42
-  completed_plans: 38
-  percent: 67
+  completed_plans: 40
+  percent: 64
 ---
 
 # Project State
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 36 — fine-grained-relationship-based-authorization
+**Current focus:** v3.0 remaining work — execute Phases 33/34, unblock Phase 35, clear UAT backlog (28/29/30/32)
 
 ## Current Phase
 
@@ -46,6 +46,8 @@ Phases 27 (Compliance Export Formats — OSCAL and SBOM) **complete and verified
 Phase 29 (Public Trust Center) planned and plan-checker-passed 2026-07-07 — retrofits the internal-only `trust_service.py`/`trust_endpoints.py`/`TrustCenter.tsx` module into a real customer-facing surface. Research corrected the phase brief's own framing: this is not the first public route in the codebase (`agent_registry_endpoints.register_agent` already does it) — the plan clones that existing tenant-resolution pattern rather than inventing one. This was the first v3.0 phase to trip the UI safety gate (block:true — `frontend: true`, no UI-SPEC), so `/gsd-ui-phase 29` ran first (gsd-ui-researcher → gsd-ui-checker, approved with 2 non-blocking FLAGs, one aria-label gap closed inline). Two genuine scope decisions from research's Open Questions were confirmed with the user via AskUserQuestion: custom domain (TRUST-03) scoped to Host-header resolution only (no automated TLS/DNS), and NDA-gated document delivery scoped to out-of-band sharing via the existing `file_share_endpoints.access_share` mechanism (no new external-viewer auth system). 4 plans across 3 waves, all 3 requirements (TRUST-01/02/03) covered, plan-checker passed clean on first pass. Planner agent hit a session-limit failure on first dispatch (no partial PLAN.md written); retried identically after the reset and succeeded. 5/14 v3.0 phases planned (25 also executed); 26/27/28/29 planned only.
 
 User then requested planning all remaining phases (30-38) in one batch (typo'd as "30-40" — 39/40 don't exist, corrected to 30-38). Phase 30 (AI Questionnaire Auto-Answer) planned and plan-checker-passed 2026-07-08 — first v3.0 phase to trip the `workflow.ai_integration_phase` keyword gate (goal text contains "RAG"), so `/gsd-ai-integration-phase 30` ran first: framework-selector found this codebase already has every RAG/AI primitive needed (`rag_service.py` ChromaDB, `ai_service.py` multi-provider generation, `compliance_narrative_service.py`'s Pydantic-validated-output pattern, Phase 15's evidence-review human-approval-gate shape) — no new framework introduced. That research surfaced a real pre-existing bug: `rag_service.py`'s ChromaDB collection has zero tenant scoping (cross-tenant leak risk), now a Wave-1 blocking prerequisite fix with a dedicated isolation test. User confirmed via AskUserQuestion that questionnaire intake should be file upload + parsing (Excel/CSV via existing pandas/openpyxl, cloning `compliance_framework_mgmt_endpoints.py`) rather than the lighter-weight manual-entry-only recommendation — a real scope expansion. Planner hit a session-limit failure mid-run (5 of 6 plans written, no frontend plan yet); resumed with a targeted continuation planner for the missing 30-06 frontend plan after the reset. Plan-checker's first pass found 1 blocker (30-02/03/04 deferred router registration to "consolidated in 30-05" but 30-05 never did it — routes would 404 in the real app) — fixed with a targeted revision to 30-05, re-check passed clean. 6 plans across 3 waves, both requirements (RAG-01/02) covered. 6/14 v3.0 phases planned (25 also executed); 26/27/28/29/30 planned only. Continuing sequentially through 31-38.
+
+**Session 2026-07-13 — Phases 37/38 closed out, backend import chain repaired.** A full project verification found `backend/app.py` had an unconditional `from graphql_endpoints import` after the socketio wrap (added during Phase 35), which — with `strawberry` uninstallable — broke every backend import and all test runs, and would have thrown `AttributeError` even with strawberry present (`socketio.ASGIApp` has no `include_router`; the router is already registered as optional in `router_registry.py`). Removed (commit c06d5369). Two more Phase 38 defects fixed in the same commit: `ai_assistant_endpoints.py` defined `ChatRequestBody(BaseModel)` before importing `BaseModel` (NameError at import), and called `.chat()` on a module-level `ai_assistant_service = None` that nothing ever initialized (AttributeError on every real request) — endpoints now call `chat()` directly. Both Phase 37 and 38 test files were rewritten and pass: the old `test_mcp_server.py` imported a nonexistent `main` module and tested pre-Phase-37 REST routes that no longer exist; it now tests the real FastMCP server (12/12). `test_ai_assistant.py` used `backend.`-prefixed imports that made every patch a no-op and mocked Motor's sync `find()` as async; rewritten per project conventions (5/5, includes tenant-isolation and empty-query coverage). Full suite: **846 passed, 22 skipped, 27 failures + 14 errors — all pre-existing** (verified identical on the parent commit): Phase 30 questionnaire (19), Phase 32 posture/ingest (8), singles in 28/34/35, plus `test_rebac.py` breaking collection because `openfga_sdk` isn't installed (run with `--ignore=backend/tests/test_rebac.py`). Tests must run via `backend/venv/bin/python -m pytest` — the system Python has no pytest and the env is externally managed.
 
 ## Phases
 
@@ -80,15 +82,15 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Complete (v3.0) |
 | 28 | Governance Document Management | Complete (v3.0) |
 | 29 | Public Trust Center | Complete (v3.0) |
-| 30 | AI Questionnaire Auto-Answer | Partial (v3.0) — Wave 2 complete, Wave 3 pending |
-| 31 | FAIR Risk Quantification | Planned — 3 plans, 3 waves, checker passed (v3.0) |
-| 32 | Cloud and SaaS Provider Expansion | Planned — 5 plans, 2 waves, checker passed (v3.0) |
+| 30 | AI Questionnaire Auto-Answer | Executed (v3.0) — all 6 plans done; UAT mostly pending (19 pre-existing test failures) |
+| 31 | FAIR Risk Quantification | Complete (v3.0) — 3/3 plans executed 2026-07-10 |
+| 32 | Cloud and SaaS Provider Expansion | Executed (v3.0) — 5/5 plans done; verification `human_needed` (3/4 must-haves), 8 pre-existing test failures |
 | 33 | Workflow Automation Connectors | Planned — 4 plans, 2 waves, checker passed (v3.0) |
-| 34 | Passkey and WebAuthn Authentication | Pending (v3.0) |
-| 35 | GraphQL API | Blocked (v3.0) |
-| 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) |
-| 37 | Spec-Compliant MCP Server | Complete (v3.0) |
-| 38 | Interactive AI Security Assistant | Partial (v3.0) — Wave 2 in progress |
+| 34 | Passkey and WebAuthn Authentication | Planned (v3.0) — not executed; test_passkey_auth.py errors |
+| 35 | GraphQL API | Blocked (v3.0) — strawberry-graphql/pydantic incompat, needs admin |
+| 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) — caveat: test_rebac.py cannot run (openfga_sdk not installed) |
+| 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
+| 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
 
 ## Decisions
 

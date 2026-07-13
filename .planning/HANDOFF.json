@@ -1,38 +1,48 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-13T16:55:08+05:30",
+  "timestamp": "2026-07-13T18:57:54+05:30",
   "phase": "38",
   "phase_name": "Interactive AI Security Assistant",
   "phase_dir": ".planning/phases/38-interactive-ai-security-assistant",
   "plan": 3,
   "task": 5,
   "total_tasks": 5,
-  "status": "paused",
+  "status": "complete",
   "completed_tasks": [
     {"id": 1, "name": "Plan 38-01: Backend Chat API and RAG Integration", "status": "done", "commit": "bc5f2ab9"},
     {"id": 2, "name": "Plan 38-02: Frontend Chat UI implementation", "status": "done", "commit": "bc5f2ab9"},
     {"id": 3, "name": "Plan 38-02: Sidebar and App.tsx integration", "status": "done", "commit": "bc5f2ab9"},
     {"id": 4, "name": "Plan 38-03: Integration Tests (test file created)", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 5, "name": "Plans 36, 37, 38 execution", "status": "done", "commit": "bc5f2ab9"}
+    {"id": 5, "name": "Plans 36, 37, 38 execution", "status": "done", "commit": "bc5f2ab9"},
+    {"id": 6, "name": "Plan 38-03: Run tests — fixed app.py import chain, ai_assistant_endpoints NameError, None-singleton call; rewrote test_ai_assistant.py (5/5 pass)", "status": "done", "commit": "c06d5369"},
+    {"id": 7, "name": "Plan 37-03: Rewrote test_mcp_server.py against real FastMCP server (12/12 pass; old file imported nonexistent 'main' and tested removed REST routes)", "status": "done", "commit": "c06d5369"}
   ],
   "remaining_tasks": [
-    {"id": 6, "name": "Plan 38-03: Run tests (blocked by safety classifier)", "status": "not_started"},
-    {"id": 7, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"}
+    {"id": 8, "name": "Phase 33: Workflow Automation Connectors — 4 plans ready, not executed", "status": "not_started"},
+    {"id": 9, "name": "Phase 34: Passkey/WebAuthn — planned, not executed (test_passkey_auth.py errors)", "status": "not_started"},
+    {"id": 10, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"},
+    {"id": 11, "name": "Clear pre-existing test debt: 27 failures + 14 errors (phase 30 questionnaire x19, phase 32 posture/ingest x8, singles in 28/34/35)", "status": "not_started"},
+    {"id": 12, "name": "UAT backlog: phases 28 (4 items), 29 (6), 30 (6), 32 (1 must-have human_needed)", "status": "not_started"},
+    {"id": 13, "name": "Install openfga_sdk so test_rebac.py can run (Phase 36 caveat; breaks full-suite collection — use --ignore until fixed)", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "Safety classifier unavailable, cannot run pytest or start backend servers", "type": "technical", "workaround": "Wait for classifier to recover, or run tests manually with ! prefix"},
-    {"description": "Phase 35 GraphQL API blocked by strawberry-graphql/pydantic dependency incompatibility in externally managed environment", "type": "technical", "workaround": "System admin must resolve dependency incompatibility"}
+    {"description": "Phase 35 GraphQL API blocked by strawberry-graphql/pydantic dependency incompatibility in externally managed environment", "type": "technical", "workaround": "System admin must resolve dependency incompatibility. app.py no longer breaks without it (fixed in c06d5369) — GraphQL routes are simply absent."},
+    {"description": "openfga_sdk not installed — test_rebac.py fails at collection and interrupts full-suite runs", "type": "technical", "workaround": "Run suite with --ignore=backend/tests/test_rebac.py until the package is installed"}
   ],
   "async_jobs": [],
   "human_actions_pending": [
-    {"action": "Resolve strawberry-graphql/pydantic dependency incompatibility for Phase 35", "context": "ImportError: cannot import name 'is_new_type' from 'pydantic._internal._typing_extra'. Environment is externally managed, pip install blocked.", "blocking": true}
+    {"action": "Resolve strawberry-graphql/pydantic dependency incompatibility for Phase 35", "context": "ImportError: cannot import name 'is_new_type' from 'pydantic._internal._typing_extra'. Environment is externally managed, pip install blocked.", "blocking": true},
+    {"action": "Install openfga_sdk in backend/venv for Phase 36 ReBAC tests", "context": "requirements.txt lists openfga>=0.6.0 but it is not installed; test_rebac.py cannot collect.", "blocking": false}
   ],
   "decisions": [
     {"decision": "Used OpenFGA for ReBAC in Phase 36", "rationale": "Superior Python client maturity, active development, flexible deployment", "phase": "36"},
     {"decision": "Implemented MCP server with FastMCP for Phase 37", "rationale": "Official Python SDK provides spec-compliant stdio/SSE transports", "phase": "37"},
-    {"decision": "AI Assistant uses RAG + live MongoDB findings for grounded responses", "rationale": "Combines knowledge base with real-time compliance/risk data", "phase": "38"}
+    {"decision": "AI Assistant uses RAG + live MongoDB findings for grounded responses", "rationale": "Combines knowledge base with real-time compliance/risk data", "phase": "38"},
+    {"decision": "Removed app.py's trailing unconditional graphql_endpoints import instead of guarding it", "rationale": "router_registry already registers it as optional with logged, non-fatal failure; the trailing lines also called include_router on socketio.ASGIApp which has no such method", "phase": "38"},
+    {"decision": "ai_assistant_endpoints calls chat() function directly instead of an ai_assistant_service singleton", "rationale": "The singleton was a module-level None that nothing initialized — every request would have raised AttributeError", "phase": "38"},
+    {"decision": "test_mcp_server.py tests the FastMCP instance (mcp.list_tools/call_tool), not HTTP routes", "rationale": "Phase 37 removed the REST-shaped /api/mcp surface; the protocol layer is the real contract. call_tool returns (content, structured) tuple on mcp 1.28 for typed tools.", "phase": "37"}
   ],
   "uncommitted_files": [],
-  "next_action": "Run backend/tests/test_ai_assistant.py to verify Phase 38 tests pass. Complete Plan 38-03.",
-  "context_notes": "Phases 36 (ReBAC), 37 (MCP Server), and 38 (AI Assistant) all implemented. Phase 35 blocked by dependency issue. Context exhausted. All work committed."
+  "next_action": "Execute Phase 33 (plans ready) or Phase 34, or clear the pre-existing test failures in phases 30/32 (largest debt clusters).",
+  "context_notes": "Phases 36 (ReBAC), 37 (MCP Server), and 38 (AI Assistant) complete; plans 37-03 and 38-03 verified 2026-07-13 with tests passing (commit c06d5369). Full suite: 846 passed, 22 skipped, 27 failed + 14 errors all pre-existing (verified identical on parent commit). Run tests with backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py from repo root. Junk file c.txt at repo root (from Phase 32) and misplaced .planning/phases/27-UAT.md still to clean up."
 }
