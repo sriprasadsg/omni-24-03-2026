@@ -10,6 +10,7 @@ import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
+import { AIAssistantChat } from './components/AIAssistantChat';
 
 // ── Always-visible UI (eager) ─────────────────────────────────────────────────
 import { AddNewTenantModal } from './components/AddNewTenantModal';
@@ -1907,6 +1908,7 @@ const App: React.FC = () => {
       case 'changeManagement': return <ErrorBoundary name="ChangeManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Change Management...</div>}><ChangeManagementDashboard /></Suspense></ErrorBoundary>;
       case 'ticketWebhooks': return <ErrorBoundary name="TicketWebhooksDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Ticket Webhooks...</div>}><TicketWebhooksDashboard /></Suspense></ErrorBoundary>;
       case 'notificationPrefs': return <ErrorBoundary name="NotificationPreferencesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Notification Preferences...</div>}><NotificationPreferencesDashboard /></Suspense></ErrorBoundary>;
+      case 'aiAssistantChat': return <ErrorBoundary name="AIAssistantChat"><AIAssistantChat /></ErrorBoundary>;
       default: return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
 
     }

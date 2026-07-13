@@ -392,6 +392,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'internalTickets', label: 'Tickets', icon: <ClipboardListIcon size={20} />, permission: 'view:dashboard', featureKey: 'tickets' },
                 { view: 'problemManagement', label: 'Problem Management', icon: <AlertOctagonIcon size={20} />, permission: 'view:security' },
                 { view: 'changeManagement', label: 'Change Management', icon: <WorkflowIcon size={20} />, permission: 'manage:settings' },
+                { view: 'aiAssistantChat', label: 'AI Assistant', icon: <BotIcon size={20} />, permission: 'view:dashboard' },
                 /* Support Chat merged into 'chat' tab hub */
             ]
         },

@@ -3103,6 +3103,72 @@ export const getChatAssistantResponse = async (input: string, context: any): Pro
     return `AI assistant unavailable. You asked: "${input}".`;
 };
 
+export const chatWithAssistant = (
+    query: string,
+    history: {role: 'user' | 'assistant', content: string}[],
+    onChunk: (text: string) => void,
+    onComplete: (sources: any[]) => void,
+    onError: (error: string) => void
+): (() => void) => {
+    let cancelled = false;
+    const abortController = new AbortController();
+
+    (async () => {
+        try {
+            const token = sessionStorage.getItem('token') || '';
+            const tenantId = sessionStorage.getItem('tenantId') || 'default';
+
+            const res = await fetch(`${API_BASE}/assistant/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    'X-Tenant-ID': tenantId,
+                },
+                body: JSON.stringify({ query, history }),
+                signal: abortController.signal,
+            });
+
+            if (!res.ok || !res.body) {
+                onError(`Server error ${res.status}`);
+                return;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let finalSources: any[] = [];
+
+            while (!cancelled) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const raw = line.slice(6).trim();
+                    if (raw === '[DONE]') {
+                        onComplete(finalSources);
+                        return;
+                    }
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed.error) { onError(parsed.error); return; }
+                        if (parsed.chunk) { onChunk(parsed.chunk); }
+                        if (parsed.sources) { finalSources = parsed.sources; }
+                    } catch { /* malformed frame */ }
+                }
+            }
+            onComplete(finalSources);
+        } catch (e: any) {
+            if (!cancelled) onError(e?.message ?? 'Stream connection failed');
+        }
+    })();
+
+    return () => { cancelled = true; abortController.abort(); };
+};
+
 /**
  * Stream AI chat response via SSE.
  * Calls onChunk for each text token, onDone when the stream ends,
