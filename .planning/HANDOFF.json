@@ -1,49 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-27T07:23:42Z",
-  "phase": "15",
-  "phase_name": "evidence-review-workflow",
-  "phase_dir": "15-evidence-review-workflow",
-  "plan": 1,
-  "task": 6,
-  "total_tasks": 6,
+  "timestamp": "2026-07-13T16:55:08+05:30",
+  "phase": "38",
+  "phase_name": "Interactive AI Security Assistant",
+  "phase_dir": ".planning/phases/38-interactive-ai-security-assistant",
+  "plan": 3,
+  "task": 5,
+  "total_tasks": 5,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Create evidence_review_service.py", "status": "done"},
-    {"id": 2, "name": "Create evidence_review_endpoints.py + router registration", "status": "done"},
-    {"id": 3, "name": "Create test_evidence_review.py (8 TDD tests)", "status": "done"},
-    {"id": 4, "name": "Update types.ts with evidence status field", "status": "done"},
-    {"id": 5, "name": "Create EvidenceReviewPanel.tsx (review thread UI)", "status": "done"},
-    {"id": 6, "name": "Wire panel into AssetComplianceList.tsx", "status": "done"}
+    {"id": 1, "name": "Plan 38-01: Backend Chat API and RAG Integration", "status": "done", "commit": "bc5f2ab9"},
+    {"id": 2, "name": "Plan 38-02: Frontend Chat UI implementation", "status": "done", "commit": "bc5f2ab9"},
+    {"id": 3, "name": "Plan 38-02: Sidebar and App.tsx integration", "status": "done", "commit": "bc5f2ab9"},
+    {"id": 4, "name": "Plan 38-03: Integration Tests (test file created)", "status": "done", "commit": "bc5f2ab9"},
+    {"id": 5, "name": "Plans 36, 37, 38 execution", "status": "done", "commit": "bc5f2ab9"}
   ],
   "remaining_tasks": [
-    {"id": 7, "name": "Run tests: python -m pytest tests/test_evidence_review.py -v", "status": "not_started"},
-    {"id": 8, "name": "TypeScript check: npx tsc --noEmit", "status": "not_started"}
+    {"id": 6, "name": "Plan 38-03: Run tests (blocked by safety classifier)", "status": "not_started"},
+    {"id": 7, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "Permission classifier blocks test execution from Claude", "type": "technical", "workaround": "Run `! cd backend && python -m pytest tests/test_evidence_review.py -v` manually in prompt"}
+    {"description": "Safety classifier unavailable, cannot run pytest or start backend servers", "type": "technical", "workaround": "Wait for classifier to recover, or run tests manually with ! prefix"},
+    {"description": "Phase 35 GraphQL API blocked by strawberry-graphql/pydantic dependency incompatibility in externally managed environment", "type": "technical", "workaround": "System admin must resolve dependency incompatibility"}
   ],
   "async_jobs": [],
   "human_actions_pending": [
-    {"action": "Run Python tests for evidence review", "context": "Permission blocked; run manually with `!` prefix", "blocking": true},
-    {"action": "Run TypeScript type check", "context": "Verify no TS errors in modified files", "blocking": false}
+    {"action": "Resolve strawberry-graphql/pydantic dependency incompatibility for Phase 35", "context": "ImportError: cannot import name 'is_new_type' from 'pydantic._internal._typing_extra'. Environment is externally managed, pip install blocked.", "blocking": true}
   ],
   "decisions": [
-    {"decision": "Evidence review stored in separate evidence_reviews collection, evidence status tracked inline on asset_compliance.evidence[].status", "rationale": "Separate collection allows multiple reviews per evidence while status field enables quick filtering", "phase": "15"},
-    {"decision": "Role-gated: admin/super_admin/compliance_reviewer can make review decisions, any user can submit for review", "rationale": "Matches existing project role patterns and auth_service role checks", "phase": "15"},
-    {"decision": "Used existing asyncio.run() test pattern (not pytest-asyncio)", "rationale": "Consistent with test_powershell_evidence.py and test_saas_integration.py patterns already in the project", "phase": "15"}
+    {"decision": "Used OpenFGA for ReBAC in Phase 36", "rationale": "Superior Python client maturity, active development, flexible deployment", "phase": "36"},
+    {"decision": "Implemented MCP server with FastMCP for Phase 37", "rationale": "Official Python SDK provides spec-compliant stdio/SSE transports", "phase": "37"},
+    {"decision": "AI Assistant uses RAG + live MongoDB findings for grounded responses", "rationale": "Combines knowledge base with real-time compliance/risk data", "phase": "38"}
   ],
-  "uncommitted_files": [
-    "backend/evidence_review_service.py",
-    "backend/evidence_review_endpoints.py",
-    "backend/tests/test_evidence_review.py",
-    "backend/router_registry.py",
-    "components/EvidenceReviewPanel.tsx",
-    "components/AssetComplianceList.tsx",
-    "types.ts",
-    ".planning/STATE.md",
-    ".planning/ROADMAP.md"
-  ],
-  "next_action": "Run `python -m pytest tests/test_evidence_review.py -v` to verify 8 tests pass, then `npx tsc --noEmit` for TypeScript check. If tests pass, commit with message: `feat(phase-15): evidence review workflow — submit, approve, reject, request-changes lifecycle`",
-  "context_notes": "Phase 15 (Evidence Review Workflow) fully implemented. Backend: service layer with 5 functions, 5 FastAPI endpoints, 8 TDD tests. Frontend: EvidenceReviewPanel component with review thread/status badges/role-gated actions wired into AssetComplianceList. Need test + TS verification then commit. Next phase: 16-program-control-grouping."
+  "uncommitted_files": [],
+  "next_action": "Run backend/tests/test_ai_assistant.py to verify Phase 38 tests pass. Complete Plan 38-03.",
+  "context_notes": "Phases 36 (ReBAC), 37 (MCP Server), and 38 (AI Assistant) all implemented. Phase 35 blocked by dependency issue. Context exhausted. All work committed."
 }
