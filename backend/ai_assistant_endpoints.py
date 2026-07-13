@@ -7,11 +7,11 @@ POST /api/assistant/chat/stream — SSE streaming (text/event-stream)
 
 import json as _json
 import logging
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from typing import Any, AsyncIterator
 
-from ai_assistant_service import ai_assistant_service
+from ai_assistant_service import chat as assistant_chat
 from authentication_service import get_current_user
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
@@ -19,15 +19,6 @@ from auth_types import TokenData
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assistant", tags=["AI Security Assistant"])
-
-
-# ── Request models ────────────────────────────────────────────────────────────
-
-class ChatRequestBody(BaseModel):
-    """Shared request shape — imported lazily below via __init__ guard."""
-
-    class __init__:
-        pass
 
 
 # ── Chat (non-streaming) ─────────────────────────────────────────────────────
@@ -55,7 +46,7 @@ async def chat_with_assistant(
     history = body.get("history", [])
     tenant_id = get_tenant_id()
 
-    result = await ai_assistant_service.chat(query, tenant_id, history)
+    result = await assistant_chat(query, tenant_id, history)
     return result
 
 
@@ -71,7 +62,7 @@ async def _stream_answer(
 
     # Fetch the full result first; stream the answer token-by-token
     try:
-        result = await ai_assistant_service.chat(query, tenant_id, history)
+        result = await assistant_chat(query, tenant_id, history)
     except Exception as exc:
         logger.error("[Assistant/stream] chat() failed: %s", exc)
         yield f"data: {_json.dumps({'error': str(exc)})}\n\n"
@@ -124,12 +115,3 @@ async def chat_with_assistant_stream(
             "X-Accel-Buffering": "no",  # disable nginx buffering for real-time
         },
     )
-
-
-# ── Pydantic import must happen after Body is defined ─────────────────────────
-from pydantic import BaseModel
-
-
-class ChatRequestBody(BaseModel):
-    query: str
-    history: list[dict[str, str]] = []

@@ -1,151 +1,189 @@
+"""Phase 37 tests — spec-compliant MCP server (FastMCP).
+
+Verifies against the real `mcp_server.mcp` FastMCP instance:
+- tool registration (names exposed over the MCP protocol)
+- resource template registration
+- SSE transport wiring
+- tool execution through the protocol layer with mocked db/tenant
+- tool input validation and error mapping
+"""
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch
+from fastapi import HTTPException
 
-from main import app # Assuming main.py initializes the FastMCP app
+import mcp_server as srv
 
-@pytest.fixture(scope="module")
-def anyio_backend():
-    return "asyncio"
 
-@pytest.fixture(scope="module")
-async def client():
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+EXPECTED_TOOLS = {
+    "list_frameworks",
+    "get_control_status",
+    "run_cloud_check",
+    "list_findings",
+    "get_compliance_score",
+    "list_evidence",
+    "get_compliance_control",
+    "get_risk_register",
+    "get_attack_paths",
+}
 
-# Mock database and tenant context for testing
-@pytest.fixture(autouse=True)
-def mock_dependencies():
-    with (
-        patch("database.get_database") as mock_get_database,
-        patch("tenant_context.get_tenant_id") as mock_get_tenant_id,
-        patch("cloud_checks_service.cloud_checks_service") as mock_cloud_checks_service,
-    ):
-        mock_db_instance = AsyncMock()
-        mock_db_instance._db.compliance_frameworks.find.return_value.to_list.return_value = [
-            {"id": "soc2", "name": "SOC 2"},
-            {"id": "iso27001", "name": "ISO 27001"},
-        ]
-        mock_db_instance.asset_compliance.find.return_value.to_list.return_value = [
-            {"status": "Compliant"}, {"status": "Non-Compliant"}
-        ]
-        mock_db_instance.cloud_findings.find.return_value.sort.return_value.to_list.return_value = [
-            {"id": "finding1", "severity": "high"}
-        ]
-        mock_get_database.return_value = mock_db_instance
-        mock_get_tenant_id.return_value = "test-tenant-id"
-        yield
+EXPECTED_RESOURCE_TEMPLATES = {
+    "tenant://{tenant_id}/compliance-controls",
+    "tenant://{tenant_id}/evidence",
+    "tenant://{tenant_id}/risks",
+}
 
-async def test_mcp_list_tools_via_http(client: AsyncClient):
-    response = await client.get("/api/mcp/tools")
-    assert response.status_code == 200
-    assert "tools" in response.json()
-    tool_names = {t["name"] for t in response.json()["tools"]}
-    expected_tools = {
-        "list_frameworks",
-        "get_control_status",
-        "run_cloud_check",
-        "list_findings",
-        "get_compliance_score",
-        "list_compliance_controls",
-        "get_compliance_control",
-        "list_evidence",
-        "get_risk_register",
-        "get_attack_paths",
-    }
-    assert tool_names == expected_tools
 
-async def test_mcp_execute_list_frameworks(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/list_frameworks",
-        json={}
-    )
-    assert response.status_code == 200
-    assert "result" in response.json()
-    assert len(response.json()["result"]) == 2
-    assert response.json()["result"][0]["id"] == "soc2"
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-async def test_mcp_execute_get_control_status(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/get_control_status",
-        json={"control_id": "test_control"}
-    )
-    assert response.status_code == 200
-    assert response.json()["result"]["control_id"] == "test_control"
-    assert response.json()["result"]["assets"] == 2
+def _make_cursor(docs):
+    """Motor-style cursor: find()/sort() are sync, to_list() is awaited."""
+    cursor = MagicMock()
+    cursor.to_list = AsyncMock(return_value=docs)
+    cursor.sort = MagicMock(return_value=cursor)
+    return cursor
 
-async def test_mcp_execute_run_cloud_check(client: AsyncClient):
-    mock_cloud_checks_service = AsyncMock()
-    mock_cloud_checks_service.run_checks.return_value = {"status": "completed"}
-    with patch("cloud_checks_service.cloud_checks_service", mock_cloud_checks_service):
-        response = await client.post(
-            "/api/mcp/execute/run_cloud_check",
-            json={
-                "provider": "aws",
-                "account_id": "12345"
-            }
-        )
-        assert response.status_code == 200
-        assert response.json()["status"] == "completed"
 
-async def test_mcp_execute_list_findings(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/list_findings",
-        json={"severity": "high", "limit": 10}
-    )
-    assert response.status_code == 200
-    assert len(response.json()["result"]) == 1
-    assert response.json()["result"][0]["severity"] == "high"
+def _tenant_patch(tenant_id="test-tenant"):
+    return patch("mcp_server.get_tenant_id", MagicMock(return_value=tenant_id))
 
-async def test_mcp_execute_get_compliance_score(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/get_compliance_score",
-        json={"framework": "soc2"}
-    )
-    assert response.status_code == 200
-    assert response.json()["result"]["score"] == 50
-    assert response.json()["result"]["framework"] == "soc2"
 
-# Test error handling for run_cloud_check
-async def test_mcp_execute_run_cloud_check_invalid_provider(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/run_cloud_check",
-        json={
-            "provider": "invalid",
-            "account_id": "12345"
-        }
-    )
-    assert response.status_code == 400
-    assert "provider must be" in response.json()["detail"]
+# ---------------------------------------------------------------------------
+# Registration
+# ---------------------------------------------------------------------------
 
-async def test_mcp_execute_run_cloud_check_not_found(client: AsyncClient):
-    mock_cloud_checks_service = AsyncMock()
-    mock_cloud_checks_service.run_checks.return_value = {"error": "Cloud account not found"}
-    with patch("cloud_checks_service.cloud_checks_service", mock_cloud_checks_service):
-        response = await client.post(
-            "/api/mcp/execute/run_cloud_check",
-            json={
-                "provider": "aws",
-                "account_id": "nonexistent"
-            }
-        )
-        assert response.status_code == 404
-        assert response.json()["detail"] == "Cloud account not found"
+async def test_mcp_tools_registered():
+    tools = await srv.mcp.list_tools()
+    assert {t.name for t in tools} == EXPECTED_TOOLS
 
-# Test error handling for list_findings invalid limit
-async def test_mcp_execute_list_findings_invalid_limit(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/list_findings",
-        json={"limit": "abc"}
-    )
-    assert response.status_code == 400
-    assert "limit must be a positive integer" in response.json()["detail"]
 
-# Test error handling for get_compliance_score unknown framework
-async def test_mcp_execute_get_compliance_score_unknown_framework(client: AsyncClient):
-    response = await client.post(
-        "/api/mcp/execute/get_compliance_score",
-        json={"framework": "unknown_fw"}
-    )
-    assert response.status_code == 404
-    assert "Unknown framework" in response.json()["detail"]
+async def test_mcp_resource_templates_registered():
+    templates = await srv.mcp.list_resource_templates()
+    assert {t.uriTemplate for t in templates} == EXPECTED_RESOURCE_TEMPLATES
+
+
+def test_sse_transport_configured():
+    assert srv.sse_transport is not None
+    assert callable(srv.handle_sse)
+
+
+# ---------------------------------------------------------------------------
+# Tool execution (through the MCP protocol layer)
+# ---------------------------------------------------------------------------
+
+async def test_call_tool_get_control_status():
+    db = MagicMock()
+    db.asset_compliance.find = MagicMock(return_value=_make_cursor(
+        [{"status": "Compliant"}, {"status": "Non-Compliant"}]
+    ))
+    with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
+        content, structured = await srv.mcp.call_tool("get_control_status", {"control_id": "AC-1"})
+
+    assert json.loads(content[0].text) == structured["result"]
+    result = structured["result"]
+    assert result["control_id"] == "AC-1"
+    assert result["assets"] == 2
+    assert result["statuses"] == ["Compliant", "Non-Compliant"]
+
+
+async def test_call_tool_list_frameworks():
+    raw = MagicMock()
+    raw.compliance_frameworks.find = MagicMock(return_value=_make_cursor(
+        [{"id": "soc2", "name": "SOC 2"}, {"id": "iso27001", "name": "ISO 27001"}]
+    ))
+    db = MagicMock()
+    db._db = raw
+    with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
+        _, structured = await srv.mcp.call_tool("list_frameworks", {})
+
+    names = {f["id"] for f in structured["result"]}
+    assert names == {"soc2", "iso27001"}
+
+
+async def test_get_compliance_score():
+    raw = MagicMock()
+    raw.compliance_frameworks.find_one = AsyncMock(return_value={
+        "id": "soc2", "controls": [{"id": "AC-1"}, {"id": "AC-2"}],
+    })
+    db = MagicMock()
+    db._db = raw
+    db.asset_compliance.find = MagicMock(return_value=_make_cursor(
+        [{"status": "Compliant"}, {"status": "Non-Compliant"}]
+    ))
+    with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
+        result = await srv.get_compliance_score("soc2")
+
+    assert result == {"score": 50, "passing": 1, "total": 2, "framework": "soc2"}
+
+
+async def test_run_cloud_check_delegates_to_service():
+    checks = AsyncMock()
+    checks.run_checks = AsyncMock(return_value={"status": "completed", "ran": 3})
+    with patch("mcp_server.cloud_checks_service", checks), _tenant_patch():
+        result = await srv.run_cloud_check("aws", "12345")
+
+    assert result["status"] == "completed"
+    checks.run_checks.assert_awaited_once_with("12345", "aws", "test-tenant")
+
+
+async def test_list_findings_filters_and_limits():
+    db = MagicMock()
+    cursor = _make_cursor([{"id": "finding1", "severity": "high"}])
+    db.cloud_findings.find = MagicMock(return_value=cursor)
+    with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
+        findings = await srv.list_findings(severity="high", limit=10)
+
+    assert findings == [{"id": "finding1", "severity": "high"}]
+    query = db.cloud_findings.find.call_args.args[0]
+    assert query == {"tenantId": "test-tenant", "severity": "high"}
+
+
+# ---------------------------------------------------------------------------
+# Validation and error mapping
+# ---------------------------------------------------------------------------
+
+async def test_run_cloud_check_invalid_provider():
+    with _tenant_patch():
+        with pytest.raises(HTTPException) as exc:
+            await srv.run_cloud_check("invalid", "12345")
+    assert exc.value.status_code == 400
+    assert "provider must be" in exc.value.detail
+
+
+async def test_run_cloud_check_account_not_found():
+    checks = AsyncMock()
+    checks.run_checks = AsyncMock(return_value={"error": "Cloud account not found"})
+    with patch("mcp_server.cloud_checks_service", checks), _tenant_patch():
+        with pytest.raises(HTTPException) as exc:
+            await srv.run_cloud_check("aws", "nonexistent")
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Cloud account not found"
+
+
+async def test_list_findings_invalid_limit():
+    db = MagicMock()
+    db.cloud_findings.find = MagicMock(return_value=_make_cursor([]))
+    with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
+        with pytest.raises(HTTPException) as exc:
+            await srv.list_findings(limit=0)
+    assert exc.value.status_code == 400
+    assert "limit must be a positive integer" in exc.value.detail
+
+
+async def test_get_compliance_score_unknown_framework():
+    raw = MagicMock()
+    raw.compliance_frameworks.find_one = AsyncMock(return_value=None)
+    db = MagicMock()
+    db._db = raw
+    with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
+        with pytest.raises(HTTPException) as exc:
+            await srv.get_compliance_score("unknown_fw")
+    assert exc.value.status_code == 404
+    assert "Unknown framework" in exc.value.detail

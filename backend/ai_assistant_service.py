@@ -15,9 +15,6 @@ from ai_service import ai_service
 
 logger = logging.getLogger(__name__)
 
-# Re-export singleton so callers can import from here too
-ai_assistant_service = None  # lazy-initialised on first call
-
 
 async def chat(
     query: str,
