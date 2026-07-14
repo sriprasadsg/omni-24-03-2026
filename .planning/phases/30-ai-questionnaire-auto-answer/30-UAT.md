@@ -2,24 +2,26 @@
 
 ## Overview
 Validation of AI-powered questionnaire auto-answer feature, including inbound intake, RAG integration, draft generation, and human review workflow.
+**Completed 2026-07-14 by driving the running app** (uvicorn backend + Vite frontend + headless Chromium) as a signup-created Tenant Admin.
 
 ## Test Cases
 
 | ID | Description | Result | Notes |
 |----|-------------|--------|-------|
-| 1 | Inbound Intake (Manual) | Pending | Manual verification needed for UI. |
-| 2 | Inbound Intake (CSV/Excel Upload) | Pending | Manual verification needed for UI. |
-| 3 | Draft Generation (API) | Pending | Automated backend E2E test passes. UI check needed. |
-| 4 | Draft Generation (UI) | Pending | Manual verification needed for UI. |
-| 5 | Human Review Workflow (API) | Pending | Automated backend E2E test passes. UI check needed. |
-| 6 | Human Review Workflow (UI) | Pending | Manual verification needed for UI. |
-| 7 | Tenant Isolation (RAG) | Passed | Automated backend test `test_rag_service_tenant_isolation.py` passed. |
+| 1 | Inbound Intake (Manual) | **Passed** | Via API and via dashboard form (title + one-question-per-line). |
+| 2 | Inbound Intake (CSV/Excel Upload) | **Passed** | CSV upload via API and via the dashboard's per-set Upload button; question count grew 2→4 with row indices. |
+| 3 | Draft Generation (API) | **Passed** | With no tenant evidence in the RAG store, generation returns a clean `insufficient_evidence` draft held for review — no hallucinated answer. |
+| 4 | Draft Generation (UI) | **Passed** | "Generate draft answers" per set; drafts appear in the review queue with Insufficient-evidence banner. |
+| 5 | Human Review Workflow (API) | **Passed** | Submit blocked pre-approval (409), approve with edited answer text, submit records `submitted_by`, double-submit blocked (409). |
+| 6 | Human Review Workflow (UI) | **Passed** | Approve → Confirm Approve → status badge Approved → Mark Submitted → toast "Answer marked submitted". |
+| 7 | Tenant Isolation (RAG) | Passed | Automated backend test `test_rag_service_tenant_isolation.py` (real ChromaDB). |
 | 8 | Generation Controls (API) | Passed | Signature inspection and E2E test passes confirm parameters are plumbed through. |
 
-## Verification Gaps
-- **Backend Tests**: Tests for governance documents (Phase 28) still failing, which are not directly related but indicate an underlying mock setup issue in the test environment. E2E tests for Phase 30 pass.
-- **Frontend Integration**: Manual verification of UI elements and user flows for inbound intake, answer drafting, and review is required.
+## Defects found and fixed during UAT (commit 368f01d9)
 
-## Remediation Plan
-1. Address and fix the blocking backend test failures for Phase 28. This is a higher priority environmental issue.
-2. Perform manual UAT for Phase 30 frontend and backend integration.
+1. **`_REVIEWER_ROLES` role vocabulary mismatch** — set contained `{admin, super_admin, compliance_reviewer}` but the platform assigns `Tenant Admin`/`Super Admin` at signup/seed: every real admin got 403 on review decisions. Backend set and the `QuestionnaireAnswerReviewPanel.tsx` copy both updated.
+2. **`GET /pending-review` 500** — the duplicate `list_pending_drafts` in `questionnaire_answer_review_service.py` was missing the `_id` projection (5f78f43e only fixed the `draft_service` copy); ObjectId broke JSON serialization.
+3. **Submit unreachable from the UI** — the review queue listed only `pending_review` drafts, but "Mark Submitted" renders only on `approved` drafts, so approving a draft removed it from the queue before it could be submitted. `GET /` now returns all tenant drafts; dashboard filters out `submitted`.
+
+## Evidence
+- Screenshots: scratchpad `shots/04-inbound-questionnaires.png` … `09-csv-uploaded.png` (session-local); `08-draft-submitted.png` shows Approved badge + "Answer marked submitted" toast + Reviews(1).

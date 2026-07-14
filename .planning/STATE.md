@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Full project verification 2026-07-14 — suite 932/22/0, build clean, phases 33/34/35/36 confirmed executed via git, uncommitted fixes committed (5f78f43e), docs reconciled. Next — clear UAT backlog (28/29/30 manual UI, 32 human verification, 35 integration tests; write UAT files for 33/34).
+stopped_at: Runtime UAT for phases 28/29/30 completed 2026-07-14 (commit 368f01d9) — 28 and 30 pass end-to-end in the running app after 7 defect fixes; 29 FAILED — implementation never committed, needs re-execution. Next — re-execute Phase 29 (plans 29-01/02/04), 32 human verification, 35 integration tests, UAT files for 33/34.
 last_updated: "2026-07-14T00:00:00.000Z"
 progress:
   total_phases: 14
@@ -84,9 +84,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 25 | Cloud Checks Execution Gaps | Complete (v3.0) |
 | 26 | Vendor and Risk Data Completeness | Complete (v3.0) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Complete (v3.0) |
-| 28 | Governance Document Management | Complete (v3.0) |
-| 29 | Public Trust Center | Complete (v3.0) |
-| 30 | AI Questionnaire Auto-Answer | Executed (v3.0) — all 6 plans done; test debt cleared 2026-07-13 (25 tests pass incl. real-ChromaDB RAG isolation); UI UAT items still pending |
+| 28 | Governance Document Management | Complete (v3.0) — runtime UAT passed 2026-07-14; 4 defects fixed (368f01d9) incl. unregistered router that 404'd every route |
+| 29 | Public Trust Center | **Not implemented (v3.0) — re-execution required.** 2026-07-14 UAT: TRUST-01/02/03 code never committed; summaries claimed phantom work (see 29-UAT.md) |
+| 30 | AI Questionnaire Auto-Answer | Complete (v3.0) — runtime UAT passed 2026-07-14 (8/8 items); 3 defects fixed (368f01d9) incl. reviewer-role lockout and unreachable submit |
 | 31 | FAIR Risk Quantification | Complete (v3.0) — 3/3 plans executed 2026-07-10 |
 | 32 | Cloud and SaaS Provider Expansion | Executed (v3.0) — 5/5 plans done; test debt cleared 2026-07-13 (16 tests pass); verification `human_needed` (3/4 must-haves) remains |
 | 33 | Workflow Automation Connectors | Executed (v3.0) — all 4 plans committed 2026-07-13 (54715098, 8e6ffbac, 64acf247, 0cb6a8dd); no UAT file yet |

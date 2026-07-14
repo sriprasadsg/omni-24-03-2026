@@ -336,7 +336,7 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** All 14 phases executed as of 2026-07-14 — full backend suite 932 passed / 22 skipped / 0 failed, frontend build clean. Remaining debt is verification only: manual UAT on 28/29/30, human verification on 32 (3/4 must-haves), GraphQL integration-test UAT on 35, no UAT files yet for 33/34.
+**Status:** 13 of 14 phases executed and verified as of 2026-07-14 — full backend suite 932 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). **Phase 29 must be re-executed:** UAT proved its TRUST-01/02/03 implementation was never committed despite plan summaries claiming it. Remaining verification debt: human verification on 32 (3/4 must-haves), GraphQL integration-test UAT on 35, no UAT files yet for 33/34.
 
 **Phases:**
 
@@ -345,9 +345,9 @@ deployment.
 | 25 | Cloud Checks Execution Gaps | 1 — quick fixes | Complete (2026-07-06) |
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Complete (2026-07-09) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Complete (2026-07-13, UAT pass) |
-| 28 | Governance Document Management | 2 — medium | Complete |
-| 29 | Public Trust Center | 2 — medium | Executed — UAT pending (6 manual items) |
-| 30 | AI Questionnaire Auto-Answer | 2 — medium | Executed — UAT pending (6 manual UI items; RAG tenant isolation passed) |
+| 28 | Governance Document Management | 2 — medium | Complete — runtime UAT passed 2026-07-14 (4 defects found and fixed, see 28-UAT.md) |
+| 29 | Public Trust Center | 2 — medium | **Not implemented — re-execution required.** UAT 2026-07-14: TRUST-01/02/03 code never committed; trust_service.py still the in-memory authenticated-only singleton (see 29-UAT.md) |
+| 30 | AI Questionnaire Auto-Answer | 2 — medium | Complete — runtime UAT passed 2026-07-14 (8/8 items; 3 defects found and fixed, see 30-UAT.md) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
 | 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
 | 33 | Workflow Automation Connectors | 2 — medium | Executed 2026-07-13 — all 4 plans committed (API-key auth, HMAC signing, n8n node, Zapier app); no UAT file yet |
