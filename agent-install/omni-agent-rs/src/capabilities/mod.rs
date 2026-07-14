@@ -52,7 +52,12 @@ impl CapabilityManager {
     }
 
     pub fn ids(&self) -> Vec<&'static str> {
-        self.caps.iter().map(|c| c.id()).collect()
+        let mut ids: Vec<&'static str> = self.caps.iter().map(|c| c.id()).collect();
+        // Instruction-only capabilities (handled in instructions.rs, no heartbeat
+        // collector) — advertised so the portal enables agent chat and ticketing.
+        ids.push("chat_window");
+        ids.push("ticket_reporter");
+        ids
     }
 
     pub fn collect_all(&self, sys: &System) -> HashMap<String, Value> {

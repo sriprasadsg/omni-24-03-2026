@@ -25,6 +25,7 @@ pub async fn poll(cfg: &Config, client: &reqwest::Client) {
                     let raw_action = item
                         .get("action")
                         .or_else(|| item.get("instruction"))
+                        .or_else(|| item.get("type"))
                         .and_then(|v| v.as_str())
                         .unwrap_or_default();
                     let action = raw_action.to_lowercase();
@@ -178,6 +179,77 @@ async fn execute_instruction(
             crate::capabilities::remote_access::start_desktop_stream(session_id, url);
             serde_json::json!({"status": "success", "message": "Desktop stream started"})
         }
+        // ── Ticketing (ticket_reporter) ──────────────────────────────────────
+        // Agent raises a ticket via the agent-key-authenticated endpoint.
+        "create_ticket" | "report_ticket" => {
+            let params = item
+                .get("payload")
+                .or_else(|| item.get("parameters"))
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({}));
+            let title = params.get("title").and_then(|v| v.as_str()).unwrap_or("Agent-generated ticket");
+            let desc = params.get("description").and_then(|v| v.as_str()).unwrap_or("");
+            let sev = params.get("severity").and_then(|v| v.as_str()).unwrap_or("medium");
+            let url = format!(
+                "{}/api/agents/{}/ticket",
+                cfg.api_base_url.trim_end_matches('/'),
+                cfg.agent_id
+            );
+            match client
+                .post(&url)
+                .bearer_auth(&cfg.agent_token)
+                .json(&serde_json::json!({
+                    "title": title,
+                    "description": desc,
+                    "priority": sev,
+                    "tags": ["agent-raised", "omni-agent-rust"],
+                }))
+                .send()
+                .await
+            {
+                Ok(r) => serde_json::json!({"status": "success", "ticket_created": true, "http_status": r.status().as_u16()}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+
+        // ── Chat (chat_window, headless) ─────────────────────────────────────
+        // Admin-to-endpoint messaging. Headless: log locally + auto-reply so the
+        // admin sees the endpoint is reachable. No GUI window on the endpoint.
+        "start_agent_chat" => {
+            let payload = item.get("payload").cloned().unwrap_or_else(|| serde_json::json!({}));
+            let session_id = payload.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+            let sender = payload.get("sender").and_then(|v| v.as_str()).unwrap_or("Administrator");
+            let subject = payload.get("subject").and_then(|v| v.as_str()).unwrap_or("Chat Session");
+            log::info!("Chat session {session_id} started by {sender}: {subject}");
+            if !session_id.is_empty() {
+                let url = format!(
+                    "{}/api/agent-chat/sessions/{}/user-message",
+                    cfg.api_base_url.trim_end_matches('/'),
+                    session_id
+                );
+                let reply = format!(
+                    "Agent connected (headless mode). Chat session '{subject}' received. \
+                     This endpoint runs without a display — messages are logged locally."
+                );
+                let _ = client
+                    .post(&url)
+                    .bearer_auth(&cfg.agent_token)
+                    .json(&serde_json::json!({"content": reply}))
+                    .send()
+                    .await;
+            }
+            serde_json::json!({"status": "success", "session_id": session_id, "mode": "headless"})
+        }
+        "agent_chat_message" => {
+            let payload = item.get("payload").cloned().unwrap_or_else(|| serde_json::json!({}));
+            let session_id = payload.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+            let content = payload.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let sender = payload.get("sender").and_then(|v| v.as_str()).unwrap_or("Administrator");
+            let preview: String = content.chars().take(120).collect();
+            log::info!("Chat [{session_id}] from {sender}: {preview}");
+            serde_json::json!({"status": "success", "received": true})
+        }
+
         _ => {
             log::debug!("Unknown instruction action: {action}");
             return;
