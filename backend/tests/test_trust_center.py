@@ -314,3 +314,116 @@ class TestCustomDomainResolution:
 
         assert res.status_code == 200
         assert res.json()["company_name"] == "Acme Corp"
+
+
+# ─── TRUST-02: public POST access-request (no auth, NDA consent) ──────────────
+
+def _tenants_col_for_slug(slug="trust-abc123", tenant_id="t1"):
+    col = _col()
+
+    async def fake_find_one(filt, *a, **kw):
+        if filt.get("trust_slug") == slug:
+            return {"id": tenant_id}
+        return None
+
+    col.find_one = AsyncMock(side_effect=fake_find_one)
+    return col
+
+
+class TestPublicAccessRequestPost:
+
+    def test_public_post_valid_consent_inserts_pending_request(self):
+        tenants_col = _tenants_col_for_slug()
+        requests_col = _col()
+        db = _db(tenants=tenants_col, trust_access_requests=requests_col)
+        app = _public_app()
+
+        payload = {
+            "requester_email": "visitor@example.com",
+            "company": "Example Inc",
+            "reason": "Due diligence review",
+            "consent": True,
+        }
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).post(
+                "/api/public/trust/trust-abc123/requests",
+                json=payload,
+                headers={"User-Agent": "pytest-agent/1.0"},
+            )
+
+        assert res.status_code == 200
+        assert res.json() == {"success": True}
+        assert requests_col.insert_one.called
+        inserted = requests_col.insert_one.call_args.args[0]
+        assert inserted["status"] == "Pending"
+        assert inserted["requester_email"] == "visitor@example.com"
+        assert inserted["consented"] is True
+        assert inserted["user_agent"] == "pytest-agent/1.0"
+        assert "ip_address" in inserted
+        assert "requested_at" in inserted
+
+    def test_public_post_missing_consent_returns_400_and_inserts_nothing(self):
+        tenants_col = _tenants_col_for_slug()
+        requests_col = _col()
+        db = _db(tenants=tenants_col, trust_access_requests=requests_col)
+        app = _public_app()
+
+        payload = {
+            "requester_email": "visitor@example.com",
+            "company": "Example Inc",
+            "reason": "Due diligence review",
+            "consent": False,
+        }
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).post("/api/public/trust/trust-abc123/requests", json=payload)
+
+        assert res.status_code == 400
+        assert "consent" in res.json()["detail"].lower()
+        assert not requests_col.insert_one.called
+
+    def test_public_post_consent_absent_defaults_false_returns_400(self):
+        tenants_col = _tenants_col_for_slug()
+        requests_col = _col()
+        db = _db(tenants=tenants_col, trust_access_requests=requests_col)
+        app = _public_app()
+
+        payload = {
+            "requester_email": "visitor@example.com",
+            "company": "Example Inc",
+            "reason": "Due diligence review",
+        }
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).post("/api/public/trust/trust-abc123/requests", json=payload)
+
+        assert res.status_code == 400
+        assert not requests_col.insert_one.called
+
+    def test_public_post_forged_metadata_ignored_server_values_win(self):
+        tenants_col = _tenants_col_for_slug()
+        requests_col = _col()
+        db = _db(tenants=tenants_col, trust_access_requests=requests_col)
+        app = _public_app()
+
+        payload = {
+            "requester_email": "visitor@example.com",
+            "company": "Example Inc",
+            "reason": "Due diligence review",
+            "consent": True,
+            # Forged fields — not part of AccessRequestCreate's schema, so
+            # FastAPI/Pydantic silently ignores them; asserted below.
+            "ip_address": "1.2.3.4",
+            "user_agent": "forged-agent",
+            "requested_at": "1999-01-01T00:00:00+00:00",
+        }
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).post(
+                "/api/public/trust/trust-abc123/requests",
+                json=payload,
+                headers={"User-Agent": "real-browser-ua/2.0"},
+            )
+
+        assert res.status_code == 200
+        inserted = requests_col.insert_one.call_args.args[0]
+        assert inserted["ip_address"] != "1.2.3.4"
+        assert inserted["user_agent"] == "real-browser-ua/2.0"
+        assert inserted["requested_at"] != "1999-01-01T00:00:00+00:00"

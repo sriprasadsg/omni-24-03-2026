@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from typing import List, Dict, Any, Optional
 import trust_service
-from trust_service import TrustProfile, AccessRequest
+from trust_service import TrustProfile, AccessRequest, _now_iso
 from database import get_database
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from authentication_service import get_current_user
 from auth_types import TokenData
 from rate_limiter import limiter
@@ -147,3 +147,41 @@ async def get_public_trust_profile(request: Request, response: Response, slug: s
     set_tenant_id(tenant["id"])
     profile = await trust_service.get_profile(db, tenant["id"])
     return _public_view(profile)
+
+
+class AccessRequestCreate(BaseModel):
+    """Self-reported identity + explicit NDA consent from an external visitor.
+    ip_address/user_agent/requested_at are NEVER accepted here — they are
+    always server-derived in the route handler."""
+    requester_email: str = Field(..., max_length=254)
+    company: str = Field(..., max_length=200)
+    reason: str = Field(..., max_length=2000)
+    consent: bool = False
+
+
+@public_router.post("/api/public/trust/{slug}/requests")
+@limiter.limit("5/minute")
+async def create_public_access_request(
+    request: Request, response: Response, slug: str, payload: AccessRequestCreate
+):
+    """Public NDA-gated access-request submission — no auth. Requires explicit
+    consent; ip_address/user_agent/requested_at are server-derived, never taken
+    from the request body (un-forgeable)."""
+    if not payload.consent:
+        raise HTTPException(status_code=400, detail="Explicit NDA-acceptance consent is required")
+
+    db = get_database()
+    tenant = await _resolve_tenant_from_request(db, request, slug)
+    set_tenant_id(tenant["id"])
+
+    record_data = {
+        "requester_email": payload.requester_email,
+        "company": payload.company,
+        "reason": payload.reason,
+        "consented": True,
+        "ip_address": request.client.host if request.client else "unknown",
+        "user_agent": request.headers.get("user-agent", "")[:512],
+        "requested_at": _now_iso(),
+    }
+    await trust_service.create_request(db, tenant["id"], record_data)
+    return {"success": True}
