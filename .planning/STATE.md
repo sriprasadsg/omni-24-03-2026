@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Phase 29 plan 29-01 (Trust Center DB persistence, TRUST-01/03) re-executed and committed 2026-07-14 (commits 21ed35b3/435213be/86575edb) — trust_service.py is now async/Mongo-backed, trust_endpoints.py repointed, test_trust_center.py green (6/6). Next — execute 29-02 (public route + NDA flow), 29-03 (custom domain), 29-04 (frontend admin view); then 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-14T00:14:33.000Z"
+stopped_at: Phase 29 plan 29-02 (public trust route + NDA access-request flow, TRUST-02/03) executed and committed 2026-07-14 (commits 1ee31791/1bcc8361/fac0c4e9) — GET/POST /api/public/trust/{slug}(/requests) live, no-auth, rate-limited, Host-header custom-domain resolution wired; test_trust_center.py green (17/17), full suite 936/22/0. Next — execute 29-03 (custom domain, if scoped separately from 29-02's already-delivered Host-header resolution) and 29-04 (frontend admin view); then 32 human verification, 35 integration tests, UAT files for 33/34.
+last_updated: "2026-07-14T00:29:40.298Z"
 progress:
-  total_phases: 14
-  completed_phases: 14
-  total_plans: 48
-  completed_plans: 48
-  percent: 100
+  total_phases: 15
+  completed_phases: 13
+  total_plans: 42
+  completed_plans: 46
+  percent: 87
 ---
 
 # Project State
@@ -54,6 +54,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 **Session 2026-07-14 — Full project verification; uncommitted green-suite work committed; docs reconciled.** Full suite verified **932 passed / 22 skipped / 0 failed** (35s) and frontend build clean — all prior debt gone (test_rebac collects and passes, passkey/graphql/governance/e2e/powershell/smoke all green; strawberry-graphql + openfga_sdk installed since cd66ce1e). Discovered ~25 files of uncommitted content changes the green suite depended on — committed as 5f78f43e: GraphQL resolver auth rework (user resolved once in router context, per-resolver tenant+RBAC), Phase 30 reviewer-role gate + Mongo `_id` projection fixes + review-router registration order (GET /pending-review was shadowed), Phase 28 governance test rewritten to dependency-override `get_database`, Phase 30 frontend wiring (InboundQuestionnaireDashboard, apiService functions, types), Phase 32 attack-path edge field names, Phase 29 trust_service deny-path fix + new test_trust_center.py (9 tests). Remaining ~115 modified files were chmod mode-only noise, committed with tooling churn as cd4d6a4b. ROADMAP.md/STATE.md were stale (33/34 marked "Pending", 35 "Blocked", 36 caveated on a dep that's now installed) — reconciled against git: 33 executed (4 plans, commits 54715098/8e6ffbac/64acf247/0cb6a8dd), 34 executed (a1e23c8d), 35/36 verified with deps installed. Junk left untracked deliberately: c.txt, d.txt, backend/check_user.py, backend/.continue-here.md.
 
 **Session 2026-07-14 (later) — Phase 29 plan 29-01 re-executed for real (TRUST-01/03).** Confirmed via `git log --all` that the prior claimed completion of 29-01 had zero commits — the 2026-07-14 runtime UAT finding was correct, not the earlier SUMMARY. Re-executed all 3 tasks from the actual plan against the actual tree: `trust_service.py` rewritten from the in-memory `TrustService` singleton to async Mongo-backed module-level helpers (`get_profile`/`update_profile`/`get_requests`/`create_request`/`update_request_status`/`_ensure_trust_slug`) reading/writing `db.trust_profiles`/`db.trust_access_requests` through the tenant-isolated `db` handle; `trust_endpoints.py`'s 5 admin routes converted to `async def` with auth model unchanged (`Depends(get_current_user)` + `_TRUST_ADMIN_ROLES`); `trust_slug`/`trust_domain` surfaced on `db.tenants` (exempt collection). `test_trust_center.py` fully rewritten (old file tested a `MockTrustService` shape with no analog in the new async API) — 6 tests, all green (`persistence`/`tenant`/`admin_auth`/`admin_settings` suites per 29-VALIDATION.md's `-k` marker contract). `trust_profiles`/`trust_access_requests` confirmed absent from `database.py`'s exemption allowlist. Full backend suite: 925/22 (one run) — a pre-existing, order-dependent `test_auth_mfa.py` flake (10 tests) reproduces identically with `test_trust_center.py` excluded entirely, confirmed unrelated, logged to `29-public-trust-center/deferred-items.md`. Commits: 21ed35b3 (test scaffold), 435213be (trust_service.py), 86575edb (trust_endpoints.py), a97280d0 (SUMMARY). Remaining for phase 29: plans 29-02 (public route + NDA flow), 29-03 (custom domain), 29-04 (frontend admin view).
+
+**Session 2026-07-14 (later still) — Phase 29 plan 29-02 executed (public route + NDA flow, TRUST-02/03).** Built directly on 29-01's fresh async `trust_service.py`. Added a second, no-prefix `public_router` in `trust_endpoints.py` (registered as its own `router_registry.py` entry alongside the existing admin `router`) carrying `GET`/`POST /api/public/trust/{slug}(/requests)` — neither requires `get_current_user`, both clone `agent_registry_endpoints.register_agent`'s pattern: resolve tenant via the exempt `db.tenants` collection (Host-header `trust_domain` first, then `trust_slug` fallback, identical 404 for both no-match cases), then explicit `set_tenant_id(...)` before any tenant-scoped `trust_service` call. `_public_view` strips `private_documents` to name-only stubs server-side. `AccessRequestCreate` enforces explicit NDA consent (400 if missing/false) and captures `ip_address`/`user_agent`/`requested_at` exclusively from the request/server — forged body values for those fields are silently dropped by Pydantic before the handler runs. Both routes carry the `response: Response` param slowapi's `@limiter.limit(...)` requires (verified via real `TestClient` HTTP calls per the documented Phase-25 pitfall, not import checks). While building rate-limit tests, discovered `@limiter.limit(...)` binds a route's static limit string to the specific `Limiter` instance that decorated it at import time (the process-wide `rate_limiter.limiter` singleton) rather than to whatever's later assigned to `app.state.limiter` — a naive fresh-`Limiter()` test app would silently not enforce anything and, worse, the real singleton's shared in-memory storage bled hit-counts across unrelated tests in the same file. Fixed by wiring the rate-limit test app's `app.state.limiter` to the real shared singleton (matching production) and adding an autouse pytest fixture that resets its storage before/after every test in `test_trust_center.py`. `test_trust_center.py` grew from 6 to 17 tests (all green): `TestPublicTrustGet`, `TestPublicDocFilter`, `TestCustomDomainResolution`, `TestPublicAccessRequestPost`, `TestPublicRateLimit` (GET 429s at request 31/30-per-minute; POST 429s at request 6/5-per-minute, strictly sooner). Full backend suite: **936 passed / 22 skipped / 0 failed** — the previously-flagged `test_auth_mfa.py` order-dependent flake did not reproduce this run. `database.py`'s tenant-isolation exemption allowlist confirmed unweakened (`trust_profiles`/`trust_access_requests` absent). Commits: 1ee31791 (Task 1: public GET), 1bcc8361 (Task 2: public POST), fac0c4e9 (Task 3: rate-limit tests), b61d062d/c6e2de48 (SUMMARY + self-check). Requirements TRUST-02/TRUST-03 marked complete in REQUIREMENTS.md. Remaining for phase 29: plan 29-03 (custom domain — Host-header resolution is already fully delivered by 29-02's `_resolve_tenant_from_request`; check 29-03-PLAN.md's actual remaining scope before executing) and 29-04 (frontend admin view).
 
 ## Phases
 
@@ -175,6 +177,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 25-02: _CFN_TYPE_RE module-level regex fixes _detect_provider() YAML CloudFormation misclassification (pre-existing bug, T-25-02b) — checked in yaml/yml branch, json/template branch, and as extension-less fallback
 - [Phase ?]: 25-02: CloudFormation early-return stub in scan_code() removed — CFN now flows through the same provider-filtered IAC_CHECKS dispatch as Terraform/Kubernetes
 - [Phase 25]: 25-03: simulated field added purely additively (no fail-closed change) to preserve existing container fallback tests per Pitfall 4
+- [Phase 29]: 29-02: Public trust routes built on a second no-prefix APIRouter (public_router) in trust_endpoints.py, registered as a separate router_registry.py entry, keeping the admin router's prefix/auth model untouched
+- [Phase 29]: 29-02: slowapi @limiter.limit binds route limits to the specific Limiter instance at decoration time (rate_limiter.limiter singleton), not app.state.limiter -- rate-limit tests wire the real shared limiter and reset its storage via an autouse fixture
 
 ## Performance Metrics
 
@@ -206,11 +210,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 25-cloud-checks-execution-gaps P02 | 5min | 2 tasks | 2 files |
 | Phase 25-cloud-checks-execution-gaps P03 | 6min | 2 tasks | 3 files |
 | Phase 36-fine-grained-relationship-based-authorization 36-01 | ~5min | 1 task | 1 file |
+| Phase 29-public-trust-center P02 | 18min | 3 tasks | 3 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-13T08:30:00.000Z
-- **Stopped at:** context exhaustion at 79% (2026-07-13)
+- **Stopped at:** Completed 29-02-PLAN.md (public trust route + NDA flow, TRUST-02/03)
 - **Resume file:** None
 
 ## Configuration
@@ -236,8 +241,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-13T21:41:13.765Z
-**Stopped at:** Phase 25 (Cloud Checks Execution Gaps) complete — verified, secured, UAT passed. Ready to plan Phase 26.
+**Last session:** 2026-07-14T00:29:40.284Z
+**Stopped at:** Completed 29-02-PLAN.md (public trust route + NDA flow, TRUST-02/03). Next — 29-03 (custom domain) and 29-04 (frontend admin view).
 **Resume file:** None
 
 ## Accumulated Context

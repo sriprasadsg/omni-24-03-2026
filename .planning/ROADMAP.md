@@ -336,7 +336,7 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** 13 of 14 phases executed and verified as of 2026-07-14 — full backend suite 932 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). **Phase 29 must be re-executed:** UAT proved its TRUST-01/02/03 implementation was never committed despite plan summaries claiming it. Remaining verification debt: human verification on 32 (3/4 must-haves), GraphQL integration-test UAT on 35, no UAT files yet for 33/34.
+**Status:** 13 of 14 phases executed and verified as of 2026-07-14 — full backend suite 936 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). **Phase 29 re-execution in progress:** UAT proved its TRUST-01/02/03 implementation was never committed despite plan summaries claiming it. 29-01 (TRUST-01/03 persistence) and 29-02 (TRUST-02/03 public route + NDA flow) genuinely re-executed and committed 2026-07-14; 29-03/29-04 (frontend admin view + public page) remain. Remaining verification debt: human verification on 32 (3/4 must-haves), GraphQL integration-test UAT on 35, no UAT files yet for 33/34.
 
 **Phases:**
 
@@ -346,7 +346,7 @@ deployment.
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Complete (2026-07-09) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Complete (2026-07-13, UAT pass) |
 | 28 | Governance Document Management | 2 — medium | Complete — runtime UAT passed 2026-07-14 (4 defects found and fixed, see 28-UAT.md) |
-| 29 | Public Trust Center | 2 — medium | **In progress — re-execution underway.** Plan 29-01 (TRUST-01/03 DB persistence) re-executed and committed 2026-07-14 (commits 21ed35b3/435213be/86575edb, test_trust_center.py 6/6 green). Plans 29-02/29-03/29-04 (public route+NDA flow, custom domain, frontend admin view) still need re-execution — prior UAT (29-UAT.md) found none of the 4 plans had ever been committed despite claimed summaries |
+| 29 | Public Trust Center | 3 — architectural | In Progress — 2/4 plans executed (TRUST-01 DB persistence, TRUST-02/03 public route + NDA flow + custom-domain resolution); 29-03/29-04 remain |
 | 30 | AI Questionnaire Auto-Answer | 2 — medium | Complete — runtime UAT passed 2026-07-14 (8/8 items; 3 defects found and fixed, see 30-UAT.md) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
 | 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
@@ -458,7 +458,7 @@ deployment.
 
 **Depends on:** Phase 28 (governance documents feed the trust center's public document library)
 
-**Plans:** 4 plans, 3 waves
+**Plans:** 2/4 plans executed
 
 **Wave 1**
 
@@ -466,7 +466,7 @@ deployment.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution *(needs re-execution — prior claimed completion was phantom, see 29-UAT.md)*
+- [x] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution *(re-executed and committed 2026-07-14: 1ee31791/1bcc8361/fac0c4e9 — prior claimed completion was phantom; this run verified via git log and a genuinely green 17/17 test_trust_center.py + 936/22/0 full suite)*
 - [ ] 29-03-PLAN.md — TRUST-01/03 admin frontend: TrustCenter.tsx profile edit form + Custom Domain field + Copy Link + approve/deny toasts/aria-labels, apiService.updateTrustProfile() *(needs re-execution — prior claimed completion was phantom, see 29-UAT.md)*
 
 **Wave 3** *(blocked on Wave 2 completion)*
