@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trust Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-page: #f8fafc;
+    --bg-card: #ffffff;
+    --border-card: #e2e8f0;
+    --accent: #00a8cc;
+    --destructive: #dc2626;
+    --success-text: #15803d;
+    --success-bg: #dcfce7;
+    --text-body: #1e293b;
+    --text-muted: #64748b;
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-page);
+    color: var(--text-body);
+    font-family: 'Outfit', Inter, system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 4rem 1rem;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  h1.display {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 0.5rem 0;
+  }
+  h2.section-heading {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 1rem 0;
+  }
+  .meta {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0.25rem 0;
+  }
+  .badge-public {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--success-text);
+    background: var(--success-bg);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+  }
+  .framework-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .framework-badge {
+    font-size: 14px;
+    color: var(--success-text);
+    background: var(--success-bg);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+  }
+  .doc-list { list-style: none; margin: 0; padding: 0; }
+  .doc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-card);
+  }
+  .doc-row:last-child { border-bottom: none; }
+  .doc-name { font-size: 16px; }
+  .doc-link { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
+  .doc-link:hover { text-decoration: underline; }
+  .doc-restricted-label { font-size: 14px; color: var(--text-muted); margin-right: 0.75rem; }
+  .btn {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    background: var(--accent);
+    color: #ffffff;
+  }
+  .btn:hover { opacity: 0.9; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .empty-state h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+  }
+  .empty-state p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0;
+  }
+  form { margin-top: 1rem; }
+  .field { margin-bottom: 1rem; }
+  label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  input[type="text"], input[type="email"], textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--text-body);
+  }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,168,204,0.25);
+  }
+  textarea { resize: vertical; min-height: 5rem; }
+  .consent-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .consent-row input[type="checkbox"] { margin-top: 0.2rem; }
+  .consent-row label {
+    font-size: 14px;
+    font-weight: 400;
+    margin-bottom: 0;
+  }
+  .field-error {
+    color: var(--destructive);
+    font-size: 14px;
+    margin-top: 0.25rem;
+    display: none;
+  }
+  .field-error.show { display: block; }
+  .banner {
+    display: none;
+    font-size: 14px;
+    color: var(--destructive);
+    background: #fef2f2;
+    border: 1px solid var(--destructive);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .banner.show { display: block; }
+  .success-message {
+    display: none;
+    font-size: 16px;
+  }
+  .success-message.show { display: block; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loading-state">
+    <p class="meta">Loading trust page&hellip;</p>
+  </div>
+
+  <div id="not-found-state" class="card hidden">
+    <h2 class="section-heading">Trust page not found.</h2>
+    <p class="meta">This link may be incorrect or the page may no longer be available. Double-check the link with whoever shared it with you.</p>
+  </div>
+
+  <div id="page-content" class="hidden">
+
+    <div class="card" id="header-card">
+      <h1 class="display" id="company-name"></h1>
+      <p class="meta" id="company-description"></p>
+      <p class="meta">Contact: <span id="contact-email"></span></p>
+      <span class="badge-public">Publicly Visible</span>
+    </div>
+
+    <div class="card hidden" id="frameworks-card">
+      <h2 class="section-heading">Compliance &amp; Security Frameworks</h2>
+      <div class="framework-row" id="framework-row"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="section-heading">Public Documents</h2>
+      <ul class="doc-list" id="public-doc-list"></ul>
+      <div class="empty-state hidden" id="public-docs-empty">
+        <h3>No public documents yet.</h3>
+        <p id="public-docs-empty-body"></p>
+      </div>
+    </div>
+
+    <div class="card hidden" id="restricted-card">
+      <h2 class="section-heading">Restricted Documents</h2>
+      <ul class="doc-list" id="restricted-doc-list"></ul>
+    </div>
+
+    <div class="card hidden" id="request-card">
+      <h2 class="section-heading">Request Document Access</h2>
+
+      <div class="banner" id="form-banner"></div>
+
+      <form id="access-request-form">
+        <div class="field">
+          <label for="req-name">Full name</label>
+          <input type="text" id="req-name" name="name" required>
+        </div>
+        <div class="field">
+          <label for="req-email">Email</label>
+          <input type="email" id="req-email" name="email" required>
+          <div class="field-error" id="email-error">Enter a valid email address.</div>
+        </div>
+        <div class="field">
+          <label for="req-company">Company</label>
+          <input type="text" id="req-company" name="company" required>
+        </div>
+        <div class="field">
+          <label for="req-reason">Reason</label>
+          <textarea id="req-reason" name="reason"></textarea>
+        </div>
+        <div class="field">
+          <div class="consent-row">
+            <input type="checkbox" id="req-consent" name="consent">
+            <label for="req-consent">I agree this request is subject to the applicable NDA/confidentiality terms, and the information I provide may be used to verify my identity and evaluate this request.</label>
+          </div>
+          <div class="field-error" id="consent-error">You must accept the terms above before submitting.</div>
+        </div>
+        <button type="submit" class="btn" id="submit-request-btn">Submit Request</button>
+      </form>
+
+      <div class="success-message" id="success-message"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function getSlug() {
+    var parts = window.location.pathname.split('/').filter(Boolean);
+    return parts.length >= 2 ? decodeURIComponent(parts[1]) : '';
+  }
+
+  var slug = getSlug();
+  var contactEmail = '';
+
+  var loadingState = document.getElementById('loading-state');
+  var notFoundState = document.getElementById('not-found-state');
+  var pageContent = document.getElementById('page-content');
+
+  function show(el) { el.classList.remove('hidden'); }
+  function hide(el) { el.classList.add('hidden'); }
+
+  function renderProfile(profile) {
+    contactEmail = profile.contact_email || '';
+
+    document.getElementById('company-name').textContent = profile.company_name || '';
+    document.getElementById('company-description').textContent = profile.description || '';
+    document.getElementById('contact-email').textContent = contactEmail;
+
+    var frameworks = profile.compliance_frameworks || [];
+    if (frameworks.length > 0) {
+      var row = document.getElementById('framework-row');
+      row.innerHTML = '';
+      frameworks.forEach(function (fw) {
+        var badge = document.createElement('span');
+        badge.className = 'framework-badge';
+        badge.textContent = fw;
+        row.appendChild(badge);
+      });
+      show(document.getElementById('frameworks-card'));
+    }
+
+    var publicDocs = profile.public_documents || [];
+    var publicList = document.getElementById('public-doc-list');
+    if (publicDocs.length > 0) {
+      publicDocs.forEach(function (doc) {
+        var li = document.createElement('li');
+        li.className = 'doc-row';
+        var name = document.createElement('span');
+        name.className = 'doc-name';
+        name.textContent = doc.name || '';
+        var link = document.createElement('a');
+        link.className = 'doc-link';
+        link.href = doc.url || '#';
+        link.textContent = 'Download';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        li.appendChild(name);
+        li.appendChild(link);
+        publicList.appendChild(li);
+      });
+    } else {
+      document.getElementById('public-docs-empty-body').textContent =
+        'This company hasn\'t published any public compliance documents. Check back later, or contact them directly at ' + contactEmail + '.';
+      show(document.getElementById('public-docs-empty'));
+    }
+
+    var privateDocs = profile.private_documents || [];
+    if (privateDocs.length > 0) {
+      var restrictedList = document.getElementById('restricted-doc-list');
+      privateDocs.forEach(function (doc) {
+        var li = document.createElement('li');
+        li.className = 'doc-row';
+
+        var name = document.createElement('span');
+        name.className = 'doc-name';
+        name.textContent = doc.name || '';
+
+        var right = document.createElement('span');
+        var label = document.createElement('span');
+        label.className = 'doc-restricted-label';
+        label.textContent = 'NDA Required';
+        right.appendChild(label);
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn';
+        btn.textContent = 'Request Access';
+        btn.addEventListener('click', function () {
+          show(document.getElementById('request-card'));
+          document.getElementById('request-card').scrollIntoView({ behavior: 'smooth' });
+        });
+        right.appendChild(btn);
+
+        li.appendChild(name);
+        li.appendChild(right);
+        restrictedList.appendChild(li);
+      });
+      show(document.getElementById('restricted-card'));
+    }
+
+    hide(loadingState);
+    show(pageContent);
+  }
+
+  function showNotFound() {
+    hide(loadingState);
+    show(notFoundState);
+  }
+
+  function showBanner(message) {
+    var banner = document.getElementById('form-banner');
+    banner.textContent = message;
+    banner.classList.add('show');
+  }
+
+  function hideBanner() {
+    var banner = document.getElementById('form-banner');
+    banner.classList.remove('show');
+    banner.textContent = '';
+  }
+
+  function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  function initForm() {
+    var form = document.getElementById('access-request-form');
+    var emailInput = document.getElementById('req-email');
+    var consentInput = document.getElementById('req-consent');
+    var emailError = document.getElementById('email-error');
+    var consentError = document.getElementById('consent-error');
+
+    form.addEventListener('submit', function (evt) {
+      evt.preventDefault();
+      hideBanner();
+      emailError.classList.remove('show');
+      consentError.classList.remove('show');
+
+      var email = emailInput.value.trim();
+      var consent = consentInput.checked;
+
+      var valid = true;
+      if (!isValidEmail(email)) {
+        emailError.classList.add('show');
+        valid = false;
+      }
+      if (!consent) {
+        consentError.classList.add('show');
+        valid = false;
+      }
+      if (!valid) return;
+
+      var payload = {
+        requester_email: email,
+        company: document.getElementById('req-company').value.trim(),
+        reason: document.getElementById('req-reason').value.trim(),
+        consent: true
+      };
+
+      fetch('/api/public/trust/' + encodeURIComponent(slug) + '/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (resp) {
+        if (resp.status === 200 || resp.status === 201) {
+          form.classList.add('hidden');
+          var successEl = document.getElementById('success-message');
+          successEl.textContent = 'Request received. ' + (document.getElementById('company-name').textContent || 'The company') + ' will review your request and follow up at the email you provided.';
+          successEl.classList.add('show');
+        } else if (resp.status === 429) {
+          showBanner('Too many requests from your network. Please wait a minute and try again.');
+        } else {
+          showBanner('Something went wrong submitting your request. Please try again, or email ' + contactEmail + ' directly.');
+        }
+      }).catch(function () {
+        showBanner('Something went wrong submitting your request. Please try again, or email ' + contactEmail + ' directly.');
+      });
+    });
+  }
+
+  function init() {
+    if (!slug) {
+      showNotFound();
+      return;
+    }
+    initForm();
+    fetch('/api/public/trust/' + encodeURIComponent(slug))
+      .then(function (resp) {
+        if (resp.status === 404) {
+          showNotFound();
+          return null;
+        }
+        if (!resp.ok) {
+          throw new Error('Request failed');
+        }
+        return resp.json();
+      })
+      .then(function (profile) {
+        if (profile) renderProfile(profile);
+      })
+      .catch(function () {
+        showNotFound();
+      });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
