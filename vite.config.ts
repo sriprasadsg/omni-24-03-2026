@@ -43,6 +43,12 @@ export default defineConfig(({ mode }) => {
       }
     },
     plugins: [react()],
+    optimizeDeps: {
+      // Scan only the real app entry — by default Vite crawls every *.html
+      // under the root, which picks up backend/venv (strawberry's
+      // pathfinder.html) and aborts dependency pre-bundling.
+      entries: ['index.html'],
+    },
     define: {
       // API keys must NEVER be inlined into the browser bundle.
       // Gemini calls are proxied through the backend (/api/ai/... endpoints).

@@ -18,6 +18,11 @@ print_error()   { echo -e "${RED}✗ ${1}${NC}"; }
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Primary LAN IP of this machine — services bind 0.0.0.0, so this is the
+# address other machines use to reach them. Override with SERVER_IP=... .
+SERVER_IP="${SERVER_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+SERVER_IP="${SERVER_IP:-127.0.0.1}"
+
 # Stop all child processes cleanly on Ctrl+C
 cleanup() {
     echo ""
@@ -56,8 +61,9 @@ fi
 (
     cd "$PROJECT_ROOT/backend"
     export SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-Admin@2030}"
-    # PLATFORM_URL is used by agent install instructions endpoint
-    export PLATFORM_URL="${PLATFORM_URL:-http://localhost:5000}"
+    # PLATFORM_URL is used by agent install instructions endpoint — must be
+    # reachable from OTHER machines, so default to the server IP, not localhost
+    export PLATFORM_URL="${PLATFORM_URL:-http://${SERVER_IP}:5000}"
     # Ticket file upload directory (auto-created by tickets_endpoints on start)
     export TICKET_ATTACHMENT_DIR="${TICKET_ATTACHMENT_DIR:-/tmp/ticket_attachments}"
     # Use socket_app (not app) so Socket.IO real-time events work
@@ -111,9 +117,9 @@ echo "============================================="
 print_success "All services running!"
 echo "============================================="
 echo ""
-echo "  Frontend:  http://127.0.0.1:3000"
-echo "  Backend:   http://127.0.0.1:5000"
-echo "  Health:    http://127.0.0.1:5000/api/health"
+echo "  Frontend:  http://${SERVER_IP}:3000"
+echo "  Backend:   http://${SERVER_IP}:5000"
+echo "  Health:    http://${SERVER_IP}:5000/api/health"
 echo ""
 echo "Press Ctrl+C to stop all services."
 echo ""
