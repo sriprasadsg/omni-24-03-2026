@@ -180,3 +180,137 @@ class TestTrustAdminSettings:
             body = get_res.json()
             assert body["trust_slug"] == "trust-abc123def456"
             assert body["trust_domain"] == "trust.acme.com"
+
+
+# ─── TRUST-02: public GET route (no auth) ──────────────────────────────────────
+
+def _public_app():
+    """Minimal FastAPI app carrying only the genuinely public trust router.
+    No get_current_user override — a real TestClient call proves no auth is
+    required and also exercises the slowapi response: Response wiring."""
+    from trust_endpoints import public_router
+    app = FastAPI()
+    app.include_router(public_router)
+    return app
+
+
+_SEEDED_PROFILE = {
+    "company_name": "Acme Corp",
+    "description": "We take security seriously.",
+    "contact_email": "trust@acme.com",
+    "logo_url": "https://acme.com/logo.png",
+    "compliance_frameworks": ["SOC2", "ISO27001"],
+    "public_documents": [{"name": "Security Whitepaper", "url": "https://acme.com/whitepaper.pdf"}],
+    "private_documents": [
+        {"name": "SOC2 Type II Report", "url": "https://acme.com/private/soc2.pdf"},
+        {"name": "Pen Test Summary", "url": "https://acme.com/private/pentest.pdf"},
+    ],
+}
+
+
+class TestPublicTrustGet:
+
+    def test_public_get_no_auth_header_returns_200_for_known_slug(self):
+        tenants_col = _col()
+        tenants_col.find_one = AsyncMock(
+            side_effect=lambda filt, *a, **kw: (
+                {"id": "t1"} if filt.get("trust_slug") == "trust-abc123" else None
+            )
+        )
+        profile_col = _col()
+        profile_col.find_one = AsyncMock(return_value=dict(_SEEDED_PROFILE))
+        db = _db(tenants=tenants_col, trust_profiles=profile_col)
+        app = _public_app()
+
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).get("/api/public/trust/trust-abc123")
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["company_name"] == "Acme Corp"
+
+    def test_public_get_unknown_slug_returns_clean_404(self):
+        tenants_col = _col()
+        tenants_col.find_one = AsyncMock(return_value=None)
+        db = _db(tenants=tenants_col, trust_profiles=_col())
+        app = _public_app()
+
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).get("/api/public/trust/does-not-exist")
+
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Not found"
+
+
+class TestPublicDocFilter:
+
+    def test_private_doc_filter_no_url_key(self):
+        tenants_col = _col()
+        tenants_col.find_one = AsyncMock(return_value={"id": "t1"})
+        profile_col = _col()
+        profile_col.find_one = AsyncMock(return_value=dict(_SEEDED_PROFILE))
+        db = _db(tenants=tenants_col, trust_profiles=profile_col)
+        app = _public_app()
+
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).get("/api/public/trust/trust-abc123")
+
+        assert res.status_code == 200
+        body = res.json()
+        assert len(body["private_documents"]) == 2
+        for entry in body["private_documents"]:
+            assert set(entry.keys()) == {"name"}
+            assert "url" not in entry
+        # Public documents are untouched — URLs still present.
+        assert body["public_documents"][0]["url"] == "https://acme.com/whitepaper.pdf"
+
+
+class TestCustomDomainResolution:
+
+    def test_custom_domain_matching_host_resolves_tenant_over_mismatched_slug(self):
+        tenants_col = _col()
+
+        async def fake_find_one(filt, *a, **kw):
+            if filt.get("trust_domain") == "trust.acme.com":
+                return {"id": "t1"}
+            return None
+
+        tenants_col.find_one = AsyncMock(side_effect=fake_find_one)
+        profile_col = _col()
+        profile_col.find_one = AsyncMock(return_value=dict(_SEEDED_PROFILE))
+        db = _db(tenants=tenants_col, trust_profiles=profile_col)
+        app = _public_app()
+
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).get(
+                "/api/public/trust/totally-wrong-slug",
+                headers={"Host": "trust.acme.com"},
+            )
+
+        assert res.status_code == 200
+        assert res.json()["company_name"] == "Acme Corp"
+
+    def test_custom_domain_unrecognized_host_falls_back_to_slug_lookup(self):
+        tenants_col = _col()
+
+        async def fake_find_one(filt, *a, **kw):
+            if filt.get("trust_domain"):
+                return None  # unrecognized Host
+            if filt.get("trust_slug") == "trust-abc123":
+                return {"id": "t1"}
+            return None
+
+        tenants_col.find_one = AsyncMock(side_effect=fake_find_one)
+        profile_col = _col()
+        profile_col.find_one = AsyncMock(return_value=dict(_SEEDED_PROFILE))
+        db = _db(tenants=tenants_col, trust_profiles=profile_col)
+        app = _public_app()
+
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).get(
+                "/api/public/trust/trust-abc123",
+                headers={"Host": "unrelated.example.com"},
+            )
+
+        assert res.status_code == 200
+        assert res.json()["company_name"] == "Acme Corp"

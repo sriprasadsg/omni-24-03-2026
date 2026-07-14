@@ -109,6 +109,9 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "pentest_endpoints",        "router")
     _load(app, "zero_trust_service",       "router")
     _load(app, "trust_endpoints",          "router")
+    # Genuinely public trust routes (TRUST-02/03) — no auth, no /api/trust-center
+    # prefix; mounted so paths are exactly /api/public/trust/...
+    _load(app, "trust_endpoints",          "public_router")
     _load(app, "governance_document_endpoints", "router")
     _load(app, "ueba_service",                "router")
     _load(app, "ip_ban_endpoints",            "router")
