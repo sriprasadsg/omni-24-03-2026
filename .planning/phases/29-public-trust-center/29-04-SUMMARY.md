@@ -101,3 +101,11 @@ None beyond what this plan's own `<threat_model>` already registers and closes (
 ---
 *Phase: 29-public-trust-center*
 *Completed: 2026-07-14*
+
+## Self-Check: PASSED
+
+- FOUND: backend/app.py
+- FOUND: backend/static/trust-page.html
+- FOUND: .planning/phases/29-public-trust-center/29-04-SUMMARY.md
+- FOUND commit: 795aa444 (Task 1: GET /trust/{slug} route)
+- FOUND commit: b6b82a15 (Task 2: trust-page.html)
