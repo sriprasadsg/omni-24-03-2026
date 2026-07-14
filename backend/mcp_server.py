@@ -54,9 +54,15 @@ async def get_control_status(control_id: str) -> Dict[str, Any]:
 
 @mcp.tool()
 async def run_cloud_check(provider: str, account_id: str) -> Dict[str, Any]:
-    """Run a cloud security check against a provider account"""
-    if provider not in ("aws", "azure", "gcp", "kubernetes", "digitalocean", "microsoft365", "mongodb_atlas", "oci", "alibaba", "cloudflare"):
-        raise HTTPException(status_code=400, detail="provider must be aws, azure, gcp, kubernetes, digitalocean, microsoft365, mongodb_atlas, oci, alibaba, or cloudflare")
+    """Run a cloud security check against a provider account.
+
+    Only providers with runnable posture checks are accepted. OCI/Alibaba/Cloudflare
+    are ingest-only (findings pulled via their *_ingest modules), so they are not
+    valid here — the accepted set is the single source of truth in cloud_checks_service.
+    """
+    from cloud_checks_service import RUNNABLE_PROVIDERS
+    if provider not in RUNNABLE_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"provider must be one of {', '.join(RUNNABLE_PROVIDERS)}")
     tenant_id = get_tenant_id()
     result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
     if result.get("error"):

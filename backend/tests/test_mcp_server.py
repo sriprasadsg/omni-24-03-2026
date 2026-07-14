@@ -157,6 +157,17 @@ async def test_run_cloud_check_invalid_provider():
     assert "provider must be" in exc.value.detail
 
 
+async def test_run_cloud_check_rejects_ingest_only_providers():
+    # oci/alibaba/cloudflare are ingest-only — run_cloud_check must reject them
+    # rather than advertise them and then fail downstream (F-03).
+    for provider in ("oci", "alibaba", "cloudflare"):
+        with _tenant_patch():
+            with pytest.raises(HTTPException) as exc:
+                await srv.run_cloud_check(provider, "12345")
+        assert exc.value.status_code == 400
+        assert provider not in exc.value.detail
+
+
 async def test_run_cloud_check_account_not_found():
     checks = AsyncMock()
     checks.run_checks = AsyncMock(return_value={"error": "Cloud account not found"})
