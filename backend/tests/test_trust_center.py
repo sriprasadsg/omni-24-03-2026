@@ -134,7 +134,7 @@ class TestTrustAdminAuth:
 
     def test_admin_auth_allows_admin_role_for_profile_update(self):
         from trust_endpoints import router
-        db = _db(trust_profiles=_col(), trust_access_requests=_col())
+        db = _db(trust_profiles=_col(), trust_access_requests=_col(), tenants=_col())
         app = _app(router, _user(role="admin"))
         with patch("trust_endpoints.get_database", return_value=db):
             res = TestClient(app).put("/api/trust-center/profile", json={"company_name": "X"})
@@ -147,3 +147,36 @@ class TestTrustAdminAuth:
         # No dependency_overrides[get_current_user] — unauthenticated
         res = TestClient(app).put("/api/trust-center/profile", json={"company_name": "X"})
         assert res.status_code in (401, 403)
+
+
+# ─── TRUST-01/03: trust_slug / trust_domain settings surfaced by admin routes ──
+
+class TestTrustAdminSettings:
+
+    def test_put_trust_domain_persists_to_tenants_and_get_returns_it(self):
+        from trust_endpoints import router
+
+        tenants_col = _col()
+        # First find_one call (inside PUT's trust_domain branch check via
+        # _ensure_trust_slug) returns a tenant that already has trust_domain set,
+        # simulating the persisted state after the update_one write.
+        tenants_col.find_one = AsyncMock(
+            return_value={"trust_slug": "trust-abc123def456", "trust_domain": "trust.acme.com"}
+        )
+        db = _db(trust_profiles=_col(), trust_access_requests=_col(), tenants=tenants_col)
+        app = _app(router, _user(role="admin"))
+
+        with patch("trust_endpoints.get_database", return_value=db):
+            put_res = TestClient(app).put(
+                "/api/trust-center/profile", json={"trust_domain": "trust.acme.com"}
+            )
+            assert put_res.status_code == 200
+            assert tenants_col.update_one.called
+            update_call = tenants_col.update_one.call_args
+            assert update_call.args[1]["$set"]["trust_domain"] == "trust.acme.com"
+
+            get_res = TestClient(app).get("/api/trust-center/profile")
+            assert get_res.status_code == 200
+            body = get_res.json()
+            assert body["trust_slug"] == "trust-abc123def456"
+            assert body["trust_domain"] == "trust.acme.com"
