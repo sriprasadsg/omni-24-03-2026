@@ -349,6 +349,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon size={20} />, permission: 'view:compliance' },
                 { view: 'programs', label: 'Programs', icon: <ClipboardListIcon size={20} />, permission: 'view:compliance' },
                 { view: 'inboundQuestionnaires', label: 'Inbound Questionnaires', icon: <ClipboardCheck size={20} />, permission: 'view:compliance' },
+                { view: 'governanceDocuments', label: 'Governance Documents', icon: <FileTextIcon size={20} />, permission: 'view:compliance' },
                 { view: 'auditProgram', label: 'Audit Programs', icon: <ClipboardCheck size={20} />, permission: 'view:compliance' },
                 { view: 'accessReview', label: 'Access Reviews', icon: <UserCheck size={20} />, permission: 'view:compliance' },
                 { view: 'cookieConsent', label: 'Cookie Consent', icon: <Cookie size={20} />, permission: 'view:compliance' },

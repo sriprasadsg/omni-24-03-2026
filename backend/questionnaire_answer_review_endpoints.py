@@ -17,7 +17,9 @@ router = APIRouter(prefix="/api/questionnaire-answer-drafts", tags=["Questionnai
 
 # Kept in sync by hand with the equivalent literal in evidence_review_endpoints.py
 # and components/QuestionnaireAnswerReviewPanel.tsx (_REVIEWER_ROLES).
-_REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer"}
+# Includes the platform's title-case role names ("Tenant Admin"/"Super Admin",
+# assigned at signup/seed) alongside the snake_case variants.
+_REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer", "Tenant Admin", "Super Admin"}
 
 async def _tenant(user: User = Depends(get_current_user)) -> str:
     if not user.tenant_id:

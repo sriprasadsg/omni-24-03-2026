@@ -87,6 +87,7 @@ import { InteractiveVoiceBot } from './components/InteractiveVoiceBot';
 import { CharacterTourBot } from './components/CharacterTourBot';
 const VendorManagement = lazy(() => import('./components/VendorManagement'));
 const TrustCenter = lazy(() => import('./components/TrustCenter'));
+const GovernanceDocumentsDashboard = lazy(() => import('./components/GovernanceDocumentsDashboard').then(m => ({ default: m.GovernanceDocumentsDashboard })));
 const TrustPage = lazy(() => import('./components/TrustPage'));
 const SecureFileShare = lazy(() => import('./components/SecureFileShare'));
 const SecurityTraining = lazy(() => import('./components/SecurityTraining'));
@@ -242,6 +243,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   compliance: 'view:compliance',
   programs: 'view:compliance',
   inboundQuestionnaires: 'view:compliance',
+  governanceDocuments: 'view:compliance',
   trustPage: 'view:compliance',
   aiAssistantChat: 'view:dashboard',
   aiGovernance: 'view:ai_governance',
@@ -1718,6 +1720,7 @@ const App: React.FC = () => {
       case 'compliance': return <ErrorBoundary name="ComplianceDashboard"><ComplianceDashboard complianceFrameworks={tenantData.complianceFrameworks} assets={tenantData.assets} assetComplianceData={tenantData.assetComplianceData || []} /></ErrorBoundary>;
       case 'programs': return <ErrorBoundary name="ProgramsDashboard"><ProgramsDashboard /></ErrorBoundary>;
       case 'inboundQuestionnaires': return <ErrorBoundary name="InboundQuestionnaireDashboard"><InboundQuestionnaireDashboard /></ErrorBoundary>;
+      case 'governanceDocuments': return <ErrorBoundary name="GovernanceDocumentsDashboard"><GovernanceDocumentsDashboard /></ErrorBoundary>;
       case 'auditProgram': return <ErrorBoundary name="AuditProgramDashboard"><AuditProgramDashboard /></ErrorBoundary>;
       case 'accessReview': return <ErrorBoundary name="AccessReviewDashboard"><AccessReviewDashboard /></ErrorBoundary>;
       case 'cookieConsent': return <ErrorBoundary name="CookieConsentDashboard"><CookieConsentDashboard /></ErrorBoundary>;

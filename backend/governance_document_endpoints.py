@@ -173,8 +173,8 @@ async def export_signed_pdf(
     if not doc.get("signatures"):
         raise HTTPException(status_code=400, detail="Document has no signatures to export")
 
-    from compliance_reporting_service import REPORTS_DIR as reports_dir
     import os
+    reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "reports")
     os.makedirs(reports_dir, exist_ok=True)
 
     try:

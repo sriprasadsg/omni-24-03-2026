@@ -62,10 +62,12 @@ async def submit_approval_decision(
     service = get_approval_service(db)
     tenant_id = _tid(current_user)
 
-    # Always derive email from the verified JWT — never accept it from the request body
+    # Always derive email from the verified JWT — never accept it from the request body.
+    # TokenData carries the JWT sub (the login email) in `username`, not `email`.
     user_email = (
-        current_user.get("email") if isinstance(current_user, dict)
-        else getattr(current_user, "email", None)
+        current_user.get("email") or current_user.get("username")
+        if isinstance(current_user, dict)
+        else getattr(current_user, "email", None) or getattr(current_user, "username", None)
     )
     if not user_email:
         raise HTTPException(status_code=401, detail="Could not determine caller identity")

@@ -16,7 +16,7 @@ import {
 // (_REVIEWER_ROLES). The backend always re-enforces authorization
 // server-side regardless of this list, so drift here is a UI-confusion
 // risk (mismatched button visibility), not an authz bypass.
-const _REVIEWER_ROLES = ['admin', 'super_admin', 'compliance_reviewer'];
+const _REVIEWER_ROLES = ['admin', 'super_admin', 'compliance_reviewer', 'Tenant Admin', 'Super Admin'];
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending_review: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-300', label: 'Pending Review' },

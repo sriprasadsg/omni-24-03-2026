@@ -4,7 +4,7 @@ from authentication_service import get_current_user
 from models import User
 from questionnaire_answer_draft_service import (
     draft_answer_for_question,
-    list_pending_drafts,
+    list_drafts,
     get_draft,
 )
 from database import get_database
@@ -33,7 +33,7 @@ async def generate_draft_endpoint(
 async def list_drafts_endpoint(
     tenant_id: str = Depends(_tenant),
 ) -> List[Dict[str, Any]]:
-    return await list_pending_drafts(get_database(), tenant_id)
+    return await list_drafts(get_database(), tenant_id)
 
 @router.get("/{draft_id}", response_model=Dict[str, Any])
 async def get_draft_endpoint(

@@ -109,6 +109,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "pentest_endpoints",        "router")
     _load(app, "zero_trust_service",       "router")
     _load(app, "trust_endpoints",          "router")
+    _load(app, "governance_document_endpoints", "router")
     _load(app, "ueba_service",                "router")
     _load(app, "ip_ban_endpoints",            "router")
     _load(app, "agent_quarantine_endpoints",  "router")

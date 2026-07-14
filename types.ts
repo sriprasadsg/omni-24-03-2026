@@ -23,6 +23,7 @@ export type AppView =
   | 'compliance'
   | 'programs'
   | 'inboundQuestionnaires'
+  | 'governanceDocuments'
   | 'aiAssistantChat'
   | 'aiGovernance'
   | 'finops'

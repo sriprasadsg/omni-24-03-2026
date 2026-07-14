@@ -108,5 +108,5 @@ async def list_reviews(draft_id: str, db, tenant_id: str):
 
 
 async def list_pending_drafts(db, tenant_id: str):
-    cursor = db[QUESTIONNAIRE_ANSWER_DRAFTS_COL].find({"tenantId": tenant_id, "status": "pending_review"})
+    cursor = db[QUESTIONNAIRE_ANSWER_DRAFTS_COL].find({"tenantId": tenant_id, "status": "pending_review"}, {"_id": 0})
     return await cursor.to_list(length=None)

@@ -8,7 +8,7 @@ import {
   createInboundQuestionnaire,
   uploadInboundQuestionnaire,
   generateAnswerDrafts,
-  listPendingReviewDrafts,
+  listAnswerDrafts,
 } from '../services/apiService';
 import { QuestionnaireAnswerReviewPanel } from './QuestionnaireAnswerReviewPanel';
 
@@ -30,12 +30,15 @@ export const InboundQuestionnaireDashboard: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const [setList, pending] = await Promise.all([
+      const [setList, allDrafts] = await Promise.all([
         listInboundQuestionnaires(),
-        listPendingReviewDrafts(),
+        listAnswerDrafts(),
       ]);
       setSets(setList);
-      setDrafts(pending);
+      // Keep approved drafts in the queue: "Mark Submitted" only renders on
+      // an approved draft, so filtering to pending_review would make drafts
+      // vanish at approval and leave submission unreachable from the UI.
+      setDrafts(allDrafts.filter(d => d.status !== 'submitted'));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load questionnaires');
     } finally {
