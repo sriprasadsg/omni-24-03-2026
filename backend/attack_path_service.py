@@ -32,6 +32,14 @@ class AttackPathService:
         stored = await self.db.attack_paths.find(query, {"_id": 0}).sort(
             "timestamp", -1
         ).to_list(length=50)
+        legacy = [d for d in stored if "simulated" not in d]
+        if legacy:
+            # Paths seeded before the simulated flag existed can't tell the UI
+            # whether they are demo data — purge them and rebuild below.
+            await self.db.attack_paths.delete_many(
+                {**query, "simulated": {"$exists": False}}
+            )
+            stored = [d for d in stored if "simulated" in d]
         if stored:
             return stored
 

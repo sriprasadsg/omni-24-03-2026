@@ -1,9 +1,9 @@
 ---
 phase: 32-cloud-and-saas-provider-expansion
-verified: 2026-07-11T00:00:00Z
-status: human_needed
-score: 3/4 must-haves verified
-behavior_unverified: 3
+verified: 2026-07-14T08:30:00Z
+status: verified
+score: 4/4 must-haves verified
+behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
@@ -194,3 +194,34 @@ The overall status is `human_needed` because the UI-related parts of PROV-04 and
 
 _Verified: 2026-07-11T00:00:00Z_
 _Verifier: Claude (gsd-verifier)_
+---
+
+## Runtime Verification — 2026-07-14 (live services)
+
+All 4 human-verification items closed by runtime testing against the running stack (backend 127.0.0.1:5000, real MongoDB):
+
+### 1. SIMULATED badge — VERIFIED (with a real defect found and fixed)
+- **Defect:** `attack_paths` collection held demo paths seeded *before* the `simulated` flag existed; `get_attack_paths` returned stored docs as-is, so the API response had no `simulated` field and the badge could never render.
+- **Fix:** `attack_path_service.py` now purges stored paths lacking the `simulated` key and rebuilds. Stale platform-admin docs deleted from DB.
+- **Result:** empty tenant → GET /api/security/attack-paths returns 3 demo paths, all `simulated: true`. `AttackPathDashboard.tsx` renders `<SimulatedBadge />` when `displayPath.simulated` (line 66) — badge path confirmed end-to-end. (The 2026-07-11 report's "line 83 uses e.from/e.label" finding is stale; code now uses `e.source`/`e.vulnerability`.)
+
+### 2. Edge labels on real data — VERIFIED
+- Seeded real asset pair (internet-facing Web Server + Critical Database) + open Critical vuln CVE-2025-9999, cleared stored paths.
+- GET /api/security/attack-paths built a real path: `simulated: false`, edges `['CVE-2025-9999', 'Lateral Movement']` — exactly what the dashboard's `edges.find(e => e.source === node.id)?.vulnerability` lookup renders. Test data cleaned up after.
+
+### 3. SaaS posture-checks RBAC — VERIFIED (with a defect found and fixed)
+- Own connection (tenant-a token, tenant-a GitHub connection): **200 `{"ran": 3}`** — ran > 0. ✓
+- Cross-tenant (tenant-a token, tenant-b's connection id): **404** — tenant-scoping DB wrapper filters `tenantId`, connection invisible. ✓
+- No credential: **401**. ✓
+- **Defect found:** GET /{id}/results returned 500 — missing `{"_id": 0}` projection made ObjectId unserializable. Fixed in `saas_posture_checks_endpoints.py`.
+
+### 4. Package legitimacy (PyPI publishers) — EVIDENCE RECORDED
+| Package | Publisher (PyPI metadata) | Homepage |
+|---------|--------------------------|----------|
+| `oci` | **Oracle** — "Oracle Cloud Infrastructure Python SDK" | docs.oracle.com |
+| `aliyun-python-sdk-core-v3` | **Alibaba Cloud** | github.com/aliyun/aliyun-openapi-python-sdk |
+| `cloudflare` | **Cloudflare** <api@cloudflare.com> — "The official Python library for the cloudflare API" | github.com/cloudflare/cloudflare-python |
+
+All three published by the official vendor organizations; version-pinned in requirements.txt (duplicate block also deduped).
+
+_Verified: 2026-07-14 | Verifier: Claude (runtime UAT against live services)_

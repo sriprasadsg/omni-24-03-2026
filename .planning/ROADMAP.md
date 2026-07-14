@@ -336,7 +336,7 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** 14 of 14 phases executed as of 2026-07-14 — full backend suite 946 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). Phase 29 re-execution complete: all 4 plans (29-01..29-04) genuinely re-executed and committed 2026-07-14 after UAT proved the original TRUST-01/02/03 implementation was never committed. Phase 35 GraphQL UAT cleared 2026-07-14 — integration suite covers all 8 UAT items (evidence/risks/users/tenants queries, cross-tenant isolation, per-root RBAC). UAT files for 33/34 created 2026-07-14 with all automatable items passing. Remaining verification debt is human-only: 32 (3/4 must-haves), 33 live-connector round trip, 34 real-browser passkey ceremony.
+**Status:** 14 of 14 phases executed as of 2026-07-14 — full backend suite 946 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). Phase 29 re-execution complete: all 4 plans (29-01..29-04) genuinely re-executed and committed 2026-07-14 after UAT proved the original TRUST-01/02/03 implementation was never committed. Phase 35 GraphQL UAT cleared 2026-07-14 — integration suite covers all 8 UAT items (evidence/risks/users/tenants queries, cross-tenant isolation, per-root RBAC). UAT files for 33/34 created 2026-07-14 with all automatable items passing. Runtime verification 2026-07-14 against live services closed the 32 human items (4/4, attack-path simulated-flag defect + posture-results 500 fixed) and the 33 live round trip (signed delivery HMAC-verified; 3 webhook defects fixed). Remaining human-only: 34 real-browser passkey ceremony (needs physical authenticator), optional hosted n8n/Zapier account test.
 
 **Phases:**
 
@@ -349,8 +349,8 @@ deployment.
 | 29 | Public Trust Center | 3 — architectural | Complete — all 4 plans executed (2026-07-14): TRUST-01 DB persistence, TRUST-02 public route + NDA flow + standalone public page, TRUST-03 custom-domain resolution + admin frontend |
 | 30 | AI Questionnaire Auto-Answer | 2 — medium | Complete — runtime UAT passed 2026-07-14 (8/8 items; 3 defects found and fixed, see 30-UAT.md) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
-| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
-| 33 | Workflow Automation Connectors | 2 — medium | Complete — UAT 8/9 pass 2026-07-14 (backend 14 tests, Zapier npm test 4/4, n8n tsc clean); live-connector round trip human-pending (see 33-UAT.md) |
+| 32 | Cloud and SaaS Provider Expansion | 2 — medium | Complete — 4/4 must-haves verified at runtime 2026-07-14 (2 defects found+fixed; PyPI publisher evidence recorded, see 32-VERIFICATION.md) |
+| 33 | Workflow Automation Connectors | 2 — medium | Complete — UAT 9/9 pass 2026-07-14 incl. live signed-delivery round trip with HMAC verify (3 defects found+fixed, see 33-UAT.md) |
 | 34 | Passkey and WebAuthn Authentication | 3 — architectural | Complete — UAT 6/7 pass 2026-07-14 (test_passkey_auth.py 6/6, frontend UI present); real-browser ceremony human-pending (see 34-UAT.md) |
 | 35 | GraphQL API | 3 — architectural | Complete — integration suite covers all 8 UAT items (test_graphql.py 10/10, 2026-07-14) |
 | 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Complete — openfga_sdk installed, test_rebac.py 4/4 pass |

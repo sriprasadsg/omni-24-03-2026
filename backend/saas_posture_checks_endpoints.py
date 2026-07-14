@@ -47,6 +47,6 @@ async def list_posture_results(
             raise HTTPException(status_code=403, detail="Access denied")
 
     results = await db.saas_check_results.find(
-        {"tenantId": user_tenant, "connectionId": connection_id}
+        {"tenantId": user_tenant, "connectionId": connection_id}, {"_id": 0}
     ).to_list(length=100)
     return {"items": results, "count": len(results)}

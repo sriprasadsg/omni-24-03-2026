@@ -112,10 +112,6 @@ azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Ana
 oci>=2.181.1
 aliyun-python-sdk-core-v3>=2.13.33
 cloudflare>=5.4.0
-
-oci>=2.181.1
-aliyun-python-sdk-core-v3>=2.13.33
-cloudflare>=5.4.0
 msal>=1.37.0
 
 # ── GraphQL ──────────────────────────────────────────────────────────────────

@@ -137,7 +137,8 @@ async def create_webhook(
         "lastResult": None
     }
     
-    await db.webhooks.insert_one(new_webhook)
+    # Insert a copy — motor mutates the dict with a non-JSON-serializable _id
+    await db.webhooks.insert_one(dict(new_webhook))
     return new_webhook
 
 @router.delete("/{webhook_id}")

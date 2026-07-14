@@ -105,7 +105,7 @@ class WebhookService:
         try:
             response = await client.post(url, content=body, headers=headers, timeout=10.0)
             success = response.status_code >= 200 and response.status_code < 300
-            
+
             # Update webhook status
             update_doc = {
                 "lastResult": {
@@ -114,7 +114,7 @@ class WebhookService:
                     "success": success
                 }
             }
-            
+
             if not success:
                 # Increment failure count
                 await db.webhooks.update_one(
@@ -125,9 +125,23 @@ class WebhookService:
                 # Reset failure count on success
                 await db.webhooks.update_one(
                     {"id": hook['id']},
-                    {"$set": update_doc, "$set": {"failureCount": 0}}
+                    {"$set": {**update_doc, "failureCount": 0}}
                 )
-                
+
+            # Record the delivery so GET /api/webhooks/{id}/deliveries (and the
+            # Zapier trigger's performList) sees real dispatches, not just pings
+            try:
+                await db.webhook_deliveries.insert_one({
+                    "webhook_id": hook["id"],
+                    "event": payload.get("event"),
+                    "payload": payload,
+                    "success": success,
+                    "status_code": response.status_code,
+                    "timestamp": datetime.now().isoformat(),
+                })
+            except Exception as e:
+                logger.debug("Failed to record webhook delivery: %s", e)
+
         except Exception as e:
             logger.warning("[WebhookService] Failed to send to %s: %s", url, e)
             # Update with error

@@ -249,7 +249,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Session
 
 **Last session:** 2026-07-14T04:30:00.000Z
-**Stopped at:** Phase 35 GraphQL UAT cleared (test_graphql.py 10/10, all 8 items). UAT files created for 33 (8/9 pass — backend 14 tests, Zapier 4/4, n8n tsc clean) and 34 (6/7 pass — passkey tests 6/6, UI present); artifacts verified in git per Phase-29 lesson. Full suite 946 passed / 22 skipped / 0 failed. Remaining — human-only: 32 verification (3/4 must-haves), 33 live-connector round trip, 34 real-browser passkey ceremony.
+**Stopped at:** Runtime verification vs live services (2026-07-14): Phase 32 4/4 must-haves closed (attack-path stale-doc simulated-flag defect fixed, posture-results ObjectId 500 fixed, PROV-03 RBAC 200/404/401 confirmed, PyPI publisher evidence recorded); Phase 33 live signed-delivery round trip verified (HMAC byte-match at local receiver; 3 webhook defects fixed: create-response 500, duplicate $set losing lastResult, deliveries never recorded). Full suite 946/22/0. NOTE: backend restart required to pick up the endpoint fixes. Remaining human-only: 34 real-browser passkey ceremony; optional hosted n8n/Zapier test.
 **Resume file:** None
 
 ## Accumulated Context
