@@ -346,7 +346,7 @@ deployment.
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Complete (2026-07-09) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Complete (2026-07-13, UAT pass) |
 | 28 | Governance Document Management | 2 — medium | Complete — runtime UAT passed 2026-07-14 (4 defects found and fixed, see 28-UAT.md) |
-| 29 | Public Trust Center | 2 — medium | **Not implemented — re-execution required.** UAT 2026-07-14: TRUST-01/02/03 code never committed; trust_service.py still the in-memory authenticated-only singleton (see 29-UAT.md) |
+| 29 | Public Trust Center | 2 — medium | **In progress — re-execution underway.** Plan 29-01 (TRUST-01/03 DB persistence) re-executed and committed 2026-07-14 (commits 21ed35b3/435213be/86575edb, test_trust_center.py 6/6 green). Plans 29-02/29-03/29-04 (public route+NDA flow, custom domain, frontend admin view) still need re-execution — prior UAT (29-UAT.md) found none of the 4 plans had ever been committed despite claimed summaries |
 | 30 | AI Questionnaire Auto-Answer | 2 — medium | Complete — runtime UAT passed 2026-07-14 (8/8 items; 3 defects found and fixed, see 30-UAT.md) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
 | 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
@@ -462,16 +462,16 @@ deployment.
 
 **Wave 1**
 
-- [x] 29-01-PLAN.md — TRUST-01/03 backend: DB-back trust_service.py (trust_profiles/trust_access_requests), repoint admin routes at the async service, trust_slug/trust_domain on db.tenants + test scaffold
+- [x] 29-01-PLAN.md — TRUST-01/03 backend: DB-back trust_service.py (trust_profiles/trust_access_requests), repoint admin routes at the async service, trust_slug/trust_domain on db.tenants + test scaffold *(re-executed and committed 2026-07-14: 21ed35b3/435213be/86575edb — prior claimed completion was phantom, verified via git log --all)*
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [x] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution
-- [x] 29-03-PLAN.md — TRUST-01/03 admin frontend: TrustCenter.tsx profile edit form + Custom Domain field + Copy Link + approve/deny toasts/aria-labels, apiService.updateTrustProfile()
+- [ ] 29-02-PLAN.md — TRUST-02/03 backend: public GET/POST routes (set_tenant_id resolution, private-URL-stripped view, NDA consent, rate limits) + Host-header custom-domain resolution *(needs re-execution — prior claimed completion was phantom, see 29-UAT.md)*
+- [ ] 29-03-PLAN.md — TRUST-01/03 admin frontend: TrustCenter.tsx profile edit form + Custom Domain field + Copy Link + approve/deny toasts/aria-labels, apiService.updateTrustProfile() *(needs re-execution — prior claimed completion was phantom, see 29-UAT.md)*
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [x] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py
+- [ ] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py *(needs re-execution — prior claimed completion was phantom, see 29-UAT.md)*
 
 ---
 

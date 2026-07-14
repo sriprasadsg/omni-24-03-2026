@@ -177,7 +177,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Public Trust Center (Phase 29) — Tier 2
 
-- [ ] **TRUST-01**: Trust Center data is persisted in the database (replacing the current in-memory singleton in `trust_service.py`) and survives restarts
+- [x] **TRUST-01**: Trust Center data is persisted in the database (replacing the current in-memory singleton in `trust_service.py`) and survives restarts
 - [ ] **TRUST-02**: A real unauthenticated public route serves the trust page (every route in `trust_endpoints.py` currently requires `get_current_user`); NDA-gated documents require a real external access-request/approval flow
 - [ ] **TRUST-03**: Tenants can serve their trust page from a custom domain
 
