@@ -112,3 +112,15 @@ None. This plan's surface (admin-only, authenticated routes; `trust_slug`/`trust
 ---
 *Phase: 29-public-trust-center*
 *Completed: 2026-07-14*
+
+## Self-Check: PASSED
+
+- FOUND: backend/trust_service.py
+- FOUND: backend/trust_endpoints.py
+- FOUND: backend/tests/test_trust_center.py
+- FOUND: .planning/phases/29-public-trust-center/29-01-SUMMARY.md
+- FOUND: .planning/phases/29-public-trust-center/deferred-items.md
+- FOUND commit: 21ed35b3 (test scaffold)
+- FOUND commit: 435213be (trust_service.py rewrite)
+- FOUND commit: 86575edb (trust_endpoints.py repoint)
+- FOUND commit: b75e9316 (SUMMARY commit)
