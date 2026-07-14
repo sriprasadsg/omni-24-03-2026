@@ -303,9 +303,9 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 | EXP-02 | Phase 27 | Planned |
 | DOC-01 | Phase 28 | Planned |
 | DOC-02 | Phase 28 | Planned |
-| TRUST-01 | Phase 29 | Planned |
-| TRUST-02 | Phase 29 | Planned |
-| TRUST-03 | Phase 29 | Planned |
+| TRUST-01 | Phase 29 | Complete |
+| TRUST-02 | Phase 29 | Complete |
+| TRUST-03 | Phase 29 | Complete |
 | RAG-01 | Phase 30 | Planned |
 | RAG-02 | Phase 30 | Planned |
 | FAIR-01 | Phase 31 | Planned |
