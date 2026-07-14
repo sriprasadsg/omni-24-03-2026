@@ -316,3 +316,131 @@ async def ioc_search(
 async def get_templates(current_user: TokenData = Depends(get_current_user)):
     """Return built-in KQL query templates."""
     return QUERY_TEMPLATES
+
+
+# ---------------------------------------------------------------------------
+# Geographic attack map + attack timeline (aggregations over security_events)
+# ---------------------------------------------------------------------------
+
+_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_SEV_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+_GEO_FIELDS = ("country_code", "source_country", "countryCode", "geo_country")
+
+
+def _range_to_hours(range_str: str) -> int:
+    """Map a UI range token (24h/7d/30d) to hours; default 24h."""
+    mapping = {"24h": 24, "7d": 168, "30d": 720, "1h": 1, "6h": 6}
+    return mapping.get(range_str, 24)
+
+
+def _event_scope(current_user: TokenData) -> dict:
+    role = getattr(current_user, "role", "") or ""
+    if role in _SUPER_ROLES:
+        return {}
+    return {"tenantId": getattr(current_user, "tenant_id", None)}
+
+
+def _worst_severity(sevs) -> str:
+    best = "low"
+    for s in sevs:
+        s = (s or "low").lower()
+        if _SEV_RANK.get(s, 0) > _SEV_RANK.get(best, 0):
+            best = s
+    return best
+
+
+@router.get("/geo-sources")
+async def geo_attack_sources(
+    range: str = Query("24h"),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Aggregate security events by source country for the attack map.
+
+    Groups events in the time window by whichever geo field the event carries.
+    Returns [] when events have no geo data (the UI keeps its own placeholder).
+    """
+    db = get_database()
+    since = (datetime.now(timezone.utc) - timedelta(hours=_range_to_hours(range))).isoformat()
+    query = {**_event_scope(current_user), "timestamp": {"$gte": since}}
+
+    buckets: dict = {}
+    async for ev in db.security_events.find(query, {"_id": 0}):
+        cc = next((ev[f] for f in _GEO_FIELDS if ev.get(f)), None)
+        if not cc:
+            continue
+        b = buckets.setdefault(cc, {"count": 0, "types": set(), "sevs": [], "last": ""})
+        b["count"] += 1
+        if ev.get("type"):
+            b["types"].add(ev["type"])
+        b["sevs"].append(ev.get("severity"))
+        ts = ev.get("timestamp", "")
+        if ts > b["last"]:
+            b["last"] = ts
+
+    results = [
+        {
+            "country": cc,
+            "country_code": cc,
+            "event_count": b["count"],
+            "threat_types": sorted(b["types"]),
+            "last_seen": b["last"],
+            "severity": _worst_severity(b["sevs"]),
+        }
+        for cc, b in buckets.items()
+    ]
+    results.sort(key=lambda r: r["event_count"], reverse=True)
+    return results
+
+
+@router.get("/geo-sources/{country_code}/events")
+async def geo_country_events(
+    country_code: str,
+    range: str = Query("24h"),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """List recent security events originating from a given country."""
+    db = get_database()
+    since = (datetime.now(timezone.utc) - timedelta(hours=_range_to_hours(range))).isoformat()
+    geo_or = [{f: country_code} for f in _GEO_FIELDS]
+    query = {**_event_scope(current_user), "timestamp": {"$gte": since}, "$or": geo_or}
+
+    events = []
+    async for ev in db.security_events.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit):
+        events.append({
+            "id": ev.get("id", ""),
+            "timestamp": ev.get("timestamp", ""),
+            "source_ip": ev.get("source_ip") or ev.get("source") or "",
+            "event_type": ev.get("type", "event"),
+            "description": ev.get("description") or ev.get("message", ""),
+        })
+    return events
+
+
+@router.get("/timeline")
+async def attack_timeline(
+    hours: int = Query(24, ge=1, le=720),
+    limit: int = Query(200, ge=1, le=500),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Chronological security-event feed for the attack timeline view."""
+    db = get_database()
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    query = {**_event_scope(current_user), "timestamp": {"$gte": since}}
+
+    events = []
+    async for ev in db.security_events.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit):
+        events.append({
+            "id": ev.get("id", ""),
+            "timestamp": ev.get("timestamp", ""),
+            "event_type": ev.get("type", "event"),
+            "asset": ev.get("asset") or ev.get("source") or ev.get("hostname") or "",
+            "user": ev.get("user"),
+            "technique_id": ev.get("technique_id"),
+            "technique_name": ev.get("technique_name"),
+            "tactic": ev.get("tactic"),
+            "severity": (ev.get("severity") or "low").lower(),
+            "description": ev.get("description") or ev.get("message", ""),
+            "details": ev.get("details"),
+        })
+    return events

@@ -52,7 +52,7 @@ export default function AttackTimelineDashboard() {
     setLoading(true);
     try {
       const r = await fetch(`/api/advanced-hunting/timeline?hours=${range}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` },
       });
       if (r.ok) {
         const data = await r.json();

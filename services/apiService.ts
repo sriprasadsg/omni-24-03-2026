@@ -2565,7 +2565,7 @@ export const fetchAuditLogs = async () => {
 };
 
 export const rollbackChange = async (logId: string) => {
-    const res = await authFetch(`${API_BASE}/audit/rollback/${logId}`, {
+    const res = await authFetch(`${API_BASE}/audit-logs/${logId}/rollback`, {
         method: 'POST'
     });
     if (!res.ok) {
@@ -2702,17 +2702,16 @@ export const deleteAlertRule = async (id: string): Promise<void> => {
 
 export const saveIntegration = async (integration: Integration) => {
     try {
-        const res = await fetch(`${API_BASE}/data/integrations/${integration.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+        const res = await authFetch(`${API_BASE}/integrations/config`, {
+            method: 'POST',
             body: JSON.stringify(integration)
         });
         if (res.ok) {
-            const saved = await res.json();
-            // Update local cache too
+            // Backend returns {success, message, id}, not the saved record —
+            // the integration we sent is the source of truth to cache/return.
             const index = INTEGRATIONS.findIndex(i => i.id === integration.id);
-            if (index > -1) INTEGRATIONS[index] = saved;
-            return saved;
+            if (index > -1) INTEGRATIONS[index] = integration;
+            return integration;
         }
         throw new Error("Backend returned error");
     } catch (e) {
@@ -3427,7 +3426,7 @@ export const recordCorrelationFalsePositive = async (correlationId: string): Pro
 
 export const dispatchAgentTask = async (description: string, agentId: string = 'default') => {
     try {
-        const res = await authFetch(`${API_BASE}/agent/dispatch`, {
+        const res = await authFetch(`${API_BASE}/agents/dispatch`, {
             method: 'POST',
             body: JSON.stringify({ description, agentId })
         });
@@ -3440,7 +3439,7 @@ export const dispatchAgentTask = async (description: string, agentId: string = '
 
 export const pollAgentTask = async (taskId: string) => {
     try {
-        const res = await authFetch(`${API_BASE}/agent/tasks/${taskId}`);
+        const res = await authFetch(`${API_BASE}/agents/tasks/${taskId}`);
         return await res.json();
     } catch (e) {
         return { status: "UNKNOWN" };

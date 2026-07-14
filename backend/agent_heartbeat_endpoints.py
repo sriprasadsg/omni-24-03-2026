@@ -371,7 +371,7 @@ async def report_heartbeat(
                         {"agent_id": _agent_id, "name": sw.get("name")},
                         {"$set": {
                             "agent_id": _agent_id, "agent_name": _hostname,
-                            "tenant_id": _tenant_id,
+                            "tenantId": _tenant_id,
                             "name": sw.get("name"), "current_version": sw.get("current_version"),
                             "latest_version": sw.get("latest_version"), "pkg_type": sw.get("pkg_type", "unknown"),
                             "is_outdated": sw.get("is_outdated", False),

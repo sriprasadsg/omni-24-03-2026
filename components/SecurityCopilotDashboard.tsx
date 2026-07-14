@@ -68,7 +68,7 @@ export default function SecurityCopilotDashboard() {
     if (!incidentId.trim()) return;
     setIncidentLoading(true);
     try {
-      const r = await fetch(`${API}/analyze-incident`, { method: 'POST', headers: authHeader(), body: JSON.stringify({ incident_id: incidentId }) });
+      const r = await fetch(`${API}/summarize-incident`, { method: 'POST', headers: authHeader(), body: JSON.stringify({ incident_id: incidentId }) });
       setIncidentAnalysis(await r.json());
     } catch { setIncidentAnalysis({ error: 'Failed to analyze incident' }); }
     setIncidentLoading(false);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { BoxIcon, DownloadIcon, RefreshCwIcon, AlertCircleIcon, CheckIcon, SearchIcon } from './icons';
 import { Asset } from '../types';
@@ -24,47 +24,81 @@ interface SoftwareUpdateManagementProps {
 
 export const SoftwareUpdateManagement: React.FC<SoftwareUpdateManagementProps> = ({ assets }) => {
     const [selectedSoftwareIds, setSelectedSoftwareIds] = useState<Set<string>>(new Set());
-    const [filterStatus, setFilterStatus] = useState<'all' | 'updates' | 'uptodate'>('updates');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'updates' | 'uptodate'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedAssetFilter, setSelectedAssetFilter] = useState<string>('all');
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+    const [inventory, setInventory] = useState<any[] | null>(null);
 
-    // Transform assets' installedSoftware into software items
+    // Load the installed-software inventory (has real current/latest versions and
+    // is_outdated flags — unlike asset.installedSoftware, which is name/version only).
+    useEffect(() => {
+        let cancelled = false;
+        authFetch('/api/software/inventory')
+            .then(r => (r.ok ? r.json() : []))
+            .then(data => { if (!cancelled) setInventory(Array.isArray(data) ? data : []); })
+            .catch(() => { if (!cancelled) setInventory([]); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const _severityFor = (name: string, publisher: string, updateAvailable: boolean) => {
+        if (!updateAvailable) return undefined;
+        if (name?.toLowerCase().includes('security') || name?.toLowerCase().includes('defender')) return 'Critical' as const;
+        if (publisher?.toLowerCase().includes('microsoft') || publisher?.toLowerCase().includes('google')) return 'High' as const;
+        return 'Medium' as const;
+    };
+
+    // Build the software list from the inventory when available, flattening each
+    // package's per-agent rows and mapping agents back to assets by hostname so
+    // the asset filter keeps working. Falls back to asset.installedSoftware.
     const softwareList: SoftwareItem[] = useMemo(() => {
+        const assetByHost = new Map(assets.map(a => [a.hostname, a]));
+
+        if (inventory && inventory.length > 0) {
+            const items: SoftwareItem[] = [];
+            inventory.forEach(pkg => {
+                (pkg.agents || []).forEach((ag: any, idx: number) => {
+                    const asset = assetByHost.get(ag.agent_name);
+                    const updateAvailable = !!ag.is_outdated;
+                    const publisher = pkg.pkg_type || 'Unknown';
+                    items.push({
+                        id: `${pkg.name}-${ag.agent_id || idx}`,
+                        name: pkg.name || 'Unknown Software',
+                        currentVersion: ag.version || 'N/A',
+                        latestVersion: ag.latest_version || ag.version || 'N/A',
+                        updateAvailable,
+                        publisher,
+                        installDate: ag.last_scanned,
+                        assetId: asset?.id || ag.agent_id || '',
+                        assetName: ag.agent_name || asset?.hostname || '',
+                        severity: _severityFor(pkg.name, publisher, updateAvailable),
+                    });
+                });
+            });
+            return items;
+        }
+
+        // Fallback: derive from assets' embedded installedSoftware (name/version only).
         const items: SoftwareItem[] = [];
         assets.forEach(asset => {
-            const installedSoftware = asset.installedSoftware || [];
-            installedSoftware.forEach((sw: any, index: number) => {
-                // Determine severity based on version age or security implications
-                let severity: 'Critical' | 'High' | 'Medium' | 'Low' | undefined;
-                if (sw.updateAvailable) {
-                    // Simple heuristic: if latestVersion is significantly newer, it's more important
-                    // For now, we'll assign random severity or use a simple logic
-                    if (sw.name?.toLowerCase().includes('security') || sw.name?.toLowerCase().includes('defender')) {
-                        severity = 'Critical';
-                    } else if (sw.publisher?.toLowerCase().includes('microsoft') || sw.publisher?.toLowerCase().includes('google')) {
-                        severity = 'High';
-                    } else {
-                        severity = 'Medium';
-                    }
-                }
-
+            (asset.installedSoftware || []).forEach((sw: any, index: number) => {
+                const updateAvailable = sw.updateAvailable || false;
                 items.push({
                     id: `${asset.id}-${index}`,
                     name: sw.name || sw.displayName || 'Unknown Software',
                     currentVersion: sw.version || sw.displayVersion || 'N/A',
                     latestVersion: sw.latestVersion || sw.version || 'N/A',
-                    updateAvailable: sw.updateAvailable || false,
+                    updateAvailable,
                     publisher: sw.publisher || 'Unknown',
                     installDate: sw.installDate,
                     assetId: asset.id,
                     assetName: asset.hostname,
-                    severity
+                    severity: _severityFor(sw.name, sw.publisher, updateAvailable),
                 });
             });
         });
         return items;
-    }, [assets]);
+    }, [assets, inventory]);
 
     // Filter software
     const filteredSoftware = useMemo(() => {

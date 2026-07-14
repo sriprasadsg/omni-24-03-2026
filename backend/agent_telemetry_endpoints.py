@@ -78,7 +78,7 @@ async def report_software_inventory(
         await db.software_inventory.update_one(
             {"agent_id": agent_id, "name": sw.get("name")},
             {"$set": {
-                "agent_id": agent_id, "agent_name": hostname, "tenant_id": tenant_id,
+                "agent_id": agent_id, "agent_name": hostname, "tenantId": tenant_id,
                 "name": sw.get("name"), "current_version": sw.get("current_version"),
                 "latest_version": sw.get("latest_version"), "pkg_type": sw.get("pkg_type", "unknown"),
                 "is_outdated": sw.get("is_outdated", False),

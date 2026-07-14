@@ -118,6 +118,35 @@ class RiskService:
         await db.risks.replace_one(filt, merged)
         return merged
 
+    async def attach_fair_results(
+        self,
+        risk_id: str,
+        fair_inputs: Dict[str, Any],
+        fair_results: Dict[str, Any],
+        tenant_id: Optional[str] = None,
+        role: str = "",
+    ) -> Optional[Dict]:
+        """Persist a FAIR simulation's inputs and results onto a risk.
+
+        Tenant-scoped identically to update_risk: non-super roles can only touch
+        risks in their own tenant. Returns the updated risk, or None if not found.
+        """
+        db = self._db()
+        filt: Dict[str, Any] = {"id": risk_id}
+        if role not in _RISK_SUPER_ROLES:
+            filt["tenantId"] = tenant_id
+        existing = await db.risks.find_one(filt, {"_id": 0})
+        if not existing:
+            return None
+        merged = {
+            **existing,
+            "fair_inputs": fair_inputs,
+            "fair_results": fair_results,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.risks.replace_one(filt, merged)
+        return merged
+
     async def delete_risk(self, risk_id: str, tenant_id: Optional[str] = None, role: str = "") -> bool:
         db = self._db()
         filt: Dict[str, Any] = {"id": risk_id}

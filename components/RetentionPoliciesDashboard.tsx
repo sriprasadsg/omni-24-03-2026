@@ -41,7 +41,7 @@ const TIER_DESC: Record<Tier, string> = {
 
 const emptyForm = { name: '', tier: 'hot' as Tier, retention_days: 90, applies_to: 'all', legal_hold: false };
 
-const authH = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authH = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 export default function RetentionPoliciesDashboard() {
   const [tab, setTab] = useState<'policies' | 'stats'>('policies');

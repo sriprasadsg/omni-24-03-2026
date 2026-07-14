@@ -1,11 +1,11 @@
 import json as _json
 from fastapi import APIRouter, HTTPException, Body, Depends
 from fastapi.responses import StreamingResponse
-from typing import Dict, Any, AsyncIterator
+from typing import Dict, Any, AsyncIterator, Optional
 from ai_playbook_service import ai_playbook_service
 from ai_remediation_service import ai_remediation_service
 from ai_service import ai_service
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/ai", tags=["AI Automation"])
 
@@ -15,7 +15,7 @@ from rbac_service import rbac_service
 
 @router.get("")
 @router.get("/")
-async def ai_service_status(current_user=Depends(get_current_user)):
+async def ai_service_status(current_user: Optional[TokenData] = Depends(get_optional_user)):
     """Get AI automation service status including active provider."""
     provider_name = getattr(getattr(ai_service, "provider", None), "name", None)
     is_mock = provider_name == "Chitti (Mock)" if provider_name else not ai_service.is_configured
@@ -249,7 +249,7 @@ async def ai_threat_hunt(
 
 
 @router.get("/skills")
-async def list_skills(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
+async def list_skills():
     """Return all registered /slash-command skills available in the chat assistant."""
     from skill_registry import SKILLS
     return [s.to_dict() for s in SKILLS]

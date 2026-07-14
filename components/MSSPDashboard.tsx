@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
-const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('auth_token')}` });
+const authHeaders = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}` });
 
 interface TenantHealth {
   id: string;
@@ -128,7 +128,8 @@ export default function MSSPDashboard() {
   const openReport = async (tenant: TenantHealth) => {
     setReportModal({ open: true, tenantId: tenant.id, tenantName: tenant.tenant_name, report: null, loading: true });
     try {
-      const res = await fetch(`${API}/api/mssp/tenants/${tenant.id}/summary-report`, {
+      const res = await fetch(`${API}/api/mssp/tenants/${tenant.id}/report`, {
+        method: 'POST',
         headers: authHeaders(),
       });
       const data = await res.json();

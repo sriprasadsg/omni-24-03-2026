@@ -56,7 +56,7 @@ export default function GeographicAttackMap() {
   const load = useCallback(async () => {
     try {
       const r = await fetch(`/api/advanced-hunting/geo-sources?range=${range}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` },
       });
       if (r.ok) {
         const data = await r.json();
@@ -72,7 +72,7 @@ export default function GeographicAttackMap() {
     setLoadingEvents(true);
     try {
       const r = await fetch(`/api/advanced-hunting/geo-sources/${c.country_code}/events?range=${range}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` },
       });
       if (r.ok) setEvents(await r.json());
       else setEvents([]);

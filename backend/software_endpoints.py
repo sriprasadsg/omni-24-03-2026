@@ -245,22 +245,15 @@ async def get_software_inventory(current_user=Depends(get_current_user)):
     """Return all installed software across all tenant agents, grouped by package name."""
     from collections import defaultdict
     db = _get_database()
-    role = getattr(current_user, "role", "")
-    query: dict = {}
-    if role not in _SUPER_ADMIN_ROLES:
-        tid = getattr(current_user, "tenant_id", None)
-        if tid:
-            query["tenant_id"] = tid
-
-    all_sw = await db.software_inventory.find(query, {"_id": 0}).to_list(length=10000)
+    # Tenant isolation is enforced by the DB wrapper (auto-injects tenantId for
+    # non-super-admins; platform-admin bypasses). software_inventory stores tenantId,
+    # matching the platform-wide convention.
+    all_sw = await db.software_inventory.find({}, {"_id": 0}).to_list(length=10000)
 
     # Build set of excluded agent IDs so they are filtered out of the inventory view
-    excl_q: dict = {"excludeFromSoftwareOps": True}
-    if query:
-        excl_q.update(query.get("tenant_id") and {"tenantId": query["tenant_id"]} or {})
     excluded_agent_ids: set = {
         a["id"] async for a in db.agents.find(
-            {**excl_q, "id": {"$exists": True}}, {"_id": 0, "id": 1}
+            {"excludeFromSoftwareOps": True, "id": {"$exists": True}}, {"_id": 0, "id": 1}
         )
     }
     if excluded_agent_ids:

@@ -52,8 +52,10 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
     // Build per-agent summary from evidence records
     const agentSummaries = useMemo((): AgentScanStatus[] => {
         return agents.map(agent => {
-            const caps = (agent.capabilities || []) as string[];
-            const hasCapability = caps.includes('compliance_enforcement');
+            const caps = (agent.capabilities || []) as Array<string | { id?: string }>;
+            const hasCapability = caps.some(c =>
+                (typeof c === 'string' ? c : c?.id) === 'compliance_enforcement'
+            );
             const agentRecords = records.filter(r =>
                 r.assetId === agent.assetId || r.hostname === agent.hostname
             );

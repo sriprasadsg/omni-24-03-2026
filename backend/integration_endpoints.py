@@ -41,6 +41,10 @@ class TestIntegrationRequest(BaseModel):
     platform: str
     config: Dict[str, Any]
 
+class TestSiemRequest(BaseModel):
+    platform: str
+    config: Dict[str, Any]
+
 # --- Endpoints ---
 
 @router.get("/configs")
@@ -87,6 +91,21 @@ async def test_integration(
         )
     else:
         return {"success": False, "error": f"Testing not supported for {request.type}"}
+
+
+@router.post("/siem/test")
+async def test_siem_integration(
+    request: TestSiemRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database),
+):
+    """Test a SIEM connection with an unsaved config (platform + config).
+
+    Dedicated path so it is not shadowed by the generic /integrations/test route
+    registered by integrations_v2, which resolves config from a persisted record.
+    """
+    service = get_integration_service(db)
+    return await service.test_siem_connection(request.platform, request.config)
 
 
 # ── SOAR Connector Execution API ──────────────────────────────────────────────

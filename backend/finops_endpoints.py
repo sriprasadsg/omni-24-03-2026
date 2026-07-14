@@ -64,6 +64,23 @@ async def get_cost_history_endpoint(
     return {"history": history, "total_spend": round(total_spend, 2), "budget": budget, "budget_exceeded": alert}
 
 
+@router.post("/budget/update")
+async def update_budget(
+    amount: float = Query(..., ge=0),
+    current_user: dict = Depends(require_permission("view:reporting")),
+):
+    """Set the monthly cloud-spend budget for the caller's tenant."""
+    db = get_database()
+    caller_tenant = (
+        (current_user.get("tenantId") or current_user.get("tenant_id"))
+        if isinstance(current_user, dict) else getattr(current_user, "tenant_id", None)
+    )
+    if not caller_tenant:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    await db.tenants.update_one({"id": caller_tenant}, {"$set": {"budget": amount}})
+    return {"success": True, "budget": amount}
+
+
 @router.get("/costs")
 async def get_costs(
     tenant_id: Optional[str] = None,
