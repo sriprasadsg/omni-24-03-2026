@@ -427,3 +427,94 @@ class TestPublicAccessRequestPost:
         assert inserted["ip_address"] != "1.2.3.4"
         assert inserted["user_agent"] == "real-browser-ua/2.0"
         assert inserted["requested_at"] != "1999-01-01T00:00:00+00:00"
+
+
+# ─── TRUST-02: rate limiting enforced end-to-end (both public routes) ─────────
+#
+# NOTE: @limiter.limit(...) on trust_endpoints' routes is bound at decoration
+# time to the shared `rate_limiter.limiter` singleton (the SAME object every
+# other router in this app is decorated with) — slowapi's per-route static
+# limits are registered onto that specific instance's `_route_limits` dict,
+# not onto whatever is later assigned to `app.state.limiter`. So enforcement
+# for these two routes always goes through the real, process-wide singleton,
+# regardless of what limiter instance the test app's middleware references.
+# This means the shared in-memory storage MUST be reset before/after each
+# test in this class, or hit counts leak into every other test in this file
+# (and vice versa) that happens to exercise these same two routes.
+
+def _public_app_with_limiter():
+    """Minimal FastAPI app carrying the public trust router, wired with the
+    real shared limiter + exception handler + middleware — the same wiring
+    backend/app.py performs via app_middleware.register_middleware, scoped to
+    only this router so the test is fast."""
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from rate_limiter import limiter as shared_limiter
+    from trust_endpoints import public_router
+
+    app = FastAPI()
+    app.state.limiter = shared_limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+    app.include_router(public_router)
+    return app
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_rate_limit_storage():
+    """Reset the shared rate_limiter.limiter's in-memory storage before AND
+    after every test in this module, so TestPublicRateLimit's deliberate
+    over-limit hammering never leaks into public_get/public_post/custom_domain
+    tests (or vice versa)."""
+    from rate_limiter import limiter as shared_limiter
+    shared_limiter._storage.reset()
+    yield
+    shared_limiter._storage.reset()
+
+
+class TestPublicRateLimit:
+
+    def test_rate_limit_get_returns_429_after_window(self):
+        tenants_col = _tenants_col_for_slug()
+        profile_col = _col()
+        profile_col.find_one = AsyncMock(return_value=dict(_SEEDED_PROFILE))
+        db = _db(tenants=tenants_col, trust_profiles=profile_col)
+        app = _public_app_with_limiter()
+
+        statuses = []
+        with patch("trust_endpoints.get_database", return_value=db):
+            with TestClient(app) as client:
+                # GET is limited to 30/minute — issue 31 requests from one client.
+                for _ in range(31):
+                    res = client.get("/api/public/trust/trust-abc123")
+                    statuses.append(res.status_code)
+
+        assert statuses[-1] == 429
+        assert all(s in (200, 429) for s in statuses)
+
+    def test_rate_limit_post_returns_429_sooner_than_get(self):
+        tenants_col = _tenants_col_for_slug()
+        requests_col = _col()
+        db = _db(tenants=tenants_col, trust_access_requests=requests_col)
+        app = _public_app_with_limiter()
+
+        payload = {
+            "requester_email": "visitor@example.com",
+            "company": "Example Inc",
+            "reason": "Due diligence review",
+            "consent": True,
+        }
+        statuses = []
+        with patch("trust_endpoints.get_database", return_value=db):
+            with TestClient(app) as client:
+                # POST is limited to 5/minute — issue 6 requests from one client.
+                for _ in range(6):
+                    res = client.post("/api/public/trust/trust-abc123/requests", json=payload)
+                    statuses.append(res.status_code)
+
+        assert statuses[-1] == 429
+        # POST's tighter window (5) trips at request #6; prove it hits the limit
+        # strictly sooner than the GET's window (30) would.
+        first_429_index = statuses.index(429)
+        assert first_429_index < 30
