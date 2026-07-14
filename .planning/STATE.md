@@ -249,7 +249,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Session
 
 **Last session:** 2026-07-14T04:30:00.000Z
-**Stopped at:** Phase 35 GraphQL UAT cleared (test_graphql.py 10/10, all 8 UAT items covered; 35-UAT.md all Pass). Full suite 946 passed / 22 skipped / 0 failed. Next — 32 human verification, UAT files for 33/34.
+**Stopped at:** Phase 35 GraphQL UAT cleared (test_graphql.py 10/10, all 8 items). UAT files created for 33 (8/9 pass — backend 14 tests, Zapier 4/4, n8n tsc clean) and 34 (6/7 pass — passkey tests 6/6, UI present); artifacts verified in git per Phase-29 lesson. Full suite 946 passed / 22 skipped / 0 failed. Remaining — human-only: 32 verification (3/4 must-haves), 33 live-connector round trip, 34 real-browser passkey ceremony.
 **Resume file:** None
 
 ## Accumulated Context
