@@ -63,9 +63,11 @@ export default function TrustCenter() {
             const result = await api.updateTrustRequest(id, status, 'Current User');
             if (result) {
                 setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+                showToast(status === 'Approved' ? 'Request approved.' : 'Request denied.', 'success');
             }
         } catch (error) {
             console.error("Error updating request", error);
+            showToast('Could not update request status. Please try again.', 'error');
         }
     };
 
@@ -317,6 +319,7 @@ export default function TrustCenter() {
                                                         onClick={() => handleRequestAction(req.id, 'Approved')}
                                                         className="p-1 text-green-600 hover:bg-green-50 rounded"
                                                         title="Approve"
+                                                        aria-label="Approve request"
                                                     >
                                                         <UserCheck className="w-5 h-5" />
                                                     </button>
@@ -324,6 +327,7 @@ export default function TrustCenter() {
                                                         onClick={() => handleRequestAction(req.id, 'Denied')}
                                                         className="p-1 text-red-600 hover:bg-red-50 rounded"
                                                         title="Deny"
+                                                        aria-label="Deny request"
                                                     >
                                                         <XCircle className="w-5 h-5" />
                                                     </button>
