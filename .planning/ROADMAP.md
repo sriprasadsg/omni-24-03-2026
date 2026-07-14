@@ -336,7 +336,7 @@ deployment.
 
 **Goal:** Close the 25 remaining gaps identified in the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler (see the audit artifact for full evidence). Ordered in three risk tiers: cheap fixes to existing partial work first, medium-scope new features next, the four biggest architectural bets (GraphQL, ReBAC, real MCP protocol, public Trust Center) last.
 
-**Status:** 13 of 14 phases executed and verified as of 2026-07-14 — full backend suite 936 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). **Phase 29 re-execution in progress:** UAT proved its TRUST-01/02/03 implementation was never committed despite plan summaries claiming it. 29-01 (TRUST-01/03 persistence), 29-02 (TRUST-02/03 public route + NDA flow), and 29-03 (TRUST-01/03 admin frontend UI) genuinely re-executed and committed 2026-07-14; 29-04 (standalone public trust-page.html) remains. Remaining verification debt: human verification on 32 (3/4 must-haves), GraphQL integration-test UAT on 35, no UAT files yet for 33/34.
+**Status:** 14 of 14 phases executed as of 2026-07-14 — full backend suite 946 passed / 22 skipped / 0 failed, frontend build clean. Runtime UAT cleared for 28 and 30 (7 real defects found and fixed, commit 368f01d9). Phase 29 re-execution complete: all 4 plans (29-01..29-04) genuinely re-executed and committed 2026-07-14 after UAT proved the original TRUST-01/02/03 implementation was never committed. Phase 35 GraphQL UAT cleared 2026-07-14 — integration suite covers all 8 UAT items (evidence/risks/users/tenants queries, cross-tenant isolation, per-root RBAC). Remaining verification debt: human verification on 32 (3/4 must-haves), no UAT files yet for 33/34.
 
 **Phases:**
 
@@ -352,7 +352,7 @@ deployment.
 | 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
 | 33 | Workflow Automation Connectors | 2 — medium | Executed 2026-07-13 — all 4 plans committed (API-key auth, HMAC signing, n8n node, Zapier app); no UAT file yet |
 | 34 | Passkey and WebAuthn Authentication | 3 — architectural | Executed 2026-07-13 (commit a1e23c8d) — backend + frontend UI, tests pass; no UAT file yet |
-| 35 | GraphQL API | 3 — architectural | Executed — deps installed, resolver auth rework done, tests pass; 7 UAT integration items pending |
+| 35 | GraphQL API | 3 — architectural | Complete — integration suite covers all 8 UAT items (test_graphql.py 10/10, 2026-07-14) |
 | 36 | Fine-Grained Relationship-Based Authorization | 3 — architectural | Complete — openfga_sdk installed, test_rebac.py 4/4 pass |
 | 37 | Spec-Compliant MCP Server | 3 — architectural | Complete (2026-07-13, tests 12/12) |
 | 38 | Interactive AI Security Assistant | 3 — architectural | Complete (2026-07-13, tests 5/5) |
@@ -603,7 +603,7 @@ deployment.
 
 **Plans:** 1/1 plans complete (3 execution summaries)
 
-- [x] 35-PLAN.md — strawberry-graphql /api/graphql endpoint; resolvers enforce per-resolver tenant isolation + RBAC at REST parity (user resolved once in router context); strawberry installed 2026-07-13 (commit cd66ce1e), resolver auth rework committed 2026-07-14; test_graphql.py passes. UAT: 7 integration-test items pending (see 35-UAT.md)
+- [x] 35-PLAN.md — strawberry-graphql /api/graphql endpoint; resolvers enforce per-resolver tenant isolation + RBAC at REST parity (user resolved once in router context); strawberry installed 2026-07-13 (commit cd66ce1e), resolver auth rework committed 2026-07-14; test_graphql.py passes. UAT: all 8 items covered by integration tests 2026-07-14 (test_graphql.py 10/10, see 35-UAT.md)
 
 ---
 

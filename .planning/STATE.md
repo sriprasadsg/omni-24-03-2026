@@ -221,8 +221,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Last Session
 
-- **Timestamp:** 2026-07-14T01:05:00.000Z
-- **Stopped at:** Completed 29-04-PLAN.md (public trust page + serving route, TRUST-02 final wave). Phase 29 (Public Trust Center) fully complete — all 4 plans executed.
+- **Timestamp:** 2026-07-14T04:30:00.000Z
+- **Stopped at:** Phase 35 GraphQL UAT cleared — extended test_graphql.py from 4 to 10 tests covering all 8 UAT items (evidence/risks/users/tenants queries, cross-tenant isolation, per-root RBAC). Full suite 946 passed / 22 skipped / 0 failed.
 - **Resume file:** None
 
 ## Configuration
@@ -248,8 +248,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-14T01:05:00.000Z
-**Stopped at:** Completed 29-04-PLAN.md (public trust page + serving route, TRUST-02 final wave). Phase 29 (Public Trust Center) fully complete — all 4 plans executed, TRUST-01/02/03 all done. Next — 32 human verification, 35 integration tests, UAT files for 33/34.
+**Last session:** 2026-07-14T04:30:00.000Z
+**Stopped at:** Phase 35 GraphQL UAT cleared (test_graphql.py 10/10, all 8 UAT items covered; 35-UAT.md all Pass). Full suite 946 passed / 22 skipped / 0 failed. Next — 32 human verification, UAT files for 33/34.
 **Resume file:** None
 
 ## Accumulated Context
