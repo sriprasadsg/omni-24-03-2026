@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
     Shield, CheckCircle, FileText, Lock, Globe, Mail,
-    ExternalLink, Eye, Download, UserCheck, Clock, XCircle
+    ExternalLink, Eye, Download, UserCheck, Clock, XCircle,
+    Pencil, Copy
 } from 'lucide-react';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
+import TrustProfileEditForm from './TrustProfileEditForm';
 
 interface TrustProfile {
     company_name: string;
     description: string;
     contact_email: string;
     logo_url: string;
+    trust_slug?: string;
+    trust_domain?: string;
     compliance_frameworks: string[];
     public_documents: { name: string, url: string }[];
     private_documents: { name: string, url: string }[];
@@ -29,6 +34,9 @@ export default function TrustCenter() {
     const [profile, setProfile] = useState<TrustProfile | null>(null);
     const [requests, setRequests] = useState<AccessRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<TrustProfile | null>(null);
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -59,6 +67,41 @@ export default function TrustCenter() {
         } catch (error) {
             console.error("Error updating request", error);
         }
+    };
+
+    const startEditing = () => {
+        if (!profile) return;
+        setEditForm({ ...profile });
+        setIsEditing(true);
+    };
+
+    const cancelEditing = () => {
+        setEditForm(null);
+        setIsEditing(false);
+    };
+
+    const handleSaveProfile = async () => {
+        if (!editForm) return;
+        setSaving(true);
+        try {
+            const updated = await api.updateTrustProfile(editForm);
+            setProfile(updated);
+            setIsEditing(false);
+            setEditForm(null);
+            showToast('Trust profile saved.', 'success');
+        } catch (error) {
+            console.error("Error saving trust profile", error);
+            showToast('Could not save trust profile. Please try again.', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleCopyLink = () => {
+        if (!profile?.trust_slug) return;
+        const url = `${window.location.origin}/trust/${profile.trust_slug}`;
+        navigator.clipboard.writeText(url);
+        showToast('Public link copied to clipboard', 'success');
     };
 
     if (loading) return <div className="p-8 text-center text-gray-500">Loading Trust Center...</div>;
@@ -107,60 +150,111 @@ export default function TrustCenter() {
                     {/* Profile Preview */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="bg-white dark:bg-[#0f1115] rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-8">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                    <Shield className="w-8 h-8" />
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{profile.company_name}</h2>
-                                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                                        <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Publicly Visible</span>
-                                        <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {profile.contact_email}</span>
+                            {isEditing && editForm ? (
+                                <TrustProfileEditForm
+                                    editForm={editForm}
+                                    saving={saving}
+                                    onChange={updater => setEditForm(prev => prev ? updater(prev) : prev)}
+                                    onSave={handleSaveProfile}
+                                    onCancel={cancelEditing}
+                                />
+                            ) : (
+                                <>
+                                    <div className="flex items-start justify-between mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                                <Shield className="w-8 h-8" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{profile.company_name}</h2>
+                                                <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+                                                    <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Publicly Visible</span>
+                                                    <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {profile.contact_email}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={startEditing}
+                                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg whitespace-nowrap"
+                                        >
+                                            <Pencil className="w-4 h-4" /> Edit Profile
+                                        </button>
                                     </div>
-                                </div>
-                            </div>
 
-                            <p className="text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
-                                {profile.description}
-                            </p>
+                                    <p className="text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
+                                        {profile.description}
+                                    </p>
 
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Compliance & Security Frameworks</h3>
-                            <div className="flex flex-wrap gap-2 mb-8">
-                                {profile.compliance_frameworks.map((fw, i) => (
-                                    <span key={i} className="px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm font-medium border border-green-100 dark:border-green-900/30 flex items-center gap-1.5">
-                                        <CheckCircle className="w-3 h-3" /> {fw}
-                                    </span>
-                                ))}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                        <Globe className="w-4 h-4 text-gray-400" /> Public Resources
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {profile.public_documents.map((doc, i) => (
-                                            <li key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">{doc.name}</span>
-                                                <button className="text-blue-500 hover:text-blue-600"><Download className="w-4 h-4" /></button>
-                                            </li>
+                                    <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Compliance & Security Frameworks</h3>
+                                    <div className="flex flex-wrap gap-2 mb-8">
+                                        {profile.compliance_frameworks.map((fw, i) => (
+                                            <span key={i} className="px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm font-medium border border-green-100 dark:border-green-900/30 flex items-center gap-1.5">
+                                                <CheckCircle className="w-3 h-3" /> {fw}
+                                            </span>
                                         ))}
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                        <Lock className="w-4 h-4 text-gray-400" /> Restricted Access
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {profile.private_documents.map((doc, i) => (
-                                            <li key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">{doc.name}</span>
-                                                <span className="text-xs text-gray-400 flex items-center gap-1"><Lock className="w-3 h-3" /> NDA Required</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                        <div>
+                                            <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                                <Globe className="w-4 h-4 text-gray-400" /> Public Resources
+                                            </h4>
+                                            <ul className="space-y-2">
+                                                {profile.public_documents.map((doc, i) => (
+                                                    <li key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300">{doc.name}</span>
+                                                        <button className="text-blue-500 hover:text-blue-600"><Download className="w-4 h-4" /></button>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                                <Lock className="w-4 h-4 text-gray-400" /> Restricted Access
+                                            </h4>
+                                            <ul className="space-y-2">
+                                                {profile.private_documents.map((doc, i) => (
+                                                    <li key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
+                                                        <span className="text-sm text-gray-600 dark:text-gray-400">{doc.name}</span>
+                                                        <span className="text-xs text-gray-400 flex items-center gap-1"><Lock className="w-3 h-3" /> NDA Required</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-gray-200 dark:border-gray-800 pt-6">
+                                        <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Sharing</h4>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900 dark:text-white mb-1">Public Trust Page URL</div>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        className="w-full text-sm border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
+                                                        value={profile.trust_slug ? `${window.location.origin}/trust/${profile.trust_slug}` : ''}
+                                                        readOnly
+                                                    />
+                                                    <button
+                                                        onClick={handleCopyLink}
+                                                        className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg whitespace-nowrap"
+                                                    >
+                                                        <Copy className="w-4 h-4" /> Copy Link
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900 dark:text-white mb-1">Custom Domain (optional)</div>
+                                                <div className="text-sm text-gray-700 dark:text-gray-300">
+                                                    {profile.trust_domain || <span className="text-gray-400">Not set</span>}
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Point a CNAME record for this domain at your platform URL, then enter it here. DNS and TLS setup are your responsibility — this only tells the app which domain to recognize.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
