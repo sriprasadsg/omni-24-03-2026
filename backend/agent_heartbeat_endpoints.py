@@ -383,6 +383,17 @@ async def report_heartbeat(
                 ]
                 if ops:
                     await db.software_inventory.bulk_write(ops, ordered=False)
+                    # Snapshot-replace, scoped to the pkg_types in THIS scan: prune the
+                    # agent's now-stale records of those types (uninstalled since the last
+                    # heartbeat) so the inventory reflects the latest installed state.
+                    # Scoping by pkg_type avoids a registry-software scan wiping a separate
+                    # windows_update scan (or vice-versa) that writes at a different time.
+                    _snapshot_types = list({sw.get("pkg_type", "unknown") for sw in items if sw.get("name")})
+                    await db.software_inventory.delete_many({
+                        "agent_id": _agent_id,
+                        "pkg_type": {"$in": _snapshot_types},
+                        "last_scanned": {"$lt": scanned_at},
+                    })
 
             background_tasks.add_task(_upsert_software, sw_list, agent_id, _hb_tenant_id, hostname)
 

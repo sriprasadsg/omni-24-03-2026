@@ -73,6 +73,8 @@ async def report_software_inventory(
         }}
     )
 
+    # One timestamp for the whole snapshot so stale records can be pruned below.
+    scan_ts = datetime.now(timezone.utc).isoformat()
     processed = 0
     for sw in sw_list:
         await db.software_inventory.update_one(
@@ -82,11 +84,21 @@ async def report_software_inventory(
                 "name": sw.get("name"), "current_version": sw.get("current_version"),
                 "latest_version": sw.get("latest_version"), "pkg_type": sw.get("pkg_type", "unknown"),
                 "is_outdated": sw.get("is_outdated", False),
-                "last_scanned": datetime.now(timezone.utc).isoformat()
+                "last_scanned": scan_ts
             }},
             upsert=True
         )
         processed += 1
+
+    # Snapshot-replace, scoped to the pkg_types in this scan: drop the agent's stale
+    # records of those types (uninstalled/changed), leaving other scan types intact.
+    if sw_list:
+        snapshot_types = list({sw.get("pkg_type", "unknown") for sw in sw_list})
+        await db.software_inventory.delete_many({
+            "agent_id": agent_id,
+            "pkg_type": {"$in": snapshot_types},
+            "last_scanned": {"$lt": scan_ts},
+        })
 
     return {"success": True, "processed": processed}
 
