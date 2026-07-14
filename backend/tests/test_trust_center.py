@@ -1,171 +1,149 @@
+"""
+Tests for trust_service.py and trust_endpoints.py (Public Trust Center).
+
+Wave 0 scaffold (plan 29-01): persistence, tenant-isolation, and admin-auth
+suites for the DB-backed trust_service. Public-route tests (public_get,
+public_post, rate_limit, private_doc_filter, custom_domain) are added in
+plan 29-02/29-03 in this same file.
+"""
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from auth_types import TokenData
-from datetime import datetime
 from authentication_service import get_current_user
+from auth_types import TokenData
 
-# Mock the database for trust_service
-class MockTrustService:
-    def __init__(self):
-        self.profile = MagicMock(
-            company_name="TestCo",
-            description="Test description",
-            contact_email="test@test.com",
-            logo_url="/logo.png",
-            compliance_frameworks=["SOC2"],
-            public_documents=[{"name": "Public Doc", "url": "/docs/public.pdf"}],
-            private_documents=[{"name": "Private Doc", "url": "/docs/private.pdf"}]
-        )
-        self.requests = []
 
-    def get_profile(self):
-        return self.profile
+# ─── helpers (cloned verbatim from test_automation_and_baa.py) ────────────────
 
-    def update_profile(self, updates):
-        for key, value in updates.items():
-            setattr(self.profile, key, value)
-        return self.profile
+def _col(**overrides):
+    col = MagicMock()
+    col.find_one   = AsyncMock(return_value=None)
+    col.insert_one = AsyncMock()
+    col.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+    col.delete_one = AsyncMock()
+    col.find       = MagicMock()
+    col.find.return_value.to_list = AsyncMock(return_value=[])
+    col.find.return_value.sort    = MagicMock(return_value=MagicMock())
+    col.find.return_value.sort.return_value.to_list = AsyncMock(return_value=[])
+    for k, v in overrides.items():
+        setattr(col, k, v)
+    return col
 
-    def get_requests(self):
-        return self.requests
 
-    def create_request(self, request_data):
-        mock_request = MagicMock(**request_data)
-        mock_request.id = "new-req-id"
-        mock_request.status = "Pending"
-        mock_request.requested_at = datetime.now().isoformat()  # Ensure string
-        mock_request.approved_at = None
-        mock_request.approved_by = None
-        self.requests.append(mock_request)
-        return mock_request
+def _db(**collections):
+    db = MagicMock()
+    db.__getitem__ = lambda self, name: getattr(self, name, _col())
+    for name, col in collections.items():
+        setattr(db, name, col)
+    return db
 
-    def update_request_status(self, request_id, status, approved_by=None):
-        for req in self.requests:
-            if req.id == request_id:
-                req.status = status
-                if status == 'Approved':
-                    req.approved_at = datetime.now().isoformat()  # Ensure string
-                    req.approved_by = approved_by
-                else:
-                    req.approved_at = None
-                    req.approved_by = None
-                return req
-        return None
 
-@pytest.fixture
-def mock_trust_service():
-    return MockTrustService()
+def _user(role="security_analyst", tenant_id="t1"):
+    return TokenData(username="test@example.com", role=role, tenant_id=tenant_id, mfa_verified=True)
 
-@pytest.fixture
-def client(mock_trust_service):
-    from authentication_service import get_current_user
-    from trust_endpoints import router
 
+def _app(router, user):
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: user
+    return app
 
-    # Mock authenticated user
-    mock_user_admin = MagicMock(spec=TokenData)
-    mock_user_admin.tenant_id = 'tenant-a'
-    mock_user_admin.role = 'Super Admin'
-    mock_user_admin.username = 'admin@tenant.com'
 
-    # Mock non-admin user
-    mock_user_non_admin = MagicMock(spec=TokenData)
-    mock_user_non_admin.tenant_id = 'tenant-a'
-    mock_user_non_admin.role = 'user'
-    mock_user_non_admin.username = 'user@tenant.com'
+# ─── TRUST-01: persistence ─────────────────────────────────────────────────────
 
-    app.dependency_overrides[get_current_user] = lambda: mock_user_admin
+class TestTrustPersistence:
 
-    with patch('trust_endpoints.trust_service', mock_trust_service):
-        yield TestClient(app)
+    @pytest.mark.asyncio
+    async def test_profile_persists_across_fresh_db_handle(self):
+        """A profile saved via update_profile must round-trip through a fresh
+        get_database() read — not a Python-process singleton."""
+        import trust_service
 
-class TestTrustCenterEndpoints:
+        saved_doc = {}
 
-    def test_get_profile(self, client):
-        response = client.get("/api/trust-center/profile")
-        assert response.status_code == 200
-        assert response.json()["company_name"] == "TestCo"
+        async def fake_update_one(filter, update, *args, **kwargs):
+            saved_doc.update(update.get("$set", {}))
+            return MagicMock(matched_count=1)
 
-    def test_update_profile_admin(self, client):
-        response = client.put("/api/trust-center/profile", json={"company_name": "UpdatedCo"})
-        assert response.status_code == 200
-        assert response.json()["company_name"] == "UpdatedCo"
+        async def fake_find_one(filter=None, *args, **kwargs):
+            return dict(saved_doc) if saved_doc else None
 
-    def test_update_profile_non_admin(self, client):
-        # Temporarily override dependency to be a non-admin user
-        from authentication_service import get_current_user
-        mock_user_non_admin = MagicMock(spec=TokenData)
-        mock_user_non_admin.tenant_id = 'tenant-a'
-        mock_user_non_admin.role = 'user'
-        mock_user_non_admin.username = 'user@tenant.com'
-        client.app.dependency_overrides[get_current_user] = lambda: mock_user_non_admin
+        col = _col()
+        col.update_one = AsyncMock(side_effect=fake_update_one)
+        col.find_one = AsyncMock(side_effect=fake_find_one)
+        db = _db(trust_profiles=col)
 
-        response = client.put("/api/trust-center/profile", json={"company_name": "UnauthorizedCo"})
-        assert response.status_code == 403
-        assert "Admin access required" in response.json()["detail"]
+        updates = {"company_name": "Acme Corp", "description": "Persisted profile"}
+        await trust_service.update_profile(db, "t1", updates)
 
-    def test_get_requests_admin(self, client):
-        response = client.get("/api/trust-center/requests")
-        assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        # Simulate a "restart" — read again on a fresh call, same underlying db handle
+        result = await trust_service.get_profile(db, "t1")
 
-    def test_get_requests_non_admin(self, client):
-        from authentication_service import get_current_user
-        mock_user_non_admin = MagicMock(spec=TokenData)
-        mock_user_non_admin.tenant_id = 'tenant-a'
-        mock_user_non_admin.role = 'user'
-        mock_user_non_admin.username = 'user@tenant.com'
-        client.app.dependency_overrides[get_current_user] = lambda: mock_user_non_admin
+        assert col.update_one.called
+        call_kwargs = col.update_one.call_args.kwargs
+        assert call_kwargs.get("upsert") is True
+        assert result["company_name"] == "Acme Corp"
+        assert result["description"] == "Persisted profile"
 
-        response = client.get("/api/trust-center/requests")
-        assert response.status_code == 403
-        assert "Admin access required" in response.json()["detail"]
 
-    def test_create_request(self, client, mock_trust_service):
-        request_data = {
-            "requester_email": "req@example.com",
-            "company": "ReqCo",
-            "reason": "Test reason"
-        }
-        response = client.post("/api/trust-center/requests", json=request_data)
-        assert response.status_code == 200
-        assert response.json()["requester_email"] == "req@example.com"
-        assert mock_trust_service.requests[0].company == "ReqCo"
+# ─── TRUST-01: tenant isolation ────────────────────────────────────────────────
 
-    def test_update_request_status_admin(self, client, mock_trust_service):
-        # Create a request first
-        client.post("/api/trust-center/requests", json={
-            "requester_email": "req2@example.com",
-            "company": "ReqCo2",
-            "reason": "Test reason 2"
-        })
-        request_id = mock_trust_service.requests[0].id
+class TestTrustTenantIsolation:
 
-        update_data = {"status": "Approved", "approved_by": "admin@tenant.com"}
-        response = client.put(f"/api/trust-center/requests/{request_id}", json=update_data)
-        assert response.status_code == 200
-        assert response.json()["status"] == "Approved"
-        assert response.json()["approved_by"] == "admin@tenant.com"
+    @pytest.mark.asyncio
+    async def test_profile_query_is_tenant_scoped_not_exempt(self):
+        """get_profile/get_requests must read db.trust_profiles/db.trust_access_requests
+        (the TenantIsolatedCollection-wrapped path) — these two collections must
+        never appear in database.py's global-exemption allowlist."""
+        import trust_service
+        import database
 
-    def test_update_request_status_non_admin(self, client):
-        from authentication_service import get_current_user
-        mock_user_non_admin = MagicMock(spec=TokenData)
-        mock_user_non_admin.tenant_id = 'tenant-a'
-        mock_user_non_admin.role = 'user'
-        mock_user_non_admin.username = 'user@tenant.com'
-        client.app.dependency_overrides[get_current_user] = lambda: mock_user_non_admin
+        exempt_names = set()
+        # database.py hardcodes its exemption list inline in two places (__getattr__/__getitem__)
+        # of TenantIsolatedDatabase; read the source to assert trust collections are absent.
+        src = open(os.path.join(os.path.dirname(database.__file__), "database.py")).read()
+        assert "trust_profiles" not in src
+        assert "trust_access_requests" not in src
 
-        response = client.put("/api/trust-center/requests/some-id", json={"status": "Approved"})
-        assert response.status_code == 403
-        assert "Admin access required" in response.json()["detail"]
+        profile_col = _col()
+        requests_col = _col()
+        db = _db(trust_profiles=profile_col, trust_access_requests=requests_col)
 
-    def test_update_request_status_not_found(self, client):
-        update_data = {"status": "Approved", "approved_by": "admin@tenant.com"}
-        response = client.put("/api/trust-center/requests/nonexistent-id", json=update_data)
-        assert response.status_code == 404
-        assert "Request not found" in response.json()["detail"]
+        await trust_service.get_profile(db, "t1")
+        assert profile_col.find_one.called
+
+        await trust_service.get_requests(db, "t1")
+        assert requests_col.find.called
+
+
+# ─── TRUST-01/02: admin auth (unchanged auth model) ────────────────────────────
+
+class TestTrustAdminAuth:
+
+    def test_admin_auth_requires_admin_role_for_profile_update(self):
+        from trust_endpoints import router
+        db = _db(trust_profiles=_col(), trust_access_requests=_col())
+        app = _app(router, _user(role="security_analyst"))
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).put("/api/trust-center/profile", json={"company_name": "X"})
+        assert res.status_code == 403
+
+    def test_admin_auth_allows_admin_role_for_profile_update(self):
+        from trust_endpoints import router
+        db = _db(trust_profiles=_col(), trust_access_requests=_col())
+        app = _app(router, _user(role="admin"))
+        with patch("trust_endpoints.get_database", return_value=db):
+            res = TestClient(app).put("/api/trust-center/profile", json={"company_name": "X"})
+        assert res.status_code == 200
+
+    def test_admin_auth_rejects_unauthenticated_profile_update(self):
+        from trust_endpoints import router
+        app = FastAPI()
+        app.include_router(router)
+        # No dependency_overrides[get_current_user] — unauthenticated
+        res = TestClient(app).put("/api/trust-center/profile", json={"company_name": "X"})
+        assert res.status_code in (401, 403)
