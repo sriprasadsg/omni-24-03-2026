@@ -1509,6 +1509,15 @@ export const updateTrustRequest = async (id: string, status: string, approvedBy:
     return await res.json();
 };
 
+export const updateTrustProfile = async (updates: Partial<TrustProfile>): Promise<TrustProfile> => {
+    const res = await authFetch(`${API_BASE}/trust-center/profile`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error("Failed to update trust profile");
+    return await res.json();
+};
+
 
 // New 2025 Feature: Live Metrics
 export const fetchBusinessKpis = async () => {
