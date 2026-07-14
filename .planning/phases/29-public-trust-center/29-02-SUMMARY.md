@@ -116,3 +116,14 @@ None beyond what this plan's own `<threat_model>` already registers and closes (
 ---
 *Phase: 29-public-trust-center*
 *Completed: 2026-07-14*
+
+## Self-Check: PASSED
+
+- FOUND: backend/trust_endpoints.py
+- FOUND: backend/tests/test_trust_center.py
+- FOUND: backend/router_registry.py
+- FOUND: .planning/phases/29-public-trust-center/29-02-SUMMARY.md
+- FOUND commit: 1ee31791 (Task 1: public GET route)
+- FOUND commit: 1bcc8361 (Task 2: public POST route)
+- FOUND commit: fac0c4e9 (Task 3: rate-limit tests)
+- FOUND commit: b61d062d (SUMMARY commit)
