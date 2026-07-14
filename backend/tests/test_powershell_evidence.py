@@ -329,6 +329,45 @@ def test_real_process_automated_evidence_writes_asset_compliance():
         if "$push" in call.args[1]
     ]
     assert push_calls, "Expected at least one $push evidence update_one call"
-    pushed_evidence = push_calls[0].args[1]["$push"]["evidence"]
+    # Evidence is pushed per-control as a $each batch of records.
+    pushed = push_calls[0].args[1]["$push"]["evidence"]
+    pushed_evidence = pushed["$each"][0] if isinstance(pushed, dict) and "$each" in pushed else pushed
     assert pushed_evidence["tenantId"] == "tenant-integration"
     assert pushed_evidence["agent_type"] == "powershell"
+
+
+# ---------------------------------------------------------------------------
+# Test 8: A control mapped from multiple checks takes the WORST status
+# (Non-Compliant > Warning > Compliant) — not last-writer-wins, which could
+# mask a failing check behind a later passing one (false compliance).
+# ---------------------------------------------------------------------------
+
+def test_control_status_is_worst_across_mapped_checks():
+    import compliance_evidence_processor as p
+    from unittest.mock import MagicMock, AsyncMock
+    import asyncio
+
+    orig = p.COMPLIANCE_CHECK_MAPPINGS
+    p.COMPLIANCE_CHECK_MAPPINGS = {"CheckPass": ["CC6.1"], "CheckFail": ["CC6.1"]}
+    try:
+        db = MagicMock()
+        db.tenants = MagicMock(); db.tenants.find_one = AsyncMock(return_value={"id": "t1"})
+        db.agents = MagicMock(); db.agents.find_one = AsyncMock(return_value=None)
+        sets = []
+
+        async def _cap(filt, upd, **k):
+            if "$set" in upd:
+                sets.append(upd["$set"])
+        db.asset_compliance = MagicMock(); db.asset_compliance.update_one = AsyncMock(side_effect=_cap)
+
+        data = {"compliance_checks": [
+            {"check": "CheckPass", "status": "Pass", "details": "ok"},
+            {"check": "CheckFail", "status": "Fail", "details": "bad"},
+        ]}
+        asyncio.run(p.process_automated_evidence("host1", data, db, agent_type="rust", fallback_tenant_id="t1"))
+
+        statuses = [s["status"] for s in sets]
+        assert statuses, "no asset_compliance status written"
+        assert all(s == "Non-Compliant" for s in statuses), f"expected worst status Non-Compliant, got {statuses}"
+    finally:
+        p.COMPLIANCE_CHECK_MAPPINGS = orig

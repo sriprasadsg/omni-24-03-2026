@@ -295,6 +295,14 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
     deduped_checks = list(seen_checks.values())
 
     try:
+        # Aggregate per control across all checks that map to it. A control's status
+        # is the WORST of its checks (Non-Compliant > Warning > Compliant) — writing
+        # per-check with $set would be last-writer-wins and could mask a failing check
+        # behind a later passing one (false compliance). rank: Compliant=2 > Warning=1
+        # > Non-Compliant=0, so the lowest rank wins the control.
+        _RANK_TO_STATUS = {2: "Compliant", 1: "Warning", 0: "Non-Compliant"}
+        control_agg: dict = {}
+
         for check in deduped_checks:
             check_name = check.get("check")
             status = check.get("status")
@@ -302,10 +310,13 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
 
             if status == "Pass":
                 compliance_status = "Compliant"
+                rank = 2
             elif status == "Warning":
                 compliance_status = "Warning"
+                rank = 1
             else:
                 compliance_status = "Non-Compliant"
+                rank = 0
 
             target_controls = COMPLIANCE_CHECK_MAPPINGS.get(check_name, [])
             if not target_controls:
@@ -368,28 +379,49 @@ async def process_automated_evidence(agent_hostname: str, compliance_data: dict,
                     "agent_type": agent_type,
                 }
 
-                await db.asset_compliance.update_one(
-                    {"assetId": asset_id, "controlId": control_id},
-                    {"$pull": {"evidence": {"name": {"$in": [
-                        f"System Check: {check_name}",
-                        f"Admin Check: {check_name}",
-                    ]}}}},
-                )
-                await db.asset_compliance.update_one(
-                    {"assetId": asset_id, "controlId": control_id},
-                    {
-                        "$set": {
-                            "tenantId": tenant_id,
-                            "status": compliance_status,
-                            "checkName": check_name,
-                            "lastUpdated": timestamp,
-                            "lastAutomatedCheck": timestamp,
-                            "agent_type": agent_type,
-                        },
-                        "$push": {"evidence": evidence_record},
+                agg = control_agg.setdefault(control_id, {
+                    "rank": 2, "status": "Compliant", "check_name": check_name,
+                    "evidence": [], "names": set(),
+                })
+                agg["evidence"].append(evidence_record)
+                agg["names"].add(f"System Check: {check_name}")
+                agg["names"].add(f"Admin Check: {check_name}")
+                # Worst status wins the control; the worst check drives the label.
+                if rank < agg["rank"]:
+                    agg["rank"] = rank
+                    agg["status"] = _RANK_TO_STATUS[rank]
+                    agg["check_name"] = check_name
+
+        # One write per control: replace this run's auto-evidence (by check name, so
+        # manually-uploaded evidence is preserved) and set the aggregated worst status.
+        for control_id, agg in control_agg.items():
+            await db.asset_compliance.update_one(
+                {"assetId": asset_id, "controlId": control_id},
+                {"$pull": {"evidence": {"name": {"$in": list(agg["names"])}}}},
+            )
+            await db.asset_compliance.update_one(
+                {"assetId": asset_id, "controlId": control_id},
+                {
+                    "$set": {
+                        "tenantId": tenant_id,
+                        "status": agg["status"],
+                        "checkName": agg["check_name"],
+                        "lastUpdated": timestamp,
+                        "lastAutomatedCheck": timestamp,
+                        "agent_type": agent_type,
                     },
-                    upsert=True,
-                )
-                logger.info("Auto-mapped %s -> %s (%s)", check_name, control_id, compliance_status)
+                    "$push": {"evidence": {"$each": agg["evidence"]}},
+                },
+                upsert=True,
+            )
+            # Prune stale auto-evidence: system-generated items from earlier scans
+            # (checks the agent no longer reports) linger in the array otherwise,
+            # leaving outdated stubs like a failed "…Simulation (elevation required)".
+            # Manually-uploaded evidence (systemGenerated != True) is preserved.
+            await db.asset_compliance.update_one(
+                {"assetId": asset_id, "controlId": control_id},
+                {"$pull": {"evidence": {"systemGenerated": True, "uploadedAt": {"$lt": timestamp}}}},
+            )
+        logger.info("Auto-compliance for %s: %d controls updated", agent_hostname, len(control_agg))
     finally:
         set_tenant_id(old_tenant_id)

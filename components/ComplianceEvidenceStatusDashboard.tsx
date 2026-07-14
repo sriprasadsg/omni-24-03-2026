@@ -22,6 +22,7 @@ interface AgentScanStatus {
     lastScan?: string;
     passCount: number;
     failCount: number;
+    warningCount: number;
     pendingCount: number;
 }
 
@@ -61,6 +62,7 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
             );
             const passCount = agentRecords.filter(r => r.status === 'Compliant').length;
             const failCount = agentRecords.filter(r => r.status === 'Non-Compliant').length;
+            const warningCount = agentRecords.filter(r => r.status === 'Warning').length;
             const pendingCount = agentRecords.filter(r => r.status === 'Pending_Evidence').length;
             const lastScan = agentRecords.reduce((latest, r) => {
                 if (!r.lastUpdated) return latest;
@@ -74,6 +76,7 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                 lastScan: lastScan || undefined,
                 passCount,
                 failCount,
+                warningCount,
                 pendingCount,
             };
         });
@@ -142,6 +145,7 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                                     <th className="px-4 py-3">Last Collected</th>
                                     <th className="px-4 py-3">Pass</th>
                                     <th className="px-4 py-3">Fail</th>
+                                    <th className="px-4 py-3">Warning</th>
                                     <th className="px-4 py-3">Pending</th>
                                     <th className="px-4 py-3">Actions</th>
                                 </tr>
@@ -149,7 +153,7 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                 {agentSummaries.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={8} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                                             No agents found
                                         </td>
                                     </tr>
@@ -186,6 +190,11 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                                             ) : (
                                                 <span className="text-gray-400 text-sm">0</span>
                                             )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`font-semibold text-sm ${agent.warningCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+                                                {agent.warningCount}
+                                            </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
                                             {agent.pendingCount || '—'}
