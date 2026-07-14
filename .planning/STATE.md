@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Phase 29 plan 29-03 (trust center admin UI — profile edit form, custom domain field, public link sharing, approve/deny toasts/aria-labels, TRUST-01/03) executed and committed 2026-07-14 (commits cda3692c/d43c89cd/e3a045bc) — apiService.ts updateTrustProfile() added; TrustCenter.tsx extended with Edit Profile toggle + Sharing section (Public Trust Page URL/Copy Link/Custom Domain) + request-action toasts + aria-labels; new components/TrustProfileEditForm.tsx extracted to respect the 500-line file limit. npm run build and npx tsc --noEmit both clean. Next — 29-04 (if scoped separately; check whether remaining 29 scope is already covered) then 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-14T00:45:00.000Z"
+stopped_at: Phase 29 plan 29-04 (public trust page — standalone trust-page.html + GET /trust/{slug} FileResponse route, TRUST-02) executed and committed 2026-07-14 (commits 795aa444/b6b82a15) — app.py gained the unauthenticated GET /trust/{slug} route (cloned from the /.well-known/security.txt precedent); backend/static/trust-page.html built as a self-contained HTML/CSS/vanilla-JS page (468 lines) consuming the 29-02 public API, rendering public docs with links, restricted docs as name-only stubs with a Request Access button, and the NDA-consented access-request form with the exact UI-SPEC copy for all empty/error/success/404 states. Full backend suite 940 passed / 22 skipped / 0 failed — no regression. Phase 29 (Public Trust Center) is now fully complete — all 4 plans executed, TRUST-01/02/03 all done. Next — 32 human verification, 35 integration tests, UAT files for 33/34.
+last_updated: "2026-07-14T00:46:26.919Z"
 progress:
   total_phases: 15
-  completed_phases: 13
+  completed_phases: 14
   total_plans: 42
-  completed_plans: 47
-  percent: 87
+  completed_plans: 48
+  percent: 93
 ---
 
 # Project State
@@ -59,6 +59,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-14 (later still) — Phase 29 plan 29-03 executed (trust center admin UI, TRUST-01/03).** 29-03's actual scope (confirmed against the real PLAN.md rather than the prior session note's guess) was the two real frontend gaps: `services/apiService.ts` had no client function for the already-existing `PUT /api/trust-center/profile` route, and `components/TrustCenter.tsx` rendered the profile read-only with no edit form, no custom-domain/public-link admin surface, and silent (non-toasted) approve/deny actions. Added `updateTrustProfile(updates)` to `apiService.ts` (mirrors `updateTrustRequest`'s shape). Extended `TrustCenter.tsx` with an "Edit Profile" toggle, a read-only "Sharing" section on the profile preview (Public Trust Page URL `{origin}/trust/{trust_slug}` + working Copy Link via `navigator.clipboard.writeText` + toast, and the current Custom Domain value), and toast+aria-label additions on the existing Approve/Deny buttons (`showToast('Request approved.'/'Request denied.', 'success')` on success, error toast on failure; `aria-label="Approve request"`/`"Deny request"` added; no confirmation modal, interaction model unchanged per UI-SPEC). The full edit form (company name, description, contact email, logo URL, compliance-framework and public/private-document add-remove-row editors, editable Custom Domain input with the exact UI-SPEC helper text) was extracted into a new `components/TrustProfileEditForm.tsx` (243 lines) per the plan's own pre-authorized fallback, since inlining it would have pushed `TrustCenter.tsx` past the CLAUDE.md 500-line limit — `TrustCenter.tsx` ended at 349 lines. `npm run build` (Vite) and `npx tsc --noEmit` both passed clean after every task. No deviations from plan; no new npm packages. Commits: cda3692c (Task 1: updateTrustProfile), d43c89cd (Task 2: edit form + custom domain + sharing), e3a045bc (Task 3: toasts + aria-labels), plus SUMMARY/self-check commit. Manual UAT (log in as admin, edit+save profile, copy link, set custom domain, approve/deny and see toast) remains outstanding per 29-VALIDATION.md's Manual-Only gate — not exercised in a live browser this session. Remaining for phase 29: confirm whether 29-04 has any scope left beyond what 29-01/29-02/29-03 already delivered (TRUST-01/02/03 are all now functionally complete across backend+frontend).
 
+**Session 2026-07-14 (later still) — Phase 29 plan 29-04 executed (public trust page + serving route, TRUST-02 final wave).** Confirmed 29-04's remaining scope (the one genuinely new artifact in this phase with no in-codebase precedent): a standalone public trust page and its serving route. Added `GET /trust/{slug}` (`include_in_schema=False`) to `app.py`, cloned from the `/.well-known/security.txt` FileResponse precedent — no auth dependency, no `/api` prefix, `slug` unused server-side (consumed client-side by the page's own JS). Built `backend/static/trust-page.html` (468 lines) as a fully self-contained document: inline hand-written CSS using the UI-SPEC Surface A tokens (14/16/20/32px type scale, `#f8fafc`/`#ffffff`/`#00a8cc`/`#dc2626`/`#15803d` colors, Outfit font via Google Fonts `<link>`) and inline vanilla JS (zero dependencies). Fetches `/api/public/trust/{slug}` and renders header/framework-badges/public-docs (working download links)/restricted-docs (name-only stubs + "Request Access", never a url/href) and the NDA access-request form (email + consent validated client-side, posts to `/api/public/trust/{slug}/requests`); implements the exact 404/rate-limit/network-error/empty/success copy from the UI-SPEC Copywriting Contract. Discovered the plan's own `<verify>` command (`app.app.routes`) is stale — a pre-existing, unrelated socketio-wrap in `app.py` reassigns the module-level `app` name to a `socketio.ASGIApp` wrapper with no `.routes` attribute (the real FastAPI instance is `_fastapi_app`); verified route registration against `_fastapi_app.routes` and a live `TestClient` GET request instead — no code deviation, just a corrected verification method. All plan structural/copy grep checks pass; `test_trust_center.py` still 17/17; full backend suite **940 passed / 22 skipped / 0 failed**. Commits: 795aa444 (Task 1: GET /trust/{slug} route), b6b82a15 (Task 2: trust-page.html), plus SUMMARY/self-check commits. **Phase 29 (Public Trust Center) is now fully complete — all 4 plans executed, TRUST-01/02/03 all done.** Manual/UAT browser verification remains outstanding per 29-VALIDATION.md's Manual-Only gate (not exercised in a live browser this session — TestClient covers the automated portion only). Also hand-corrected a `roadmap.update-plan-progress` tool bug this session: the SDK's summary-file glob counted `29-UAT-SUMMARY.md` alongside the 4 real plan summaries, producing a garbled "5/4" row in ROADMAP.md's phase table — fixed manually to the correct phase name/tier/status text.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -91,7 +93,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 26 | Vendor and Risk Data Completeness | Complete (v3.0) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | Complete (v3.0) |
 | 28 | Governance Document Management | Complete (v3.0) — runtime UAT passed 2026-07-14; 4 defects fixed (368f01d9) incl. unregistered router that 404'd every route |
-| 29 | Public Trust Center | **In progress (v3.0) — plan 29-01/04 re-executed 2026-07-14 (commits 21ed35b3/435213be/86575edb/a97280d0).** TRUST-01/03 (DB persistence, trust_slug/trust_domain) implemented and tested (6/6 green). Remaining: 29-02 (public route + NDA flow, TRUST-02), 29-03 (custom-domain Host resolution, TRUST-03 continuation), 29-04 (frontend admin view). 2026-07-14 prior UAT found the earlier claimed completion was phantom (see 29-UAT.md) — this re-execution verified against actual git history, not prior summaries |
+| 29 | Public Trust Center | **Complete (v3.0) — all 4 plans re-executed and verified against real git history 2026-07-14** (29-01: 21ed35b3/435213be/86575edb/a97280d0; 29-02: 1ee31791/1bcc8361/fac0c4e9; 29-03: cda3692c/d43c89cd/e3a045bc; 29-04: 795aa444/b6b82a15). TRUST-01/02/03 all done: DB-backed trust_service.py, public GET/POST routes with NDA consent + rate limiting + custom-domain Host resolution, admin profile-edit/sharing UI, and the standalone public trust-page.html + serving route. Full backend suite 940 passed / 22 skipped / 0 failed. Manual/UAT browser verification still outstanding per 29-VALIDATION.md's Manual-Only gate. |
 | 30 | AI Questionnaire Auto-Answer | Complete (v3.0) — runtime UAT passed 2026-07-14 (8/8 items); 3 defects fixed (368f01d9) incl. reviewer-role lockout and unreachable submit |
 | 31 | FAIR Risk Quantification | Complete (v3.0) — 3/3 plans executed 2026-07-10 |
 | 32 | Cloud and SaaS Provider Expansion | Executed (v3.0) — 5/5 plans done; test debt cleared 2026-07-13 (16 tests pass); verification `human_needed` (3/4 must-haves) remains |
@@ -181,6 +183,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 25]: 25-03: simulated field added purely additively (no fail-closed change) to preserve existing container fallback tests per Pitfall 4
 - [Phase 29]: 29-02: Public trust routes built on a second no-prefix APIRouter (public_router) in trust_endpoints.py, registered as a separate router_registry.py entry, keeping the admin router's prefix/auth model untouched
 - [Phase 29]: 29-02: slowapi @limiter.limit binds route limits to the specific Limiter instance at decoration time (rate_limiter.limiter singleton), not app.state.limiter -- rate-limit tests wire the real shared limiter and reset its storage via an autouse fixture
+- [Phase 29]: 29-04: GET /trust/{slug} cloned verbatim from the /.well-known/security.txt FileResponse precedent -- no auth dependency, no /api prefix, slug unused server-side (page JS reads it from window.location)
+- [Phase 29]: 29-04: trust-page.html is fully self-contained (inline CSS + vanilla JS, zero deps except the Google Fonts CDN link) -- restricted-document rendering never reads/constructs a url/href from private_documents entries, relying entirely on the 29-02 server-side _public_view filter
 
 ## Performance Metrics
 
@@ -213,11 +217,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 25-cloud-checks-execution-gaps P03 | 6min | 2 tasks | 3 files |
 | Phase 36-fine-grained-relationship-based-authorization 36-01 | ~5min | 1 task | 1 file |
 | Phase 29-public-trust-center P02 | 18min | 3 tasks | 3 files |
+| Phase 29-public-trust-center P04 | 12min | 2 tasks | 2 files |
 
 ## Last Session
 
-- **Timestamp:** 2026-07-13T08:30:00.000Z
-- **Stopped at:** Completed 29-02-PLAN.md (public trust route + NDA flow, TRUST-02/03)
+- **Timestamp:** 2026-07-14T01:05:00.000Z
+- **Stopped at:** Completed 29-04-PLAN.md (public trust page + serving route, TRUST-02 final wave). Phase 29 (Public Trust Center) fully complete — all 4 plans executed.
 - **Resume file:** None
 
 ## Configuration
@@ -243,8 +248,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-14T00:29:40.284Z
-**Stopped at:** Completed 29-02-PLAN.md (public trust route + NDA flow, TRUST-02/03). Next — 29-03 (custom domain) and 29-04 (frontend admin view).
+**Last session:** 2026-07-14T01:05:00.000Z
+**Stopped at:** Completed 29-04-PLAN.md (public trust page + serving route, TRUST-02 final wave). Phase 29 (Public Trust Center) fully complete — all 4 plans executed, TRUST-01/02/03 all done. Next — 32 human verification, 35 integration tests, UAT files for 33/34.
 **Resume file:** None
 
 ## Accumulated Context

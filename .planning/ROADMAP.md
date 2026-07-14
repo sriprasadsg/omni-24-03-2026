@@ -346,7 +346,7 @@ deployment.
 | 26 | Vendor and Risk Data Completeness | 1 — quick fixes | Complete (2026-07-09) |
 | 27 | Compliance Export Formats (OSCAL and SBOM) | 1 — quick fixes | Complete (2026-07-13, UAT pass) |
 | 28 | Governance Document Management | 2 — medium | Complete — runtime UAT passed 2026-07-14 (4 defects found and fixed, see 28-UAT.md) |
-| 29 | Public Trust Center | 3 — architectural | In Progress — 3/4 plans executed (TRUST-01 DB persistence, TRUST-02/03 public route + NDA flow + custom-domain resolution, TRUST-01/03 admin frontend); 29-04 remains |
+| 29 | Public Trust Center | 3 — architectural | Complete — all 4 plans executed (2026-07-14): TRUST-01 DB persistence, TRUST-02 public route + NDA flow + standalone public page, TRUST-03 custom-domain resolution + admin frontend |
 | 30 | AI Questionnaire Auto-Answer | 2 — medium | Complete — runtime UAT passed 2026-07-14 (8/8 items; 3 defects found and fixed, see 30-UAT.md) |
 | 31 | FAIR Risk Quantification | 2 — medium | Complete (2026-07-10) |
 | 32 | Cloud and SaaS Provider Expansion | 2 — medium | Executed — human verification pending (3/4 must-haves, see 32-VERIFICATION.md) |
@@ -458,7 +458,7 @@ deployment.
 
 **Depends on:** Phase 28 (governance documents feed the trust center's public document library)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 **Wave 1**
 
@@ -471,7 +471,7 @@ deployment.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py *(needs re-execution — prior claimed completion was phantom, see 29-UAT.md)*
+- [x] 29-04-PLAN.md — TRUST-02 public page: standalone static trust-page.html (vanilla JS) + GET /trust/{slug} FileResponse route in app.py *(executed and committed 2026-07-14: 795aa444/b6b82a15 — prior claimed completion was phantom (see 29-UAT.md); this run verified via TestClient live route/page checks, structural+copy grep checks, and a genuinely green full suite 940/22/0)*
 
 ---
 
