@@ -144,6 +144,19 @@ async def get_system_metrics(
     ]
 
 
+@app.get("/trust/{slug}", include_in_schema=False)
+async def public_trust_page(slug: str):
+    """Serve the standalone public trust page (no auth, no /api prefix).
+
+    The slug path param is unused server-side — kept only so the URL the
+    admin copies matches what the visitor loads. The page's own JS reads
+    the slug from window.location to call /api/public/trust/{slug}.
+    """
+    from fastapi.responses import FileResponse
+    _path = os.path.join(os.path.dirname(__file__), "static", "trust-page.html")
+    return FileResponse(_path, media_type="text/html")
+
+
 @app.get("/static/win-install.ps1")
 async def serve_win_install():
     file_path = os.path.join(os.path.dirname(__file__), "static", "win-install.ps1")
