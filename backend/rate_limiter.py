@@ -10,7 +10,12 @@ logger = logging.getLogger(__name__)
 _REDIS_URL = os.getenv("REDIS_URL", "").strip()
 
 # Exposed as a constant so tests can verify the configured rate strings directly.
-LIMITER_DEFAULT_LIMITS = ["200/minute", "2000/hour"]
+# NOTE: the SPA polls ~47 endpoints every 30s (~6,700 req/hour per tab), and the
+# Vite dev proxy collapses every browser onto one source IP (127.0.0.1), so all
+# clients share a single bucket. Limits must cover several concurrent tabs or
+# the hour bucket exhausts and every request — including /api/health — 429s,
+# which the UI renders as "Backend connection lost".
+LIMITER_DEFAULT_LIMITS = ["600/minute", "30000/hour"]
 
 
 def _agent_key(request: Request) -> str:

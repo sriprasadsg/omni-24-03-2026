@@ -279,7 +279,9 @@ export const checkBackendHealth = async (): Promise<boolean> => {
         const healthUrl = `/api/health?t=${Date.now()}`;
         // Increased timeout to 5000ms to be more resilient to backend lag
         const res = await fetch(healthUrl, { method: 'GET', signal: AbortSignal.timeout(5000) });
-        return res.ok;
+        // 429 = rate limiter throttled us, but the backend is clearly alive —
+        // don't flash the "Backend connection lost" banner for it.
+        return res.ok || res.status === 429;
     } catch (e) {
         console.warn("Backend health check failed:", e);
         return false;

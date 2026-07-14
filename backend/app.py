@@ -91,11 +91,13 @@ async def security_txt():
 
 
 @app.get("/health")
+@limiter.exempt
 async def health():
     return {"status": "ok", "service": "backend-fastapi", "edition": "2030"}
 
 
 @app.get("/api/health")
+@limiter.exempt
 async def api_health():
     return {"status": "ok", "service": "backend-fastapi", "edition": "2030"}
 
