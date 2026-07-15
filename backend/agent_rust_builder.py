@@ -16,12 +16,22 @@ _RUST_TARGET = "x86_64-pc-windows-gnu"
 _CARGO_BIN   = Path.home() / ".cargo" / "bin" / "cargo"
 
 
+def _sources_newer_than(exe: Path, rust_src: Path) -> bool:
+    """True if any .rs source or Cargo.toml is newer than the cached exe."""
+    exe_mtime = exe.stat().st_mtime
+    candidates = [rust_src / "Cargo.toml", *rust_src.glob("src/**/*.rs")]
+    return any(p.stat().st_mtime > exe_mtime for p in candidates if p.exists())
+
+
 async def _ensure_rust_binary(rust_src: Path) -> Path:
     """Return path to compiled omni-agent.exe, building it if necessary."""
     exe = rust_src / "target" / _RUST_TARGET / "release" / "omni-agent.exe"
     if exe.exists():
-        logger.info("Reusing cached Rust binary (%s KB)", exe.stat().st_size // 1024)
-        return exe
+        if _sources_newer_than(exe, rust_src):
+            logger.info("Cached Rust binary is older than sources — rebuilding")
+        else:
+            logger.info("Reusing cached Rust binary (%s KB)", exe.stat().st_size // 1024)
+            return exe
 
     cargo = str(_CARGO_BIN) if _CARGO_BIN.exists() else shutil.which("cargo") or ""
     if not cargo:
@@ -61,6 +71,8 @@ def _setup_svc_rust_ps1(api_url: str, reg_key: str) -> str:
 $ErrorActionPreference = 'Stop'
 $D = Split-Path -Parent $MyInvocation.MyCommand.Definition
 New-Item -ItemType Directory -Force -Path "$D\\logs" | Out-Null
+# NSIS runs this hidden via nsExec — keep a transcript so failed installs are diagnosable
+Start-Transcript -Path "$D\\logs\\install.log" -Force | Out-Null
 
 # Write agent config
 [IO.File]::WriteAllText("$D\\config.yaml", @"
@@ -87,12 +99,17 @@ if ($existing) {{
 # Register omni-agent.exe as a Windows Service via sc.exe
 # The binary handles StartServiceCtrlDispatcher internally — no wrapper needed
 Write-Host "Creating Windows Service: $svcName"
-& sc.exe create $svcName `
+$createOut = & sc.exe create $svcName `
     binPath= "`"$agentExe`"" `
     start=   auto `
-    DisplayName= "Enterprise OmniAgent (Rust)" | Out-Null
+    obj=     LocalSystem `
+    DisplayName= "Enterprise OmniAgent (Rust)" 2>&1
+if ($LASTEXITCODE -ne 0) {{
+    # 1072 = marked for deletion (previous delete still pending — close services.msc / reboot)
+    Write-Error "sc.exe create failed (exit $LASTEXITCODE): $createOut"
+}}
 
-& sc.exe description $svcName "Lightweight AI security agent — Rust edition v2.0.0" | Out-Null
+& sc.exe description $svcName "Lightweight AI security agent - Rust edition v2.0.1" | Out-Null
 
 # Auto-restart: 5 s, 15 s, 30 s, then reset failure count after 24 h
 & sc.exe failure $svcName reset= 86400 actions= restart/5000/restart/15000/restart/30000 | Out-Null
@@ -105,8 +122,32 @@ $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
 if ($svc -and $svc.Status -eq 'Running') {{
     Write-Host "SUCCESS: OmniAgent (Rust) is running. Visible in services.msc as 'Enterprise OmniAgent (Rust)'."
 }} else {{
-    Write-Warning "Service registered but may not be running — check Event Viewer > Windows Logs > Application."
+    Write-Warning "Service registered but may not be running - check Event Viewer > Windows Logs > Application."
 }}
+
+# ── Endpoint tray (Raise Ticket / Chat with IT / Agent Status) ────────────────
+# The service runs in session 0 and cannot draw a tray icon; a per-user logon
+# task runs the tray script the agent materializes to ProgramData on first
+# start. Registering the task is all the installer must do — the agent writes
+# tray_icon.ps1 / chat_ui.ps1 / tray-config.json itself once it registers.
+try {{
+    $trayScript = Join-Path $env:ProgramData 'OmniAgent\\tray_icon.ps1'
+    $trayAct  = New-ScheduledTaskAction -Execute 'powershell.exe' `
+        -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $trayScript + '"')
+    $trayTrg  = New-ScheduledTaskTrigger -AtLogOn
+    $traySet  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+    $trayPrin = New-ScheduledTaskPrincipal -GroupId 'BUILTIN\\Users' -RunLevel Limited
+    Register-ScheduledTask -TaskName 'OmniAgentTray' -Action $trayAct -Trigger $trayTrg `
+        -Settings $traySet -Principal $trayPrin -Force | Out-Null
+    Write-Host "Tray logon task registered (OmniAgentTray)."
+    # Best-effort: surface the tray in the current interactive session now, once
+    # the agent has written the script (it does so right after registering).
+    for ($i = 0; $i -lt 8 -and -not (Test-Path $trayScript); $i++) {{ Start-Sleep -Seconds 3 }}
+    Start-ScheduledTask -TaskName 'OmniAgentTray' -ErrorAction SilentlyContinue
+}} catch {{
+    Write-Warning "Tray task registration failed (agent still runs): $_"
+}}
+Stop-Transcript | Out-Null
 """
 
 
@@ -165,6 +206,33 @@ SectionEnd
 """
 
 
+def _rust_src(base_dir: Path) -> Path:
+    """The single source of truth for the endpoint agent binary — the
+    omni-agent-rs tree, which has the tray + chat/ticket UI. (The legacy
+    agent-rust tree is headless and no longer shipped by any installer.)"""
+    src = base_dir / "agent-install" / "omni-agent-rs"
+    if not src.is_dir():
+        raise HTTPException(status_code=503, detail="omni-agent-rs source directory not found on server")
+    return src
+
+
+async def prepare_rust_pkg(pkg_dir: Path, base_dir: Path, api_url: str, registration_key: str) -> None:
+    """Populate pkg_dir with the standalone rust agent shared by every installer:
+    omni-agent.exe + config.yaml + setup_svc.ps1. The one exe is a native Windows
+    service and materializes the tray/chat/ticket UI itself, and setup_svc.ps1
+    registers the service + the OmniAgentTray logon task — no Python, no WinSW,
+    and nothing to run by hand post-install."""
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    binary = await _ensure_rust_binary(_rust_src(base_dir))
+    shutil.copy2(binary, pkg_dir / "omni-agent.exe")
+    with open(pkg_dir / "config.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(_config_yaml(api_url, registration_key), f, default_flow_style=False, sort_keys=True)
+    # utf-8-sig: Windows PowerShell 5.1 assumes ANSI without a BOM, which mangles
+    # any non-ASCII byte in the script.
+    (pkg_dir / "setup_svc.ps1").write_text(
+        _setup_svc_rust_ps1(api_url, registration_key), encoding="utf-8-sig")
+
+
 async def build_rust_exe(
     tenant_id: str, tenant_name: str, registration_key: str,
     api_url: str, background_tasks: BackgroundTasks, base_dir: Path,
@@ -173,25 +241,11 @@ async def build_rust_exe(
     if not makensis:
         raise HTTPException(status_code=503, detail="makensis not installed (sudo apt-get install nsis)")
 
-    rust_src = base_dir / "agent-rust"
-    if not rust_src.is_dir():
-        raise HTTPException(status_code=503, detail="agent-rust source directory not found on server")
-
     tenant_safe = tenant_name.replace(" ", "-").lower()
     temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_rust_{tenant_id}_"))
     try:
         pkg_dir = temp_dir / "pkg"
-        pkg_dir.mkdir()
-
-        # Compile (or reuse cached) Rust binary — has native Windows Service API
-        binary = await _ensure_rust_binary(rust_src)
-        shutil.copy2(binary, pkg_dir / "omni-agent.exe")
-
-        # Write tenant-specific config + registration script
-        with open(pkg_dir / "config.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(_config_yaml(api_url, registration_key), f, default_flow_style=False, sort_keys=True)
-        (pkg_dir / "setup_svc.ps1").write_text(
-            _setup_svc_rust_ps1(api_url, registration_key), encoding="utf-8")
+        await prepare_rust_pkg(pkg_dir, base_dir, api_url, registration_key)
 
         # Build NSIS installer (no WinSW needed — sc.exe registers the service)
         exe_out  = temp_dir / f"OmniAgent-Rust-{tenant_safe}-Setup.exe"

@@ -284,12 +284,11 @@ async def download_rust_binary(
     _check_auth(tenant_id, role, ut)
 
     base_dir = Path(__file__).parent.parent
-    rust_src = base_dir / "agent-rust"
-    if not rust_src.is_dir():
-        raise HTTPException(status_code=503, detail="agent-rust source directory not found")
 
-    from agent_rust_builder import _ensure_rust_binary
-    binary = await _ensure_rust_binary(rust_src)
+    # Serve the omni-agent-rs binary (native service + tray/chat/ticket UI), the
+    # same build every installer ships — not the legacy headless agent-rust tree.
+    from agent_rust_builder import _ensure_rust_binary, _rust_src
+    binary = await _ensure_rust_binary(_rust_src(base_dir))
     content = binary.read_bytes()
 
     try:
