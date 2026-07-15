@@ -1,6 +1,6 @@
 [package]
 name = "omni-agent"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 description = "Enterprise Omni Agent - AI-Powered Security Agent"
 authors = ["Enterprise Omni Agent"]
@@ -33,6 +33,10 @@ futures-util = { version = "0.3", features = ["sink"] }
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
 windows-service = "0.7"
+winapi = { version = "0.3", features = [
+    "minwindef", "winnt", "handleapi", "errhandlingapi", "processthreadsapi",
+    "securitybaseapi", "userenv", "winbase", "wtsapi32",
+] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

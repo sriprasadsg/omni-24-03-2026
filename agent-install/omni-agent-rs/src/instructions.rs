@@ -217,24 +217,56 @@ async fn execute_instruction(
             }
         }
 
-        // ── Chat (chat_window, headless) ─────────────────────────────────────
-        // Admin-to-endpoint messaging. Headless: log locally + auto-reply so the
-        // admin sees the endpoint is reachable. No GUI window on the endpoint.
+        // ── Chat (chat_window) ───────────────────────────────────────────────
+        // Admin-to-endpoint messaging. The agent runs as a session-0 service, so
+        // it shows admin messages on the active desktop via msg.exe rather than
+        // drawing its own window, then acks back to the admin so the round-trip
+        // is visible on both ends. Endpoint-user free-text reply requires the
+        // GUI helper / Python agent; msg.exe display is one-way.
         "start_agent_chat" => {
             let payload = item.get("payload").cloned().unwrap_or_else(|| serde_json::json!({}));
             let session_id = payload.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
             let sender = payload.get("sender").and_then(|v| v.as_str()).unwrap_or("Administrator");
             let subject = payload.get("subject").and_then(|v| v.as_str()).unwrap_or("Chat Session");
+            let initial = payload.get("initial_message").and_then(|v| v.as_str()).unwrap_or("");
+            let backend_url = payload
+                .get("backend_url")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .unwrap_or(&cfg.api_base_url);
             log::info!("Chat session {session_id} started by {sender}: {subject}");
+
+            // Prefer a real two-way window in the active user session; fall back
+            // to a one-way msg.exe notice when no interactive session exists.
+            let outcome = crate::chat_ui::launch_interactive(
+                session_id, subject, initial, sender, backend_url, &cfg.agent_token,
+            );
+
+            let reply = match outcome {
+                Ok(()) => {
+                    log::info!("Interactive chat window launched for {session_id}");
+                    "Interactive chat window opened on the endpoint. \
+                     The user can now reply here.".to_string()
+                }
+                Err(e) => {
+                    log::warn!("Interactive chat launch failed ({e}); using one-way display");
+                    let screen_body = if initial.is_empty() { subject } else { initial };
+                    match crate::chat_display::show_message(sender, screen_body) {
+                        Ok(()) => "Message shown on the endpoint screen (one-way notice — \
+                                   no interactive session to open a reply window).".to_string(),
+                        Err(de) => format!(
+                            "Endpoint reachable, but no on-screen delivery was possible \
+                             (interactive: {e}; notice: {de})."
+                        ),
+                    }
+                }
+            };
+
             if !session_id.is_empty() {
                 let url = format!(
                     "{}/api/agent-chat/sessions/{}/user-message",
                     cfg.api_base_url.trim_end_matches('/'),
                     session_id
-                );
-                let reply = format!(
-                    "Agent connected (headless mode). Chat session '{subject}' received. \
-                     This endpoint runs without a display — messages are logged locally."
                 );
                 let _ = client
                     .post(&url)
@@ -243,7 +275,7 @@ async fn execute_instruction(
                     .send()
                     .await;
             }
-            serde_json::json!({"status": "success", "session_id": session_id, "mode": "headless"})
+            serde_json::json!({"status": "success", "session_id": session_id})
         }
         "agent_chat_message" => {
             let payload = item.get("payload").cloned().unwrap_or_else(|| serde_json::json!({}));
@@ -252,7 +284,39 @@ async fn execute_instruction(
             let sender = payload.get("sender").and_then(|v| v.as_str()).unwrap_or("Administrator");
             let preview: String = content.chars().take(120).collect();
             log::info!("Chat [{session_id}] from {sender}: {preview}");
+
+            // If the interactive window is open it polls new admin messages on its
+            // own — do not also fire a msg.exe popup. Only fall back to the one-way
+            // notice when no window is running for this session.
+            if crate::chat_ui::is_active(session_id) {
+                log::debug!("Interactive window active for {session_id}; UI will poll this message");
+            } else if let Err(e) = crate::chat_display::show_message(sender, content) {
+                log::warn!("Chat on-screen display failed: {e}");
+                if !session_id.is_empty() {
+                    let url = format!(
+                        "{}/api/agent-chat/sessions/{}/user-message",
+                        cfg.api_base_url.trim_end_matches('/'),
+                        session_id
+                    );
+                    let _ = client
+                        .post(&url)
+                        .bearer_auth(&cfg.agent_token)
+                        .json(&serde_json::json!({"content": format!("⚠ Could not display on endpoint: {e}")}))
+                        .send()
+                        .await;
+                }
+            }
             serde_json::json!({"status": "success", "received": true})
+        }
+
+        "close_agent_chat" => {
+            let payload = item.get("payload").cloned().unwrap_or_else(|| serde_json::json!({}));
+            let session_id = payload.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+            log::info!("Chat session {session_id} closed by admin");
+            match crate::chat_ui::signal_close(session_id) {
+                Ok(()) => serde_json::json!({"status": "success", "closed": true}),
+                Err(e) => serde_json::json!({"status": "error", "error": e}),
+            }
         }
 
         _ => {

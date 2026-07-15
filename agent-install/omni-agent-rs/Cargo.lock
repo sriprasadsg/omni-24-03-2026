@@ -893,7 +893,7 @@ dependencies = [
 
 [[package]]
 name = "omni-agent"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "chrono",
  "futures-util",
@@ -910,6 +910,7 @@ dependencies = [
  "sysinfo",
  "tokio",
  "tokio-tungstenite",
+ "winapi",
  "windows-service",
  "winreg",
 ]

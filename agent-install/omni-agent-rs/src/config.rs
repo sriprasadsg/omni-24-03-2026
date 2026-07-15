@@ -51,3 +51,30 @@ pub fn save(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(&path, text)?;
     Ok(())
 }
+
+/// Publish a user-readable tray-config.json for the interactive-session tray
+/// helper. The service's own `config.yaml` is locked to SYSTEM/Administrators
+/// (installer WR-04), so the tray — running as the logged-on user — reads this
+/// instead. ProgramData's default ACL grants Users read, which is what the tray
+/// needs; the agent token is intentionally exposed to the local user here, the
+/// same trust boundary already used for the chat-window session files.
+#[cfg(windows)]
+pub fn write_tray_config(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let base = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    let dir = std::path::Path::new(&base).join("OmniAgent");
+    std::fs::create_dir_all(&dir)?;
+    let chat_ui = dir.join("chat_ui.ps1");
+    let tray = serde_json::json!({
+        "api_base_url": cfg.api_base_url.trim_end_matches('/'),
+        "agent_id": cfg.agent_id,
+        "agent_token": cfg.agent_token,
+        "chat_ui": chat_ui.to_string_lossy(),
+    });
+    std::fs::write(dir.join("tray-config.json"), serde_json::to_vec_pretty(&tray)?)?;
+    Ok(())
+}
+
+#[cfg(not(windows))]
+pub fn write_tray_config(_cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
+}

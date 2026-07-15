@@ -1,9 +1,12 @@
 pub mod buffer;
 pub mod capabilities;
+pub mod chat_display;
+pub mod chat_ui;
 pub mod config;
 pub mod heartbeat;
 pub mod instructions;
 pub mod registration;
+pub mod tray;
 
 #[cfg(windows)]
 pub mod service;
@@ -45,6 +48,22 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         log::warn!("No agent_token — heartbeats will be unauthenticated until registered");
     }
     log::info!("Capabilities loaded: {}", cap_mgr.ids().join(", "));
+
+    // Materialize the interactive-session UI helpers now that we have a token:
+    // the chat-window and tray scripts + a user-readable tray-config the logon
+    // tray task consumes. Non-fatal — telemetry continues regardless.
+    #[cfg(windows)]
+    {
+        if let Err(e) = chat_ui::ensure_script_installed() {
+            log::warn!("chat UI script install failed: {e}");
+        }
+        if let Err(e) = tray::ensure_script_installed() {
+            log::warn!("tray script install failed: {e}");
+        }
+        if let Err(e) = config::write_tray_config(&cfg) {
+            log::warn!("tray-config write failed: {e}");
+        }
+    }
 
     let mut sys = System::new_all();
     let mut tick = 0u32;

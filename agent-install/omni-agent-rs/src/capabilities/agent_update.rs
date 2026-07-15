@@ -2,7 +2,7 @@ use super::Capability;
 use serde_json::{json, Value};
 use sysinfo::System;
 
-const CURRENT_VERSION: &str = "2.0.0";
+const CURRENT_VERSION: &str = "2.0.1";
 
 pub struct AgentUpdateCapability;
 
@@ -80,18 +80,39 @@ pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
     let new_exe = exe_path.with_extension("new.exe");
     std::fs::write(&new_exe, &bytes).map_err(|e| format!("Write failed: {}", e))?;
 
-    // Bat script: wait → stop service → replace binary → start service → self-delete
+    // Update script: wait → find OUR service by binary path → stop → replace →
+    // start → self-delete. Resolving via Win32_Service.PathName (rather than a
+    // hardcoded/guessed name) is correct under either install path — the
+    // download installer registers "OmniAgentRust" while service.rs uses
+    // "OmniAgent". The whole sequence runs in one PowerShell process so the
+    // resolved name persists across stop/start.
     let script_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
-    let script_path = script_dir.join("_omni_agent_update.bat");
+    let script_path = script_dir.join("_omni_agent_update.ps1");
     let exe_str = exe_path.to_string_lossy();
     let new_exe_str = new_exe.to_string_lossy();
-    let bat = format!(
-        "@echo off\r\ntimeout /t 5 /nobreak >nul\r\nnet stop OmniAgent >nul 2>&1\r\nmove /y \"{new_exe_str}\" \"{exe_str}\"\r\nnet start OmniAgent >nul 2>&1\r\ndel \"%~f0\"\r\n"
+    // Single-quoted PS literals avoid backslash escaping; install paths contain
+    // no single quotes. A doubled '' escapes a literal quote defensively.
+    let exe_lit = exe_str.replace('\'', "''");
+    let new_exe_lit = new_exe_str.replace('\'', "''");
+    let ps = format!(
+        "Start-Sleep -Seconds 5\r\n\
+         $exe = '{exe_lit}'\r\n\
+         $svc = Get-CimInstance Win32_Service | Where-Object {{ $_.PathName -like ('*' + $exe + '*') }} | Select-Object -First 1 -ExpandProperty Name\r\n\
+         if ($svc) {{ Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }}\r\n\
+         Move-Item -Path '{new_exe_lit}' -Destination '{exe_lit}' -Force\r\n\
+         if ($svc) {{ Start-Service -Name $svc -ErrorAction SilentlyContinue }}\r\n\
+         Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\r\n"
     );
-    std::fs::write(&script_path, bat).map_err(|e| e.to_string())?;
+    std::fs::write(&script_path, ps).map_err(|e| e.to_string())?;
 
+    // Detach via `start` so stopping the service does not kill the updater
+    // mid-swap (the updater must outlive the process it is replacing).
     std::process::Command::new("cmd")
-        .args(["/c", "start", "/b", "", script_path.to_str().unwrap_or("")])
+        .args([
+            "/c", "start", "", "/b",
+            "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-WindowStyle", "Hidden", "-File", script_path.to_str().unwrap_or(""),
+        ])
         .spawn()
         .map_err(|e| e.to_string())?;
 
