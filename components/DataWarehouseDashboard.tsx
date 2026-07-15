@@ -46,7 +46,7 @@ export function DataWarehouseDashboard() {
                 apiService.get('/api/etl/history')
             ]);
             setStats(statsRes);
-            setHistory(historyRes);
+            setHistory(Array.isArray(historyRes) ? historyRes : []);
         } catch (error) {
             console.error("Failed to fetch warehouse data:", error);
         } finally {

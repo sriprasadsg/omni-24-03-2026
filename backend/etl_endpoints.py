@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/etl", tags=["Extract Transform Load"])
 async def run_etl_job(
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("manage:system"))
+    current_user: dict = Depends(require_permission("manage:settings"))
 ):
     """
     Trigger an ETL job manually.
@@ -30,7 +30,7 @@ async def run_etl_job(
 async def get_etl_history(
     limit: int = 20,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:system"))
+    current_user: dict = Depends(require_permission("view:reporting"))
 ):
     """
     Get history of ETL jobs.
