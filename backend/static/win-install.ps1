@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     Downloads and installs the OmniAgent Rust Windows service with PowerShell
@@ -42,7 +42,7 @@ $ApiUrl = $ApiUrl.TrimEnd("/")
 
 $ServiceName    = "OmniAgentRust"
 $DisplayName    = "Enterprise OmniAgent (Rust)"
-$Description    = "Enterprise security compliance agent — collects evidence, runs CIS/PCI/ISO checks."
+$Description    = "Enterprise security compliance agent - collects evidence, runs CIS/PCI/ISO checks."
 $InstallDir     = "$env:ProgramFiles\OmniAgent"
 $ExeName        = "omni-agent.exe"
 $ExeDst         = Join-Path $InstallDir $ExeName
@@ -50,6 +50,9 @@ $ConfigDst      = Join-Path $InstallDir "config.yaml"
 $EvidenceScript = Join-Path $InstallDir "Collect-Evidence.ps1"
 $LogDir         = Join-Path $InstallDir "logs"
 $TaskName       = "OmniAgentEvidenceCollection"
+$TrayTaskName   = "OmniAgentTray"
+$TrayScript     = Join-Path $env:ProgramData "OmniAgent\tray_icon.ps1"
+$TrayLauncher   = Join-Path $env:ProgramData "OmniAgent\tray_launch.vbs"
 
 function Write-Step([string]$msg) { Write-Host "  > $msg" -ForegroundColor Cyan }
 function Write-Ok([string]$msg)   { Write-Host "  + $msg" -ForegroundColor Green }
@@ -57,7 +60,7 @@ function Write-Warn([string]$msg) { Write-Host "  ! $msg" -ForegroundColor Yello
 
 # WR-05: verify a downloaded file's SHA-256 against the checksum the platform serves
 # alongside it, so a MITM-substituted binary/script is caught before it runs as SYSTEM.
-# This confirms transport integrity between this script and the platform only — it is
+# This confirms transport integrity between this script and the platform only - it is
 # not a substitute for Authenticode signing.
 function Confirm-Checksum([string]$ApiUrl, [string]$RemoteName, [string]$LocalPath) {
     $checksumUrl = "$ApiUrl/api/agent-updates/checksum/$RemoteName"
@@ -100,7 +103,9 @@ if ($Uninstall) {
         Write-Warn "Service '$ServiceName' not found - skipping."
     }
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Ok "Scheduled task removed."
+    Unregister-ScheduledTask -TaskName $TrayTaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Ok "Scheduled tasks removed."
+    Remove-Item -Path "$env:ProgramData\OmniAgent" -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path $InstallDir) {
         Write-Step "Removing $InstallDir ..."
         Remove-Item -Recurse -Force $InstallDir
@@ -170,7 +175,7 @@ evidence_interval_hours: 24
 Write-Ok "Config written: $ConfigDst"
 
 # Restrict config.yaml (contains the plaintext registration_key) so only SYSTEM
-# and Administrators can read it — default Program Files ACLs otherwise grant
+# and Administrators can read it - default Program Files ACLs otherwise grant
 # Users/Authenticated Users read access (WR-04).
 if (Test-Path $ConfigDst) {
     $acl = Get-Acl $ConfigDst
@@ -228,6 +233,29 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Settings $settings -Principal $principal -Force | Out-Null
 Write-Ok "Scheduled task registered (daily at 06:00, runs as SYSTEM)."
+
+# 7b. Register logon task for the endpoint tray (Raise Ticket / Chat / Status).
+# Runs in the interactive user session for every user at logon, because the
+# session-0 service cannot show a tray icon. The agent (SYSTEM) writes the tray
+# script + launcher + tray-config.json to ProgramData on startup; this task
+# runs the launcher. It launches via wscript.exe + a hidden-window VBScript
+# (not powershell.exe directly) so NO console window ever appears — a visible
+# powershell window would let the user close it and take the tray icon down.
+Write-Step "Registering tray task '$TrayTaskName'..."
+try {
+    $trayAction  = New-ScheduledTaskAction -Execute "wscript.exe" `
+        -Argument "`"$TrayLauncher`""
+    $trayTrigger = New-ScheduledTaskTrigger -AtLogOn
+    $traySettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
+    # Run as whichever user is logged on, in their own session, at limited rights.
+    $trayPrincipal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+    Register-ScheduledTask -TaskName $TrayTaskName -Action $trayAction -Trigger $trayTrigger `
+        -Settings $traySettings -Principal $trayPrincipal -Force | Out-Null
+    Write-Ok "Tray task registered (at logon, runs in user session)."
+} catch {
+    Write-Warn "Could not register tray task: $_"
+}
 
 # 8. Start service
 Write-Step "Starting service..."

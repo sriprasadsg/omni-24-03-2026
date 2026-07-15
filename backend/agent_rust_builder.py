@@ -131,9 +131,13 @@ if ($svc -and $svc.Status -eq 'Running') {{
 # start. Registering the task is all the installer must do — the agent writes
 # tray_icon.ps1 / chat_ui.ps1 / tray-config.json itself once it registers.
 try {{
-    $trayScript = Join-Path $env:ProgramData 'OmniAgent\\tray_icon.ps1'
-    $trayAct  = New-ScheduledTaskAction -Execute 'powershell.exe' `
-        -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $trayScript + '"')
+    # Launch the tray through wscript + a hidden-window VBScript, NOT powershell
+    # directly: a powershell logon task leaves a console window the user can
+    # close (which takes the tray icon down with it). wscript Run(...,0) starts
+    # powershell with no window at all. The agent materializes tray_launch.vbs
+    # and tray_icon.ps1 to ProgramData on first start.
+    $trayLauncher = Join-Path $env:ProgramData 'OmniAgent\\tray_launch.vbs'
+    $trayAct  = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('"' + $trayLauncher + '"')
     $trayTrg  = New-ScheduledTaskTrigger -AtLogOn
     $traySet  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
     $trayPrin = New-ScheduledTaskPrincipal -GroupId 'BUILTIN\\Users' -RunLevel Limited
@@ -141,8 +145,8 @@ try {{
         -Settings $traySet -Principal $trayPrin -Force | Out-Null
     Write-Host "Tray logon task registered (OmniAgentTray)."
     # Best-effort: surface the tray in the current interactive session now, once
-    # the agent has written the script (it does so right after registering).
-    for ($i = 0; $i -lt 8 -and -not (Test-Path $trayScript); $i++) {{ Start-Sleep -Seconds 3 }}
+    # the agent has written the launcher (it does so right after registering).
+    for ($i = 0; $i -lt 8 -and -not (Test-Path $trayLauncher); $i++) {{ Start-Sleep -Seconds 3 }}
     Start-ScheduledTask -TaskName 'OmniAgentTray' -ErrorAction SilentlyContinue
 }} catch {{
     Write-Warning "Tray task registration failed (agent still runs): $_"
