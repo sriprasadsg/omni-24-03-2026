@@ -29,8 +29,12 @@ pub async fn poll(cfg: &Config, client: &reqwest::Client) {
                         .and_then(|v| v.as_str())
                         .unwrap_or_default();
                     let action = raw_action.to_lowercase();
+                    let task_id = item
+                        .get("task_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default();
                     log::info!("Instruction received: {action}");
-                    execute_instruction(&action, raw_action, &item, cfg, client).await;
+                    execute_instruction(&action, raw_action, task_id, &item, cfg, client).await;
                 }
             }
         }
@@ -42,6 +46,7 @@ pub async fn poll(cfg: &Config, client: &reqwest::Client) {
 async fn execute_instruction(
     action: &str,
     raw_action: &str,
+    task_id: &str,
     item: &Value,
     cfg: &Config,
     client: &reqwest::Client,
@@ -257,15 +262,25 @@ async fn execute_instruction(
     };
 
     let report_url = format!(
-        "{}/api/agents/{}/instruction-result",
+        "{}/api/agents/{}/instructions/result",
         cfg.api_base_url.trim_end_matches('/'),
         hostname_str()
     );
+    // Backend (agent_tasks_endpoints.report_instruction_result) keys the
+    // instruction-status update on task_id and reads status at the top level.
+    let status = result
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
     let _ = client
         .post(&report_url)
         .bearer_auth(&cfg.agent_token)
         .json(&serde_json::json!({
+            "task_id": task_id,
             "action": action,
+            "type": action,
+            "status": status,
             "result": result,
             "timestamp": chrono::Utc::now().to_rfc3339(),
         }))
