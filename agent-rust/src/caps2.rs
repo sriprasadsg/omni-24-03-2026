@@ -495,9 +495,9 @@ timeout /t 2 /nobreak >nul
 copy /y "{new_placeholder}" "%~f0.exe.update" >nul 2>&1
 copy /y "{new_placeholder}" "$self" >nul 2>&1
 del /f /q "{new_placeholder}" >nul 2>&1
-net start OmniAgentService >nul 2>&1
+net start OmniAgentRust >nul 2>&1
 "@ | Out-File -FilePath $bat -Encoding ascii
-net stop OmniAgentService >nul 2>&1
+net stop OmniAgentRust >nul 2>&1
 Start-Process cmd -ArgumentList "/c $bat" -WindowStyle Hidden
 "#, url = download_url, new_placeholder = r"$new");
     let out = crate::http::run_ps(&update_script).await;
