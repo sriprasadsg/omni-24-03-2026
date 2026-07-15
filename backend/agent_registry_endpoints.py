@@ -330,7 +330,7 @@ async def update_agent(
 async def get_agent_version():
     """Return the current agent binary version and download URL. Polled by agent auto-update."""
     return {
-        "version": "2.0.3-rust",
+        "version": "2.0.4-rust",
         "download_url": "/static/omni-agent.exe",
         "release_notes": "58 compliance checks, 175 control IDs, Collect Now runs all sources",
         "min_version": "1.0.0",

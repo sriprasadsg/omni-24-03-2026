@@ -154,9 +154,12 @@ $PollUrl  = "$Base/api/agent-chat/sessions/$Session/messages"
 # The agent drops this file when the admin closes the session, for prompt teardown.
 $CloseSig = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($ConfigPath), "chat_$Session.close")
 
-# Only admin messages strictly newer than $Since are appended, so the window
-# does not re-print history each poll. Start at "now" and show the opener below.
-$Since = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+# Only admin messages strictly newer than $script:Since are appended, so the
+# window does not re-print history each poll. Start at "now" and show the opener
+# below. Must be script-scoped: the timer handler updates it, and a bare $Since
+# assignment inside the handler would shadow it in the child scope and re-fetch
+# every admin message on every tick.
+$script:Since = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
 $form               = New-Object System.Windows.Forms.Form
 $form.Text          = "IT Support Chat" + $(if ($cfg.subject) { " - " + $cfg.subject } else { "" })
@@ -171,11 +174,11 @@ $log.ReadOnly       = $true
 $log.BackColor      = [System.Drawing.Color]::White
 $form.Controls.Add($log)
 
-$input              = New-Object System.Windows.Forms.TextBox
-$input.Location     = New-Object System.Drawing.Point(10, 450)
-$input.Size         = New-Object System.Drawing.Size(330, 50)
-$input.Multiline    = $true
-$form.Controls.Add($input)
+$inputBox              = New-Object System.Windows.Forms.TextBox
+$inputBox.Location     = New-Object System.Drawing.Point(10, 450)
+$inputBox.Size         = New-Object System.Drawing.Size(330, 50)
+$inputBox.Multiline    = $true
+$form.Controls.Add($inputBox)
 
 $send               = New-Object System.Windows.Forms.Button
 $send.Location      = New-Object System.Drawing.Point(348, 450)
@@ -197,19 +200,19 @@ if ($cfg.initial) {
 }
 
 $sendAction = {
-    $text = $input.Text.Trim()
+    $text = $inputBox.Text.Trim()
     if ($text.Length -eq 0) { return }
     try {
         $body = @{ content = $text } | ConvertTo-Json
         Invoke-RestMethod -Method Post -Uri $MsgUrl -Headers $Headers -ContentType 'application/json' -Body $body | Out-Null
         Append "You" $text ([System.Drawing.Color]::DarkGreen)
-        $input.Clear()
+        $inputBox.Clear()
     } catch {
         Append "System" "Failed to send - check connection." ([System.Drawing.Color]::Red)
     }
 }
 $send.Add_Click($sendAction)
-$input.Add_KeyDown({
+$inputBox.Add_KeyDown({
     if ($_.KeyCode -eq 'Return' -and -not $_.Shift) { $_.SuppressKeyPress = $true; & $sendAction }
 })
 
@@ -219,21 +222,21 @@ $timer.Add_Tick({
     if (Test-Path -Path $CloseSig) {
         Remove-Item -Path $CloseSig -ErrorAction SilentlyContinue
         Append "System" "This chat has been closed by the administrator." ([System.Drawing.Color]::Gray)
-        $input.Enabled = $false; $send.Enabled = $false; $timer.Stop()
+        $inputBox.Enabled = $false; $send.Enabled = $false; $timer.Stop()
         return
     }
     try {
-        $resp = Invoke-RestMethod -Method Get -Uri "$PollUrl`?since=$Since" -Headers $Headers
+        $resp = Invoke-RestMethod -Method Get -Uri "$PollUrl`?since=$script:Since" -Headers $Headers
         if ($resp.messages) {
             foreach ($m in $resp.messages) {
                 $who = if ($m.sender_name) { $m.sender_name } else { "Administrator" }
                 Append $who $m.content ([System.Drawing.Color]::Blue)
             }
-            $Since = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+            $script:Since = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         }
         if ($resp.status -and $resp.status -ne 'active') {
             Append "System" "This chat has been closed by the administrator." ([System.Drawing.Color]::Gray)
-            $input.Enabled = $false; $send.Enabled = $false; $timer.Stop()
+            $inputBox.Enabled = $false; $send.Enabled = $false; $timer.Stop()
         }
     } catch { }
 })
