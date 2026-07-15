@@ -2,7 +2,7 @@ use super::Capability;
 use serde_json::{json, Value};
 use sysinfo::System;
 
-const CURRENT_VERSION: &str = "2.0.1";
+const CURRENT_VERSION: &str = "2.0.2";
 
 pub struct AgentUpdateCapability;
 
