@@ -2,7 +2,7 @@ use super::Capability;
 use serde_json::{json, Value};
 use sysinfo::System;
 
-const CURRENT_VERSION: &str = "2.0.4";
+const CURRENT_VERSION: &str = "2.0.5";
 
 pub struct AgentUpdateCapability;
 
@@ -75,6 +75,19 @@ pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
         .send()
         .and_then(|r| r.bytes())
         .map_err(|e| format!("Download failed: {}", e))?;
+
+    // Guard: never swap in a non-binary. A web filter/proxy that blocks .exe
+    // downloads returns an HTML block page (a few KB); writing that over the
+    // agent would brick the service. A valid Windows PE starts with "MZ" and the
+    // real binary is several MB. Abort loudly so the failure is reported to the
+    // dashboard instead of silently installing garbage.
+    if bytes.len() < 1_000_000 || bytes.get(0..2) != Some(b"MZ".as_slice()) {
+        return Err(format!(
+            "Downloaded update is not a valid Windows binary ({} bytes) — aborting. \
+             A web filter or proxy may be blocking the executable download.",
+            bytes.len()
+        ));
+    }
 
     let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
     let new_exe = exe_path.with_extension("new.exe");

@@ -112,8 +112,11 @@ async fn execute_instruction(
                 }
             }
         }
-        // "apply_agent_update" — download and self-replace the binary
-        "apply_agent_update" => {
+        // Download and self-replace the binary. Accept every name the backend
+        // dispatches: the UI "Update Agent" button queues `check_agent_update`
+        // (agent_tasks_endpoints), the heartbeat auto-push queues `agent_update`
+        // when an endpoint is behind, and older callers use `apply_agent_update`.
+        "apply_agent_update" | "check_agent_update" | "agent_update" | "update_agent" => {
             let cfg_clone = cfg.clone();
             let result = tokio::task::spawn_blocking(move || {
                 crate::capabilities::agent_update::apply_update(&cfg_clone)
