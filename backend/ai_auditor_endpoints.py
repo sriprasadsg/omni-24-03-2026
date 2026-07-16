@@ -80,9 +80,9 @@ async def audit_framework_evidence(
 
             logger.debug("[AI AUDITOR] Evaluating %s for asset %s", control_id, ac.get("assetId"))
 
-            # Run inference
+            # Run inference (async — routes through the shared local AI provider)
             try:
-                ai_result = auditor.evaluate_evidence(
+                ai_result = await auditor.evaluate_evidence(
                     framework_name=framework.get("name", framework_id),
                     control_desc=control_desc,
                     evidence_text=combined_evidence,

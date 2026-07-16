@@ -6,7 +6,7 @@ from typing import AsyncIterator, Optional
 from database import get_database
 from guardrail_service import guardrail_service
 from ai_guardrails import scan_text
-from ai_providers import AIProvider, GeminiProvider, OllamaProvider, AnthropicProvider, MockProvider
+from ai_providers import AIProvider, GeminiProvider, OllamaProvider, AnthropicProvider, MockProvider, OpenAICompatProvider
 from ai_service_data import PROJECT_DETAILS, DEMO_STEPS
 from ai_services.omni_local_provider import OmniLocalProvider, OmniLowConfidenceError
 from local_ip import ollama_default_url
@@ -34,6 +34,10 @@ async def _create_provider_from_settings(settings: dict) -> Optional[AIProvider]
                            os.getenv("OLLAMA_MODEL", os.getenv("LLM_MODEL", "llama3.2:3b")),
         }):
             return ollama
+    elif configured_provider in ("9router", "OpenAI-Compatible", "openai_compat", "router"):
+        router = OpenAICompatProvider()
+        if await router.configure(settings):
+            return router
     elif configured_provider == "Anthropic Claude":
         anthropic = AnthropicProvider()
         if await anthropic.configure(settings):
@@ -100,6 +104,14 @@ class IncidentAnalyzer:
                 return
 
         env_provider = os.getenv("LLM_PROVIDER", "").lower()
+        if env_provider in ("router", "9router", "openai_compat", "openai-compatible"):
+            router = OpenAICompatProvider()
+            # configure({}) reads AI_ROUTER_URL / AI_ROUTER_KEY / AI_ROUTER_MODEL from env.
+            if await router.configure({}):
+                self.provider = router
+                self.is_configured = True
+                logger.info("[AI] Using OpenAI-compatible router: %s (%s)", router.base_url, router.model_name)
+                return
         if env_provider == "ollama":
             ollama = OllamaProvider()
             if await ollama.configure({
