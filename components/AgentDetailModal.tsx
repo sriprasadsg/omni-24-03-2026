@@ -9,6 +9,7 @@ import { PredictiveHealthTab } from './PredictiveHealthTab';
 import { AgentOverviewTab } from './AgentOverviewTab';
 import { AgentSoftwareTab } from './AgentSoftwareTab';
 import { AgentPatchingTab } from './AgentPatchingTab';
+import { AgentInstructionsTab } from './AgentInstructionsTab';
 import { ConfirmationModal } from './ConfirmationModal';
 import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, triggerEvidenceCollection, fetchAssets, authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
@@ -178,7 +179,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const { timeZone } = useTimeZone();
 
     const canViewLogs = hasPermission('view:agent_logs');
-    const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software' | 'patching'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software' | 'patching' | 'instructions'>('overview');
     const [fetchedComplianceData, setFetchedComplianceData] = useState<ComplianceData | null>(null);
     const [tenantName, setTenantName] = useState<string>('Loading...');
 
@@ -520,6 +521,16 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             <HistoryIcon size={16} className="mr-2" />
                             Patching
                         </button>
+                        <button
+                            onClick={() => setActiveTab('instructions')}
+                            className={`flex items-center whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'instructions'
+                                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                                } `}
+                        >
+                            <SendIcon size={16} className="mr-2" />
+                            Instructions
+                        </button>
                     </nav>
                 </div>
 
@@ -549,6 +560,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                         <AgentSoftwareTab agent={agent} asset={asset} />
                     ) : activeTab === 'patching' ? (
                         <AgentPatchingTab agent={agent} />
+                    ) : activeTab === 'instructions' ? (
+                        <AgentInstructionsTab agent={agent} />
                     ) : (
                         <PredictiveHealthTab data={healthData} />
                     )}
