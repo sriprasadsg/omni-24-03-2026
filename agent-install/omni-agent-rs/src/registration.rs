@@ -23,7 +23,7 @@ pub async fn ensure_registered(
         "registrationKey": cfg.registration_key,
         "hostname": hostname,
         "platform": if cfg!(windows) { "Windows" } else { "Linux" },
-        "version": "2.0.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": crate::heartbeat::best_ip(),
         "meta": {
             "agent_type": "rust",

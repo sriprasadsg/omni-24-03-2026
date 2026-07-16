@@ -190,7 +190,7 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
         "tenantId": cfg.tenant_id,
         "status": "Online",
         "platform": if cfg!(windows) { "Windows" } else { "Linux" },
-        "version": "2.0.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": best_ip(),
         "meta": meta,
     })

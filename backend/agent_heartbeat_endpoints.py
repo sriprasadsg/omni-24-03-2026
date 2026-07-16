@@ -120,13 +120,35 @@ async def report_heartbeat(
     )
 
     # Auto-push update instruction when the agent reports an outdated binary version.
-    _LATEST_AGENT_VERSION = "2.0.1-rust"
+    # Windows-only: the published update binary is the Windows rust agent; pushing to
+    # other platforms just generates "unavailable" instruction noise.
+    #
+    # Only push to agents whose self-updater actually works. The updater resolves its
+    # own service by binary path (rather than a hardcoded name) starting in 2.0.5
+    # (commit 1439b2e1); before that it ran `net stop OmniAgent`, which silently fails
+    # on hosts installed as the "OmniAgentRust" service — the swap never happens and
+    # the agent re-reports the old version forever. Pushing to those hosts only spams
+    # the instruction history; they require a one-time manual reinstall instead.
+    _LATEST_AGENT_VERSION = "2.1.0"
+    _MIN_SELF_UPDATE_VERSION = (2, 0, 5)
     _reported_version = payload.get("version", "")
-    if _reported_version and _reported_version != _LATEST_AGENT_VERSION:
-        _pending = await db.agent_instructions.find_one(
-            {"agent_id": agent_id, "instruction": "agent_update", "status": "pending"}
+
+    def _parse_ver(v: str):
+        m = re.match(r"(\d+)\.(\d+)\.(\d+)", v or "")
+        return tuple(int(g) for g in m.groups()) if m else None
+
+    _rv = _parse_ver(_reported_version)
+    if (_reported_version and _reported_version != _LATEST_AGENT_VERSION
+            and payload.get("platform") == "Windows"
+            and _rv is not None and _rv >= _MIN_SELF_UPDATE_VERSION):
+        # Dedup against pending AND sent: auto-pushed instructions flip to "sent" as
+        # soon as the agent polls, so checking only "pending" would insert a new row on
+        # every heartbeat until the agent finishes updating.
+        _existing = await db.agent_instructions.find_one(
+            {"agent_id": agent_id, "instruction": "agent_update",
+             "status": {"$in": ["pending", "sent"]}}
         )
-        if not _pending:
+        if not _existing:
             await db.agent_instructions.insert_one({
                 "agent_id": agent_id,
                 "instruction": "agent_update",

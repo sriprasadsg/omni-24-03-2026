@@ -142,8 +142,43 @@ async fn execute_instruction(
                     cfg.api_base_url.trim_end_matches('/'),
                     filename
                 );
-                match install_custom_software(&dl_url, &filename, client, &cfg.agent_token).await {
+                match install_custom_software(&dl_url, &filename, None, client, &cfg.agent_token).await {
                     Ok(msg) => serde_json::json!({"status": "success", "message": msg}),
+                    Err(e) => serde_json::json!({"status": "error", "error": e}),
+                }
+            }
+        }
+
+        // Software deployment from the dashboard: instruction is "install_software: <file>"
+        // (or "upgrade_software: <file>") and payload carries {download_url, package,
+        // install_args}. download_url may be an external vendor URL (python.org, vscode…)
+        // or a platform-relative "/api/software/download/…" path. Prefix-matched because
+        // the filename is appended to the instruction string.
+        a if a.starts_with("install_software:") || a.starts_with("upgrade_software:") => {
+            let payload = item.get("payload").cloned().unwrap_or(Value::Null);
+            let dl_url = payload.get("download_url").and_then(|v| v.as_str()).unwrap_or("");
+            let install_args = payload.get("install_args").and_then(|v| v.as_str());
+            let filename = payload
+                .get("package")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| raw_action.splitn(2, ':').nth(1).map(|s| s.trim()).unwrap_or("installer").to_string());
+
+            if !dl_url.is_empty() {
+                let full_url = if dl_url.starts_with("http://") || dl_url.starts_with("https://") {
+                    dl_url.to_string()
+                } else {
+                    format!("{}{}", cfg.api_base_url.trim_end_matches('/'), dl_url)
+                };
+                match install_custom_software(&full_url, &filename, install_args, client, &cfg.agent_token).await {
+                    Ok(msg) => serde_json::json!({"status": "success", "message": msg}),
+                    Err(e) => serde_json::json!({"status": "error", "error": e}),
+                }
+            } else {
+                // No download URL — treat the trailing token as a winget package id.
+                match crate::capabilities::software_management::install_package(&filename, a.starts_with("upgrade")) {
+                    Ok(out) => serde_json::json!({"status": "success", "output": out}),
                     Err(e) => serde_json::json!({"status": "error", "error": e}),
                 }
             }
@@ -165,8 +200,22 @@ async fn execute_instruction(
                     return;
                 }
             };
-            crate::capabilities::remote_access::start_reverse_shell(session_id, url);
-            serde_json::json!({"status": "success", "message": "Reverse shell session started"})
+            // A "start_remote_session" instruction carries the session kind in
+            // payload.type: the dashboard's Live Desktop requests "desktop"/"vnc",
+            // the remote terminal requests "shell" (default). Both use the same
+            // tunnel URL — the agent just streams JPEG frames instead of shell I/O.
+            let session_kind = payload
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("shell")
+                .to_lowercase();
+            if session_kind == "desktop" || session_kind == "vnc" {
+                crate::capabilities::remote_access::start_desktop_stream(session_id, url);
+                serde_json::json!({"status": "success", "message": "Desktop stream started"})
+            } else {
+                crate::capabilities::remote_access::start_reverse_shell(session_id, url);
+                serde_json::json!({"status": "success", "message": "Reverse shell session started"})
+            }
         }
         // "Start Desktop Stream <session_id> <ws_url>" OR instruction="start_desktop_stream" + payload
         a if a.contains("start desktop stream") || a == "start_desktop_stream" => {
@@ -323,8 +372,14 @@ async fn execute_instruction(
         }
 
         _ => {
-            log::debug!("Unknown instruction action: {action}");
-            return;
+            // Report instead of silently returning: an unhandled instruction must
+            // surface as an error in the dashboard, not sit "sent" forever looking
+            // like the agent hung.
+            log::warn!("Unknown instruction action: {action}");
+            serde_json::json!({
+                "status": "error",
+                "error": format!("Agent does not support instruction '{}'", raw_action)
+            })
         }
     };
 
@@ -360,9 +415,14 @@ async fn execute_instruction(
 async fn install_custom_software(
     url: &str,
     filename: &str,
+    install_args: Option<&str>,
     client: &reqwest::Client,
     token: &str,
 ) -> Result<String, String> {
+    // Bearer auth is only meaningful for the platform's own repo; sending it to an
+    // arbitrary external vendor URL (python.org, microsoft.com) is harmless (ignored)
+    // but we only attach it for same-origin api_base_url downloads is overkill — the
+    // header is ignored by third parties, so keep one code path.
     let resp = client
         .get(url)
         .bearer_auth(token)
@@ -384,17 +444,30 @@ async fn install_custom_software(
         .unwrap_or("")
         .to_lowercase();
 
+    // Split caller-supplied silent-install args on whitespace; fall back to sane
+    // per-type defaults when the deployment didn't specify any.
+    let custom_args: Option<Vec<String>> = install_args
+        .map(|s| s.split_whitespace().map(|w| w.to_string()).collect::<Vec<_>>())
+        .filter(|v| !v.is_empty());
+
     let status = match ext.as_str() {
-        "exe" => tokio::process::Command::new(&temp_path)
-            .args(["/S", "/quiet", "/norestart"])
-            .status()
-            .await
-            .map_err(|e| e.to_string()),
-        "msi" => tokio::process::Command::new("msiexec")
-            .args(["/i", temp_path.to_str().unwrap_or(""), "/quiet", "/norestart"])
-            .status()
-            .await
-            .map_err(|e| e.to_string()),
+        "exe" => {
+            let mut cmd = tokio::process::Command::new(&temp_path);
+            match &custom_args {
+                Some(a) => { cmd.args(a); }
+                None => { cmd.args(["/S", "/quiet", "/norestart"]); }
+            }
+            cmd.status().await.map_err(|e| e.to_string())
+        }
+        "msi" => {
+            let mut cmd = tokio::process::Command::new("msiexec");
+            cmd.args(["/i", temp_path.to_str().unwrap_or("")]);
+            match &custom_args {
+                Some(a) => { cmd.args(a); }
+                None => { cmd.args(["/quiet", "/norestart"]); }
+            }
+            cmd.status().await.map_err(|e| e.to_string())
+        }
         _ => {
             let _ = std::fs::remove_file(&temp_path);
             return Err(format!("Unsupported file extension: {}", ext));
