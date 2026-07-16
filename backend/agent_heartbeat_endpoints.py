@@ -129,7 +129,7 @@ async def report_heartbeat(
     # on hosts installed as the "OmniAgentRust" service — the swap never happens and
     # the agent re-reports the old version forever. Pushing to those hosts only spams
     # the instruction history; they require a one-time manual reinstall instead.
-    _LATEST_AGENT_VERSION = "2.1.1"
+    _LATEST_AGENT_VERSION = "2.1.2"
     _MIN_SELF_UPDATE_VERSION = (2, 0, 5)
     _reported_version = payload.get("version", "")
 
