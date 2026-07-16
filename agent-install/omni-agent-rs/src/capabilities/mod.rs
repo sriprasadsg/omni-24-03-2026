@@ -5,6 +5,7 @@ pub mod fim;
 pub mod logs;
 pub mod metrics;
 pub mod network_discovery;
+pub mod persistence_detection;
 pub mod predictive_health;
 pub mod process_monitor;
 pub mod remote_access;
@@ -35,6 +36,7 @@ impl CapabilityManager {
             caps: vec![
                 Box::new(metrics::MetricsCapability),
                 Box::new(process_monitor::ProcessMonitorCapability),
+                Box::new(persistence_detection::PersistenceDetectionCapability),
                 Box::new(logs::LogsCapability),
                 Box::new(fim::FimCapability),
                 Box::new(vulnerability_scan::VulnScanCapability),
