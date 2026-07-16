@@ -32,6 +32,10 @@ from database import get_database
 
 logger = logging.getLogger(__name__)
 
+# Model id for the agentic path. Defaults to the 9router-served Claude; the SDK
+# is pointed at the 9router gateway via ANTHROPIC_BASE_URL in the environment.
+_AGENTIC_MODEL = os.getenv("AGENTIC_MODEL", "cc/claude-sonnet-5")
+
 # ── Circuit breaker — separate key from ai_breaker to avoid cross-contamination ──
 agentic_breaker = CircuitBreaker("agentic_ai", failure_threshold=3, recovery_timeout=60)
 
@@ -296,7 +300,7 @@ async def decide_and_execute(
 
     # Turn 1: force tool selection with tool_choice="any"
     response = await client.messages.create(
-        model="claude-sonnet-4-6",
+        model=_AGENTIC_MODEL,
         max_tokens=1024,
         temperature=0,
         system=SYSTEM_PROMPT,
@@ -362,7 +366,7 @@ async def decide_and_execute(
 
     # Turn 2: send tool result back, get rationale text for audit log
     rationale_response = await client.messages.create(
-        model="claude-sonnet-4-6",
+        model=_AGENTIC_MODEL,
         max_tokens=512,
         temperature=0,
         system=SYSTEM_PROMPT,
@@ -476,7 +480,7 @@ class AgenticService:
             "tool_name": result.get("tool_name"),
             "tool_input": result.get("tool_input"),
             "rationale": result.get("rationale", ""),
-            "model": "claude-sonnet-4-6" if result.get("source") == "agentic_ai" else None,
+            "model": _AGENTIC_MODEL if result.get("source") == "agentic_ai" else None,
             "started_at": started_at.isoformat(),
             "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "source": result.get("source", "agentic_ai"),
