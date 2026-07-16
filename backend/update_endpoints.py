@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 import logging
 from fastapi.responses import FileResponse, JSONResponse
 import os
@@ -137,19 +137,27 @@ def _run_build(task_id: str):
         logger.exception("[Build] Build failed: %s", e)
 
 @router.get("/latest")
-async def get_latest_version(platform: str = "windows"):
+async def get_latest_version(request: Request, platform: str = "windows"):
     """
     Get the latest available agent version info.
     """
     # In a real app, this would query a DB or read a manifest.
     # For MVP, we check the backend/static folder naming convention:
     # omni-agent-{version}-{platform}.exe
-    
+
     # Ensure dir exists
     if not os.path.exists(BINARY_STORAGE_PATH):
         os.makedirs(BINARY_STORAGE_PATH, exist_ok=True)
-        
-    base_url = "http://localhost:5000" # Dynamic in prod
+
+    # Derive the download host from the agent's own request rather than a
+    # hardcoded "localhost" — a remote agent polling from another machine must
+    # get a URL that resolves back to THIS backend, not to its own loopback.
+    # Honor X-Forwarded-* when behind a reverse proxy.
+    fwd_proto = request.headers.get("x-forwarded-proto")
+    fwd_host = request.headers.get("x-forwarded-host")
+    scheme = fwd_proto or request.url.scheme
+    host = fwd_host or request.headers.get("host") or request.url.netloc
+    base_url = f"{scheme}://{host}".rstrip("/")
     
     # Check for agent.py updates (Script based)
     agent_script_path = os.path.join("..", "agent", "agent.py")
