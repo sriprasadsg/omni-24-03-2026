@@ -11,6 +11,52 @@ from pagination_utils import paginate_mongo_query, PaginationParams
 
 router = APIRouter(prefix="/api/assets", tags=["Assets"])
 
+
+def _fmt_gb(v) -> str:
+    """Render a GB quantity (number or numeric string) as '225.4 GB'."""
+    try:
+        return f"{float(v):.1f} GB"
+    except (TypeError, ValueError):
+        return str(v) if v else ""
+
+
+def _normalize_disks(raw_disks) -> List[Dict[str, Any]]:
+    """Map agent-reported disks into the shape the asset UI renders.
+
+    Agents report disks in different schemas: the rust agent sends
+    {mount, kind, total_gb, used_gb, free_gb}; older/psutil sources send
+    {device, mountpoint, fstype, total_gb/used_gb/free_gb or total/used/free}.
+    The UI expects {device, type, total, used, free, usedPercent, isRemovable}
+    with pre-formatted size strings, so normalize here rather than teaching the
+    renderer every backend shape.
+    """
+    out: List[Dict[str, Any]] = []
+    for d in raw_disks or []:
+        if not isinstance(d, dict):
+            continue
+        device = d.get("device") or d.get("mount") or d.get("mountpoint") or ""
+        dtype = d.get("type") or d.get("kind") or d.get("fstype") or ""
+        total = d.get("total_gb", d.get("total"))
+        used = d.get("used_gb", d.get("used"))
+        free = d.get("free_gb", d.get("free"))
+        pct = d.get("usedPercent", d.get("percent"))
+        if pct is None:
+            try:
+                t, u = float(total), float(used)
+                pct = round(u / t * 100) if t > 0 else 0
+            except (TypeError, ValueError):
+                pct = 0
+        out.append({
+            "device": device,
+            "type": dtype,
+            "total": _fmt_gb(total),
+            "used": _fmt_gb(used),
+            "free": _fmt_gb(free),
+            "usedPercent": pct,
+            "isRemovable": bool(d.get("isRemovable", False)),
+        })
+    return out
+
 @router.get("")
 @cached(ttl=60, key_prefix="assets")
 async def get_assets(
@@ -163,7 +209,7 @@ async def get_asset_details(
         if _missing("ram"):
             asset["ram"] = meta.get("memory_gb") or asset.get("ram", "")
         if not asset.get("disks") and meta.get("disks"):
-            asset["disks"] = meta["disks"]
+            asset["disks"] = _normalize_disks(meta["disks"])
         if _missing("osInstalledOn"):
             asset["osInstalledOn"] = meta.get("install_date") or asset.get("osInstalledOn", "")
 

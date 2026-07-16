@@ -80,20 +80,39 @@ const allCapabilities = CAPABILITY_GROUPS.flatMap(g => g.items);
 
 export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModalProps> = ({ isOpen, onClose, agent, onSave }) => {
     const [enabledCapabilities, setEnabledCapabilities] = useState<Set<AgentCapability>>(new Set());
+    // The capabilities this agent's binary actually implements (reported via
+    // availableCapabilities). The 33-item catalog above is the full product
+    // surface; a given agent build only supports a subset (e.g. omni-agent-rs
+    // reports ~17). Anything not in this set is shown as "not supported" rather
+    // than a toggle that silently does nothing.
+    const [supportedCaps, setSupportedCaps] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (agent) {
             // Backend's GET /agents endpoint transforms capabilities from string IDs
             // to rich objects {id, name, enabled, status}. Normalise back to string IDs
             // so Set lookups (has / delete / add) work correctly.
-            const ids = (agent.capabilities || []).map(
+            const enabledIds = (agent.capabilities || []).map(
                 (c: any) => (typeof c === 'string' ? c : c.id) as AgentCapability
             );
-            setEnabledCapabilities(new Set(ids));
+            // availableCapabilities is the agent's real, self-reported surface.
+            // Fall back to the enabled list (then the full catalog) for legacy
+            // agents that never reported it, so nothing is wrongly greyed out.
+            const reported: string[] =
+                (agent as any).availableCapabilities ||
+                (agent as any).meta?.capabilities ||
+                [];
+            const supported = new Set<string>(
+                reported.length > 0 ? reported : allCapabilities.map(c => c.id)
+            );
+            setSupportedCaps(supported);
+            // Only supported capabilities can be enabled.
+            setEnabledCapabilities(new Set(enabledIds.filter(id => supported.has(id))));
         }
     }, [agent]);
 
     const handleToggle = (capability: AgentCapability) => {
+        if (!supportedCaps.has(capability)) return; // unsupported: not togglable
         setEnabledCapabilities(prev => {
             const next = new Set(prev);
             if (next.has(capability)) next.delete(capability);
@@ -103,14 +122,17 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
     };
 
     const allIds = allCapabilities.map(c => c.id);
-    const allEnabled = allIds.every(id => enabledCapabilities.has(id));
-    const noneEnabled = allIds.every(id => !enabledCapabilities.has(id));
+    // Select-all / counts operate only on capabilities this agent actually supports.
+    const supportedIds = allIds.filter(id => supportedCaps.has(id));
+    const unsupportedCount = allIds.length - supportedIds.length;
+    const allEnabled = supportedIds.length > 0 && supportedIds.every(id => enabledCapabilities.has(id));
 
     const handleSelectAll = () =>
-        setEnabledCapabilities(allEnabled ? new Set() : new Set(allIds));
+        setEnabledCapabilities(allEnabled ? new Set() : new Set(supportedIds));
 
     const handleGroupToggle = (groupItems: { id: AgentCapability }[]) => {
-        const ids = groupItems.map(c => c.id);
+        const ids = groupItems.map(c => c.id).filter(id => supportedCaps.has(id));
+        if (ids.length === 0) return;
         const allOn = ids.every(id => enabledCapabilities.has(id));
         setEnabledCapabilities(prev => {
             const next = new Set(prev);
@@ -164,15 +186,22 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                 <div className="flex-shrink-0 mb-3 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 px-1">
                     <span className="font-medium text-primary-600 dark:text-primary-400">{enabledCapabilities.size} enabled</span>
                     <span>·</span>
-                    <span>{allIds.length - enabledCapabilities.size} disabled</span>
+                    <span>{supportedIds.length - enabledCapabilities.size} disabled</span>
                     <span>·</span>
-                    <span>{allIds.length} total</span>
+                    <span>{supportedIds.length} supported</span>
+                    {unsupportedCount > 0 && (
+                        <>
+                            <span>·</span>
+                            <span className="text-gray-400 dark:text-gray-600">{unsupportedCount} not supported by this agent</span>
+                        </>
+                    )}
                 </div>
 
                 <div className="flex-grow space-y-5 overflow-y-auto pr-2">
                     {CAPABILITY_GROUPS.map(group => {
-                        const groupAllOn = group.items.every(c => enabledCapabilities.has(c.id));
-                        const groupSomeOn = group.items.some(c => enabledCapabilities.has(c.id));
+                        const groupSupported = group.items.filter(c => supportedCaps.has(c.id));
+                        const groupAllOn = groupSupported.length > 0 && groupSupported.every(c => enabledCapabilities.has(c.id));
+                        const groupSomeOn = groupSupported.some(c => enabledCapabilities.has(c.id));
                         return (
                             <div key={group.title}>
                                 {/* Group header with per-group select-all */}
@@ -180,6 +209,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                                         {group.title}
                                     </p>
+                                    {groupSupported.length > 0 && (
                                     <button
                                         onClick={() => handleGroupToggle(group.items)}
                                         className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors ${
@@ -190,11 +220,38 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                                     >
                                         {groupAllOn ? 'Disable All' : groupSomeOn ? 'Enable Rest' : 'Enable All'}
                                     </button>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
                                     {group.items.map(cap => {
-                                        const isEnabled = enabledCapabilities.has(cap.id);
+                                        const isSupported = supportedCaps.has(cap.id);
+                                        const isEnabled = isSupported && enabledCapabilities.has(cap.id);
+                                        if (!isSupported) {
+                                            // Not implemented by this agent build — show it, but make
+                                            // clear it can't be toggled (no code behind it on the endpoint).
+                                            return (
+                                                <div
+                                                    key={cap.id}
+                                                    title="This agent build does not implement this capability"
+                                                    className="p-3 rounded-lg border border-dashed border-gray-200 dark:border-gray-700/60 bg-gray-50/30 dark:bg-gray-800/20 flex items-center justify-between opacity-60 cursor-not-allowed"
+                                                >
+                                                    <div className="flex items-center">
+                                                        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full mr-4 bg-gray-100 dark:bg-gray-700/50 text-gray-400 dark:text-gray-600">
+                                                            {cap.icon}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-sm text-gray-400 dark:text-gray-500">
+                                                                {cap.label}
+                                                                <span className="ml-2 text-[10px] font-medium not-italic px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 uppercase tracking-wide">Not supported by this agent</span>
+                                                            </p>
+                                                            <p className="text-xs text-gray-400 dark:text-gray-600">{cap.description}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="h-6 w-11 flex-shrink-0 rounded-full bg-gray-200 dark:bg-gray-700 opacity-50" />
+                                                </div>
+                                            );
+                                        }
                                         return (
                                             <div
                                                 key={cap.id}
