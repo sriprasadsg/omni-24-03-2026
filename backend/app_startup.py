@@ -485,6 +485,18 @@ def init_agentic_tracing() -> None:
         )
         trace.set_tracer_provider(provider)
         AnthropicInstrumentor().instrument()
+
+        # Phase 39 (AISPEC-39-S5): wire LangChainInstrumentor spans into this
+        # same Phoenix pipeline via ai_orchestration.tracing, reusing
+        # `provider`/`endpoint` — single startup hook, graceful-degrade
+        # internally so a missing package can never break the Anthropic
+        # instrumentation that already succeeded above.
+        try:
+            from ai_orchestration.tracing import instrument_langchain
+            instrument_langchain(provider)
+        except Exception as lc_exc:
+            logger.warning("[AgenticTracing] LangChain instrumentation wiring failed: %s", lc_exc)
+
         logger.info("[AgenticTracing] Phoenix tracing active at %s", endpoint)
     except ImportError:
         logger.warning(

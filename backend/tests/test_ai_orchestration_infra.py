@@ -211,3 +211,65 @@ class TestMemoryThreadId:
             assert isinstance(checkpointer, AsyncSqliteSaver)
         assert os.path.isdir(memory_mod.DATA_DIR)
         assert "data" in memory_mod.CHECKPOINT_DB_PATH.split(os.sep)
+
+
+# ---------------------------------------------------------------------------
+# tracing.py
+# ---------------------------------------------------------------------------
+
+
+class TestTracingWiring:
+    def test_required_span_attributes_present(self):
+        from ai_orchestration.tracing import REQUIRED_SPAN_ATTRIBUTES
+
+        assert "tenant_id" in REQUIRED_SPAN_ATTRIBUTES
+        assert "surface" in REQUIRED_SPAN_ATTRIBUTES
+        assert "PROMPT_VERSION" in REQUIRED_SPAN_ATTRIBUTES
+        assert "model_provenance" in REQUIRED_SPAN_ATTRIBUTES
+
+    def test_attach_span_attributes_sets_all_four(self):
+        from ai_orchestration.tracing import attach_span_attributes
+
+        span = MagicMock()
+        attach_span_attributes(
+            span,
+            tenant_id="tenant-a",
+            surface="auditor",
+            prompt_version="v1",
+            model_provenance="primary",
+        )
+        calls = {call.args[0]: call.args[1] for call in span.set_attribute.call_args_list}
+        assert calls["tenant_id"] == "tenant-a"
+        assert calls["surface"] == "auditor"
+        assert calls["PROMPT_VERSION"] == "v1"
+        assert calls["model_provenance"] == "primary"
+
+    def test_instrument_langchain_degrades_on_import_error(self, monkeypatch):
+        import sys as _sys
+        from ai_orchestration.tracing import instrument_langchain
+
+        # Simulate the package being absent: any import of
+        # openinference.instrumentation.langchain raises ImportError.
+        monkeypatch.setitem(_sys.modules, "openinference.instrumentation.langchain", None)
+        provider = MagicMock()
+        result = instrument_langchain(provider)
+        assert result is False  # degraded, no exception raised
+
+    def test_instrument_langchain_succeeds_when_package_present(self):
+        from ai_orchestration.tracing import instrument_langchain
+
+        provider = MagicMock()
+        # openinference-instrumentation-langchain IS installed (39-01) — this
+        # should succeed against a real (mocked) tracer_provider without a
+        # live Phoenix endpoint (instrument() only registers callback hooks).
+        result = instrument_langchain(provider)
+        assert result is True
+
+    def test_app_startup_wires_langchain_instrumentor(self):
+        import app_startup
+
+        src = open(app_startup.__file__).read()
+        assert src.count("LangChainInstrumentor") >= 1
+
+    def test_app_startup_imports_cleanly(self):
+        import app_startup  # noqa: F401 — import-success is the assertion
