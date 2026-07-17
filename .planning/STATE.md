@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
 stopped_at: Phase 29 plan 29-04 (public trust page — standalone trust-page.html + GET /trust/{slug} FileResponse route, TRUST-02) executed and committed 2026-07-14 (commits 795aa444/b6b82a15) — app.py gained the unauthenticated GET /trust/{slug} route (cloned from the /.well-known/security.txt precedent); backend/static/trust-page.html built as a self-contained HTML/CSS/vanilla-JS page (468 lines) consuming the 29-02 public API, rendering public docs with links, restricted docs as name-only stubs with a Request Access button, and the NDA-consented access-request form with the exact UI-SPEC copy for all empty/error/success/404 states. Full backend suite 940 passed / 22 skipped / 0 failed — no regression. Phase 29 (Public Trust Center) is now fully complete — all 4 plans executed, TRUST-01/02/03 all done. Next — 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-14T00:46:26.919Z"
+last_updated: "2026-07-17T20:43:49.712Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** v3.0 remaining work — execute Phases 33/34, unblock Phase 35, clear UAT backlog (28/29/30/32)
+**Current focus:** Phase 39 — langchain-ai-integration
 
 ## Current Phase
 
@@ -185,6 +185,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 29]: 29-02: slowapi @limiter.limit binds route limits to the specific Limiter instance at decoration time (rate_limiter.limiter singleton), not app.state.limiter -- rate-limit tests wire the real shared limiter and reset its storage via an autouse fixture
 - [Phase 29]: 29-04: GET /trust/{slug} cloned verbatim from the /.well-known/security.txt FileResponse precedent -- no auth dependency, no /api prefix, slug unused server-side (page JS reads it from window.location)
 - [Phase 29]: 29-04: trust-page.html is fully self-contained (inline CSS + vanilla JS, zero deps except the Google Fonts CDN link) -- restricted-document rendering never reads/constructs a url/href from private_documents entries, relying entirely on the 29-02 server-side _public_view filter
+- [Phase 39-01]: langchain-chroma intentionally excluded from LangChain install; langgraph-checkpoint-sqlite==3.1.0 added despite absence from AI-SPEC pinned list per RESEARCH.md Wave 0 Gaps
 
 ## Performance Metrics
 
@@ -218,11 +219,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 36-fine-grained-relationship-based-authorization 36-01 | ~5min | 1 task | 1 file |
 | Phase 29-public-trust-center P02 | 18min | 3 tasks | 3 files |
 | Phase 29-public-trust-center P04 | 12min | 2 tasks | 2 files |
+| Phase 39-langchain-ai-integration P01 | ~12m | 2 tasks | 1 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Phase 35 GraphQL UAT cleared — extended test_graphql.py from 4 to 10 tests covering all 8 UAT items (evidence/risks/users/tenants queries, cross-tenant isolation, per-root RBAC). Full suite 946 passed / 22 skipped / 0 failed.
+- **Stopped at:** Completed 39-01-PLAN.md (LangChain runtime dependency install)
 - **Resume file:** None
 
 ## Configuration
@@ -248,7 +250,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-14T04:30:00.000Z
+**Last session:** 2026-07-17T20:43:49.695Z
 **Stopped at:** Runtime verification vs live services (2026-07-14): Phase 32 4/4 must-haves closed (attack-path stale-doc simulated-flag defect fixed, posture-results ObjectId 500 fixed, PROV-03 RBAC 200/404/401 confirmed, PyPI publisher evidence recorded); Phase 33 live signed-delivery round trip verified (HMAC byte-match at local receiver; 3 webhook defects fixed: create-response 500, duplicate $set losing lastResult, deliveries never recorded). Full suite 946/22/0. NOTE: backend restart required to pick up the endpoint fixes. Remaining human-only: 34 real-browser passkey ceremony; optional hosted n8n/Zapier test.
 **Resume file:** None
 
