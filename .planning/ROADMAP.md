@@ -694,7 +694,7 @@ June 2026 audit.
 
 **Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
 
-**Plans:** 4/12 plans executed
+**Plans:** 5/12 plans executed
 
 Plans:
 
@@ -702,7 +702,7 @@ Plans:
 - [x] 39-02-PLAN.md — 9router passthrough smoke test + eval harness scaffold (markers, two-tenant fixtures)
 - [x] 39-03-PLAN.md — Shared citation-required schemas + one citation/control-ID validator
 - [x] 39-04-PLAN.md — Model factory + persistent tenant-prefixed checkpointer + LangChain tracing wiring
-- [ ] 39-05-PLAN.md — Agent substrate: tenant-closed tools + versioned prompts + online guardrail hooks
+- [x] 39-05-PLAN.md — Agent substrate: tenant-closed tools + versioned prompts + online guardrail hooks
 - [ ] 39-06-PLAN.md — Auditor migration onto create_agent (AuditFinding + citation validation + shim)
 - [ ] 39-07-PLAN.md — Phase 38 assistant chat migration onto create_agent (+ checkpointer memory + shim)
 - [ ] 39-08-PLAN.md — Questionnaire auto-answer migration (CitedAnswer + RAG-02 gate preserved + shim)
