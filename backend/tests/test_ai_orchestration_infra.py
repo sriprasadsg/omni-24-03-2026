@@ -154,3 +154,60 @@ class TestModelsFactory:
     def test_router_passthrough_decision_recorded(self):
         # 39-02 recorded UNRESOLVED-IN-THIS-SANDBOX, conservatively FAIL.
         assert ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH == "FAIL"
+
+
+# ---------------------------------------------------------------------------
+# memory.py
+# ---------------------------------------------------------------------------
+
+
+class TestMemoryThreadId:
+    def test_make_thread_id_contains_tenant_prefix(self):
+        from ai_orchestration.memory import make_thread_id
+
+        thread_id = make_thread_id("tA", "c1")
+        assert "tA:" in thread_id
+        assert thread_id == "tA:c1"
+
+    def test_make_thread_id_distinct_across_tenants_same_conversation(self):
+        from ai_orchestration.memory import make_thread_id
+
+        thread_a = make_thread_id("tA", "c1")
+        thread_b = make_thread_id("tB", "c1")
+        assert thread_a != thread_b
+
+    def test_make_thread_id_requires_tenant_id(self):
+        from ai_orchestration.memory import make_thread_id
+
+        with pytest.raises(ValueError):
+            make_thread_id("", "c1")
+
+    def test_make_thread_id_requires_conversation_id(self):
+        from ai_orchestration.memory import make_thread_id
+
+        with pytest.raises(ValueError):
+            make_thread_id("tA", "")
+
+    def test_memory_module_no_in_process_dict_pattern(self):
+        import ai_orchestration.memory as memory_mod
+        src = open(memory_mod.__file__).read()
+        assert "demo_sessions" not in src.lower()
+        assert "AsyncSqliteSaver" in src
+        assert "data" in src  # stored under a data/ path
+
+    async def test_checkpointer_lifespan_dev_mode_yields_in_memory_saver(self):
+        from langgraph.checkpoint.memory import InMemorySaver
+        from ai_orchestration.memory import checkpointer_lifespan
+
+        async with checkpointer_lifespan(dev_mode=True) as checkpointer:
+            assert isinstance(checkpointer, InMemorySaver)
+
+    async def test_checkpointer_lifespan_default_yields_persistent_sqlite_saver(self):
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+        import ai_orchestration.memory as memory_mod
+        from ai_orchestration.memory import checkpointer_lifespan
+
+        async with checkpointer_lifespan(dev_mode=False) as checkpointer:
+            assert isinstance(checkpointer, AsyncSqliteSaver)
+        assert os.path.isdir(memory_mod.DATA_DIR)
+        assert "data" in memory_mod.CHECKPOINT_DB_PATH.split(os.sep)
