@@ -694,13 +694,13 @@ June 2026 audit.
 
 **Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
 
-**Plans:** 2/12 plans executed
+**Plans:** 3/12 plans executed
 
 Plans:
 
 - [x] 39-01-PLAN.md — Pin + install LangChain 1.x runtime stack (legitimacy checkpoint)
 - [x] 39-02-PLAN.md — 9router passthrough smoke test + eval harness scaffold (markers, two-tenant fixtures)
-- [ ] 39-03-PLAN.md — Shared citation-required schemas + one citation/control-ID validator
+- [x] 39-03-PLAN.md — Shared citation-required schemas + one citation/control-ID validator
 - [ ] 39-04-PLAN.md — Model factory + persistent tenant-prefixed checkpointer + LangChain tracing wiring
 - [ ] 39-05-PLAN.md — Agent substrate: tenant-closed tools + versioned prompts + online guardrail hooks
 - [ ] 39-06-PLAN.md — Auditor migration onto create_agent (AuditFinding + citation validation + shim)

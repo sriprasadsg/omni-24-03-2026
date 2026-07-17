@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Phase 29 plan 29-04 (public trust page — standalone trust-page.html + GET /trust/{slug} FileResponse route, TRUST-02) executed and committed 2026-07-14 (commits 795aa444/b6b82a15) — app.py gained the unauthenticated GET /trust/{slug} route (cloned from the /.well-known/security.txt precedent); backend/static/trust-page.html built as a self-contained HTML/CSS/vanilla-JS page (468 lines) consuming the 29-02 public API, rendering public docs with links, restricted docs as name-only stubs with a Request Access button, and the NDA-consented access-request form with the exact UI-SPEC copy for all empty/error/success/404 states. Full backend suite 940 passed / 22 skipped / 0 failed — no regression. Phase 29 (Public Trust Center) is now fully complete — all 4 plans executed, TRUST-01/02/03 all done. Next — 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-17T20:53:01.534Z"
+stopped_at: Phase 39 plan 39-03 (shared ai_orchestration schemas + citation/control-ID validator, AISPEC-39-S4b/S5/S6, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 3d29b1f/4eaf04b/784c994) — backend/ai_orchestration/schemas.py (Citation/AuditFinding/CitedAnswer/NarrativeOutput, citations min_length=1) and validators.py (async validate_citations resolving citations+control_id against tenant-scoped compliance_frameworks/control_evidence/asset_compliance, downgrade-on-failure) built with 27 passing hermetic unit tests. This is the shared anti-fabrication foundation 39-06 through 39-09 will import. Next — 39-04 onward (agent-surface migrations); Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
+last_updated: "2026-07-17T21:03:22.975Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -61,6 +61,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-14 (later still) — Phase 29 plan 29-04 executed (public trust page + serving route, TRUST-02 final wave).** Confirmed 29-04's remaining scope (the one genuinely new artifact in this phase with no in-codebase precedent): a standalone public trust page and its serving route. Added `GET /trust/{slug}` (`include_in_schema=False`) to `app.py`, cloned from the `/.well-known/security.txt` FileResponse precedent — no auth dependency, no `/api` prefix, `slug` unused server-side (consumed client-side by the page's own JS). Built `backend/static/trust-page.html` (468 lines) as a fully self-contained document: inline hand-written CSS using the UI-SPEC Surface A tokens (14/16/20/32px type scale, `#f8fafc`/`#ffffff`/`#00a8cc`/`#dc2626`/`#15803d` colors, Outfit font via Google Fonts `<link>`) and inline vanilla JS (zero dependencies). Fetches `/api/public/trust/{slug}` and renders header/framework-badges/public-docs (working download links)/restricted-docs (name-only stubs + "Request Access", never a url/href) and the NDA access-request form (email + consent validated client-side, posts to `/api/public/trust/{slug}/requests`); implements the exact 404/rate-limit/network-error/empty/success copy from the UI-SPEC Copywriting Contract. Discovered the plan's own `<verify>` command (`app.app.routes`) is stale — a pre-existing, unrelated socketio-wrap in `app.py` reassigns the module-level `app` name to a `socketio.ASGIApp` wrapper with no `.routes` attribute (the real FastAPI instance is `_fastapi_app`); verified route registration against `_fastapi_app.routes` and a live `TestClient` GET request instead — no code deviation, just a corrected verification method. All plan structural/copy grep checks pass; `test_trust_center.py` still 17/17; full backend suite **940 passed / 22 skipped / 0 failed**. Commits: 795aa444 (Task 1: GET /trust/{slug} route), b6b82a15 (Task 2: trust-page.html), plus SUMMARY/self-check commits. **Phase 29 (Public Trust Center) is now fully complete — all 4 plans executed, TRUST-01/02/03 all done.** Manual/UAT browser verification remains outstanding per 29-VALIDATION.md's Manual-Only gate (not exercised in a live browser this session — TestClient covers the automated portion only). Also hand-corrected a `roadmap.update-plan-progress` tool bug this session: the SDK's summary-file glob counted `29-UAT-SUMMARY.md` alongside the 4 real plan summaries, producing a garbled "5/4" row in ROADMAP.md's phase table — fixed manually to the correct phase name/tier/status text.
 
+**Session 2026-07-18 — Phase 39 plan 39-03 executed (shared ai_orchestration schemas + citation/control-ID validator, AISPEC-39-S4b/S5/S6, RESEARCH-Pat3).** Built `backend/ai_orchestration/schemas.py` (Citation, AuditFinding with `citations: min_length=1`, CitedAnswer, NarrativeOutput — all reject empty/`BLOCKED:`/`Error:` strings, generalizing `questionnaire_answer_draft_service.AnswerDraft` and `compliance_narrative_service.NarrativeOutput`'s existing validator shapes verbatim in intent) and `backend/ai_orchestration/validators.py` (async `validate_citations(obj, tenant_id, db)` resolving every citation `chunk_id` against tenant-scoped + `global` `control_evidence`/`asset_compliance`, and `control_id` against `db.compliance_frameworks` — never a hardcoded map, per RESEARCH Pattern 3; unresolved ids fail with `reason="citation_validation_failed"` and return a downgraded `insufficient_evidence` copy; plus `validate_framework_fidelity`/`extract_control_id_tokens` sweeping free text for control-ID-shaped tokens). Caught and fixed one bug during implementation before commit: the first regex draft false-positived on bare framework-name mentions (`"SOC 2"`) as fabricated control IDs — tightened to require the digit run directly after the letter code. 27 hermetic unit tests added (`backend/tests/test_ai_orchestration_schemas.py`, mocked `db`, no live model/gateway). All 3 tasks committed (3d29b1f, 4eaf04b, 784c994); `pytest backend/tests/test_ai_orchestration_schemas.py -q` → 27 passed. This is the structural anti-fabrication foundation 39-06 through 39-09 (auditor/questionnaire/chat/narrative agent migrations) will import directly rather than re-implementing per surface.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -103,6 +105,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) — openfga_sdk installed (cd66ce1e), test_rebac.py 4/4 pass |
 | 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
 | 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
+| 39 | LangChain AI Integration | In progress (v3.0) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator) executed; 39-04+ remaining |
 
 ## Decisions
 
@@ -188,6 +191,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 39-01]: langchain-chroma intentionally excluded from LangChain install; langgraph-checkpoint-sqlite==3.1.0 added despite absence from AI-SPEC pinned list per RESEARCH.md Wave 0 Gaps
 - [Phase 39-02]: 9router passthrough decision UNRESOLVED-IN-THIS-SANDBOX (no live AI_ROUTER_URL access) — treated conservatively as FAIL; downstream agent plans 39-06/39-07/39-08/39-09 should build against the documented fallback path (ChatAnthropic direct, or ToolStrategy) until re-run with live gateway access confirms PASS
 - [Phase 39-02]: force-added backend/tests/eval_langchain/data/README.md with git add -f past .gitignore's blanket data/ rule (intended for runtime dirs, not test fixtures)
+- [Phase 39-03]: CitedAnswer.citations kept additive (no min_length) alongside source_evidence_ids; only AuditFinding.citations requires min_length=1, per plan's must_haves scope
+- [Phase 39-03]: control-ID token regex requires digit run directly after letter code to avoid false-positiving on bare framework-name mentions like SOC 2
 
 ## Performance Metrics
 
@@ -223,6 +228,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 29-public-trust-center P04 | 12min | 2 tasks | 2 files |
 | Phase 39-langchain-ai-integration P01 | ~12m | 2 tasks | 1 files |
 | Phase 39-langchain-ai-integration P02 | ~15m | 2 tasks | 5 files |
+| Phase 39-langchain-ai-integration P03 | ~20m | 3 tasks | 4 files |
 
 ## Last Session
 
@@ -253,7 +259,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-17T20:52:34.433Z
+**Last session:** 2026-07-17T21:01:42.763Z
 **Stopped at:** Runtime verification vs live services (2026-07-14): Phase 32 4/4 must-haves closed (attack-path stale-doc simulated-flag defect fixed, posture-results ObjectId 500 fixed, PROV-03 RBAC 200/404/401 confirmed, PyPI publisher evidence recorded); Phase 33 live signed-delivery round trip verified (HMAC byte-match at local receiver; 3 webhook defects fixed: create-response 500, duplicate $set losing lastResult, deliveries never recorded). Full suite 946/22/0. NOTE: backend restart required to pick up the endpoint fixes. Remaining human-only: 34 real-browser passkey ceremony; optional hosted n8n/Zapier test.
 **Resume file:** None
 
