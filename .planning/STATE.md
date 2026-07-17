@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Phase 39 plan 39-03 (shared ai_orchestration schemas + citation/control-ID validator, AISPEC-39-S4b/S5/S6, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 3d29b1f/4eaf04b/784c994) — backend/ai_orchestration/schemas.py (Citation/AuditFinding/CitedAnswer/NarrativeOutput, citations min_length=1) and validators.py (async validate_citations resolving citations+control_id against tenant-scoped compliance_frameworks/control_evidence/asset_compliance, downgrade-on-failure) built with 27 passing hermetic unit tests. This is the shared anti-fabrication foundation 39-06 through 39-09 will import. Next — 39-04 onward (agent-surface migrations); Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-17T21:03:22.975Z"
+stopped_at: Phase 39 plan 39-04 (per-tenant LangChain model factory + persistent memory + tracing infra, AISPEC-39-S4/S5/S7, RESEARCH-Pat1/PitC) executed and committed 2026-07-18 (commits b5266e5/55beed9/ed261a5) — backend/ai_orchestration/models.py (async build_model_for_tenant with init_chat_model + .with_fallbacks, single shared ai_service provider cache, model_provenance helper), memory.py (persistent AsyncSqliteSaver under data/, mandatory tenant-prefixed make_thread_id), and tracing.py (LangChainInstrumentor wired into app_startup's init_agentic_tracing with graceful degrade) built with 25 passing hermetic unit tests. This is the shared runtime substrate 39-06 through 39-09 will build create_agent on top of. Next — 39-05 onward (agent-surface migrations); Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
+last_updated: "2026-07-17T21:25:31.383Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -63,6 +63,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-18 — Phase 39 plan 39-03 executed (shared ai_orchestration schemas + citation/control-ID validator, AISPEC-39-S4b/S5/S6, RESEARCH-Pat3).** Built `backend/ai_orchestration/schemas.py` (Citation, AuditFinding with `citations: min_length=1`, CitedAnswer, NarrativeOutput — all reject empty/`BLOCKED:`/`Error:` strings, generalizing `questionnaire_answer_draft_service.AnswerDraft` and `compliance_narrative_service.NarrativeOutput`'s existing validator shapes verbatim in intent) and `backend/ai_orchestration/validators.py` (async `validate_citations(obj, tenant_id, db)` resolving every citation `chunk_id` against tenant-scoped + `global` `control_evidence`/`asset_compliance`, and `control_id` against `db.compliance_frameworks` — never a hardcoded map, per RESEARCH Pattern 3; unresolved ids fail with `reason="citation_validation_failed"` and return a downgraded `insufficient_evidence` copy; plus `validate_framework_fidelity`/`extract_control_id_tokens` sweeping free text for control-ID-shaped tokens). Caught and fixed one bug during implementation before commit: the first regex draft false-positived on bare framework-name mentions (`"SOC 2"`) as fabricated control IDs — tightened to require the digit run directly after the letter code. 27 hermetic unit tests added (`backend/tests/test_ai_orchestration_schemas.py`, mocked `db`, no live model/gateway). All 3 tasks committed (3d29b1f, 4eaf04b, 784c994); `pytest backend/tests/test_ai_orchestration_schemas.py -q` → 27 passed. This is the structural anti-fabrication foundation 39-06 through 39-09 (auditor/questionnaire/chat/narrative agent migrations) will import directly rather than re-implementing per surface.
 
+**Session 2026-07-18 (later) — Phase 39 plan 39-04 executed (per-tenant LangChain model factory + persistent memory + tracing infra, AISPEC-39-S4/S5/S7, RESEARCH-Pat1/PitC).** Built `backend/ai_orchestration/models.py` (async `build_model_for_tenant(tenant_id, db, surface)` reading the same `system_settings` "llm" document `ai_service.get_provider_for_tenant` reads, mapping provider strings — router/9router/ollama/anthropic/gemini — onto `init_chat_model`, returning `primary.with_fallbacks([local_ollama])` with per-surface temp/max_tokens from AI-SPEC Section 4; reuses `ai_service.invalidate_tenant_provider` exclusively, zero `_tenant_providers` occurrences confirmed by grep; `model_provenance()` tags responses `"primary"`/`"fallback:<model>"`; records the 39-02 router structured-output passthrough FAIL decision as a module constant + docstring for 39-06..09), `backend/ai_orchestration/memory.py` (`checkpointer_lifespan()` defaulting to a persistent `AsyncSqliteSaver` under `backend/data/`, `InMemorySaver` dev-mode switch; `make_thread_id(tenant_id, conversation_id)` enforces the mandatory tenant-prefix, raises on empty ids), and `backend/ai_orchestration/tracing.py` (`instrument_langchain()` wraps `LangChainInstrumentor().instrument(tracer_provider=...)` in the identical ImportError/Exception graceful-degrade shape as the existing `AnthropicInstrumentor` wiring; `attach_span_attributes()` for the four mandatory span attributes) wired into `app_startup.py::init_agentic_tracing` right after the Anthropic instrumentor call — one startup hook, reusing the same `TracerProvider`. 25 hermetic unit tests added (`backend/tests/test_ai_orchestration_infra.py`, `-k models`/`-k memory`/`-k tracing` all green, no live model/gateway/network). All 3 tasks committed (b5266e5, 55beed9, ed261a5); `cd backend && venv/bin/python -c "import app_startup"` exits 0. While confirming no regression, a full-suite run surfaced one new environmental observation (logged to `deferred-items.md` item 6, not a regression): `test_router_passthrough.py` now attempts a live call instead of skipping when collected as part of the full suite, because `AI_ROUTER_URL` resolves from `.env` in this sandbox session — unrelated to this plan's files, confirmed via import-graph check. This is the shared runtime substrate 39-06 through 39-09 will build `create_agent` on top of.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -105,7 +107,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) — openfga_sdk installed (cd66ce1e), test_rebac.py 4/4 pass |
 | 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
 | 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
-| 39 | LangChain AI Integration | In progress (v3.0) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator) executed; 39-04+ remaining |
+| 39 | LangChain AI Integration | In progress (v3.0) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator), 39-04 (per-tenant model factory + persistent memory + tracing infra) executed; 39-05+ remaining |
 
 ## Decisions
 
@@ -193,6 +195,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 39-02]: force-added backend/tests/eval_langchain/data/README.md with git add -f past .gitignore's blanket data/ rule (intended for runtime dirs, not test fixtures)
 - [Phase 39-03]: CitedAnswer.citations kept additive (no min_length) alongside source_evidence_ids; only AuditFinding.citations requires min_length=1, per plan's must_haves scope
 - [Phase 39-03]: control-ID token regex requires digit run directly after letter code to avoid false-positiving on bare framework-name mentions like SOC 2
+- [Phase 39-04]: 9router structured-output/tool-calling passthrough remains scoped FAIL (39-02); build_model_for_tenant still routes plain generation through the router, but response_format/tools must not assume router passthrough — ai_orchestration/models.py records ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH='FAIL' for 39-06..09 to read
+- [Phase 39-04]: LangChainInstrumentor wiring lives in app_startup.py's own nested try/except calling ai_orchestration.tracing.instrument_langchain(provider) — single startup hook, single source of truth for degrade logic — satisfies both the literal grep gate on app_startup.py and the plan's one-hook requirement
 
 ## Performance Metrics
 
@@ -229,11 +233,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 39-langchain-ai-integration P01 | ~12m | 2 tasks | 1 files |
 | Phase 39-langchain-ai-integration P02 | ~15m | 2 tasks | 5 files |
 | Phase 39-langchain-ai-integration P03 | ~20m | 3 tasks | 4 files |
+| Phase 39-langchain-ai-integration P04 | ~25min | 3 tasks | 6 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 39-01-PLAN.md (LangChain runtime dependency install)
+- **Stopped at:** Completed 39-04-PLAN.md (LangChain model factory + persistent memory + tracing infra)
 - **Resume file:** None
 
 ## Configuration
@@ -259,7 +264,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-17T21:01:42.763Z
+**Last session:** 2026-07-17T21:25:31.367Z
 **Stopped at:** Runtime verification vs live services (2026-07-14): Phase 32 4/4 must-haves closed (attack-path stale-doc simulated-flag defect fixed, posture-results ObjectId 500 fixed, PROV-03 RBAC 200/404/401 confirmed, PyPI publisher evidence recorded); Phase 33 live signed-delivery round trip verified (HMAC byte-match at local receiver; 3 webhook defects fixed: create-response 500, duplicate $set losing lastResult, deliveries never recorded). Full suite 946/22/0. NOTE: backend restart required to pick up the endpoint fixes. Remaining human-only: 34 real-browser passkey ceremony; optional hosted n8n/Zapier test.
 **Resume file:** None
 
