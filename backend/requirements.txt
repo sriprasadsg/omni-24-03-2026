@@ -67,6 +67,16 @@ arize-phoenix>=4.0.0,<5.0.0
 openinference-instrumentation-anthropic>=0.1.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.24.0,<2.0.0
 
+# ── LangChain / LangGraph Orchestration (Phase 39) ───────────────────────────
+langchain==1.3.14
+langchain-core==1.4.9
+langgraph==1.2.9
+langchain-openai==1.3.5
+langchain-anthropic==1.4.8
+langchain-ollama==1.1.0
+langgraph-checkpoint-sqlite==3.1.0
+openinference-instrumentation-langchain==0.1.67
+
 # ── ReBAC Client ──────────────────────────────────────────────────────────────
 openfga>=0.6.0,<1.0.0          # OpenFGA client for Zanzibar-style ReBAC
 
