@@ -671,3 +671,27 @@ June 2026 audit.
 **Plans:** 1/1 complete — all 16 review findings fixed, dashboard restyled and wired into navigation, verified 2026-07-05
 
 - [x] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs). All 16 `24-REVIEW.md` findings fixed (inverted PASS/FAIL logic, Kubernetes always-fail override, missing CloudFormation checks, broken test auth override, dashboard/API type mismatch, plus 8 warning/info findings) — 8/8 tests pass, re-run and confirmed. Dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md`, and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation (`view: 'iacContainer'`, Security (SecOps) section) — confirmed reachable via build chunk output.
+
+## v3.1 — AI Orchestration Layer
+
+**Goal:** Unify the platform's AI surfaces behind LangChain as a model-agnostic orchestration layer, per the AI-SPEC design contract generated 2026-07-17.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 39 | LangChain AI Integration | Pending |
+
+---
+
+## Phase 39: LangChain AI Integration
+
+**Milestone:** v3.1
+
+**Goal:** Migrate the platform's existing AI surfaces — AI compliance auditor (`ai_auditor_endpoints.py`), chat assistant (`agent_chat_endpoints.py` / `ChatAssistant.tsx`), questionnaire auto-answer RAG (`rag_service.py`), narrative generation (`compliance_narrative_service.py`) — onto LangChain 1.x (`create_agent` + `init_chat_model`) as a model-agnostic orchestration layer over the 9router gateway with Ollama fallback, with citation-required structured outputs, tenant-scoped tools, and the evaluation harness specified in 39-AI-SPEC.md (Phoenix tracing, 8 eval dimensions, online guardrails).
+
+**Requirements:** Per 39-AI-SPEC.md design contract (framework decision, guardrails, eval strategy) — no standalone REQUIREMENTS.md IDs registered yet
+
+**Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
+
+**Plans:** TBD
