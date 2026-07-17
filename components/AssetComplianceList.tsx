@@ -4,6 +4,7 @@ import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircu
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
 import { EvidenceReviewPanel } from './EvidenceReviewPanel';
 import { showToast } from '../utils/toast';
+import AiAuditRunModal from './AiAuditRunModal'; // Import new modal
 
 /** Extends the canonical `AssetComplianceEvidence` shape (types.ts) with the
  * ad-hoc fields the automated/AI-auditor evidence rendering path below also
@@ -46,6 +47,20 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
     const [descriptionMap, setDescriptionMap] = useState<Record<string, string>>({});
     const [deletingMap, setDeletingMap] = useState<Record<string, boolean>>({});
     const [updatingMap, setUpdatingMap] = useState<Record<string, boolean>>({});
+    const [showRemediationModal, setShowRemediationModal] = useState<string>('');
+    const [showReasonModal, setShowReasonModal] = useState<string>('');
+    const [showAiAuditModal, setShowAiAuditModal] = useState<boolean>(false);
+
+    const handleRunAudit = async (frameworkId: string) => {
+        try {
+            await apiService.runAiAudit(frameworkId);
+            showToast('AI audit started in the background.', 'success');
+        } catch (error) {
+            console.error('Failed to start AI audit', error);
+            showToast('Failed to start AI audit.', 'error');
+        }
+    };
+
 
     const handleUpdateStatus = async (assetId: string, status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence') => {
         setUpdatingMap(prev => ({ ...prev, [assetId]: true }));
@@ -56,21 +71,12 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
         }
     };
 
-    const handleUploadClick = (assetId: string) => {
-        setSelectedAssetId(assetId);
-        fileInputRef.current?.click();
-    };
-
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file || !selectedAssetId) return;
 
         const description = descriptionMap[selectedAssetId] || undefined;
 
-        // 1. Trigger the standard upload handler (UI update + backend upload). Awaited
-        // with its own try/catch (WR-06) — this component previously relied entirely
-        // on the caller wrapping onUploadEvidence in its own try/catch, which is an
-        // implicit contract this component had no way to verify or enforce.
         try {
             await onUploadEvidence(selectedAssetId, file, description);
         } catch (error) {
@@ -78,9 +84,6 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
             showToast('Failed to upload evidence — please try again', 'error');
         }
 
-        // 2. Read content and trigger ingestion — skip binary formats (PDF, images,
-        // DOCX, XLSX) since file.text() would garble them into replacement
-        // characters before the LLM auditor sees them (WR-04).
         const INGESTIBLE_TEXT_TYPES = ['text/plain', 'text/markdown', 'application/json', 'text/csv'];
         const isIngestibleText = INGESTIBLE_TEXT_TYPES.some(t => file.type.startsWith(t));
         setIngestingMap(prev => ({ ...prev, [selectedAssetId]: true }));
@@ -149,11 +152,19 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                         {status.replace('_', ' ')}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title={statusRecord?.reason || ''}>
-                                    {statusRecord?.reason || '-'}
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                    {statusRecord ? (
+                                        <span onClick={() => setShowReasonModal(statusRecord.reason || 'No findings available')} className="text-purple-600 hover:text-purple-900 cursor-pointer">❓</span>
+                                    ) : (
+                                        '-'
+                                    )}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title={statusRecord?.remediation || ''}>
-                                    {statusRecord?.remediation || '-'}
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                    {statusRecord ? (
+                                        <span onClick={() => setShowRemediationModal(statusRecord.remediation || 'No suggested actions available')} className="text-blue-600 hover:text-blue-900 cursor-pointer">❔</span>
+                                    ) : (
+                                        '-'
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                     {statusRecord?.evidence?.length ? (
@@ -187,7 +198,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                     </div>
                                                     <div className="flex items-center gap-1 flex-shrink-0">
                                                         {ev.agent_type === 'powershell' && (
-                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
                                                                 PS
                                                             </span>
                                                         )}
@@ -219,13 +230,6 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                       evidenceId={evId}
                                                       evidenceStatus={ev.status}
                                                       onStatusChange={() => {
-                                                        // Refresh-only trigger (WR-04): a review decision
-                                                        // doesn't change the asset's overall compliance
-                                                        // status, so this must not call onUpdateStatus (a
-                                                        // real, mutating backend write) — that would
-                                                        // spuriously re-assert the unchanged status as if it
-                                                        // were a genuine transition. onEvidenceReviewed is a
-                                                        // dedicated, non-mutating refetch path instead.
                                                         if (typeof onEvidenceReviewed === 'function') {
                                                           onEvidenceReviewed(asset.id);
                                                         }
@@ -235,8 +239,6 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                 </React.Fragment>
                                                 );
                                             })}
-
-                                            {/* AI Evaluation Block */}
                                             {statusRecord.ai_evaluation && (
                                                 <div className={`mt-3 p-3 rounded-md text-xs border ${statusRecord.ai_evaluation.verified ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300' : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-300'}`}>
                                                     <div className="flex items-center justify-between mb-1.5 border-b border-opacity-20 pb-1.5 border-current">
@@ -277,7 +279,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                             type="text"
                                             placeholder="Description (optional)"
                                             value={descriptionMap[asset.id] || ''}
-                                            onChange={e => setDescriptionMap(prev => ({ ...prev, [asset.id]: e.target.value }))}
+                                            onChange={(e) => setDescriptionMap(prev => ({ ...prev, [asset.id]: e.target.value }))}
                                             className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 w-44 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
                                         />
                                     </div>
@@ -287,6 +289,24 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                     })}
                 </tbody>
             </table>
+            {showRemediationModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-4 rounded max-w-2xl w-full max-h-screen overflow-y-auto">
+                        <h2 className="text-lg font-semibold mb-2">Suggested Action Details</h2>
+                        <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-xs whitespace-pre-wrap">{showRemediationModal}</pre>
+                        <button onClick={() => setShowRemediationModal('')} className="mt-2 rounded bg-blue-600 px-3 py-1 text-white">Close</button>
+                    </div>
+                </div>
+            )}
+            {showReasonModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-4 rounded max-w-2xl w-full max-h-screen overflow-y-auto">
+                        <h2 className="text-lg font-semibold mb-2">Finding Reason</h2>
+                        <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-xs whitespace-pre-wrap">{showReasonModal}</pre>
+                        <button onClick={() => setShowReasonModal('')} className="mt-2 rounded bg-purple-600 px-3 py-1 text-white">Close</button>
+                    </div>
+                </div>
+            )}
             <input
                 type="file"
                 ref={fileInputRef}

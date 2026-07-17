@@ -11,6 +11,30 @@ logger = logging.getLogger("ai_auditor_api")
 router = APIRouter()
 
 
+@router.get("/audit-framework/{framework_id}")
+async def get_audit_framework(
+    framework_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: dict = Depends(require_permission("view:compliance")),
+):
+    """
+    Retrieves details for a specific compliance framework.
+    """
+    caller_tenant = (
+        current_user.get("tenant_id") if isinstance(current_user, dict)
+        else getattr(current_user, "tenant_id", None)
+    )
+    fw_filter: dict = {"id": framework_id}
+    if caller_tenant:
+        fw_filter["tenantId"] = caller_tenant
+
+    framework = await db.compliance_frameworks.find_one(fw_filter)
+    if not framework:
+        raise HTTPException(status_code=404, detail="Framework not found or not accessible")
+
+    return framework
+
+
 @router.post("/audit-framework/{framework_id}")
 async def audit_framework_evidence(
     framework_id: str,
