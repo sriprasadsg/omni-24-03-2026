@@ -109,7 +109,7 @@ All other phase behaviors have automated verification.
 
 ## Validation Sign-Off
 
-- [x] All tasks have `<automated>` verify or Wave 0 dependencies (35 tasks: 34 automated, 1 human checkpoint listed under Manual-Only)
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies (34 tasks: 33 automated, 1 human checkpoint listed under Manual-Only)
 - [x] Sampling continuity: no 3 consecutive tasks without automated verify (only 39-01-01 is manual; its successor 39-01-02 is automated)
 - [x] Wave 0 covers all MISSING references (markers/scaffold/install owned by 39-01/39-02/39-10/39-12)
 - [x] No watch-mode flags (all commands single-shot `-q`; no `--watch`/`-f`)

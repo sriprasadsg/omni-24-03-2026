@@ -688,7 +688,7 @@ June 2026 audit.
 
 **Milestone:** v3.1
 
-**Goal:** Migrate the platform's existing AI surfaces — AI compliance auditor (`ai_auditor_endpoints.py`), chat assistant (`agent_chat_endpoints.py` / `ChatAssistant.tsx`), questionnaire auto-answer RAG (`rag_service.py`), narrative generation (`compliance_narrative_service.py`) — onto LangChain 1.x (`create_agent` + `init_chat_model`) as a model-agnostic orchestration layer over the 9router gateway with Ollama fallback, with citation-required structured outputs, tenant-scoped tools, and the evaluation harness specified in 39-AI-SPEC.md (Phoenix tracing, 8 eval dimensions, online guardrails).
+**Goal:** Migrate the platform's existing AI surfaces — AI compliance auditor (`ai_auditor_endpoints.py`), Phase 38 grounded chat assistant (`ai_assistant_service.py` / `/api/assistant/chat` — legacy `/api/ai/chat` and `ChatAssistant.tsx` explicitly deferred per 39-CONTEXT.md), questionnaire auto-answer RAG (`rag_service.py`), narrative generation (`compliance_narrative_service.py`) — onto LangChain 1.x (`create_agent` + `init_chat_model`) as a model-agnostic orchestration layer over the 9router gateway with Ollama fallback, with citation-required structured outputs, tenant-scoped tools, and the evaluation harness specified in 39-AI-SPEC.md (Phoenix tracing, 8 eval dimensions, online guardrails).
 
 **Requirements:** Per 39-AI-SPEC.md design contract (framework decision, guardrails, eval strategy) — no standalone REQUIREMENTS.md IDs registered yet
 

@@ -246,7 +246,7 @@ settings = await raw.system_settings.find_one({"type": "llm", "tenantId": tenant
 | Property | Value |
 |----------|-------|
 | Framework | pytest (no version pin found in `requirements.txt` grep this session — installed in `backend/venv`; run via `backend/venv/bin/python -m pytest` per CLAUDE.md/STATE.md convention, never bare `pytest`) |
-| Config file | none — no `pytest.ini`/`[tool:pytest]` found; markers must be registered fresh (Pitfall E) |
+| Config file | root `pytest.ini` exists (earlier "none found" claim was stale; 39-02 targets the real file) — `eval`/`llm` markers still unregistered, must be added (Pitfall E) |
 | Quick run command | `backend/venv/bin/python -m pytest backend/tests/eval_langchain/ -m "eval and not llm" -q` (per AI-SPEC; requires Wave 0 marker registration) |
 | Full suite command | `backend/venv/bin/python -m pytest backend/tests/ -q` (existing project convention; confirm 0 regressions against the last known-green baseline — 946 passed/22 skipped per STATE.md 2026-07-16) |
 
@@ -307,17 +307,17 @@ settings = await raw.system_settings.find_one({"type": "llm", "tenantId": tenant
 
 ## Open Questions
 
-1. **Which chat surface does "migrate the chat assistant" actually mean?**
+1. **(RESOLVED — 39-CONTEXT.md locked decision: only the Phase 38 `/api/assistant/chat` surface (`ai_assistant_service.py`) migrates this phase; legacy `/api/ai/chat` explicitly deferred, `ChatAssistant.tsx` unchanged.)** Which chat surface does "migrate the chat assistant" actually mean?
    - What we know: `agent_chat_endpoints.py` has no LLM call at all. `ai_service.chat()` (`/api/ai/chat`, used by `ChatAssistant.tsx`) is a hand-rolled demo/skill dispatcher with no RAG grounding. `ai_assistant_service.chat()` (`/api/assistant/chat`, Phase 38) is RAG-grounded with citations already, structurally closest to AI-SPEC's target shape.
    - What's unclear: whether the user/planner wants (a) `ChatAssistant.tsx` re-pointed at a migrated version of the Phase 38 assistant (a real, visible UX change), (b) the legacy `/api/ai/chat` demo-tour behavior preserved and separately migrated, or (c) only the Phase 38 assistant touched this phase with the legacy chat explicitly left alone.
    - Recommendation: surface this as an explicit AskUserQuestion-style decision in discuss-phase or Wave 1 planning before any chat-surface task is written — do not let the planner guess.
 
-2. **Should `ai_auditor_service.py`/`compliance_narrative_service.py`/`questionnaire_answer_draft_service.py` be fully retired (deleted) once their LangChain replacements ship, or kept as thin compatibility shims?**
+2. **(RESOLVED — 39-CONTEXT.md locked decision: keep all three as thin compatibility shims preserving public contracts; plans 39-06/39-08/39-09.)** Should `ai_auditor_service.py`/`compliance_narrative_service.py`/`questionnaire_answer_draft_service.py` be fully retired (deleted) once their LangChain replacements ship, or kept as thin compatibility shims?
    - What we know: `ai_auditor_endpoints.py` imports `ai_auditor_service.get_auditor()` directly; `compliance_reports`/scheduled-report code paths call `compliance_narrative_service.enrich_report_data` directly; `questionnaire_answer_draft_service.draft_answer_for_question` is called from questionnaire endpoints not read this session.
    - What's unclear: the exact call sites and whether any test file imports these modules directly by name (a rename/retirement would break those imports even if behavior is identical).
    - Recommendation: `grep -rn "from ai_auditor_service\|from compliance_narrative_service\|from questionnaire_answer_draft_service"` across `backend/` (endpoints + tests) during planning to enumerate every caller before deciding shim-vs-delete.
 
-3. **Does the 9router gateway's OpenAI-compatible wire format support the specific tool-calling / structured-output request shapes `create_agent`/`response_format` will send?**
+3. **(RESOLVED at plan level — 39-02 Task 1 front-loads the recommended live smoke test as a Wave 2 gate; outcome or documented fallback decision recorded there before any surface migration executes.)** Does the 9router gateway's OpenAI-compatible wire format support the specific tool-calling / structured-output request shapes `create_agent`/`response_format` will send?
    - What we know: `OpenAICompatProvider` today sends a bare `/v1/chat/completions` request with `messages`/`max_tokens`/optional `temperature` — no `tools`/`tool_choice`/`response_format` fields are ever sent by the existing code, so this is untested territory for the gateway itself (not just for this codebase).
    - What's unclear: whether the 9router gateway (a project-local proxy, not documented in the packages read this session) forwards `tools`/`response_format` fields transparently to Anthropic, or strips/rejects them.
    - Recommendation: Wave 0 should include a smoke-test task — a minimal `init_chat_model(...).invoke(...)` call with a trivial tool bound, run against the live 9router gateway — before committing to `create_agent` across all surfaces. This is the single highest-uncertainty integration point in the whole phase and is not resolvable by reading code; it requires hitting the actual gateway.
