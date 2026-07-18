@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Phase 39 plan 39-08 (create_agent questionnaire draft generation — CitedAnswer + citation validation + guardrails + provenance + shim; AISPEC-39-S4/S4b/S5/S6/S7) executed and committed 2026-07-18 (commits 52bc693/e98ee0e/cf515cc) — backend/ai_orchestration/agents/questionnaire.py (generate_draft builds a per-tenant create_agent with ToolStrategy(CitedAnswer) structured output, validate_citations wired in, guardrails + cross-tenant scan, fallback-provenance needs_review flagging, decision-log writes) and questionnaire_answer_draft_service.py (thin shim preserving draft_answer_for_question's exact contract + Mongo doc shape + the RAG-02 pending_review gate). 14 hermetic unit tests green. Next — 39-09 (narrative) — same create_agent + validate_citations + guardrails + provenance + decision-log pattern; then 39-11/39-12 (eval dimensions). Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-18T09:54:00.000Z"
+stopped_at: Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py and compliance_narrative_service.py shim, 17 hermetic unit tests green. All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete. Next — 39-11/39-12 (eval dimensions). Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
+last_updated: "2026-07-18T10:10:38.968Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -113,7 +113,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 36 | Fine-Grained Relationship-Based Authorization | Complete (v3.0) — openfga_sdk installed (cd66ce1e), test_rebac.py 4/4 pass |
 | 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
 | 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
-| 39 | LangChain AI Integration | In progress (v3.0) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator), 39-04 (per-tenant model factory + persistent memory + tracing infra), 39-05 (tenant-closed tools + versioned prompts + guardrail hooks + decision-log writer), 39-06 (create_agent auditor migration — AuditFinding + citation validation + shim), 39-07 (create_agent chat migration — persistent checkpointer memory + RAG/live-findings fusion), 39-08 (create_agent questionnaire migration — CitedAnswer + citation validation + shim), 39-10 (48-example reference dataset: gold controls + questionnaire + chat + adversarial fixtures + fail-loud loader) executed; 39-09/11/12 remaining |
+| 39 | LangChain AI Integration | In progress (v3.0) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator), 39-04 (per-tenant model factory + persistent memory + tracing infra), 39-05 (tenant-closed tools + versioned prompts + guardrail hooks + decision-log writer), 39-06 (create_agent auditor migration — AuditFinding + citation validation + shim), 39-07 (create_agent chat migration — persistent checkpointer memory + RAG/live-findings fusion), 39-08 (create_agent questionnaire migration — CitedAnswer + citation validation + shim), 39-09 (create_agent narrative migration — NarrativeOutput + word-budget validation + framework-fidelity flagging + shim), 39-10 (48-example reference dataset: gold controls + questionnaire + chat + adversarial fixtures + fail-loud loader) executed — all four AI-surface migrations complete; 39-11/12 remaining |
 
 ## Decisions
 
@@ -217,6 +217,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: [Phase 39-08]: questionnaire.py's DraftResult carries retrieved_evidence (raw RAG chunks) beyond the plan's literal field list, so the shim builds sourceEvidence without a second RAG query
 - [Phase ?]: [Phase 39-08]: questionnaire citation validation uses the same validate_citations (39-03) as the auditor, which only resolves chunk_id against control_evidence/asset_compliance Mongo -- not ChromaDB ids; since this surface only has the search_evidence RAG tool (no Mongo-backed evidence tool), most real citations will conservatively downgrade to insufficient_evidence -- fail-closed by design, flagged as a known limitation not fixed (out of plan scope)
 - [Phase ?]: [Phase 39-08]: test_questionnaire_auto_answer_e2e.py mocks retargeted from removed rag_service/ai_service module attributes onto the shim's own call to generate_draft (Rule 1 fix)
+- [Phase ?]: [Phase 39-09]: agents/narrative.py's generate_executive/generate_framework take db as a required trailing param (not in the plan's literal signature) since build_model_for_tenant/log_ai_decision require it -- mirrors evaluate_control/generate_draft's own db param in 39-06/39-08
+- [Phase ?]: [Phase 39-09]: compliance_narrative_service.py's public functions keep their exact 4-arg signatures with two new optional trailing tenant_id/db kwargs -- enrich_report_data passes both explicitly per RESEARCH Pitfall B, other callers fall back to ambient tenant_context/database resolution
+- [Phase ?]: [Phase 39-09]: framework-fidelity validation failure is fail-closed (falls back to the deterministic narrative) rather than a non-blocking flag, consistent with this phase's posture on every other citation/control-ID validation surface
 
 ## Performance Metrics
 
@@ -259,11 +262,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 39-langchain-ai-integration P06 | ~25min | 3 tasks | 3 files |
 | Phase 39-langchain-ai-integration P07 | 35min | 3 tasks | 4 files |
 | Phase 39-langchain-ai-integration P08 | ~35min | 3 tasks | 4 files |
+| Phase 39-langchain-ai-integration P09 | ~35min | 3 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 39-08-PLAN.md
+- **Stopped at:** Completed 39-09-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -289,8 +293,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-18T09:53:13.590Z
-**Stopped at:** Phase 39 plan 39-08 (create_agent questionnaire draft generation — CitedAnswer + citation validation + guardrails + provenance + shim; AISPEC-39-S4/S4b/S5/S6/S7) executed and committed 2026-07-18 (commits 52bc693/e98ee0e/cf515cc) — backend/ai_orchestration/agents/questionnaire.py (generate_draft builds a per-tenant create_agent with ToolStrategy(CitedAnswer) structured output, validate_citations wired in, guardrails + cross-tenant scan, fallback-provenance needs_review flagging, decision-log writes; returns a plain DraftResult, never writes to Mongo) and questionnaire_answer_draft_service.py (thin shim preserving draft_answer_for_question's exact contract + Mongo doc shape + the RAG-02 pending_review gate — zero occurrences of "submitted" in the file). 14 hermetic unit tests green (test_questionnaire_agent.py). Rule-1 fix: retargeted tests/test_questionnaire_auto_answer_e2e.py's mocks from the removed rag_service/ai_service module attributes onto generate_draft. Full backend suite: 1091 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). Next — 39-09 (narrative), then 39-11/39-12 (eval dimensions).
+**Last session:** 2026-07-18T10:10:38.951Z
+**Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
 ## Accumulated Context
