@@ -39,7 +39,13 @@ except Exception:  # pragma: no cover - defensive, mirrors eval_questionnaire_au
     LANGCHAIN_AVAILABLE = False
     create_agent = init_chat_model = tool = None
 
-AI_ROUTER_URL = os.environ.get("AI_ROUTER_URL")
+# Read via the pre-dotenv sentinel captured in backend/tests/conftest.py, NOT
+# os.environ["AI_ROUTER_URL"] directly: sibling 39-11 eval modules imported
+# earlier in collection order transitively trigger database.py's
+# load_dotenv(), which leaks a stale backend/.env AI_ROUTER_URL into
+# os.environ and would un-skip this live test in gateway-less sandboxes. The
+# shell environment is the only opt-in signal for a live run.
+AI_ROUTER_URL = os.environ.get("_AI_ROUTER_URL_PRE_DOTENV") or None
 AI_ROUTER_KEY = os.environ.get("AI_ROUTER_KEY", "")
 AI_ROUTER_MODEL = os.environ.get("AI_ROUTER_MODEL", "claude-sonnet-4-6")
 
@@ -49,9 +55,9 @@ pytestmark = [
     pytest.mark.skipif(
         not AI_ROUTER_URL or not LANGCHAIN_AVAILABLE,
         reason=(
-            "AI_ROUTER_URL not set (no live 9router gateway reachable in this "
-            "environment) or langchain not installed — see 39-02-SUMMARY.md "
-            "for the recorded fallback decision"
+            "AI_ROUTER_URL not set in the shell environment (no live 9router "
+            "gateway reachable) or langchain not installed — see "
+            "39-02-SUMMARY.md for the recorded fallback decision"
         ),
     ),
 ]
