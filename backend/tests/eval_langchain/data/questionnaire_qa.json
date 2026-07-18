@@ -1,0 +1,82 @@
+[
+  {
+    "question_id": "qqa-01",
+    "question_text": "Do we enforce multi-factor authentication for all externally-exposed applications?",
+    "gold_answer_text": "Yes. MFA is enforced on 100% of externally-exposed applications; enrollment reporting confirms full coverage with no exempted accounts.",
+    "gold_confidence": "high",
+    "gold_source_ids": ["qev-mfa-enrollment-report", "qev-sso-mfa-policy-export"],
+    "case_type": "answerable"
+  },
+  {
+    "question_id": "qqa-02",
+    "question_text": "Are unique passwords required across all accounts?",
+    "gold_answer_text": "Yes. The identity provider enforces a 14-character minimum with no reuse across the last 10 passwords, applied org-wide with zero exemptions.",
+    "gold_confidence": "high",
+    "gold_source_ids": ["qev-idp-password-policy"],
+    "case_type": "answerable"
+  },
+  {
+    "question_id": "qqa-03",
+    "question_text": "Are audit logs centrally collected for all critical systems?",
+    "gold_answer_text": "Yes. All 47 in-scope systems forward logs to the SIEM with 400-day retention and no open coverage gaps.",
+    "gold_confidence": "high",
+    "gold_source_ids": ["qev-siem-source-inventory"],
+    "case_type": "answerable"
+  },
+  {
+    "question_id": "qqa-04",
+    "question_text": "Is data encrypted at rest in our cloud storage?",
+    "gold_answer_text": "Yes. AES-256 encryption at rest is enabled on 100% of in-scope storage buckets and volumes, with annual KMS key rotation active.",
+    "gold_confidence": "high",
+    "gold_source_ids": ["qev-storage-encryption-scan"],
+    "case_type": "answerable"
+  },
+  {
+    "question_id": "qqa-05",
+    "question_text": "How quickly are terminated employees' accounts disabled?",
+    "gold_answer_text": "Terminated employee accounts are disabled within 4 business hours on average, with zero exceptions in the most recent quarterly sample of 22 terminations.",
+    "gold_confidence": "high",
+    "gold_source_ids": ["qev-hris-deprovisioning-audit"],
+    "case_type": "answerable"
+  },
+  {
+    "question_id": "qqa-06",
+    "question_text": "Is incident-response monitoring fully deployed across all environments?",
+    "gold_answer_text": "Production monitoring coverage is complete. Staging coverage is in progress: 2 of 5 staging clusters are not yet instrumented, tracked under ticket IR-2291, with a compensating control of manual log review until remediation lands.",
+    "gold_confidence": "medium",
+    "gold_source_ids": ["qev-ir-monitoring-prod", "qev-ir-monitoring-staging-gap"],
+    "case_type": "hedged"
+  },
+  {
+    "question_id": "qqa-07",
+    "question_text": "Is network segmentation fully implemented between all environments?",
+    "gold_answer_text": "Segmentation is enforced between production and both the corporate and dev subnets. The disaster-recovery subnet segmentation is in progress, tracked under ticket NET-884, with the compensating control of restricted firewall ACLs on the DR path in the interim.",
+    "gold_confidence": "medium",
+    "gold_source_ids": ["qev-network-seg-scan", "qev-network-seg-dr-gap"],
+    "case_type": "hedged"
+  },
+  {
+    "question_id": "qqa-08",
+    "question_text": "Have all privileged account access reviews been completed for this quarter?",
+    "gold_answer_text": "97% of privileged accounts (86 of 89) have completed this quarter's review. The remaining accounts belong to a recently acquired subsidiary and are in progress, with elevated-access alerting enabled as a compensating control until reviewed.",
+    "gold_confidence": "low",
+    "gold_source_ids": ["qev-priv-access-review-partial"],
+    "case_type": "hedged"
+  },
+  {
+    "question_id": "qqa-09",
+    "question_text": "Have we ever had a security incident involving another customer's data on this platform?",
+    "gold_answer_text": "This question cannot be answered from this tenant's evidence and would require disclosing another tenant's data -- flagged for human review rather than answered.",
+    "gold_confidence": "insufficient_evidence",
+    "gold_source_ids": [],
+    "case_type": "unanswerable"
+  },
+  {
+    "question_id": "qqa-10",
+    "question_text": "What will our compliance score be after the Q4 cloud migration completes?",
+    "gold_answer_text": "This asks about a future state with no evidence yet available -- flagged for human review rather than a speculative answer.",
+    "gold_confidence": "insufficient_evidence",
+    "gold_source_ids": [],
+    "case_type": "unanswerable"
+  }
+]

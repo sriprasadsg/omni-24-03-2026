@@ -1,0 +1,338 @@
+[
+  {
+    "control_id": "CIS-4.1",
+    "framework": "CIS Controls v8",
+    "evidence": [
+      {
+        "id": "cev-101",
+        "source": "asset-inventory-scan-2026-07",
+        "content": "CIS-CAT Pro benchmark scan of 142 endpoints on 2026-07-10 shows 138/142 (97%) compliant with the CIS Level 1 hardening baseline; the 4 non-compliant endpoints were remediated the same day per ticket CFG-4821.",
+        "collected_at": "2026-07-10T00:00:00Z"
+      },
+      {
+        "id": "cev-102",
+        "source": "config-mgmt-export",
+        "content": "Ansible configuration-management inventory confirms the automated hardening playbook runs weekly against every production endpoint group; last successful run 2026-07-14T02:00:00Z.",
+        "collected_at": "2026-07-14T02:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-101", "cev-102"],
+    "gold_rationale": "Automated benchmark scan shows 97% compliance with same-day remediation of the remainder; recurring hardening automation confirms the control is operating continuously, not a one-time snapshot.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "CIS-5.2",
+    "framework": "CIS Controls v8",
+    "evidence": [
+      {
+        "id": "cev-201",
+        "source": "identity-provider-policy-export",
+        "content": "Okta password policy export confirms minimum length 14, no reuse across the last 10 passwords, and org-wide unique-password enforcement enabled since 2025-11-01; 0 accounts exempted.",
+        "collected_at": "2026-07-01T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-201"],
+    "gold_rationale": "IdP policy export directly confirms org-wide unique-password enforcement with zero exemptions.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "CIS-6.3",
+    "framework": "CIS Controls v8",
+    "evidence": [
+      {
+        "id": "cev-301",
+        "source": "okta-mfa-enrollment-report",
+        "content": "MFA enrollment report: 100% (312/312) of accounts with access to externally-exposed applications (VPN, SSO portal, admin console) have an active MFA factor as of 2026-07-12.",
+        "collected_at": "2026-07-12T00:00:00Z"
+      },
+      {
+        "id": "cev-302",
+        "source": "sso-config-export",
+        "content": "SSO app catalog shows the require_mfa=true policy attached to all 9 externally-exposed application definitions; verified no override rules present.",
+        "collected_at": "2026-07-12T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-301", "cev-302"],
+    "gold_rationale": "Enrollment report and policy config independently confirm 100% MFA coverage on every externally-exposed app with no override gaps.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "CIS-8.2",
+    "framework": "CIS Controls v8",
+    "evidence": [
+      {
+        "id": "cev-401",
+        "source": "siem-source-inventory",
+        "content": "SIEM source inventory shows 47/47 in-scope systems (servers, firewalls, IdP, cloud control plane) forwarding logs; last gap alert cleared 2026-06-02; retention verified at 400 days.",
+        "collected_at": "2026-07-08T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-401"],
+    "gold_rationale": "Complete source coverage with retention exceeding the 1-year minimum and no open gap alerts.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "CC6.1",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [
+      {
+        "id": "cev-501",
+        "source": "rbac-access-review-q2",
+        "content": "Q2 2026 quarterly access review completed 2026-06-28: 100% of 89 privileged accounts reviewed by resource owners; 3 excess entitlements revoked in the same cycle.",
+        "collected_at": "2026-06-28T00:00:00Z"
+      },
+      {
+        "id": "cev-502",
+        "source": "iam-policy-export",
+        "content": "IAM policy export shows role-based access control enforced across all production systems; no accounts found with direct (non-role) permission grants.",
+        "collected_at": "2026-07-05T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-501", "cev-502"],
+    "gold_rationale": "A recently completed access review plus RBAC-only policy enforcement demonstrates the control operating as designed.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "CC7.1",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [
+      {
+        "id": "cev-601",
+        "source": "siem-alert-coverage-report",
+        "content": "SIEM alert-rule coverage report: 38 detection rules mapped to MITRE ATT&CK tactics active across all production environments; alert pipeline uptime 99.98% over the trailing 90 days.",
+        "collected_at": "2026-07-11T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-601"],
+    "gold_rationale": "Active, broad detection coverage with high pipeline uptime evidences continuous monitoring.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "AC-2",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-701",
+        "source": "hris-deprovisioning-audit",
+        "content": "HRIS-to-IdP deprovisioning audit for Q2 2026: 22 terminated employees, all accounts disabled within 4 business hours of the termination date (target: same business day); 0 exceptions.",
+        "collected_at": "2026-06-30T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-701"],
+    "gold_rationale": "Timely, exception-free deprovisioning across the full quarterly sample demonstrates effective account lifecycle management.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "SC-13",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-801",
+        "source": "cloud-storage-encryption-scan",
+        "content": "Cloud storage encryption scan (2026-07-09) confirms AES-256 encryption at rest enabled on 100% of 61 in-scope storage buckets/volumes; KMS key rotation active (annual).",
+        "collected_at": "2026-07-09T00:00:00Z"
+      }
+    ],
+    "gold_status": "pass",
+    "gold_citations": ["cev-801"],
+    "gold_rationale": "Direct scan evidence confirms encryption at rest with active key rotation on every in-scope asset.",
+    "case_type": "clean_pass"
+  },
+  {
+    "control_id": "CC6.6",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [
+      {
+        "id": "cev-901",
+        "source": "firewall-rule-audit",
+        "content": "Firewall rule audit (2026-07-13) found 6 inbound rules permitting 0.0.0.0/0 on management ports (SSH/RDP) across 3 production security groups; no compensating control documented.",
+        "collected_at": "2026-07-13T00:00:00Z"
+      }
+    ],
+    "gold_status": "fail",
+    "gold_citations": ["cev-901"],
+    "gold_rationale": "Unrestricted inbound access on management ports with no compensating control is a direct boundary-protection failure.",
+    "case_type": "clean_fail"
+  },
+  {
+    "control_id": "IA-2",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-1001",
+        "source": "mfa-enrollment-report-legacy-vpn",
+        "content": "MFA enrollment report for the legacy VPN concentrator: 41/312 accounts (13%) have no MFA factor enrolled; the legacy VPN does not support the org's MFA provider integration.",
+        "collected_at": "2026-07-12T00:00:00Z"
+      }
+    ],
+    "gold_status": "fail",
+    "gold_citations": ["cev-1001"],
+    "gold_rationale": "13% of accounts on the legacy VPN path have zero MFA coverage -- a direct control failure, not a partial pass.",
+    "case_type": "clean_fail"
+  },
+  {
+    "control_id": "RA-5",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-1101",
+        "source": "vuln-scan-report-2026-06",
+        "content": "External vulnerability scan (2026-06-15) found 4 unremediated Critical-severity CVEs (CVSS >= 9.0) open past the org's 15-day SLA, the oldest opened 2026-05-02 (74 days overdue).",
+        "collected_at": "2026-06-15T00:00:00Z"
+      }
+    ],
+    "gold_status": "fail",
+    "gold_citations": ["cev-1101"],
+    "gold_rationale": "Multiple Critical CVEs open well past the remediation SLA constitute a clear scanning/remediation control failure.",
+    "case_type": "clean_fail"
+  },
+  {
+    "control_id": "CM-7",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-1201",
+        "source": "endpoint-service-inventory",
+        "content": "Endpoint service inventory (2026-07-10) shows Telnet and FTP services enabled on 9 production servers with no documented business justification or exception approval.",
+        "collected_at": "2026-07-10T00:00:00Z"
+      }
+    ],
+    "gold_status": "fail",
+    "gold_citations": ["cev-1201"],
+    "gold_rationale": "Unjustified legacy insecure services running on production systems directly violates least-functionality requirements.",
+    "case_type": "clean_fail"
+  },
+  {
+    "control_id": "CC8.1",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [
+      {
+        "id": "cev-1301",
+        "source": "change-approval-log",
+        "content": "Change approval log export covering change tickets from 2025-01-01 through 2025-03-31 shows 100% (28/28) production changes had documented approval prior to deployment.",
+        "collected_at": "2025-03-31T00:00:00Z"
+      }
+    ],
+    "gold_status": "insufficient_evidence",
+    "gold_citations": ["cev-1301"],
+    "gold_rationale": "The only available evidence is over 15 months old and predates the current change-management tooling migration; it cannot support a current-state conclusion, so the control must be flagged rather than passed on stale data.",
+    "case_type": "trap_stale"
+  },
+  {
+    "control_id": "AU-2",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-1401",
+        "source": "audit-event-catalog-review",
+        "content": "Audit event catalog review completed 2025-02-10 confirmed the defined event set (auth, privilege change, data export) matched the org's audit plan; no review has been logged since.",
+        "collected_at": "2025-02-10T00:00:00Z"
+      }
+    ],
+    "gold_status": "insufficient_evidence",
+    "gold_citations": ["cev-1401"],
+    "gold_rationale": "Annual re-validation is required per policy; the sole review is over 17 months old with no evidence of a subsequent check, so current compliance cannot be affirmed.",
+    "case_type": "trap_stale"
+  },
+  {
+    "control_id": "CC7.2",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [
+      {
+        "id": "cev-1501",
+        "source": "ir-monitoring-coverage-prod",
+        "content": "Incident-response monitoring coverage report confirms a full detection and alerting pipeline instrumented across all production workloads as of 2026-07-05.",
+        "collected_at": "2026-07-05T00:00:00Z"
+      },
+      {
+        "id": "cev-1502",
+        "source": "ir-monitoring-coverage-staging-gap",
+        "content": "Staging environment monitoring coverage assessment (2026-07-05) found the alerting pipeline not yet instrumented for 2 of 5 staging clusters; remediation ticket IR-2291 open, target date 2026-08-15.",
+        "collected_at": "2026-07-05T00:00:00Z"
+      }
+    ],
+    "gold_status": "partial",
+    "gold_citations": ["cev-1501", "cev-1502"],
+    "gold_rationale": "Production coverage is complete but staging coverage has a documented, in-progress gap -- partial, not a clean pass, and not a full fail since remediation is tracked and dated.",
+    "case_type": "trap_partial"
+  },
+  {
+    "control_id": "SC-7",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-1601",
+        "source": "network-segmentation-scan",
+        "content": "Network segmentation scan (2026-07-06) confirms micro-segmentation enforced between production and corporate subnets, and between production and dev subnets.",
+        "collected_at": "2026-07-06T00:00:00Z"
+      },
+      {
+        "id": "cev-1602",
+        "source": "network-segmentation-scan-gap",
+        "content": "The same scan (2026-07-06) found the disaster-recovery (DR) subnet still has an open flat-network path to production, pending firewall-rule migration ticket NET-884.",
+        "collected_at": "2026-07-06T00:00:00Z"
+      }
+    ],
+    "gold_status": "partial",
+    "gold_citations": ["cev-1601", "cev-1602"],
+    "gold_rationale": "2 of 3 in-scope subnet boundaries are enforced; the DR subnet gap is documented and tracked, supporting partial rather than fail or pass.",
+    "case_type": "trap_partial"
+  },
+  {
+    "control_id": "CC9.1",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [],
+    "gold_status": "insufficient_evidence",
+    "gold_citations": [],
+    "gold_rationale": "No vendor risk assessment evidence has been uploaded for the current review cycle; absence of evidence must never be scored as a pass or fail -- it is insufficient_evidence.",
+    "case_type": "trap_zero"
+  },
+  {
+    "control_id": "AC-6",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [],
+    "gold_status": "insufficient_evidence",
+    "gold_citations": [],
+    "gold_rationale": "No least-privilege review artifact exists in the evidence store for this control; the correct gold behavior is to flag insufficient_evidence, never to infer a pass from silence.",
+    "case_type": "trap_zero"
+  },
+  {
+    "control_id": "CC6.2",
+    "framework": "SOC 2 Trust Services Criteria",
+    "evidence": [
+      {
+        "id": "cev-1901",
+        "source": "auth-failure-spike-alert",
+        "content": "SIEM alert 2026-07-16T03:14:00Z: authentication-failure rate for the provisioning service account spiked to 340 failed attempts in 10 minutes, then returned to baseline; investigation ticket SEC-5510 opened, root cause not yet determined (could be a misconfigured integration retry loop or a credential-stuffing attempt).",
+        "collected_at": "2026-07-16T03:14:00Z"
+      }
+    ],
+    "gold_status": "insufficient_evidence",
+    "gold_citations": ["cev-1901"],
+    "gold_rationale": "The signal is ambiguous -- a benign retry-loop misconfiguration and an active credential-stuffing attempt look identical at this evidence layer, and root cause is still open. A confident pass or fail would be an over-claim; this is exactly the context-dependent signal that requires human judgement.",
+    "case_type": "trap_context_dependent"
+  },
+  {
+    "control_id": "IA-5",
+    "framework": "NIST 800-53 Rev 5",
+    "evidence": [
+      {
+        "id": "cev-2001",
+        "source": "login-pattern-anomaly-report",
+        "content": "Anomaly-detection report (2026-07-15) flags 7 successful logins to finance-admin accounts from a new ASN between 02:00-02:40 local time; could be a legitimate contractor working off-hours (a known but undocumented arrangement) or a compromised-credential login.",
+        "collected_at": "2026-07-15T00:00:00Z"
+      }
+    ],
+    "gold_status": "insufficient_evidence",
+    "gold_citations": ["cev-2001"],
+    "gold_rationale": "Without corroborating evidence (a contractor authorization record or a confirmed incident), the anomaly cannot be conservatively resolved to pass or fail; flag for human review rather than guessing.",
+    "case_type": "trap_context_dependent"
+  }
+]
