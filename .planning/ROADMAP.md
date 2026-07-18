@@ -680,7 +680,7 @@ June 2026 audit.
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 39 | LangChain AI Integration | In Progress (4/12) |
+| 39 | LangChain AI Integration | In Progress (7/12) |
 
 ---
 
@@ -694,7 +694,7 @@ June 2026 audit.
 
 **Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
 
-**Plans:** 6/12 plans executed
+**Plans:** 7/12 plans executed
 
 Plans:
 
@@ -703,7 +703,7 @@ Plans:
 - [x] 39-03-PLAN.md — Shared citation-required schemas + one citation/control-ID validator
 - [x] 39-04-PLAN.md — Model factory + persistent tenant-prefixed checkpointer + LangChain tracing wiring
 - [x] 39-05-PLAN.md — Agent substrate: tenant-closed tools + versioned prompts + online guardrail hooks
-- [ ] 39-06-PLAN.md — Auditor migration onto create_agent (AuditFinding + citation validation + shim)
+- [x] 39-06-PLAN.md — Auditor migration onto create_agent (AuditFinding + citation validation + shim)
 - [ ] 39-07-PLAN.md — Phase 38 assistant chat migration onto create_agent (+ checkpointer memory + shim)
 - [ ] 39-08-PLAN.md — Questionnaire auto-answer migration (CitedAnswer + RAG-02 gate preserved + shim)
 - [ ] 39-09-PLAN.md — Narrative generation migration (NarrativeOutput + fail-closed fallback + shim)
