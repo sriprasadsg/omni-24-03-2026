@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
-stopped_at: Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py and compliance_narrative_service.py shim, 17 hermetic unit tests green. All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete. Next — 39-11/39-12 (eval dimensions). Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-18T10:10:38.968Z"
+stopped_at: Phase 39 plan 39-11 (six code-based eval dimensions; AISPEC-39-S5/S6/S1/S7) executed and committed 2026-07-18 (commits fafcb39/8fac231/e11eb69/fca3d14) — traceability, framework fidelity, conservative-status false-pass, tenant-confidentiality adversarial canary, fallback provenance, RAG-02 gate; CI gate `pytest backend/tests/eval_langchain/ -m "eval and not llm"` = 110 passed. Deviation fix fca3d14 repaired two pre-existing collection-order fragilities (test_agentic_ai get_event_loop; router smoke un-skipped by database.py load_dotenv leaking backend/.env AI_ROUTER_URL — skip guard now reads a pre-dotenv sentinel from backend/tests/conftest.py). Full suite at pre-existing baseline — 2 failures only (test_e2e_integration golden path, test_rust_heartbeat_parity; identical on parent commit). Next — 39-12 (LLM-judged eval dimensions, needs live gateway). Phase 29 also fully complete; still open — 32 human verification, 35 integration tests, UAT files for 33/34.
+last_updated: "2026-07-18T12:35:00.000Z"
 progress:
   total_phases: 15
   completed_phases: 14
