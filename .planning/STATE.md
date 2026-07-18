@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: — Competitive Feature Closure
 status: In progress — all phases executed, verification backlog remains
 stopped_at: Phase 39 plan 39-06 (create_agent compliance auditor migration — AuditFinding + citation validation + guardrails + provenance + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits e4e3482/bfab5e6/d7f048f) — backend/ai_orchestration/agents/auditor.py (evaluate_control builds a per-tenant create_agent with ToolStrategy(AuditFinding) structured output per the router-passthrough FAIL decision, validate_citations wired in, guardrails + cross-tenant scan, fallback-pass needs_review escalation, decision-log writes) and backend/ai_auditor_service.py (thin shim preserving get_auditor()/evaluate_evidence()'s exact contract). 14 hermetic unit tests green. Next — 39-07 (chat), 39-08 (questionnaire), 39-09 (narrative) — same create_agent + validate_citations + guardrails + provenance + decision-log pattern; then 39-11/39-12 (eval dimensions). Phase 29 also fully complete (all 4 plans, TRUST-01/02/03 done, 940 passed/22 skipped/0 failed); still open — 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-18T09:21:25.296Z"
+last_updated: "2026-07-18T09:38:22.021Z"
 progress:
   total_phases: 15
   completed_phases: 14
@@ -211,6 +211,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 39-06]: auditor.py unwraps db to the raw Motor handle (db._db) before calling validate_citations/make_get_control_evidence/model-name lookups -- asset_compliance/control_evidence/system_settings are NOT tenant-isolation-exempt, so TenantIsolatedCollection would otherwise inject a top-level tenantId filter on top of validate_citations' explicit tenant+global $or scope, silently excluding global-KB citations; log_ai_decision still gets the wrapped db since insert_one relies on its auto-injection
 - [Phase 39-06]: control_id added as an optional trailing kwarg on evaluate_control/evaluate_evidence (not in the plan's literal signature sketch) because ai_auditor_endpoints.py's real call site never passes one and is out of this plan's file scope -- caller-supplied control_id is pinned onto the returned finding (model_copy override), never trusted from the model; absent a caller value, falls back to extract_control_id_tokens(control_desc) then UNSPECIFIED (fails framework-fidelity by design, fail-closed)
 - [Phase 39-06]: shim maps a needs_review (fallback-provenance pass) result to verified=False with a NEEDS_REVIEW marker in reasoning, since the legacy 2-state {verified: bool} contract has no third "pending human review" state and ai_auditor_endpoints.py's write path could not be changed
+- [Phase 39-07]: chat.py preserves ai_assistant_service.chat()'s exact RAG + live-findings fusion via direct rag_service.query()/db queries in addition to the agent's own search_evidence tool -- guarantees deterministic {type,id,title,snippet} sources regardless of whether the model calls the tool mid-turn
+- [Phase 39-07]: chat.py uses the real persistent checkpointer (AsyncSqliteSaver via checkpointer_lifespan) rather than InMemorySaver, since chat is the multi-turn conversational surface 39-AI-SPEC calls out for real persistent memory across restarts (unlike 39-06 auditor's per-control InMemorySaver)
+- [Phase 39-07]: test_ai_assistant.py's 5 pre-existing tests retargeted onto the new chat-agent call graph (patches on ai_orchestration.agents.chat.* instead of the now-removed ai_assistant_service.rag_service/.ai_service) -- required to satisfy the plan's own phase-level verification that this file keep passing; behavioral assertions unchanged
 
 ## Performance Metrics
 
@@ -251,11 +254,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 39-langchain-ai-integration P05 | ~20m | 3 tasks | 8 files |
 | Phase 39-langchain-ai-integration P10 | ~12m | 3 tasks | 6 files |
 | Phase 39-langchain-ai-integration P06 | ~25min | 3 tasks | 3 files |
+| Phase 39-langchain-ai-integration P07 | 35min | 3 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 39-06-PLAN.md (create_agent compliance auditor migration)
+- **Stopped at:** Completed 39-07-PLAN.md (create_agent chat migration)
 - **Resume file:** None
 
 ## Configuration
@@ -281,7 +285,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-18T09:21:09.644Z
+**Last session:** 2026-07-18T09:38:22.003Z
 **Stopped at:** Runtime verification vs live services (2026-07-14): Phase 32 4/4 must-haves closed (attack-path stale-doc simulated-flag defect fixed, posture-results ObjectId 500 fixed, PROV-03 RBAC 200/404/401 confirmed, PyPI publisher evidence recorded); Phase 33 live signed-delivery round trip verified (HMAC byte-match at local receiver; 3 webhook defects fixed: create-response 500, duplicate $set losing lastResult, deliveries never recorded). Full suite 946/22/0. NOTE: backend restart required to pick up the endpoint fixes. Remaining human-only: 34 real-browser passkey ceremony; optional hosted n8n/Zapier test.
 **Resume file:** None
 
