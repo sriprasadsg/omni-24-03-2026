@@ -694,7 +694,7 @@ June 2026 audit.
 
 **Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
 
-**Plans:** 5/12 plans executed
+**Plans:** 6/12 plans executed
 
 Plans:
 
@@ -707,6 +707,6 @@ Plans:
 - [ ] 39-07-PLAN.md — Phase 38 assistant chat migration onto create_agent (+ checkpointer memory + shim)
 - [ ] 39-08-PLAN.md — Questionnaire auto-answer migration (CitedAnswer + RAG-02 gate preserved + shim)
 - [ ] 39-09-PLAN.md — Narrative generation migration (NarrativeOutput + fail-closed fallback + shim)
-- [ ] 39-10-PLAN.md — 48-example reference dataset (gold controls, Q&A, chat, adversarial) + loader
+- [x] 39-10-PLAN.md — 48-example reference dataset (gold controls, Q&A, chat, adversarial) + loader
 - [ ] 39-11-PLAN.md — Six code-based eval dimensions (phase gate: traceability, conservative status, fidelity, tenant isolation, provenance, RAG-02)
 - [ ] 39-12-PLAN.md — Three judged eval dimensions (questionnaire honesty, chat relevance, retrieval quality — nightly)
