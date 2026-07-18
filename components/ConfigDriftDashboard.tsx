@@ -56,7 +56,7 @@ const MOCK_SNAPSHOTS: Snapshot[] = [
   { id: 's4', agent_id: 'a4', hostname: 'dev-laptop-01', platform: 'linux', captured_at: '2026-06-03T10:00:00Z', monitored_keys: [], drift_count: 12 },
 ];
 
-const token = () => localStorage.getItem('token') ?? '';
+const token = () => sessionStorage.getItem('token') ?? '';
 const h = () => ({ Authorization: `Bearer ${token()}` });
 const jh = () => ({ ...h(), 'Content-Type': 'application/json' });
 

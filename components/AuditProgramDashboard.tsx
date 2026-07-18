@@ -58,7 +58,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   Closed: [],
 };
 
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 export default function AuditProgramDashboard() {
   const [programs, setPrograms] = useState<AuditProgram[]>([]);

@@ -44,7 +44,7 @@ const SEV_COLORS: Record<string, string> = {
 
 const PROVIDER_ICONS: Record<string, string> = { aws: '☁️', azure: '🔵', gcp: '🟢' };
 
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 export default function CloudChecksScanner() {
   const [checks, setChecks] = useState<CloudCheck[]>([]);

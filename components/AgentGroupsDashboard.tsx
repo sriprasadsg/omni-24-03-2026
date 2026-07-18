@@ -35,7 +35,7 @@ const MOCK_GROUPS: Group[] = [
   { id: 'g4', name: 'Critical Assets', description: 'High-value targets requiring strict monitoring', color: '#ef4444', tags: ['critical'], member_count: 3, created_at: '2026-05-20T00:00:00Z' },
 ];
 
-const token = () => localStorage.getItem('token') ?? '';
+const token = () => sessionStorage.getItem('token') ?? '';
 const h = () => ({ Authorization: `Bearer ${token()}` });
 const jh = () => ({ ...h(), 'Content-Type': 'application/json' });
 

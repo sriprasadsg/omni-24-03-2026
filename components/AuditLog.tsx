@@ -94,8 +94,14 @@ export function AuditLog() {
                                     </p>
 
                                     <div className="mt-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-2 rounded border border-gray-100 dark:border-gray-700 font-mono">
-                                        {JSON.stringify(log.details).substring(0, 100)}
-                                        {JSON.stringify(log.details).length > 100 && '...'}
+                                        {log.details != null ? (
+                                            <>
+                                                {JSON.stringify(log.details).substring(0, 100)}
+                                                {JSON.stringify(log.details).length > 100 && '...'}
+                                            </>
+                                        ) : (
+                                            <span className="text-gray-400">No details</span>
+                                        )}
                                     </div>
 
                                     {rollbackStatus && rollbackStatus.id === log.id && (
