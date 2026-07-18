@@ -4,7 +4,6 @@ import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircu
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
 import { EvidenceReviewPanel } from './EvidenceReviewPanel';
 import { showToast } from '../utils/toast';
-import AiAuditRunModal from './AiAuditRunModal'; // Import new modal
 
 /** Extends the canonical `AssetComplianceEvidence` shape (types.ts) with the
  * ad-hoc fields the automated/AI-auditor evidence rendering path below also
@@ -49,18 +48,11 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
     const [updatingMap, setUpdatingMap] = useState<Record<string, boolean>>({});
     const [showRemediationModal, setShowRemediationModal] = useState<string>('');
     const [showReasonModal, setShowReasonModal] = useState<string>('');
-    const [showAiAuditModal, setShowAiAuditModal] = useState<boolean>(false);
 
-    const handleRunAudit = async (frameworkId: string) => {
-        try {
-            await apiService.runAiAudit(frameworkId);
-            showToast('AI audit started in the background.', 'success');
-        } catch (error) {
-            console.error('Failed to start AI audit', error);
-            showToast('Failed to start AI audit.', 'error');
-        }
+    const handleUploadClick = (assetId: string) => {
+        setSelectedAssetId(assetId);
+        fileInputRef.current?.click();
     };
-
 
     const handleUpdateStatus = async (assetId: string, status: 'Compliant' | 'Non-Compliant' | 'Pending_Evidence') => {
         setUpdatingMap(prev => ({ ...prev, [assetId]: true }));
