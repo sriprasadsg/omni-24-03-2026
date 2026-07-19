@@ -305,7 +305,7 @@ async def decide_and_execute(
         temperature=0,
         system=SYSTEM_PROMPT,
         tools=TOOLS,
-        tool_choice={"type": "any"},
+        tool_choice={"type": "any", "disable_parallel_tool_use": True},
         messages=[{"role": "user", "content": user_message}],
     )
 
