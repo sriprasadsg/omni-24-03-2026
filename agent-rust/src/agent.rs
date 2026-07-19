@@ -103,8 +103,8 @@ async fn collect_meta(
 ) -> Value {
     sys.refresh_all();
     sys.refresh_memory();
-    sys.refresh_processes();
-    let cpu        = sys.global_cpu_info().cpu_usage();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    let cpu        = sys.global_cpu_usage();
     let mem_used   = sys.used_memory();
     let mem_tot    = sys.total_memory();
     let mem_avail  = sys.available_memory();

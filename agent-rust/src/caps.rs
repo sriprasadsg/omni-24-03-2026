@@ -16,7 +16,7 @@ fn ps_json(s: &str) -> Value {
 
 pub async fn collect_processes() -> Value {
     let mut sys = System::new();
-    sys.refresh_processes();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let procs: Vec<Value> = sys.processes().values().take(250).map(|p| json!({
         "pid":       p.pid().as_u32(),
         "name":      p.name(),
