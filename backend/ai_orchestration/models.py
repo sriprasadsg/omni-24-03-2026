@@ -115,17 +115,47 @@ def _build_router_model(settings: dict, **overrides: Any):
 
 
 def _build_anthropic_model(settings: dict, **overrides: Any):
-    """Build the primary model via native langchain-anthropic (bypasses the router)."""
+    """Build the primary model via native langchain-anthropic.
+
+    When `ANTHROPIC_BASE_URL` is set it points the Anthropic Messages API at
+    that gateway (the same host the OpenAI-compat router uses here), so this
+    reaches Claude over `/v1/messages` — whose NATIVE tool-calling is reliable,
+    unlike the OpenAI-compat `/v1/chat/completions` tool passthrough that
+    ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH flags. Without it, this hits the real
+    Anthropic API."""
     api_key = settings.get("apiKey") or settings.get("anthropicApiKey") or os.getenv("ANTHROPIC_API_KEY")
     model_name = settings.get("model") or os.getenv("LLM_MODEL", "claude-sonnet-4-6")
     if not api_key:
         raise ValueError("anthropic settings incomplete: apiKey required")
+    kwargs = dict(overrides)
+    base_url = os.getenv("ANTHROPIC_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url.rstrip("/")
     return init_chat_model(
         model=model_name,
         model_provider="anthropic",
         api_key=api_key,
-        **overrides,
+        **kwargs,
     )
+
+
+def _build_router_structured_bypass(settings: dict, **overrides: Any):
+    """For a router tenant on a surface that needs tool-calling: reach Claude via
+    the Anthropic Messages API on the same gateway instead of the OpenAI-compat
+    chat-completions endpoint, sidestepping the unverified structured-output
+    passthrough (ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH). Reuses the router's own
+    key/model. Raises if neither an Anthropic base URL nor key is available so
+    the caller can fall back to the plain router model."""
+    if not os.getenv("ANTHROPIC_BASE_URL"):
+        raise ValueError("no ANTHROPIC_BASE_URL for structured-output bypass")
+    bypass_settings = dict(settings)
+    bypass_settings["apiKey"] = (
+        settings.get("apiKey") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("AI_ROUTER_KEY")
+    )
+    bypass_settings["model"] = (
+        settings.get("model") or os.getenv("AI_ROUTER_MODEL") or os.getenv("LLM_MODEL", "claude-sonnet-4-6")
+    )
+    return _build_anthropic_model(bypass_settings, **overrides)
 
 
 def _build_gemini_model(settings: dict, **overrides: Any):
@@ -142,7 +172,9 @@ def _build_gemini_model(settings: dict, **overrides: Any):
     )
 
 
-def _build_primary_model(configured_provider: str, settings: dict, **overrides: Any):
+def _build_primary_model(
+    configured_provider: str, settings: dict, structured_output: bool = False, **overrides: Any
+):
     """Dispatch to the right provider builder from the settings.provider string.
 
     Maps the same provider string values `ai_service._create_provider_from_settings`
@@ -150,6 +182,12 @@ def _build_primary_model(configured_provider: str, settings: dict, **overrides: 
     ollama, anthropic/claude, gemini. Unknown/unset providers default to the
     router, matching `ai_service.IncidentAnalyzer.initialize()`'s own default
     preference order.
+
+    `structured_output=True` marks a surface that needs tool-calling. For a
+    router tenant, that OpenAI-compat passthrough is unverified
+    (ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH); when it isn't confirmed PASS this
+    reaches Claude via the Anthropic Messages API on the same gateway instead,
+    falling back to the plain router model if that bypass can't be built.
     """
     if configured_provider in _OLLAMA_PROVIDER_VALUES:
         return _build_local_ollama_model(settings, **overrides)
@@ -158,10 +196,32 @@ def _build_primary_model(configured_provider: str, settings: dict, **overrides: 
     if configured_provider in _GEMINI_PROVIDER_VALUES:
         return _build_gemini_model(settings, **overrides)
     # _ROUTER_PROVIDER_VALUES and anything else (unset/unrecognized) -> router.
+    if structured_output and ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH != "PASS":
+        try:
+            model = _build_router_structured_bypass(settings, **overrides)
+            logger.info(
+                "[ai_orchestration.models] structured-output surface on router tenant — "
+                "using Anthropic Messages API bypass (ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH=%s)",
+                ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH,
+            )
+            return model
+        except Exception as exc:
+            logger.warning(
+                "[ai_orchestration.models] structured-output bypass unavailable (%s) — "
+                "using plain router model; tool-calling passthrough is unverified.", exc,
+            )
     return _build_router_model(settings, **overrides)
 
 
-async def build_model_for_tenant(tenant_id: Optional[str], db, surface: str = "chat"):
+# Surfaces that request structured output / tool-calling (create_agent +
+# ToolStrategy/response_format) — these need the tool-calling-capable path on a
+# router tenant. `chat` is free-text and stays on the plain router.
+_STRUCTURED_SURFACES = {"auditor", "questionnaire", "narrative", "supervisor"}
+
+
+async def build_model_for_tenant(
+    tenant_id: Optional[str], db, surface: str = "chat", structured_output: Optional[bool] = None
+):
     """Build a per-tenant primary model wrapped in a local-Ollama fallback chain.
 
     Reads `db.system_settings.find_one({"type": "llm", "tenantId": tenant_id})` —
@@ -171,9 +231,14 @@ async def build_model_for_tenant(tenant_id: Optional[str], db, surface: str = "c
 
     `surface` selects the per-surface generation params (auditor/narrative:
     temperature=0.1 max_tokens=4096; chat: temperature=0.3 max_tokens=2048;
-    questionnaire: temperature=0.0 max_tokens=1024).
+    questionnaire: temperature=0.0 max_tokens=1024). `structured_output`
+    overrides the surface-derived default for whether tool-calling is needed
+    (auditor/questionnaire/narrative/supervisor default True) — see
+    `_build_primary_model` for the router bypass this drives.
     """
     overrides = dict(_SURFACE_PARAMS.get(surface, _DEFAULT_SURFACE_PARAMS))
+    if structured_output is None:
+        structured_output = surface in _STRUCTURED_SURFACES
     raw = db._db if hasattr(db, "_db") else db
     settings = None
     if tenant_id:
@@ -182,7 +247,9 @@ async def build_model_for_tenant(tenant_id: Optional[str], db, surface: str = "c
     configured_provider = settings.get("provider", "")
 
     try:
-        primary = _build_primary_model(configured_provider, settings, **overrides)
+        primary = _build_primary_model(
+            configured_provider, settings, structured_output=structured_output, **overrides
+        )
     except Exception as exc:
         logger.warning(
             "[ai_orchestration.models] Primary model build failed for tenant=%s "

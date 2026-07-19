@@ -182,6 +182,53 @@ class TestModelsFactory:
         assert ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH == "FAIL"
 
 
+class TestStructuredOutputBypass:
+    """Router tenants on a structured-output (tool-calling) surface must reach
+    Claude via the Anthropic Messages API on the gateway, not the OpenAI-compat
+    chat-completions endpoint whose passthrough is unverified."""
+
+    def test_structured_surface_uses_anthropic_bypass(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw:20128")
+        monkeypatch.setenv("AI_ROUTER_KEY", "rk")
+        monkeypatch.setenv("AI_ROUTER_MODEL", "cc/claude-sonnet-5")
+        from ai_orchestration.models import _build_primary_model
+        model = _build_primary_model(
+            "9router", {"routerUrl": "http://gw:20128"},
+            structured_output=True, temperature=0.1, max_tokens=1024,
+        )
+        assert type(model).__name__ == "ChatAnthropic"
+        assert str(getattr(model, "anthropic_api_url", "")).rstrip("/") == "http://gw:20128"
+
+    def test_chat_surface_stays_on_router_even_with_anthropic_base(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw:20128")
+        from ai_orchestration.models import _build_primary_model
+        model = _build_primary_model(
+            "9router", {"routerUrl": "http://gw:20128", "apiKey": "k", "model": "m"},
+            structured_output=False, temperature=0.3,
+        )
+        assert type(model).__name__ == "ChatOpenAI"
+
+    def test_bypass_falls_back_to_router_when_no_anthropic_base(self, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        from ai_orchestration.models import _build_primary_model
+        model = _build_primary_model(
+            "9router", {"routerUrl": "http://gw:20128", "apiKey": "k", "model": "m"},
+            structured_output=True, temperature=0.1,
+        )
+        assert type(model).__name__ == "ChatOpenAI"  # degraded to plain router
+
+    async def test_build_model_for_tenant_derives_structured_from_surface(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw:20128")
+        monkeypatch.setenv("AI_ROUTER_KEY", "rk")
+        settings = {"type": "llm", "tenantId": "t", "provider": "9router",
+                    "routerUrl": "http://gw:20128"}
+        db = _mock_db(settings)
+        # auditor is a structured surface -> primary should be the anthropic bypass
+        chain = await build_model_for_tenant("t", db, surface="auditor")
+        primary = getattr(chain, "runnable", None) or chain
+        assert type(primary).__name__ == "ChatAnthropic"
+
+
 # ---------------------------------------------------------------------------
 # memory.py
 # ---------------------------------------------------------------------------
