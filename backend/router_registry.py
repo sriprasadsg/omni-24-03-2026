@@ -182,6 +182,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "ai_endpoints",             "router")
     _load(app, "ai_assistant_endpoints",   "router")
     _load(app, "ai_supervisor_endpoints",  "router")
+    _load(app, "framework_mappings_endpoints", "router")
     _load(app, "ai_services.training_endpoints", "router")
     _load(app, "ai_system_endpoints",      "router")
     _load(app, "ai_remediation_service",   "router")
