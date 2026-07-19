@@ -30,6 +30,7 @@ Uses `ainvoke` only — no bare `invoke`, no `asyncio.run` (AI-SPEC Section 4b
 "the auditor and questionnaire paths are await-only").
 """
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -51,6 +52,7 @@ from ai_orchestration.models import (
     model_provenance,
 )
 from ai_orchestration.prompts import PROMPT_VERSION, QUESTIONNAIRE_SYSTEM_PROMPT
+from ai_orchestration.reflection import build_llm_critic, reflect_and_revise
 from ai_orchestration.schemas import CitedAnswer
 from ai_orchestration.tools.retrieval import make_search_evidence
 from ai_orchestration.tracing import attach_span_attributes
@@ -60,6 +62,22 @@ from rag_service import rag_service
 logger = logging.getLogger(__name__)
 
 _SURFACE = "questionnaire"
+
+# Gap #2 — evaluator-optimizer self-reflection, opt-in and default OFF so the
+# established draft behavior/tests are unchanged unless a deployment enables it.
+_REFLECTION_ENABLED = os.getenv("AI_REFLECTION_ENABLED", "").lower() in ("1", "true", "yes")
+try:
+    _REFLECTION_MAX_ITERS = max(0, int(os.getenv("AI_REFLECTION_MAX_ITERS", "1")))
+except ValueError:
+    _REFLECTION_MAX_ITERS = 1
+# Only reflect on non-confident, non-fail-closed drafts — never revise an
+# 'insufficient_evidence' (fail-closed) or already-'high' answer.
+_REFLECT_CONFIDENCES = {"low", "medium"}
+_REFLECTION_CRITERIA = (
+    "The answer must be fully grounded in the cited evidence, directly address "
+    "the question, and cite a specific evidence id for every claim. It must not "
+    "add claims that the evidence does not support."
+)
 _MAX_CHUNKS = 5
 _HANDLE_ERRORS_MSG = (
     "Output did not match the CitedAnswer schema. Return every field; "
@@ -217,6 +235,42 @@ def _insufficient_evidence_result(
     )
 
 
+async def _reflect_draft(answer, model, agent, user_content, thread_id, question_id):
+    """Run one bounded evaluator-optimizer pass on a low-confidence draft.
+
+    Returns the (possibly revised) CitedAnswer. Never raises — the reflection
+    primitive fails open, and a revised answer that loses its structured shape
+    is discarded in favor of the original."""
+    critic = build_llm_critic(
+        model, criteria=_REFLECTION_CRITERIA, render=lambda a: a.answer_text
+    )
+
+    async def _regenerate(critique: str):
+        revised = await agent.ainvoke(
+            {"messages": [
+                {"role": "user", "content": user_content},
+                {"role": "user", "content": f"Revise your previous answer. {critique}"},
+            ]},
+            config={"configurable": {"thread_id": thread_id}, "recursion_limit": 15},
+        )
+        new = revised.get("structured_response") if isinstance(revised, dict) else None
+        if new is None:
+            return answer  # keep prior draft when the revision loses structure
+        if new.question_id != question_id:
+            new = new.model_copy(update={"question_id": question_id})
+        return new
+
+    outcome = await reflect_and_revise(
+        answer, evaluate=critic, regenerate=_regenerate, max_iters=_REFLECTION_MAX_ITERS
+    )
+    if outcome.revised:
+        logger.info(
+            "[ai_orchestration.agents.questionnaire] reflection revised draft "
+            "question=%s iters=%d", question_id, outcome.iterations,
+        )
+    return outcome.output
+
+
 async def generate_draft(
     question_id: str,
     question_text: str,
@@ -311,6 +365,16 @@ async def generate_draft(
         # Never trust a model-echoed question_id when the caller already
         # supplied the real one.
         answer = answer.model_copy(update={"question_id": question_id})
+
+    # --- Self-reflection (evaluator-optimizer, opt-in) ---
+    # Revise only non-confident, non-fail-closed drafts. The revised answer
+    # still flows through every downstream safety gate below (guardrails,
+    # citation validation), so reflection can only improve grounding — it can
+    # never bypass a fail-closed outcome.
+    if _REFLECTION_ENABLED and answer.confidence in _REFLECT_CONFIDENCES:
+        answer = await _reflect_draft(
+            answer, model, agent, user_content, thread_id, question_id
+        )
 
     # --- Provenance ---
     messages = raw_result.get("messages") if isinstance(raw_result, dict) else None

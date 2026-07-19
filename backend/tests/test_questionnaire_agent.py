@@ -297,6 +297,44 @@ class TestGenerateDraftAgent:
 
 # ---------------------------------------------------------------------------
 # questionnaire_answer_draft_service.py shim (-k shim)
+class TestReflection:
+    async def test_low_confidence_draft_is_revised_when_reflection_enabled(self):
+        db = _make_db()
+        low = _valid_answer(confidence="low")
+        revised = _valid_answer(confidence="medium")
+        revised = revised.model_copy(
+            update={"answer_text": "Yes — MFA is enforced for all admins per mfa-policy.pdf."}
+        )
+        agent = MagicMock()
+        agent.ainvoke = AsyncMock(side_effect=[
+            {"structured_response": low, "messages": []},       # initial draft
+            {"structured_response": revised, "messages": []},   # reflection regenerate
+        ])
+        critic_model = MagicMock()
+        critic_model.ainvoke = AsyncMock(return_value=MagicMock(content="REVISE: cite the policy id"))
+        p1, p2 = _patched(agent, model_return=critic_model)
+        with _patched_rag(_RETRIEVED_CHUNKS), p1, p2, patch(
+            "ai_orchestration.agents.questionnaire._REFLECTION_ENABLED", True
+        ), patch("ai_orchestration.agents.questionnaire._REFLECTION_MAX_ITERS", 1):
+            from ai_orchestration.agents.questionnaire import generate_draft
+            result = await generate_draft("q1", "Is MFA enforced?", "tenant-a", db)
+
+        assert result.answer_text == "Yes — MFA is enforced for all admins per mfa-policy.pdf."
+        assert agent.ainvoke.await_count == 2  # initial + one revision
+        critic_model.ainvoke.assert_awaited_once()
+
+    async def test_low_confidence_draft_not_revised_when_reflection_disabled(self):
+        db = _make_db()
+        agent = _agent_stub(_valid_answer(confidence="low"))
+        p1, p2 = _patched(agent)
+        with _patched_rag(_RETRIEVED_CHUNKS), p1, p2, patch(
+            "ai_orchestration.agents.questionnaire._REFLECTION_ENABLED", False
+        ):
+            from ai_orchestration.agents.questionnaire import generate_draft
+            await generate_draft("q1", "Is MFA enforced?", "tenant-a", db)
+        assert agent.ainvoke.await_count == 1  # no reflection pass
+
+
 # ---------------------------------------------------------------------------
 
 
