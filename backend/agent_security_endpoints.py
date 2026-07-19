@@ -10,6 +10,9 @@ import logging
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_security_endpoints")
 
+# Cap on agent-supplied arrays fanned out into per-item DB writes
+_MAX_ARRAY = 500
+
 
 @router.post("/{agent_id}/fim-events")
 async def ingest_fim_event(
@@ -87,7 +90,6 @@ async def post_shadow_ai_scan(
     await db.shadow_ai_scans.insert_one(doc)
     doc.pop("_id", None)
 
-    _MAX_ARRAY = 500
     for conn in body.get("ai_connections", [])[:_MAX_ARRAY]:
         await db.shadow_ai_events.update_one(
             {"agent_id": agent_id, "remote_host": conn.get("remote_host"), "process": conn.get("process")},
