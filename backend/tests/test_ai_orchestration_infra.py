@@ -60,6 +60,32 @@ class TestModelsFactory:
             {"type": "llm", "tenantId": "tenant-a"}
         )
 
+    @staticmethod
+    def _router_base_url(model) -> str:
+        for attr in ("openai_api_base", "base_url"):
+            val = getattr(model, attr, None)
+            if val:
+                return str(val)
+        client = getattr(model, "client", None) or getattr(model, "async_client", None)
+        return str(getattr(getattr(client, "_client", client), "base_url", ""))
+
+    def test_router_base_url_gets_v1_prefix_when_missing(self):
+        # AI_ROUTER_URL is configured without /v1; the OpenAI-compat client only
+        # appends /chat/completions, so the factory must add /v1 or the request
+        # hits the gateway's /chat/completions 404 HTML page (router_returned_html).
+        from ai_orchestration.models import _build_router_model
+        model = _build_router_model(
+            {"routerUrl": "http://gw:20128", "apiKey": "k", "model": "m"}, temperature=0.1
+        )
+        assert self._router_base_url(model).rstrip("/").endswith("/v1")
+
+    def test_router_base_url_v1_not_doubled_when_present(self):
+        from ai_orchestration.models import _build_router_model
+        model = _build_router_model(
+            {"routerUrl": "http://gw:20128/v1", "apiKey": "k", "model": "m"}, temperature=0.1
+        )
+        assert self._router_base_url(model).rstrip("/").count("/v1") == 1
+
     async def test_ollama_settings_build_chain(self):
         settings = {
             "type": "llm",

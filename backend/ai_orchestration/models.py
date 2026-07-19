@@ -87,6 +87,14 @@ def _build_router_model(settings: dict, **overrides: Any):
         or os.getenv("AI_ROUTER_URL")
         or ""
     ).rstrip("/")
+    # The OpenAI-compatible client appends only "/chat/completions" to base_url,
+    # so base_url MUST already carry the "/v1" API prefix. AI_ROUTER_URL is
+    # configured without it — the legacy ai_providers.OpenAICompatProvider
+    # appended "/v1/chat/completions" by hand. Mirror that here, or the client
+    # hits "/chat/completions" (no /v1), which the gateway serves as a 404 HTML
+    # page and surfaces as the "router_returned_html" chain failure.
+    if base_url and not base_url.endswith("/v1"):
+        base_url = f"{base_url}/v1"
     api_key = settings.get("apiKey") or os.getenv("AI_ROUTER_KEY") or ""
     model_name = settings.get("model") or os.getenv("AI_ROUTER_MODEL") or "claude-sonnet-4-6"
     if not (base_url and api_key and model_name):
