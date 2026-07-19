@@ -680,7 +680,7 @@ June 2026 audit.
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 39 | LangChain AI Integration | In Progress (7/12) |
+| 39 | LangChain AI Integration | Complete (12/12) — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test) |
 
 ---
 
@@ -694,7 +694,7 @@ June 2026 audit.
 
 **Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
 
-**Plans:** 10/12 plans executed
+**Plans:** 12/12 plans executed
 
 Plans:
 
@@ -708,5 +708,5 @@ Plans:
 - [x] 39-08-PLAN.md — Questionnaire auto-answer migration (CitedAnswer + RAG-02 gate preserved + shim)
 - [x] 39-09-PLAN.md — Narrative generation migration (NarrativeOutput + fail-closed fallback + shim)
 - [x] 39-10-PLAN.md — 48-example reference dataset (gold controls, Q&A, chat, adversarial) + loader
-- [ ] 39-11-PLAN.md — Six code-based eval dimensions (phase gate: traceability, conservative status, fidelity, tenant isolation, provenance, RAG-02)
-- [ ] 39-12-PLAN.md — Three judged eval dimensions (questionnaire honesty, chat relevance, retrieval quality — nightly)
+- [x] 39-11-PLAN.md — Six code-based eval dimensions (phase gate: traceability, conservative status, fidelity, tenant isolation, provenance, RAG-02)
+- [x] 39-12-PLAN.md — Three judged eval dimensions (questionnaire honesty, chat relevance, retrieval quality — nightly)
