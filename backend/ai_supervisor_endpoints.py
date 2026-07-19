@@ -9,17 +9,47 @@ routing, guardrails, fail-closed degrade, tracing, and decision logging all
 live in that module. Mirrors ai_assistant_endpoints.py's auth/tenant shape.
 """
 import logging
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
 from ai_orchestration.agents.supervisor import route_request
+from ai_orchestration.models import MODELS_REVISION, describe_model_for_tenant
 from rbac_service import rbac_service
 from tenant_context import get_tenant_id
 from auth_types import TokenData
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assistant", tags=["AI Security Assistant"])
+
+_DIAGNOSTIC_SURFACES = ["chat", "auditor", "questionnaire", "narrative", "supervisor"]
+
+
+@router.get("/model-diagnostics")
+async def model_diagnostics(
+    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+) -> dict[str, Any]:
+    """Report which provider/URL each AI surface resolves to — no model is
+    invoked, only built and introspected. `revision` confirms the running code
+    version (compare to ai_orchestration.models.MODELS_REVISION); a stale value
+    means the backend was not restarted after a model-routing change."""
+    from database import get_database
+
+    tenant_id = get_tenant_id()
+    db = get_database()
+    surfaces: dict[str, Any] = {}
+    for surface in _DIAGNOSTIC_SURFACES:
+        try:
+            surfaces[surface] = await describe_model_for_tenant(tenant_id, db, surface=surface)
+        except Exception as exc:  # diagnostics must never 500
+            surfaces[surface] = {"error": str(exc)}
+    return {
+        "revision": MODELS_REVISION,
+        "anthropic_base_url_set": bool(os.getenv("ANTHROPIC_BASE_URL")),
+        "router_url_set": bool(os.getenv("AI_ROUTER_URL")),
+        "surfaces": surfaces,
+    }
 
 
 @router.post("/route")

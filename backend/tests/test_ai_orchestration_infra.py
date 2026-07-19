@@ -229,6 +229,29 @@ class TestStructuredOutputBypass:
         assert type(primary).__name__ == "ChatAnthropic"
 
 
+class TestModelDiagnostics:
+    async def test_describe_reports_surface_and_bypass(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw:20128")
+        monkeypatch.setenv("AI_ROUTER_KEY", "rk")
+        from ai_orchestration.models import describe_model_for_tenant
+        settings = {"type": "llm", "tenantId": "t", "provider": "9router",
+                    "routerUrl": "http://gw:20128"}
+        db = _mock_db(settings)
+        aud = await describe_model_for_tenant("t", db, surface="auditor")
+        assert aud["class"] == "ChatAnthropic" and aud["anthropic_bypass_active"] is True
+        chat = await describe_model_for_tenant("t", db, surface="chat")
+        assert chat["class"] == "ChatOpenAI" and chat["anthropic_bypass_active"] is False
+        assert chat["base_url"].rstrip("/").endswith("/v1")  # the /v1 fix is observable
+
+    def test_describe_never_leaks_api_key(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw:20128")
+        monkeypatch.setenv("AI_ROUTER_KEY", "super-secret-key")
+        from ai_orchestration.models import _describe_model, _build_router_structured_bypass
+        model = _build_router_structured_bypass({"model": "m"}, temperature=0.1, max_tokens=16)
+        desc = _describe_model(model)
+        assert "super-secret-key" not in str(desc)
+
+
 # ---------------------------------------------------------------------------
 # memory.py
 # ---------------------------------------------------------------------------

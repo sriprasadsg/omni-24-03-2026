@@ -272,6 +272,49 @@ def invalidate_tenant_model_cache(tenant_id: Optional[str]) -> None:
     ai_service.invalidate_tenant_provider(tenant_id)
 
 
+# Bump when the model-routing logic changes — the diagnostics endpoint returns
+# this so an operator can confirm a restart actually loaded the new code.
+MODELS_REVISION = "2026-07-19-router-v1-anthropic-bypass"
+
+
+def _describe_model(model: Any) -> dict:
+    """Provider class + resolved base_url + model name for one built model.
+    Never includes the API key. Used only by diagnostics."""
+    base_url = None
+    for attr in ("anthropic_api_url", "openai_api_base", "base_url"):
+        val = getattr(model, attr, None)
+        if val:
+            base_url = str(val)
+            break
+    if base_url is None:
+        client = getattr(model, "_client", None) or getattr(model, "async_client", None)
+        if client is not None:
+            base_url = str(getattr(getattr(client, "_client", client), "base_url", "")) or None
+    return {
+        "class": type(model).__name__,
+        "base_url": base_url,
+        "model": getattr(model, "model", None) or getattr(model, "model_name", None),
+    }
+
+
+async def describe_model_for_tenant(tenant_id: Optional[str], db, surface: str = "chat") -> dict:
+    """Resolve (but never invoke) the model a surface would use, for diagnostics.
+
+    Builds the same chain `build_model_for_tenant` would and introspects the
+    primary — no network call is made. Reports whether the Anthropic-Messages
+    structured-output bypass is the active primary path for this surface."""
+    structured = surface in _STRUCTURED_SURFACES
+    chain = await build_model_for_tenant(tenant_id, db, surface=surface)
+    primary = getattr(chain, "runnable", None) or chain  # unwrap .with_fallbacks
+    desc = _describe_model(primary)
+    desc.update({
+        "surface": surface,
+        "structured_output": structured,
+        "anthropic_bypass_active": structured and desc["class"] == "ChatAnthropic",
+    })
+    return desc
+
+
 def fallback_ollama_url() -> str:
     """The local Ollama URL the fallback chain degrades to — for loud logging
     when the whole primary+fallback chain is exhausted."""
