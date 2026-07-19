@@ -24,14 +24,22 @@ async def get_audit_framework(
         current_user.get("tenant_id") if isinstance(current_user, dict)
         else getattr(current_user, "tenant_id", None)
     )
+    # Built-in frameworks are global (tenantId: None/"global"/absent) — a
+    # tenant-only equality filter made every built-in framework 404 for
+    # tenant users. Scope: caller's own frameworks OR the global registry.
     fw_filter: dict = {"id": framework_id}
     if caller_tenant:
-        fw_filter["tenantId"] = caller_tenant
+        fw_filter["$or"] = [
+            {"tenantId": caller_tenant},
+            {"tenantId": {"$in": [None, "global"]}},
+            {"tenantId": {"$exists": False}},
+        ]
 
     framework = await db.compliance_frameworks.find_one(fw_filter)
     if not framework:
         raise HTTPException(status_code=404, detail="Framework not found or not accessible")
 
+    framework.pop("_id", None)
     return framework
 
 
@@ -57,9 +65,17 @@ async def audit_framework_evidence(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
+    # Same global-framework scope as the GET route above: tenant users may
+    # audit their own frameworks AND the built-in global registry entries
+    # (tenantId None/"global"/absent) — evidence reads below stay scoped to
+    # the caller's tenant via the tenant-isolated db handle.
     fw_filter: dict = {"id": framework_id}
     if caller_role not in _AUDITOR_SUPER_ROLES and caller_tenant:
-        fw_filter["tenantId"] = caller_tenant
+        fw_filter["$or"] = [
+            {"tenantId": caller_tenant},
+            {"tenantId": {"$in": [None, "global"]}},
+            {"tenantId": {"$exists": False}},
+        ]
     framework = await db.compliance_frameworks.find_one(fw_filter)
     if not framework:
         logger.error("[AI AUDITOR] Framework not found: %s", framework_id)
