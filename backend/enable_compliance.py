@@ -2,13 +2,14 @@
 Enable compliance_enforcement capability for agent and trigger data collection
 """
 import asyncio
+import sys
 from database import connect_to_mongo, get_database
 
 async def enable_and_trigger_compliance():
     await connect_to_mongo()
     db = get_database()
     
-    hostname = "EILT0197"
+    hostname = sys.argv[1] if len(sys.argv) > 1 else "EILT0197"
     
     print(f"🔧 Enabling compliance_enforcement for {hostname}...")
     
