@@ -46,6 +46,8 @@ from ai_orchestration.memory import make_thread_id
 from ai_orchestration.models import (
     ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH,
     build_model_for_tenant,
+    classify_chain_failure,
+    fallback_ollama_url,
     model_provenance,
 )
 from ai_orchestration.prompts import PROMPT_VERSION, QUESTIONNAIRE_SYSTEM_PROMPT
@@ -278,11 +280,18 @@ async def generate_draft(
             config={"configurable": {"thread_id": thread_id}, "recursion_limit": 15},
         )
     except Exception as exc:
+        # .with_fallbacks([local]) exhausted the WHOLE chain — router primary AND
+        # local Ollama fallback both failed. Fail loud (see agents/auditor.py).
+        reason, detail = classify_chain_failure(exc)
+        primary_name, fallback_name = await _tenant_model_names(tenant_id, raw_db)
         logger.error(
-            "[ai_orchestration.agents.questionnaire] agent run failed question=%s tenant=%s: %s",
-            question_id, tenant_id, exc,
+            "[ai_orchestration.agents.questionnaire] MODEL CHAIN EXHAUSTED — primary "
+            "AND local Ollama fallback both failed. question=%s tenant=%s reason=%s "
+            "primary_model=%s fallback_model=%s@%s detail=%s",
+            question_id, tenant_id, reason, primary_name, fallback_name,
+            fallback_ollama_url(), detail,
         )
-        result = _insufficient_evidence_result("agent_invocation_error", retrieved)
+        result = _insufficient_evidence_result(reason, retrieved)
         _attach_span(tenant_id, "primary")
         await _record_decision(
             db, question_id, question_set_id, result.confidence, "n/a", "primary", started_at

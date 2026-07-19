@@ -43,6 +43,8 @@ from ai_orchestration.memory import make_thread_id
 from ai_orchestration.models import (
     ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH,
     build_model_for_tenant,
+    classify_chain_failure,
+    fallback_ollama_url,
     model_provenance,
 )
 from ai_orchestration.prompts import AUDITOR_SYSTEM_PROMPT, PROMPT_VERSION
@@ -104,24 +106,6 @@ def _insufficient_evidence_finding(control_id: str, reason: str, detail: str = "
         rationale=rationale,
         citations=[Citation(source="ai_orchestration.agents.auditor", chunk_id="n/a")],
     )
-
-
-def _classify_chain_failure(exc: Exception) -> tuple:
-    """Classify an exhausted primary+fallback model chain failure for a loud,
-    actionable log. `.with_fallbacks([local])` raises only the PRIMARY's error
-    once every model is exhausted, so this runs only when BOTH the router model
-    and the local Ollama fallback have already failed. Returns
-    (short_reason, one_line_detail) — never the raw multi-KB body."""
-    text = str(exc)
-    low = text.lower()
-    if "<!doctype html" in low or "_next/" in low or "<html" in low:
-        # The router base_url answered with a web page, not the /v1 JSON API —
-        # AI_ROUTER_URL points at the gateway's UI, or the gateway is down and a
-        # front proxy is serving a placeholder. See ai_orchestration/models.py.
-        return "router_returned_html", "router endpoint served an HTML page, not the /v1 JSON API"
-    if "connection refused" in low or "timed out" in low or "timeout" in low or "connect" in low:
-        return "chain_unreachable", text.split("\n", 1)[0][:200]
-    return "agent_invocation_error", text.split("\n", 1)[0][:200]
 
 
 async def _tenant_model_names(tenant_id: Optional[str], raw_db: Any) -> tuple:
@@ -262,15 +246,14 @@ async def evaluate_control(
         # raised exc is only the primary's error; the fallback failure is
         # swallowed by LangChain. Fail loud so operators see the degrade, not a
         # generic "insufficient evidence" finding.
-        reason, detail = _classify_chain_failure(exc)
+        reason, detail = classify_chain_failure(exc)
         primary_name, fallback_name = await _tenant_model_names(tenant_id, raw_db)
-        ollama_url = os.getenv("OLLAMA_URL") or "127.0.0.1:11434"
         logger.error(
             "[ai_orchestration.agents.auditor] MODEL CHAIN EXHAUSTED — primary AND "
             "local Ollama fallback both failed. control=%s tenant=%s reason=%s "
             "primary_model=%s fallback_model=%s@%s detail=%s",
             resolved_control_id, tenant_id, reason,
-            primary_name, fallback_name, ollama_url, detail,
+            primary_name, fallback_name, fallback_ollama_url(), detail,
         )
         finding = _insufficient_evidence_finding(resolved_control_id, reason, detail)
         _attach_span(tenant_id, "primary")

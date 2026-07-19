@@ -196,6 +196,30 @@ def invalidate_tenant_model_cache(tenant_id: Optional[str]) -> None:
     ai_service.invalidate_tenant_provider(tenant_id)
 
 
+def fallback_ollama_url() -> str:
+    """The local Ollama URL the fallback chain degrades to — for loud logging
+    when the whole primary+fallback chain is exhausted."""
+    return os.getenv("OLLAMA_URL") or ollama_default_url()
+
+
+def classify_chain_failure(exc: Exception) -> tuple:
+    """Classify an exhausted primary+fallback model-chain failure for a loud,
+    actionable log. `.with_fallbacks([local])` raises only the PRIMARY's error
+    once every model is exhausted, so this runs only when BOTH the router model
+    and the local Ollama fallback have already failed. Returns
+    (short_reason, one_line_detail) — never the raw multi-KB body."""
+    text = str(exc)
+    low = text.lower()
+    if "<!doctype html" in low or "_next/" in low or "<html" in low:
+        # The router base_url answered with a web page, not the /v1 JSON API —
+        # AI_ROUTER_URL points at the gateway's UI, or the gateway is down and a
+        # front proxy is serving a placeholder.
+        return "router_returned_html", "router endpoint served an HTML page, not the /v1 JSON API"
+    if "connection refused" in low or "timed out" in low or "timeout" in low or "connect" in low:
+        return "chain_unreachable", text.split("\n", 1)[0][:200]
+    return "agent_invocation_error", text.split("\n", 1)[0][:200]
+
+
 def model_provenance(
     response: Any,
     primary_model_name: Optional[str] = None,

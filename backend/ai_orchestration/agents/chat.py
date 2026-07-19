@@ -46,7 +46,12 @@ from opentelemetry import trace as _otel_trace
 from ai_orchestration.decision_log import log_ai_decision
 from ai_orchestration.guardrails import cross_tenant_output_scan, scan_input, scan_output
 from ai_orchestration.memory import checkpointer_lifespan, make_thread_id
-from ai_orchestration.models import build_model_for_tenant, model_provenance
+from ai_orchestration.models import (
+    build_model_for_tenant,
+    classify_chain_failure,
+    fallback_ollama_url,
+    model_provenance,
+)
 from ai_orchestration.prompts import CHAT_SYSTEM_PROMPT, PROMPT_VERSION
 from ai_orchestration.tools.retrieval import make_search_evidence
 from ai_orchestration.tracing import attach_span_attributes
@@ -274,10 +279,19 @@ async def chat(
                 config={"configurable": {"thread_id": thread_id}, "recursion_limit": 15},
             )
     except Exception as exc:
-        logger.error("[ai_orchestration.agents.chat] agent run failed tenant=%s: %s", tenant_id, exc)
+        # .with_fallbacks([local]) exhausted the WHOLE chain — router primary AND
+        # local Ollama fallback both failed. Fail loud (see agents/auditor.py).
+        reason, detail = classify_chain_failure(exc)
+        primary_name, fallback_name = await _tenant_model_names(tenant_id, raw_db)
+        logger.error(
+            "[ai_orchestration.agents.chat] MODEL CHAIN EXHAUSTED — primary AND "
+            "local Ollama fallback both failed. tenant=%s reason=%s "
+            "primary_model=%s fallback_model=%s@%s detail=%s",
+            tenant_id, reason, primary_name, fallback_name, fallback_ollama_url(), detail,
+        )
         _attach_span(tenant_id, "primary")
-        await _record_decision(db, thread_id, "agent_invocation_error", "primary", started_at)
-        return {"answer": f"Error generating response: {exc}", "sources": []}
+        await _record_decision(db, thread_id, reason, "primary", started_at)
+        return {"answer": f"Error generating response ({reason}).", "sources": []}
 
     messages = result.get("messages") if isinstance(result, dict) else None
     last_message = _last_message_with_metadata(messages)
@@ -351,9 +365,18 @@ async def astream_chat(
                     full_answer += token
                     yield {"chunk": token}
     except Exception as exc:
-        logger.error("[ai_orchestration.agents.chat] astream failed tenant=%s: %s", tenant_id, exc)
-        await _record_decision(db, thread_id, "agent_invocation_error", "primary", started_at)
-        yield {"error": f"Error generating response: {exc}"}
+        # .with_fallbacks([local]) exhausted the WHOLE chain — router primary AND
+        # local Ollama fallback both failed. Fail loud (see agents/auditor.py).
+        reason, detail = classify_chain_failure(exc)
+        primary_name, fallback_name = await _tenant_model_names(tenant_id, raw_db)
+        logger.error(
+            "[ai_orchestration.agents.chat] MODEL CHAIN EXHAUSTED (stream) — primary "
+            "AND local Ollama fallback both failed. tenant=%s reason=%s "
+            "primary_model=%s fallback_model=%s@%s detail=%s",
+            tenant_id, reason, primary_name, fallback_name, fallback_ollama_url(), detail,
+        )
+        await _record_decision(db, thread_id, reason, "primary", started_at)
+        yield {"error": f"Error generating response ({reason})."}
         return
 
     # Per-token provenance metadata isn't reliably available across all

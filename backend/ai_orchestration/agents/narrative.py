@@ -53,6 +53,8 @@ from ai_orchestration.memory import make_thread_id
 from ai_orchestration.models import (
     ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH,
     build_model_for_tenant,
+    classify_chain_failure,
+    fallback_ollama_url,
     model_provenance,
 )
 from ai_orchestration.prompts import NARRATIVE_SYSTEM_PROMPT, PROMPT_VERSION
@@ -246,12 +248,19 @@ async def _generate(
             config={"configurable": {"thread_id": thread_id}, "recursion_limit": 10},
         )
     except Exception as exc:
+        # .with_fallbacks([local]) exhausted the WHOLE chain — router primary AND
+        # local Ollama fallback both failed. Fail loud (see agents/auditor.py).
+        reason, detail = classify_chain_failure(exc)
+        primary_name, fallback_name = await _tenant_model_names(tenant_id, raw_db)
         logger.error(
-            "[ai_orchestration.agents.narrative] agent run failed kind=%s tenant=%s: %s",
-            kind, tenant_id, exc,
+            "[ai_orchestration.agents.narrative] MODEL CHAIN EXHAUSTED — primary AND "
+            "local Ollama fallback both failed. kind=%s tenant=%s reason=%s "
+            "primary_model=%s fallback_model=%s@%s detail=%s",
+            kind, tenant_id, reason, primary_name, fallback_name,
+            fallback_ollama_url(), detail,
         )
         _attach_span(tenant_id, "primary")
-        await _record_decision(db, ref, "agent_invocation_error", "primary", "n/a", started_at)
+        await _record_decision(db, ref, reason, "primary", "n/a", started_at)
         return NarrativeResult(fallback_text, "primary", True)
 
     structured = result.get("structured_response") if isinstance(result, dict) else None
