@@ -55,6 +55,7 @@ _SURFACE_PARAMS = {
     "narrative": {"temperature": 0.1, "max_tokens": 4096},
     "chat": {"temperature": 0.3, "max_tokens": 2048},
     "questionnaire": {"temperature": 0.0, "max_tokens": 1024},
+    "supervisor": {"temperature": 0.0, "max_tokens": 512},
 }
 _DEFAULT_SURFACE_PARAMS = {"temperature": 0.1, "max_tokens": 1024}
 

@@ -130,3 +130,25 @@ class NarrativeOutput(BaseModel):
     def from_raw(cls, raw: str, limit: int = 200) -> "NarrativeOutput":
         words = raw.split()
         return cls(text=raw.strip(), word_count=len(words), limit=limit)
+
+
+class RoutingDecision(BaseModel):
+    """Supervisor structured output — picks which agent surface should handle a
+    free-form request and extracts whatever structured parameters the request
+    carried. `surface` is the only required field; the params are best-effort
+    and may be absent, in which case the supervisor degrades to `chat` rather
+    than invoking a structured surface with missing inputs."""
+
+    surface: Literal["chat", "auditor", "questionnaire", "narrative"] = Field(
+        description="The single best agent surface to handle this request"
+    )
+    reason: str = Field(description="One sentence explaining the routing choice")
+    framework_name: Optional[str] = Field(
+        default=None, description="Compliance framework named in the request, if any (auditor/narrative)"
+    )
+    control_desc: Optional[str] = Field(
+        default=None, description="The control requirement text to audit, if the request is an audit (auditor)"
+    )
+    question_text: Optional[str] = Field(
+        default=None, description="The single questionnaire question to draft an answer for (questionnaire)"
+    )
