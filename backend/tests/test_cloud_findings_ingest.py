@@ -350,3 +350,89 @@ async def test_scan_account_aws_no_ingest_unchanged(mock_db):
         mock_m365_ingest.assert_not_called()
         mock_atlas_ingest.assert_not_called()
         mock_run_checks.assert_called_once_with("acc1", "aws", "ten1")
+
+
+# --- Task 2 (41-05): oci/alibaba/cloudflare scan dispatch + end-to-end ---
+
+async def test_scan_account_oci_dispatch(mock_db):
+    account = {"id": "acc1", "provider": "oci", "credentials_ref": "enc_creds"}
+    mock_db._db.cloud_accounts.find_one = AsyncMock(return_value=account)
+
+    config_json = json.dumps(_OCI_CONFIG)
+
+    with patch("cloud_accounts_service._decrypt", return_value=config_json), \
+         patch("oci_ingest.poll_oci_cspm_findings", new_callable=AsyncMock) as mock_ingest, \
+         patch("cloud_checks_service.cloud_checks_service.run_checks", new_callable=AsyncMock) as mock_run_checks:
+        mock_run_checks.return_value = {"ran": 1}
+
+        await scan_account(mock_db, "acc1", "ten1")
+
+        mock_ingest.assert_called_once()
+        assert mock_ingest.call_args.args[0] == _OCI_CONFIG
+        mock_run_checks.assert_called_once_with("acc1", "oci", "ten1")
+
+
+async def test_scan_account_alibaba_dispatch(mock_db):
+    account = {"id": "acc1", "provider": "alibaba", "credentials_ref": "enc_creds"}
+    mock_db._db.cloud_accounts.find_one = AsyncMock(return_value=account)
+
+    config_json = json.dumps(_ALIBABA_CONFIG)
+
+    with patch("cloud_accounts_service._decrypt", return_value=config_json), \
+         patch("alibaba_ingest.poll_alibaba_cspm_findings", new_callable=AsyncMock) as mock_ingest, \
+         patch("cloud_checks_service.cloud_checks_service.run_checks", new_callable=AsyncMock) as mock_run_checks:
+        mock_run_checks.return_value = {"ran": 1}
+
+        await scan_account(mock_db, "acc1", "ten1")
+
+        mock_ingest.assert_called_once()
+        assert mock_ingest.call_args.args[0] == _ALIBABA_CONFIG
+        mock_run_checks.assert_called_once_with("acc1", "alibaba", "ten1")
+
+
+async def test_scan_account_cloudflare_dispatch(mock_db):
+    account = {"id": "acc1", "provider": "cloudflare", "credentials_ref": "enc_creds"}
+    mock_db._db.cloud_accounts.find_one = AsyncMock(return_value=account)
+
+    config_json = json.dumps(_CLOUDFLARE_CONFIG)
+
+    with patch("cloud_accounts_service._decrypt", return_value=config_json), \
+         patch("cloudflare_ingest.poll_cloudflare_cspm_findings", new_callable=AsyncMock) as mock_ingest, \
+         patch("cloud_checks_service.cloud_checks_service.run_checks", new_callable=AsyncMock) as mock_run_checks:
+        mock_run_checks.return_value = {"ran": 1}
+
+        await scan_account(mock_db, "acc1", "ten1")
+
+        mock_ingest.assert_called_once()
+        assert mock_ingest.call_args.args[0] == _CLOUDFLARE_CONFIG
+        mock_run_checks.assert_called_once_with("acc1", "cloudflare", "ten1")
+
+
+async def test_scan_account_oci_simulated_false_end_to_end(mock_db):
+    """End-to-end: findings present in cloud_findings -> run_checks sets simulated=False."""
+    account = {"id": "acc1", "provider": "oci", "credentials_ref": "enc_creds"}
+    mock_db._db.cloud_accounts.find_one = AsyncMock(return_value=account)
+    # run_checks re-reads the account through db.cloud_accounts
+    mock_db.cloud_accounts.find_one = AsyncMock(return_value=account)
+
+    # Cloud_findings already populated (simulating real ingested findings)
+    mock_db.cloud_findings.find.return_value.to_list = AsyncMock(return_value=[
+        {"accountId": "acc1", "tenantId": "ten1", "severity": "critical", "title": "OCI Critical Finding", "checkId": "OCI-001"}
+    ])
+
+    # Do NOT mock run_checks — let it run naturally against the findings mock
+    config_json = json.dumps(_OCI_CONFIG)
+
+    with patch("cloud_accounts_service._decrypt", return_value=config_json), \
+         patch("oci_ingest.poll_oci_cspm_findings", new_callable=AsyncMock), \
+         patch.object(cloud_checks_service, "_db", MagicMock(return_value=mock_db)):
+
+        result = await scan_account(mock_db, "acc1", "ten1")
+
+        assert "error" not in result, f"scan_account failed: {result}"
+        assert result.get("ran", 0) > 0
+
+        assert mock_db.cloud_check_results.update_one.call_count > 0
+        for call_args in mock_db.cloud_check_results.update_one.call_args_list:
+            doc = call_args[0][1]["$set"]
+            assert doc.get("simulated") is False, f"Expected simulated=False, got {doc.get('simulated')}"
