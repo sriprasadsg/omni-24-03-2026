@@ -742,6 +742,7 @@ Plans:
 **Requirements:** RUST-01 (reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, hostname 0.4, serde_yaml→serde_norway migration in `src/config.rs`, explicit TLS-backend decision, 2.1.3 rebuild), SESS-01 (root-cause and fix the intermittent 401 session bug, lead: refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
 
 **Success Criteria** (what must be TRUE):
+
   1. The shipping Rust agent tree builds and runs on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml fully replaced by serde_norway, packaged as the 2.1.3 executable.
   2. The reqwest TLS backend (native-tls vs. the new rustls default) is an explicit, documented decision — not a silent behavior change shipped to endpoints.
   3. A user's authenticated session no longer intermittently drops to 401 Unauthorized during normal use; the root cause is identified and fixed (or definitively ruled out with evidence).
@@ -765,6 +766,7 @@ Plans:
 **Requirements:** CSPM-01 (real CIS OCI Foundations-aligned checks), CSPM-02 (real Alibaba Cloud Config/Security Center V2 checks), CSPM-03 (real Cloudflare Security Center-aligned checks)
 
 **Success Criteria** (what must be TRUE):
+
   1. A tenant with a connected OCI account can trigger a posture scan and see results from real CIS OCI Foundations-aligned checks in the cloud checks dashboard.
   2. A tenant with a connected Alibaba Cloud account can trigger a posture scan and see results from real checks via the Config/Security Center V2 API.
   3. A tenant with a connected Cloudflare account can trigger a posture scan and see results from real checks aligned to Cloudflare's Security Center taxonomy.
@@ -787,6 +789,7 @@ Plans:
 **Requirements:** CMT-01 (post comments on a control; tenant-scoped; @mentions trigger a notification)
 
 **Success Criteria** (what must be TRUE):
+
   1. A compliance admin or auditor can post a comment on a specific control and see it appear in that control's thread in the control detail view.
   2. Comments on a control are visible only within the posting tenant — a user from another tenant cannot see or fetch them.
   3. @mentioning a user in a comment triggers a notification to that user.
@@ -809,6 +812,7 @@ Plans:
 **Requirements:** REM-01 (create a Jira/ServiceNow ticket from a remediation task with correctly-mapped fields via an explicit adapter, not passed raw into the alert-shaped connector), REM-02 (closed external ticket auto-resolves the remediation task and triggers the existing re-scan dispatch)
 
 **Success Criteria** (what must be TRUE):
+
   1. A compliance admin can create a Jira or ServiceNow ticket directly from a remediation task in the remediation task view, with the task's real fields (not "N/A") populated on the ticket via an explicit adapter.
   2. The created ticket's provider, reference ID, and URL are visible on the remediation task afterward.
   3. When the linked external ticket is closed, the remediation task automatically transitions to Resolved without manual intervention.
@@ -831,6 +835,7 @@ Plans:
 **Requirements:** SLA-01 (SLA status ok/at_risk/breached computed from due_date; breach triggers an escalation notification), SLA-02 (immutable, append-only escalation history viewable by a compliance admin)
 
 **Success Criteria** (what must be TRUE):
+
   1. A remediation task's SLA status (ok / at_risk / breached) is visible in the remediation task view and reflects its due_date automatically, without manual computation.
   2. A task that breaches its due_date triggers an escalation notification without operator action.
   3. A compliance admin can view an append-only escalation history on a remediation task; no escalation entry can be edited or deleted.
