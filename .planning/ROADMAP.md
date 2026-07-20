@@ -737,12 +737,12 @@ Plans:
 
 **Milestone:** v3.2
 
-**Goal:** Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) on its modernized dependency stack as the 2.1.0 executable, and root-cause + fix the intermittent 401 Unauthorized error that has never been investigated. Both are independent, foundational fixes carried over from HANDOFF tasks 10 and 11 — decoupled from the remediation-ops feature work in the rest of this milestone and safe to execute in parallel with it.
+**Goal:** Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) on its modernized dependency stack as the 2.1.3 executable (corrected from 2.1.0 — `Cargo.toml` had already shipped 2.1.0/2.1.1/2.1.2 by planning time), and root-cause + fix the intermittent 401 Unauthorized error that has never been investigated. Both are independent, foundational fixes carried over from HANDOFF tasks 10 and 11 — decoupled from the remediation-ops feature work in the rest of this milestone and safe to execute in parallel with it.
 
-**Requirements:** RUST-01 (reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, hostname 0.4, serde_yaml→serde_norway migration in `src/config.rs`, explicit TLS-backend decision, 2.1.0 rebuild), SESS-01 (root-cause and fix the intermittent 401 session bug, lead: refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
+**Requirements:** RUST-01 (reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, hostname 0.4, serde_yaml→serde_norway migration in `src/config.rs`, explicit TLS-backend decision, 2.1.3 rebuild), SESS-01 (root-cause and fix the intermittent 401 session bug, lead: refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
 
 **Success Criteria** (what must be TRUE):
-  1. The shipping Rust agent tree builds and runs on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml fully replaced by serde_norway, packaged as the 2.1.0 executable.
+  1. The shipping Rust agent tree builds and runs on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml fully replaced by serde_norway, packaged as the 2.1.3 executable.
   2. The reqwest TLS backend (native-tls vs. the new rustls default) is an explicit, documented decision — not a silent behavior change shipped to endpoints.
   3. A user's authenticated session no longer intermittently drops to 401 Unauthorized during normal use; the root cause is identified and fixed (or definitively ruled out with evidence).
   4. Existing agent heartbeat and evidence-parity behavior (Phase 1) is unchanged after the dependency upgrade — no regression.
