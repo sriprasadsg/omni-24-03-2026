@@ -2649,9 +2649,9 @@ export const addCloudAccount = async (data: any, tenantId: string) => {
             method: 'POST',
             body: JSON.stringify({
                 provider: (data.provider || 'aws').toLowerCase(),
-                name: data.name,
+                account_name: data.name,
                 account_id: data.accountId,
-                credentials: data.credentials || {},
+                credentials_ref: JSON.stringify(data.credentials || {}),
             }),
         });
         if (res.ok) {

@@ -7,7 +7,7 @@ import { showToast } from '../utils/toast';
 interface AddCloudAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Omit<CloudAccount, 'id' | 'tenantId' | 'status'>) => void;
+  onSave: (data: Omit<CloudAccount, 'id' | 'tenantId' | 'status'> & { credentials?: Record<string, string> }) => void;
 }
 
 interface ProviderMeta {
@@ -38,8 +38,46 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
   const [accountId, setAccountId] = useState('');
   const [accessKey, setAccessKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
+  const [ociTenancyOcid, setOciTenancyOcid] = useState('');
+  const [ociUserOcid, setOciUserOcid] = useState('');
+  const [ociFingerprint, setOciFingerprint] = useState('');
+  const [ociPrivateKey, setOciPrivateKey] = useState('');
+  const [regionId, setRegionId] = useState('');
+  const [cfApiToken, setCfApiToken] = useState('');
+  const [cfAccountId, setCfAccountId] = useState('');
 
   const meta = PROVIDER_META[provider];
+
+  const resetCredentialFields = () => {
+    setAccessKey(''); setSecretKey('');
+    setOciTenancyOcid(''); setOciUserOcid(''); setOciFingerprint(''); setOciPrivateKey('');
+    setRegionId(''); setCfApiToken(''); setCfAccountId('');
+  };
+
+  const buildCredentials = (): Record<string, string> => {
+    if (provider === 'OCI') {
+      return {
+        oci_tenancy_ocid: ociTenancyOcid,
+        oci_user_ocid: ociUserOcid,
+        oci_fingerprint: ociFingerprint,
+        oci_private_key: ociPrivateKey,
+      };
+    }
+    if (provider === 'Alibaba') {
+      return {
+        access_key_id: accessKey,
+        access_key_secret: secretKey,
+        region_id: regionId,
+      };
+    }
+    if (provider === 'Cloudflare') {
+      return {
+        cf_api_token: cfApiToken,
+        cf_account_id: cfAccountId,
+      };
+    }
+    return { accessKey, secretKey };
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,8 +85,9 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
       showToast('Please fill all required fields.', 'error');
       return;
     }
-    onSave({ provider, name, accountId });
-    setName(''); setAccountId(''); setAccessKey(''); setSecretKey('');
+    const credentials = buildCredentials();
+    onSave({ provider, name, accountId, credentials });
+    setName(''); setAccountId(''); resetCredentialFields();
   };
 
   if (!isOpen) return null;
@@ -95,10 +134,31 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
 
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Credentials (optional)</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key / Client ID" className="w-full input-style" />
-              <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Secret Key / Client Secret" className="w-full input-style" />
-            </div>
+            {provider === 'OCI' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input value={ociTenancyOcid} onChange={e => setOciTenancyOcid(e.target.value)} placeholder="Tenancy OCID" className="w-full input-style" />
+                <input value={ociUserOcid} onChange={e => setOciUserOcid(e.target.value)} placeholder="User OCID" className="w-full input-style" />
+                <input value={ociFingerprint} onChange={e => setOciFingerprint(e.target.value)} placeholder="Key Fingerprint" className="w-full input-style" />
+                <textarea value={ociPrivateKey} onChange={e => setOciPrivateKey(e.target.value)} placeholder="Private Key (PEM)" rows={3}
+                  className="w-full input-style sm:col-span-2 font-mono text-xs" />
+              </div>
+            ) : provider === 'Alibaba' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key ID" className="w-full input-style" />
+                <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Access Key Secret" className="w-full input-style" />
+                <input value={regionId} onChange={e => setRegionId(e.target.value)} placeholder="Region ID (e.g. cn-hangzhou)" className="w-full input-style sm:col-span-2" />
+              </div>
+            ) : provider === 'Cloudflare' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input type="password" value={cfApiToken} onChange={e => setCfApiToken(e.target.value)} placeholder="API Token" className="w-full input-style" />
+                <input value={cfAccountId} onChange={e => setCfAccountId(e.target.value)} placeholder="Cloudflare Account ID" className="w-full input-style" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key / Client ID" className="w-full input-style" />
+                <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Secret Key / Client Secret" className="w-full input-style" />
+              </div>
+            )}
             <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg flex items-start text-xs text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
               <InfoIcon size={16} className="mr-2 mt-0.5 flex-shrink-0 text-blue-500" />
               <p>Credentials are stored encrypted. For best security, use a read-only role or service account with minimal permissions.</p>
