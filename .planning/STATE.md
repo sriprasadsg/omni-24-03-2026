@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: — Competitive Feature Closure
-status: Phase 39 UAT complete 2026-07-19 — 7/9 passed, 0 issues, 2 blocked on live gateway
-stopped_at: Phase 39 UAT run 2026-07-19 (39-UAT.md) — cold-start boot verified against live server (health 200, tracing degrades gracefully per design), LangChain 1.3.14 imports OK, code-based eval gate 110 passed, judged suite skips clean (13 skipped), infra suites 75 passed, agent-surface suites 93 passed, full suite 1282 passed / 35 skipped / 3 failed (2 documented pre-existing — e2e golden path, rust heartbeat parity — plus 1 stale-test drift from branch commit c4c3401: test_agentic_ai asserts the old tool_choice dict without disable_parallel_tool_use; unrelated to 39, assertion needs updating). Blocked as prerequisite gates, not defects: first live nightly judged eval run (needs ragas + live gateway; records pre-reranker retrieval baseline), live 9router structured-output passthrough re-test (decision stays conservatively FAIL). Previously — Phase 39 COMPLETE — all 12 plans executed. 39-11 (six code-based eval dimensions; commits fafcb39/8fac231/e11eb69 + fragility fix fca3d14) and 39-12 (three LLM-judged dimensions; commits f8cd02c/6d3c993/68088e1) finished 2026-07-18, completing all eight AI-SPEC Section 5 dimensions. CI gate `pytest backend/tests/eval_langchain/ -m "eval and not llm"` = 110 passed; judged suite (12 tests, `eval and llm`) skips cleanly without ragas/live gateway — first live nightly run still owed (records pre-reranker retrieval baseline, re-tests ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH). fca3d14 fixed two pre-existing collection-order fragilities (test_agentic_ai get_event_loop; router smoke un-skipped by database.py load_dotenv leaking backend/.env AI_ROUTER_URL — skip guard now reads a pre-dotenv sentinel in backend/tests/conftest.py). Full suite at pre-existing baseline — 2 failures only (test_e2e_integration golden path, test_rust_heartbeat_parity; identical pre-39-11). Still open — phase 39 verification/UAT, 32 human verification, 35 integration tests, UAT files for 33/34.
-last_updated: "2026-07-19T18:25:00.000Z"
+milestone: v3.2
+milestone_name: Agent Modernization & Remediation Ops
+status: planning
+last_updated: "2026-07-20T11:57:55.641Z"
+last_activity: 2026-07-20
 progress:
-  total_phases: 15
-  completed_phases: 15
-  total_plans: 42
-  completed_plans: 48
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -303,3 +303,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 - Phase 24 added: IaC & Container Security (Terraform/CloudFormation/Kubernetes scanning + container image vulnerability scanning). A `24-01-PLAN.md` already existed on disk (drafted ahead of execution, never wired into ROADMAP.md) — registered as Phase 24 in ROADMAP.md and REQUIREMENTS.md (IAC-01..03) reusing the existing directory/plan rather than generating a new one, so `/gsd-autonomous --only 24` can discover and execute it.
 - v3.0 milestone added 2026-07-06: 14 new phases (25–38) scaffolded from a feature-parity audit run the same day against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source — 41 implemented, 10 partial, 15 absent). Phases are ordered in 3 risk tiers — Tier 1 quick fixes (25–27), Tier 2 medium features (28–33), Tier 3 architectural bets (34–38: GraphQL, ReBAC, real MCP protocol, public Trust Center, passkeys). User explicitly chose "everything, in tiers" over a smaller subset. Requirements CHK/VRISK/RISK/EXP/DOC/TRUST/RAG/FAIR/PROV/WF/AUTH/GQL/REBAC/MCP/ASSIST added to REQUIREMENTS.md. Phase 25 is the first to go through full research → plan → verify.
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-20 — Milestone v3.2 started
