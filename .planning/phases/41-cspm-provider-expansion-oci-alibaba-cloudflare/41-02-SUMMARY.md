@@ -120,3 +120,9 @@ None - no external service configuration required beyond the completed Task 1 hu
 ---
 *Phase: 41-cspm-provider-expansion-oci-alibaba-cloudflare*
 *Completed: 2026-07-21*
+
+## Self-Check: PASSED
+- FOUND: alibabacloud pins in backend/requirements.txt
+- FOUND: commit 66233c6 (Task 2)
+- FOUND: commit 4fea600 (SUMMARY)
+- FOUND: .planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-02-SUMMARY.md
