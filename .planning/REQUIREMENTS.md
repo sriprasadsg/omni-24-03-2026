@@ -230,7 +230,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Rust Agent Modernization
 
-- [ ] **RUST-01**: The Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) builds and ships on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml replaced by serde_norway; the reqwest TLS-backend choice (native-tls vs rustls default) is an explicit, documented decision; rebuilt as the 2.1.3 executable (corrected from 2.1.0 — `Cargo.toml` had already shipped 2.1.0/2.1.1/2.1.2 by the time this phase was planned, 2026-07-20)
+- [x] **RUST-01**: The Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) builds and ships on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml replaced by serde_norway; the reqwest TLS-backend choice (native-tls vs rustls default) is an explicit, documented decision; rebuilt as the 2.1.3 executable (corrected from 2.1.0 — `Cargo.toml` had already shipped 2.1.0/2.1.1/2.1.2 by the time this phase was planned, 2026-07-20)
 
 ### Auth
 

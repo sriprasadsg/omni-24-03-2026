@@ -21,7 +21,7 @@
   ],
   "remaining_tasks": [
     {"id": 10, "name": "Investigate 401 Unauthorized errors (auth session)", "status": "not_started"},
-    {"id": 11, "name": "Check outdated Rust packages (reqwest 0.11, sysinfo 0.30, serde_yaml 0.9)", "status": "not_started"}
+    {"id": 11, "name": "Check outdated Rust packages (reqwest 0.11, sysinfo 0.30, serde_yaml 0.9)", "status": "partial", "detail": "Audited 3 trees; shipping tree = agent-install/omni-agent-rs. Safe semver cargo update applied + cargo check green (7e050f6). REMAINING (needs code changes + 2.1.0 exe rebuild): reqwest 0.12->0.13, sysinfo 0.32->0.39, tokio-tungstenite 0.23->0.30, rusqlite 0.32->0.40, hostname 0.3->0.4; serde_yaml is deprecated/unmaintained (0.9.34+deprecated) -> migrate to serde_yml/serde_norway (only used in src/config.rs from_str/to_string). Legacy trees rust_agent (reqwest 0.11/sysinfo 0.29) and agent-rust are non-shipping."}
   ],
   "blockers": [],
   "async_jobs": [],

@@ -750,9 +750,9 @@ Plans:
 
 **Depends on:** Nothing (independent toolchain track; may run in parallel with Phases 41–44)
 
-**Plans:** 2 plans (both Wave 1 — independent tracks, zero file overlap)
+**Plans:** 1/2 plans executed
 
-- [ ] 40-01-PLAN.md — RUST-01: pin reqwest native-tls (D-01), bump to 2.1.3, cross-compile + commit backend/static/omni-agent-2.1.3-windows.exe, advance _LATEST_AGENT_VERSION (D-02 auto-push)
+- [x] 40-01-PLAN.md — RUST-01: pin reqwest native-tls (D-01), bump to 2.1.3, cross-compile + commit backend/static/omni-agent-2.1.3-windows.exe, advance _LATEST_AGENT_VERSION (D-02 auto-push)
 - [ ] 40-02-PLAN.md — SESS-01: add missing revoked_tokens.jti unique index (D-05 Mechanism A) + live-Mongo concurrent-refresh regression test
 
 ---

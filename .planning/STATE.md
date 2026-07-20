@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: — Agent Modernization & Remediation Ops
 current_phase: 40
-current_phase_name: Rust Agent Modernization & Session Reliability
-status: planning
+current_phase_name: rust-agent-modernization-session-reliability
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-20T14:15:58.637Z"
+last_updated: "2026-07-20T15:24:29.100Z"
 last_activity: 2026-07-20
-last_activity_desc: v3.2 ROADMAP.md written (Phases 40-44), REQUIREMENTS.md traceability updated
+last_activity_desc: Phase 40 execution started
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -231,6 +231,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: [Phase 39-09]: agents/narrative.py's generate_executive/generate_framework take db as a required trailing param (not in the plan's literal signature) since build_model_for_tenant/log_ai_decision require it -- mirrors evaluate_control/generate_draft's own db param in 39-06/39-08
 - [Phase ?]: [Phase 39-09]: compliance_narrative_service.py's public functions keep their exact 4-arg signatures with two new optional trailing tenant_id/db kwargs -- enrich_report_data passes both explicitly per RESEARCH Pitfall B, other callers fall back to ambient tenant_context/database resolution
 - [Phase ?]: [Phase 39-09]: framework-fidelity validation failure is fail-closed (falls back to the deterministic narrative) rather than a non-blocking flag, consistent with this phase's posture on every other citation/control-ID validation surface
+- [Phase 40-01]: reqwest features extended (not replaced) with native-tls, mirroring the existing tokio-tungstenite pin
+- [Phase 40-01]: Rust agent version advanced straight to 2.1.3, never reusing an already-shipped number (2.1.0/2.1.1/2.1.2)
+- [Phase 40-01]: Generated the optional omni-agent-2.1.3.b64 companion for parity with every prior release
 
 ## Performance Metrics
 
@@ -274,12 +277,13 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 39-langchain-ai-integration P07 | 35min | 3 tasks | 4 files |
 | Phase 39-langchain-ai-integration P08 | ~35min | 3 tasks | 4 files |
 | Phase 39-langchain-ai-integration P09 | ~35min | 3 tasks | 4 files |
+| Phase 40 P01 | 5min | 2 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Phase 44 context gathered
-- **Resume file:** .planning/phases/44-remediation-sla-escalation/44-CONTEXT.md
+- **Stopped at:** Completed 40-01-PLAN.md
+- **Resume file:** None
 
 ## Configuration
 
@@ -304,7 +308,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-20T14:15:58.621Z
+**Last session:** 2026-07-20T15:24:10.394Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -317,7 +321,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 40 — Rust Agent Modernization & Session Reliability
-Plan: — (not yet planned)
-Status: Roadmap defined — ready for /gsd-plan-phase 40
-Last activity: 2026-07-20 — v3.2 ROADMAP.md written (Phases 40-44), REQUIREMENTS.md traceability updated
+Phase: 40 (rust-agent-modernization-session-reliability) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-07-20 — Phase 40 execution started
