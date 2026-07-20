@@ -774,7 +774,7 @@ Plans:
 
 **Depends on:** Nothing
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 **Wave 1**
 
 - [x] 41-01-PLAN.md — Provider check catalogs (OCI/Alibaba/Cloudflare) + RUNNABLE_PROVIDERS gate + compliance-score coverage (Wave 1)
@@ -783,7 +783,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 41-03-PLAN.md — Real CSPM findings ingest functions writing cloud_findings (Wave 2)
+- [x] 41-03-PLAN.md — Real CSPM findings ingest functions writing cloud_findings (Wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
