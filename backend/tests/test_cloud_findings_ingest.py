@@ -12,6 +12,9 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from m365_ingest import poll_m365_secure_scores
 from mongodb_atlas_ingest import poll_mongodb_atlas_findings
+from oci_ingest import poll_oci_cspm_findings
+from alibaba_ingest import poll_alibaba_cspm_findings
+from cloudflare_ingest import poll_cloudflare_cspm_findings
 from cloud_accounts_service import scan_account
 from cloud_checks_service import cloud_checks_service
 import json
@@ -36,7 +39,10 @@ def mock_db():
 @pytest.fixture(autouse=True)
 def mock_get_db(mock_db):
     with patch("m365_ingest.get_database", return_value=mock_db), \
-         patch("mongodb_atlas_ingest.get_database", return_value=mock_db):
+         patch("mongodb_atlas_ingest.get_database", return_value=mock_db), \
+         patch("oci_ingest.get_database", return_value=mock_db), \
+         patch("alibaba_ingest.get_database", return_value=mock_db), \
+         patch("cloudflare_ingest.get_database", return_value=mock_db):
         yield mock_db
 
 
@@ -98,6 +104,166 @@ async def test_atlas_poll_raise_returns_0():
     config = {"atlas_public_key": "pk", "atlas_private_key": "prk", "atlas_project_id": "pid"}
     with patch("mongodb_atlas_ingest._atlas_get_sync", side_effect=Exception("API down")):
         count = await poll_mongodb_atlas_findings(config, "acc1", "ten1")
+        assert count == 0
+
+
+# --- Task 1/3: OCI CSPM ingest ---
+
+_OCI_CONFIG = {
+    "oci_tenancy_ocid": "t",
+    "oci_user_ocid": "u",
+    "oci_private_key": "k",
+    "oci_fingerprint": "f",
+    "oci_region": "r",
+    "oci_compartment_id": "c",
+}
+
+
+def _mock_oci_problem(**overrides):
+    attrs = {
+        "detector_rule_id": "OCI_RULE_1",
+        "title": "Public bucket detected",
+        "description": "Object storage bucket allows public access",
+        "risk_level": "CRITICAL",
+    }
+    attrs.update(overrides)
+    return type("Problem", (), attrs)()
+
+
+async def test_oci_cspm_poll_success(mock_db):
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.data = [_mock_oci_problem(), _mock_oci_problem(detector_rule_id="OCI_RULE_2")]
+    mock_client.list_problems.return_value = mock_response
+
+    with patch("oci_ingest._make_oci_client_real", return_value=mock_client):
+        count = await poll_oci_cspm_findings(_OCI_CONFIG, "acc1", "ten1")
+
+    assert count == 2
+    mock_db.cloud_findings.insert_many.assert_called_once()
+    inserted = mock_db.cloud_findings.insert_many.call_args.args[0]
+    assert len(inserted) == 2
+    for doc in inserted:
+        assert set(doc.keys()) == {
+            "id", "tenantId", "accountId", "timestamp", "provider", "service",
+            "checkId", "title", "description", "severity", "status", "remediation", "raw_message",
+        }
+        assert doc["provider"] == "oci"
+
+
+async def test_oci_cspm_poll_missing_config():
+    assert await poll_oci_cspm_findings({}, "a", "t") == 0
+
+
+async def test_oci_cspm_poll_raise_returns_0():
+    with patch("oci_ingest._make_oci_client_real", side_effect=Exception("client build failed")):
+        count = await poll_oci_cspm_findings(_OCI_CONFIG, "acc1", "ten1")
+        assert count == 0
+
+
+# --- Task 2/3: Alibaba CSPM ingest (V2 typed SDK) ---
+
+_ALIBABA_CONFIG = {
+    "access_key_id": "ak",
+    "access_key_secret": "sk",
+    "region_id": "cn-hangzhou",
+}
+
+
+def _mock_alibaba_check(**overrides):
+    attrs = {
+        "check_id": 1001,
+        "check_show_name": "RAM password policy",
+        "status": "fail",
+        "status_message": "Password policy does not require special characters",
+        "risk_level": "high",
+    }
+    attrs.update(overrides)
+    return type("Check", (), attrs)()
+
+
+async def test_alibaba_cspm_poll_success(mock_db):
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.body.checks = [
+        _mock_alibaba_check(),
+        _mock_alibaba_check(check_id=1002, status="pass"),  # compliant, should be excluded
+    ]
+    mock_client.list_check_result.return_value = mock_response
+
+    with patch("alibaba_ingest._make_alibaba_v2_client", return_value=mock_client):
+        count = await poll_alibaba_cspm_findings(_ALIBABA_CONFIG, "acc1", "ten1")
+
+    assert count == 1
+    mock_db.cloud_findings.insert_many.assert_called_once()
+    inserted = mock_db.cloud_findings.insert_many.call_args.args[0]
+    assert len(inserted) == 1
+    assert inserted[0]["provider"] == "alibaba"
+    assert set(inserted[0].keys()) == {
+        "id", "tenantId", "accountId", "timestamp", "provider", "service",
+        "checkId", "title", "description", "severity", "status", "remediation", "raw_message",
+    }
+
+
+async def test_alibaba_cspm_poll_missing_config():
+    assert await poll_alibaba_cspm_findings({}, "a", "t") == 0
+
+
+async def test_alibaba_cspm_poll_raise_returns_0():
+    with patch("alibaba_ingest._make_alibaba_v2_client", side_effect=Exception("client build failed")):
+        count = await poll_alibaba_cspm_findings(_ALIBABA_CONFIG, "acc1", "ten1")
+        assert count == 0
+
+
+def test_alibaba_cspm_uses_v2_sdk_not_acs_client():
+    import alibaba_ingest
+    import inspect
+
+    src = inspect.getsource(alibaba_ingest.poll_alibaba_cspm_findings)
+    assert "AcsClient" not in src
+    assert "alibabacloud" in inspect.getsource(alibaba_ingest).lower()
+
+
+# --- Task 1/3: Cloudflare CSPM ingest ---
+
+_CLOUDFLARE_CONFIG = {"cf_api_token": "t", "cf_zone_id": "z1"}
+
+
+def _mock_cf_setting(setting_id: str, value: str):
+    return type("Setting", (), {"id": setting_id, "value": value})()
+
+
+async def test_cloudflare_cspm_poll_success(mock_db):
+    mock_client = MagicMock()
+
+    def fake_get(setting_id, zone_id=None):
+        values = {"ssl": "flexible", "min_tls_version": "1.0", "waf": "off"}
+        return _mock_cf_setting(setting_id, values[setting_id])
+
+    mock_client.zones.settings.get.side_effect = fake_get
+
+    with patch("cloudflare_ingest._make_cloudflare_client", return_value=mock_client):
+        count = await poll_cloudflare_cspm_findings(_CLOUDFLARE_CONFIG, "acc1", "ten1")
+
+    assert count == 3
+    mock_db.cloud_findings.insert_many.assert_called_once()
+    inserted = mock_db.cloud_findings.insert_many.call_args.args[0]
+    assert len(inserted) == 3
+    for doc in inserted:
+        assert doc["provider"] == "cloudflare"
+        assert set(doc.keys()) == {
+            "id", "tenantId", "accountId", "timestamp", "provider", "service",
+            "checkId", "title", "description", "severity", "status", "remediation", "raw_message",
+        }
+
+
+async def test_cloudflare_cspm_poll_missing_config():
+    assert await poll_cloudflare_cspm_findings({}, "a", "t") == 0
+
+
+async def test_cloudflare_cspm_poll_raise_returns_0():
+    with patch("cloudflare_ingest._make_cloudflare_client", side_effect=Exception("client build failed")):
+        count = await poll_cloudflare_cspm_findings(_CLOUDFLARE_CONFIG, "acc1", "ten1")
         assert count == 0
 
 
