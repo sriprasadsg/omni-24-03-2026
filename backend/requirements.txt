@@ -121,6 +121,10 @@ google-cloud-securitycenter>=1.23.0   # GCP Security Command Center ingest
 azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Analytics
 oci>=2.181.1
 aliyun-python-sdk-core-v3>=2.13.33
+alibabacloud_config20200907>=4.2.3
+alibabacloud_sas20181203>=9.3.3
+alibabacloud_tea_openapi>=0.4.5
+alibabacloud_credentials>=1.0.10
 cloudflare>=5.4.0
 msal>=1.37.0
 
