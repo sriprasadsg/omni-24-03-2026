@@ -775,10 +775,18 @@ Plans:
 **Depends on:** Nothing
 
 **Plans:** 5 plans
+**Wave 1**
+
 - [ ] 41-01-PLAN.md — Provider check catalogs (OCI/Alibaba/Cloudflare) + RUNNABLE_PROVIDERS gate + compliance-score coverage (Wave 1)
 - [ ] 41-02-PLAN.md — Package legitimacy checkpoint + install (oci/cloudflare + 4 SUS alibabacloud_* V2 SDK) (Wave 1)
-- [ ] 41-03-PLAN.md — Real CSPM findings ingest functions writing cloud_findings (Wave 2)
 - [ ] 41-04-PLAN.md — Frontend: credential field-mapping fix + provider fields + SIMULATED badge (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 41-03-PLAN.md — Real CSPM findings ingest functions writing cloud_findings (Wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 41-05-PLAN.md — scan_account() ingest dispatch + end-to-end scan tests (Wave 3)
 
 **UI hint**: yes
