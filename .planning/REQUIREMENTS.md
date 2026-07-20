@@ -226,13 +226,44 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 - [ ] **ASSIST-01**: A conversational chat UI lets a user ask natural-language questions about their compliance/security posture
 - [ ] **ASSIST-02**: Answers are grounded in the tenant's live findings/compliance data (reusing Phase 30's RAG infrastructure where applicable), with sources cited
 
+## v3.2 Requirements
+
+### Rust Agent Modernization
+
+- [ ] **RUST-01**: The Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) builds and ships on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml replaced by serde_norway; the reqwest TLS-backend choice (native-tls vs rustls default) is an explicit, documented decision; rebuilt as the 2.1.0 executable
+
+### Auth
+
+- [ ] **SESS-01**: The intermittent 401 Unauthorized error during normal sessions is root-caused and fixed (lead: possible refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
+
+### Remediation Ticketing Bridge
+
+- [ ] **REM-01**: A compliance admin can create a Jira or ServiceNow ticket directly from a remediation task, with task fields correctly mapped through an explicit adapter (not passed raw into the alert-shaped connector, which would render "N/A" fields)
+- [ ] **REM-02**: When the linked external ticket is closed, the remediation task automatically updates to Resolved and triggers the existing re-scan dispatch
+
+### Remediation SLA
+
+- [ ] **SLA-01**: A remediation task's SLA status (ok / at_risk / breached) is computed from its `due_date`; a breach triggers an escalation notification
+- [ ] **SLA-02**: Every escalation event is recorded in an immutable, append-only history on the remediation task, viewable by a compliance admin
+
+### Control Comments
+
+- [ ] **CMT-01**: A compliance admin or auditor can post a comment on a specific control; comments are tenant-scoped (not visible cross-tenant); @mentions trigger a notification
+
+### CSPM Provider Expansion
+
+- [ ] **CSPM-01**: A tenant with a connected OCI cloud account can run a posture scan against real, CIS OCI Foundations-aligned checks (not simulated/stub data)
+- [ ] **CSPM-02**: A tenant with a connected Alibaba Cloud account can run a posture scan against real checks via the Alibaba Cloud Config/Security Center V2 API
+- [ ] **CSPM-03**: A tenant with a connected Cloudflare account can run a posture scan against real checks aligned to Cloudflare's Security Center taxonomy
+
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Evidence version history (keeping old files on re-upload) | Storage complexity; chain-of-custody log provides the audit trail without full file versioning |
-| Comment threads on controls | Distinct feature with its own UI surface; deferred to v1.2+ |
-| Jira/ServiceNow webhook for remediation tasks | Deferred to a future milestone |
+| Bidirectional continuous ticket field sync (Jira/ServiceNow ↔ remediation task) | v3.2 ships one-way close-loop sync only (ticket closed → task resolved); full bidirectional sync needs webhook infra, deferred |
+| Live SDK-polled CSPM scanning (real-time API calls per scan) | Architecturally inconsistent with every existing provider including AWS/Azure/GCP, which evaluate imported findings against check definitions, not live polling |
+| Threaded/nested comment replies, reactions on control comments | No GRC competitor implements this on controls; flat comment list is table stakes, threading is not |
 
 ## Traceability
 
