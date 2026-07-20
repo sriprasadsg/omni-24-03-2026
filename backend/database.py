@@ -295,6 +295,15 @@ async def connect_to_mongo():
         await mongodb.db.password_reset_tokens.create_index("created_at", expireAfterSeconds=3600)
         # revoked_tokens: only needs to outlive the longest possible access-token TTL (24 h)
         await mongodb.db.revoked_tokens.create_index("revoked_at", expireAfterSeconds=86400)
+        # revoked_tokens.jti: SESS-01 (D-05 Mechanism A) — refresh_access_token's
+        # find_one_and_update + $setOnInsert atomic-consume logic
+        # (authentication_endpoints.py) already assumes this unique index exists;
+        # without it, two concurrent /refresh calls with the same token could both
+        # "win", corrupting single-use rotation and producing intermittent 401s.
+        # This closes that gap. Mechanism B (multi-tab sessionStorage divergence,
+        # a separate frontend surface) is deferred per 40-CONTEXT.md D-05 and is
+        # NOT addressed here.
+        await mongodb.db.revoked_tokens.create_index("jti", unique=True, background=True)
         # report_delivery_logs: compound index for per-schedule history queries (SCHED-02)
         await mongodb.db.report_delivery_logs.create_index(
             [("schedule_id", 1), ("run_at", -1)],
