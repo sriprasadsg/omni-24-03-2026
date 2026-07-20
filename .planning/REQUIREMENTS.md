@@ -234,7 +234,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Auth
 
-- [ ] **SESS-01**: The intermittent 401 Unauthorized error during normal sessions is root-caused and fixed (lead: possible refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
+- [x] **SESS-01**: The intermittent 401 Unauthorized error during normal sessions is root-caused and fixed (lead: possible refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
 
 ### Remediation Ticketing Bridge
 
