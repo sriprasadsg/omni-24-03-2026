@@ -774,7 +774,7 @@ Plans:
 
 **Depends on:** Nothing
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 **Wave 1**
 
 - [x] 41-01-PLAN.md — Provider check catalogs (OCI/Alibaba/Cloudflare) + RUNNABLE_PROVIDERS gate + compliance-score coverage (Wave 1)
@@ -787,7 +787,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 41-05-PLAN.md — scan_account() ingest dispatch + end-to-end scan tests (Wave 3)
+- [x] 41-05-PLAN.md — scan_account() ingest dispatch + end-to-end scan tests (Wave 3)
 
 **UI hint**: yes
 
