@@ -252,9 +252,9 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### CSPM Provider Expansion
 
-- [ ] **CSPM-01**: A tenant with a connected OCI cloud account can run a posture scan against real, CIS OCI Foundations-aligned checks (not simulated/stub data)
+- [x] **CSPM-01**: A tenant with a connected OCI cloud account can run a posture scan against real, CIS OCI Foundations-aligned checks (not simulated/stub data)
 - [x] **CSPM-02**: A tenant with a connected Alibaba Cloud account can run a posture scan against real checks via the Alibaba Cloud Config/Security Center V2 API
-- [ ] **CSPM-03**: A tenant with a connected Cloudflare account can run a posture scan against real checks aligned to Cloudflare's Security Center taxonomy
+- [x] **CSPM-03**: A tenant with a connected Cloudflare account can run a posture scan against real checks aligned to Cloudflare's Security Center taxonomy
 
 ## Out of Scope
 
