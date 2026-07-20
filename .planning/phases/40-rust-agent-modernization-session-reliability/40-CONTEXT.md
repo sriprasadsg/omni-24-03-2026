@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) as the 2.1.0 executable on its modernized dependency stack (reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, hostname 0.4, serde_yaml→serde_norway), and root-cause + fix the intermittent 401 Unauthorized session bug (lead: refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`). Two independent, foundational fixes carried over from HANDOFF tasks 10 and 11 — decoupled from the remediation-ops feature work in the rest of the v3.2 milestone.
+Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) as the 2.1.3 executable (corrected from "2.1.0" — `Cargo.toml` is already at 2.1.2, having shipped 2.1.0/2.1.1 previously; per research finding, 2026-07-20) on its modernized dependency stack (reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, hostname 0.4, serde_yaml→serde_norway), and root-cause + fix the intermittent 401 Unauthorized session bug (lead: refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`). Two independent, foundational fixes carried over from HANDOFF tasks 10 and 11 — decoupled from the remediation-ops feature work in the rest of the v3.2 milestone.
 
 </domain>
 
@@ -21,6 +21,9 @@ Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) 
 
 ### 401 fix scope
 - **D-03:** Narrow fix only. Root-cause and fix the specific refresh-token race; do not add broader session-resilience hardening (silent retry-on-401, refresh-margin tuning) in this phase — that would be scope creep beyond what HANDOFF task 10 asked for. If the root-cause investigation surfaces a different/additional defect, fix that too, but stay within "why does 401 happen intermittently," not "make auth generally more resilient."
+
+### 401 fix scope — post-research addendum (2026-07-20)
+- **D-05:** Research confirmed two independent mechanisms behind the intermittent 401: Mechanism A (missing unique index on `revoked_tokens.jti` — the code's atomic consume logic already exists but the index backing it doesn't) and Mechanism B (multi-tab/cloned-tab sessionStorage divergence racing the same stale refresh token). Per D-03's narrow-scope boundary, this phase fixes **Mechanism A only**. Mechanism B is a different surface (frontend multi-tab session logic) and is deferred — not silently dropped, tracked below.
 
 ### Claude's Discretion
 - Exact TLS pin syntax in `Cargo.toml` (default-features = false + explicit `native-tls` feature, or equivalent) — implementation detail.
@@ -76,8 +79,7 @@ Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) 
 ## Deferred Ideas
 
 - Broader auth-session hardening (silent retry-on-401, refresh-margin tuning) — deferred per D-03; revisit only if the 401 root-cause investigation shows it's genuinely needed, as a separate future phase/todo, not folded into this one.
-
-None — discussion stayed within phase scope otherwise.
+- Mechanism B fix (multi-tab/cloned-tab sessionStorage divergence) — deferred per D-05; genuinely plausible per research (MEDIUM confidence, code-structure-verified but not live-reproduced), worth a future todo/phase if 401 reports persist after Mechanism A ships.
 
 </deferred>
 
