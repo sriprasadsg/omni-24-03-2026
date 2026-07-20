@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: Agent Modernization & Remediation Ops
 status: planning
-last_updated: "2026-07-20T11:57:55.641Z"
+last_updated: "2026-07-20T12:30:00.000Z"
 last_activity: 2026-07-20
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 39 — langchain-ai-integration
+**Current focus:** Phase 40 — rust-agent-modernization-session-reliability
 
 ## Current Phase
 
@@ -71,6 +71,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-18 (later still) — Phase 39 plan 39-06 executed (create_agent compliance auditor migration, AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3).** Built `backend/ai_orchestration/agents/auditor.py::evaluate_control(framework_name, control_desc, evidence_text, tenant_id, db, control_id=None)`: builds a per-tenant `create_agent` from the 39-04 model factory + 39-05 tenant-closed `search_evidence`/`get_control_evidence` tools + versioned `AUDITOR_SYSTEM_PROMPT`, always requesting structured output via `ToolStrategy(AuditFinding, handle_errors=...)` — never a bare `response_format=AuditFinding` — per the 39-02/39-04 `ROUTER_STRUCTURED_OUTPUT_PASSTHROUGH == "FAIL"` decision. Every returned finding is run through `validate_citations` (39-03) before return; an unresolvable citation or unknown `control_id` downgrades to `insufficient_evidence`. Guardrail `scan_input`/`scan_output`/`cross_tenant_output_scan` wrap the agent call; a fallback-provenance `pass` sets `needs_review=True` (Failure Mode 5) rather than ever equaling a primary pass. Decisions logged via `log_ai_decision`. Found and fixed a real integration gap during implementation (not in the plan's file list, so fixed via a design choice rather than touching validators.py/tools/evidence.py): `asset_compliance`/`control_evidence`/`system_settings` are NOT in `database.py`'s tenant-isolation exemption list, so `TenantIsolatedCollection` would auto-inject a top-level `tenantId` equality filter on top of `validate_citations`'s explicit tenant+`global` `$or` scope — silently excluding `global`-KB citations from ever resolving. Fixed by unwrapping to the raw db handle (`db._db`) before passing to `validate_citations`/`make_get_control_evidence`/the model-name lookup — mirrors `ai_orchestration/models.py`'s own existing unwrap for the identical reason; `log_ai_decision` still gets the original (possibly wrapped) `db`, since its `insert_one` relies on that auto-injection. Also found that `ai_auditor_endpoints.py`'s existing call site never passes a real `control_id` into `evaluate_evidence` — the model would otherwise have to invent one, defeating the whole point of the citation/control-ID validator. Since `ai_auditor_endpoints.py` is out of this plan's file scope (must_haves lock it as unchanged), added `control_id` as an optional trailing kwarg on both `evaluate_control` and the shim's `evaluate_evidence` (backward compatible with the existing 3-arg call), with a best-effort `extract_control_id_tokens(control_desc)` fallback and, when the caller does supply it, a defense-in-depth pin (`finding.model_copy(update={"control_id": control_id})`) that overrides whatever the model returned — never trust a model-fabricated control_id when the real one is known. `backend/ai_auditor_service.py` rewritten as a thin shim preserving `get_auditor()`/`evaluate_evidence()`'s exact signature and `{verified, reasoning, raw_response, evaluatedAt}` return shape; resolves tenant/db from ambient `tenant_context.get_tenant_id()`/`database.get_database()` rather than new required params. Fail-closed throughout: any agent exception maps to `verified=False`; a `needs_review` (fallback-pass) result also maps to `verified=False` with an explicit `NEEDS_REVIEW` marker in `reasoning`, since the legacy boolean contract has no third "pending review" state — this is the strongest guarantee available without changing the endpoint's write path. 14 hermetic unit tests added (`backend/tests/test_auditor_agent.py`; citation/control-ID resolution runs for real against a small mocked db rather than being mocked away, so the validator wiring is actually exercised, not just the call graph). All 3 tasks committed (e4e3482 auditor.py, bfab5e6 shim, d7f048f tests). One pre-existing, unrelated test failure confirmed reproducing in isolation and on unrelated files (`test_rust_heartbeat_parity.py::test_rust02_and_rust03_db_calls` — `agent_type` missing from a `$push.evidence` array; unrelated to this plan's 3 files, working tree already had unstaged changes to `agent-rust/`/`agent/installer/` per the sequential-executor briefing), logged as a deviation, not fixed (out of file scope). Full suite otherwise green: 1063 passed / 23 skipped / 2 failed (both pre-existing, excluded per briefing). This is the first of four agent-surface migrations (39-06..09); 39-07 (chat), 39-08 (questionnaire), 39-09 (narrative) follow the same create_agent + validate_citations + guardrails + provenance + decision-log pattern.
 
+**Session 2026-07-20 — v3.2 roadmap defined (Phases 40-44).** Research summary (`.planning/research/SUMMARY.md`) confirmed two independent workstreams: the Rust agent 2.1.0 dependency bump is already staged and verified compiling clean (only the TLS-backend decision and the 2.1.0 rebuild remain), and four remediation-ops feature gaps close cleanly via disciplined reuse of existing patterns (Jira/ServiceNow connectors, `_compute_sla()`, the tenant-isolation wrapper, the `DO_CHECKS`-shaped check-definition pattern). 5 new phases (40-44) added, continuing numbering from Phase 39: Phase 40 (Rust Agent Modernization & Session Reliability — RUST-01, SESS-01) is a fully independent toolchain track; Phase 41 (CSPM Provider Expansion — CSPM-01/02/03) and Phase 42 (Comment Threads — CMT-01) are structurally isolated and ordered first to validate new-pattern risk cheaply; Phase 43 (Remediation-to-Ticketing Bridge — REM-01/02) is sequenced before Phase 44 (Remediation SLA & Escalation — SLA-01/02) since both mutate the same `compliance_remediation_tasks` document. All 10 v3.2 requirements mapped 1:1 to a phase, no orphans. REQUIREMENTS.md traceability table updated. Next: `/gsd-plan-phase 40`.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -114,6 +116,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
 | 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
 | 39 | LangChain AI Integration | Complete (v3.1) — all 12 plans executed; UAT 2026-07-19 (39-UAT.md) 7 passed / 0 issues / 2 blocked-on-live-gateway (nightly judged run, 9router re-test) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator), 39-04 (per-tenant model factory + persistent memory + tracing infra), 39-05 (tenant-closed tools + versioned prompts + guardrail hooks + decision-log writer), 39-06 (create_agent auditor migration — AuditFinding + citation validation + shim), 39-07 (create_agent chat migration — persistent checkpointer memory + RAG/live-findings fusion), 39-08 (create_agent questionnaire migration — CitedAnswer + citation validation + shim), 39-09 (create_agent narrative migration — NarrativeOutput + word-budget validation + framework-fidelity flagging + shim), 39-10 (48-example reference dataset: gold controls + questionnaire + chat + adversarial fixtures + fail-loud loader) executed — all four AI-surface migrations complete; 39-11/12 remaining |
+| 40 | Rust Agent Modernization & Session Reliability | Not started (v3.2) — roadmap defined 2026-07-20 |
+| 41 | CSPM Provider Expansion (OCI, Alibaba, Cloudflare) | Not started (v3.2) |
+| 42 | Comment Threads on Compliance Controls | Not started (v3.2) |
+| 43 | Remediation-to-Ticketing Bridge | Not started (v3.2) |
+| 44 | Remediation SLA & Escalation | Not started (v3.2) |
 
 ## Decisions
 
@@ -306,7 +313,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-20 — Milestone v3.2 started
+Phase: 40 — Rust Agent Modernization & Session Reliability
+Plan: — (not yet planned)
+Status: Roadmap defined — ready for /gsd-plan-phase 40
+Last activity: 2026-07-20 — v3.2 ROADMAP.md written (Phases 40-44), REQUIREMENTS.md traceability updated

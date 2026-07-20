@@ -8,6 +8,8 @@
 - **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
 - **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, complete — verified 2026-07-05).
 - **v3.0** — Competitive Feature Closure: 14 phases (25–38) closing the 25 gaps from the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler — cloud-check execution gaps, vendor/risk data completeness, OSCAL/SBOM export, governance documents, a real public Trust Center, AI questionnaire auto-answer, FAIR risk quantification, provider expansion, workflow connectors, passkeys, GraphQL, ReBAC, a spec-compliant MCP server, and an interactive AI security assistant. In progress — Phase 25 planning underway.
+- **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
+- **v3.2** — Agent Modernization & Remediation Ops: Rust agent 2.1.0 dependency modernization (reqwest/sysinfo/tokio-tungstenite/rusqlite/hostname bumps, serde_yaml→serde_norway) plus a root-cause fix for the intermittent 401 auth-session bug, and real gaps in remediation operations — a Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 5 phases (40–44). Roadmap defined 2026-07-20 — not started.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -710,3 +712,129 @@ Plans:
 - [x] 39-10-PLAN.md — 48-example reference dataset (gold controls, Q&A, chat, adversarial) + loader
 - [x] 39-11-PLAN.md — Six code-based eval dimensions (phase gate: traceability, conservative status, fidelity, tenant isolation, provenance, RAG-02)
 - [x] 39-12-PLAN.md — Three judged eval dimensions (questionnaire honesty, chat relevance, retrieval quality — nightly)
+
+---
+
+## v3.2 — Agent Modernization & Remediation Ops
+
+**Goal:** Finish the Rust agent 2.1.0 dependency modernization and the outstanding 401 auth-session bug, then close real (verified, not assumed) gaps in remediation operations — bridging remediation tasks to existing ticketing connectors, SLA/escalation on overdue tasks, comment threads on controls, and CSPM checks for the 3 cloud providers that are currently dropdown-only stubs. Per the 2026-07-20 research summary: the Rust agent work is a fully independent toolchain track that can run in parallel with everything else; the four remediation-ops features are sequenced by risk — CSPM checks and comment threads first (structurally isolated, new-pattern risk validated cheaply), then the ticketing bridge before SLA/escalation, since both mutate the same `compliance_remediation_tasks` document.
+
+**Status:** Roadmap defined 2026-07-20. Not started — continues phase numbering from Phase 39.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 40 | Rust Agent Modernization & Session Reliability | Not started |
+| 41 | CSPM Provider Expansion (OCI, Alibaba, Cloudflare) | Not started |
+| 42 | Comment Threads on Compliance Controls | Not started |
+| 43 | Remediation-to-Ticketing Bridge | Not started |
+| 44 | Remediation SLA & Escalation | Not started |
+
+---
+
+## Phase 40: Rust Agent Modernization & Session Reliability
+
+**Milestone:** v3.2
+
+**Goal:** Ship the Rust endpoint agent (`agent-install/omni-agent-rs`, the shipping tree) on its modernized dependency stack as the 2.1.0 executable, and root-cause + fix the intermittent 401 Unauthorized error that has never been investigated. Both are independent, foundational fixes carried over from HANDOFF tasks 10 and 11 — decoupled from the remediation-ops feature work in the rest of this milestone and safe to execute in parallel with it.
+
+**Requirements:** RUST-01 (reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, hostname 0.4, serde_yaml→serde_norway migration in `src/config.rs`, explicit TLS-backend decision, 2.1.0 rebuild), SESS-01 (root-cause and fix the intermittent 401 session bug, lead: refresh-token double-consume race in `authentication_endpoints.py::refresh_access_token`)
+
+**Success Criteria** (what must be TRUE):
+  1. The shipping Rust agent tree builds and runs on reqwest 0.13, sysinfo 0.39, tokio-tungstenite 0.30, rusqlite 0.40, and hostname 0.4, with serde_yaml fully replaced by serde_norway, packaged as the 2.1.0 executable.
+  2. The reqwest TLS backend (native-tls vs. the new rustls default) is an explicit, documented decision — not a silent behavior change shipped to endpoints.
+  3. A user's authenticated session no longer intermittently drops to 401 Unauthorized during normal use; the root cause is identified and fixed (or definitively ruled out with evidence).
+  4. Existing agent heartbeat and evidence-parity behavior (Phase 1) is unchanged after the dependency upgrade — no regression.
+
+**Depends on:** Nothing (independent toolchain track; may run in parallel with Phases 41–44)
+
+**Plans:** TBD
+
+---
+
+## Phase 41: CSPM Provider Expansion (OCI, Alibaba, Cloudflare)
+
+**Milestone:** v3.2
+
+**Goal:** Replace the dropdown-only OCI, Alibaba, and Cloudflare provider stubs with real CSPM check catalogs wired into the existing `run_checks()` evaluation engine, matching the rigor already applied to AWS/Azure/GCP/DigitalOcean (`RUNNABLE_PROVIDERS` currently allowlists these three with zero check logic behind them).
+
+**Requirements:** CSPM-01 (real CIS OCI Foundations-aligned checks), CSPM-02 (real Alibaba Cloud Config/Security Center V2 checks), CSPM-03 (real Cloudflare Security Center-aligned checks)
+
+**Success Criteria** (what must be TRUE):
+  1. A tenant with a connected OCI account can trigger a posture scan and see results from real CIS OCI Foundations-aligned checks in the cloud checks dashboard.
+  2. A tenant with a connected Alibaba Cloud account can trigger a posture scan and see results from real checks via the Config/Security Center V2 API.
+  3. A tenant with a connected Cloudflare account can trigger a posture scan and see results from real checks aligned to Cloudflare's Security Center taxonomy.
+  4. All three providers run end-to-end through the existing `run_checks()` engine (no longer allowlisted-but-inert); any remaining simulated data is clearly labeled, never presented as real.
+
+**Depends on:** Nothing
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 42: Comment Threads on Compliance Controls
+
+**Milestone:** v3.2
+
+**Goal:** Let compliance admins and auditors discuss a specific control via a comment thread, scoped to their own tenant, with @mention notifications — a feature genuinely absent from the platform today. Storage must be a new tenant-scoped `control_comments` collection, never embedded on `compliance_controls` (which is on the tenant-isolation exemption allowlist as global reference data).
+
+**Requirements:** CMT-01 (post comments on a control; tenant-scoped; @mentions trigger a notification)
+
+**Success Criteria** (what must be TRUE):
+  1. A compliance admin or auditor can post a comment on a specific control and see it appear in that control's thread in the control detail view.
+  2. Comments on a control are visible only within the posting tenant — a user from another tenant cannot see or fetch them.
+  3. @mentioning a user in a comment triggers a notification to that user.
+  4. Comment history persists across sessions and is retrievable from the control detail view.
+
+**Depends on:** Nothing
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 43: Remediation-to-Ticketing Bridge
+
+**Milestone:** v3.2
+
+**Goal:** Wire `compliance_remediation_service` task create/update to the existing Jira/ServiceNow connectors in `ticketing_service.py` through an explicit field adapter (reuse, don't rebuild — connectors currently only serve security-alert tickets), and close the loop when the external ticket resolves.
+
+**Requirements:** REM-01 (create a Jira/ServiceNow ticket from a remediation task with correctly-mapped fields via an explicit adapter, not passed raw into the alert-shaped connector), REM-02 (closed external ticket auto-resolves the remediation task and triggers the existing re-scan dispatch)
+
+**Success Criteria** (what must be TRUE):
+  1. A compliance admin can create a Jira or ServiceNow ticket directly from a remediation task in the remediation task view, with the task's real fields (not "N/A") populated on the ticket via an explicit adapter.
+  2. The created ticket's provider, reference ID, and URL are visible on the remediation task afterward.
+  3. When the linked external ticket is closed, the remediation task automatically transitions to Resolved without manual intervention.
+  4. Resolving a task via ticket closure triggers the existing re-scan dispatch, matching manual-resolution behavior.
+
+**Depends on:** Nothing (but precedes Phase 44, which mutates the same `compliance_remediation_tasks` document)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 44: Remediation SLA & Escalation
+
+**Milestone:** v3.2
+
+**Goal:** Compute SLA status from a remediation task's `due_date`, automatically escalate breaches, and keep an immutable audit trail of every escalation — scoped to `compliance_remediation_tasks` only (the existing `tickets_escalation_service.py` is a different domain/schema, not reusable as-is; only its pure `_compute_sla()` helper is reused).
+
+**Requirements:** SLA-01 (SLA status ok/at_risk/breached computed from due_date; breach triggers an escalation notification), SLA-02 (immutable, append-only escalation history viewable by a compliance admin)
+
+**Success Criteria** (what must be TRUE):
+  1. A remediation task's SLA status (ok / at_risk / breached) is visible in the remediation task view and reflects its due_date automatically, without manual computation.
+  2. A task that breaches its due_date triggers an escalation notification without operator action.
+  3. A compliance admin can view an append-only escalation history on a remediation task; no escalation entry can be edited or deleted.
+  4. SLA/escalation processing is tenant-scoped — one tenant's overdue tasks never escalate against or become visible to another tenant.
+
+**Depends on:** Phase 43 (both mutate `compliance_remediation_tasks`; sequencing avoids schema races)
+
+**Plans:** TBD
+
+**UI hint**: yes

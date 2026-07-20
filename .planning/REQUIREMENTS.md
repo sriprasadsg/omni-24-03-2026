@@ -355,6 +355,16 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 | MCP-02 | Phase 37 | Planned |
 | ASSIST-01 | Phase 38 | Planned |
 | ASSIST-02 | Phase 38 | Planned |
+| RUST-01 | Phase 40 | Planned |
+| SESS-01 | Phase 40 | Planned |
+| CSPM-01 | Phase 41 | Planned |
+| CSPM-02 | Phase 41 | Planned |
+| CSPM-03 | Phase 41 | Planned |
+| CMT-01 | Phase 42 | Planned |
+| REM-01 | Phase 43 | Planned |
+| REM-02 | Phase 43 | Planned |
+| SLA-01 | Phase 44 | Planned |
+| SLA-02 | Phase 44 | Planned |
 
 **Coverage:**
 
@@ -366,8 +376,10 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 - v2.0 requirements: 30 total, all 30 complete as of 2026-07-05 (re-ran every phase's test suite directly and fixed 5 orphaned-dashboard nav-wiring gaps — see per-phase notes above and the milestone note at the top of this section)
 - v2.1 requirements: 3 total (IAC-01..03), all complete — verified 2026-07-05 (8/8 tests pass, dashboard restyled and wired into navigation)
 - v3.0 requirements: 33 total (CHK-01..03, VRISK-01/02, RISK-01, EXP-01/02, DOC-01/02, TRUST-01..03, RAG-01/02, FAIR-01, PROV-01..04, WF-01/02, AUTH-01, GQL-01/02, REBAC-01/02, MCP-01/02, ASSIST-01/02), 0 complete — roadmap scaffolded 2026-07-06 from the feature-parity audit, Phase 25 planning underway
+- v3.2 requirements: 10 total (RUST-01, SESS-01, REM-01/02, SLA-01/02, CMT-01, CSPM-01/02/03), 0 complete — roadmap defined 2026-07-20 (Phase 40 Rust Agent Modernization & Session Reliability, Phase 41 CSPM Provider Expansion, Phase 42 Comment Threads, Phase 43 Remediation-to-Ticketing Bridge, Phase 44 Remediation SLA & Escalation)
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-20*
 *Last updated: 2026-07-02 — Phase 15 REV-01/02/03 backfilled and verified complete; remaining v2.0 phases (14, 16–22) backfilled with as-found implementation status*
+*Last updated: 2026-07-20 — v3.2 requirements (RUST-01, SESS-01, REM-01/02, SLA-01/02, CMT-01, CSPM-01/02/03) mapped to Phases 40-44 in ROADMAP.md*
