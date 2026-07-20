@@ -6,14 +6,14 @@ current_phase: 41
 current_phase_name: cspm-provider-expansion-oci-alibaba-cloudflare
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-20T19:42:41.025Z"
+last_updated: "2026-07-20T19:49:36.656Z"
 last_activity: 2026-07-20
 last_activity_desc: Phase 41 execution started
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 20
 ---
 
@@ -239,6 +239,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 41-02]: Resolved cryptography/pyOpenSSL/webauthn/alibabacloud_tea_openapi 4-way pin conflict by pinning cryptography==49.0.0/pyOpenSSL==26.3.0 — oci install downgraded both, breaking webauthn's hard >=49.0.0/>=26.3.0 requirement; alibabacloud_tea_openapi's cryptography<49.0.0 pin verified stale via functional RSA sign/verify test
 - [Phase 41-02]: All 4 SUS-flagged alibabacloud_* V2 SDK packages human-verified as legitimate (official aliyun org) before install — Blocking package-legitimacy checkpoint approved by user with independently-verified PyPI metadata
 - [Phase 41]: 41-01: service category for all new OCI/Alibaba/Cloudflare checks drawn strictly from shared set {iam, storage, encryption, logging} per D-03, not each provider's native taxonomy
+- [Phase ?]: 41-04: Credential field keys (oci_tenancy_ocid, access_key_id, cf_api_token, etc.) taken directly from backend ingest modules' required_fields lists, not paraphrased from docs
+- [Phase ?]: 41-04: AddCloudAccountModal onSave prop widened with an optional credentials field via intersection type rather than adding credentials to the shared CloudAccount type
 
 ## Performance Metrics
 
@@ -286,11 +288,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 40 P02 | 20min | 2 tasks | 2 files |
 | Phase 41 P02 | 15min | 2 tasks | 1 files |
 | Phase 41 P01 | 20min | 3 tasks | 7 files |
+| Phase 41 P04 | 12min | 2 tasks | 3 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 40-01-PLAN.md
+- **Stopped at:** Completed 41-04-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -316,7 +319,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-20T19:41:37.329Z
+**Last session:** 2026-07-20T19:49:29.136Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -330,6 +333,6 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 41 (cspm-provider-expansion-oci-alibaba-cloudflare) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-07-20 — Phase 41 execution started

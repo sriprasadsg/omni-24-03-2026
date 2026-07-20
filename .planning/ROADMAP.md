@@ -774,12 +774,12 @@ Plans:
 
 **Depends on:** Nothing
 
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 **Wave 1**
 
 - [x] 41-01-PLAN.md — Provider check catalogs (OCI/Alibaba/Cloudflare) + RUNNABLE_PROVIDERS gate + compliance-score coverage (Wave 1)
 - [x] 41-02-PLAN.md — Package legitimacy checkpoint + install (oci/cloudflare + 4 SUS alibabacloud_* V2 SDK) (Wave 1)
-- [ ] 41-04-PLAN.md — Frontend: credential field-mapping fix + provider fields + SIMULATED badge (Wave 1)
+- [x] 41-04-PLAN.md — Frontend: credential field-mapping fix + provider fields + SIMULATED badge (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
