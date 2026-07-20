@@ -95,3 +95,11 @@ None - no external service configuration required.
 ---
 *Phase: 40-rust-agent-modernization-session-reliability*
 *Completed: 2026-07-20*
+
+## Self-Check: PASSED
+
+- FOUND: backend/database.py contains `revoked_tokens.create_index("jti", ...)`
+- FOUND: backend/tests/test_auth_refresh_race.py
+- FOUND: commit 0257f4f (Task 1)
+- FOUND: commit 9f98eaa (Task 2)
+- FOUND: commit 980f7b8 (SUMMARY.md)
