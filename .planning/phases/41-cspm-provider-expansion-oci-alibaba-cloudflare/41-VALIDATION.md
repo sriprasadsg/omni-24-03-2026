@@ -1,8 +1,8 @@
 ---
 phase: 41
 slug: cspm-provider-expansion-oci-alibaba-cloudflare
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-20
 ---
@@ -38,13 +38,13 @@ created: 2026-07-20
 
 | Task ID | Plan | Wave | Requirement | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-------------------|-------------|--------|
-| TBD (planner) | TBD | TBD | CSPM-01 | `pytest backend/tests/test_cloud_checks_expansion.py -k oci -x` | ❌ Wave 0 (extend existing file) | ⬜ pending |
-| TBD (planner) | TBD | TBD | CSPM-01 | `pytest backend/tests/test_cloud_findings_ingest.py -k oci -x` | ❌ Wave 0 (extend existing file) | ⬜ pending |
-| TBD (planner) | TBD | TBD | CSPM-02 | `pytest backend/tests/test_cloud_checks_expansion.py -k alibaba -x` | ❌ Wave 0 | ⬜ pending |
-| TBD (planner) | TBD | TBD | CSPM-02 | `pytest backend/tests/test_cloud_findings_ingest.py -k alibaba -x` | ❌ Wave 0 | ⬜ pending |
-| TBD (planner) | TBD | TBD | CSPM-03 | `pytest backend/tests/test_cloud_checks_expansion.py -k cloudflare -x` | ❌ Wave 0 | ⬜ pending |
-| TBD (planner) | TBD | TBD | CSPM-03 | `pytest backend/tests/test_cloud_findings_ingest.py -k cloudflare -x` | ❌ Wave 0 | ⬜ pending |
-| TBD (planner) | TBD | TBD | CSPM-01/02/03 | `pytest backend/tests/test_cloud_accounts.py -k scan -x` (extend existing file) | ⚠️ file exists, new cases needed | ⬜ pending |
+| 41-01 Task 3 | 41-01 | 1 | CSPM-01 | `pytest backend/tests/test_cloud_checks_expansion.py -k oci -x` | ❌ Wave 0 (extend existing file) | ⬜ pending |
+| 41-03 Task 1 / 41-03 Task 3 | 41-03 | 2 | CSPM-01 | `pytest backend/tests/test_cloud_findings_ingest.py -k oci -x` | ❌ Wave 0 (extend existing file) | ⬜ pending |
+| 41-01 Task 3 | 41-01 | 1 | CSPM-02 | `pytest backend/tests/test_cloud_checks_expansion.py -k alibaba -x` | ❌ Wave 0 | ⬜ pending |
+| 41-03 Task 2 / 41-03 Task 3 | 41-03 | 2 | CSPM-02 | `pytest backend/tests/test_cloud_findings_ingest.py -k alibaba -x` | ❌ Wave 0 | ⬜ pending |
+| 41-01 Task 3 | 41-01 | 1 | CSPM-03 | `pytest backend/tests/test_cloud_checks_expansion.py -k cloudflare -x` | ❌ Wave 0 | ⬜ pending |
+| 41-03 Task 1 / 41-03 Task 3 | 41-03 | 2 | CSPM-03 | `pytest backend/tests/test_cloud_findings_ingest.py -k cloudflare -x` | ❌ Wave 0 | ⬜ pending |
+| 41-05 Task 2 | 41-05 | 3 | CSPM-01/02/03 | `pytest backend/tests/test_cloud_accounts.py -k scan -x` (extend existing file) | ⚠️ file exists, new cases needed | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky — Task ID/Plan/Wave columns filled once the planner assigns tasks; requirement→command mapping carried verbatim from 41-RESEARCH.md's Validation Architecture section.*
 
@@ -71,11 +71,11 @@ created: 2026-07-20
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (test_cloud_checks_expansion.py extended in 41-01; test_cloud_findings_ingest.py extended in 41-03; test_cloud_accounts.py extended in 41-05)
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** planned 2026-07-21 — Task ID/Plan/Wave columns assigned; frontend SIMULATED badge + credential round-trip remain manual/UAT gates (no frontend test framework in repo).
