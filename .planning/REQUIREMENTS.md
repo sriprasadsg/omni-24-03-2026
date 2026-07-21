@@ -243,7 +243,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Remediation SLA
 
-- [ ] **SLA-01**: A remediation task's SLA status (ok / at_risk / breached) is computed from its `due_date`; a breach triggers an escalation notification
+- [x] **SLA-01**: A remediation task's SLA status (ok / at_risk / breached) is computed from its `due_date`; a breach triggers an escalation notification
 - [ ] **SLA-02**: Every escalation event is recorded in an immutable, append-only history on the remediation task, viewable by a compliance admin
 
 ### Control Comments

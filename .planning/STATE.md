@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: — Agent Modernization & Remediation Ops
 current_phase: 44
-current_phase_name: Remediation SLA & Escalation
-status: verifying
+current_phase_name: remediation-sla-escalation
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T13:13:40.902Z"
+last_updated: "2026-07-21T14:07:20.905Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 43 complete, transitioned to Phase 44
+last_activity_desc: Phase 44 execution started
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 18
+  completed_plans: 15
   percent: 80
 ---
 
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 43 — remediation-to-ticketing-bridge
+**Current focus:** Phase 44 — remediation-sla-escalation
 
 ## Current Phase
 
@@ -260,6 +260,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 43]: 43-03: manual create-ticket endpoint always passes provider_override=body.provider explicitly, distinct from 43-02's auto-create hook which omits it to use the tenant's configured provider
 - [Phase 43-04]: getTicketingConfig() uses the safe-default try/catch shape (never throws) since hasJira/hasServiceNow drive conditional rendering, not an error path
 - [Phase 43-04]: Provider values are restricted to the 'jira'|'servicenow' string literal union throughout (state, radio tiles, API call) — no free-text provider input anywhere
+- [Phase ?]: 44-01: sla_status defaults to ok (due_date set) / none (absent) on create_task; sweep recomputes
+- [Phase ?]: 44-01: _mock_db() wires db._db = db so get_sla_at_risk_window's dual-call-site unwrap guard resolves correctly against MagicMock's auto-attribute creation
 
 ## Performance Metrics
 
@@ -317,6 +319,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 43 P02 | 5min | 2 tasks | 2 files |
 | Phase 43 P03 | 3min | 3 tasks | 3 files |
 | Phase 43 P04 | 14min | 3 tasks | 3 files |
+| Phase 44 P01 | 55min | 3 tasks | 4 files |
 
 ## Last Session
 
@@ -347,7 +350,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-21T13:04:29.459Z
+**Last session:** 2026-07-21T14:06:32.461Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -360,7 +363,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 44 — Remediation SLA & Escalation
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 43 complete, transitioned to Phase 44
+Phase: 44 (remediation-sla-escalation) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-21 — Phase 44 execution started
