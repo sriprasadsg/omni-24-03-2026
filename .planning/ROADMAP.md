@@ -837,7 +837,11 @@ Plans:
 
 **Depends on:** Nothing (but precedes Phase 44, which mutates the same `compliance_remediation_tasks` document)
 
-**Plans:** TBD
+**Plans:** 4 plans
+- [ ] 43-01-PLAN.md — Ticketing bridge module: adapter, ticket-creation orchestration, external status-checks, close-loop scheduler + unit tests (Wave 1)
+- [ ] 43-02-PLAN.md — Auto-create-on-high/critical hook in create_task (D-01), non-blocking (Wave 2)
+- [ ] 43-03-PLAN.md — Manual create-ticket endpoint + app-startup scheduler registration + endpoint test (Wave 2)
+- [ ] 43-04-PLAN.md — Frontend Ticketing UI: Create Ticket action, provider picker, ticket-display block (Wave 3)
 
 **UI hint**: yes
 
