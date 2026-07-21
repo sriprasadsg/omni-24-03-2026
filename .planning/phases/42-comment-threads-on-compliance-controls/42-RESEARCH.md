@@ -430,17 +430,19 @@ export const postControlComment = async (controlId: string, text: string): Promi
 | A2 | GET `/api/control-comments` should be open to any authenticated tenant user (not role-gated), matching how `evidence_review_endpoints.py`'s GET routes are unrestricted while only the decision-making PATCH is role-gated | Architecture Patterns, Pattern 2 | LOW — if comments should actually be read-restricted to the same `_COMMENT_AUTHOR_ROLES` set, this is a one-line change (add the same role check to the GET handler); CMT-01's requirement text says "post... tenant-scoped" without specifying read-visibility restrictions beyond tenant scope, so the permissive-read interpretation is the more conservative (narrower blast radius) default. |
 | A3 | Comments should auto-fetch/render when the control row expands, not require a second click like `ChainOfCustodyPanel`'s collapse/expand toggle | Architecture Patterns, Pattern 4 | LOW — purely a UX preference; if wrong, a UI-phase/plan-check pass can flip it to match the CoC panel's click-to-expand pattern with no backend impact. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact `@username` token-to-user resolution query shape**
    - What we know: `db.users` documents have `email`/`name` reliably, `username` optionally (see Pitfall 3).
    - What's unclear: Whether every tenant's users reliably have a distinct, collision-free identifier suitable for `@mention` matching, or whether email-local-part collisions across users in the same tenant are possible (e.g. two different email domains both having a `jsmith` local part, if a tenant spans multiple orgs).
    - Recommendation: Plan should scope this as: try exact `username` match first (if present), else email-local-part match, and explicitly accept "ambiguous match, notify the first result only" as acceptable v1 behav9or (matches this platform's general risk tolerance for a notification-only feature with no security implication either way).
+   - RESOLVED: Implemented exactly as recommended in 42-02 Task 2's `resolve_mentions` (username → email-local-part → name, first-match-wins).
 
 2. **Whether `compliance_controls` documents are ever actually fetched as MongoDB documents for a "single control" view, or whether `control.id` always originates from an in-memory Python framework module list (e.g. `backend/frameworks/soc2.py`'s `CONTROLS` list)**
    - What we know: `Control.id` on the frontend (e.g. `"CC1.1"`) is the framework-defined control code, consumed identically by `compliance_remediation_tasks.control_id` today with no FK validation (per `ARCHITECTURE.md`'s already-documented precedent).
    - What's unclear: Whether `db.compliance_controls` (the Mongo collection, distinct from the Python framework module lists) is ever queried for a specific control by ID in a code path this phase would touch, or whether it's populated only for import/MCP-tool purposes.
    - Recommendation: Treat `control_id` as a loose, unvalidated foreign key exactly like `compliance_remediation_tasks.control_id` already does — no join/existence check needed at write time. This is the existing, proven precedent and avoids scope creep into validating framework control catalogs.
+   - RESOLVED: 42-01's `control_comments_service.py` treats `control_id` as an unvalidated loose FK per the recommendation — confirmed no query against `db.compliance_controls` in any Phase 42 plan.
 
 ## Environment Availability
 
