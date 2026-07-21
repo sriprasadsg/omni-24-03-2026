@@ -167,6 +167,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "access_review_endpoints",   "router")
     _load(app, "cloud_checks_endpoints",    "router")
     _load(app, "compliance_remediation_endpoints", "router")
+    _load(app, "compliance_remediation_sla_endpoints", "router")
     _load(app, "compliance_evidence_lifecycle_endpoints", "router")
     _load(app, "compliance_bulk_evidence_endpoints", "router")
     _load(app, "compliance_score_endpoints", "router")
