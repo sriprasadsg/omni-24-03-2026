@@ -118,3 +118,7 @@ Ready for 42-03 (frontend `ControlCommentsPanel.tsx` + `apiService.ts` wrappers 
 ---
 *Phase: 42-comment-threads-on-compliance-controls*
 *Completed: 2026-07-21*
+
+## Self-Check: PASSED
+
+All created/modified files confirmed present on disk; all 4 commit hashes (`5837150`, `636c3f1`, `4fd14bd`, `936b9c8`) confirmed present in `git log`.
