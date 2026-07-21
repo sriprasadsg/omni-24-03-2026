@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: — Agent Modernization & Remediation Ops
 current_phase: 45
-current_phase_name: close-gap-rust-01-tls-backend-explicit-decision
 status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T17:58:24.378Z"
+last_updated: "2026-07-21T18:00:53.811Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 45 execution started
+last_activity_desc: Phase 45 complete
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 19
   completed_plans: 19
   percent: 100
+current_phase_name: close-gap-rust-01-tls-backend-explicit-decision
 ---
 
 # Project State
@@ -377,10 +377,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 45 (close-gap-rust-01-tls-backend-explicit-decision) — EXECUTING
-Plan: 1 of 1
+Phase: 45
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 45 execution started
+Last activity: 2026-07-21 — Phase 45 complete
 
 ## Deferred Items
 
