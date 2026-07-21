@@ -16,6 +16,7 @@ Covers:
     never auto-resolved on ambiguous evidence (REM-02, D-06)
   - raw_db_registration: scheduler functions never reference get_database
     (regression guard for the raw-db requirement)
+  - endpoint: POST /tasks/{task_id}/create-ticket success/422/404/502 (REM-01)
 """
 import asyncio
 import os
@@ -378,6 +379,104 @@ def test_raw_db_registration_never_uses_get_database():
     assert "get_database" not in src
     assert inspect.iscoroutinefunction(ticketing_bridge.run_close_loop_pass)
     assert inspect.iscoroutinefunction(ticketing_bridge.start_close_loop_scheduler)
+
+
+# ---------------------------------------------------------------------------
+# endpoint — POST /tasks/{task_id}/create-ticket
+# ---------------------------------------------------------------------------
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from authentication_service import get_current_user
+from auth_types import TokenData
+
+import compliance_remediation_endpoints as endpoints_mod
+
+_ENDPOINT_USER = TokenData(
+    username="v@test.com", role="user", tenant_id="tenant-a", mfa_verified=True,
+)
+
+
+def _endpoint_app():
+    app = FastAPI()
+    app.include_router(endpoints_mod.router)
+    app.dependency_overrides[get_current_user] = lambda: _ENDPOINT_USER
+    return app
+
+
+def test_endpoint_create_ticket_success_returns_ticket_fields():
+    task = _make_task()
+    with patch.object(
+        endpoints_mod, "get_database", return_value=MagicMock()
+    ), patch.object(
+        endpoints_mod.svc, "get_task", AsyncMock(return_value=task)
+    ), patch.object(
+        endpoints_mod.ticketing_bridge,
+        "create_ticket_for_remediation_task",
+        AsyncMock(
+            return_value={
+                "ticket_provider": "jira",
+                "ticket_ref": "SEC-42",
+                "ticket_url": "https://x/SEC-42",
+            }
+        ),
+    ):
+        with TestClient(_endpoint_app()) as client:
+            r = client.post(
+                "/api/compliance-remediation/tasks/task-1/create-ticket",
+                json={"provider": "jira"},
+            )
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {
+        "ticket_provider": "jira",
+        "ticket_ref": "SEC-42",
+        "ticket_url": "https://x/SEC-42",
+    }
+
+
+def test_endpoint_create_ticket_invalid_provider_returns_422():
+    with patch.object(endpoints_mod, "get_database", return_value=MagicMock()):
+        with TestClient(_endpoint_app()) as client:
+            r = client.post(
+                "/api/compliance-remediation/tasks/task-1/create-ticket",
+                json={"provider": "not-a-real-provider"},
+            )
+
+    assert r.status_code == 422
+
+
+def test_endpoint_create_ticket_missing_task_returns_404():
+    with patch.object(
+        endpoints_mod, "get_database", return_value=MagicMock()
+    ), patch.object(endpoints_mod.svc, "get_task", AsyncMock(return_value=None)):
+        with TestClient(_endpoint_app()) as client:
+            r = client.post(
+                "/api/compliance-remediation/tasks/task-1/create-ticket",
+                json={"provider": "jira"},
+            )
+
+    assert r.status_code == 404
+
+
+def test_endpoint_create_ticket_bridge_failure_returns_502():
+    task = _make_task()
+    with patch.object(
+        endpoints_mod, "get_database", return_value=MagicMock()
+    ), patch.object(
+        endpoints_mod.svc, "get_task", AsyncMock(return_value=task)
+    ), patch.object(
+        endpoints_mod.ticketing_bridge,
+        "create_ticket_for_remediation_task",
+        AsyncMock(return_value=None),
+    ):
+        with TestClient(_endpoint_app()) as client:
+            r = client.post(
+                "/api/compliance-remediation/tasks/task-1/create-ticket",
+                json={"provider": "jira"},
+            )
+
+    assert r.status_code == 502
 
 
 if __name__ == "__main__":
