@@ -77,6 +77,12 @@ def _mock_db():
     users_col.find_one = AsyncMock(return_value=None)
     db.users = users_col
 
+    # get_sla_at_risk_window()'s `db._db if hasattr(db, "_db") else db` unwrap
+    # guard must resolve back to this same configured mock, not an
+    # auto-generated child MagicMock (mirrors test_evidence_lifecycle.py's
+    # _make_mock_db() convention of wiring db._db explicitly).
+    db._db = db
+
     return db
 
 
