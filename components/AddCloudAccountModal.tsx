@@ -42,6 +42,8 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
   const [ociUserOcid, setOciUserOcid] = useState('');
   const [ociFingerprint, setOciFingerprint] = useState('');
   const [ociPrivateKey, setOciPrivateKey] = useState('');
+  const [ociRegion, setOciRegion] = useState('');
+  const [ociCompartmentId, setOciCompartmentId] = useState('');
   const [regionId, setRegionId] = useState('');
   const [cfApiToken, setCfApiToken] = useState('');
   const [cfAccountId, setCfAccountId] = useState('');
@@ -51,6 +53,7 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
   const resetCredentialFields = () => {
     setAccessKey(''); setSecretKey('');
     setOciTenancyOcid(''); setOciUserOcid(''); setOciFingerprint(''); setOciPrivateKey('');
+    setOciRegion(''); setOciCompartmentId('');
     setRegionId(''); setCfApiToken(''); setCfAccountId('');
   };
 
@@ -61,6 +64,8 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
         oci_user_ocid: ociUserOcid,
         oci_fingerprint: ociFingerprint,
         oci_private_key: ociPrivateKey,
+        oci_region: ociRegion,
+        oci_compartment_id: ociCompartmentId,
       };
     }
     if (provider === 'Alibaba') {
@@ -139,6 +144,8 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
                 <input value={ociTenancyOcid} onChange={e => setOciTenancyOcid(e.target.value)} placeholder="Tenancy OCID" className="w-full input-style" />
                 <input value={ociUserOcid} onChange={e => setOciUserOcid(e.target.value)} placeholder="User OCID" className="w-full input-style" />
                 <input value={ociFingerprint} onChange={e => setOciFingerprint(e.target.value)} placeholder="Key Fingerprint" className="w-full input-style" />
+                <input value={ociRegion} onChange={e => setOciRegion(e.target.value)} placeholder="Region (e.g. us-ashburn-1)" className="w-full input-style" />
+                <input value={ociCompartmentId} onChange={e => setOciCompartmentId(e.target.value)} placeholder="Compartment OCID" className="w-full input-style sm:col-span-2" />
                 <textarea value={ociPrivateKey} onChange={e => setOciPrivateKey(e.target.value)} placeholder="Private Key (PEM)" rows={3}
                   className="w-full input-style sm:col-span-2 font-mono text-xs" />
               </div>
