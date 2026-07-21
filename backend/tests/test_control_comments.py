@@ -36,6 +36,19 @@ def _make_mock_db(seeded_comments=None):
     return db
 
 
+def _make_mock_db_with_mention_user(mention_user=None):
+    """Mock DB with control_comments (as above) plus a `users` collection
+    whose find_one AsyncMock resolves a known @mention token to a user doc,
+    for mention-notification tests."""
+    db = _make_mock_db()
+    db.users = MagicMock()
+    resolved_user = mention_user or {"email": "bob@acme.com", "username": "bob"}
+    db.users.find_one = AsyncMock(return_value=resolved_user)
+    db.notifications = MagicMock()
+    db.notifications.insert_one = AsyncMock(return_value=MagicMock(inserted_id="notif-1"))
+    return db
+
+
 _active_patchers = []
 
 
@@ -155,3 +168,58 @@ def test_tenant_isolation():
     assert resp_b.status_code == 200
     data_b = resp_b.json()
     assert data_b == []
+
+
+# ── Test 4/5: @mention notification dispatch (Plan 42-02, CMT-01) ──────────────
+
+
+def test_mention_triggers_notification():
+    """POSTing a comment with a plain-text @token that resolves to a known
+    user fires exactly one send_alert call whose recipients include that
+    user's email."""
+    import control_comments_endpoints as mod
+
+    db = _make_mock_db_with_mention_user()
+    user = _make_user("tenant-a", "admin", username="reviewer1")
+
+    mock_svc = MagicMock()
+    mock_svc.send_alert = AsyncMock(return_value={"alert_id": "alert-1"})
+
+    with patch.object(mod, "get_notification_service", return_value=mock_svc) as mock_factory:
+        client = _build_client(db, user)
+        resp = client.post(
+            "/api/control-comments",
+            json={"control_id": "ctrl-1", "text": "Please review this @bob"},
+        )
+
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    mock_factory.assert_called()
+    mock_svc.send_alert.assert_awaited_once()
+    _, kwargs = mock_svc.send_alert.await_args
+    assert kwargs["recipients"] == ["bob@acme.com"]
+
+
+def test_mention_is_in_app_only():
+    """The @mention send_alert call always passes channels=[] (an explicit
+    empty list, never None) so no email/sms/slack dispatch is requested —
+    D-02 in-app only."""
+    import control_comments_endpoints as mod
+
+    db = _make_mock_db_with_mention_user()
+    user = _make_user("tenant-a", "admin", username="reviewer1")
+
+    mock_svc = MagicMock()
+    mock_svc.send_alert = AsyncMock(return_value={"alert_id": "alert-1"})
+
+    with patch.object(mod, "get_notification_service", return_value=mock_svc):
+        client = _build_client(db, user)
+        resp = client.post(
+            "/api/control-comments",
+            json={"control_id": "ctrl-1", "text": "cc @bob on this"},
+        )
+
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    mock_svc.send_alert.assert_awaited_once()
+    _, kwargs = mock_svc.send_alert.await_args
+    assert kwargs["channels"] == [], f"Expected explicit empty list, got {kwargs.get('channels')!r}"
+    assert kwargs["channels"] is not None
