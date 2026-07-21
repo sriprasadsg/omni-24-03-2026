@@ -846,6 +846,17 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 45: Close gap: RUST-01 — TLS backend explicit decision
+
+**Goal:** Make reqwest's TLS backend a single explicit choice (native-tls only) in `agent-install/omni-agent-rs/Cargo.toml` by disabling default-features, excluding the rustls default-tls stack, and rebuilding the 2.1.3 Windows exe in place (no version bump per D-01) with `strings | grep -i rustls` proven empty.
+**Requirements**: RUST-01 (gap closure)
+**Depends on:** Phase 44
+**Plans:** 1 plan
+
+Plans:
+
+- [ ] 45-01-PLAN.md — Fix reqwest TLS backend (default-features=false, native-tls only) + rebuild 2.1.3 exe in place + verify rustls excluded
+
 ---
 
 ## Phase 44: Remediation SLA & Escalation
