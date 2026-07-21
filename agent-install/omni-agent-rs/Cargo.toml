@@ -15,7 +15,11 @@ path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.13", features = ["json", "blocking", "native-tls"] }
+# TLS backend decision (RUST-01): default-features is disabled to exclude reqwest's
+# rustls default-tls stack (rustls + aws-lc-rs), since native-tls is the single chosen
+# backend. charset/http2/system-proxy are re-listed explicitly to retain the prior
+# default behavior that default-features=true used to provide.
+reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "native-tls", "charset", "http2", "system-proxy"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_norway = "0.9"
