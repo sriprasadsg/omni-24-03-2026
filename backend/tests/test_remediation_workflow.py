@@ -195,8 +195,96 @@ def test_rem03_resolve_dispatches_rescan():
 
 
 # ---------------------------------------------------------------------------
+# D-01 (revised) / D-04: auto-create ticket on critical/high/medium priority,
+# non-fatal on ticketing failure
+# ---------------------------------------------------------------------------
+def test_autocreate_nonfatal():
+    """
+    D-01 (revised 2026-07-21) / D-04: create_task auto-creates a ticket for
+    critical/high/medium priority tasks via ticketing_bridge, and a ticketing
+    failure must never block task creation (non-fatal, best-effort).
+
+    - critical/medium priority: ticketing_bridge.create_ticket_for_remediation_task
+      is patched to raise; create_task must still return a persisted task.
+    - low priority: the auto-create path must NOT be invoked at all — low still
+      only gets a ticket via the manual "Create Ticket" button.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    import compliance_remediation_service
+    import ticketing_bridge
+
+    tenant_filter = {"tenantId": "t1"}
+
+    # --- critical priority: ticketing raises, task creation must not fail ---
+    db = _mock_db()
+    task_data = {
+        "title": "Rotate exposed API key",
+        "control_id": "CC6.1",
+        "asset_id": "",
+        "framework_id": "soc2",
+        "priority": "critical",
+        "description": "API key found in public repo.",
+    }
+    with patch.object(
+        ticketing_bridge,
+        "create_ticket_for_remediation_task",
+        AsyncMock(side_effect=Exception("ticketing service unavailable")),
+    ) as mock_create_ticket:
+        result = asyncio.run(
+            compliance_remediation_service.create_task(
+                db, task_data, tenant_filter=tenant_filter, created_by="u@example.com"
+            )
+        )
+
+    assert result is not None, "create_task returned None despite ticketing failure"
+    assert result.get("status") == "open", f"Expected status='open', got {result.get('status')!r}"
+    assert result.get("tenantId") == "t1", f"Expected tenantId='t1', got {result.get('tenantId')!r}"
+    mock_create_ticket.assert_awaited()
+
+    # --- medium priority: also within the widened auto-create set ---
+    db2 = _mock_db()
+    task_data_medium = {**task_data, "priority": "medium", "title": "Patch stale TLS cert"}
+    with patch.object(
+        ticketing_bridge,
+        "create_ticket_for_remediation_task",
+        AsyncMock(side_effect=Exception("ticketing service unavailable")),
+    ) as mock_create_ticket_medium:
+        result_medium = asyncio.run(
+            compliance_remediation_service.create_task(
+                db2, task_data_medium, tenant_filter=tenant_filter, created_by="u@example.com"
+            )
+        )
+
+    assert result_medium is not None, "create_task returned None despite ticketing failure"
+    assert result_medium.get("status") == "open"
+    assert result_medium.get("tenantId") == "t1"
+    mock_create_ticket_medium.assert_awaited()
+
+    # --- low priority: auto-create must NOT be invoked ---
+    db3 = _mock_db()
+    task_data_low = {**task_data, "priority": "low", "title": "Update stale documentation link"}
+    with patch.object(
+        ticketing_bridge,
+        "create_ticket_for_remediation_task",
+        AsyncMock(),
+    ) as mock_create_ticket_low:
+        result_low = asyncio.run(
+            compliance_remediation_service.create_task(
+                db3, task_data_low, tenant_filter=tenant_filter, created_by="u@example.com"
+            )
+        )
+
+    assert result_low is not None
+    assert result_low.get("priority") == "low"
+    mock_create_ticket_low.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # REM-04: broadcast_remediation_update emits 'remediation_update' event
 # ---------------------------------------------------------------------------
+
+
 def test_rem04_broadcast_remediation_update_emits_event():
     """
     REM-04: broadcast_remediation_update('t1', payload) emits a 'remediation_update'
