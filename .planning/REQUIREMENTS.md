@@ -238,8 +238,8 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Remediation Ticketing Bridge
 
-- [ ] **REM-01**: A compliance admin can create a Jira or ServiceNow ticket directly from a remediation task, with task fields correctly mapped through an explicit adapter (not passed raw into the alert-shaped connector, which would render "N/A" fields)
-- [ ] **REM-02**: When the linked external ticket is closed, the remediation task automatically updates to Resolved and triggers the existing re-scan dispatch
+- [x] **REM-01**: A compliance admin can create a Jira or ServiceNow ticket directly from a remediation task, with task fields correctly mapped through an explicit adapter (not passed raw into the alert-shaped connector, which would render "N/A" fields)
+- [x] **REM-02**: When the linked external ticket is closed, the remediation task automatically updates to Resolved and triggers the existing re-scan dispatch
 
 ### Remediation SLA
 
