@@ -1,7 +1,7 @@
 # Phase 43: Remediation-to-Ticketing Bridge - Context
 
-**Gathered:** 2026-07-20
-**Status:** Ready for planning
+**Gathered:** 2026-07-20 (updated 2026-07-21)
+**Status:** Ready for planning — replan required, see "Replanning required" note below
 
 <domain>
 ## Phase Boundary
@@ -13,22 +13,28 @@ Wire `compliance_remediation_service` task create/update to the existing Jira/Se
 <decisions>
 ## Implementation Decisions
 
-### Ticket-creation trigger (captured during batch plan-phase attempt, 2026-07-20)
-- **D-01:** Auto-create a ticket when a remediation task is created at high/critical priority, in addition to a manual "Create Ticket" action available for all priorities. Matches REM-01's "admin can create" wording while adding the auto-trigger for urgent cases.
+### Ticket-creation trigger (captured during batch plan-phase attempt, 2026-07-20; revised 2026-07-21)
+- **D-01:** Auto-create a ticket when a remediation task is created at critical/high/**medium** priority, in addition to a manual "Create Ticket" action available for all priorities (including low). **Revised 2026-07-21** — originally high/critical only; user explicitly broadened to include medium. Manual button remains available at every priority level, including low, per the original wording.
 
 ### Provider selection (Jira vs ServiceNow)
 - **D-02:** Admin picks per-ticket. The "Create Ticket" action shows both provider options if the tenant has both Jira and ServiceNow configured — simple, explicit, no hidden tenant-level default-provider setting to build or maintain.
 
 ### Close-loop mechanism
-- **D-03:** Polling, not a webhook receiver. Reuse the existing scheduler pattern from `tickets_escalation_service.py`/`scheduled_reports_service.py` — periodic background check (e.g. every 15-30 min), registered via `app_startup.py` like the existing schedulers. No new incoming-webhook endpoint or provider-side webhook configuration needed for v1.
+- **D-03:** Polling, not a webhook receiver. Reuse the existing scheduler pattern from `tickets_escalation_service.py`/`scheduled_reports_service.py` — periodic background check **every 5 minutes** (revised 2026-07-21; originally "15-30 min, tune if needed"), registered via `app_startup.py` like the existing schedulers. No new incoming-webhook endpoint or provider-side webhook configuration needed for v1.
+
+### Close-loop: linked ticket deleted, not just closed (added 2026-07-21)
+- **D-06:** If the Jira/ServiceNow status-check call returns "not found" (ticket deleted) rather than a closed/open status, the close-loop scheduler treats it as unresolvable for that pass — log and skip, do NOT auto-resolve the task. Deletion is ambiguous (could mean "wrong ticket, ignore" rather than "issue is fixed"), unlike an explicit closed status which unambiguously means resolved. Matches D-04's existing best-effort/non-fatal pattern — a 404 never crashes the scheduler pass, and never silently resolves a task on ambiguous evidence.
 
 ### Ticket-creation failure handling
 - **D-04:** Best-effort, non-blocking. If the Jira/ServiceNow API call fails, the remediation task action (create/update) still succeeds; the ticket-creation failure is logged and surfaced as an error toast to the admin. Matches the try/except non-fatal pattern already used throughout this codebase for external API calls.
 
 ### Claude's Discretion
-- D-02, D-03, D-04 were explicitly deferred by the user ("You decide") — rationale above is Claude's, following "reuse existing patterns, minimal new infra" as the guiding principle.
-- Exact polling interval for D-03 (start at 15-30 min, tune if needed).
+- D-02, D-04 were explicitly deferred by the user ("You decide") — rationale above is Claude's, following "reuse existing patterns, minimal new infra" as the guiding principle.
+- D-06's specific "log and skip, never auto-resolve on ambiguous evidence" resolution is Claude's reasoning for a scenario the user flagged (linked ticket deleted) without specifying the exact handling.
 - Where the field-adapter function lives (new module vs added to `ticketing_service.py` — verify during planning which keeps files under the 500-line CLAUDE.md limit).
+
+### Replanning required (2026-07-21)
+- D-01 (auto-create priority threshold) and D-03 (poll interval) were revised after this phase was already planned and plan-checker-verified (4 plans: 43-01..43-04, commit `62dbfdc`). Plans 43-01 (scheduler interval) and 43-02 (auto-create trigger) now reflect stale values and MUST be regenerated before execution. D-06 (deleted-ticket handling) is new and unplanned. Run `/gsd-plan-phase 43` to replan before `/gsd-execute-phase 43`.
 
 </decisions>
 
@@ -83,4 +89,4 @@ None beyond the decisions captured above.
 ---
 
 *Phase: 43-remediation-to-ticketing-bridge*
-*Context gathered: 2026-07-20*
+*Context gathered: 2026-07-20, updated 2026-07-21*

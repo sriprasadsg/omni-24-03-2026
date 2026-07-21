@@ -65,3 +65,41 @@
 
 - Bidirectional continuous ticket sync — out of scope per REQUIREMENTS.md.
 - Webhook-based real-time close-loop — revisit only if polling latency proves problematic.
+
+---
+
+**Date:** 2026-07-21 (re-discussion — phase was already fully planned and plan-checker-verified at this point, 4 plans, commit `62dbfdc`)
+**Areas discussed:** Assessed for open gray areas first — none found (all 4 original decisions already fully reflected in the verified plans, both RESEARCH.md-flagged ambiguities already resolved). User then asked to add new items.
+
+## Poll interval (revises D-03)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| 15-30 min (original) | Claude's original discretion range. | |
+| 5 min | User's explicit choice. | ✓ |
+
+**User's choice:** 5 minutes. Note presented: invalidates plan 43-03's existing scheduler-interval task, requires replanning. User confirmed anyway.
+
+## Auto-create priority threshold (revises D-01)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| High/critical only (original) | Original locked decision. | |
+| Critical/high/medium | User's explicit broadening. | ✓ |
+
+**User's choice:** Include medium priority. Note presented: invalidates plan 43-02's existing auto-create-trigger task, requires replanning. User confirmed anyway.
+
+## New scenario: linked ticket deleted, not just closed (adds D-06)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Treat like closed → auto-resolve task | Simpler, but resolves on ambiguous evidence. | |
+| Log and skip, never auto-resolve | Deletion doesn't unambiguously mean "fixed." | ✓ (Claude's choice, user confirmed) |
+
+**User's choice:** User flagged the scenario; Claude proposed "log and skip" (matches D-04's non-fatal pattern) and user confirmed by selecting it.
+
+## Not added (considered, user did not select)
+
+- "Task has no priority set" edge case — offered, not selected.
+- New capability: manual re-link task to a different ticket — offered as a capability-example (would need its own phase per scope guardrail), not selected.
+- New capability: live ticket status display (not just on close) — offered as a capability-example (would need its own phase per scope guardrail), not selected.
