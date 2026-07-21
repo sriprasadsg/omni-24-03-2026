@@ -149,3 +149,69 @@ async def get_servicenow_incident_status(sys_id: str, config: dict) -> dict:
             return {"success": True, "closed": state_label in _SNOW_CLOSED_LABELS}
     except Exception as e:
         return {"success": False, "closed": False, "error": str(e)}
+
+
+# ─── Close-loop scheduler ────────────────────────────────────────────────────
+
+async def run_close_loop_pass(db) -> None:
+    """One polling sweep: for every open/in_progress task with a linked
+    ticket, check the ticket's external status and resolve the task via
+    compliance_remediation_service.update_task when it has closed — this
+    reuse is what makes REM-02's re-scan dispatch fire by construction.
+    A deleted (404) ticket is logged and skipped, never auto-resolved on
+    ambiguous evidence (D-06). The whole pass is non-fatal."""
+    try:
+        query = {
+            "status": {"$in": ["open", "in_progress"]},
+            "ticket_ref": {"$ne": None},
+        }
+        cursor = db.compliance_remediation_tasks.find(query, {"_id": 0})
+        async for task in cursor:
+            tenant_id = task.get("tenantId", "")
+            config = await get_ticketing_config(tenant_id)
+            if not config:
+                continue  # ticketing config removed after ticket creation
+
+            provider = task.get("ticket_provider")
+            if provider == "jira":
+                result = await get_jira_issue_status(task["ticket_ref"], config)
+            elif provider == "servicenow":
+                result = await get_servicenow_incident_status(task["ticket_ref"], config)
+            else:
+                continue
+
+            if result.get("not_found"):
+                logger.info(
+                    "Close-loop: ticket %s for task %s not found (deleted?) — "
+                    "skipped, not auto-resolved",
+                    task.get("ticket_ref"), task["id"],
+                )
+                continue
+
+            if result.get("closed"):
+                import compliance_remediation_service as svc
+                updated = await svc.update_task(
+                    db, task["id"], {"status": "resolved"},
+                    {"tenantId": tenant_id}, created_by="system:ticket-close-loop",
+                )
+                if updated:
+                    try:
+                        from websocket_manager import broadcast_remediation_update
+                        await broadcast_remediation_update(tenant_id, {
+                            "task_id": task["id"], "status": "resolved",
+                            "control_id": updated.get("control_id"),
+                        })
+                    except Exception:
+                        pass  # best-effort broadcast — non-fatal
+    except Exception as exc:
+        logger.error("Close-loop pass failed: %s", exc)
+
+
+async def start_close_loop_scheduler(db) -> None:
+    """Loop every 5 minutes running the close-loop pass (D-03, revised
+    2026-07-21). Must receive db as a passed-in raw parameter — see module
+    docstring."""
+    logger.info("Ticketing close-loop scheduler started (interval=300s)")
+    while True:
+        await run_close_loop_pass(db)
+        await asyncio.sleep(300)
