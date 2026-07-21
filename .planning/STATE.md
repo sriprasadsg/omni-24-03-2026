@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: — Agent Modernization & Remediation Ops
-current_phase: 44
+current_phase: 45
+current_phase_name: close-gap-rust-01-tls-backend-explicit-decision
 status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T15:13:19.899Z"
+last_updated: "2026-07-21T17:58:24.378Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 44 complete
+last_activity_desc: Phase 45 execution started
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 18
-  completed_plans: 18
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 19
+  completed_plans: 19
   percent: 100
-current_phase_name: remediation-sla-escalation
 ---
 
 # Project State
@@ -24,7 +24,7 @@ current_phase_name: remediation-sla-escalation
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 44 — remediation-sla-escalation
+**Current focus:** Phase 45 — close-gap-rust-01-tls-backend-explicit-decision
 
 ## Current Phase
 
@@ -269,6 +269,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 44]: 44-04: EscalationHistoryPanel extracted to its own file — inlining pushed RemediationTaskModal.tsx to 501 lines, over the CLAUDE.md 500-line limit; pre-authorized by the plan
 - [Phase 44]: 44-04: SLA badge always falls back to the neutral 'none' pill for tasks missing sla_status, never blank/undefined (T-44-11 mitigation)
 - [Phase 44]: 44-04: Escalation panel renders only when task?.id is set and contains zero edit/delete/confirm/destructive controls (T-44-10 mitigation, SLA-02 locked constraint)
+- [Phase 45]: reqwest pinned to native-tls-only via default-features=false; non-TLS defaults (charset/http2/system-proxy) re-listed explicitly
 
 ## Performance Metrics
 
@@ -330,6 +331,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 44 P02 | 24min | 2 tasks | 2 files |
 | Phase 44 P03 | 8min | 2 tasks | 2 files |
 | Phase 44 P04 | 20min | 3 tasks | 4 files |
+| Phase 45 P01 | 20min | 2 tasks | 2 files |
 
 ## Last Session
 
@@ -360,7 +362,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-21T15:13:19.880Z
+**Last session:** 2026-07-21T17:57:38.560Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -375,10 +377,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 44
-Plan: Not started
+Phase: 45 (close-gap-rust-01-tls-backend-explicit-decision) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 44 complete
+Last activity: 2026-07-21 — Phase 45 execution started
 
 ## Deferred Items
 
