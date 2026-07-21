@@ -1704,6 +1704,7 @@ export interface RemediationTask {
     ticket_provider?: 'jira' | 'servicenow';
     ticket_ref?: string;
     ticket_url?: string;
+    sla_status?: 'ok' | 'at_risk' | 'breached' | 'none';
 }
 
 export interface FrameworkScore {

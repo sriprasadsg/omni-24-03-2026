@@ -3,6 +3,7 @@ import { SaveIcon, SparklesIcon, TicketIcon, ExternalLinkIcon } from 'lucide-rea
 import { RemediationTask } from '../types';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { EscalationHistoryPanel } from './EscalationHistoryPanel';
 
 interface RemediationTaskModalProps {
     isOpen: boolean;
@@ -357,6 +358,9 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                             )
                         )}
                     </div>
+
+                    {/* Escalation History (SLA-02) — read-only, append-only, no edit/delete controls */}
+                    {task?.id && <EscalationHistoryPanel taskId={task.id} />}
 
                     {/* Buttons */}
                     <div className="flex justify-end gap-3 mt-6">

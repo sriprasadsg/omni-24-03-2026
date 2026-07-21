@@ -13,6 +13,13 @@ const STATUS_COLORS: Record<string, string> = {
     dismissed:   'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
 };
 
+const SLA_COLORS: Record<string, string> = {
+    ok:       'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    at_risk:  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    breached: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    none:     'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+};
+
 const FILTER_LABELS: { value: string; label: string }[] = [
     { value: 'all',         label: 'All' },
     { value: 'open',        label: 'Open' },
@@ -161,13 +168,14 @@ export const RemediationDashboard: React.FC = () => {
                                 <th className="p-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Assignee</th>
                                 <th className="p-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Due Date</th>
                                 <th className="p-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="p-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">SLA</th>
                                 <th className="p-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {tasks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-10 text-center text-gray-400">
+                                    <td colSpan={7} className="p-10 text-center text-gray-400">
                                         No remediation tasks found. Click <strong>Create Task</strong> to add one.
                                     </td>
                                 </tr>
@@ -191,6 +199,11 @@ export const RemediationDashboard: React.FC = () => {
                                     <td className="p-4 whitespace-nowrap">
                                         <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_COLORS[task.status] ?? STATUS_COLORS.open}`}>
                                             {task.status.replace('_', ' ')}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 whitespace-nowrap">
+                                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${SLA_COLORS[task.sla_status ?? 'none'] ?? SLA_COLORS.none}`}>
+                                            {(task.sla_status ?? 'none').replace('_', ' ')}
                                         </span>
                                     </td>
                                     <td className="p-4">
