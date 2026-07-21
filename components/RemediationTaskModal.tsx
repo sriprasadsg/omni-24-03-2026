@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SaveIcon, SparklesIcon } from 'lucide-react';
+import { SaveIcon, SparklesIcon, TicketIcon, ExternalLinkIcon } from 'lucide-react';
 import { RemediationTask } from '../types';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
@@ -32,6 +32,10 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
     const [priority, setPriority] = useState('medium');
     const [suggesting, setSuggesting] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [creatingTicket, setCreatingTicket] = useState(false);
+    const [ticketProvider, setTicketProvider] = useState<'jira' | 'servicenow'>('jira');
+    const [hasJira, setHasJira] = useState(false);
+    const [hasServiceNow, setHasServiceNow] = useState(false);
 
     // Escape key dismiss
     useEffect(() => {
@@ -61,6 +65,16 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
         }
     }, [task, isOpen]);
 
+    // Load ticketing provider availability (best-effort, safe default false/false)
+    useEffect(() => {
+        if (!isOpen) return;
+        (async () => {
+            const config = await api.getTicketingConfig();
+            setHasJira(!!config?.jira_url);
+            setHasServiceNow(!!config?.snow_instance);
+        })();
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const effectiveControlId = task?.control_id || controlId || '';
@@ -78,6 +92,21 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
             showToast('AI suggestion unavailable — please try again', 'error');
         } finally {
             setSuggesting(false);
+        }
+    };
+
+    const handleCreateTicket = async (provider: 'jira' | 'servicenow') => {
+        if (!task?.id) return;
+        setCreatingTicket(true);
+        try {
+            await api.createTicketForRemediationTask(task.id, provider);
+            showToast('Ticket created.', 'success');
+            onRefresh();
+        } catch (e) {
+            console.error('Ticket creation failed:', e);
+            showToast('Failed to create ticket — please try again.', 'error');
+        } finally {
+            setCreatingTicket(false);
         }
     };
 
@@ -245,6 +274,87 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                     <option value="critical">Critical</option>
                                 </select>
                             </div>
+                        )}
+
+                        {/* Ticketing */}
+                        {task?.ticket_ref ? (
+                            <div>
+                                <label className="block text-sm font-medium dark:text-gray-300 mb-1">
+                                    Ticket
+                                </label>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                        className={`px-2 py-0.5 text-xs font-semibold rounded-full ${task.ticket_provider === 'jira'
+                                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                            }`}
+                                    >
+                                        {task.ticket_provider === 'jira' ? 'Jira' : 'ServiceNow'}
+                                    </span>
+                                    <span className="text-xs text-gray-700 dark:text-gray-300">{task.ticket_ref}</span>
+                                    {task.ticket_url && (
+                                        <a
+                                            href={task.ticket_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        >
+                                            {task.ticket_provider === 'jira' ? 'View in Jira' : 'View in ServiceNow'}
+                                            <ExternalLinkIcon size={12} />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            task?.id && (hasJira || hasServiceNow) && (
+                                <div>
+                                    <label className="block text-sm font-medium dark:text-gray-300 mb-1">
+                                        Ticketing
+                                    </label>
+                                    {hasJira && hasServiceNow && (
+                                        <div className="mb-2">
+                                            <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                                Choose a provider
+                                            </span>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {(['jira', 'servicenow'] as const).map(p => (
+                                                    <label
+                                                        key={p}
+                                                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-sm transition-colors ${ticketProvider === p
+                                                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+                                                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                                                            }`}
+                                                    >
+                                                        <input
+                                                            type="radio"
+                                                            name="ticketProvider"
+                                                            value={p}
+                                                            checked={ticketProvider === p}
+                                                            onChange={() => setTicketProvider(p)}
+                                                            className="sr-only"
+                                                        />
+                                                        <span className="text-gray-800 dark:text-gray-100 text-xs leading-tight">
+                                                            {p === 'jira' ? 'Jira' : 'ServiceNow'}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={() => handleCreateTicket(hasJira && hasServiceNow ? ticketProvider : (hasJira ? 'jira' : 'servicenow'))}
+                                        disabled={creatingTicket}
+                                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+                                    >
+                                        {creatingTicket ? (
+                                            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <TicketIcon size={14} />
+                                        )}
+                                        {creatingTicket ? 'Creating...' : 'Create Ticket'}
+                                    </button>
+                                </div>
+                            )
                         )}
                     </div>
 
