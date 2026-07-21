@@ -368,6 +368,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ### Roadmap Evolution
 
+- Phase 45 added: Close gap: RUST-01 — TLS backend explicit decision (from v3.2 milestone audit gaps_found; reqwest default-features left on, shipping both native-tls and full rustls stack in the Windows exe)
+
 - Phase 24 added: IaC & Container Security (Terraform/CloudFormation/Kubernetes scanning + container image vulnerability scanning). A `24-01-PLAN.md` already existed on disk (drafted ahead of execution, never wired into ROADMAP.md) — registered as Phase 24 in ROADMAP.md and REQUIREMENTS.md (IAC-01..03) reusing the existing directory/plan rather than generating a new one, so `/gsd-autonomous --only 24` can discover and execute it.
 - v3.0 milestone added 2026-07-06: 14 new phases (25–38) scaffolded from a feature-parity audit run the same day against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source — 41 implemented, 10 partial, 15 absent). Phases are ordered in 3 risk tiers — Tier 1 quick fixes (25–27), Tier 2 medium features (28–33), Tier 3 architectural bets (34–38: GraphQL, ReBAC, real MCP protocol, public Trust Center, passkeys). User explicitly chose "everything, in tiers" over a smaller subset. Requirements CHK/VRISK/RISK/EXP/DOC/TRUST/RAG/FAIR/PROV/WF/AUTH/GQL/REBAC/MCP/ASSIST added to REQUIREMENTS.md. Phase 25 is the first to go through full research → plan → verify.
 
