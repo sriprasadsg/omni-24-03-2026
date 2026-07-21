@@ -4571,6 +4571,27 @@ export const fetchControlAuditLog = async (controlId: string): Promise<{ entries
     }
 };
 
+// ── Control Comments (Phase 42-03) ────────────────────────────────────────────
+export const fetchControlComments = async (controlId: string): Promise<any[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/control-comments?control_id=${controlId}`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+};
+
+export const postControlComment = async (controlId: string, text: string): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/control-comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ control_id: controlId, text }),
+    });
+    if (!res.ok) throw new Error('Failed to post comment');
+    return await res.json();
+};
+
 // ── Vendor Subprocessors (Phase 26-02) ───────────────────────────────────────────
 export interface Subprocessor {
     id: string;
