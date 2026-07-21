@@ -5,7 +5,7 @@ milestone_name: — Agent Modernization & Remediation Ops
 current_phase: 44
 status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T14:48:38.895Z"
+last_updated: "2026-07-21T15:13:19.899Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 44 complete
 progress:
@@ -334,7 +334,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Phase 44 plan 44-04 (remediation SLA UI wiring) executed and committed — SLA badge column + read-only escalation history panel, human-verified end-to-end
+- **Stopped at:** context exhaustion at 75% (2026-07-21)
 - **Resume file:** None
 
 ## Configuration
@@ -360,7 +360,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-21T14:40:28.711Z
+**Last session:** 2026-07-21T15:13:19.880Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -377,3 +377,26 @@ Phase: 44
 Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-07-21 — Phase 44 complete
+
+## Deferred Items
+
+Items acknowledged and deferred at v3.2 milestone close on 2026-07-21 (16 total, project-wide scan — most predate v3.2):
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 06 (06-UAT.md) | partial |
+| uat | Phase 15 (15-UAT.md) | testing, 12 pending scenarios |
+| uat | Phase 27 (27-UAT.md) | unknown |
+| uat | Phase 28 (28-UAT.md) | unknown |
+| uat | Phase 29 (29-UAT-SUMMARY.md) | blocked |
+| uat | Phase 29 (29-UAT.md) | unknown |
+| uat | Phase 30 (30-UAT.md) | unknown |
+| uat | Phase 32 (32-UAT.md) | unknown |
+| uat | Phase 33 (33-UAT.md) | unknown |
+| uat | Phase 34 (34-UAT.md) | unknown |
+| uat | Phase 35 (35-UAT.md) | unknown |
+| uat | Phase 39 (39-UAT.md) | partial |
+| uat | Phase 40 (40-UAT.md) | testing, 1 pending scenario (concurrent-session-refresh 401 test) |
+| verification | Phase 06 (06-VERIFICATION.md) | human_needed |
+| verification | Phase 32 (32-02-VERIFICATION.md) | gaps_found |
+| verification | Phase 40 (40-VERIFICATION.md) | gaps_found — RUST-01 TLS-backend decision not actually explicit (see v3.2-MILESTONE-AUDIT.md); accepted as tech debt at milestone close, not fixed |
