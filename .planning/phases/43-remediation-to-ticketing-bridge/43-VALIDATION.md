@@ -48,6 +48,7 @@ created: 2026-07-21
 | close_loop_dispatch | TBD | TBD | REM-02 | `pytest tests/test_ticketing_bridge.py -k close_loop_dispatch -x` | ❌ Wave 0 | ⬜ pending |
 | close_loop_skip | TBD | TBD | REM-02 | `pytest tests/test_ticketing_bridge.py -k close_loop_skip -x` | ❌ Wave 0 | ⬜ pending |
 | raw_db_registration | TBD | TBD | REM-02 | `pytest tests/test_ticketing_bridge.py -k raw_db_registration -x` | ❌ Wave 0 | ⬜ pending |
+| close_loop_deleted_ticket | TBD | TBD | REM-02 (D-06) | `pytest tests/test_ticketing_bridge.py -k deleted_ticket -x` | ❌ Wave 0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky — Task ID/Plan/Wave columns filled once the planner assigns tasks; requirement→command mapping carried verbatim from 43-RESEARCH.md's Validation Architecture section.*
 
@@ -56,7 +57,7 @@ created: 2026-07-21
 ## Wave 0 Requirements
 
 - [ ] `backend/tests/test_ticketing_bridge.py` — new file, covers all REM-01/REM-02 rows above. Clone the `_mock_db()` factory from `tests/test_remediation_workflow.py`, extend with mocked `db.ticketing_configs`/`db.ticketing_log`.
-- [ ] `backend/tests/test_remediation_workflow.py` — extend existing `_mock_db()` with a `db.compliance_remediation_tasks` scenario for the auto-create-on-high-priority hook inside `create_task`.
+- [ ] `backend/tests/test_remediation_workflow.py` — extend existing `_mock_db()` with a `db.compliance_remediation_tasks` scenario for the auto-create-on-critical/high/medium-priority hook inside `create_task` (revised 2026-07-21 — was high/critical only).
 - [ ] Framework install: none — pytest/unittest.mock already present in `backend/venv`.
 
 ---
