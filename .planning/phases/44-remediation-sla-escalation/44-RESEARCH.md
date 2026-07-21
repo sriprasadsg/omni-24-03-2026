@@ -341,17 +341,19 @@ Not applicable — this is internal architectural consistency, not an external-e
 
 **None of these are compliance/security/retention claims requiring the heavier confirmation bar — all are tunable implementation constants already flagged as discretionary in CONTEXT.md or low-risk resolution-order choices.**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact tenant-admin role-set constant to use**
    - What we know: two near-identical but not-identical role sets exist in the codebase (`notification_manager.py`'s `_ADMIN_ROLES` vs `compliance_evidence_lifecycle_endpoints.py`'s `_SETTINGS_ADMIN_ROLES`).
    - What's unclear: whether there's a canonical third location that should be imported instead of duplicated a third time.
    - Recommendation: planner should pick `notification_manager.py`'s set (includes both `"admin"` and `"Admin"` casings) since it's the set already used specifically for admin *notification* delivery (closest semantic match to this phase's need), not settings-mutation gating.
+   - RESOLVED: 44-02's `<read_first>` explicitly directs using `notification_manager.py`'s `_ADMIN_ROLES` per the recommendation.
 
 2. **Should `escalation_level` reset if a task moves from `breached` back to `ok`/`at_risk`** (e.g., due_date is extended by an edit)?
    - What we know: `TaskUpdate`'s Pydantic model currently only accepts `status`/other existing fields; whether `due_date` is editable post-creation wasn't traced in this session.
    - What's unclear: reset-on-due-date-extension behavior isn't specified in CONTEXT.md's D-01–D-04.
    - Recommendation: treat as out of scope unless `due_date` editing already exists — flag for the planner to confirm via a quick grep of `TaskUpdate`'s field list before committing to reset-vs-no-reset semantics.
+   - RESOLVED: 44-01 Task 3 confirms `TaskUpdate`'s field list and scopes reset semantics accordingly — out of scope per the recommendation.
 
 ## Environment Availability
 
