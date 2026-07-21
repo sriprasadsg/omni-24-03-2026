@@ -6,14 +6,14 @@ current_phase: 43
 current_phase_name: remediation-to-ticketing-bridge
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T12:18:07.421Z"
+last_updated: "2026-07-21T12:22:51.473Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 43 execution started
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 60
 ---
 
@@ -255,6 +255,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 42-03: Rule 1 auto-fix — reworded anti-XSS code comment in ControlCommentsPanel.tsx that had spelled out the literal forbidden-prop name, tripping the plan's own grep-based acceptance gate; no behavior change
 - [Phase 43]: 43-01: D-03 revised — close-loop scheduler polls every 300s (5min), matching tickets_escalation_service.py's existing interval, superseding 43-PATTERNS.md's stale 1200s example
 - [Phase 43]: 43-01: D-06 — get_jira_issue_status/get_servicenow_incident_status return not_found:True on HTTP 404; run_close_loop_pass skips (never auto-resolves) a deleted/not_found ticket
+- [Phase ?]: D-01 revised auto-create threshold applied (critical/high/medium, not high/critical) per plan's post-plan-checker correction
+- [Phase ?]: Auto-create hook never passes provider_override; always resolves via tenant's configured ticketing provider
 
 ## Performance Metrics
 
@@ -309,6 +311,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 42 P02 | 25min | 3 tasks | 5 files |
 | Phase 42 P03 | 4min | 3 tasks | 3 files |
 | Phase 43 P01 | 3min | 3 tasks | 2 files |
+| Phase 43 P02 | 5min | 2 tasks | 2 files |
 
 ## Last Session
 
@@ -339,7 +342,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-21T12:17:18.282Z
+**Last session:** 2026-07-21T12:21:59.499Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -353,6 +356,6 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 43 (remediation-to-ticketing-bridge) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-21 — Phase 43 execution started
