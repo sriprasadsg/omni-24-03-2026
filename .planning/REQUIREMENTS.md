@@ -248,7 +248,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 
 ### Control Comments
 
-- [ ] **CMT-01**: A compliance admin or auditor can post a comment on a specific control; comments are tenant-scoped (not visible cross-tenant); @mentions trigger a notification
+- [x] **CMT-01**: A compliance admin or auditor can post a comment on a specific control; comments are tenant-scoped (not visible cross-tenant); @mentions trigger a notification
 
 ### CSPM Provider Expansion
 

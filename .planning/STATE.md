@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: — Agent Modernization & Remediation Ops
 current_phase: 42
-current_phase_name: Comment Threads on Compliance Controls
-status: verifying
+current_phase_name: comment-threads-on-compliance-controls
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T07:39:55.495Z"
+last_updated: "2026-07-21T08:19:46.047Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 41 complete, transitioned to Phase 42
+last_activity_desc: Phase 42 execution started
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 40
 ---
 
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 41 — cspm-provider-expansion-oci-alibaba-cloudflare
+**Current focus:** Phase 42 — comment-threads-on-compliance-controls
 
 ## Current Phase
 
@@ -245,6 +245,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 41-03: _make_cloudflare_client() un-mocked in place — verified real Cloudflare() construction never raises regardless of token content, safe for the shared SIEM path
 - [Phase ?]: 41-03: Alibaba CSPM uses SAS V2 list_check_result (per-check status) rather than describe_check_warning_summary (category rollup) — closer match to required checkId/status=FAIL shape
 - [Phase 41]: 41-05: Dispatch tests placed in test_cloud_findings_ingest.py (not test_cloud_accounts.py) — plan's pre-authorized alternative since poll functions were already imported there and fixtures already patch get_database for oci/alibaba/cloudflare ingest modules
+- [Phase 42]: 42-01: control_comments deliberately absent from database.py's tenant-isolation exemption allowlists so TenantIsolatedCollection auto-scopes every read/write
+- [Phase 42]: 42-01: GET /api/control-comments open to any authenticated tenant user (A2); only POST role-gated to admin/super_admin/compliance_reviewer (D-01)
+- [Phase 42]: 42-01: no PATCH/DELETE route created for control comments — D-03 immutability enforced by omission
 
 ## Performance Metrics
 
@@ -295,11 +298,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 41 P04 | 12min | 2 tasks | 3 files |
 | Phase 41 P03 | 30min | 3 tasks | 4 files |
 | Phase 41 P05 | 25min | 3 tasks | 2 files |
+| Phase 42 P01 | 20min | 3 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 41-04-PLAN.md
+- **Stopped at:** Phase 42 plan 42-01 (control comments backend core — control_comments_service.py add_comment/list_comments, control_comments_endpoints.py role-gated POST + open GET, router registration; CMT-01 API/data tier complete) executed and committed 2026-07-21 (commits cbb863e/7b6ce15/6f9a5a3). 3/3 tests pass. Full backend suite 1311 passed / 34 skipped / 7 failed (all 7 pre-existing, confirmed via git stash comparison, unrelated to this plan). Next — 42-02 (frontend ControlCommentsPanel.tsx).
 - **Resume file:** None
 
 ## Configuration
@@ -325,7 +329,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-20T20:15:02.700Z
+**Last session:** 2026-07-21T08:19:46.031Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -338,7 +342,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 42 — Comment Threads on Compliance Controls
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 41 complete, transitioned to Phase 42
+Phase: 42 (comment-threads-on-compliance-controls) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-07-21 — Phase 42 execution started
