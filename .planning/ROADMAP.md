@@ -810,10 +810,10 @@ Plans:
 
 **Depends on:** Nothing
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 - [x] 42-01-PLAN.md — CMT-01: control_comments service + role-gated/rate-limited endpoints + router registration (post, list, tenant isolation)
-- [ ] 42-02-PLAN.md — CMT-01: plain-text @username mention resolution + in-app-only notification dispatch (channels=[])
+- [x] 42-02-PLAN.md — CMT-01: plain-text @username mention resolution + in-app-only notification dispatch (channels=[])
 - [ ] 42-03-PLAN.md — CMT-01: apiService wrappers + ControlCommentsPanel + FrameworkDetail mount + live-verify checkpoint
 
 **UI hint**: yes
