@@ -4593,6 +4593,16 @@ export const fetchControlAuditLog = async (controlId: string): Promise<{ entries
     }
 };
 
+export const fetchRemediationEscalations = async (taskId: string): Promise<{ task_id: string; entries: { escalation_level: number; created_at: string; notified: string[] }[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/remediation-tasks/${taskId}/escalations`);
+        if (!res.ok) return { task_id: taskId, entries: [] };
+        return await res.json();
+    } catch {
+        return { task_id: taskId, entries: [] };
+    }
+};
+
 // ── Control Comments (Phase 42-03) ────────────────────────────────────────────
 export const fetchControlComments = async (controlId: string): Promise<any[]> => {
     try {
