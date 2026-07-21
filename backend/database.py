@@ -276,6 +276,13 @@ async def connect_to_mongo():
         await mongodb.db.tickets.create_index([("tenantId", 1), ("assignee", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("due_date", 1), ("status", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("escalated", 1)])
+        # compliance_remediation_tasks: supports the SLA sweep query and the
+        # escalated-tasks lookup (SLA-01/SLA-02, T-44-02) — same shape as the
+        # tickets compound indexes directly above.
+        await mongodb.db.compliance_remediation_tasks.create_index(
+            [("tenantId", 1), ("due_date", 1), ("status", 1)]
+        )
+        await mongodb.db.compliance_remediation_tasks.create_index([("tenantId", 1), ("escalated", 1)])
 
         # software_inventory: compound unique index so per-heartbeat upserts are O(1) not O(n)
         await mongodb.db.software_inventory.create_index(

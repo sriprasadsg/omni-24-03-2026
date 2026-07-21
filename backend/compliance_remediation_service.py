@@ -57,6 +57,12 @@ async def create_task(db, data: dict, tenant_filter: dict, created_by: str) -> d
         "resolution_notes": None,
         "agent_id": agent_id,
         "ai_suggestion": None,
+        # SLA-01 defaults (D-01) — system-managed, never client-writable via
+        # TaskUpdate; recomputed by the SLA sweep (44-02), not trusted from
+        # this initial value beyond "no SLA state yet".
+        "sla_status": "ok" if data.get("due_date") else "none",
+        "escalated": False,
+        "escalation_level": 0,
         "tenantId": tenant_filter.get("tenantId", ""),
         "created_by": created_by,
         "created_at": now,
