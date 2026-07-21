@@ -17,12 +17,13 @@ async def recalculate_all_finops_costs():
     Background task to recalculate finOps costs for all tenants.
     Runs hourly to keep billing data up-to-date.
     """
+    from tenant_context import set_tenant_id, reset_tenant_id
+
+    _tenant_ctx_token = set_tenant_id("platform-admin")
     try:
         from database import get_database
         from finops_service import finops_service
-        from tenant_context import set_tenant_id
-        
-        set_tenant_id("platform-admin")
+
         db = get_database()
         if not db:
             print("[Scheduler] Database not available, skipping finOps recalculation")
@@ -88,6 +89,8 @@ async def recalculate_all_finops_costs():
     except Exception as e:
         print(f"[Scheduler] Critical error in finOps recalculation task: {e}")
         logger.exception("Unhandled exception")
+    finally:
+        reset_tenant_id(_tenant_ctx_token)
 
 def start_scheduler():
     """Initialize and start the background scheduler"""

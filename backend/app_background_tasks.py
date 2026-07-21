@@ -10,12 +10,13 @@ async def monitor_agent_status():
     """Background task to mark agents as Offline if inactive > 5 min (10× missed 30 s heartbeat)."""
     import websocket_manager
     from database import get_database
-    from tenant_context import set_tenant_id
+    from tenant_context import set_tenant_id, reset_tenant_id
 
     while True:
+        _tenant_ctx_token = None
         try:
             await asyncio.sleep(30)
-            set_tenant_id("platform-admin")
+            _tenant_ctx_token = set_tenant_id("platform-admin")
             db = get_database()
             threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
 
@@ -51,6 +52,9 @@ async def monitor_agent_status():
                 )
         except Exception as e:
             logger.error("[Monitor] Error in stale agent check: %s", e)
+        finally:
+            if _tenant_ctx_token is not None:
+                reset_tenant_id(_tenant_ctx_token)
 
 
 async def _start_xdr_correlation_scanner() -> None:
@@ -93,7 +97,7 @@ async def compliance_evidence_sweep_loop():
 async def snapshot_compliance_scores_loop():
     """Daily snapshot: write overall + ThreatScore to compliance_score_history for trend charts."""
     from database import get_database
-    from tenant_context import set_tenant_id
+    from tenant_context import set_tenant_id, reset_tenant_id
     from compliance_score_endpoints import (
         _weighted_score, _score_status, _CATEGORY_SEVERITY, SEVERITY_WEIGHTS,
         _VULN_WEIGHTS, _VULN_BURDEN_BASELINE, _ASSET_WEIGHTS,
@@ -104,9 +108,10 @@ async def snapshot_compliance_scores_loop():
 
     while True:
         await asyncio.sleep(86400)  # run once per day
+        _tenant_ctx_token = None
         try:
             db = get_database()
-            set_tenant_id("platform-admin")
+            _tenant_ctx_token = set_tenant_id("platform-admin")
 
             # Enumerate all tenants
             tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
@@ -182,6 +187,11 @@ async def snapshot_compliance_scores_loop():
 
         except Exception as _e:
             _log.error("Score snapshot loop error: %s", _e)
+        finally:
+            # Restores pre-cycle state even though per-tenant set_tenant_id(tid)
+            # calls happened after this token was minted (SEC-03).
+            if _tenant_ctx_token is not None:
+                reset_tenant_id(_tenant_ctx_token)
 
 
 async def refresh_mitre_heatmap_loop():
