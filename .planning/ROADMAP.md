@@ -886,3 +886,14 @@ Plans:
 - [x] 44-04-PLAN.md — SLA badge column + read-only escalation history panel + apiService client + human verification
 
 **UI hint**: yes
+
+## Backlog
+
+### Phase 999.1: Remediation SLA Settings UI (BACKLOG)
+
+**Goal:** [Captured for future planning] Build the Remediation SLA settings surface (At-Risk Window field). Backend `GET/PATCH /api/settings/remediation-sla` has been live since 44-03 but has no UI consumer — deliberately deferred during Phase 44, flagged twice by UI audits (44-UI-REVIEW.md).
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
