@@ -51,7 +51,7 @@ export const EscalationHistoryPanel: React.FC<EscalationHistoryPanelProps> = ({ 
                 setEntries(data.entries ?? []);
                 setFetched(true);
             } catch {
-                setError('Failed to load escalation history');
+                setError('Failed to load escalation history. Retry by collapsing and expanding this panel.');
             } finally {
                 setLoading(false);
             }
@@ -92,7 +92,7 @@ export const EscalationHistoryPanel: React.FC<EscalationHistoryPanelProps> = ({ 
                     )}
                     {!loading && error && (
                         <p className="px-4 py-4 text-xs text-red-500">
-                            Failed to load escalation history. Retry by collapsing and expanding this panel.
+                            {error}
                         </p>
                     )}
                     {!loading && !error && entries.length === 0 && (

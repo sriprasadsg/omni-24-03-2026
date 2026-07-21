@@ -298,7 +298,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                             href={task.ticket_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                            className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:underline"
                                         >
                                             {task.ticket_provider === 'jira' ? 'View in Jira' : 'View in ServiceNow'}
                                             <ExternalLinkIcon size={12} />
@@ -321,7 +321,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                                 {(['jira', 'servicenow'] as const).map(p => (
                                                     <label
                                                         key={p}
-                                                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-sm transition-colors ${ticketProvider === p
+                                                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-sm transition-colors focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-1 dark:focus-within:ring-offset-gray-800 ${ticketProvider === p
                                                             ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
                                                             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
                                                             }`}
@@ -334,7 +334,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                                             onChange={() => setTicketProvider(p)}
                                                             className="sr-only"
                                                         />
-                                                        <span className="text-gray-800 dark:text-gray-100 text-xs leading-tight">
+                                                        <span className="text-gray-800 dark:text-gray-100 text-sm font-medium leading-tight">
                                                             {p === 'jira' ? 'Jira' : 'ServiceNow'}
                                                         </span>
                                                     </label>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquareIcon, SendIcon, ClockIcon, ChevronDownIcon } from './icons';
+import { MessageSquareIcon, SendIcon, ClockIcon } from './icons';
 import * as api from '../services/apiService';
+import { showToast } from '../utils/toast';
 import { useUser } from '../contexts/UserContext';
 
 interface ControlCommentsPanelProps {
@@ -77,6 +78,7 @@ export const ControlCommentsPanel: React.FC<ControlCommentsPanelProps> = ({ cont
             const comment = await api.postControlComment(controlId, trimmed);
             setComments(prev => [...prev, comment]);
             setText('');
+            showToast('Comment posted.', 'success');
         } catch {
             setPostError('Failed to post comment — please try again.');
         } finally {
@@ -92,7 +94,6 @@ export const ControlCommentsPanel: React.FC<ControlCommentsPanelProps> = ({ cont
                     Comments
                     <span className="text-xs font-normal text-gray-400">({comments.length})</span>
                 </span>
-                <ChevronDownIcon size={14} className="text-gray-500" />
             </div>
 
             <div className="border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-md bg-white dark:bg-gray-800">
@@ -144,7 +145,7 @@ export const ControlCommentsPanel: React.FC<ControlCommentsPanelProps> = ({ cont
                 {isReviewer && (
                     <form onSubmit={handleSubmit} className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
                         <textarea
-                            className="w-full text-xs p-1.5 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            className="w-full text-xs p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
                             rows={2}
                             placeholder="Add a comment... (use @username to mention someone)"
                             value={text}
