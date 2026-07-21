@@ -4,17 +4,17 @@ milestone: v3.2
 milestone_name: — Agent Modernization & Remediation Ops
 current_phase: 44
 current_phase_name: remediation-sla-escalation
-status: executing
+status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-21T14:23:11.994Z"
+last_updated: "2026-07-21T14:40:28.728Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 44 execution started
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 18
-  completed_plans: 17
-  percent: 80
+  completed_plans: 18
+  percent: 100
 ---
 
 # Project State
@@ -266,6 +266,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 44]: 44-02: send_alert skipped (not called with empty recipients) when neither assignee nor any admin resolves — remediation_escalations entry still written regardless
 - [Phase ?]: 44-03: post-fetch tenantId filter added on top of the query-level AND for escalation-history reads — never trust the query filter alone (T-44-06)
 - [Phase ?]: 44-03: _SETTINGS_ADMIN_ROLES kept file-local, not cross-wired with notification_manager.py's _ADMIN_ROLES (different purposes: settings-mutation gating vs. notification recipients)
+- [Phase 44]: 44-04: EscalationHistoryPanel extracted to its own file — inlining pushed RemediationTaskModal.tsx to 501 lines, over the CLAUDE.md 500-line limit; pre-authorized by the plan
+- [Phase 44]: 44-04: SLA badge always falls back to the neutral 'none' pill for tasks missing sla_status, never blank/undefined (T-44-11 mitigation)
+- [Phase 44]: 44-04: Escalation panel renders only when task?.id is set and contains zero edit/delete/confirm/destructive controls (T-44-10 mitigation, SLA-02 locked constraint)
 
 ## Performance Metrics
 
@@ -326,11 +329,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 44 P01 | 55min | 3 tasks | 4 files |
 | Phase 44 P02 | 24min | 2 tasks | 2 files |
 | Phase 44 P03 | 8min | 2 tasks | 2 files |
+| Phase 44 P04 | 20min | 3 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 44-03-PLAN.md
+- **Stopped at:** Phase 44 plan 44-04 (remediation SLA UI wiring) executed and committed — SLA badge column + read-only escalation history panel, human-verified end-to-end
 - **Resume file:** None
 
 ## Configuration
@@ -356,7 +360,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-21T14:23:03.201Z
+**Last session:** 2026-07-21T14:40:28.711Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -371,5 +375,5 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Phase: 44 (remediation-sla-escalation) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-21 — Phase 44 execution started

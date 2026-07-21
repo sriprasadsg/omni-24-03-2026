@@ -865,13 +865,13 @@ Plans:
 
 **Depends on:** Phase 43 (both mutate `compliance_remediation_tasks`; sequencing avoids schema races)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
 - [x] 44-01-PLAN.md — SLA compute core + configurable at-risk window + task defaults + indexes + Wave-0 test scaffold
 - [x] 44-02-PLAN.md — background sweep + tiered auto-escalation + assignee/admin notification + scheduler registration
 - [x] 44-03-PLAN.md — escalation-history GET + at-risk-window GET/PATCH settings + router registration
-- [ ] 44-04-PLAN.md — SLA badge column + read-only escalation history panel + apiService client + human verification
+- [x] 44-04-PLAN.md — SLA badge column + read-only escalation history panel + apiService client + human verification
 
 **UI hint**: yes
