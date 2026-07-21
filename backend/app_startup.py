@@ -616,6 +616,14 @@ async def run_startup_services() -> None:
         logger.warning("[Ticketing] Close-loop scheduler failed to start: %s", _e)
 
     try:
+        from compliance_remediation_sla_service import start_remediation_sla_scheduler
+        from database import mongodb as _mdb
+        asyncio.create_task(start_remediation_sla_scheduler(_mdb.db))
+        logger.info("[Remediation] SLA escalation scheduler started")
+    except Exception as _e:
+        logger.warning("[Remediation] SLA escalation scheduler failed to start: %s", _e)
+
+    try:
         from syslog_receiver import start_syslog_server
         _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
         asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port))
