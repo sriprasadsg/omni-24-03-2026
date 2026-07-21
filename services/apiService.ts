@@ -4532,6 +4532,28 @@ export const suggestRemediation = async (taskId: string): Promise<{ suggestion: 
     return res.json();
 };
 
+export const createTicketForRemediationTask = async (
+    taskId: string,
+    provider: 'jira' | 'servicenow',
+): Promise<{ ticket_provider: string; ticket_ref: string; ticket_url: string }> => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks/${taskId}/create-ticket`, {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+    });
+    if (!res.ok) throw new Error(`Failed to create ticket: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const getTicketingConfig = async (): Promise<{ jira_url?: string; snow_instance?: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/ticketing/config`);
+        if (!res.ok) return {};
+        return await res.json();
+    } catch {
+        return {};
+    }
+};
+
 export const fetchStalenessThreshold = async (): Promise<{ thresholdDays: number }> => {
     try {
         const res = await authFetch(`${API_BASE}/settings/evidence-staleness`);

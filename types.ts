@@ -1701,6 +1701,9 @@ export interface RemediationTask {
     created_at: string;
     updated_at: string;
     tenantId: string;
+    ticket_provider?: 'jira' | 'servicenow';
+    ticket_ref?: string;
+    ticket_url?: string;
 }
 
 export interface FrameworkScore {
