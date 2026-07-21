@@ -67,8 +67,8 @@ created: 2026-07-21
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|--------------------|
 | "Create Ticket" action + provider picker render in the remediation task view | REM-01 | No automated frontend test framework detected for `RemediationDashboard.tsx`/`RemediationTaskModal.tsx` | Open a remediation task, click Create Ticket, confirm provider picker appears if both Jira/ServiceNow configured, confirm ticket provider/ref/url display after creation |
-| Auto-created ticket on high/critical priority task creation | REM-01 (D-01) | Requires a live Jira/ServiceNow sandbox credential to observe the real side effect, not just the mocked unit-test call | Create a new remediation task at critical priority with ticketing configured, confirm a ticket appears without clicking Create Ticket |
-| Close-loop actually resolves the task when the real external ticket closes | REM-02 | Requires waiting for the polling interval (15-30 min) against a live Jira/ServiceNow sandbox instance — not reproducible in a hermetic unit test | Close the linked ticket in Jira/ServiceNow directly, wait one polling interval, confirm the remediation task auto-transitions to Resolved and a re-scan dispatch fires (same as manual resolution) |
+| Auto-created ticket on critical/high/medium priority task creation (D-01, revised) | REM-01 (D-01) | Requires a live Jira/ServiceNow sandbox credential to observe the real side effect, not just the mocked unit-test call | Create a new remediation task at critical priority with ticketing configured, confirm a ticket appears without clicking Create Ticket |
+| Close-loop actually resolves the task when the real external ticket closes | REM-02 | Requires waiting for the polling interval (5 min, D-03 revised) against a live Jira/ServiceNow sandbox instance — not reproducible in a hermetic unit test | Close the linked ticket in Jira/ServiceNow directly, wait one polling interval, confirm the remediation task auto-transitions to Resolved and a re-scan dispatch fires (same as manual resolution) |
 
 ---
 
