@@ -149,3 +149,7 @@ Phase 42 (Comment Threads on Compliance Controls) is now fully complete across a
 ---
 *Phase: 42-comment-threads-on-compliance-controls*
 *Completed: 2026-07-21*
+
+## Self-Check: PASSED
+
+All 3 created/modified files confirmed present on disk (`services/apiService.ts`, `components/ControlCommentsPanel.tsx`, `components/FrameworkDetail.tsx`); all 3 task commit hashes (`d98fc13`, `28eff7b`, `ca1fc52`) confirmed present in `git log`.
