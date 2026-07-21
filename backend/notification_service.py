@@ -39,8 +39,13 @@ class NotificationService:
         Channels: email, sms, slack, webhook
         Severity: critical, warning, info
         """
-        if not channels:
-            channels = ["email"]  # Default
+        if channels is None:
+            channels = ["email"]  # Default only when the caller omits channels
+            # entirely. An explicitly passed empty list (`channels=[]`) must
+            # stay empty — callers rely on this to request in-app-only alerts
+            # (the unconditional db.notifications write below) with no
+            # email/sms/slack side-effect dispatch (see control_comments
+            # Phase 42 @mention notifications, D-02).
 
         results = {
             "alert_id": f"alert-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",

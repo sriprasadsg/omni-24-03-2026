@@ -19,8 +19,9 @@ from pydantic import BaseModel, Field
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
+from notification_service import get_notification_service
 from rate_limiter import limiter
-from control_comments_service import add_comment, list_comments
+from control_comments_service import add_comment, list_comments, resolve_mentions
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,6 +67,27 @@ async def post_control_comment(
     comment = await add_comment(
         db, body.control_id, author=current_user.username, text=body.text
     )
+    # D-03: no PATCH/DELETE route exists for this resource anywhere — absence
+    # IS the enforcement.
+
+    for mention_email in await resolve_mentions(db, body.text):
+        try:
+            svc = get_notification_service(db)
+            await svc.send_alert(
+                title="You were mentioned in a control comment",
+                message=f'{current_user.username} mentioned you: "{body.text[:120]}"',
+                severity="info",
+                recipients=[mention_email],
+                tenant_id=tenant_id,
+                channels=[],  # D-02: in-app only — no email/sms/slack dispatch
+                metadata={"control_id": body.control_id, "event": "mention"},
+            )
+        except Exception:
+            # Non-fatal: mirrors tickets_endpoints.py's mention-notification
+            # error handling — a notification failure never fails the
+            # comment write (T-42-07).
+            pass
+
     return comment
 
 
