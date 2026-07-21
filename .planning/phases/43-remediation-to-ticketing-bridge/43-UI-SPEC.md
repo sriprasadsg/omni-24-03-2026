@@ -48,17 +48,18 @@ Exceptions:
 
 ## Typography
 
-All sizes/weights below are the exact classes already used by `RemediationTaskModal.tsx` and `RemediationDashboard.tsx` — no new sizes introduced.
+All sizes/weights below are the exact classes already used by `RemediationTaskModal.tsx` and `RemediationDashboard.tsx` — no new sizes introduced. This phase declares exactly **2 new font weights** for the UI it actually adds (Create Ticket button, provider picker, ticket-display body text).
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body (ticket ref, helper text) | 12px (`text-xs`) | 400 regular | Tailwind default for `text-xs` (16px / 1.33) |
-| Label (field labels, provider names, button text) | 14px (`text-sm`) | 500 medium (`font-medium`) for field labels, 500 medium for button text | Tailwind default for `text-sm` (20px / 1.43) |
-| Status pill (provider badge) | 12px (`text-xs`) | 600 semibold (`font-semibold`) | Tailwind default for `text-xs` — exact clone of `RemediationDashboard.tsx`'s `STATUS_COLORS` pill typography |
-| Heading | not applicable | — | This phase adds to an existing modal body, not a new heading level; the modal's existing `text-lg font-semibold` title ("Edit Remediation Task") is unchanged |
+| Label (field labels, provider names, button text) | 14px (`text-sm`) | 500 medium (`font-medium`) | Tailwind default for `text-sm` (20px / 1.43) |
+| Heading | not applicable | — | This phase adds to an existing modal body, not a new heading level; the modal's existing `text-lg font-semibold` title ("Edit Remediation Task") is unchanged and not touched by this phase |
 | Display | not applicable | — | Not a page-level surface |
 
-No new font sizes or weights beyond these two weights (400 regular, 500 medium) plus the existing 600 semibold used only for status/provider pills — matches `RemediationTaskModal.tsx`'s exact vocabulary (its labels use `font-medium`, not `font-semibold`).
+**New weights this phase declares: 400 regular + 500 medium.** Matches `RemediationTaskModal.tsx`'s exact existing vocabulary (its field labels already use `font-medium`, not `font-semibold`).
+
+**Pre-existing exception (carried over, not a new declaration):** The provider badge inside the ticket-display block (`Jira`/`ServiceNow` pill) reuses `RemediationDashboard.tsx`'s already-established `STATUS_COLORS` status-pill markup verbatim — `px-2 py-0.5 text-xs font-semibold rounded-full` (confirmed at `RemediationDashboard.tsx:192`: `className={\`px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_COLORS[task.status] ?? STATUS_COLORS.open}\`}`, unmodified by this or any prior phase). The 600 semibold weight on that one pill is inherited as-is from this pre-existing, unmodified convention — the same way the Spacing section above carries `mt-6` forward unchanged rather than introducing it fresh. The executor must copy the pill's exact class string for the provider badge (only swapping the color pair per the Color section below) rather than invent new badge styling; this is reuse of an existing pattern, not a new typography declaration this phase makes, and does not count against the phase's 2-new-weight budget.
 
 ---
 
