@@ -46,7 +46,7 @@
 
 - [x] **SEC-01**: The bulk evidence zip upload endpoint validates total uncompressed size using bounded streaming reads (not spoofable ZipInfo metadata), so a crafted zip with falsified `file_size=0` entries cannot bypass the 200 MB uncompressed guard
 - [x] **SEC-02**: The bulk evidence commit loop performs DB-level rollback (deletes already-inserted `control_evidence` records) on any mid-batch exception, so a partial batch failure never leaves orphaned evidence records in the database
-- [ ] **SEC-03**: The ContextVar tenant context (`tenant_context.py`) is cleaned up on exception paths — a request that errors mid-flight cannot leak its tenant ID into the next async task running on the same thread
+- [x] **SEC-03**: The ContextVar tenant context (`tenant_context.py`) is cleaned up on exception paths — a request that errors mid-flight cannot leak its tenant ID into the next async task running on the same thread
 
 ## v1.4 Requirements
 
@@ -286,7 +286,7 @@ Source: feature-parity audit run 2026-07-06 against Comp AI, Probo, OpenLane Cor
 | SCHED-02 | Phase 10 | Complete |
 | SEC-01 | Phase 11 | Complete |
 | SEC-02 | Phase 11 | Complete |
-| SEC-03 | Phase 11 | Planned |
+| SEC-03 | Phase 11 | Complete (fixed post-hoc, 2026-07-22 — tenant_context.py token-based reset() + tenant_middleware.py finally-block cleanup) |
 | AI-01 | Phase 12 | Complete |
 | AI-02 | Phase 12 | Complete |
 | AI-03 | Phase 12 | Complete |
