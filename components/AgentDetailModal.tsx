@@ -521,7 +521,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     return (
         <>
-        <Modal isOpen={isOpen} onClose={onClose} icon={modalIcon} title={modalTitle} size="3xl" footer={modalFooter}>
+        <Modal isOpen={isOpen} onClose={onClose} icon={modalIcon} title={modalTitle} size="4xl" footer={modalFooter}>
                 {/* Live refresh indicator */}
                 <div className="flex items-center justify-end space-x-1 mb-2">
                     <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">

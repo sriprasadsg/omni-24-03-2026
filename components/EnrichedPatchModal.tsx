@@ -73,7 +73,7 @@ export const EnrichedPatchModal: React.FC<EnrichedPatchModalProps> = ({
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title} size="3xl" footer={footer}>
+        <Modal isOpen={isOpen} onClose={onClose} title={title} size="4xl" footer={footer}>
                 {/* Content */}
                 <div className="space-y-6">
                     {/* Scoring Section */}
