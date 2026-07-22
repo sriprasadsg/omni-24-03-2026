@@ -13,6 +13,7 @@ import { AgentInstructionsTab } from './AgentInstructionsTab';
 import { ConfirmationModal } from './ConfirmationModal';
 import { moveAgent, fetchTenants, fetchAssetCompliance, runAgentComplianceScan, triggerEvidenceCollection, fetchAssets, authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Modal } from './Modal';
 
 
 interface AgentDetailModalProps {
@@ -408,7 +409,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     }, [isOpen, activeTab, asset?.id, agent?.assetId, agent?.hostname, refreshTrigger]);
 
 
-    if (!isOpen || !agent) return null;
+    if (!agent) return null;
 
     const currentStatus = statusInfo[agent.status] || statusInfo.Offline;
 
@@ -417,49 +418,127 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const complianceData = (agent.meta as any)?.compliance_enforcement;
     const healthData = (agent.meta as any)?.predictive_health;
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex-shrink-0 flex justify-between items-start mb-4">
-                    <div className="flex items-center">
-                        <div className="mr-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                            {platformIcons[agent.platform] || <ServerIcon size={24} className="text-gray-500" />}
-                        </div>
-                        <div>
-                            <div className="flex items-center space-x-2">
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{agent.hostname}</h2>
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${currentStatus.textClass} bg-opacity-10 bg-current border border-current border-opacity-20`}>
-                                    {currentStatus.icon}
-                                    <span className="ml-1">{agent.status}</span>
-                                </span>
-                            </div>
-                            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                <span className="font-mono">{agent.ipAddress}</span>
-                                <span className="mx-2">•</span>
-                                <span>v{agent.version}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center space-x-1 mr-2">
-                        <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                            Updated {formatRelativeTime(lastRefreshed)}
-                        </span>
-                        <button
-                            onClick={onRefresh}
-                            disabled={isRefreshing || !onRefresh}
-                            title="Refresh now"
-                            className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 focus:outline-none"
+    const modalIcon = (
+        <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            {platformIcons[agent.platform] || <ServerIcon size={24} className="text-gray-500" />}
+        </div>
+    );
+
+    const modalTitle = (
+        <div>
+            <div className="flex items-center space-x-2">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{agent.hostname}</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${currentStatus.textClass} bg-opacity-10 bg-current border border-current border-opacity-20`}>
+                    {currentStatus.icon}
+                    <span className="ml-1">{agent.status}</span>
+                </span>
+            </div>
+            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <span className="font-mono">{agent.ipAddress}</span>
+                <span className="mx-2">•</span>
+                <span>v{agent.version}</span>
+            </div>
+        </div>
+    );
+
+    const modalFooter = (
+        <div className="flex justify-between items-center w-full">
+            <div className="flex space-x-2">
+                {canRemediate ? (
+                    <>
+                        <button type="button" onClick={() => onManageCapabilities(agent)}
+                            className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
                         >
-                            <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                            <CogIcon size={16} className="mr-2" />
+                            Manage Capabilities
                         </button>
-                    </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-                        <XIcon size={20} />
+                        {onRunDiagnostics && (
+                            <button type="button" onClick={() => onRunDiagnostics(agent)}
+                                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+                                title="Run Diagnostics"
+                            >
+                                <TerminalSquareIcon size={16} className="mr-2" />
+                                Run Diagnostics
+                            </button>
+                        )}
+                        {agent.platform === 'Windows' && (
+                            <button type="button" onClick={handlePushUpdate} disabled={isUpdating}
+                                className="flex items-center px-3 py-2 text-sm font-medium text-teal-700 bg-white dark:bg-gray-700 border border-teal-300 dark:border-teal-600 rounded-md shadow-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 focus:outline-none disabled:opacity-50"
+                                title="Push agent binary update"
+                            >
+                                <DownloadIcon size={16} className="mr-2" />
+                                {isUpdating ? 'Sending…' : 'Update Agent'}
+                            </button>
+                        )}
+                    </>
+                ) : null}
+                {canViewLogs ? (
+                    <button type="button" onClick={() => onViewLogs(agent)}
+                        className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+                    >
+                        <FileTextIcon size={16} className="mr-2" />
+                        View Logs
+                    </button>
+                ) : null}
+
+                {/* Move Button (Super Admin Only) */}
+                {currentUser?.role === 'Super Admin' && (
+                    <button
+                        type="button"
+                        onClick={handleOpenMoveModal}
+                        className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+                        title="Move Agent to another Tenant"
+                    >
+                        <ArrowRightIcon size={16} className="mr-2" />
+                        Move
+                    </button>
+                )}
+
+                {/* Delete Button */}
+                {canRemediate && onDeleteAgent && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete agent ${agent.hostname}? This action cannot be undone.`)) {
+                                onDeleteAgent(agent);
+                                onClose();
+                            }
+                        }}
+                        className="flex items-center px-3 py-2 text-sm font-medium text-red-700 bg-white dark:bg-gray-700 border border-red-300 dark:border-red-600 rounded-md shadow-sm hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none"
+                    >
+                        <XCircleIcon size={16} className="mr-2" />
+                        Delete Agent
+                    </button>
+                )}
+            </div>
+            <button type="button" onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+            >
+                Close
+            </button>
+        </div>
+    );
+
+    return (
+        <>
+        <Modal isOpen={isOpen} onClose={onClose} icon={modalIcon} title={modalTitle} size="3xl" footer={modalFooter}>
+                {/* Live refresh indicator */}
+                <div className="flex items-center justify-end space-x-1 mb-2">
+                    <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                        Updated {formatRelativeTime(lastRefreshed)}
+                    </span>
+                    <button
+                        onClick={onRefresh}
+                        disabled={isRefreshing || !onRefresh}
+                        title="Refresh now"
+                        className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 focus:outline-none"
+                    >
+                        <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
                     </button>
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 -mx-6 px-6 overflow-x-auto">
+                <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-gray-700 -mx-6 px-6 overflow-x-auto">
                     <nav className="-mb-px flex space-x-6" aria-label="Tabs">
                         <button
                             onClick={() => setActiveTab('overview')}
@@ -534,7 +613,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                     </nav>
                 </div>
 
-                <div className="flex-grow overflow-y-auto pr-2 pt-4">
+                <div className="pt-4">
                     {activeTab === 'overview' ? (
                         <AgentOverviewTab
                             agent={agent}
@@ -566,83 +645,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                         <PredictiveHealthTab data={healthData} />
                     )}
                 </div>
-
-                <div className="flex-shrink-0 mt-6 flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex space-x-2">
-                        {canRemediate ? (
-                            <>
-                                <button type="button" onClick={() => onManageCapabilities(agent)}
-                                    className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-                                >
-                                    <CogIcon size={16} className="mr-2" />
-                                    Manage Capabilities
-                                </button>
-                                {onRunDiagnostics && (
-                                    <button type="button" onClick={() => onRunDiagnostics(agent)}
-                                        className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-                                        title="Run Diagnostics"
-                                    >
-                                        <TerminalSquareIcon size={16} className="mr-2" />
-                                        Run Diagnostics
-                                    </button>
-                                )}
-                                {agent.platform === 'Windows' && (
-                                    <button type="button" onClick={handlePushUpdate} disabled={isUpdating}
-                                        className="flex items-center px-3 py-2 text-sm font-medium text-teal-700 bg-white dark:bg-gray-700 border border-teal-300 dark:border-teal-600 rounded-md shadow-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 focus:outline-none disabled:opacity-50"
-                                        title="Push agent binary update"
-                                    >
-                                        <DownloadIcon size={16} className="mr-2" />
-                                        {isUpdating ? 'Sending…' : 'Update Agent'}
-                                    </button>
-                                )}
-                            </>
-                        ) : null}
-                        {canViewLogs ? (
-                            <button type="button" onClick={() => onViewLogs(agent)}
-                                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-                            >
-                                <FileTextIcon size={16} className="mr-2" />
-                                View Logs
-                            </button>
-                        ) : null}
-
-                        {/* Move Button (Super Admin Only) */}
-                        {currentUser?.role === 'Super Admin' && (
-                            <button
-                                type="button"
-                                onClick={handleOpenMoveModal}
-                                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-                                title="Move Agent to another Tenant"
-                            >
-                                <ArrowRightIcon size={16} className="mr-2" />
-                                Move
-                            </button>
-                        )}
-
-                        {/* Delete Button */}
-                        {canRemediate && onDeleteAgent && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (window.confirm(`Are you sure you want to delete agent ${agent.hostname}? This action cannot be undone.`)) {
-                                        onDeleteAgent(agent);
-                                        onClose();
-                                    }
-                                }}
-                                className="flex items-center px-3 py-2 text-sm font-medium text-red-700 bg-white dark:bg-gray-700 border border-red-300 dark:border-red-600 rounded-md shadow-sm hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none"
-                            >
-                                <XCircleIcon size={16} className="mr-2" />
-                                Delete Agent
-                            </button>
-                        )}
-                    </div>
-                    <button type="button" onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-                    >
-                        Close
-                    </button>
-                </div>
-            </div>
+        </Modal>
 
             {/* Move Agent Modal */}
             {isMoveModalOpen && (
@@ -694,6 +697,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                 confirmText="Move Agent"
                 isDestructive={false}
             />
-        </div>
+        </>
     );
 };

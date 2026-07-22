@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Agent, AgentCapability } from '../types';
-import { XIcon, CogIcon, BarChart3Icon, ShieldSearchIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, SaveIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, ActivityIcon, ZapIcon, NetworkIcon, CloudShieldIcon, GlobeIcon, EyeIcon, BotIcon, PackageCheckIcon, BoxIcon, SearchIcon, TestTubeIcon, MonitorIcon, TerminalSquareIcon, DownloadIcon, RefreshCwIcon, WorkflowIcon, RadarIcon, DatabaseIcon, BrainCircuitIcon, SendIcon, ClipboardCheckIcon, HeartHandshakeIcon, HardDriveIcon, BinocularsIcon } from './icons';
+import { CogIcon, BarChart3Icon, ShieldSearchIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, SaveIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, ActivityIcon, ZapIcon, NetworkIcon, CloudShieldIcon, GlobeIcon, EyeIcon, BotIcon, PackageCheckIcon, BoxIcon, SearchIcon, TestTubeIcon, MonitorIcon, TerminalSquareIcon, DownloadIcon, RefreshCwIcon, WorkflowIcon, RadarIcon, DatabaseIcon, BrainCircuitIcon, SendIcon, ClipboardCheckIcon, HeartHandshakeIcon, HardDriveIcon, BinocularsIcon } from './icons';
+import { Modal } from './Modal';
 
 interface ManageAgentCapabilitiesModalProps {
     isOpen: boolean;
@@ -151,53 +152,60 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
         }
     };
 
-    if (!isOpen || !agent) return null;
+    if (!agent) return null;
+
+    const footer = (
+        <>
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md">Cancel</button>
+            <button onClick={handleSave} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
+                <SaveIcon size={16} className="mr-2" />
+                Save Capabilities
+            </button>
+        </>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex-shrink-0 flex justify-between items-start mb-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                            <CogIcon className="mr-3 text-primary-500" />
-                            Manage Agent Capabilities
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{agent.hostname}</p>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            icon={<CogIcon className="text-primary-500" />}
+            title={
+                <div>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">Manage Agent Capabilities</span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{agent.hostname}</p>
+                </div>
+            }
+            size="2xl"
+            footer={footer}
+        >
+                {/* Controls: summary + global select-all */}
+                <div className="mb-4 flex items-center justify-between gap-3 px-1">
+                    <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+                        <span className="font-medium text-primary-600 dark:text-primary-400">{enabledCapabilities.size} enabled</span>
+                        <span>·</span>
+                        <span>{supportedIds.length - enabledCapabilities.size} disabled</span>
+                        <span>·</span>
+                        <span>{supportedIds.length} supported</span>
+                        {unsupportedCount > 0 && (
+                            <>
+                                <span>·</span>
+                                <span className="text-gray-400 dark:text-gray-600">{unsupportedCount} not supported by this agent</span>
+                            </>
+                        )}
                     </div>
-                    <div className="flex items-center gap-2">
-                        {/* Global select-all / clear-all */}
-                        <button
-                            onClick={handleSelectAll}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
-                                allEnabled
-                                    ? 'bg-red-50 border-red-300 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400'
-                                    : 'bg-primary-50 border-primary-300 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/20 dark:border-primary-700 dark:text-primary-400'
-                            }`}
-                        >
-                            {allEnabled ? 'Disable All' : 'Enable All'}
-                        </button>
-                        <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                            <XIcon size={20} />
-                        </button>
-                    </div>
+                    <button
+                        onClick={handleSelectAll}
+                        className={`flex-shrink-0 px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                            allEnabled
+                                ? 'bg-red-50 border-red-300 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400'
+                                : 'bg-primary-50 border-primary-300 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/20 dark:border-primary-700 dark:text-primary-400'
+                        }`}
+                    >
+                        {allEnabled ? 'Disable All' : 'Enable All'}
+                    </button>
                 </div>
 
-                {/* Summary bar */}
-                <div className="flex-shrink-0 mb-3 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 px-1">
-                    <span className="font-medium text-primary-600 dark:text-primary-400">{enabledCapabilities.size} enabled</span>
-                    <span>·</span>
-                    <span>{supportedIds.length - enabledCapabilities.size} disabled</span>
-                    <span>·</span>
-                    <span>{supportedIds.length} supported</span>
-                    {unsupportedCount > 0 && (
-                        <>
-                            <span>·</span>
-                            <span className="text-gray-400 dark:text-gray-600">{unsupportedCount} not supported by this agent</span>
-                        </>
-                    )}
-                </div>
-
-                <div className="flex-grow space-y-5 overflow-y-auto pr-2">
+                <div className="space-y-5">
                     {CAPABILITY_GROUPS.map(group => {
                         const groupSupported = group.items.filter(c => supportedCaps.has(c.id));
                         const groupAllOn = groupSupported.length > 0 && groupSupported.every(c => enabledCapabilities.has(c.id));
@@ -299,15 +307,6 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                         );
                     })}
                 </div>
-
-                <div className="flex-shrink-0 mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md">Cancel</button>
-                    <button onClick={handleSave} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
-                        <SaveIcon size={16} className="mr-2" />
-                        Save Capabilities
-                    </button>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };

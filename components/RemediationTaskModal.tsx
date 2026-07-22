@@ -4,6 +4,7 @@ import { RemediationTask } from '../types';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
 import { EscalationHistoryPanel } from './EscalationHistoryPanel';
+import { Modal } from './Modal';
 
 interface RemediationTaskModalProps {
     isOpen: boolean;
@@ -38,14 +39,6 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
     const [hasJira, setHasJira] = useState(false);
     const [hasServiceNow, setHasServiceNow] = useState(false);
 
-    // Escape key dismiss
-    useEffect(() => {
-        if (!isOpen) return;
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-        document.addEventListener('keydown', handler);
-        return () => document.removeEventListener('keydown', handler);
-    }, [isOpen, onClose]);
-
     // Initialize from task when editing
     useEffect(() => {
         if (!isOpen) return;
@@ -75,8 +68,6 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
             setHasServiceNow(!!config?.snow_instance);
         })();
     }, [isOpen]);
-
-    if (!isOpen) return null;
 
     const effectiveControlId = task?.control_id || controlId || '';
 
@@ -144,14 +135,37 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg" tabIndex={-1}>
-                <div className="p-6">
-                    <h2 className="text-lg font-semibold mb-4 dark:text-white">
-                        {task ? 'Edit Remediation Task' : 'Create Remediation Task'}
-                    </h2>
+    const footer = (
+        <>
+            <button
+                onClick={onClose}
+                className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            >
+                Cancel
+            </button>
+            <button
+                onClick={handleSave}
+                disabled={!title.trim() || saving}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+            >
+                {saving ? (
+                    <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                    <SaveIcon size={14} />
+                )}
+                {saving ? 'Saving...' : 'Save Task'}
+            </button>
+        </>
+    );
 
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={task ? 'Edit Remediation Task' : 'Create Remediation Task'}
+            size="lg"
+            footer={footer}
+        >
                     <div className="space-y-4">
                         {/* Control ID (read-only) */}
                         {effectiveControlId && (
@@ -361,30 +375,6 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
 
                     {/* Escalation History (SLA-02) — read-only, append-only, no edit/delete controls */}
                     {task?.id && <EscalationHistoryPanel taskId={task.id} />}
-
-                    {/* Buttons */}
-                    <div className="flex justify-end gap-3 mt-6">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={!title.trim() || saving}
-                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
-                        >
-                            {saving ? (
-                                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <SaveIcon size={14} />
-                            )}
-                            {saving ? 'Saving...' : 'Save Task'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };
