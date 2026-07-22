@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { CloudAccount, CloudProvider } from '../types';
-import { XIcon, InfoIcon } from './icons';
+import { InfoIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { Modal } from './Modal';
 
 interface AddCloudAccountModalProps {
   isOpen: boolean;
@@ -95,18 +96,16 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
     setName(''); setAccountId(''); resetCredentialFields();
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md dark:border-gray-600 dark:text-gray-300">Cancel</button>
+      <button type="submit" form="add-cloud-account-form" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Add and Connect</button>
+    </>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Add Cloud Account</h2>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-            <XIcon size={20} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Cloud Account" size="lg" footer={footer}>
+        <form id="add-cloud-account-form" onSubmit={handleSubmit} className="space-y-4">
           <style>{`.input-style { padding: 0.5rem 0.75rem; background-color: white; border: 1px solid #d1d5db; border-radius: 0.375rem; } .dark .input-style { background-color: #374151; border-color: #4b5563; color: white; }`}</style>
 
           <div>
@@ -171,13 +170,7 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
               <p>Credentials are stored encrypted. For best security, use a read-only role or service account with minimal permissions.</p>
             </div>
           </div>
-
-          <div className="mt-6 flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md dark:border-gray-600 dark:text-gray-300">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Add and Connect</button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };

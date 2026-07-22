@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Modal } from './Modal';
 
 interface Subprocessor {
     id: string;
@@ -107,21 +108,11 @@ export function VendorDetailModal({ vendor, isOpen, onClose }: VendorDetailModal
         );
     };
 
-    if (!isOpen || !vendor) return null;
+    if (!vendor) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white dark:bg-[#0f1115] rounded-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-xl">
-                <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        {vendor.name} — Details
-                    </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                <div className="p-6 space-y-6">
+        <Modal isOpen={isOpen} onClose={onClose} title={`${vendor.name} — Details`} size="2xl">
+                <div className="space-y-6">
                     {/* DPA Status */}
                     <div>
                         <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Data Processing Agreement (DPA)</h3>
@@ -216,7 +207,6 @@ export function VendorDetailModal({ vendor, isOpen, onClose }: VendorDetailModal
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 }
