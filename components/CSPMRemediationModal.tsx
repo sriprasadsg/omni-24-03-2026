@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { CSPMFinding } from '../types';
-import { XIcon, BotIcon, FileCodeIcon, CopyIcon, CheckIcon } from './icons';
+import { BotIcon, FileCodeIcon, CopyIcon, CheckIcon } from './icons';
 import { generateCSPMRemediation, generateIacCode } from '../services/apiService';
+import { Modal } from './Modal';
 
 interface CSPMRemediationModalProps {
   isOpen: boolean;
@@ -120,21 +121,21 @@ export const CSPMRemediationModal: React.FC<CSPMRemediationModalProps> = ({ isOp
   };
 
 
-  if (!isOpen || !finding) return null;
+  if (!finding) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex-shrink-0 flex justify-between items-start mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{finding.title}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{finding.resourceId}</p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-            <XIcon size={20} />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        <div>
+          <span className="text-lg font-bold text-gray-900 dark:text-white">{finding.title}</span>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{finding.resourceId}</p>
         </div>
-        <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+      }
+      size="2xl"
+    >
+        <div className="space-y-4">
             <div>
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Description</h3>
                 <p className="mt-1 text-gray-600 dark:text-gray-300">{finding.description}</p>
@@ -174,7 +175,6 @@ export const CSPMRemediationModal: React.FC<CSPMRemediationModalProps> = ({ isOp
                 )}
             </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

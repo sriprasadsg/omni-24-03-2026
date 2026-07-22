@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Playbook, SecurityEvent, SecurityCase, PlaybookExecutionStatus, PlaybookExecutionStep } from '../types';
-import { XIcon, BotIcon, ZapIcon, TerminalSquareIcon, CogIcon, CheckIcon, AlertTriangleIcon } from './icons';
+import { BotIcon, ZapIcon, TerminalSquareIcon, CogIcon, CheckIcon, AlertTriangleIcon } from './icons';
 import { executePlaybook } from '../services/apiService';
+import { Modal } from './Modal';
 
 interface ExecutePlaybookModalProps {
   isOpen: boolean;
@@ -49,24 +50,43 @@ export const ExecutePlaybookModal: React.FC<ExecutePlaybookModalProps> = ({ isOp
         }
     };
 
-    if (!isOpen || !playbook) return null;
-    
+    if (!playbook) return null;
+
     const isExecutionStarted = executionStatus !== 'idle';
 
+    const footer = (
+        <>
+            <button type="button" onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+            >
+                {isExecutionStarted ? 'Close' : 'Cancel'}
+            </button>
+            {!isExecutionStarted && (
+                <button type="button" onClick={handleExecute} disabled={!targetId}
+                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none disabled:bg-primary-400 disabled:cursor-not-allowed flex items-center"
+                >
+                    <ZapIcon size={16} className="mr-2" />
+                    Execute
+                </button>
+            )}
+        </>
+    );
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex-shrink-0 flex justify-between items-start mb-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><BotIcon className="mr-3 text-primary-500"/> Execute Playbook</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{playbook.name}</p>
-                    </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-                        <XIcon size={20} />
-                    </button>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            icon={<BotIcon className="text-primary-500" />}
+            title={
+                <div>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">Execute Playbook</span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{playbook.name}</p>
                 </div>
-                
-                <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+            }
+            size="2xl"
+            footer={footer}
+        >
+                <div className="space-y-4">
                     {!isExecutionStarted ? (
                         <div className="space-y-4">
                             <div>
@@ -120,23 +140,6 @@ export const ExecutePlaybookModal: React.FC<ExecutePlaybookModalProps> = ({ isOp
                         </div>
                     )}
                 </div>
-                
-                <div className="flex-shrink-0 mt-6 flex justify-end items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-                    >
-                        {isExecutionStarted ? 'Close' : 'Cancel'}
-                    </button>
-                    {!isExecutionStarted && (
-                        <button type="button" onClick={handleExecute} disabled={!targetId}
-                            className="ml-3 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none disabled:bg-primary-400 disabled:cursor-not-allowed flex items-center"
-                        >
-                            <ZapIcon size={16} className="mr-2" />
-                            Execute
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };

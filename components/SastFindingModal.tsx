@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { SastFinding } from '../types';
-import { XIcon, CodeIcon, SparklesIcon, CogIcon } from './icons';
+import { CodeIcon, SparklesIcon, CogIcon } from './icons';
 import { generateSastFix } from '../services/geminiService';
+import { Modal } from './Modal';
 
 interface SastFindingModalProps {
   isOpen: boolean;
@@ -43,25 +44,29 @@ export const SastFindingModal: React.FC<SastFindingModalProps> = ({ isOpen, onCl
         }
     };
 
-    if (!isOpen || !finding) return null;
+    if (!finding) return null;
+
+    const footer = (
+        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
+            Close
+        </button>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex-shrink-0 flex justify-between items-start mb-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                            <CodeIcon className="mr-3 text-primary-500" />
-                            SAST Finding: {finding.type}
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{finding.fileName}:{finding.line}</p>
-                    </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                        <XIcon size={20} />
-                    </button>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            icon={<CodeIcon className="text-primary-500" />}
+            title={
+                <div>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">SAST Finding: {finding.type}</span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{finding.fileName}:{finding.line}</p>
                 </div>
-
-                <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+            }
+            size="3xl"
+            footer={footer}
+        >
+                <div className="space-y-4">
                     <div>
                         <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Vulnerable Code Snippet</h3>
                         <CodeBlock code={finding.codeSnippet} />
@@ -87,13 +92,6 @@ export const SastFindingModal: React.FC<SastFindingModalProps> = ({ isOpen, onCl
                         )}
                     </div>
                 </div>
-
-                <div className="flex-shrink-0 mt-6 flex justify-end items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };
