@@ -636,6 +636,42 @@ class TestAgentRemoteControl:
         assert logged["agent_id"] == "agent-1"
         assert logged["status"] == "pending"
 
+    # ── role gate (defense-in-depth) ──────────────────────────────────────────
+
+    def test_execute_denied_for_non_admin_role_with_permission(self):
+        """A non-admin role that holds manage:agents must still be blocked from shell."""
+        self.app.dependency_overrides[get_current_user] = lambda: _user(role="analyst")
+        with patch("rbac_utils.verify_permission", AsyncMock(return_value=True)):
+            with patch("agent_remote_control.websocket_manager", self._wm()):
+                with patch("agent_remote_control.get_database", return_value=self.db):
+                    with TestClient(self.app) as c:
+                        r = c.post("/api/agents/remote/agent-1/execute",
+                                   json={"command": "ls", "args": []})
+        assert r.status_code == 403
+        assert "not permitted" in r.json()["detail"].lower()
+
+    def test_execute_allowed_for_tenant_admin(self):
+        """Tenant Admin is an elevated role and may issue remote commands."""
+        self.app.dependency_overrides[get_current_user] = lambda: _user(role="Tenant Admin")
+        with patch("rbac_utils.verify_permission", AsyncMock(return_value=True)):
+            with patch("agent_remote_control.websocket_manager", self._wm()):
+                with patch("agent_remote_control.get_database", return_value=self.db):
+                    with TestClient(self.app) as c:
+                        r = c.post("/api/agents/remote/agent-1/execute",
+                                   json={"command": "ls", "args": []})
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+
+    def test_restart_denied_for_non_admin_role_with_permission(self):
+        """Restart is a privileged control action — non-admin roles are blocked."""
+        self.app.dependency_overrides[get_current_user] = lambda: _user(role="analyst")
+        with patch("rbac_utils.verify_permission", AsyncMock(return_value=True)):
+            with patch("agent_remote_control.websocket_manager", self._wm()):
+                with patch("agent_remote_control.get_database", return_value=self.db):
+                    with TestClient(self.app) as c:
+                        r = c.post("/api/agents/remote/agent-1/restart")
+        assert r.status_code == 403
+
     # ── restart ───────────────────────────────────────────────────────────────
 
     def test_restart_agent_returns_success(self):
