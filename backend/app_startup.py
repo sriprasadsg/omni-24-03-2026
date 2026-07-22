@@ -280,7 +280,7 @@ async def seed_database():
             "manage:security_cases", "investigate:security", "view:compliance",
             "manage:compliance_evidence", "view:ai_governance", "manage:ai_risks",
             "view:cloud_security", "view:finops", "view:audit_log",
-            "manage:rbac", "manage:api_keys", "view:logs", "view:profile",
+            "manage:rbac", "manage:api_keys", "manage:settings", "view:logs", "view:profile",
             "view:automation", "manage:automation", "view:devsecops", "manage:devsecops",
             "view:sbom", "manage:sbom", "view:insights", "view:software_updates",
             "view:threat_hunting", "view:tracing", "view:dspm", "view:attack_path",
