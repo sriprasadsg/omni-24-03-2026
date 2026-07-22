@@ -71,8 +71,8 @@ export function AuditLog() {
             <div className="relative border-l-2 border-gray-200 dark:border-gray-700 ml-4 space-y-8 pb-10">
                 {isLoading ? (
                     <div className="pl-6 text-gray-500">Loading timeline...</div>
-                ) : logs.map((log) => (
-                    <div key={log.id} className="relative pl-6 group">
+                ) : logs.map((log, idx) => (
+                    <div key={log.id ?? `log-${idx}`} className="relative pl-6 group">
                         <span className={`absolute -left-[9px] top-1 h-4 w-4 rounded-full border-2 border-white dark:border-gray-900 ${log.status === 'SUCCESS' ? 'bg-green-500' : 'bg-red-500'}`}></span>
 
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
