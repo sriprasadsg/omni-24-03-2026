@@ -272,3 +272,16 @@ input:-webkit-autofill:focus {
 .animation-delay-200  { animation-delay: 200ms; }
 .animation-delay-400  { animation-delay: 400ms; }
 .animation-delay-1000 { animation-delay: 1000ms; }
+
+/* Accessibility: honour the user's reduced-motion preference app-wide.
+   (ui-ux-pro-max pre-delivery checklist — respect prefers-reduced-motion.) */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

@@ -47,11 +47,6 @@ export default {
                     'panel': 'rgba(20, 20, 40, 0.6)',
                 }
             },
-            backgroundImage: {
-                'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
-                'neon-gradient': 'linear-gradient(to right, #00d2ff, #3a7bd5)',
-                'flash-gradient': 'linear-gradient(135deg, #0a0a1f 0%, #141428 100%)',
-            },
             boxShadow: {
                 'neon':    '0 0 12px rgba(0, 210, 255, 0.5), 0 0 30px rgba(0, 210, 255, 0.2)',
                 'neon-sm': '0 0 6px rgba(0, 210, 255, 0.4)',
