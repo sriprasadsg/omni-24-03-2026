@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Role, Permission } from '../types';
-import { XIcon, ShieldLockIcon } from './icons';
+import { ShieldLockIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
+import { Modal } from './Modal';
 
 interface RoleEditorModalProps {
   isOpen: boolean;
@@ -141,20 +142,33 @@ export const RoleEditorModal: React.FC<RoleEditorModalProps> = ({ isOpen, onClos
     })).filter(group => group.permissions.length > 0);
   }, [enabledFeatures, currentUser]);
 
-  if (!isOpen) return null;
-
   const isBuiltIn = role ? !role.isEditable : false;
 
+  const footer = (
+    <>
+      <button type="button" onClick={onClose}
+        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+      >
+        Cancel
+      </button>
+      <button type="submit" form="role-editor-form"
+        disabled={isBuiltIn}
+        className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none disabled:bg-primary-400/50 disabled:cursor-not-allowed"
+      >
+        {role ? 'Save Changes' : 'Create Role'}
+      </button>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4 flex-shrink-0">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{role ? `Edit Role: ${role.name}` : 'Create New Role'}</h2>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-            <XIcon size={20} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto pr-2 -mr-2">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={role ? `Edit Role: ${role.name}` : 'Create New Role'}
+      size="2xl"
+      footer={footer}
+    >
+        <form id="role-editor-form" onSubmit={handleSubmit}>
           {isBuiltIn && (
             <div className="p-3 mb-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg flex items-start text-sm text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
               <ShieldLockIcon size={18} className="mr-2.5 mt-0.5 flex-shrink-0 text-blue-500" />
@@ -209,21 +223,7 @@ export const RoleEditorModal: React.FC<RoleEditorModalProps> = ({ isOpen, onClos
               </div>
             </div>
           </div>
-          <div className="mt-6 flex-shrink-0 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-            >
-              Cancel
-            </button>
-            <button type="submit"
-              disabled={isBuiltIn}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none disabled:bg-primary-400/50 disabled:cursor-not-allowed"
-            >
-              {role ? 'Save Changes' : 'Create Role'}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
