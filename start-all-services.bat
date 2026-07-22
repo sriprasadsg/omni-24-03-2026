@@ -20,12 +20,30 @@ set "MONGO_PORT=27017"
 
 set "MONGODB_URL=mongodb://127.0.0.1:%MONGO_PORT%"
 set "DATABASE_NAME=omni_agent_platform"
-set "CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
+set "CORS_ORIGINS=https://localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
 set "VITE_PROXY_TARGET=http://127.0.0.1:%BACKEND_PORT%"
 
 set "API_BASE_URL=http://127.0.0.1:%BACKEND_PORT%"
 set "REGISTRATION_KEY=reg_platformadmin123"
 set "TENANT_ID=platform-admin"
+
+:: ── TLS: generate a self-signed cert so Vite serves HTTPS (vite.config picks it
+:: up automatically when certs\server.{key,crt} exist). Falls back to HTTP if
+:: openssl is not installed.
+set "CERT_DIR=%ROOT%\certs"
+set "FRONTEND_SCHEME=http"
+if exist "%CERT_DIR%\server.crt" if exist "%CERT_DIR%\server.key" set "FRONTEND_SCHEME=https"
+if not "%FRONTEND_SCHEME%"=="https" (
+    where openssl >nul 2>&1
+    if not errorlevel 1 (
+        if not exist "%CERT_DIR%" mkdir "%CERT_DIR%"
+        openssl req -x509 -newkey rsa:2048 -nodes -keyout "%CERT_DIR%\server.key" -out "%CERT_DIR%\server.crt" -days 825 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" >nul 2>&1
+        if not errorlevel 1 set "FRONTEND_SCHEME=https"
+    ) else (
+        echo   !!  openssl not found - frontend stays HTTP ^(install openssl for HTTPS^)
+    )
+)
+set "FRONTEND_URL=%FRONTEND_SCHEME%://localhost:%FRONTEND_PORT%"
 
 cls
 echo.
@@ -184,7 +202,7 @@ echo.
 :: ── Frontend ──────────────────────────────────────────────────────────────────
 echo [4] Starting Frontend ^(Vite/React on port %FRONTEND_PORT%^)...
 start "Omni-Frontend :3000" /D "%ROOT%" cmd /k ^
-    "set VITE_PROXY_TARGET=%VITE_PROXY_TARGET% & echo. & echo   Omni-Agent Frontend  http://localhost:%FRONTEND_PORT% & echo. & npm run dev -- --port %FRONTEND_PORT%"
+    "set VITE_PROXY_TARGET=%VITE_PROXY_TARGET% & echo. & echo   Omni-Agent Frontend  %FRONTEND_URL% & echo. & npm run dev -- --port %FRONTEND_PORT%"
 
 echo   ... Waiting for frontend to compile (up to 60s)...
 set /a TRIES=0
@@ -197,7 +215,7 @@ set /a TRIES=0
     echo   !!  Frontend did not respond - check the Frontend terminal window.
     goto :summary
 :frontend_up
-echo   OK  Frontend is up at http://localhost:%FRONTEND_PORT%
+echo   OK  Frontend is up at %FRONTEND_URL%
 echo.
 
 :: ── Agent ─────────────────────────────────────────────────────────────────────
@@ -217,7 +235,7 @@ echo    All services started!
 echo   ===================================================
 echo.
 echo   Service URLs:
-echo     Frontend   http://localhost:%FRONTEND_PORT%
+echo     Frontend   %FRONTEND_URL%
 echo     Backend    http://127.0.0.1:%BACKEND_PORT%
 echo     API Docs   http://127.0.0.1:%BACKEND_PORT%/docs
 echo     Health     http://127.0.0.1:%BACKEND_PORT%/health
@@ -230,7 +248,7 @@ echo.
 
 set /p OPEN_BROWSER="  Open browser now? (Y/N): "
 if /i "%OPEN_BROWSER%"=="Y" (
-    start http://localhost:%FRONTEND_PORT%
+    start %FRONTEND_URL%
 )
 
 goto :eof
