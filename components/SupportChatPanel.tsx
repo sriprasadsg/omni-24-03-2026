@@ -244,7 +244,14 @@ const UserIdentityCard: React.FC<{ convo: SupportConversation; isOnline?: boolea
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const SupportChatPanel: React.FC = () => {
+interface SupportChatPanelProps {
+    /** Conversation to auto-open (deep-link from a toast / notification). */
+    initialConvoId?: string | null;
+    /** Fired once the deep-linked conversation has been opened. */
+    onConvoConsumed?: () => void;
+}
+
+const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = null, onConvoConsumed }) => {
     const { currentUser } = useUser();
     const role   = (currentUser as any)?.role ?? 'user';
     const myId   = (currentUser as any)?.email ?? (currentUser as any)?.username ?? '';
@@ -280,6 +287,17 @@ const SupportChatPanel: React.FC = () => {
     }, [filter]);
 
     useEffect(() => { loadList(); }, [loadList]);
+
+    // ── Deep-link: auto-open a conversation requested from outside the panel ────
+    // (e.g. an admin started a direct chat and the user clicked the toast). The
+    // thread is fetched by id directly, so it opens even before the list poll
+    // surfaces it; we also refresh the list so it appears in the sidebar.
+    useEffect(() => {
+        if (!initialConvoId) return;
+        setActiveId(initialConvoId);
+        loadList();
+        onConvoConsumed?.();
+    }, [initialConvoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Load active conversation ──────────────────────────────────────────────
     useEffect(() => {
