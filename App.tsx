@@ -85,6 +85,7 @@ const FutureOpsDashboard = lazy(() => import('./components/UnifiedFutureOpsDashb
 const RiskRegister = lazy(() => import('./components/RiskRegister'));
 import { InteractiveVoiceBot } from './components/InteractiveVoiceBot';
 import { CharacterTourBot } from './components/CharacterTourBot';
+import { CallOverlay } from './components/CallOverlay';
 const VendorManagement = lazy(() => import('./components/VendorManagement'));
 const TrustCenter = lazy(() => import('./components/TrustCenter'));
 const GovernanceDocumentsDashboard = lazy(() => import('./components/GovernanceDocumentsDashboard').then(m => ({ default: m.GovernanceDocumentsDashboard })));
@@ -1998,6 +1999,13 @@ const App: React.FC = () => {
             )}
           </ErrorBoundary>
           <ChatFab onClick={() => setIsChatOpen(true)} />
+
+          {/* Global audio/video call overlay (incoming ring + in-call window) */}
+          {currentUser && (
+            <ErrorBoundary name="CallOverlay">
+              <CallOverlay />
+            </ErrorBoundary>
+          )}
 
           {/* Support chat in-app toast notifications */}
           <SupportChatToast

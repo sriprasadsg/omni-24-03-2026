@@ -5,6 +5,7 @@ import {
     fetchTenantUsersForChat, markSupportConversationRead, fetchSupportPresence,
 } from '../services/apiService';
 import { socketService } from '../services/socketService';
+import { webrtcCallService } from '../services/webrtcCallService';
 import { SupportConversation, SupportMessage, TenantUser } from '../types';
 import { useUser } from '../contexts/UserContext';
 
@@ -417,6 +418,31 @@ const SupportChatPanel: React.FC = () => {
         return `Opened by ${display}`;
     };
 
+    // ── Resolve the 1:1 call peer for the active conversation ───────────────────
+    // Calls are person-to-person, so they only apply to conversations with a
+    // single identifiable counterpart (admin↔user). Pooled routes (a user
+    // contacting "an admin", or admin→super-admin) have no single callee.
+    const myName = (currentUser as any)?.name ?? myId;
+    const callPeer: { username: string; name: string } | null = (() => {
+        const c = activeConvo;
+        if (!c) return null;
+        if (c.chat_type === 'admin_to_user') {
+            if (c.initiator_id === myId && c.target_user_id)
+                return { username: c.target_user_id, name: c.target_user_name ?? c.target_user_id };
+            if (c.target_user_id === myId)
+                return { username: c.initiator_id, name: c.initiator_name ?? c.initiator_id };
+            return null;
+        }
+        if (c.chat_type === 'user_to_admin' && isAdmin(role))
+            return { username: c.initiator_id, name: c.initiator_name ?? c.initiator_id };
+        return null;
+    })();
+
+    const startCall = (video: boolean) => {
+        if (!callPeer || !activeConvo) return;
+        webrtcCallService.startCall(callPeer.username, callPeer.name, activeConvo.id, video, myName);
+    };
+
     return (
         <div className="flex h-full bg-slate-950 text-white overflow-hidden">
 
@@ -553,6 +579,27 @@ const SupportChatPanel: React.FC = () => {
                                         />
                                     )}
                                     <StatusBadge status={activeConvo.status} />
+                                    {/* Audio / video call — only for 1:1 admin↔user conversations */}
+                                    {callPeer && !['resolved', 'closed'].includes(activeConvo.status) && (
+                                        <>
+                                            <button
+                                                onClick={() => startCall(false)}
+                                                title={`Voice call ${callPeer.name}`}
+                                                aria-label={`Voice call ${callPeer.name}`}
+                                                className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white w-8 h-8 rounded-lg flex items-center justify-center"
+                                            >
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.98.36 1.94.7 2.86a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.22-1.22a2 2 0 0 1 2.11-.45c.92.34 1.88.57 2.86.7A2 2 0 0 1 22 16.92z"/></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => startCall(true)}
+                                                title={`Video call ${callPeer.name}`}
+                                                aria-label={`Video call ${callPeer.name}`}
+                                                className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white w-8 h-8 rounded-lg flex items-center justify-center"
+                                            >
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                                            </button>
+                                        </>
+                                    )}
                                     {/* Escalate button — admins chatting with a user can escalate to super admin */}
                                     {isAdmin(role) && !isSuper(role) && activeConvo.chat_type === 'user_to_admin' && !['resolved', 'closed'].includes(activeConvo.status) && (
                                         <button
