@@ -402,6 +402,12 @@ pub async fn agent_loop(running: Arc<AtomicBool>) {
         let (c, r) = (shared_cfg.clone(), running.clone());
         move || ws::ws_client(c.clone(), r.clone())
     });
+    // Real-time ETW telemetry engine (Windows only; no-op stub elsewhere).
+    #[cfg(windows)]
+    supervise("etw_engine", running.clone(), {
+        let (c, cl, r, sp) = (shared_cfg.clone(), client.clone(), running.clone(), spool.clone());
+        move || crate::etw::start_engine(c.clone(), cl.clone(), r.clone(), sp.clone())
+    });
 
     let mut sys = System::new_all();
     let mut tick: u64 = 0;

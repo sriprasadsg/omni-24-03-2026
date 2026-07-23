@@ -8,6 +8,7 @@ mod config;
 mod http;
 mod buffer;
 mod crypto;
+mod etw;
 mod caps;
 mod caps2;
 mod caps3;

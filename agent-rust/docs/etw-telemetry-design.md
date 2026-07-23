@@ -1,6 +1,12 @@
 # ETW Real-Time Telemetry Engine — Design
 
-Status: **Proposed** · Target: `agent-rust` (Windows agent, service `OmniAgentRust`) · Author: platform/agent
+Status: **P1 skeleton implemented** (rest proposed) · Target: `agent-rust` (Windows agent, service `OmniAgentRust`) · Author: platform/agent
+
+> **Implementation status.** Phase 1 (§11) has landed in `src/etw/`: a `ferrisetw`
+> Kernel-Process session → `RawEvent` → bounded non-blocking queue → batched upload to
+> `POST /api/agents/{id}/telemetry`, supervised and reusing the offline `Spool`. Backend
+> endpoint is not built yet — until it exists, batches are dropped (not spooled) on the
+> 404. Correlator, additional providers, and the rule engine (P2–P5) are still proposed.
 
 ## 1. Problem
 
