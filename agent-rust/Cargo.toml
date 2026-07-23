@@ -28,6 +28,7 @@ futures-util = "0.3.32"
 windows-service = "0.7"
 winreg = "0.52"
 windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
+ferrisetw = { version = "1.2.0", features = ["time_rs"] }
 
 [profile.release]
 opt-level    = "z"
