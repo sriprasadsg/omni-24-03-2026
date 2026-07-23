@@ -1,6 +1,6 @@
 # ETW Real-Time Telemetry Engine — Design
 
-Status: **P1–P2 implemented** (rest proposed) · Target: `agent-rust` (Windows agent, service `OmniAgentRust`) · Author: platform/agent
+Status: **P1–P3 implemented** (P4–P5 proposed) · Target: `agent-rust` (Windows agent, service `OmniAgentRust`) · Author: platform/agent
 
 > **Implementation status.**
 > - **P1** (§11) landed in `src/etw/`: `RawEvent` pipeline → bounded non-blocking queue →
@@ -11,9 +11,15 @@ Status: **P1–P2 implemented** (rest proposed) · Target: `agent-rust` (Windows
 >   (create-key / set-value) — plus a **process-tree correlator** that enriches
 >   network/registry events with the owning process's image + parent (`proc_image`,
 >   `proc_ppid`). Field/event-id coverage still needs validation on a Windows host.
-> - **Deferred from P2**: DNS-Client (also a manifest provider; folds into the same
->   UserTrace) — move to P3 alongside the rule engine.
-> - **P3–P5** (rule engine, ETW-TI, hardening) still proposed.
+> - **P3** landed: DNS-Client provider added to the UserTrace; `src/etw/rules.rs`
+>   behavioural engine (lolbin_spawn, office_spawns_shell, lsass_child_process,
+>   run_key_persistence, dns_tunneling_suspect) evaluated on enriched events, emitting
+>   `detections[]` in the batch. Backend (`agent_telemetry_endpoints.py`) stores
+>   detections and raises `security_alerts` for high/critical.
+> - **Deliberately deferred**: automated host response (kill/isolate on detection) stays
+>   on the backend playbook path — a local auto-kill on a false positive is too risky.
+>   Remaining rules needing file-provider or stateful scoring (mass-write, beaconing,
+>   unsigned-image), full registry key-path resolution, and ETW-TI/PPL are P4–P5.
 
 ## 1. Problem
 
