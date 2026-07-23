@@ -13,20 +13,20 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use tokio::sync::RwLock;
 
-use crate::{caps, caps2, cissp, config::Config, yara_scan};
+use crate::{buffer::Spool, caps, caps2, cissp, config::Config, yara_scan};
 
 // ── Instruction polling ────────────────────────────────────────────────────────
 
-pub async fn instruction_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, running: Arc<AtomicBool>) {
+pub async fn instruction_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, running: Arc<AtomicBool>, spool: Arc<Spool>) {
     loop {
         if !running.load(Ordering::Relaxed) { return; }
         tokio::time::sleep(Duration::from_secs(5)).await;
         if !running.load(Ordering::Relaxed) { return; }
 
-        let (agent_id, token, base) = {
+        let (agent_id, token, base, vt_key) = {
             let c = cfg.read().await;
             match (&c.agent_id, &c.agent_token) {
-                (Some(id), Some(tok)) => (id.clone(), tok.clone(), c.api_base_url.trim_end_matches('/').to_string()),
+                (Some(id), Some(tok)) => (id.clone(), tok.clone(), c.api_base_url.trim_end_matches('/').to_string(), c.virustotal_api_key.clone()),
                 _ => continue,
             }
         };
@@ -54,19 +54,31 @@ pub async fn instruction_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, r
                 .cloned().unwrap_or(json!({}));
 
             eprintln!("[OmniAgent] Instruction: {} ({})", instr_type, instr_id);
-            let result = dispatch_instruction(&instr_type, &payload, &client, &base, &agent_id, &token).await;
+            let mut result = dispatch_instruction(&instr_type, &payload, &client, &base, &agent_id, &token).await;
+
+            // Option B: enrich YARA hits against VirusTotal locally when a key is configured.
+            if let Some(key) = &vt_key {
+                if matches!(instr_type.as_str(), "run_yara_scan" | "Run YARA Scan" | "yara_scan") {
+                    if let Some(arr) = result.get_mut("matches").and_then(|v| v.as_array_mut()) {
+                        crate::vt::enrich_matches(&client, key, arr).await;
+                    }
+                }
+            }
 
             let result_url = format!("{}/api/agents/{}/instructions/result", base, agent_id);
-            let _ = client.post(&result_url)
-                .bearer_auth(&token)
-                .json(&json!({
-                    "instruction_id": instr_id,
-                    "task_id": item.get("task_id").and_then(|v| v.as_str()).unwrap_or(""),
-                    "type": instr_type,
-                    "status": result.get("status").and_then(|v| v.as_str()).unwrap_or("success"),
-                    "result": result,
-                }))
-                .send().await;
+            let result_body = json!({
+                "instruction_id": instr_id,
+                "task_id": item.get("task_id").and_then(|v| v.as_str()).unwrap_or(""),
+                "type": instr_type,
+                "status": result.get("status").and_then(|v| v.as_str()).unwrap_or("success"),
+                "result": result,
+            });
+            // Spool the result if the post fails so a command's outcome isn't lost to a
+            // transient outage — it retries on the next successful heartbeat.
+            match client.post(&result_url).bearer_auth(&token).json(&result_body).send().await {
+                Ok(r) if r.status().is_success() => {}
+                _ => spool.enqueue(&result_url, &result_body),
+            }
 
             // Post to capability-specific endpoint if applicable
             post_capability_result(&base, &agent_id, &token, &instr_type, &result, &client).await;
@@ -90,6 +102,8 @@ async fn post_capability_result(base: &str, id: &str, token: &str, instr: &str, 
             Some(format!("{}/api/agents/{}/software-inventory", base, id)),
         "run_pii_scan" | "Run PII Scan" =>
             Some(format!("{}/api/security/pii-findings", base)),
+        "run_yara_scan" | "Run YARA Scan" | "yara_scan" =>
+            Some(format!("{}/api/agents/{}/malware-scan", base, id)),
         _ => None,
     };
     if let Some(u) = url {
@@ -105,10 +119,10 @@ pub async fn edr_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, running: 
         tokio::time::sleep(Duration::from_secs(15)).await;
         if !running.load(Ordering::Relaxed) { return; }
 
-        let (agent_id, token, base) = {
+        let (agent_id, token, base, vt_key) = {
             let c = cfg.read().await;
             match (&c.agent_id, &c.agent_token) {
-                (Some(id), Some(tok)) => (id.clone(), tok.clone(), c.api_base_url.trim_end_matches('/').to_string()),
+                (Some(id), Some(tok)) => (id.clone(), tok.clone(), c.api_base_url.trim_end_matches('/').to_string(), c.virustotal_api_key.clone()),
                 _ => continue,
             }
         };
@@ -129,10 +143,28 @@ pub async fn edr_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, running: 
             let params  = task.get("params").cloned().unwrap_or(json!({}));
 
             eprintln!("[OmniAgent] EDR task: {} ({})", action, task_id);
-            let result = dispatch_edr_action(&action, &params).await;
+            let mut result = dispatch_edr_action(&action, &params).await;
+
+            // Option B: enrich YARA hits against VirusTotal locally when a key is configured.
+            if action == "yara_scan" {
+                if let Some(key) = &vt_key {
+                    if let Some(arr) = result.pointer_mut("/scan/matches").and_then(|v| v.as_array_mut()) {
+                        crate::vt::enrich_matches(&client, key, arr).await;
+                    }
+                }
+            }
 
             let result_url = format!("{}/api/response/tasks/{}/result", base, task_id);
             let _ = client.post(&result_url).bearer_auth(&token).json(&result).send().await;
+
+            // YARA hits carry per-file SHA256 — forward to the malware-scan route so
+            // the backend can enrich any hash the agent did not (Option A composes with B).
+            if action == "yara_scan" {
+                if let Some(scan) = result.get("scan") {
+                    let mal_url = format!("{}/api/agents/{}/malware-scan", base, agent_id);
+                    let _ = client.post(&mal_url).bearer_auth(&token).json(scan).send().await;
+                }
+            }
         }
     }
 }
@@ -355,6 +387,14 @@ pub async fn dispatch_instruction(instr: &str, payload: &Value, client: &Client,
 
         "run_threat_hunt" | "Run Threat Hunt" =>
             caps::run_threat_hunt().await,
+
+        "run_yara_scan" | "Run YARA Scan" | "yara_scan" => {
+            let paths: Vec<String> = payload.get("paths").and_then(|v| v.as_array())
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+            crate::yara_scan::run_yara_scan(&refs).await
+        },
 
         "kill_process" => {
             let pid  = payload.get("pid").and_then(|v| v.as_u64()).map(|p| p as u32);

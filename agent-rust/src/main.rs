@@ -6,11 +6,14 @@
 
 mod config;
 mod http;
+mod buffer;
+mod crypto;
 mod caps;
 mod caps2;
 mod caps3;
 mod compliance_native;
 mod yara_scan;
+mod vt;
 mod cissp;
 mod ws;
 mod poll;

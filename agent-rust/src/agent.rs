@@ -13,10 +13,33 @@ use sysinfo::System;
 use tokio::sync::RwLock;
 
 use chrono::Utc;
-use crate::{agentic, caps, caps2, caps3, cissp, compliance_native, config, http, olog, poll, shell, ws, yara_scan};
+use crate::{agentic, buffer, caps, caps2, caps3, cissp, compliance_native, config, http, olog, poll, shell, ws, yara_scan};
 
 const VERSION:          &str = "2.0.1-rust";
 const DEFAULT_INTERVAL: u64  = 15;
+
+/// Spawn a background task and keep it alive: if the task panics (or its future
+/// returns) while the agent is still running, log it and restart after a short delay.
+/// Without this, a single panic silently kills that capability for the process's life.
+fn supervise<F, Fut>(name: &'static str, running: Arc<AtomicBool>, make: F)
+where
+    F: Fn() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(async move {
+        while running.load(Ordering::Relaxed) {
+            match tokio::spawn(make()).await {
+                Ok(()) => {
+                    if !running.load(Ordering::Relaxed) { break; }
+                    olog!("[supervise] {} exited unexpectedly — restarting", name);
+                }
+                Err(e) => olog!("[supervise] {} panicked ({}) — restarting", name, e),
+            }
+            if !running.load(Ordering::Relaxed) { break; }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    });
+}
 
 // ── Registration ───────────────────────────────────────────────────────────────
 
@@ -207,11 +230,15 @@ async fn collect_meta(
     meta
 }
 
+/// Send one heartbeat. Returns `true` when the backend accepted it. On a network
+/// failure the payload is spooled for retry so telemetry survives an outage; a server
+/// error (4xx/5xx) is a rejection of the payload itself and is not queued.
 async fn send_heartbeat(
     client: &Client, base: &str, id: &str, token: &str,
     hostname: &str, sys: &mut System,
     sw_cache: &Value, hf_cache: &Value, hw_info: &Value, sec_data: &Value, is_admin: bool,
-) {
+    spool: &buffer::Spool,
+) -> bool {
     let meta = collect_meta(sys, sw_cache, hf_cache, hw_info, sec_data, is_admin).await;
     let payload = json!({
         "status":    "Online",
@@ -221,9 +248,8 @@ async fn send_heartbeat(
         "hostname":  hostname,
         "meta":      meta,
     });
-    match client.post(format!("{}/api/agents/{}/heartbeat", base, id))
-        .bearer_auth(token).json(&payload).send().await
-    {
+    let url = format!("{}/api/agents/{}/heartbeat", base, id);
+    match client.post(&url).bearer_auth(token).json(&payload).send().await {
         Ok(r) => {
             let status = r.status();
             if status.is_success() {
@@ -231,12 +257,18 @@ async fn send_heartbeat(
                     status.as_u16(),
                     payload["meta"]["current_cpu"].as_f64().unwrap_or(0.0),
                     payload["meta"]["current_memory"].as_f64().unwrap_or(0.0));
+                true
             } else {
                 let body = r.text().await.unwrap_or_default();
                 olog!("[heartbeat] server error {} — {}", status, &body[..body.len().min(200)]);
+                false
             }
         },
-        Err(e) => olog!("[heartbeat] FAILED (network): {}", e),
+        Err(e) => {
+            olog!("[heartbeat] FAILED (network): {} — spooling for retry", e);
+            spool.enqueue(&url, &payload);
+            false
+        }
     }
 }
 
@@ -263,7 +295,7 @@ pub async fn agent_loop(running: Arc<AtomicBool>) {
     let mut cfg  = config::load_config(&path);
     let base_url = cfg.api_base_url.trim_end_matches('/').to_string();
     let hostname = System::host_name().unwrap_or_else(|| "unknown-host".into());
-    let client   = Arc::new(http::build_client());
+    let client   = Arc::new(http::build_client(&cfg));
 
     // Log loaded config so the log file shows exactly what was read
     olog!("[start] OmniAgent v{}", VERSION);
@@ -333,18 +365,43 @@ pub async fn agent_loop(running: Arc<AtomicBool>) {
         });
     }
 
-    // Spawn all polling and monitoring background tasks
-    let tasks: Vec<tokio::task::JoinHandle<()>> = vec![
-        tokio::spawn(poll::instruction_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(poll::edr_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(poll::playbook_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(poll::threat_intel_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(shell::shell_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(agentic::agentic_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(agentic::realtime_fim_poller(shared_cfg.clone(), client.clone(), running.clone())),
-        tokio::spawn(ws::ws_client(shared_cfg.clone(), running.clone())),
-    ];
-    drop(tasks); // tasks run independently; we don't join them
+    // Offline store-and-forward spool — survives backend outages.
+    let spool = Arc::new(buffer::Spool::new());
+
+    // Spawn all polling/monitoring tasks under a supervisor so a panic in any one
+    // restarts it instead of silently killing that capability for the process's life.
+    supervise("instruction_poller", running.clone(), {
+        let (c, cl, r, sp) = (shared_cfg.clone(), client.clone(), running.clone(), spool.clone());
+        move || poll::instruction_poller(c.clone(), cl.clone(), r.clone(), sp.clone())
+    });
+    supervise("edr_poller", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || poll::edr_poller(c.clone(), cl.clone(), r.clone())
+    });
+    supervise("playbook_poller", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || poll::playbook_poller(c.clone(), cl.clone(), r.clone())
+    });
+    supervise("threat_intel_poller", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || poll::threat_intel_poller(c.clone(), cl.clone(), r.clone())
+    });
+    supervise("shell_poller", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || shell::shell_poller(c.clone(), cl.clone(), r.clone())
+    });
+    supervise("agentic_poller", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || agentic::agentic_poller(c.clone(), cl.clone(), r.clone())
+    });
+    supervise("realtime_fim_poller", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || agentic::realtime_fim_poller(c.clone(), cl.clone(), r.clone())
+    });
+    supervise("ws_client", running.clone(), {
+        let (c, r) = (shared_cfg.clone(), running.clone());
+        move || ws::ws_client(c.clone(), r.clone())
+    });
 
     let mut sys = System::new_all();
     let mut tick: u64 = 0;
@@ -467,7 +524,12 @@ pub async fn agent_loop(running: Arc<AtomicBool>) {
             };
             let hw_info  = hw_info_arc.read().await.clone();
             let sec_data = sec_cache.read().await.clone();
-            send_heartbeat(&client, &base_url, id, tok, &hostname, &mut sys, &sw_cache, &hf_cache, &hw_info, &sec_data, running_as_admin).await;
+            let online = send_heartbeat(&client, &base_url, id, tok, &hostname, &mut sys, &sw_cache, &hf_cache, &hw_info, &sec_data, running_as_admin, &spool).await;
+
+            // Connectivity confirmed — drain anything queued during an earlier outage.
+            if online {
+                spool.flush(&client, tok).await;
+            }
 
             // Proactive hunt every 120 ticks (~30 min)
             if hunt_tick % 120 == 0 {
