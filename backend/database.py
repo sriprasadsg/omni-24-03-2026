@@ -254,6 +254,11 @@ async def connect_to_mongo():
         await mongodb.db.audit_logs.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.fim_events.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.edr_telemetry.create_index([("tenantId", 1), ("timestamp", -1)])
+        # agent_telemetry: real-time ETW events (agent-rust ETW engine). High-volume, so
+        # compound indexes for tenant + per-agent queries, plus a TTL below.
+        await mongodb.db.agent_telemetry.create_index([("tenantId", 1), ("received_at", -1)])
+        await mongodb.db.agent_telemetry.create_index([("agent_id", 1), ("received_at", -1)])
+        await mongodb.db.agent_telemetry_batches.create_index([("agent_id", 1), ("received_at", -1)])
         await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.correlation_rules.create_index([("tenantId", 1), ("enabled", 1)])
@@ -293,6 +298,8 @@ async def connect_to_mongo():
         await mongodb.db.security_events.create_index("timestamp", expireAfterSeconds=7776000)   # 90 days
         await mongodb.db.audit_logs.create_index("timestamp", expireAfterSeconds=15552000)       # 180 days
         await mongodb.db.edr_telemetry.create_index("timestamp", expireAfterSeconds=2592000)     # 30 days
+        await mongodb.db.agent_telemetry.create_index("received_at", expireAfterSeconds=2592000)         # 30 days
+        await mongodb.db.agent_telemetry_batches.create_index("received_at", expireAfterSeconds=2592000) # 30 days
         await mongodb.db.fim_events.create_index("timestamp", expireAfterSeconds=7776000)        # 90 days
 
         # TTL indexes for auth/security collections that previously grew unboundedly.
