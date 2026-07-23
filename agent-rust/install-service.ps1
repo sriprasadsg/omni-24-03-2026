@@ -157,6 +157,11 @@ registration_key: $RegistrationKey
 interval_seconds: 60
 evidence_collection: true
 evidence_interval_hours: 24
+# TLS certificate verification (secure by default). Set to false ONLY for local dev
+# against a self-signed backend — it exposes traffic to man-in-the-middle. To trust a
+# private/internal CA instead, keep verify_tls: true and set ca_cert_path to a PEM file.
+verify_tls: true
+# ca_cert_path: C:\Program Files\OmniAgent\internal-ca.pem
 "@
     Write-Ok "Config written: $ConfigDst"
 } else {
@@ -219,8 +224,11 @@ Write-Step "Creating Windows service '$ServiceName' ..."
 
 # Configure failure recovery: restart after 5 s, 3 consecutive failures
 & sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null
+# Also trigger recovery when the process exits non-zero (e.g. a panic that unwinds to
+# the top), not only on a hard crash — so a killed/failed agent self-heals.
+& sc.exe failureflag $ServiceName 1 | Out-Null
 
-Write-Ok "Service created (LocalSystem, auto-start)."
+Write-Ok "Service created (LocalSystem, auto-start, failure recovery on crash + error exit)."
 
 # 7. Set service to delayed auto-start so network is available on boot
 Write-Step "Setting delayed auto-start..."
