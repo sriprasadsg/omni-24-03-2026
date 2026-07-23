@@ -259,6 +259,8 @@ async def connect_to_mongo():
         await mongodb.db.agent_telemetry.create_index([("tenantId", 1), ("received_at", -1)])
         await mongodb.db.agent_telemetry.create_index([("agent_id", 1), ("received_at", -1)])
         await mongodb.db.agent_telemetry_batches.create_index([("agent_id", 1), ("received_at", -1)])
+        await mongodb.db.agent_detections.create_index([("tenantId", 1), ("received_at", -1)])
+        await mongodb.db.agent_detections.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.correlation_rules.create_index([("tenantId", 1), ("enabled", 1)])

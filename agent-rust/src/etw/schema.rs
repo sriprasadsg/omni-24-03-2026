@@ -26,6 +26,7 @@ use serde_json::{json, Value};
 pub const KERNEL_PROCESS_GUID: &str = "22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716";
 pub const KERNEL_NETWORK_GUID: &str = "7dd42a49-5329-4832-8dfd-43d979153a88";
 pub const KERNEL_REGISTRY_GUID: &str = "70eb4f03-c1de-4f73-a051-33d13d5413bd";
+pub const DNS_CLIENT_GUID: &str = "1c95126e-7eea-49a9-a3fe-a378b03ddb4d";
 
 /// A normalized host event ready for correlation + upload.
 pub enum RawEvent {
@@ -52,6 +53,13 @@ pub enum RawEvent {
         value_name: Option<String>,
         ts_unix: i64,
     },
+    Dns {
+        kind: &'static str,
+        pid: u32,
+        qname: Option<String>,
+        qtype: Option<u32>,
+        ts_unix: i64,
+    },
 }
 
 impl RawEvent {
@@ -61,6 +69,7 @@ impl RawEvent {
             RawEvent::Process { pid, .. } => *pid,
             RawEvent::Network { pid, .. } => *pid,
             RawEvent::Registry { pid, .. } => *pid,
+            RawEvent::Dns { pid, .. } => *pid,
         }
     }
 
@@ -77,6 +86,10 @@ impl RawEvent {
             RawEvent::Registry { kind, pid, key, value_name, ts_unix } => json!({
                 "kind": kind, "pid": pid, "key": key,
                 "value_name": value_name, "ts_unix": ts_unix,
+            }),
+            RawEvent::Dns { kind, pid, qname, qtype, ts_unix } => json!({
+                "kind": kind, "pid": pid, "qname": qname,
+                "qtype": qtype, "ts_unix": ts_unix,
             }),
         }
     }
@@ -152,6 +165,22 @@ pub fn decode_registry(record: &EventRecord, schema_locator: &SchemaLocator) -> 
         pid: record.process_id(),
         key,
         value_name: parser.try_parse::<String>("ValueName").ok(),
+        ts_unix: ts(record),
+    })
+}
+
+/// Microsoft-Windows-DNS-Client. Event id 3006 = query initiated (QueryName/QueryType).
+pub fn decode_dns(record: &EventRecord, schema_locator: &SchemaLocator) -> Option<RawEvent> {
+    if record.event_id() != 3006 {
+        return None;
+    }
+    let schema = schema_locator.event_schema(record).ok()?;
+    let parser = Parser::create(record, &schema);
+    Some(RawEvent::Dns {
+        kind: "dns_query",
+        pid: record.process_id(),
+        qname: parser.try_parse::<String>("QueryName").ok(),
+        qtype: parser.try_parse::<u32>("QueryType").ok(),
         ts_unix: ts(record),
     })
 }

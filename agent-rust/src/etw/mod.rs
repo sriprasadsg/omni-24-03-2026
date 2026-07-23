@@ -43,6 +43,9 @@ pub async fn start_engine(
 mod schema;
 
 #[cfg(windows)]
+mod rules;
+
+#[cfg(windows)]
 mod windows_impl {
     use super::*;
     use std::collections::{HashMap, VecDeque};
@@ -56,9 +59,10 @@ mod windows_impl {
     use serde_json::{json, Value};
     use tokio::sync::mpsc;
 
+    use super::rules;
     use super::schema::{
-        decode_network, decode_process, decode_registry, RawEvent, KERNEL_NETWORK_GUID,
-        KERNEL_PROCESS_GUID, KERNEL_REGISTRY_GUID,
+        decode_dns, decode_network, decode_process, decode_registry, RawEvent, DNS_CLIENT_GUID,
+        KERNEL_NETWORK_GUID, KERNEL_PROCESS_GUID, KERNEL_REGISTRY_GUID,
     };
 
     /// Bounded queue between the (synchronous) ETW callback and the async upload loop.
@@ -118,14 +122,24 @@ mod windows_impl {
 
         fn enrich(&self, ev: &RawEvent) -> Value {
             let mut j = ev.to_json();
+            let obj = match j.as_object_mut() {
+                Some(o) => o,
+                None => return j,
+            };
+            // Owning process lineage (image + parent) for the event's pid.
             if let Some((ppid, image)) = self.table.get(&ev.pid()) {
-                if let Some(obj) = j.as_object_mut() {
-                    if let Some(img) = image {
-                        obj.entry("proc_image").or_insert_with(|| json!(img));
-                    }
-                    if let Some(pp) = ppid {
-                        obj.entry("proc_ppid").or_insert_with(|| json!(pp));
-                    }
+                if let Some(img) = image {
+                    obj.entry("proc_image").or_insert_with(|| json!(img));
+                }
+                if let Some(pp) = ppid {
+                    obj.entry("proc_ppid").or_insert_with(|| json!(pp));
+                }
+            }
+            // For a process start, resolve the parent's image so rules can reason about
+            // parent→child relationships (e.g. Office spawning a shell).
+            if let RawEvent::Process { ppid: Some(pp), .. } = ev {
+                if let Some((_, Some(parent_img))) = self.table.get(pp) {
+                    obj.insert("parent_image".into(), json!(parent_img));
                 }
             }
             j
@@ -163,6 +177,7 @@ mod windows_impl {
         let process_provider = make_provider(KERNEL_PROCESS_GUID, tx.clone(), dropped.clone(), decode_process);
         let network_provider = make_provider(KERNEL_NETWORK_GUID, tx.clone(), dropped.clone(), decode_network);
         let registry_provider = make_provider(KERNEL_REGISTRY_GUID, tx.clone(), dropped.clone(), decode_registry);
+        let dns_provider = make_provider(DNS_CLIENT_GUID, tx.clone(), dropped.clone(), decode_dns);
         drop(tx); // only the callbacks' clones keep the channel open; rx ends when the trace stops
 
         let trace = match UserTrace::new()
@@ -170,6 +185,7 @@ mod windows_impl {
             .enable(process_provider)
             .enable(network_provider)
             .enable(registry_provider)
+            .enable(dns_provider)
             .start_and_process()
         {
             Ok(t) => t,
@@ -178,10 +194,11 @@ mod windows_impl {
                 return;
             }
         };
-        crate::olog!("[etw] telemetry started (session OmniAgent-ETW): process + network + registry");
+        crate::olog!("[etw] telemetry started (session OmniAgent-ETW): process + network + registry + dns");
 
         let url = format!("{}/api/agents/{}/telemetry", base, agent_id);
         let mut batch: Vec<Value> = Vec::with_capacity(BATCH_MAX);
+        let mut detections: Vec<Value> = Vec::new();
         let mut correlator = Correlator::new();
         let mut ticker = tokio::time::interval(Duration::from_secs(FLUSH_SECS));
 
@@ -193,20 +210,24 @@ mod windows_impl {
                 maybe = rx.recv() => match maybe {
                     Some(ev) => {
                         correlator.observe(&ev);
-                        batch.push(correlator.enrich(&ev));
+                        let enriched = correlator.enrich(&ev);
+                        for det in rules::evaluate(&enriched) {
+                            detections.push(det.to_json());
+                        }
+                        batch.push(enriched);
                         if batch.len() >= BATCH_MAX {
-                            flush(&client, &url, &token, &agent_id, &mut batch, &spool, &dropped).await;
+                            flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped).await;
                         }
                     }
                     None => break, // trace stopped / channel closed
                 },
                 _ = ticker.tick() => {
-                    flush(&client, &url, &token, &agent_id, &mut batch, &spool, &dropped).await;
+                    flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped).await;
                 }
             }
         }
 
-        flush(&client, &url, &token, &agent_id, &mut batch, &spool, &dropped).await;
+        flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped).await;
         let _ = trace.stop();
         crate::olog!("[etw] telemetry engine stopped");
     }
@@ -217,10 +238,11 @@ mod windows_impl {
         token: &str,
         agent_id: &str,
         batch: &mut Vec<Value>,
+        detections: &mut Vec<Value>,
         spool: &Spool,
         dropped: &AtomicU64,
     ) {
-        if batch.is_empty() {
+        if batch.is_empty() && detections.is_empty() {
             return;
         }
         let now = chrono::Utc::now();
@@ -229,6 +251,7 @@ mod windows_impl {
             "collected_at": now.to_rfc3339(),
             "dropped_events": dropped.swap(0, Ordering::Relaxed),
             "events": std::mem::take(batch),
+            "detections": std::mem::take(detections),
         });
         // Only a transport failure is retryable (spool for later). A server response —
         // including a 404 from a backend that hasn't shipped /telemetry yet — is a
