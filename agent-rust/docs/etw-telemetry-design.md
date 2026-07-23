@@ -1,12 +1,19 @@
 # ETW Real-Time Telemetry Engine — Design
 
-Status: **P1 skeleton implemented** (rest proposed) · Target: `agent-rust` (Windows agent, service `OmniAgentRust`) · Author: platform/agent
+Status: **P1–P2 implemented** (rest proposed) · Target: `agent-rust` (Windows agent, service `OmniAgentRust`) · Author: platform/agent
 
-> **Implementation status.** Phase 1 (§11) has landed in `src/etw/`: a `ferrisetw`
-> Kernel-Process session → `RawEvent` → bounded non-blocking queue → batched upload to
-> `POST /api/agents/{id}/telemetry`, supervised and reusing the offline `Spool`. Backend
-> endpoint is not built yet — until it exists, batches are dropped (not spooled) on the
-> 404. Correlator, additional providers, and the rule engine (P2–P5) are still proposed.
+> **Implementation status.**
+> - **P1** (§11) landed in `src/etw/`: `RawEvent` pipeline → bounded non-blocking queue →
+>   batched upload to `POST /api/agents/{id}/telemetry`, supervised, reusing the offline
+>   `Spool`. Backend receiver now exists (`agent_security_endpoints.py`).
+> - **P2** landed: migrated to a `ferrisetw` **UserTrace** with three **manifest**
+>   providers — Kernel-Process, Kernel-Network (TCP connect/accept), Kernel-Registry
+>   (create-key / set-value) — plus a **process-tree correlator** that enriches
+>   network/registry events with the owning process's image + parent (`proc_image`,
+>   `proc_ppid`). Field/event-id coverage still needs validation on a Windows host.
+> - **Deferred from P2**: DNS-Client (also a manifest provider; folds into the same
+>   UserTrace) — move to P3 alongside the rule engine.
+> - **P3–P5** (rule engine, ETW-TI, hardening) still proposed.
 
 ## 1. Problem
 

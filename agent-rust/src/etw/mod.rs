@@ -45,17 +45,21 @@ mod schema;
 #[cfg(windows)]
 mod windows_impl {
     use super::*;
+    use std::collections::{HashMap, VecDeque};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
-    use ferrisetw::provider::{kernel_providers, Provider};
+    use ferrisetw::provider::Provider;
     use ferrisetw::schema_locator::SchemaLocator;
-    use ferrisetw::trace::KernelTrace;
+    use ferrisetw::trace::UserTrace;
     use ferrisetw::EventRecord;
     use serde_json::{json, Value};
     use tokio::sync::mpsc;
 
-    use super::schema::{decode_process, RawEvent};
+    use super::schema::{
+        decode_network, decode_process, decode_registry, RawEvent, KERNEL_NETWORK_GUID,
+        KERNEL_PROCESS_GUID, KERNEL_REGISTRY_GUID,
+    };
 
     /// Bounded queue between the (synchronous) ETW callback and the async upload loop.
     /// The callback NEVER blocks — a full queue drops the event and bumps a counter, so a
@@ -63,6 +67,70 @@ mod windows_impl {
     const CHANNEL_CAP: usize = 65_536;
     const BATCH_MAX: usize = 512;
     const FLUSH_SECS: u64 = 2;
+    /// Live-process table bound. Beyond this, oldest-inserted entries are evicted.
+    const PROC_TABLE_CAP: usize = 16_384;
+
+    type DecodeFn = fn(&EventRecord, &SchemaLocator) -> Option<RawEvent>;
+
+    /// Build a manifest provider whose callback decodes events and funnels them onto the
+    /// bounded channel. The callback never blocks: a full queue drops + counts the event.
+    fn make_provider(
+        guid: &str,
+        tx: mpsc::Sender<RawEvent>,
+        dropped: Arc<AtomicU64>,
+        decode: DecodeFn,
+    ) -> Provider {
+        Provider::by_guid(guid)
+            .add_callback(move |record: &EventRecord, sl: &SchemaLocator| {
+                if let Some(ev) = decode(record, sl) {
+                    if tx.try_send(ev).is_err() {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+            })
+            .build()
+    }
+
+    /// Process lineage seen so far. Enriches network/registry events with the owning
+    /// process's image + parent, so a connection or Run-key write carries who did it.
+    struct Correlator {
+        table: HashMap<u32, (Option<u32>, Option<String>)>, // pid -> (ppid, image)
+        order: VecDeque<u32>,
+    }
+
+    impl Correlator {
+        fn new() -> Self {
+            Correlator { table: HashMap::new(), order: VecDeque::new() }
+        }
+
+        fn observe(&mut self, ev: &RawEvent) {
+            if let RawEvent::Process { kind, pid, ppid, image, .. } = ev {
+                if *kind == "process_start" && self.table.insert(*pid, (*ppid, image.clone())).is_none() {
+                    self.order.push_back(*pid);
+                    if self.order.len() > PROC_TABLE_CAP {
+                        if let Some(old) = self.order.pop_front() {
+                            self.table.remove(&old);
+                        }
+                    }
+                }
+            }
+        }
+
+        fn enrich(&self, ev: &RawEvent) -> Value {
+            let mut j = ev.to_json();
+            if let Some((ppid, image)) = self.table.get(&ev.pid()) {
+                if let Some(obj) = j.as_object_mut() {
+                    if let Some(img) = image {
+                        obj.entry("proc_image").or_insert_with(|| json!(img));
+                    }
+                    if let Some(pp) = ppid {
+                        obj.entry("proc_ppid").or_insert_with(|| json!(pp));
+                    }
+                }
+            }
+            j
+        }
+    }
 
     pub async fn run(
         cfg: Arc<RwLock<Config>>,
@@ -91,36 +159,30 @@ mod windows_impl {
         let (tx, mut rx) = mpsc::channel::<RawEvent>(CHANNEL_CAP);
         let dropped = Arc::new(AtomicU64::new(0));
 
-        // ETW callback runs on ferrisetw's own processing thread. Keep it minimal:
-        // decode and try_send only — no allocation-heavy work, no blocking, no I/O.
-        let cb_tx = tx.clone();
-        let cb_dropped = dropped.clone();
-        let provider = Provider::kernel(&kernel_providers::PROCESS_PROVIDER)
-            .add_callback(move |record: &EventRecord, sl: &SchemaLocator| {
-                if let Some(ev) = decode_process(record, sl) {
-                    if cb_tx.try_send(ev).is_err() {
-                        cb_dropped.fetch_add(1, Ordering::Relaxed);
-                    }
-                }
-            })
-            .build();
-        drop(tx); // only the callback's clone keeps the channel open; rx ends when the trace stops
+        // One provider per manifest source; each callback funnels to the same channel.
+        let process_provider = make_provider(KERNEL_PROCESS_GUID, tx.clone(), dropped.clone(), decode_process);
+        let network_provider = make_provider(KERNEL_NETWORK_GUID, tx.clone(), dropped.clone(), decode_network);
+        let registry_provider = make_provider(KERNEL_REGISTRY_GUID, tx.clone(), dropped.clone(), decode_registry);
+        drop(tx); // only the callbacks' clones keep the channel open; rx ends when the trace stops
 
-        let trace = match KernelTrace::new()
+        let trace = match UserTrace::new()
             .named("OmniAgent-ETW".to_string())
-            .enable(provider)
+            .enable(process_provider)
+            .enable(network_provider)
+            .enable(registry_provider)
             .start_and_process()
         {
             Ok(t) => t,
             Err(e) => {
-                crate::olog!("[etw] failed to start kernel trace: {:?} — engine disabled", e);
+                crate::olog!("[etw] failed to start user trace: {:?} — engine disabled", e);
                 return;
             }
         };
-        crate::olog!("[etw] kernel-process telemetry started (session OmniAgent-ETW)");
+        crate::olog!("[etw] telemetry started (session OmniAgent-ETW): process + network + registry");
 
         let url = format!("{}/api/agents/{}/telemetry", base, agent_id);
         let mut batch: Vec<Value> = Vec::with_capacity(BATCH_MAX);
+        let mut correlator = Correlator::new();
         let mut ticker = tokio::time::interval(Duration::from_secs(FLUSH_SECS));
 
         loop {
@@ -130,7 +192,8 @@ mod windows_impl {
             tokio::select! {
                 maybe = rx.recv() => match maybe {
                     Some(ev) => {
-                        batch.push(ev.to_json());
+                        correlator.observe(&ev);
+                        batch.push(correlator.enrich(&ev));
                         if batch.len() >= BATCH_MAX {
                             flush(&client, &url, &token, &agent_id, &mut batch, &spool, &dropped).await;
                         }
