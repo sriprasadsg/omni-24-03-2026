@@ -112,9 +112,12 @@ def test_rust02_and_rust03_db_calls():
         # RUST-02b: every $push evidence record must also carry agent_type=rust
         if len(args) >= 2 and "$push" in args[1]:
             pushed_ev = args[1]["$push"].get("evidence", {})
-            assert pushed_ev.get("agent_type") == "rust", (
-                f"$push.evidence missing agent_type=rust: {pushed_ev}"
-            )
+            # evidence is bulk-pushed as {"$each": [<doc>, ...]}; unwrap it
+            items = pushed_ev.get("$each", [pushed_ev]) if isinstance(pushed_ev, dict) else [pushed_ev]
+            for ev in items:
+                assert ev.get("agent_type") == "rust", (
+                    f"$push.evidence missing agent_type=rust: {ev}"
+                )
         # Collect control IDs for RUST-03
         if isinstance(args[0], dict) and "controlId" in args[0]:
             filters_seen.add(args[0]["controlId"])
