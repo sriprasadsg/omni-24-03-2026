@@ -129,7 +129,6 @@ const SaaSIntegrationsDashboard: React.FC = () => {
     }
 
     const expectedOrigin = window.location.origin;
-    let pollClosed: ReturnType<typeof setInterval>;
 
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== expectedOrigin) return;
@@ -146,7 +145,7 @@ const SaaSIntegrationsDashboard: React.FC = () => {
     window.addEventListener('message', onMessage);
 
     // Cleanup listener if popup is closed without completing OAuth
-    pollClosed = setInterval(() => {
+    const pollClosed = setInterval(() => {
       if (popup.closed) {
         clearInterval(pollClosed);
         window.removeEventListener('message', onMessage);
