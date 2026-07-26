@@ -28,6 +28,9 @@ async def _ensure_rust_binary(rust_src: Path) -> Path:
     exe = rust_src / "target" / _RUST_TARGET / "release" / "omni-agent.exe"
     if exe.exists():
         if _sources_newer_than(exe, rust_src):
+            if not shutil.which("x86_64-w64-mingw32-gcc"):
+                logger.warning("Toolchain missing, reusing old binary despite source changes")
+                return exe
             logger.info("Cached Rust binary is older than sources — rebuilding")
         else:
             logger.info("Reusing cached Rust binary (%s KB)", exe.stat().st_size // 1024)
@@ -62,7 +65,21 @@ async def _ensure_rust_binary(rust_src: Path) -> Path:
     return exe
 
 
-def _setup_svc_rust_ps1(api_url: str, reg_key: str) -> str:
+def _rust_agent_version(rust_src: Path) -> str:
+    """Read [package] version from the shipped agent's Cargo.toml so installer
+    version strings track the real binary instead of drifting hardcoded values."""
+    import re
+    try:
+        txt = (rust_src / "Cargo.toml").read_text(encoding="utf-8")
+        m = re.search(r'(?m)^\s*version\s*=\s*"([^"]+)"', txt)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return "0.0.0"
+
+
+def _setup_svc_rust_ps1(api_url: str, reg_key: str, version: str) -> str:
     """PowerShell installer script — uses sc.exe (native Windows) to register the service.
     The Rust binary itself implements the Windows Service API (windows-service crate),
     so no WinSW wrapper or .NET Framework is needed."""
@@ -109,7 +126,7 @@ if ($LASTEXITCODE -ne 0) {{
     Write-Error "sc.exe create failed (exit $LASTEXITCODE): $createOut"
 }}
 
-& sc.exe description $svcName "Lightweight AI security agent - Rust edition v2.0.1" | Out-Null
+& sc.exe description $svcName "Lightweight AI security agent - Rust edition v{version}" | Out-Null
 
 # Auto-restart: 5 s, 15 s, 30 s, then reset failure count after 24 h
 & sc.exe failure $svcName reset= 86400 actions= restart/5000/restart/15000/restart/30000 | Out-Null
@@ -155,7 +172,7 @@ Stop-Transcript | Out-Null
 """
 
 
-def _build_nsi_rust(tenant_name: str, pkg_dir: Path, outfile: str) -> str:
+def _build_nsi_rust(tenant_name: str, pkg_dir: Path, outfile: str, version: str) -> str:
     esc = lambda s: s.replace('"', '$\\"')
     files = "\n".join(
         f'  File "{pkg_dir / f.name}"'
@@ -172,7 +189,7 @@ def _build_nsi_rust(tenant_name: str, pkg_dir: Path, outfile: str) -> str:
     )
     return f"""; OmniAgent Rust Installer — auto-generated
 !include "MUI2.nsh"
-Name "OmniAgent Rust 2.0 — {esc(tenant_name)}"
+Name "OmniAgent Rust {version} — {esc(tenant_name)}"
 OutFile "{outfile}"
 InstallDir "$PROGRAMFILES64\\OmniAgentRust"
 RequestExecutionLevel admin
@@ -190,11 +207,18 @@ SetCompressor lzma
 
 Section "OmniAgent (Rust)"
   SectionIn RO
+  ; Upgrade path: a running OmniAgentRust service holds an exclusive lock on its
+  ; own omni-agent.exe, so File (below) cannot overwrite it and the agent would
+  ; silently stay on the old binary. Stop + delete the service, stop the tray
+  ; task, and kill any stray process FIRST so the binary is unlocked before copy.
+  DetailPrint "Stopping any existing OmniAgent (Rust) install for upgrade..."
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Stop-Service OmniAgentRust -Force -EA SilentlyContinue; Start-Sleep 2; sc.exe delete OmniAgentRust | Out-Null; Stop-ScheduledTask -TaskName OmniAgentTray -EA SilentlyContinue; Get-Process omni-agent -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue; Start-Sleep 2"'
   SetOutPath "$INSTDIR"
+  SetOverwrite on
 {files}
   nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\\setup_svc.ps1"'
   WriteRegStr   HKLM "${{UNINST}}" "DisplayName"     "OmniAgent (Rust Edition)"
-  WriteRegStr   HKLM "${{UNINST}}" "DisplayVersion"  "2.0.0-rust"
+  WriteRegStr   HKLM "${{UNINST}}" "DisplayVersion"  "{version}"
   WriteRegStr   HKLM "${{UNINST}}" "Publisher"       "Enterprise OmniAgent AI Platform"
   WriteRegStr   HKLM "${{UNINST}}" "UninstallString" '"$INSTDIR\\Uninstall.exe"'
   WriteRegDWORD HKLM "${{UNINST}}" "NoModify" 1
@@ -227,14 +251,16 @@ async def prepare_rust_pkg(pkg_dir: Path, base_dir: Path, api_url: str, registra
     registers the service + the OmniAgentTray logon task — no Python, no WinSW,
     and nothing to run by hand post-install."""
     pkg_dir.mkdir(parents=True, exist_ok=True)
-    binary = await _ensure_rust_binary(_rust_src(base_dir))
+    rust_src = _rust_src(base_dir)
+    binary = await _ensure_rust_binary(rust_src)
+    version = _rust_agent_version(rust_src)
     shutil.copy2(binary, pkg_dir / "omni-agent.exe")
     with open(pkg_dir / "config.yaml", "w", encoding="utf-8") as f:
         yaml.dump(_config_yaml(api_url, registration_key), f, default_flow_style=False, sort_keys=True)
     # utf-8-sig: Windows PowerShell 5.1 assumes ANSI without a BOM, which mangles
     # any non-ASCII byte in the script.
     (pkg_dir / "setup_svc.ps1").write_text(
-        _setup_svc_rust_ps1(api_url, registration_key), encoding="utf-8-sig")
+        _setup_svc_rust_ps1(api_url, registration_key, version), encoding="utf-8-sig")
 
 
 async def build_rust_exe(
@@ -254,7 +280,8 @@ async def build_rust_exe(
         # Build NSIS installer (no WinSW needed — sc.exe registers the service)
         exe_out  = temp_dir / f"OmniAgent-Rust-{tenant_safe}-Setup.exe"
         nsi_path = temp_dir / "install.nsi"
-        nsi_path.write_text(_build_nsi_rust(tenant_name, pkg_dir, str(exe_out)), encoding="utf-8")
+        version  = _rust_agent_version(_rust_src(base_dir))
+        nsi_path.write_text(_build_nsi_rust(tenant_name, pkg_dir, str(exe_out), version), encoding="utf-8")
 
         proc = await asyncio.create_subprocess_exec(
             makensis, str(nsi_path), cwd=str(temp_dir),
