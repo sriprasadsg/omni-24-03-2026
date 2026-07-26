@@ -108,7 +108,7 @@ const NotificationCenter: React.FC = () => {
         poll(); // initial fetch on mount
         const timer = setInterval(poll, 60_000);
         return () => clearInterval(timer);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

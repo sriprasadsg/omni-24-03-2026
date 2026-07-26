@@ -140,7 +140,7 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     if (!viewingAgentDetails) return;
     const updated = agents.find(a => a.id === viewingAgentDetails.id);
     if (updated) setViewingAgentDetails(updated);
-  }, [agents]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [agents]);
 
   const [isRefreshingAgent, setIsRefreshingAgent] = useState(false);
 

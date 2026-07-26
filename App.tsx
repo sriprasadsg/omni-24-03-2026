@@ -472,7 +472,7 @@ const App: React.FC = () => {
     };
     const timer = setInterval(tick, 30_000);
     return () => clearInterval(timer);
-  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
   // Refresh recent alerts every 60 s while the dashboard is visible
   // Note: fetchAlerts() without tenantId uses server-side tenant from the JWT
@@ -484,7 +484,7 @@ const App: React.FC = () => {
     };
     const timer = setInterval(tick, 60_000);
     return () => clearInterval(timer);
-  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
   // ── Support chat in-app toast queue & unread count ────────────────────────
   const [supportToasts, setSupportToasts] = useState<SupportToastData[]>([]);
