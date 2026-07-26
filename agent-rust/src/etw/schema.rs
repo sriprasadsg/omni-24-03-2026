@@ -27,6 +27,7 @@ pub const KERNEL_PROCESS_GUID: &str = "22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716";
 pub const KERNEL_NETWORK_GUID: &str = "7dd42a49-5329-4832-8dfd-43d979153a88";
 pub const KERNEL_REGISTRY_GUID: &str = "70eb4f03-c1de-4f73-a051-33d13d5413bd";
 pub const DNS_CLIENT_GUID: &str = "1c95126e-7eea-49a9-a3fe-a378b03ddb4d";
+pub const KERNEL_FILE_GUID: &str = "001525eb-0425-4df1-8d46-8c2a8468e4be";
 
 /// A normalized host event ready for correlation + upload.
 pub enum RawEvent {
@@ -60,6 +61,12 @@ pub enum RawEvent {
         qtype: Option<u32>,
         ts_unix: i64,
     },
+    File {
+        kind: &'static str,
+        pid: u32,
+        path: Option<String>,
+        ts_unix: i64,
+    },
 }
 
 impl RawEvent {
@@ -70,6 +77,7 @@ impl RawEvent {
             RawEvent::Network { pid, .. } => *pid,
             RawEvent::Registry { pid, .. } => *pid,
             RawEvent::Dns { pid, .. } => *pid,
+            RawEvent::File { pid, .. } => *pid,
         }
     }
 
@@ -90,6 +98,9 @@ impl RawEvent {
             RawEvent::Dns { kind, pid, qname, qtype, ts_unix } => json!({
                 "kind": kind, "pid": pid, "qname": qname,
                 "qtype": qtype, "ts_unix": ts_unix,
+            }),
+            RawEvent::File { kind, pid, path, ts_unix } => json!({
+                "kind": kind, "pid": pid, "path": path, "ts_unix": ts_unix,
             }),
         }
     }
@@ -181,6 +192,25 @@ pub fn decode_dns(record: &EventRecord, schema_locator: &SchemaLocator) -> Optio
         pid: record.process_id(),
         qname: parser.try_parse::<String>("QueryName").ok(),
         qtype: parser.try_parse::<u32>("QueryType").ok(),
+        ts_unix: ts(record),
+    })
+}
+
+/// Microsoft-Windows-Kernel-File. Event ids: 12=FileCreate, 14=FileRundown,
+/// 15=FileDelete, 16=FileRename. Field `FileName` carries the full path.
+pub fn decode_file(record: &EventRecord, schema_locator: &SchemaLocator) -> Option<RawEvent> {
+    let kind = match record.event_id() {
+        12 => "file_create",
+        15 => "file_delete",
+        16 => "file_rename",
+        _ => return None,
+    };
+    let schema = schema_locator.event_schema(record).ok()?;
+    let parser = Parser::create(record, &schema);
+    Some(RawEvent::File {
+        kind,
+        pid: record.process_id(),
+        path: parser.try_parse::<String>("FileName").ok(),
         ts_unix: ts(record),
     })
 }

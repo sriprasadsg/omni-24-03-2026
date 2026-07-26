@@ -11,12 +11,55 @@
  *
  * Non-Windows builds compile a no-op stub so the crate checks/builds on Linux CI.
  */
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 
 use reqwest::Client;
+use serde_json::{json, Value};
 use tokio::sync::RwLock;
 
 use crate::{buffer::Spool, config::Config};
+
+use once_cell::sync::OnceCell;
+
+pub struct EtwMetrics {
+    pub events_total: AtomicU64,
+    pub dropped_total: AtomicU64,
+    pub detections_total: AtomicU64,
+    pub restarts: AtomicU64,
+    pub session_up: AtomicBool,
+    pub last_event_unix: AtomicU64,
+    /// True when high-volume providers (file) have been shed to survive a storm.
+    pub file_shed: AtomicBool,
+}
+
+pub static METRICS: OnceCell<EtwMetrics> = OnceCell::new();
+
+impl EtwMetrics {
+    pub fn new() -> Self {
+        EtwMetrics {
+            events_total: AtomicU64::new(0),
+            dropped_total: AtomicU64::new(0),
+            detections_total: AtomicU64::new(0),
+            restarts: AtomicU64::new(0),
+            session_up: AtomicBool::new(false),
+            last_event_unix: AtomicU64::new(0),
+            file_shed: AtomicBool::new(false),
+        }
+    }
+
+    pub fn snapshot_json(&self) -> Value {
+        json!({
+            "session_up":       self.session_up.load(Ordering::Relaxed),
+            "events_total":     self.events_total.load(Ordering::Relaxed),
+            "dropped_total":    self.dropped_total.load(Ordering::Relaxed),
+            "detections_total": self.detections_total.load(Ordering::Relaxed),
+            "restarts":         self.restarts.load(Ordering::Relaxed),
+            "last_event_unix":  self.last_event_unix.load(Ordering::Relaxed),
+            "file_shed":        self.file_shed.load(Ordering::Relaxed),
+        })
+    }
+}
 
 #[cfg(not(windows))]
 #[allow(dead_code)]
@@ -27,6 +70,7 @@ pub async fn start_engine(
     _spool: Arc<Spool>,
 ) {
     crate::olog!("[etw] real-time telemetry unsupported on this platform — engine disabled");
+    METRICS.get_or_init(EtwMetrics::new).session_up.store(false, Ordering::Relaxed);
 }
 
 #[cfg(windows)]
@@ -36,6 +80,7 @@ pub async fn start_engine(
     running: Arc<AtomicBool>,
     spool: Arc<Spool>,
 ) {
+    let _ = METRICS.set(EtwMetrics::new());
     windows_impl::run(cfg, client, running, spool).await;
 }
 
@@ -61,82 +106,55 @@ mod windows_impl {
 
     use super::rules;
     use super::schema::{
-        decode_dns, decode_network, decode_process, decode_registry, RawEvent, DNS_CLIENT_GUID,
-        KERNEL_NETWORK_GUID, KERNEL_PROCESS_GUID, KERNEL_REGISTRY_GUID,
+        decode_dns, decode_file, decode_network, decode_process, decode_registry, RawEvent, DNS_CLIENT_GUID,
+        KERNEL_FILE_GUID, KERNEL_NETWORK_GUID, KERNEL_PROCESS_GUID, KERNEL_REGISTRY_GUID,
     };
 
-    /// Bounded queue between the (synchronous) ETW callback and the async upload loop.
-    /// The callback NEVER blocks — a full queue drops the event and bumps a counter, so a
-    /// storm can't stall the kernel session (which would lose events system-wide).
     const CHANNEL_CAP: usize = 65_536;
     const BATCH_MAX: usize = 512;
     const FLUSH_SECS: u64 = 2;
-    /// Live-process table bound. Beyond this, oldest-inserted entries are evicted.
     const PROC_TABLE_CAP: usize = 16_384;
+    const SHED_DROP_THRESHOLD_PCT: f64 = 10.0;
+    const SHED_CHECK_SECS: u64 = 10;
 
     type DecodeFn = fn(&EventRecord, &SchemaLocator) -> Option<RawEvent>;
 
-    /// Build a manifest provider whose callback decodes events and funnels them onto the
-    /// bounded channel. The callback never blocks: a full queue drops + counts the event.
     fn make_provider(
-        guid: &str,
-        tx: mpsc::Sender<RawEvent>,
-        dropped: Arc<AtomicU64>,
-        decode: DecodeFn,
+        guid: &str, tx: mpsc::Sender<RawEvent>, dropped: Arc<AtomicU64>, decode: DecodeFn,
     ) -> Provider {
         Provider::by_guid(guid)
             .add_callback(move |record: &EventRecord, sl: &SchemaLocator| {
                 if let Some(ev) = decode(record, sl) {
-                    if tx.try_send(ev).is_err() {
-                        dropped.fetch_add(1, Ordering::Relaxed);
-                    }
+                    if tx.try_send(ev).is_err() { dropped.fetch_add(1, Ordering::Relaxed); }
                 }
             })
             .build()
     }
 
-    /// Process lineage seen so far. Enriches network/registry events with the owning
-    /// process's image + parent, so a connection or Run-key write carries who did it.
     struct Correlator {
-        table: HashMap<u32, (Option<u32>, Option<String>)>, // pid -> (ppid, image)
+        table: HashMap<u32, (Option<u32>, Option<String>)>,
         order: VecDeque<u32>,
     }
 
     impl Correlator {
-        fn new() -> Self {
-            Correlator { table: HashMap::new(), order: VecDeque::new() }
-        }
-
+        fn new() -> Self { Correlator { table: HashMap::new(), order: VecDeque::new() } }
         fn observe(&mut self, ev: &RawEvent) {
             if let RawEvent::Process { kind, pid, ppid, image, .. } = ev {
                 if *kind == "process_start" && self.table.insert(*pid, (*ppid, image.clone())).is_none() {
                     self.order.push_back(*pid);
                     if self.order.len() > PROC_TABLE_CAP {
-                        if let Some(old) = self.order.pop_front() {
-                            self.table.remove(&old);
-                        }
+                        if let Some(old) = self.order.pop_front() { self.table.remove(&old); }
                     }
                 }
             }
         }
-
         fn enrich(&self, ev: &RawEvent) -> Value {
             let mut j = ev.to_json();
-            let obj = match j.as_object_mut() {
-                Some(o) => o,
-                None => return j,
-            };
-            // Owning process lineage (image + parent) for the event's pid.
+            let obj = match j.as_object_mut() { Some(o) => o, None => return j };
             if let Some((ppid, image)) = self.table.get(&ev.pid()) {
-                if let Some(img) = image {
-                    obj.entry("proc_image").or_insert_with(|| json!(img));
-                }
-                if let Some(pp) = ppid {
-                    obj.entry("proc_ppid").or_insert_with(|| json!(pp));
-                }
+                if let Some(img) = image { obj.entry("proc_image").or_insert_with(|| json!(img)); }
+                if let Some(pp) = ppid { obj.entry("proc_ppid").or_insert_with(|| json!(pp)); }
             }
-            // For a process start, resolve the parent's image so rules can reason about
-            // parent→child relationships (e.g. Office spawning a shell).
             if let RawEvent::Process { ppid: Some(pp), .. } = ev {
                 if let Some((_, Some(parent_img))) = self.table.get(pp) {
                     obj.insert("parent_image".into(), json!(parent_img));
@@ -146,90 +164,128 @@ mod windows_impl {
         }
     }
 
-    pub async fn run(
-        cfg: Arc<RwLock<Config>>,
-        client: Arc<Client>,
-        running: Arc<AtomicBool>,
-        spool: Arc<Spool>,
-    ) {
-        // Wait until the agent is registered (mirrors the other pollers).
-        let (agent_id, token, base) = loop {
-            if !running.load(Ordering::Relaxed) {
-                return;
-            }
-            {
-                let c = cfg.read().await;
-                if let (Some(id), Some(tok)) = (&c.agent_id, &c.agent_token) {
-                    break (
-                        id.clone(),
-                        tok.clone(),
-                        c.api_base_url.trim_end_matches('/').to_string(),
-                    );
-                }
+    // Helper to get connection info for run_loop
+    async fn get_conn_info(cfg: &Arc<RwLock<Config>>) -> (String, String, String) {
+        loop {
+            let c = cfg.read().await;
+            if let (Some(id), Some(tok)) = (&c.agent_id, &c.agent_token) {
+                return (id.clone(), tok.clone(), c.api_base_url.trim_end_matches('/').to_string());
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
-        };
+        }
+    }
 
-        let (tx, mut rx) = mpsc::channel::<RawEvent>(CHANNEL_CAP);
-        let dropped = Arc::new(AtomicU64::new(0));
-
-        // One provider per manifest source; each callback funnels to the same channel.
-        let process_provider = make_provider(KERNEL_PROCESS_GUID, tx.clone(), dropped.clone(), decode_process);
-        let network_provider = make_provider(KERNEL_NETWORK_GUID, tx.clone(), dropped.clone(), decode_network);
-        let registry_provider = make_provider(KERNEL_REGISTRY_GUID, tx.clone(), dropped.clone(), decode_registry);
-        let dns_provider = make_provider(DNS_CLIENT_GUID, tx.clone(), dropped.clone(), decode_dns);
-        drop(tx); // only the callbacks' clones keep the channel open; rx ends when the trace stops
-
-        let trace = match UserTrace::new()
-            .named("OmniAgent-ETW".to_string())
-            .enable(process_provider)
-            .enable(network_provider)
-            .enable(registry_provider)
-            .enable(dns_provider)
-            .start_and_process()
-        {
-            Ok(t) => t,
-            Err(e) => {
-                crate::olog!("[etw] failed to start user trace: {:?} — engine disabled", e);
-                return;
-            }
-        };
-        crate::olog!("[etw] telemetry started (session OmniAgent-ETW): process + network + registry + dns");
+    async fn run_engine_loop(
+        _cfg: Arc<RwLock<Config>>, client: Arc<Client>, running: Arc<AtomicBool>, spool: Arc<Spool>,
+        agent_id: String, token: String, base: String,
+        trace: UserTrace, mut rx: mpsc::Receiver<RawEvent>, dropped_events_counter: Arc<AtomicU64>,
+        file_provider_enabled: bool,
+    ) -> bool { // Returns true if shedding triggered restart
+        METRICS.get().unwrap().session_up.store(true, Ordering::Relaxed);
+        METRICS.get().unwrap().last_event_unix.store(chrono::Utc::now().timestamp_millis() as u64, Ordering::Relaxed);
+        crate::olog!("[etw] telemetry started: file_enabled={}", file_provider_enabled);
 
         let url = format!("{}/api/agents/{}/telemetry", base, agent_id);
         let mut batch: Vec<Value> = Vec::with_capacity(BATCH_MAX);
         let mut detections: Vec<Value> = Vec::new();
         let mut correlator = Correlator::new();
         let mut ticker = tokio::time::interval(Duration::from_secs(FLUSH_SECS));
+        let mut shed_ticker = tokio::time::interval(Duration::from_secs(SHED_CHECK_SECS));
+        let mut events_since_check: u64 = 0;
 
         loop {
-            if !running.load(Ordering::Relaxed) {
-                break;
-            }
+            if !running.load(Ordering::Relaxed) { break; }
             tokio::select! {
                 maybe = rx.recv() => match maybe {
                     Some(ev) => {
+                        events_since_check += 1;
+                        METRICS.get().unwrap().events_total.fetch_add(1, Ordering::Relaxed);
                         correlator.observe(&ev);
                         let enriched = correlator.enrich(&ev);
-                        for det in rules::evaluate(&enriched) {
-                            detections.push(det.to_json());
-                        }
+                        for det in rules::evaluate(&enriched) { detections.push(det.to_json()); }
+                        METRICS.get().unwrap().detections_total.fetch_add(detections.len() as u64, Ordering::Relaxed);
                         batch.push(enriched);
-                        if batch.len() >= BATCH_MAX {
-                            flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped).await;
-                        }
+                        METRICS.get().unwrap().last_event_unix.store(chrono::Utc::now().timestamp_millis() as u64, Ordering::Relaxed);
+                        if batch.len() >= BATCH_MAX { flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped_events_counter).await; }
                     }
-                    None => break, // trace stopped / channel closed
+                    None => break,
                 },
-                _ = ticker.tick() => {
-                    flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped).await;
+                _ = ticker.tick() => { flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped_events_counter).await; }
+                _ = shed_ticker.tick() => {
+                    if file_provider_enabled { // Only shed if file provider is currently enabled
+                        let current_dropped = dropped_events_counter.load(Ordering::Relaxed);
+                        if events_since_check > 0 {
+                            let drop_pct = (current_dropped as f64 / (events_since_check + current_dropped) as f64) * 100.0;
+                            if drop_pct > SHED_DROP_THRESHOLD_PCT {
+                                crate::olog!("[etw] drop rate {:.1}% > {:.1}% threshold — shedding Kernel-File provider", drop_pct, SHED_DROP_THRESHOLD_PCT);
+                                METRICS.get().unwrap().file_shed.store(true, Ordering::Relaxed);
+                                return true; // Signal shedding restart
+                            }
+                        }
+                        events_since_check = 0;
+                        dropped_events_counter.store(0, Ordering::Relaxed); // Reset dropped count after check
+                    }
                 }
             }
         }
 
-        flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped).await;
+        // Abnormal termination detection: channel closed while engine still marked as running.
+        if running.load(Ordering::Relaxed) {
+            METRICS.get().unwrap().restarts.fetch_add(1, Ordering::Relaxed);
+            METRICS.get().unwrap().session_up.store(false, Ordering::Relaxed);
+        }
+        METRICS.get().unwrap().last_event_unix.store(0, Ordering::Relaxed);
+        flush(&client, &url, &token, &agent_id, &mut batch, &mut detections, &spool, &dropped_events_counter).await;
         let _ = trace.stop();
         crate::olog!("[etw] telemetry engine stopped");
+        false // No restart
+    }
+
+    pub async fn run(
+        cfg: Arc<RwLock<Config>>,
+        client: Arc<Client>,
+        running: Arc<AtomicBool>,
+        spool: Arc<Spool>,
+    ) {
+        let mut file_enabled = true;
+        loop {
+            let (agent_id, token, base) = get_conn_info(&cfg).await;
+            let (tx, rx) = mpsc::channel::<RawEvent>(CHANNEL_CAP);
+            let dropped_events_counter = Arc::new(AtomicU64::new(0)); // Dropped events for shedding calc
+
+            let mut trace_builder = UserTrace::new().named("OmniAgent-ETW".to_string())
+                .enable(make_provider(KERNEL_PROCESS_GUID, tx.clone(), dropped_events_counter.clone(), decode_process))
+                .enable(make_provider(KERNEL_NETWORK_GUID, tx.clone(), dropped_events_counter.clone(), decode_network))
+                .enable(make_provider(KERNEL_REGISTRY_GUID, tx.clone(), dropped_events_counter.clone(), decode_registry))
+                .enable(make_provider(DNS_CLIENT_GUID, tx.clone(), dropped_events_counter.clone(), decode_dns));
+
+            if file_enabled {
+                trace_builder = trace_builder.enable(make_provider(KERNEL_FILE_GUID, tx.clone(), dropped_events_counter.clone(), decode_file));
+            }
+            drop(tx); // Close original tx, only callbacks' clones keep it open
+
+            let trace = match trace_builder.start_and_process() {
+                Ok(t) => t,
+                Err(e) => {
+                    crate::olog!("[etw] failed to start user trace: {:?} — engine disabled", e);
+                    return;
+                }
+            };
+
+            let shed_triggered = run_engine_loop(
+                cfg.clone(), client.clone(), running.clone(), spool.clone(),
+                agent_id.clone(), token.clone(), base.clone(),
+                trace, rx, dropped_events_counter, file_enabled
+            ).await;
+
+            if shed_triggered {
+                file_enabled = false;
+                crate::olog!("[etw] restarting engine without file provider due to shedding");
+                tokio::time::sleep(Duration::from_millis(500)).await; // Small delay before restart
+            } else {
+                break; // run_engine_loop exited without shedding, so we stop
+            }
+        }
     }
 
     async fn flush(

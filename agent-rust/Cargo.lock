@@ -859,6 +859,7 @@ dependencies = [
  "ferrisetw",
  "futures-util",
  "hex",
+ "once_cell",
  "regex",
  "reqwest",
  "serde",
