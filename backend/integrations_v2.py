@@ -275,7 +275,7 @@ async def dispatch_integration_action(
                     },
                     "issuetype": {"name": "Bug"},
                     "priority": {"name": {"critical": "Highest", "high": "High", "medium": "Medium", "low": "Low"}.get(severity, "Medium")},
-                    "labels": [f"omni-agent", f"severity-{severity}"] + ([f"case-{case_id}"] if case_id else []),
+                    "labels": ["omni-agent", f"severity-{severity}"] + ([f"case-{case_id}"] if case_id else []),
                 }
             }
             async with httpx.AsyncClient(timeout=15) as client:

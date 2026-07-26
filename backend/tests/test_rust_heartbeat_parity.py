@@ -119,11 +119,11 @@ def test_rust02_and_rust03_db_calls():
         if isinstance(args[0], dict) and "controlId" in args[0]:
             filters_seen.add(args[0]["controlId"])
 
-    print(f"[RUST-02] agent_type=rust in all $set and $push.evidence calls: PASS")
+    print("[RUST-02] agent_type=rust in all $set and $push.evidence calls: PASS")
 
     missing = [ctrl for ctrl in CHECK_TO_CONTROL.values() if ctrl not in filters_seen]
     assert not missing, f"[RUST-03] Missing control IDs: {missing}"
-    print(f"[RUST-03] All 9 representative control IDs present: PASS")
+    print("[RUST-03] All 9 representative control IDs present: PASS")
 
 def test_rust04_instruction_result_compliance_nesting():
     """RUST-04: report_instruction_result:

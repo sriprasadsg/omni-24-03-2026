@@ -58,7 +58,6 @@ async def passkey_register_verify(
     if not current_user.tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
-    from passkey_service import verify_and_store_registration
     try:
         cred = await verify_and_store_registration(
             user_id=current_user.tenant_id,
@@ -110,7 +109,6 @@ async def passkey_login_verify(
     if not user_doc:
         raise HTTPException(status_code=401, detail="Invalid credential")
 
-    from passkey_service import verify_authentication
     try:
         auth_result = await verify_authentication(
             user_key=f"login:{data.challenge_key}",

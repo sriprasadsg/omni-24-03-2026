@@ -1,4 +1,5 @@
 import json as _json
+import logging
 from fastapi import APIRouter, HTTPException, Body, Depends
 from fastapi.responses import StreamingResponse
 from typing import Dict, Any, AsyncIterator, Optional
@@ -12,6 +13,8 @@ router = APIRouter(prefix="/api/ai", tags=["AI Automation"])
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
+
+logger = logging.getLogger(__name__)
 
 @router.get("")
 @router.get("/")
