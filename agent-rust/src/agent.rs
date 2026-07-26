@@ -13,7 +13,7 @@ use sysinfo::System;
 use tokio::sync::RwLock;
 
 use chrono::Utc;
-use crate::{agentic, buffer, caps, caps2, caps3, cissp, compliance_native, config, http, olog, poll, shell, ws, yara_scan};
+use crate::{agentic, buffer, caps, caps2, caps3, cissp, compliance_native, config, etw, http, olog, poll, shell, ws, yara_scan};
 
 const VERSION:          &str = "2.0.1-rust";
 const DEFAULT_INTERVAL: u64  = 15;
@@ -171,6 +171,8 @@ async fn collect_meta(
         "id": id, "name": id.replace('_', " "), "enabled": true, "status": "active"
     })).collect();
 
+    let etw_snapshot = etw::METRICS.get_or_init(etw::EtwMetrics::new).snapshot_json();
+
     let mut meta = json!({
         "current_cpu":          cpu,
         "current_memory":       mem_pct,
@@ -204,6 +206,7 @@ async fn collect_meta(
         "is_admin":             is_admin,
         "privilege_level":      if is_admin { "Administrator" } else { "Standard User" },
         "evidence_collection_complete": is_admin,
+        "etw":                  etw_snapshot,
     });
 
     // Merge hardware info (mac_address, serial_number, device_type) when available

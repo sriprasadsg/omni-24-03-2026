@@ -122,6 +122,91 @@ pub fn evaluate(ev: &Value) -> Vec<Detection> {
                 }
             }
         }
+        "file_create" => {
+            if let Some(path) = str_field(ev, "path") {
+                // Detect suspicious file creation patterns
+                let lower = path.to_ascii_lowercase();
+                // Common malware drop locations
+                let suspicious_paths = [
+                    "/tmp/",
+                    "c:\\windows\\temp\\",
+                    "c:\\programdata\\",
+                    "/root/.ssh/",
+                ];
+                let is_suspicious = suspicious_paths.iter().any(|p| lower.contains(p))
+                    || lower.contains("\\.exe")
+                    || lower.contains("\\.bat")
+                    || lower.contains("\\.cmd")
+                    || lower.contains("shellcode")
+                    || lower.contains("payload");
+
+                if is_suspicious {
+                    out.push(Detection {
+                        rule: "suspicious_file_creation",
+                        severity: "medium",
+                        mitre: "T1595",
+                        pid,
+                        evidence: format!("Suspicious file creation: {}", path),
+                    });
+                }
+            }
+        }
+        "file_delete" => {
+            if let Some(path) = str_field(ev, "path") {
+                let lower = path.to_ascii_lowercase();
+                // Detect deletion of important system files or backups
+                let critical_files = [
+                    "c:\\windows\\system32\\drivers\\etc\\hosts",
+                    "c:\\windows\\win.ini",
+                    "c:\\boot.ini",
+                    "c:\\windows\\system32\\config\\sam",
+                    "c:\\programdata\\omnisecure",
+                    "/etc/shadow",
+                    "/etc/passwd",
+                ];
+
+                let is_critical = critical_files.iter().any(|p| lower.contains(p))
+                    || lower.contains("backups\\")
+                    || lower.contains("system backup");
+
+                if is_critical {
+                    out.push(Detection {
+                        rule: "critical_file_deletion",
+                        severity: "high",
+                        mitre: "T1485",
+                        pid,
+                        evidence: format!("Critical file deletion: {}", path),
+                    });
+                }
+            }
+        }
+        "file_rename" => {
+            // File rename is more ambiguous, but suspicious if targeting system directories
+            // or creating hidden/restricted files
+            if let Some(path) = str_field(ev, "path") {
+                let lower = path.to_ascii_lowercase();
+                let suspicious_rename_targets = [
+                    "c:\\windows\\system32\\spool\\",
+                    "c:\\programdata\\",
+                    "/etc/cron.d/",
+                    "/var/spool/",
+                ];
+
+                let is_suspicious = suspicious_rename_targets.iter().any(|t| lower.contains(t))
+                    || lower.contains("rename\\")
+                    || lower.contains("moved\\");
+
+                if is_suspicious {
+                    out.push(Detection {
+                        rule: "suspicious_file_rename",
+                        severity: "low",
+                        mitre: "T1552",
+                        pid,
+                        evidence: format!("Suspicious file rename: {}", path),
+                    });
+                }
+            }
+        }
         _ => {}
     }
 
