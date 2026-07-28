@@ -1,140 +1,120 @@
 # Stack Research
 
-**Domain:** Rust endpoint-agent dependency modernization + Python CSPM posture-check SDKs (multi-tenant compliance/GRC platform)
-**Researched:** 2026-07-20
-**Confidence:** HIGH (part a — verified via local `cargo check --offline` against the actual shipping tree; part b — HIGH for versions/packages verified via `pip index`/PyPI, MEDIUM for exact security-API method names not exercised locally)
+**Domain:** Agent geo fleet map + VPN/hosting-ASN detection + fleet observability (time-series) for an air-gapped-capable enterprise security/compliance platform
+**Researched:** 2026-07-29
+**Confidence:** MEDIUM-HIGH (package versions verified directly against the npm/PyPI registries = HIGH; feature/licensing claims cross-checked across official docs + community sources via web search = MEDIUM)
 
-## Context — what's already true in this codebase
+This file covers ONLY the new v3.3 additions. It assumes the existing FastAPI + MongoDB (Motor) + React/TS/Vite/Tailwind + `backend/geoip_service.py` (MaxMind GeoLite2-City) + `agent_metrics_history` capped-by-app-logic collection already in place — do not re-research or replace those. (Note: this file replaces the prior milestone's STACK.md, which covered an unrelated domain — Rust crate bumps + CSPM SDKs — and is now stale; that content is preserved in git history / the archived v3.2 milestone.)
 
-Before recommending anything, two facts change the shape of this work:
+## Recommended Stack
 
-1. **Rust crate bumps (part a) are already staged, uncommitted, on the shipping tree.** `agent-install/omni-agent-rs/Cargo.toml` (working tree, current branch `feat/rust-agent-2.1.0-and-fixes`) already declares `reqwest 0.13`, `sysinfo 0.39`, `tokio-tungstenite 0.30`, `rusqlite 0.40`, `hostname 0.4`, and `serde_norway 0.9` (replacing `serde_yaml`). `src/config.rs` already calls `serde_norway::from_str`/`to_string`. Running `cargo check --offline` in that directory **succeeds cleanly** — 4 pre-existing unrelated warnings (unused import/variable/mut/dead_code in unrelated files), zero errors. `Cargo.lock` already resolved concrete versions: `reqwest 0.13.4`, `sysinfo 0.39.6`, `tokio-tungstenite 0.30.0`, `rusqlite 0.40.1` (`libsqlite3-sys 0.38.1`), `hostname 0.4.2`, `serde_norway 0.9.42`. This is HANDOFF task 11's "remaining" work — it looks done at the manifest level; what's left is committing it and doing the 2.1.0 exe rebuild, not further crate research. See Recommendations below for the one behavioral risk to verify before shipping (TLS backend default flip).
-2. **OCI/Alibaba/Cloudflare Python SDKs are already `pip`-installed dependencies**, and stub ingest modules already exist: `backend/oci_ingest.py`, `backend/cloudflare_ingest.py`, `backend/alibaba_ingest.py`. `backend/requirements.txt` already pins `oci>=2.181.1`, `aliyun-python-sdk-core-v3>=2.13.33`, `cloudflare>=5.4.0`. All three ingest modules are **fully mocked** (`client = "mocked_oci_client"` etc., hardcoded fake findings) — real API calls are commented out or never written. They also write to `security_events` (SIEM-alert domain), not `cloud_findings` (the collection `cloud_checks_service.run_checks()` actually reads to evaluate CSPM checks). Building "real check logic" therefore means wiring real API calls into this existing auth/config shape — not introducing a new stack from scratch.
-
-## Recommended Stack — Part (a): Rust crate bump breaking changes
-
-| Crate | From → To | Resolved version (this repo's Cargo.lock) | Breaking changes | Impact on this codebase |
-|-------|-----------|---------------------------------------------|-------------------|--------------------------|
-| `reqwest` | 0.12 → 0.13 | 0.13.4 | (1) **Default TLS backend flips from native-tls to rustls** when no explicit TLS feature is selected. (2) `RequestBuilder::query()`/`form()` become optional features (need `serde`-gated feature flags if you don't already depend on serde — not an issue here, serde is already a direct dep). (3) `reqwest::RedirectPolicy` moved to `reqwest::redirect::Policy`; `redirect::Attempt::loop_detected`/`too_many_redirect` removed, replaced by a generic error method. (4) Drops `i686-pc-windows-gnu` default-feature support. (5) Most `ClientBuilder` methods renamed (old names soft-deprecated, still compile). | **Verify before shipping, don't just trust the green compile:** `Cargo.toml` declares `reqwest = { version = "0.13", features = ["json", "blocking"] }` with no explicit TLS feature — under 0.12 this defaulted to native-tls (Windows Schannel / system cert store), under 0.13 it now defaults to rustls (bundled webpki/ring roots). This agent runs as a Windows service talking to a backend over TLS; if any target environment relies on a corporate-installed root CA (MITM proxy, internal CA) trusted via the Windows cert store, rustls will NOT pick that up automatically and the agent will start failing TLS handshakes at runtime — `cargo check` cannot catch this, only a live network test can. Either pin `features = ["json", "blocking", "native-tls"]` explicitly to keep prior behavior, or confirm rustls' bundled roots are acceptable for all deployment targets. None of the redirect-policy or ClientBuilder renames are used in `registration.rs`/`heartbeat.rs`/`instructions.rs`/`agent_update.rs` (grep confirms no `RedirectPolicy`/`redirect::Attempt` usage), so those breaking changes are inert here. |
-| `sysinfo` | 0.32 → 0.39 | 0.39.6 | (1) `System::refresh_process`, `refresh_process_specifics`, `refresh_pids` **removed**; replaced by `refresh_processes(ProcessesToUpdate)`/`refresh_processes_specifics(...)`. (2) Global CPU snapshot now reports only CPU usage (other fields dropped). (3) `TermalSensorType` renamed to `ThermalSensorType` (typo fix). (4) Process names now `OsString` instead of `String`. (5) Crate split into opt-in features (only enable subsystems you use). | **Zero impact confirmed locally.** `grep -rn "refresh_process\|refresh_pids\|ProcessesToUpdate\|TermalSensorType" src/` returns nothing; the only refresh call in the codebase is `sys.refresh_all()` in `src/lib.rs:79`, which is unaffected. The 16 files under `src/capabilities/` that reference `sysinfo::` (process_monitor, metrics, ebpf_tracing, etc.) compiled clean per `cargo check`. If any of those later call per-process refresh or thermal sensors, re-check against the removed-API list above. |
-| `tokio-tungstenite` | 0.23 → 0.30 | 0.30.0 | Runtime error instead of silent failure when a `wss://` URL is used without a TLS feature enabled; buffering behavior changes for `Sink::send()`/`Sink::feed()`; underlying `tungstenite` bumped through 0.25/0.26 in the same window (message-handling API tightening). | Only consumer is `src/capabilities/remote_access.rs`; compiled clean. `Cargo.toml` already specifies `features = ["native-tls"]` explicitly for this crate (unlike reqwest), so the wss-without-TLS-feature error path doesn't apply. |
-| `rusqlite` | 0.32 → 0.40 | 0.40.1 (bundled `libsqlite3-sys 0.38.1`) | Breaking changes are concentrated in the **virtual-table (VTab) API**: VTab macros replaced by constructors, `VTab::best_index`/`VTab::connect`/`create` signatures fixed/changed across several point releases. | **Zero impact.** `src/buffer.rs` only uses `rusqlite::{Connection, params}` and `Connection::open()` — no VTab usage anywhere in the codebase. `features = ["bundled"]` is preserved, so the bump also carries a newer vendored SQLite via `libsqlite3-sys`. |
-| `hostname` | 0.3 → 0.4 | 0.4.2 | MSRV raised to Rust 1.74+ (declared as a breaking change since the crate treats MSRV bumps as semver-breaking). No API signature changes found for the `get()` function. | Zero impact — `hostname::get()` in `src/heartbeat.rs` is the only call site and is unchanged. Confirm your Rust toolchain is ≥1.74 (edition 2021 + `cargo 1.97.0` present locally, so this is already satisfied). |
-| `serde_yaml` → `serde_norway` | 0.9.34+deprecated → 0.9.42 | `serde_yaml` is archived/unmaintained (last release tagged `+deprecated`, no fixes). `serde_norway` is the maintained fork using `unsafe-libyaml-norway`; API is source-compatible for the common `from_str`/`to_string` surface used here. | Already migrated in `src/config.rs` (2 call sites: `load()`, `save()`), plus a doc-comment update. **Do not use `serde_yml`** as an alternative — it was the other popular fork, but per RustSec advisory `RUSTSEC-2025-0068` it is itself now flagged unsound/unmaintained (its final release is a thin compatibility shim over an abandoned codebase). `serde_norway` (the choice already made here) is the currently-recommended maintained fork; `serde-saphyr` and `yaml-rust2` are lower-level alternatives not needed for this simple struct (de)serialization use case. |
-
-**Bottom line for part (a):** no further crate research is needed to make this compile — it already does, verified locally. The one thing worth a deliberate decision before the 2.1.0 exe rebuild ships is the reqwest TLS-backend default flip (native-tls → rustls) — pin the feature explicitly rather than relying on the new default, given Windows deployment.
-
-## Recommended Stack — Part (b): OCI / Alibaba / Cloudflare CSPM posture checks
-
-### Core SDKs
+### Core Technologies
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| `oci` (Oracle's official Python SDK) | `>=2.181.1` (already pinned in `requirements.txt`; latest on PyPI is `2.182.0`) | OCI API client, including `oci.cloud_guard.CloudGuardClient` and `oci.config` | Already a direct dependency; `oci_ingest.py` already imports it behind a try/except availability guard and already has the exact auth config shape (`oci_tenancy_ocid`, `oci_user_ocid`, `oci_private_key`, `oci_fingerprint`, `oci_region` — API-key/PEM-based auth, OCI's standard SDK config dict). Real work is un-mocking `_make_oci_client()` (currently returns the literal string `"mocked_oci_client"`) to construct `oci.cloud_guard.CloudGuardClient(oci_config)` and un-mocking the `list_problems(compartment_id=...)` call that's already sketched in a comment. |
-| `cloudflare` (official Cloudflare Python library) | `>=5.4.0` (already pinned; latest on PyPI is `5.5.0`) | Cloudflare API v4 client — zone settings, WAF, SSL/TLS config, DNS | Already a direct dependency; official SDK (supersedes the older community `python-cloudflare`/`pycloudflare` wrappers — do not add those, they're the deprecated predecessors this org's SDK replaced). Sync and async clients both available (built on `httpx`); built-in retry for 429/5xx. `cloudflare_ingest.py` already has the auth shape (`cf_account_id`, `cf_api_token` — scoped API token auth, Cloudflare's recommended auth over legacy Global API Key). |
-| `aliyun-python-sdk-core-v3` | `>=2.13.33` (already pinned and already at latest) | Legacy (V1.0) Alibaba Cloud SDK core — `AcsClient` + `CommonRequest`/action-based calls | Already used by `alibaba_ingest.py` for Security Center (SAS) alert polling via AK/SK auth (`access_key_id`, `access_key_secret`, `region_id`). Alibaba has publicly stated V1.0 SDKs are moving to "Basic Security Maintenance" (bugfixes only, no new features) in favor of the V2.0 modular SDKs — see next row. Keep this one only for whatever continues to use `AcsClient`-style generic action calls; don't extend it with new call sites. |
-| `alibabacloud_config20200907` | `4.2.3` (new dependency — not yet in `requirements.txt`) | Alibaba Cloud **Config** service SDK (V2.0/Tea-based) — the actual compliance/config-drift API, analogous to AWS Config / Azure Policy | This is the correct SDK for CSPM-style checks (resource compliance state, not alert streams). The V1 `aliyun-python-sdk-core-v3` used by the ingest stub is for Security Center threat alerts, a different domain; reusing it for config-compliance checks would mean hand-building action requests instead of using Alibaba's typed V2 client. Officially recommended replacement path per Alibaba's own SDK repo. |
-| `alibabacloud_sas20181203` | `9.3.3` (new dependency) | Alibaba Cloud **Security Center (Threat Detection)** SDK (V2.0) — includes baseline/compliance check APIs (`DescribeSecurityCheckSchedule`, `DescribeCheckWarningSummary`, etc.), not just alerts | Complements `alibabacloud_config20200907`: Security Center's baseline-check module is Alibaba's actual CSPM surface (posture scoring, check pass/fail per resource) and maps most directly to the DO_CHECKS pattern (named checks with pass/fail + severity + remediation). Use this for the posture-check definitions; keep the existing V1 `AcsClient` path in `alibaba_ingest.py` untouched for its current SIEM-alert job. |
-| `alibabacloud_tea_openapi` | `0.4.5` (transitive/direct — required by every `alibabacloud_*` V2 service package) | Shared request/config plumbing for the V2.0 SDK family (`Config`, `open_api_client`) | Required peer dependency of any `alibabacloud_<service><version>` package; pull in explicitly since `requirements.txt` doesn't already have it (unlike the V1 core SDK, which is self-contained). |
-| `alibabacloud_credentials` | `1.0.10` (transitive/direct) | AK/SK / STS credential provider for the V2.0 SDK family | Same reasoning — required peer dependency for `alibabacloud_config20200907`/`alibabacloud_sas20181203`. Reuse the same `access_key_id`/`access_key_secret`/`region_id` config fields already defined in `alibaba_ingest.py` so both the old ingest path and the new CSPM path share one credential shape per tenant. |
+| `react-simple-maps` + `d3-geo` + `topojson-client` + `world-atlas` | 3.0.0 / 3.1.1 / 3.1.0 / 2.0.2 | Fleet geo map (world SVG map, agent markers by city/country) | Pure client-side SVG — no tile server, no tile files, no network calls at runtime *at all*. The world outline is a bundled TopoJSON (`world-atlas`'s `countries-110m.json`, ~100KB, public-domain Natural Earth data) that ships inside the Vite JS bundle. This is the simplest possible air-gapped story for a country/city-level fleet map with clustering and tenant/status filters — no infra to stand up, no basemap licensing questions, no glyph/sprite self-hosting. `react-simple-maps` itself hasn't shipped a release since 2023, but its two real rendering engines (`d3-geo`, `topojson-client`) are independently maintained and this is a widely-used, stable pattern for exactly this kind of "dots on a world map" dashboard widget. |
+| `supercluster` | 8.0.1 | Marker clustering for the fleet map | Renderer-agnostic geospatial clustering (KD-tree based) — works purely on `[lng, lat]` arrays, so it plugs into the SVG map above (or MapLibre, if you escalate to that later) without change. This is the standard clustering choice used by both Mapbox/MapLibre's own examples and Leaflet.markercluster's design lineage. |
+| MaxMind **GeoIP2 Anonymous IP** database (commercial) | current `.mmdb` release (subscription-based, no fixed version number — MaxMind ships rolling updates) | VPN / public-proxy / hosting-provider / Tor-exit flagging for agent public IPs | This is the correct, purpose-built product for "VPN/proxy/hosting-ASN flagging" — it returns explicit `is_anonymous_vpn`, `is_hosting_provider`, `is_public_proxy`, `is_residential_proxy`, and `is_tor_exit_node` booleans per IP. It is a downloadable `.mmdb` file read with the exact same `maxminddb` Python reader already vendored in `backend/geoip_service.py` — zero new runtime dependency, zero per-lookup network calls, same "supplied out-of-band, degrades gracefully when absent" pattern already established for GeoLite2-City. Requires a paid MaxMind subscription (the project already has a commercial MaxMind relationship for GeoLite2-City licensing, so this is an add-on to an existing vendor, not a new one). |
+| MongoDB **time-series collections** (native, MongoDB 5.0+; already running 8.0.26) | n/a (server feature, not a package) | Fleet observability — heartbeat/uptime timeline, health-history rollups for the new fleet-observability views | The backend already runs MongoDB 8.0.26, which fully supports time-series collections (`db.createCollection(..., timeseries={...})`), including 7.0+ downsampling. Time-series collections auto-bucket by `metaField` (e.g. `agent_id`) and `timeField`, giving 50–90% storage reduction and materially faster range/aggregation queries than a plain collection — the right structure for a new per-agent uptime/health timeline feature. **Do not migrate `agent_metrics_history`** (it already has a working TTL index + app-level 100-per-agent cap from `002_scale_indexes.py` / `agent_heartbeat_endpoints.py` — leave it as-is per the "don't rebuild" instruction). Use a time-series collection only for genuinely new v3.3 time-series data (e.g. a rolled-up hourly/daily uptime-percentage series, if the raw heartbeat cap isn't enough resolution for long-range charts). |
+| `recharts` | ^3.5.1 already installed (latest is 3.10.1) | Health/uptime charting on the fleet observability dashboard | Already the project's charting library elsewhere — no new dependency. `AreaChart`/`LineChart` with a time-domain `XAxis` is the standard recharts pattern for uptime/CPU/mem sparklines and history views; reuse the existing chart component conventions rather than introducing a second charting library. |
 
-### Relevant security/posture API surface (scoped, not full SDK)
+### Supporting Libraries
 
-| Provider | Auth mechanism | Rate limit notes | Relevant security-config endpoints/methods |
-|----------|-----------------|-------------------|----------------------------------------------|
-| OCI | API-signing-key auth: tenancy OCID + user OCID + PEM private key + key fingerprint + region, assembled into an `oci.config` dict (exact shape already defined in `oci_ingest.py`) | OCI Cloud Guard: `Create`/`Update`/`Delete` operations restricted to the reporting region of the tenancy; `Read` operations (list problems, list detector recipes) can run from any region — plan client construction per-region accordingly. No hard published RPS limit surfaced in this research pass; use the SDK's built-in retry/backoff (`oci.retry` module) rather than hand-rolling. | `oci.cloud_guard.CloudGuardClient.list_problems(compartment_id=...)` — posture findings, already stubbed as a comment in `oci_ingest.py`. `list_detector_recipes` / `list_responder_recipes` for check-definition metadata. `oci.cloud_guard.CloudGuardClient` also covers Security Zones (policy-enforced compartments) if broader posture coverage is wanted later. |
-| Alibaba Cloud | AK/SK (access_key_id/access_key_secret) or STS token, region-scoped — same shape as existing `alibaba_ingest.py` | Alibaba enforces per-account/per-API QPS throttling (varies by API and account tier); the V2 SDKs surface throttling as typed exceptions — catch and backoff rather than assuming unlimited calls, especially for `DescribeCheckWarningSummary` on large accounts. | `alibabacloud_config20200907`: `GetComplianceSummary`, `ListConfigRules` / `GetConfigRule`, `ListDiscoveredResources` — config-drift / rule-compliance state per resource, the closest analog to AWS Config rules used in `cloud_checks_aws`. `alibabacloud_sas20181203`: `DescribeCheckWarningSummary` (baseline check pass/fail counts), `DescribeSecurityCheckSchedule` (which baseline checks are enabled) — maps directly to a `ALIBABA_CHECKS` list shaped like `DO_CHECKS`. |
-| Cloudflare | Scoped API Token (`cf_api_token`) + `cf_account_id`, Bearer-auth — same shape as existing `cloudflare_ingest.py`; prefer scoped tokens over the legacy Global API Key (broader blast radius, being phased out account-wide) | SDK auto-retries 429/408/409/5xx by default; still worth capping check-run concurrency per zone since Cloudflare's plan-tier rate limits apply per token, not per call site. | Zone-level settings resource (`client.zones.settings.get(...)` / list) covers SSL mode (`ssl` — off/flexible/full/strict, the security-relevant setting), TLS 1.3 enablement, "Always Use HTTPS", minimum TLS version, HSTS. WAF managed-rules status is under the zone's firewall/WAF resource. These map cleanly to DO-style checks: "Cloudflare Zone Enforces Full(Strict) SSL", "Cloudflare Zone Minimum TLS 1.2+", "Cloudflare WAF Managed Rules Enabled". |
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `X4BNet/lists_vpn` (data, not npm) | rolling (GitHub Actions auto-rebuild) | Free/open-source VPN & datacenter IP-range fallback | If there's no budget for the paid GeoIP2 Anonymous IP database, pull `output/vpn/ipv4.txt` / `output/datacenter/ipv4.txt` periodically (out-of-band, same as the GeoLite2 supply model) and load into an in-memory CIDR trie (`python-radix` or a hand-rolled sorted-interval lookup) for O(log n) IP→flag lookups. Weaker signal than MaxMind (no residential-proxy/Tor granularity) but zero cost and fully offline-compatible. |
+| MaxMind **GeoLite2-ASN** (free) | rolling (free tier, license key + attribution required under GeoLite2 EULA) | Cheap ASN-name heuristic as a second fallback tier, or to enrich agent records with AS-org display name regardless of VPN detection | Returns ASN + AS-organization name only — it does **not** itself flag VPN/hosting status. Useful for a lightweight heuristic (substring-match AS-org name against a maintained list of cloud/hosting/VPN brand names) if you want a third, zero-cost tier below GeoIP2 Anonymous IP and X4BNet, or just to show "AWS / DigitalOcean / Hetzner" next to an agent's IP in the UI. |
+| `maplibre-gl` + `pmtiles` + `tileserver-gl` (self-hosted) | 6.0.0 / 4.4.1 / current | Escalation path ONLY if product later wants true interactive pan/zoom/street-level basemap | MapLibre GL JS v6 is the actively-maintained open-source fork of Mapbox GL JS, ships as ES modules, and has zero forced network calls as long as you self-host the style JSON, sprite sheet, glyph PBFs, and a `.pmtiles` vector basemap (PMTiles supports single-file HTTP range-request serving — no separate tile database/server process required, just a static file on the existing app server). A full-planet vector tileset is ~80GB, but a basemap simplified to low zoom levels only (country/region borders, no street detail) is a few MB and is all a fleet-map widget needs. Reach for this only if the SVG approach above proves visually insufficient (e.g. product wants smooth zoom/pan into dense city clusters) — it's meaningfully more integration work (style/sprite/glyph self-hosting + a custom basemap build step) than `react-simple-maps`. |
+| `react-map-gl` | 8.1.1 | React wrapper for MapLibre, only needed if escalating to MapLibre | Thin declarative React bindings over `maplibre-gl`; pairs with `supercluster` for clustering exactly as it would with the SVG approach. |
 
-### What NOT to add
+### Development Tools
 
-| Avoid | Why | Use Instead |
-|-------|-----|--------------|
-| `python-cloudflare` / `pycloudflare` (community v1-style wrappers) | Superseded by the official `cloudflare` package already installed; older wrappers target the deprecated v4 REST shape without typed models. | The already-pinned `cloudflare>=5.4.0` official SDK. |
-| Extending `aliyun-python-sdk-core-v3`/`AcsClient` with new hand-built `CommonRequest` calls for Config/Security-Center compliance data | It's the legacy V1 SDK (Basic Security Maintenance only per Alibaba); works but means manually constructing action names/params with no typed response models, more error-prone for new code. | The typed V2 packages `alibabacloud_config20200907` / `alibabacloud_sas20181203` for any *new* CSPM call sites; leave the existing `AcsClient` usage in `alibaba_ingest.py` as-is (not broken, just not the pattern to extend). |
-| A brand-new `serde_yml` dependency for the Rust YAML migration | It's now itself flagged unsound/unmaintained per RustSec `RUSTSEC-2025-0068` — trading one deprecated dependency for another. | `serde_norway` — already the choice made in this codebase's uncommitted working tree. |
-| Rebuilding Jira/ServiceNow ticketing auth for the remediation-ticketing bridge | Out of scope for this milestone's stack — `backend/ticketing_service.py` and `backend/integration_service_ticketing.py` already implement Jira/ServiceNow auth + create-ticket calls; this is a wiring/reuse task (extend `compliance_remediation_service` to call the existing connector), not a new-library task. No new package needed. | Reuse `ticketing_service.py` / `integration_service_ticketing.py` directly. |
-| Rebuilding the generic ticketing SLA/escalation logic in `tickets_escalation_service.py` for compliance remediation tasks | Per PROJECT.md's own milestone note, that service is scoped to a different domain (support tickets) and "not reusable as-is" for `compliance_remediation_tasks`'s `due_date`-breach semantics — but that's an architecture/service-boundary decision, not a stack/library decision. No new package needed either way; this is plain Python datetime comparison + the existing WebSocket broadcast pattern (`broadcast_remediation_update`) already in the codebase. | Flag for ARCHITECTURE/phase planning, not a new dependency. |
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| MaxMind account / license key (already provisioned) | Download GeoIP2 Anonymous IP `.mmdb` alongside the existing GeoLite2-City `.mmdb` | Same out-of-band supply mechanism already documented in `backend/geoip_service.py` — drop at a sibling path (e.g. `backend/data/geoip/GeoIP2-Anonymous-IP.mmdb`) and add a second lazy reader following the exact pattern already used (`_get_reader`, graceful `None` on absence). |
+| `mongosh` / migration script | One-time `db.createCollection(<name>, {timeseries: {timeField: "ts", metaField: "agent_id", granularity: "minutes"}})` for any new v3.3 time-series collection | Time-series collections must be created with the `timeseries` option at creation time — they cannot be converted from an existing regular collection in place. Add as a new numbered migration (following the `002_scale_indexes.py` convention), do not touch `agent_metrics_history`. |
 
 ## Installation
 
 ```bash
-# Rust — agent-install/omni-agent-rs (already staged uncommitted in Cargo.toml/Cargo.lock;
-# nothing further to install, just verify + commit)
-cd agent-install/omni-agent-rs
-cargo check          # already verified green locally
-cargo build --release  # do this before the 2.1.0 exe rebuild step
+# Core — fleet geo map (frontend)
+npm install react-simple-maps d3-geo topojson-client world-atlas supercluster
+npm install -D @types/react-simple-maps @types/d3-geo @types/topojson-client @types/supercluster
 
-# Python backend — only the new Alibaba V2 SDK packages are missing from requirements.txt;
-# oci, cloudflare, aliyun-python-sdk-core-v3 are already installed
-pip install alibabacloud_config20200907==4.2.3 \
-            alibabacloud_sas20181203==9.3.3 \
-            alibabacloud_tea_openapi==0.4.5 \
-            alibabacloud_credentials==1.0.10
+# recharts already installed (^3.5.1) — no action needed unless bumping to 3.10.1
 ```
 
-Add to `backend/requirements.txt` under the existing `# ── Cloud Security Integrations ──` block:
-
-```
-alibabacloud_config20200907>=4.2.3    # Alibaba Cloud Config — resource compliance state
-alibabacloud_sas20181203>=9.3.3       # Alibaba Security Center — baseline check pass/fail
-alibabacloud_tea_openapi>=0.4.5       # Required peer dep for alibabacloud_* V2 SDKs
-alibabacloud_credentials>=1.0.10      # Required peer dep for alibabacloud_* V2 SDKs
+```bash
+# Backend — no new pip packages required.
+# maxminddb>=2.5.0 (already in requirements.txt) reads GeoIP2 Anonymous IP .mmdb
+# identically to how it reads GeoLite2-City.mmdb — same reader, different file.
 ```
 
-Optionally bump the two SDKs that already have newer patch releases available (not required, current pins work):
-```
-oci>=2.182.0          # was >=2.181.1
-cloudflare>=5.5.0     # was >=5.4.0
+If escalating to MapLibre later:
+
+```bash
+npm install maplibre-gl react-map-gl pmtiles supercluster
+# plus a one-time offline build step to generate/trim a low-zoom .pmtiles basemap
+# and self-host style.json + sprite + glyph assets under the existing static server.
 ```
 
 ## Alternatives Considered
 
 | Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|---------------------------|
-| `serde_norway` for YAML | `noyalib` | If future needs shift to the *exact* `serde_yml`-style API surface (`Value`, `Mapping`) rather than `serde_yaml`'s original API shape — not the case here, `config.rs` only uses `from_str`/`to_string`. |
-| `serde_norway` for YAML | `serde-saphyr` | If the config file only ever needs `from_str::<Config>` (read-only, no `to_string` serialization) and a smaller dependency footprint is prioritized — not applicable here since `config.rs::save()` also serializes. |
-| `alibabacloud_sas20181203` (V2 typed SDK) for Alibaba posture checks | Keep using `aliyun-python-sdk-core-v3`'s `AcsClient` with `CommonRequest` | If avoiding any new dependency is a hard constraint for this specific phase; the trade-off is manually building/parsing untyped API requests instead of typed client calls. |
-| Explicit `native-tls` feature pin for `reqwest` 0.13 | Accept the new rustls default | If all deployment targets are confirmed to need only public-CA-signed certs (no corporate MITM/internal CA reliance) — verify this with whoever owns endpoint deployment before accepting the new default silently. |
+|-------------|-------------|-------------------------|
+| `react-simple-maps` (pure SVG, bundled TopoJSON) | `maplibre-gl` + self-hosted PMTiles/tileserver-gl | Use MapLibre when the fleet map needs to support real interactive pan/zoom into dense clusters at street/neighborhood level, or the roadmap anticipates tens of thousands of agents needing a proper slippy-map UX. It's fully air-gapped-viable too, just more integration work (self-hosted style/sprite/glyphs + a custom trimmed basemap build). |
+| `react-simple-maps` | `react-leaflet` + self-hosted raster tiles or Leaflet.VectorGrid | Leaflet is mature and MIT-licensed, but its offline vector-tile story (VectorGrid plugin) is less actively maintained than MapLibre's native vector pipeline, and its raster-tile path means pre-rendering and shipping actual map images. Only reach for Leaflet if the team has existing Leaflet expertise/investment elsewhere in the codebase (it does not currently). |
+| MaxMind GeoIP2 Anonymous IP (paid) | GeoLite2-ASN (free) + `X4BNet/lists_vpn` heuristic | Use the free tier if there's no budget for a second MaxMind commercial database. Accept weaker signal (no residential-proxy/Tor granularity, ASN-name substring matching is fuzzier than MaxMind's own classification) in exchange for $0 cost. |
+| MongoDB native time-series collection (new collection, new data only) | Keep everything in `agent_metrics_history` as-is | Correct choice **for the existing collection** — it already has a working TTL + app-cap pattern; don't touch it. Only introduce a time-series collection for genuinely new v3.3 telemetry (e.g. rolled-up uptime-percentage series) where the existing 100-snapshot-per-agent cap doesn't give enough history depth for the requested charts. |
+
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Any tile provider requiring a live internet connection at runtime (Mapbox-hosted tiles, Google Maps JS API, OpenStreetMap public tile servers, `{s}.tile.openstreetmap.org`) | Breaks air-gapped deployments outright — the milestone explicitly calls this out as a hard requirement | `react-simple-maps` with a bundled TopoJSON (primary), or MapLibre + self-hosted PMTiles (escalation path) |
+| Third-party VPN/IP-intel **web APIs** (IPQualityScore, ipinfo.io privacy API, IP2Proxy web service, AbuseIPDB) called per-lookup | All require live outbound HTTPS calls per IP lookup — same air-gapped violation as hosted map tiles | MaxMind GeoIP2 Anonymous IP `.mmdb` (downloaded once, read locally) or the free `X4BNet/lists_vpn` snapshot pulled out-of-band |
+| Converting `agent_metrics_history` into a time-series collection in place | MongoDB cannot convert an existing regular collection into a time-series collection without a full rebuild/migration+backfill; the milestone explicitly says reuse, don't rebuild, existing heartbeat/ETW telemetry | Leave `agent_metrics_history` untouched; add a new time-series collection only for new v3.3 rollup data if/when the existing cap proves insufficient |
+| MaxMind GeoLite2-ASN alone as a "VPN detector" | It returns ASN/AS-org name only — no VPN/hosting/proxy boolean fields exist in that database; treating raw ASN name matching as authoritative VPN detection will both over- and under-flag | GeoIP2 Anonymous IP (paid, purpose-built) or GeoLite2-ASN + a maintained hosting/VPN ASN-name list, clearly labeled as a heuristic, not a hard flag |
 
 ## Stack Patterns by Variant
 
-**If the CSPM check-evaluation architecture stays "match against imported `cloud_findings`"** (as `cloud_checks_service.run_checks()` currently does for AWS/Azure/GCP/DO):
-- Still need the SDKs above, but as a *findings importer* (new `oci_cspm_ingest`-style function or extending `oci_ingest.py`) that writes to `cloud_findings` instead of `security_events`.
-- Use `OCI_CHECKS`/`ALIBABA_CHECKS`/`CLOUDFLARE_CHECKS` static definition lists shaped exactly like `DO_CHECKS` (id/name/description/provider/service/severity/frameworks/remediation).
+**If the fleet map only needs country/city-level dots with clustering and filters (matches the stated v3.3 scope):**
+- Use `react-simple-maps` + `d3-geo` + `topojson-client` + bundled `world-atlas` TopoJSON + `supercluster`
+- Because it is zero-infrastructure, zero-network-call, and matches the existing lightweight frontend stack (no new backend endpoints beyond what already returns `geo` on agent/asset docs)
 
-**If the check-evaluation architecture shifts to live-poll-per-check** (call the cloud API at check-run time rather than matching pre-imported findings):
-- Same SDKs, but `run_checks()` itself needs a provider dispatch branch calling `_make_oci_client()`/etc. directly instead of `cloud_findings` lookup — a larger architectural change than the milestone brief implies ("closes real gaps... currently allowlisted but zero check logic" reads as filling in the existing findings-import pattern, not a rearchitecture).
+**If a future milestone wants true street-level interactive zoom/pan (not currently in scope):**
+- Escalate to `maplibre-gl` + `react-map-gl` + self-hosted PMTiles basemap + self-hosted style/sprite/glyphs
+- Because MapLibre is the only one of the three options that supports smooth GPU-accelerated pan/zoom into real basemap detail while still being fully self-hostable
 
-This choice is an architecture/roadmap decision, not a stack decision — flagged here so the roadmap phase that plans this feature makes it explicitly rather than defaulting into whichever a coder picks first.
+**If budget allows a second MaxMind commercial database:**
+- Use GeoIP2 Anonymous IP for VPN/proxy/hosting flags
+- Because it is purpose-built, offline, and reuses the exact reader/pattern already in `backend/geoip_service.py`
+
+**If there is no budget for a second commercial MaxMind database:**
+- Use free GeoLite2-ASN + `X4BNet/lists_vpn` snapshot, clearly labeled in the UI as a heuristic/best-effort flag (not a hard VPN determination)
+- Because it costs nothing and still works fully offline once the list is pulled out-of-band
 
 ## Version Compatibility
 
 | Package A | Compatible With | Notes |
-|-----------|------------------|-------|
-| `reqwest 0.13.4` | `rustls 0.23.42` (per commit `7e050f6`'s lockfile refresh notes) | Confirmed resolvable together in this repo's `Cargo.lock`; both `rustls` and `native-tls` crates end up present in the lock (native-tls pulled transitively via `tokio-tungstenite`'s `native-tls` feature) — no conflict, but confirms reqwest itself is on the rustls path by default. |
-| `rusqlite 0.40.1` | `libsqlite3-sys 0.38.1` | Resolved together via the `bundled` feature; no system SQLite dependency needed. |
-| `alibabacloud_config20200907 4.2.3` / `alibabacloud_sas20181203 9.3.3` | `alibabacloud_tea_openapi 0.4.5`, `alibabacloud_credentials 1.0.10` | All four should be added together; the service-specific packages depend on the two shared packages at install time. |
-| Python 3.12–3.13 (repo's stated recommended range) | `oci 2.182.0`, `cloudflare 5.5.0`, `alibabacloud_*` V2 packages | No known Python-version incompatibilities surfaced in this research pass for any of these packages on 3.12/3.13. |
+|-----------|-----------------|-------|
+| `react-simple-maps@3.0.0` | React 19.2.0 (project's current React version) | No official React 19 support declared by the upstream package (last published 2023); works in practice via d3-geo/topojson-client with no React-version-specific code, but if peer-dependency warnings during install are a blocker, use the community fork `react19-simple-maps` (or `@vnedyalk0v/react19-simple-maps`) instead — same API. |
+| `maxminddb>=2.5.0` (already pinned) | GeoIP2 Anonymous IP `.mmdb` format | Same reader works for GeoLite2-City, GeoLite2-ASN, and GeoIP2 Anonymous IP — MaxMind DB format is generic; no new Python dependency needed to add the second database. |
+| MongoDB time-series collections | MongoDB >= 5.0 (server running 8.0.26) | Time-series collections cannot be capped and cannot be converted in-place from a regular collection — must be created fresh via `createCollection(..., timeseries={...})` at migration time. |
+| `supercluster@8.0.1` | Any map renderer (SVG, MapLibre, Leaflet) | Pure geospatial/JS, no map-library dependency — safe to adopt now with `react-simple-maps` and reuse unchanged if the map layer is swapped later. |
 
 ## Sources
 
-- Local verification (HIGH confidence — direct execution, not third-party claim): `cargo check --offline` and `cargo build --release --offline` run against `agent-install/omni-agent-rs` working tree, 2026-07-20; `Cargo.lock` inspected for resolved versions; `grep` across `src/` for usage of every API named in upstream breaking-change notes.
-- [reqwest CHANGELOG.md](https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md) — MEDIUM (community/maintainer-authored, cross-checked against 2 independent blog posts on the 0.13 rustls-default change)
-- [reqwest v0.13 — rustls by default (seanmonstar.com)](https://seanmonstar.com/blog/reqwest-v013-rustls-default/) — MEDIUM (maintainer's own blog, authoritative for this specific change)
-- [sysinfo CHANGELOG.md](https://github.com/GuillaumeGomez/sysinfo/blob/main/CHANGELOG.md) — MEDIUM
-- [tokio-tungstenite CHANGELOG.md](https://github.com/snapview/tokio-tungstenite/blob/master/CHANGELOG.md) — MEDIUM (version-0.30-specific entries not directly confirmed in search snippet; general trend across 0.25–0.29 confirmed, treat 0.30-specific notes as LOW standalone but the local `cargo check` pass is the operative confirmation for this codebase)
-- [rusqlite Changelog.md](https://github.com/rusqlite/rusqlite/blob/master/Changelog.md) — MEDIUM
-- [hostname crate on crates.io/docs.rs](https://docs.rs/hostname/latest/hostname/) — MEDIUM
-- [RUSTSEC-2025-0068: serde_yml unsound and unmaintained](https://rustsec.org/advisories/RUSTSEC-2025-0068.html) — HIGH (official RustSec advisory database)
-- [rustsec/advisory-db#2132: serde_yaml is unmaintained](https://github.com/rustsec/advisory-db/issues/2132) — HIGH (official advisory tracking issue)
-- `pip index versions` run locally against live PyPI, 2026-07-20, for `oci`, `cloudflare`, `alibabacloud_sas20181203`, `alibabacloud_config20200907`, `alibabacloud_tea_openapi`, `alibabacloud_credentials`, `aliyun-python-sdk-core-v3` — HIGH (direct registry query)
-- [OCI Cloud Guard Python SDK docs (CloudGuardClient)](https://oracle-cloud-infrastructure-python-sdk.readthedocs.io/en/latest/api/cloud_guard/client/oci.cloud_guard.CloudGuardClient.html) — MEDIUM
-- [Cloudflare official Python SDK — GitHub](https://github.com/cloudflare/cloudflare-python) — MEDIUM
-- [alibabacloud-python-sdk — GitHub (V2.0 SDK, official)](https://github.com/aliyun/alibabacloud-python-sdk) — MEDIUM
-- [aliyun-openapi-python-sdk — GitHub (V1.0 SDK, maintenance-mode notice)](https://github.com/aliyun/aliyun-openapi-python-sdk) — MEDIUM
-- Codebase inspection (HIGH — primary source): `backend/requirements.txt`, `backend/oci_ingest.py`, `backend/cloudflare_ingest.py`, `backend/alibaba_ingest.py`, `backend/cloud_checks_service.py`, `backend/cloud_account_endpoints.py`, `.planning/HANDOFF.json`
+- npm registry (`npm view <pkg> version`, direct query 2026-07-29) — confirmed current versions: `maplibre-gl@6.0.0`, `react-simple-maps@3.0.0`, `d3-geo@3.1.1`, `topojson-client@3.1.0`, `world-atlas@2.0.2`, `supercluster@8.0.1`, `pmtiles@4.4.1`, `react-map-gl@8.1.1`, `leaflet@1.9.4`, `react-leaflet@5.0.0`, `recharts@3.10.1` — HIGH confidence (primary registry source)
+- PyPI (`pip index versions` / registry JSON, direct query 2026-07-29) — `maxminddb@3.1.1` (project pins `>=2.5.0`), `geoip2@5.3.0` (official MaxMind Python wrapper, optional) — HIGH confidence
+- dev.maxmind.com/geoip/docs/databases/anonymous-ip/ and maxmind.com/en/geoip-anonymous-ip-database — GeoIP2 Anonymous IP field list (`is_anonymous_vpn`, `is_hosting_provider`, `is_public_proxy`, `is_residential_proxy`, `is_tor_exit_node`) — MEDIUM confidence (official vendor docs surfaced via web search, not fetched raw)
+- maxmind.com/en/geolite/eula and dev.maxmind.com/geoip/geolite2-free-geolocation-data — GeoLite2-ASN free tier, license-key + attribution requirement — MEDIUM confidence
+- github.com/X4BNet/lists_vpn — free VPN/datacenter IP list, GitHub-Actions auto-rebuilt — MEDIUM confidence
+- mongodb.com/docs/manual/core/timeseries-collections/ and mongodb.com/docs/v8.2/core/timeseries-collections/ — time-series vs capped collection guidance, compression/query benefits — MEDIUM confidence
+- maplibre.org/maplibre-gl-js/docs/, github.com/maplibre/maplibre-gl-js, github.com/maplibre/demotiles, keimaps.com self-hosted-basemap articles — self-hosted/offline MapLibre + PMTiles pattern — MEDIUM confidence
+- npmjs.com/package/react-simple-maps, react-simple-maps.io, github.com/zcreativelabs/react-simple-maps — SVG/TopoJSON approach, staleness of upstream release, React-19 fork existence — MEDIUM confidence
+- Codebase inspection (`backend/geoip_service.py`, `backend/agent_heartbeat_endpoints.py`, `backend/migrations/002_scale_indexes.py`, `backend/database.py`, `package.json`, live `mongod --version` = 8.0.26) — HIGH confidence (direct source read)
 
 ---
-*Stack research for: Enterprise OmniAgent — Security & Compliance Portal, v3.2 milestone*
-*Researched: 2026-07-20*
+*Stack research for: Agent Geo & Fleet Observability (v3.3)*
+*Researched: 2026-07-29*

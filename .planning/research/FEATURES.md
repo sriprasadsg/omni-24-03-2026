@@ -1,159 +1,253 @@
 # Feature Research
 
-**Domain:** GRC/compliance platform — remediation operations (ticketing bridge, SLA/escalation, control comment threads, CSPM checks)
-**Researched:** 2026-07-20
-**Confidence:** MEDIUM (cross-checked web sources: Vanta help center, Cloudflare developer docs, Alibaba Cloud official docs, Prowler docs, ServiceNow community, GRC vendor blogs — no official API-key-gated docs available for direct verification; codebase patterns read directly from source, HIGH confidence)
+**Domain:** Endpoint/EDR-adjacent fleet management — agent geolocation map, location-based security detections, fleet health observability, location-history audit
+**Researched:** 2026-07-29
+**Confidence:** MEDIUM (web sources cross-checked across CrowdStrike/Elastic/MaxMind official docs + multiple geofencing/GRC articles — no API-key-gated vendor docs directly verified; codebase-derived findings below are HIGH confidence, read directly from source)
 
-**Scope note:** This is a subsequent-milestone research pass. Existing capabilities (Jira/ServiceNow connectors for security alerts, generic support-ticket SLA escalation, DigitalOcean CSPM checks, remediation task CRUD/AI-suggest/re-scan/WebSocket, single-field evidence comments) are NOT re-researched — see `.planning/PROJECT.md` v3.2 milestone section. This file covers only the 4 new v3.2 feature areas.
+**Scope note:** This is a subsequent-milestone (v3.3) research pass. `publicIp`/`geo` collection (GeoLite2-City), the Public IP + Location row in AgentList/AgentsDashboard, `agent_metrics_history`, heartbeat status (Online/Offline/Error/Quarantined), agent version tracking, the SIEM impossible-travel rule, insider-threat `vpn_geo_anomaly`, the notification service, and `remediation_escalations` are NOT re-researched — they already exist (v3.2 and earlier). This file covers only the 4 new v3.3 feature areas: (1) fleet geo map, (2) location-based security, (3) fleet observability, (4) location history & audit.
+
+**Critical codebase finding, read directly (HIGH confidence) — re-scope before planning:**
+Two of the four "target features" named in PROJECT.md's v3.3 section are **already substantially built**, and treating them as net-new will duplicate working code:
+- **Offline-agent alerting already exists.** `backend/app_background_tasks.py::monitor_agent_status()` marks agents Offline after 5 minutes of heartbeat silence, broadcasts a websocket `agent_status_change` event, and fires an `agent.offline` in-app notification via `notification_manager`. What's missing is a UI surface (an uptime timeline/percentage view), not the detection or alerting itself.
+- **Per-agent version display + fleet upgrade already exists.** `AgentList.tsx` shows and sorts by `agent.version`; `AgentsDashboard.tsx` has a `handleScheduleUpgrade` bulk-upgrade action; `agent_heartbeat_endpoints.py` auto-pushes an update instruction when a reporting agent's version is behind `_LATEST_AGENT_VERSION`. What's missing is a fleet-wide *aggregate* view (e.g., "N agents on 2.1.2, M on 2.1.3" distribution), not per-agent version tracking.
+- **`agent_metrics_history` has zero frontend consumption.** `GET /agents/{id}/metrics/history` (in `agent_metrics_endpoints.py`) already returns time-series CPU/mem/disk plus a computed summary (avg/max), ready to chart — but no component reads it. This is a real, table-stakes gap.
+- **SIEM impossible-travel (`itdr_service.py::on_login_success`) is USER-authentication-scoped, not agent-scoped.** It tracks `itdr_login_events` (email/ip/country) on human logins, with a 1-hour impossible-travel window. It has no concept of an *agent's* public IP changing. Agent-geo impossible travel is a genuinely new detector — reuse the alert-creation and notification plumbing, not the `itdr_login_events` collection.
+- **Insider-threat `vpn_geo_anomaly` is a demo-only risk-factor tag today, not a live rule.** `insider_threat_service.py` defines `vpn_geo_anomaly` in a risk-factor registry and references it only inside `seed_demo_data()` — there is no live detection logic evaluating real login/agent events against it. Treat this as "the taxonomy/weight already exists, the live rule does not" — reuse the risk-factor registry and scoring pipeline, but the actual VPN/geo-anomaly evaluation must be built.
+- **GeoIP is City-only — no ASN/VPN/proxy/hosting data exists anywhere in the codebase.** `geoip_service.py` uses only a free MaxMind GeoLite2-City `.mmdb` (country/city/region/lat-long). There is no ASN lookup, no VPN/proxy/hosting flag, no reputation feed of any kind. VPN/proxy/hosting-ASN flagging is 100% new capability requiring a new (likely paid) data source — see Anti-Features and Pitfall-adjacent note below.
 
 ## Feature Landscape
 
-### Table Stakes (Users Expect These)
+### Area 1 — Fleet Geo Map (visualization)
+
+#### Table Stakes
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Remediation task → ticket, one-click or auto-create | Vanta/Drata/Cyber Sierra all let a failing control/task generate a Jira issue or ServiceNow incident pre-populated with failure reason, control ID, and remediation steps — this is the single most-cited integration pattern across every GRC vendor surveyed | MEDIUM | `ticketing_service.py` already has `create_jira_ticket`/`create_servicenow_incident` accepting an `alert`-shaped dict; reuse by mapping a `compliance_remediation_tasks` doc into that same shape rather than adding a parallel code path |
-| Dedup guard on auto-create | Every vendor source describes checking for an existing open linked ticket before creating a new one on repeat trigger (e.g. re-scan still failing) | LOW | Store `ticket_ref`/`ticket_provider`/`ticket_url` fields directly on the remediation task doc; auto-create logic checks these are unset before calling the connector |
-| One-way close-loop sync (external ticket resolved → task marked resolved) | Vanta: "once an issue is resolved in Jira, Vanta automatically reflects that so engineers never need to log into Vanta" — this is described as baseline, not premium, across sources | MEDIUM | Requires either a webhook receiver (Jira/ServiceNow webhook → `PATCH` task status) or a polling job; polling is simpler and matches this codebase's existing `start_escalation_scheduler` background-loop pattern in `tickets_escalation_service.py` |
-| Manual link (attach existing ticket to a task) | Fallback when auto-create is off or ticketing isn't configured for the tenant; needed because `ticketing_service.get_ticketing_config` can return `None` | LOW | Simple `ticket_ref`/`ticket_url` field set via PATCH, no connector call |
-| Severity/priority mapping from task priority to ticket priority | Existing `JIRA_PRIORITY_MAP`/`SNOW_URGENCY_MAP` already encode this pattern for alerts; remediation tasks have their own `priority` field that needs the same mapping | LOW | Reuse the existing maps — remediation task priority values (`low/medium/high/critical` per `compliance_remediation_service.py`) already match the map keys |
-| Due-date breach detection on remediation tasks | Every SLA-escalation source frames "detect overdue, don't silently miss" as the baseline expectation; auditors specifically look for this | LOW-MEDIUM | `compliance_remediation_tasks` already has `due_date`; add a `sla_status` compute (ok/at_risk/breached) mirroring `tickets_helpers._compute_sla`, scoped to this collection only per PROJECT.md's explicit note that `tickets_escalation_service.py` is a different domain |
-| Escalation notification to assignee (+ optionally assignee's manager or a configured escalation target) | Universally cited: "overdue tasks trigger automatic escalation notifications to task owners" | MEDIUM | Needs an escalation-target concept per tenant/task since `assignee_type` is already `user`\|presumably `team`; simplest v1 is notify the assignee + a per-tenant configured escalation contact/channel, not full org-chart manager lookup |
-| Escalation audit trail (immutable log of what was escalated, when, why) | Auditors explicitly expect a documented trail of SLA misses, not silent breach — cited by multiple sources as differentiating a defensible program from an informal one | LOW | Mirrors the existing `status_history` pattern already used for compliance status overrides (`PATCH /api/assets/{id}/compliance/status`) — append an `escalation_history` array entry, don't overwrite |
-| Threaded comments on a control, visible to the compliance team | GRC platforms use comment threads on controls/evidence to replace email chains for questions and gap-flagging; described as a core collaboration primitive, not a premium add-on | LOW-MEDIUM | Codebase already has this exact pattern in `tickets_service.add_comment`/`tickets_endpoints.py` (`POST /{id}/comments`, `$push` to an array, `@mentions` regex, notification dispatch) — clone directly per PROJECT.md's own note |
-| @mention detection + notification in comments | Existing tickets comment pattern already does this (`re.findall(r'@([\w.+-]+@[\w.+-]+\.[a-z]+)', ...)`) and it's a reasonable baseline for any comment feature in this codebase | LOW | Copy the existing regex + notification dispatch verbatim |
-| Comment author + timestamp displayed, chronological order | Baseline expectation for any audit-relevant comment thread — sources note "comment history is part of the audit trail" | LOW | Same shape as tickets: `{id, author, text, created_at, edited}` |
-| Real CSPM check catalog entries for OCI/Alibaba/Cloudflare (not just allowlisted provider names) | DigitalOcean already sets the bar in this codebase: 10 real, correctly-scoped checks covering firewall, storage encryption, network isolation, monitoring. OCI/Alibaba/Cloudflare currently have zero — that's the literal gap named in the milestone | MEDIUM (×3 providers) | Follow the exact `DO_CHECKS` list shape (`id`, `name`, `description`, `provider`, `service`, `severity`, `frameworks`, `remediation`) in a new `cloud_checks_oci.py` / `cloud_checks_alibaba.py` / `cloud_checks_cloudflare.py` file each, imported into `CLOUD_CHECKS` in `cloud_checks_service.py`, exactly like `AWS_CHECKS`/`AZURE_CHECKS`/etc. are combined today |
-| OCI checks aligned to CIS OCI Foundations Benchmark | Prowler (this project's own competitive benchmark target) implements OCI checks against this exact standard; it's the de facto baseline for any OCI CSPM tool | — | Minimal-but-real set (~8-10 checks): IAM (MFA enforced, no tenancy-admin day-to-day use, API keys rotated, storage-admin scoped without delete), Object Storage (bucket not public, encryption via Vault), Networking (security lists not open to 0.0.0.0/0 on admin ports, VCN flow logs on), Logging (Cloud Guard enabled, Audit log retention), Compute (boot volume encryption) |
-| Alibaba checks mirroring AWS-equivalent services | Alibaba Cloud Security Center's own configuration-assessment checks and Trend Micro Conformity map almost 1:1 to AWS checks (RAM~IAM, OSS~S3, ActionTrail~CloudTrail, Security Group~SG) | — | Minimal-but-real set (~8-10 checks): OSS bucket not public-read/public-read-write, OSS SSE enabled, OSS access logging, RAM least-privilege (no individual-user AdministratorAccess, MFA enforced, unused creds removed), ECS security group not open to 0.0.0.0/0 on 22/3389, RDS/ApsaraDB not publicly accessible + encrypted at rest, ActionTrail enabled account-wide |
-| Cloudflare checks aligned to its own Security Center/Security Insights categories | Cloudflare's own dashboard groups exactly these checks under "Security" — using their own taxonomy avoids inventing non-standard categories | — | Minimal-but-real set (~8-10 checks): SSL/TLS mode is Full (strict) not Flexible, DNSSEC enabled, min TLS version ≥1.2, Always Use HTTPS enabled, WAF Managed Rules enabled (not log-only), API tokens scoped (not Global API Key), rate limiting on auth/API paths, Bot Fight Mode/Bot Management enabled, origin IP not exposed (proxy/orange-cloud on) |
-| `simulated` flag when a check runs without real imported findings | Existing precedent in `cloud_checks_service.run_checks()` (`"simulated": not has_real_findings`) and the CloudFormation container-scan decision in PROJECT.md's Key Decisions table — labeled simulated data beats silent fake-pass/fail | LOW | New OCI/Alibaba/Cloudflare checks plug into the exact same `run_checks()` evaluation loop already in `cloud_checks_service.py` — no new evaluation logic needed, only new check *definitions* |
+| Map view with one marker per agent, colored/shaped by status (Online/Offline/Error/Quarantined) | Baseline for any fleet dashboard with location data; CrowdStrike's own "Active Sensors by Country" WorldMap dashboard is the direct comparable — status-at-a-glance on a map is the expected default, not a premium add-on | MEDIUM | Consume the already-persisted `agent.geo.{latitude,longitude}` + `agent.status`; no new backend endpoint needed beyond the existing agent-list query, just a `lat/lon != null` filter |
+| Marker clustering at country/region zoom, expanding to city/individual pins on zoom-in | Every fleet-map competitor surveyed aggregates at low zoom (CrowdStrike aggregates to country level by default) — without clustering, a few hundred agents in one metro area become an unreadable pile of overlapping pins | MEDIUM | Standard client-side library feature (e.g. Leaflet.markercluster / Supercluster) — this is UI-library work, not a new data model |
+| Filter by tenant and by status | Multi-tenant platform — an MSP admin needs to scope the map to one client or to "show me everyone offline right now"; this mirrors the existing tenant-scoping already enforced everywhere else in the app | LOW | Same tenant-isolation filter pattern already applied to every other agent-list endpoint; status filter is a simple `$in` query |
+| Click-through from marker to agent detail (drill-down) | Table stakes for any ops map — a marker with no click target is a dead end; AgentList/AgentsDashboard already has the target detail view | LOW | Wire marker click → existing agent detail route/modal, no new detail UI needed |
+| Self-hosted map tiles (no external tile server dependency) | PROJECT.md explicitly flags air-gapped deployments as a hard requirement — this is this project's own constraint, not a generic table-stake, but it is non-negotiable given the compliance/MSP customer base (some tenants may be in isolated networks) | MEDIUM-HIGH | Standard approach per research: pre-generate/self-host vector or raster tiles (e.g. PMTiles single-file archive, or a raw OSM-extract raster tile directory) served from the app's own static assets, consumed by Leaflet/MapLibre as a normal `tileLayer` — zero runtime call to any public tile CDN. Flag for phase-specific research: tile generation pipeline and file size/licensing of a bundled basemap are non-trivial and deserve their own research pass at planning time |
+| Empty/degraded state when an agent has no geo (private IP, GeoIP lookup miss, DB not installed) | `geoip_service.lookup()` already returns `None` silently in these cases — the map must not crash or silently drop agents, it should show them in a "no location" bucket/list | LOW | `geo` is already nullable on the agent doc; map component just needs a defined fallback (list panel) rather than treating it as an error |
 
-### Differentiators (Competitive Advantage)
+#### Differentiators
 
 | Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Bidirectional field sync (status, assignee, comments flow both ways between GRC task and Jira/ServiceNow ticket) | Sources explicitly frame full two-way sync as beyond baseline — most competitors do one-way close-loop only (ticket closed → task resolved), not continuous field mirroring | HIGH | Explicitly defer past v1 — requires webhook infra + conflict resolution; PROJECT.md's downstream-consumer question already flags this as a v1-scope decision, answer: NOT needed for v1, fire-and-forget create + poll-based close-loop is sufficient |
-| Severity-tiered SLA policy engine (critical 15-30d / high 30-60d / medium 60-90d / low next-cycle) configurable per tenant/framework | Cited as GRC-leader behavior (documented policy-driven SLA windows, not just a single global due-date field) — this project already has `compliance_remediation_tasks.due_date` set per-task by the creator, so a policy *engine* that auto-derives due dates from severity would be a step up | MEDIUM | Good v1.1+ candidate once basic breach detection ships; v1 can rely on user-set `due_date` per task |
-| Auditor-facing comment visibility toggle (internal-only vs auditor-visible comments) | Sources note auditor collaboration tools distinguish internal notes from shared/auditor-visible ones | MEDIUM | Not requested in the v3.2 scope language ("new comment model... genuinely absent") — worth flagging as a natural v1.1 follow-on given this platform already has MSP/tenant/auditor role distinctions elsewhere, but do not build proactively |
-| Live API-polled CSPM checks (real-time SDK calls to OCI/Alibaba/Cloudflare rather than evaluation against imported findings) | Would move this codebase from "findings importer + check evaluator" (current architecture for all providers, including DO) to true live CSPM | HIGH | Explicitly NOT what "real check logic" means in this milestone — DigitalOcean, the reference implementation named in PROJECT.md, also evaluates against `cloud_findings` import data, not live polling. Building live SDK integration for 3 new providers in this milestone would be scope creep against the established architecture |
-| Cross-framework check reuse (single OCI/Alibaba/Cloudflare check mapped to multiple frameworks: SOC2, ISO27001, PCI, NIST) | Every existing provider check list (AWS/Azure/GCP/DO) already does this via the `frameworks: [...]` array field | LOW (already the pattern) | Not really a "differentiator" so much as consistency — just make sure new checks populate this field like all others do, not a stub `[]` |
+|---------|--------------------|------------|-------|
+| Live status animation/pulse on markers that just went Online/Offline (websocket-driven) | This codebase already broadcasts `agent_status_change` over websocket (from `monitor_agent_status`) — wiring that existing stream into the map gives a "live ops center" feel most competitors' static dashboards don't have | MEDIUM | Reuse the existing websocket channel; purely additive to the base map, no new backend event needed |
+| Heatmap/density overlay (agent concentration by region) as an alternate view to discrete markers | Useful for MSPs with hundreds of endpoints in a few metros where clustering alone still feels noisy | LOW-MEDIUM | Standard library toggle (e.g. Leaflet.heat) layered on the same lat/lon dataset — no new data needed |
+| Geo + compliance-posture overlay (color marker by compliance pass-rate, not just online/offline) | Ties the new map into this platform's actual Core Value ("see compliance posture") rather than being a generic IT-ops map — a genuine differentiator vs. pure EDR fleet maps which don't know about compliance | MEDIUM | Requires joining agent geo with the existing per-asset compliance status already computed elsewhere; good v1.x candidate once base map ships |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+#### Anti-Features
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|------------------|-------------|
-| Rebuilding a parallel ticketing system instead of reusing `ticketing_service.py` connectors | "Remediation tickets are different from alert tickets" feels intuitively true | PROJECT.md is explicit: "reuse, don't rebuild" — `ticketing_service.py`'s Jira/ServiceNow functions are generic (`create_jira_ticket(alert, config)` takes any dict-shaped payload, not an alert-specific schema); duplicating auth/config/connector code for remediation tasks doubles maintenance surface for zero functional gain | Map a `compliance_remediation_tasks` doc into the same shape `create_jira_ticket`/`create_servicenow_incident` already expect (rename `alert.get('type')`→task title, `alert.get('hostname')`→asset name, etc.) and call the existing functions |
-| Reusing `tickets_escalation_service.py` as-is for remediation task SLA | It already implements SLA-breach escalation logic, seems like free reuse | PROJECT.md explicitly calls this out: it operates on the generic `db.tickets` collection with `status`/`priority` semantics specific to the internal ticketing system (open/in_progress/on_hold/etc.), not `compliance_remediation_tasks`' status vocabulary (open/resolved) or its `due_date`-driven (not created_at+SLA-policy-driven) breach model | Write a small, scoped `compliance_remediation_escalation_service.py` that borrows the *pattern* (background loop, `_history_entry`, priority bump) but queries `compliance_remediation_tasks` and respects its own status/priority vocabulary |
-| Rich/nested comment threading (replies-to-replies, reactions, edit history diffing) | Feels like "modern collaboration tool" parity (Slack/Linear-style threads) | No GRC competitor source surveyed does this on compliance controls — flat chronological comment lists are the norm; nested threading adds real UI/data-model complexity (parent_id chains, thread collapsing) for a feature whose job is "leave an auditable note," not real-time chat | Flat array of `{id, author, text, created_at, edited}` per control, exactly like the existing `tickets_service.add_comment` pattern already proven in this codebase |
-| Building a fully generic "comments on anything" polymorphic system (tickets + controls + evidence + assets all sharing one comments collection/endpoint) | DRY instinct — "we already have a comment pattern, make it universal" | Increases blast radius of a schema change and RBAC complexity (different resources have different visibility/tenant-isolation rules); PROJECT.md scopes this narrowly to `control_id`-linked comments only | Clone the tickets comment *pattern* into a control-scoped implementation; do not attempt a shared polymorphic comments service in this milestone |
-| Full live-scanning CSPM agents/connectors for OCI/Alibaba/Cloudflare (OAuth flows, SDK polling schedulers, credential vaulting) | "Real check logic" sounds like it implies live scanning | Every existing provider in this codebase (including the reference-quality DigitalOcean implementation) evaluates checks against previously-imported `cloud_findings`, not live API calls — building live scanning for 3 providers when even AWS/Azure/GCP don't have it here would be wildly inconsistent scope and effort for a milestone framed as "close real gaps," not "add new architecture" | Real, correctly-researched check *definitions* (name/description/severity/frameworks/remediation) evaluated against the existing import-and-match `run_checks()` engine, marked `simulated` when no findings are imported yet — same as every other provider |
-| Auto-escalating remediation tasks all the way to a hard priority bump on the underlying compliance control itself | Seems like it "closes the loop" fully | Compliance control pass/fail state is derived from evidence/scan results (`compliance_evidence_processor`), not from remediation-task SLA state; conflating the two would let an unrelated process (a missed SLA notification) silently mutate compliance status, undermining the existing `manual_override`/`status_history` integrity model from Phase 6 | Escalation only ever touches the remediation task's own fields (`priority`, `escalation_level`, `escalated_at`) and notifications — it never writes to asset/control compliance status |
+| Real-time street-level/precise-address pinpointing | "More precision looks more powerful" | GeoIP (even paid tiers) is only accurate to city/region for most residential/business IPs — presenting false precision (e.g., pinning to an exact street) is misleading and a compliance/privacy liability for an MSP audience | Show city/region-level accuracy honestly; if higher precision is needed later, it must come from a different signal (e.g. device GPS), which is out of scope for a server-side agent |
+| Building a custom in-house tile-rendering/tile-server stack from scratch | Feels like "full control" over air-gapped requirement | Reinventing an OSM tile pipeline (vector tile generation, styling, zoom pyramids) is a multi-week specialty effort with its own licensing/attribution obligations | Use an existing self-hostable tile format (PMTiles/MBTiles) with a pre-built extract; treat this as "bundle & serve a file," not "build a tile server" |
+| Live external tile CDN (Mapbox/Google Maps/OSM public tile servers) as the default | Fastest to integrate, best-looking out of the box | Directly violates the stated air-gapped/self-contained requirement; also introduces per-tenant IP/geo data egress to a third party for every map render — a real compliance concern for a compliance-focused product | Self-hosted tiles as table stakes; if online tenants want richer tiles, make an external provider strictly optional/tenant-configurable, never the only path |
+
+### Area 2 — Location-Based Security
+
+#### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Agent impossible-travel detection (same agent's `publicIp`/`geo` jumps countries faster than physically possible between two heartbeats) | Direct analog to the existing SIEM impossible-travel rule and ITDR's user-login version — expected once agent geo exists, per the milestone's own framing | MEDIUM | **New detector, but reuse the existing alert/notification pipeline.** Do NOT reuse `itdr_login_events` (user-auth-scoped) or duplicate the SIEM rule's login-event query — this needs its own event trail on agent heartbeats (previous geo vs. new geo + elapsed time + implied speed), emitting through the same `_create_alert`-style helper and the existing notification service so it appears in the same alert stream as everything else |
+| Per-tenant geo-fencing: allow-list of countries/regions, alert (and optionally block/quarantine) on agent heartbeat from outside the list | Matches the general geofencing/conditional-access pattern (Azure AD, LastPass, DataLocker) — risk-tiered response (alert vs. hard block) is called out across sources as the standard shape, not binary-only | MEDIUM | New: a per-tenant policy doc (`allowed_countries: [...]`, `action: alert|quarantine`) checked on every heartbeat where `geo.country_code` is present; on violation, reuse the existing `agent_quarantine_endpoints.py` quarantine action if `action=quarantine`, and the existing notification service for `action=alert` — don't build a second quarantine mechanism |
+| Geo-fence violation alerting surfaced in the same place as other security alerts (SIEM/insider-threat feed), not a siloed new inbox | Consistency with the existing SIEM/insider-threat alert surfaces the milestone explicitly asks to integrate with | LOW | Emit into whatever collection/stream backs the current SIEM alert list (same shape as `itdr_service._create_alert` output) rather than inventing a new alerts collection |
+| VPN/proxy/hosting-provider flag shown next to an agent's location (e.g. "connecting via known hosting/VPN network") | Table stakes in identity/fraud tooling generally (MaxMind's own Anonymous IP product exists precisely because this is expected), and relevant here because a "hosting ASN" endpoint is a red flag for a compliance/EDR-adjacent product | MEDIUM-HIGH | **Real gap — no data source exists today.** Requires a new MaxMind add-on DB (GeoIP Anonymous IP, paid) or an alternate ASN/VPN-reputation feed loaded alongside the existing `.mmdb` reader in `geoip_service.py`. Flag explicitly for phase-specific research: licensing cost, air-gapped update/rotation process for a paid `.mmdb`, and false-positive rate on legitimate corporate VPNs (which are common and NOT malicious) all need dedicated research before committing to an implementation approach |
+
+#### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|--------------------|------------|-------|
+| Confidence-scored VPN/proxy flagging (not just boolean) surfaced with a "why" (named provider, confidence %) | MaxMind's own higher tier (Anonymous Plus) frames this as the premium differentiator over a bare boolean flag — fewer false positives, more actionable for an analyst | HIGH | Depends entirely on which data source is chosen (only the paid MaxMind Anonymous Plus tier or equivalent commercial feed offers this) — defer until the base VPN/ASN flag (table stakes) ships and the source decision research is done |
+| Risk-tiered geo-fence response (step-up verification / quarantine only on repeat or high-severity violation, not every single alert) | Sources explicitly frame graduated risk response as more mature than binary block/allow — reduces alert fatigue for MSP analysts managing many tenants | MEDIUM | Natural v1.x extension once basic alert-on-violation ships and false-positive rate from real usage is known |
+| Cross-signal correlation (agent geo-fence violation + user login impossible-travel + insider-threat vpn_geo_anomaly all correlated into one incident, not three separate alerts) | This is the actual "fleet + security convergence" story the milestone implies — genuinely differentiated vs. generic EDR/fleet tools that don't share a compliance platform's existing SIEM/insider-threat surfaces | HIGH | Requires all three underlying detectors to exist first (agent impossible-travel is new, per above); good v2 candidate once each individual detector is proven, not a v1 target |
+
+#### Anti-Features
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|------------------|-------------|
+| Auto-block/kill an agent's connection the instant any geo-fence rule fires, with no configurable grace period | "Fail closed" sounds maximally secure | GeoIP has legitimate false-positive triggers (a legitimate corporate VPN egress, a mobile hotspot roaming across a border, an ISP reassigning an IP block) — hard auto-block on first violation will quarantine legitimate endpoints and generate support burden that undermines trust in the whole feature | Default to alert-only with an admin-configurable escalation to quarantine after N violations or on explicit tenant opt-in, matching the existing `agent_quarantine_endpoints.py` action as an available response, not the automatic default |
+| Building a brand-new alerts/incidents collection and UI specifically for geo-security events | Feels cleanly scoped to "just this feature" | Directly duplicates the existing SIEM alert feed and insider-threat alert feed the milestone explicitly says to integrate with, not duplicate — creates a second place analysts must check | Emit into the existing SIEM/insider-threat alert surface using the same shape/collection those systems already read from |
+| Treating any VPN/proxy hit as an automatic hard-fail/block | "VPN = bad actor" is intuitive | Many legitimate remote-work and MSP-managed endpoints connect over corporate VPNs; blocking on VPN detection alone produces high false-positive noise and would actively break normal remote work for a distributed workforce | Surface VPN/proxy/hosting as an informational flag contributing to a risk score, not a standalone block trigger — pair with the geo-fence/impossible-travel signals rather than acting alone |
+
+### Area 3 — Fleet Observability
+
+#### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Per-agent CPU/mem/disk history chart (time-series, selectable window e.g. 1h/24h/7d) | Elastic Fleet's own agent detail view shows exactly this (CPU/mem/last-checkin over time) — the direct fleet-management comparable; and this codebase's own backend endpoint already computes it | LOW-MEDIUM | **Zero backend work needed.** `GET /agents/{id}/metrics/history` already returns time-series + summary stats (avg/max per metric). Purely a frontend charting task — reuse `recharts` (already a project dependency, used elsewhere in dashboards) rather than adding a new charting library |
+| Heartbeat/uptime timeline (visual bar/strip showing Online/Offline/Error segments over time) + an uptime % figure | Standard fleet-health primitive (Elastic's "agent activity" chronological log is the direct analog); auditors and MSP ops both want "how reliable has this endpoint been," not just current status | MEDIUM | New: requires persisting/deriving status transitions over time. `agent.status` is currently overwritten in place with no history — either add a lightweight `agent_status_history` collection (append a record on each transition, mirroring the append-only pattern already used elsewhere) or derive uptime % from `agent_metrics_history`/heartbeat timestamps as a cheaper first cut. Flag as needing a design decision at planning time: true state-transition log (more accurate, more storage) vs. heartbeat-gap inference (cheaper, less precise) |
+| Offline-agent alerting | Already exists — see the codebase finding at the top of this document | — | **Reuse `monitor_agent_status()` as-is.** Only gap: surfacing it in a fleet-wide "currently offline" list/widget on the new observability view; the detection+notification backend needs no changes |
+| Agent version-drift surfacing at the fleet level (e.g. "14 agents on 2.1.2, 3 on 2.1.1, 1 on 1.9.0 — needs upgrade") | Table stakes for any managed-fleet tool — CrowdStrike's own docs call out monitoring sensor version/RFM status across the fleet as a named capability | LOW-MEDIUM | Per-agent version already displayed and sortable in `AgentList.tsx`; `_LATEST_AGENT_VERSION` already known server-side. This is an aggregation task (`GROUP BY version`) plus a simple bar/summary widget — not a new tracking mechanism. Wire it to the existing `handleScheduleUpgrade` action so drift → one-click remediation |
+| Per-agent health "at a glance" badge (e.g. resource-pressure warning when CPU/mem/disk consistently high) | Table stakes once history data is charted — a raw chart without a threshold-based summary forces the operator to eyeball it every time | LOW | Compute from the existing `summary` object (`cpu_avg`/`cpu_max` etc.) already returned by `get_agent_metrics_history` — no new backend logic, just a frontend threshold/badge |
+
+#### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|--------------------|------------|-------|
+| Fleet-wide health rollup dashboard (single view: uptime % distribution, version drift %, resource-pressure count, offline count — across all agents/tenants for an MSP admin) | Elastic/CrowdStrike expose this per-agent or per-policy-group; an MSP-wide rollup across *all* tenant fleets in one glance is a genuine differentiator for the MSP-operator persona this platform is built around | MEDIUM | Straightforward aggregation over already-existing per-agent data (metrics history, status, version) — no new collections, just a summary endpoint/view |
+| Predictive/trend-based alerting (e.g. "disk usage trending toward full in ~5 days" rather than only threshold-crossing) | Goes beyond reactive alerting most fleet tools ship by default | HIGH | Defer — requires trend/regression logic on `agent_metrics_history`; not needed for a credible v1, real scope-creep risk if pulled forward |
+
+#### Anti-Features
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|------------------|-------------|
+| Sub-minute/near-real-time metrics streaming and charting | "More real-time = better observability" | Heartbeat interval is already ~30s and `agent_metrics_history` is capped at ~1-min granularity/48h retention server-side (`to_list(length=2880)`) — building a faster streaming pipeline than the data source itself supports is wasted effort | Chart at the existing granularity; if finer resolution is genuinely needed later, that's a heartbeat-interval/storage-retention change, not a frontend problem |
+| A second, parallel status-tracking system independent of `agent.status`/`monitor_agent_status()` | "The uptime timeline needs its own source of truth" | Duplicates the existing offline-detection logic and risks the two statuses disagreeing (e.g. timeline says Online while `agent.status` says Offline) | Derive the uptime timeline directly from `agent.status` transitions (via a new lightweight history collection or heartbeat-gap inference) — single source of truth for "is this agent up" |
+
+### Area 4 — Location History & Audit
+
+#### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Per-agent public-IP/geo change timeline (chronological list: old geo → new geo, timestamp) | Direct analog to any audit-trail feature in this codebase (compliance `status_history`, remediation `escalation_history`) — once geo changes are security-relevant (Area 2), auditors will expect to see the history, not just the current value | LOW-MEDIUM | New: append an entry each time a heartbeat's resolved `geo` differs from the agent doc's stored `geo` (compare before overwrite in `agent_heartbeat_endpoints.py`), rather than only ever overwriting in place as today |
+| Immutable, append-only storage (no update/delete on history entries) | Explicitly named in the milestone; matches the proven `remediation_escalations` pattern in this exact codebase | LOW | **Clone `remediation_escalations` directly**: a dedicated collection (e.g. `agent_geo_history`), `insert_one`-only access pattern, no update/delete endpoints exposed — same shape as the SLA escalation audit trail already shipped in v3.2 |
+| Read-only, tenant-scoped GET endpoint to view an agent's history | Matches the existing pattern for `remediation_escalations` (tenant-scoped GET, admin-gated where relevant) | LOW | Clone `compliance_remediation_sla_endpoints.py`'s read-only GET shape and tenant-isolation logic verbatim |
+| History entry includes enough context to explain the change (previous geo, new geo, previous/new public IP, timestamp, and — if available — which heartbeat/agent version triggered it) | Auditors need the "why/what changed" narrative, not just a bare diff; this is the same expectation already met by `status_history`'s `changedBy`/`changedAt`/`previous_status` shape | LOW | Mirror the `status_history` field shape (`previous_value`/`new_value`/`changed_at`) rather than inventing a new schema convention |
+
+#### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|--------------------|------------|-------|
+| Location-history entries cross-linked to any security alert they triggered (e.g. "this geo change also fired an impossible-travel alert — view it") | Ties the audit trail into Area 2's detections, giving auditors and analysts a single narrative instead of two disconnected records | LOW-MEDIUM | Simple foreign-key style reference (`alert_id`) stored on the history entry when the geo-change coincides with a fired detection — cheap once both features exist, sequence Area 2 before this enhancement |
+| Exportable per-agent or per-tenant location-history report (PDF/Excel) alongside the existing compliance audit exports | Consistent with this platform's existing audit-export capability (`compliance_reporting_pdf.py`/`compliance_reporting_excel.py`) — MSPs already export compliance evidence packages and would expect location history to be exportable the same way for an audit | MEDIUM | Reuse the existing PDF/Excel generation infrastructure and STATUS_LEGEND-style convention rather than building new export plumbing; good v1.x follow-on, not required for initial ship |
+
+#### Anti-Features
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|------------------|-------------|
+| Allowing admin edit/delete of history entries (e.g. "clean up noisy/incorrect geo blips") | Feels like reasonable data hygiene | Directly breaks the "immutable, append-only" requirement explicitly stated in the milestone and undermines the entire audit value proposition (an editable audit trail isn't an audit trail) | If a geo entry is genuinely wrong (bad GeoIP data), append a corrective/annotation entry — never mutate or remove the original, same principle already applied to `status_history`/`remediation_escalations` |
+| Recording every single heartbeat as a history entry regardless of whether geo actually changed | "More data is more audit-proof" | Heartbeats arrive every ~30s; logging every one when geo is unchanged 99%+ of the time bloats the collection for zero audit value and makes the real change events harder to find in the noise | Only append when the resolved geo (or public IP) differs from the currently stored value — a diff-triggered log, exactly like why `status_history` only appends on an actual status change, not every read |
+| A generic "audit everything" polymorphic history collection shared across agents, controls, remediation tasks, etc. | DRY instinct — "we already have three append-only history patterns, unify them" | Increases blast radius of any schema change and mixes very different access-control/retention needs (agent geo history vs. compliance status history) into one collection; this is the same anti-pattern already explicitly rejected for comments in the v3.2 research | A dedicated `agent_geo_history` collection, matching the existing convention of one purpose-built append-only collection per audit concern (`remediation_escalations`, `status_history` embedded on assets, and now this) |
 
 ## Feature Dependencies
 
 ```
-Remediation-to-ticketing bridge
-    └──requires──> existing ticketing_service.py Jira/ServiceNow connectors (already built)
-    └──requires──> compliance_remediation_tasks collection (already built)
-    └──enhances──> SLA/escalation (an escalated task can auto-comment/update the linked ticket, optional)
+Fleet geo map (Area 1)
+    └──requires──> agent.geo / agent.publicIp fields (already built, v3.2)
+    └──requires──> self-hosted tile bundle/pipeline (new — flagged for phase research)
+    └──enhances──> Location-based security (Area 2) UI can plot geo-fence violations on the same map, optional
 
-SLA/escalation for remediation tasks
-    └──requires──> compliance_remediation_tasks.due_date field (already present)
-    └──pattern-borrows-from──> tickets_escalation_service.py (background-loop shape only, not the collection/query)
+Location-based security (Area 2)
+    └──requires──> agent.geo / agent.publicIp on each heartbeat (already built, v3.2)
+    └──requires (new)──> agent-level geo-change event trail (new — needed for impossible-travel comparison; not the same store as Area 4's audit, though both come from the same heartbeat-diff logic)
+    └──requires (new, VPN/ASN flag only)──> a new ASN/VPN/hosting IP data source (GeoIP Anonymous IP or equivalent) — geoip_service.py has no such source today
+    └──integrates-with, does-not-duplicate──> existing SIEM impossible-travel rule (itdr_service.py, user-login-scoped) and insider-threat vpn_geo_anomaly (risk-factor taxonomy only, no live rule yet)
+    └──reuses──> existing agent_quarantine_endpoints.py quarantine action, existing notification service
 
-Comment threads on compliance controls
-    └──pattern-clones──> tickets_endpoints.py / tickets_service.py comment implementation (already built, proven)
-    └──independent-of──> ticketing bridge and SLA/escalation (no shared data model)
+Fleet observability (Area 3)
+    └──requires──> agent_metrics_history + GET /agents/{id}/metrics/history (already built, zero backend work)
+    └──requires (new)──> agent status-transition history (for accurate uptime %, timeline) OR heartbeat-gap inference (cheaper alternative)
+    └──reuses──> monitor_agent_status() offline detection + notification (already built, do not rebuild)
+    └──reuses──> per-agent version field + handleScheduleUpgrade action (already built; version-drift is new aggregation only)
 
-CSPM checks for OCI/Alibaba/Cloudflare
-    └──pattern-clones──> cloud_checks_service.py DO_CHECKS shape + RUNNABLE_PROVIDERS inclusion (already built, proven)
-    └──independent-of──> the other 3 features entirely (different subsystem: cloud posture, not remediation ops)
+Location history & audit (Area 4)
+    └──requires──> agent.geo / agent.publicIp on each heartbeat (already built, v3.2)
+    └──pattern-clones──> remediation_escalations append-only shape (already built, proven, v3.2)
+    └──enhances──> Location-based security (Area 2) via optional alert_id cross-link
 ```
 
 ### Dependency Notes
 
-- **Ticketing bridge requires existing `ticketing_service.py` connectors:** No new Jira/ServiceNow auth or API-call code needed — only a translation layer from `compliance_remediation_tasks` doc shape to the `alert`-dict shape those functions already consume, plus new fields on the task doc (`ticket_provider`, `ticket_ref`, `ticket_url`) to record the link.
-- **SLA/escalation borrows the *pattern*, not the collection, from `tickets_escalation_service.py`:** PROJECT.md is explicit that the existing service is "a different domain, not reusable as-is" because it queries `db.tickets` with that system's status vocabulary. A new, scoped service should reuse the background-loop-every-N-minutes shape and the append-only history-entry idiom, but query `compliance_remediation_tasks` directly.
-- **Comment threads clone the tickets comment pattern directly:** Same array-push-per-comment shape, same `@mention` regex, same notification dispatch call — the only real design decision is where the array lives: embedded on the (already tenant-scoped) `compliance_controls` doc, matching how tickets embed comments on the ticket doc, versus a separate `control_comments` collection keyed by `{tenantId, control_id}`. Embedding matches the existing proven pattern most closely and needs no new tenant-isolation logic (the parent `compliance_controls` doc is already tenant-filtered everywhere it's read). A separate collection would need its own tenant-isolation test coverage identical to what already exists for `compliance_remediation_tasks` (5 boundaries verified per PROJECT.md) — pick whichever is cheaper to implement correctly, but embedding is the lower-risk default given how closely it mirrors the proven ticket pattern.
-- **CSPM checks are fully independent of the other 3 features:** Different subsystem (`cloud_checks_*` files), no shared data model with remediation tasks, tickets, or comments. Can be built/planned as a separate phase with zero ordering constraint relative to the other three.
+- **Areas 2 and 4 share a root cause (heartbeat geo-diff) but must NOT share a collection.** Both need "did this agent's geo/IP change since last heartbeat" logic in `agent_heartbeat_endpoints.py`, but Area 2's need is transient (compare-then-decide-alert) while Area 4's need is a permanent immutable log. Compute the diff once per heartbeat and fan out to both: fire the Area 2 detector check, and separately append to the Area 4 `agent_geo_history` collection — do not make one read from the other's store.
+- **Area 2's VPN/ASN flagging is the single highest-uncertainty item in this milestone.** No existing data source, no existing code path, and the cost/licensing/air-gapped-update-cadence tradeoffs of a paid MaxMind add-on (or an alternative feed) need dedicated phase-specific research before a plan can commit to an approach. Flagged explicitly, per PROJECT.md's own request.
+- **Area 3's uptime-timeline design decision (true state-transition log vs. heartbeat-gap inference) should be made once, early, and reused if Area 4's audit trail needs a parallel "was this agent online" concept later** — but they remain separate collections; do not conflate agent *presence* history with agent *location* history even though both are time-series-of-agent-state.
+- **Area 1 (map) is consumable-only for Areas 2/3/4 data** (it can overlay geo-fence violations or offline status as optional layers) but has zero hard dependency on them — it can ship as soon as the tile-serving approach is chosen, independent of the other three areas.
+- **Reuse-vs-build guidance for existing SIEM/insider-threat overlap, stated explicitly per the downstream consumer's request:**
+  - SIEM impossible-travel (`itdr_service.py`) → **reuse the alert-creation pattern (`_create_alert`) and severity/notification conventions only.** Do not extend `itdr_login_events` to also carry agent heartbeats — build a parallel, agent-scoped event trail and detector function.
+  - Insider-threat `vpn_geo_anomaly` → **reuse the risk-factor id/weight/category registry.** The live rule itself does not exist (`seed_demo_data` only) — Area 2's actual VPN+geo-anomaly detection logic is new code that should emit into whatever collection the insider-threat feed already reads for real (non-demo) risk events, not a new inbox.
+  - `remediation_escalations` → **clone the append-only collection + read-only endpoint pattern wholesale** for Area 4; this is the single cleanest and lowest-risk reuse in the whole milestone.
+  - `agent_metrics_history` / heartbeat status / version tracking → **reuse as-is, build UI only** (Area 3); resist any temptation to add parallel metrics collection or a second offline-detection mechanism.
 
 ## MVP Definition
 
 ### Launch With (v1 — this milestone)
 
-- [ ] Remediation task → ticket link, manual "Create Ticket" action + optional per-tenant auto-create-on-create-task toggle, reusing existing Jira/ServiceNow connectors — table stakes, matches every competitor surveyed
-- [ ] One-way close-loop sync (poll linked ticket status; when Jira/ServiceNow ticket closes, mark remediation task resolved and trigger existing re-scan dispatch) — table stakes per Vanta's described baseline behavior; NOT full bidirectional field sync
-- [ ] `sla_status` computation (ok/at_risk/breached) on `compliance_remediation_tasks` scoped to that collection's own `due_date` and status vocabulary — table stakes
-- [ ] Escalation notification (to assignee, plus a per-tenant configured escalation contact) + `escalation_history` audit trail entries — table stakes, matches auditor-defensibility expectations
-- [ ] Comment thread on `control_id`, cloned from the existing ticket-comment pattern (author/text/timestamp, `@mention` detection, notification) — table stakes, explicitly named as "genuinely absent" in PROJECT.md
-- [ ] Real check-definition catalogs for OCI (~8-10 checks), Alibaba (~8-10 checks), Cloudflare (~8-10 checks), each following the `DO_CHECKS` shape, wired into `CLOUD_CHECKS` and evaluated by the existing `run_checks()` engine with `simulated` flagging — table stakes, matches the DigitalOcean reference bar already set in this codebase
+- [ ] Fleet geo map: markers by status, clustering, tenant/status filters, click-through to agent detail, self-hosted tiles — table stakes for Area 1
+- [ ] Agent-scoped impossible-travel detector (new, parallel to but not duplicating the user-login ITDR rule), emitting into the existing SIEM/insider-threat alert surface
+- [ ] Per-tenant geo-fencing policy (allowed countries/regions) with alert-only default response, reusing existing quarantine action as an available (not automatic) escalation
+- [ ] Per-agent CPU/mem/disk history chart consuming the already-built `GET /agents/{id}/metrics/history` endpoint — pure frontend work
+- [ ] Uptime timeline + uptime % (requires the new status-transition history or heartbeat-gap-inference decision)
+- [ ] Fleet-level version-drift summary widget, wired to the existing `handleScheduleUpgrade` action
+- [ ] Per-agent public-IP/geo change timeline in a new immutable `agent_geo_history` collection, cloned from the `remediation_escalations` append-only/read-only pattern
 
 ### Add After Validation (v1.x)
 
-- [ ] Severity-tiered SLA *policy* engine that auto-derives `due_date` from control severity + framework, rather than relying purely on user-set due dates — trigger: once teams start asking for consistent SLA windows across tenants instead of per-task manual dates
-- [ ] Auditor-visible vs internal-only comment visibility toggle — trigger: once external auditor portal access (if/when built) needs to reuse this same comment thread
-- [ ] Deeper OCI/Alibaba/Cloudflare check catalogs (beyond the minimal-but-real 8-10 each) expanding toward Prowler-parity coverage counts — trigger: once the minimal set proves the CSPM pattern generalizes correctly and there's demand for broader coverage parity with AWS's 147 checks
+- [ ] VPN/proxy/hosting-ASN flagging — trigger: once a data-source decision (paid MaxMind Anonymous IP/Plus vs. alternative feed) is researched and approved; explicitly the highest-uncertainty item, sequence it after the rest of Area 2 ships
+- [ ] Geo + compliance-posture overlay on the fleet map — trigger: once the base map is live and stable
+- [ ] Fleet-wide MSP rollup dashboard (uptime/version-drift/resource-pressure across all tenants) — trigger: once per-tenant observability views are proven
+- [ ] Exportable location-history report (PDF/Excel) — trigger: once the base audit trail is live and an auditor/MSP asks for exportability, consistent with existing compliance export patterns
+- [ ] Cross-linking geo-history entries to the security alerts they triggered — trigger: once both Area 2 and Area 4 are independently live
 
 ### Future Consideration (v2+)
 
-- [ ] Bidirectional continuous field sync between remediation tasks and external tickets (status/assignee/comments mirrored both ways in near-real-time) — defer: requires webhook infrastructure and conflict-resolution logic disproportionate to a "close real gaps" milestone; no competitor source treats this as baseline
-- [ ] Live SDK-based CSPM scanning for OCI/Alibaba/Cloudflare (real-time API polling instead of imported-findings evaluation) — defer: architecturally inconsistent with every other provider in this codebase including the AWS/Azure/GCP reference implementations; would require rearchitecting the whole `cloud_checks_service.py` evaluation model, not just adding 3 providers
+- [ ] Risk-tiered/graduated geo-fence response (step-up verification before quarantine) — defer: needs real false-positive data from v1's alert-only rollout first
+- [ ] Cross-signal correlation (agent geo-fence + user impossible-travel + insider-threat vpn_geo_anomaly merged into one incident) — defer: each underlying detector needs to prove out independently first
+- [ ] Predictive/trend-based resource alerting on `agent_metrics_history` — defer: reactive threshold alerting is the credible v1 bar; trend modeling is real scope creep for this milestone
+- [ ] Confidence-scored VPN/proxy flagging (named provider + %) — defer: only available via the highest commercial tier of a VPN-detection feed; revisit after the boolean flag ships and proves valuable
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Remediation-to-ticketing bridge (create + one-way close-loop) | HIGH | MEDIUM | P1 |
-| SLA/escalation on remediation tasks | HIGH | LOW-MEDIUM | P1 |
-| Comment threads on compliance controls | MEDIUM-HIGH | LOW-MEDIUM | P1 |
-| OCI/Alibaba/Cloudflare CSPM check catalogs (minimal-but-real) | MEDIUM | MEDIUM (×3) | P1 |
-| Bidirectional ticket field sync | MEDIUM | HIGH | P3 |
-| SLA policy engine (severity-tiered auto due-dates) | MEDIUM | MEDIUM | P2 |
-| Auditor-visible comment toggle | LOW-MEDIUM | MEDIUM | P3 |
-| Live CSPM scanning (real SDK calls) | LOW (for this milestone's stated goal) | HIGH | P3 (architectural mismatch — not just deferred, actively avoid this milestone) |
+|---------|------------|----------------------|----------|
+| Fleet geo map (markers, clustering, filters, drill-down) | HIGH | MEDIUM | P1 |
+| Self-hosted tile pipeline for air-gapped map | HIGH (blocking for map) | MEDIUM-HIGH | P1 (flag for dedicated research) |
+| Agent impossible-travel detector | HIGH | MEDIUM | P1 |
+| Per-tenant geo-fencing (alert-only default) | HIGH | MEDIUM | P1 |
+| Per-agent metrics history chart (frontend only) | HIGH | LOW-MEDIUM | P1 |
+| Uptime timeline + uptime % | HIGH | MEDIUM | P1 |
+| Fleet version-drift summary widget | MEDIUM-HIGH | LOW-MEDIUM | P1 |
+| Location-history append-only audit trail | HIGH | LOW-MEDIUM | P1 |
+| VPN/proxy/hosting-ASN flagging | MEDIUM-HIGH | MEDIUM-HIGH (new data source) | P2 |
+| Geo + compliance-posture map overlay | MEDIUM | MEDIUM | P2 |
+| MSP-wide fleet rollup dashboard | MEDIUM | MEDIUM | P2 |
+| Exportable location-history report | LOW-MEDIUM | MEDIUM | P2 |
+| Risk-tiered geo-fence escalation | MEDIUM | MEDIUM | P3 |
+| Cross-signal correlated incidents | MEDIUM | HIGH | P3 |
+| Predictive resource-trend alerting | LOW (for this milestone) | HIGH | P3 |
+| Confidence-scored VPN provider naming | LOW-MEDIUM | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for launch (v3.2 milestone scope)
+- P1: Must have for launch (v3.3 milestone scope)
 - P2: Should have, add when possible (v1.x)
-- P3: Nice to have, future consideration (v2+) — or actively out of scope per architecture fit
+- P3: Nice to have, future consideration (v2+)
 
 ## Competitor Feature Analysis
 
-| Feature | Vanta | Drata / Cyber Sierra | This Project's Approach |
-|---------|-------|----------------------|--------------------------|
-| Ticket creation from failed control | One-click, pre-populated with test/control/remediation context, dedup against open issues | Auto-create Jira issue or ServiceNow incident, assign to asset owner, link to control | Reuse existing `create_jira_ticket`/`create_servicenow_incident`; map remediation task fields into the same payload shape; add dedup via stored `ticket_ref` |
-| Close-loop sync | Ticket closed in Jira → Vanta reflects automatically, no manual re-check needed | Platform "verifies the fix, closing the loop" | Poll linked ticket status (reuses `start_escalation_scheduler`-style background loop shape) → mark task resolved → trigger existing `dispatch_rescan` |
-| SLA/escalation | Not deeply detailed in sources, but severity-tiered windows are the general GRC pattern | ServiceNow GRC/IRM module has native SLA definitions per module | Scoped `sla_status` + escalation service on `compliance_remediation_tasks` only, borrowing the existing internal-ticketing pattern's shape, not its collection |
-| Control/evidence comments | Auditor collaboration surfaces described as "share evidence, respond to requests, preserve audit trails" in-platform | Not deeply detailed, general "collaborative workflow" language across sources | Clone the existing internal-tickets comment pattern (flat array, `@mention`, notification) onto `control_id` |
-| CSPM coverage breadth | N/A (Vanta/Drata are compliance-evidence platforms, not CSPM scanners in the Prowler sense) | Prowler (this project's own named competitive benchmark) has broad multi-cloud check coverage including OCI | Minimal-but-real 8-10 checks per new provider, following the CIS-benchmark-aligned pattern Prowler itself uses for OCI, and the AWS-equivalent-service pattern for Alibaba (RAM~IAM, OSS~S3, ActionTrail~CloudTrail) |
+| Feature | CrowdStrike Falcon | Elastic Fleet | This Project's Approach |
+|---------|---------------------|---------------|---------------------------|
+| Geo map | Pre-built WorldMap dashboard, "Active Sensors by Country," Grouping Tags for org/location | Not geo-focused (Fleet is agent-policy-centric, not location-centric) | Country/city marker map with clustering + status color, on top of already-collected `geo`/`publicIp` — closer to CrowdStrike's model than Elastic's |
+| Geo-based security detection | Correlates device geolocation with geopolitical/CTI events; no publicly documented per-agent geofencing/impossible-travel product feature found in sources | Not a security-detection product in this sense | Agent-scoped impossible-travel + per-tenant geofencing, integrated with this platform's own existing SIEM/insider-threat surfaces — a genuine differentiator vs. both comparables, which don't combine fleet-geo with security detection in one product |
+| VPN/proxy/ASN flagging | Not documented in sources reviewed as a fleet-map feature | Not applicable | New capability via a MaxMind Anonymous IP/Plus-class data source — matches the general fraud/identity-tooling pattern (MaxMind, IPQualityScore) rather than an EDR-specific precedent, since none was found |
+| Fleet health/observability | Sensor version/RFM status monitoring, device search by dozens of properties | Agent detail view: CPU/mem, last-checkin, chronological agent-activity log; offline-alerting is a documented, common ask (Kibana community threads) | Per-agent metrics-history chart (data already exists) + uptime timeline/% + version-drift aggregate — directly modeled on Elastic's agent-detail + activity-log shape, reusing already-built offline-detection instead of rebuilding it |
+| Location/audit history | Not documented as a standalone audit feature in sources reviewed | Chronological "Agent activity" log exists for policy/config operations, not geo specifically | Purpose-built immutable `agent_geo_history`, cloned from this project's own proven `remediation_escalations` pattern — a project-specific reuse decision, not modeled on either competitor |
 
 ## Sources
 
-- [Jira + Vanta Integration](https://www.vanta.com/integrations/jira)
-- [Jira: Integration Guide | Vanta Help Center](https://help.vanta.com/en/articles/14441707-jira-integration-guide)
-- [How to Integrate Compliance Monitoring with Jira or ServiceNow Workflows](https://cybersierra.co/blog/sstreamline-compliance-jira-servicenow/)
-- [SOC 2 Ticketing & SLAs: Vulnerability Patching & Incident Response](https://truvocyber.com/blog/soc2-ticketing-sla-vulnerability-incident-response)
-- [Controls remediation: best practices and real-world examples for 2025](https://community.trustcloud.ai/docs/grc-launchpad/grc-101/risk-management/navigating-controls-remediation-best-practices-and-case-studies/)
-- [Automating SLAs in Risk-Based Vulnerability Management](https://nucleussec.com/blog/automating-slas-rbvm/)
-- [A Practical Guide for GRC Leaders (Three Lines of Defense) — ServiceNow Community](https://www.servicenow.com/community/grc-articles/a-practical-guide-for-grc-leaders-three-lines-of-defense-in/ta-p/3396208)
-- [Solved: SLAs for any module in GRC/IRM — ServiceNow Community](https://www.servicenow.com/community/grc-forum/slas-for-any-module-in-grc-irm/m-p/2446100)
-- [SOC 2 Compliance Software (2026): 14 Platforms Ranked by an Auditor Network](https://soc2auditors.org/insights/soc-2-software/)
-- [Best 12 Compliance Audit Software Platforms for SOC Readiness](https://securityboulevard.com/2026/07/best-12-compliance-audit-software-platforms-for-soc-readiness/)
-- [Overview of Security Best Practices in OCI Tenancy | ateam](https://www.ateam-oracle.com/oci-tenancy-security-best-practices-guide-overview)
-- [Well-architected framework for Oracle Cloud Infrastructure](https://docs.oracle.com/en/solutions/oci-best-practices/optimize-security-posture-your-environment1.html)
-- [Oracle Cloud Infrastructure (OCI) Authentication in Prowler — Prowler Documentation](https://docs.prowler.com/user-guide/providers/oci/authentication)
-- [prowler-cloud/prowler releases (GitHub)](https://github.com/prowler-cloud/prowler/releases)
-- [Overview of Cloud Security Posture Management (CSPM) — Alibaba Cloud](https://www.alibabacloud.com/help/en/security-center/user-guide/cspm)
-- [Manage cloud configuration risks with security checks — Security Center — Alibaba Cloud](https://www.alibabacloud.com/help/en/security-center/user-guide/cloud-service-configuration-assessment/)
-- [OSS Bucket Public Access | Trend Micro Cloud One Conformity](https://www.trendmicro.com/cloudoneconformity/knowledge-base/alibaba-cloud/AlibabaCloud-OSS/publicly-accessible-oss-bucket.html)
-- [Best practice rules for Alibaba Cloud | TrendAI](https://www.trendmicro.com/trendaivisiononecloudriskmanagement/knowledge-base/alibaba-cloud/)
-- [Overview · Cloudflare Security Center docs](https://developers.cloudflare.com/security-center/)
-- [API token permissions · Cloudflare Fundamentals docs](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)
-- [Cloudflare WAF Best Practices](https://www.appsecure.security/blog/cloudflare-waf-best-practices)
-- [Recommended Cloudflare Performance & Security Settings (Guide)](https://linuxblog.io/recommended-cloudflare-performance-security-settings-guide/)
-- Codebase read directly (HIGH confidence, not web-sourced): `backend/ticketing_service.py`, `backend/tickets_escalation_service.py`, `backend/tickets_endpoints.py`, `backend/tickets_service.py`, `backend/compliance_remediation_service.py`, `backend/cloud_checks_service.py`, `backend/cloud_checks_endpoints.py`, `backend/cloud_account_endpoints.py`, `backend/mcp_server.py`
+- [Manage Your Fleet | CrowdStrike Developer Center](https://developer.crowdstrike.com/accomplish/manage-your-fleet/)
+- [Geopolitical Intelligence from EDR Sensor Location Data](https://t3l3m3try.medium.com/geopolitical-intelligence-from-edr-sensor-location-data-33b29313d118)
+- [Fleet | Deploy CrowdStrike with Fleet](https://fleetdm.com/guides/deploying-crowdstrike-with-fleet)
+- [Monitor Elastic Agents | Elastic Docs](https://www.elastic.co/docs/reference/fleet/monitor-elastic-agent)
+- [How to Alert When Elastic Agent Goes Offline? — Kibana Discuss](https://discuss.elastic.co/t/how-to-alert-when-elastic-agent-goes-offline/379222)
+- [Elastic Fleet: Alert on Agent Status — Kibana Discuss](https://discuss.elastic.co/t/elastic-fleet-alert-on-agent-status/333502)
+- [Geofencing for Access Control: Setting Digital Boundaries](https://faisalyahya.com/access-control/geofencing-for-access-control-setting-digital-boundaries/)
+- [Geofencing in Cybersecurity: Setup, Use Cases & Troubleshooting](https://www.thelasttech.com/post/geofencing-in-cybersecurity)
+- [Strengthening Your Security Perimeter: Geofencing in Conditional Access Policies](https://www.r3-it.com/blog/geofencing-conditional-access-policies/)
+- [Geofencing: IAM Policy — LastPass](https://www.lastpass.com/features/security-policies/geofencing)
+- [GeoIP® Anonymous IP database | MaxMind](https://www.maxmind.com/en/geoip-anonymous-ip-database)
+- [GeoIP® Anonymous Plus database | MaxMind](https://www.maxmind.com/en/geoip-anonymous-plus-database)
+- [Proxy detection and anonymous IP | MaxMind Support](https://support.maxmind.com/knowledge-base/articles/anonymizer-and-proxy-data-maxmind)
+- [GeoIP Anonymous IP binary database fields | MaxMind Developer Portal](https://dev.maxmind.com/geoip/docs/databases/anonymous-ip/binary/)
+- [Protomaps — Self Hosted Maps and Map Tiles](https://thejeshgn.com/2021/05/25/protomaps-self-hosted-maps-and-map-tiles/)
+- [Offline Maps with Leaflet.js](https://xerocrypt.github.io/articles/offline-maps.html)
+- [Offline Geospatial Maps: Building a No-Internet Tile Server](https://dev.to/ben_var_551c679bfe4787c4f/offline-geospatial-maps-building-a-no-internet-tile-server-10gh)
+- Codebase read directly (HIGH confidence, not web-sourced): `backend/geoip_service.py`, `backend/agent_heartbeat_endpoints.py`, `backend/agent_metrics_endpoints.py`, `backend/app_background_tasks.py`, `backend/itdr_service.py`, `backend/insider_threat_service.py`, `backend/agent_quarantine_endpoints.py`, `backend/compliance_remediation_sla_service.py`, `backend/compliance_remediation_sla_endpoints.py`, `components/AgentList.tsx`, `components/AgentsDashboard.tsx`, `package.json` (recharts dependency)
 
 ---
-*Feature research for: GRC/compliance platform — remediation operations (v3.2 milestone)*
-*Researched: 2026-07-20*
+*Feature research for: agent geo & fleet-observability platform features (v3.3 milestone)*
+*Researched: 2026-07-29*

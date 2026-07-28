@@ -1,235 +1,256 @@
-# Pitfalls Research — v3.2 Agent Modernization & Remediation Ops
+# Pitfalls Research — v3.3 Agent Geo & Fleet Observability
 
-**Domain:** Adding ticket-bridge, SLA/escalation, threaded comments, and CSPM provider checks to an existing multi-tenant GRC platform
-**Researched:** 2026-07-20
-**Confidence:** HIGH — every pitfall below is verified against actual source in this repo (file/line cited), not generic GRC advice
+**Domain:** Adding fleet geo-map, location-based security, fleet observability, and location-history audit to an existing multi-tenant FastAPI/MongoDB/React GRC platform
+**Researched:** 2026-07-29
+**Confidence:** HIGH — every pitfall below is grounded in this repo's actual source (file/line cited); MEDIUM on GDPR/works-council jurisdictional specifics (flagged for legal review, not settled here)
 
-**Method note:** This is 100% internal codebase archaeology — no external ecosystem research was needed or performed. All findings are drawn from reading `backend/database.py`, `backend/router_registry.py`, `backend/ticketing_service.py`, `backend/tickets_endpoints.py`, `backend/tickets_service.py`, `backend/tickets_escalation_service.py`, `backend/tickets_helpers.py`, `backend/compliance_remediation_service.py`, `backend/compliance_remediation_endpoints.py`, `backend/cloud_checks_service.py`, `backend/cloud_checks_endpoints.py`, `backend/cloud_account_endpoints.py`, `backend/mcp_server.py`, `backend/websocket_manager.py`, `backend/app_startup.py`, `backend/authentication_endpoints.py`, and relevant git history (`e55ba34`, `720a76d`, `772e9058`), plus `.planning/PROJECT.md` and `.planning/HANDOFF.json`.
+**Method note:** Verified against `backend/geoip_service.py`, `backend/agent_heartbeat_endpoints.py`, `backend/agent_metrics_endpoints.py`, `backend/database.py` (`TenantIsolatedCollection`/`TenantIsolatedDatabase`), `backend/tenant_context.py`, `backend/tenant_middleware.py`, `backend/agent_auth.py`, `backend/itdr_service.py`, `backend/siem_endpoints.py`, `backend/insider_threat_service.py`, `backend/compliance_remediation_sla_service.py`, `backend/migrations/002_scale_indexes.py`, `frontend/package.json`, `.planning/PROJECT.md`, and the prior milestone's `.planning/research/PITFALLS.md` (v3.2, which already documents a proven background-scheduler tenant-isolation bug for `compliance_remediation_sla_service` — directly relevant here and corroborated below).
 
 ## Critical Pitfalls
 
-### Pitfall 1: SLA/escalation background sweep silently returns zero results for every tenant
+### Pitfall 1: Offline-agent alerting / fleet-wide sweep jobs silently see zero agents for every tenant (repeat of an already-proven bug in this codebase)
 
 **What goes wrong:**
-A new scheduler loop for `compliance_remediation_tasks` (mirroring `tickets_escalation_service.run_escalation_pass`) is written to call `get_database()` and iterate `db.compliance_remediation_tasks.find(...)`. It runs, throws no errors, logs "0 escalated" forever — even with real overdue tasks in the DB.
+Fleet observability requires detecting "this agent hasn't heartbeated in N minutes" — by definition that can't be evaluated inside a heartbeat request (an offline agent sends no request), so it must run as a periodic background sweep across the whole `agents`/`agent_metrics_history` fleet. If that sweep is written the "obvious" way — `db = get_database(); await db.agents.find({...}).to_list(...)` — it will run forever without errors and detect **zero** offline agents, for every tenant, always.
 
 **Why it happens:**
-`get_database()` returns a `TenantIsolatedDatabase`. `compliance_remediation_tasks` is **not** in the exemption allowlist in `database.py` (only `compliance_frameworks`, `compliance_controls`, `ai_governance_frameworks`, `system_features`, `tenants`, `roles`, `response_policies`, `playbooks`, `ip_bans`, `crypto_inventory` are exempt), so it gets wrapped in `TenantIsolatedCollection`. That wrapper's `_inject_tenant_id()` reads `get_tenant_id()` from a **contextvar** (`tenant_context.py`) that is only populated inside an authenticated HTTP request. A background `asyncio` task started from `app_startup.py` has no request context, so `get_tenant_id()` returns `None`, and the fail-closed logic substitutes `tenantId = "NON_EXISTENT_TENANT_ISOLATION_EMERGENCY"` into every query — matching nothing, for every tenant, always. This is a real, live example already fixed correctly for the existing ticket system: `tickets_escalation_service.start_escalation_scheduler` is deliberately called from `app_startup.py:605` with the **raw, unwrapped** `mongodb.db` (`from database import mongodb as _mdb; ... start_escalation_scheduler(_mdb.db)`), never `get_database()`. `run_escalation_pass` itself then does its own per-document handling without tenant filters (it's scanning across all tenants by design, since it's a background sweep, not a request).
+`get_database()` returns a `TenantIsolatedDatabase` (`backend/database.py`). Every non-exempt collection (and `agents`/`agent_metrics_history` are **not** in the exemption allowlist at lines 123-134/140-150) gets wrapped in `TenantIsolatedCollection`, whose `_inject_tenant_id()` reads `get_tenant_id()` from a request-scoped `ContextVar` (`tenant_context.py`). A background `asyncio` task started outside an HTTP request has no `TenantMiddleware` dispatch around it, so `get_tenant_id()` returns `None`. Fail-closed logic then substitutes `"NON_EXISTENT_TENANT_ISOLATION_EMERGENCY"` into every `find`/`count_documents` call, and the `aggregate()` wrapper (database.py lines 92-104) prepends `{"$match": {"tenantId": effective_tenant_id}}` with that same dummy value to any pipeline — matching nothing, silently, for every tenant.
+
+This is not hypothetical: it is the **exact, already-encountered and already-fixed bug** documented for this milestone's sibling feature in v3.2 (`compliance_remediation_sla_service.run_sla_pass`) and for the pre-existing ticketing system (`tickets_escalation_service.run_escalation_pass`). Both are fixed identically: the scheduler is registered at startup passing the raw, unwrapped `mongodb.db` — never `get_database()`. `compliance_remediation_sla_service.py`'s own comment says it plainly: "the sweep (44-02) always passes raw mongodb.db in." Fleet-observability's offline-alerting/version-drift sweep and location-based-security's fleet-wide impossible-travel/geo-fence evaluation are the same shape of job and will reproduce this bug unless built the same way from day one.
 
 **How to avoid:**
-Wire the new `compliance_remediation_tasks` SLA scheduler exactly like `tickets_escalation_service`: import `mongodb` from `database.py`, pass `mongodb.db` (raw motor db) into the sweep function, and register it in `app_startup.py` next to the existing `tickets_escalation_service` block — not via `get_database()`/`get_db()`. Do not add `compliance_remediation_tasks` to the `database.py` exemption allowlist as a workaround — that would remove tenant isolation for the collection everywhere else (all request-scoped endpoint access), which is far worse.
+- Wire every new background sweep (offline-agent detection, version-drift batch, fleet-wide geo-fence/impossible-travel evaluation) exactly like `compliance_remediation_sla_service.run_sla_pass` and `tickets_escalation_service.run_escalation_pass`: accept `db` as a parameter, register the scheduler at startup passing `mongodb.db` (raw), and have the sweep function do its own per-document tenant handling (read `tenantId` off each document, never assume ambient context).
+- Do **not** add `agents`/`agent_metrics_history` to the `database.py` exemption allowlist as a shortcut — that would remove tenant isolation for those collections on every *request-scoped* endpoint too (much worse than the sweep problem it would "solve").
+- Anything computed inside the existing heartbeat request handler (e.g., a per-heartbeat geo/impossible-travel check evaluated synchronously as the heartbeat arrives) is fine with `get_database()` as-is, because `verify_agent_key` (`agent_auth.py`) already calls `set_tenant_id()` before the handler body runs — the contextvar is genuinely populated there. The risk is specifically the *periodic, cross-tenant, no-request* sweep path.
 
 **Warning signs:**
-Scheduler logs "0 breached" indefinitely despite manually-verified overdue tasks in Mongo; a quick `db.compliance_remediation_tasks.find({tenantId: "..."})` from a shell shows correct data but the app-level sweep sees nothing; no exceptions anywhere (fail-closed is silent by design — see `database.py:36-37`'s `logging.error("[SECURITY ALERT] ...")` which only fires on `insert_one`/`aggregate`, not on `find`/`update_one`, so even the log signal is easy to miss for reads).
+- New offline/version-drift/geo-fence sweep logs "0 flagged" indefinitely despite manually verified offline agents in Mongo.
+- A shell query with the correct `tenantId` returns real data; the app-level job sees none.
+- `logging.error("[SECURITY ALERT] DB Access without tenant context...")` (database.py line 37) firing repeatedly in logs at the sweep's cadence — this is the visible tell, but it only fires on `insert_one`/`insert_many`, not on `find`/`count_documents`/`aggregate` reads, so a silent read-only sweep won't even log the alert.
 
-**Feature area:** SLA/escalation for `compliance_remediation_tasks` (feature b).
+**Phase to address:** Fleet observability phase (offline alerting, version drift) and location-based security phase (any fleet-wide impossible-travel/geo-fence evaluation implemented as a sweep rather than per-heartbeat) — both must copy the `mongodb.db`-raw pattern from the very first draft, verified against a real (non-mocked) multi-tenant dataset.
 
 ---
 
-### Pitfall 2: Comment threads on `compliance_controls` leak across tenants (or corrupt shared reference data)
+### Pitfall 2: Treating GeoLite2 city/lat-long as a precise, presentable location
 
 **What goes wrong:**
-PROJECT.md's suggestion to "clone `tickets_endpoints.py`'s comment-thread pattern" is read literally: `tickets_service.add_comment()` pushes a comment object directly onto the parent document's `comments[]` array with `$push` (`tickets_service.py:364-369`, `db[self.COL].update_one({"id": ticket_id, "tenantId": tenant_id}, {"$push": {"comments": comment}})`). If a control-comment feature copies this by pushing into `db.compliance_controls`, it will silently write into a **single global document shared by all tenants** — every tenant sees every other tenant's comments on that control, and concurrent writes from different tenants race on the same document.
+MaxMind GeoLite2-City resolves an IP to a *centroid* of a coarse area (commonly tens of km off, sometimes hundreds for mobile/CGNAT ranges) — it is not a device location. The fleet map plots a marker at `geo.latitude/longitude`; if the UI drops a pin at high zoom or captions it "agent location" without qualification, that's a false-precision claim. For a security/compliance product sold on evidentiary rigor, showing a wrong or over-precise location to a customer — worse, feeding it into a geo-fence *decision* that blocks or flags a real device because the centroid landed outside an allowed-region polygon — is both a credibility and a legal-exposure problem.
 
 **Why it happens:**
-`compliance_controls` is explicitly in `database.py`'s exemption allowlist (`"compliance_controls"` appears twice, in both `__getattr__` and `__getitem__`) as global reference data — the 30+ seeded frameworks' control definitions are one document per control, read identically by every tenant (`seed_compliance_controls_*.py`). Tickets are tenant-owned documents (one ticket = one tenant), so the embed-and-`$push` pattern is safe there. Controls are *not* tenant-owned documents — cloning the storage pattern without noticing this distinction is the actual trap; the *endpoint shape* (POST comment, GET thread, @mention detection) is fine to clone, the *storage* is not.
+`geoip_service.lookup()` (lines 89-101) extracts only `country`/`country_code`/`city`/`region`/`latitude`/`longitude` from the mmdb record. MaxMind's format also carries an `accuracy_radius` in the same `location` sub-dict this function already reads — the codebase currently discards it, so nothing downstream can know how much to trust the point.
 
 **How to avoid:**
-Create a new, separate, tenant-scoped collection (e.g. `control_comments`) with documents shaped like `{id, control_id, tenantId, author, text, created_at, edited}` — never write comment data onto `compliance_controls` documents. Add an index `(tenantId, control_id, created_at)` to `database.py`'s index block (there is currently none for this new collection — it doesn't exist yet). Since this is a brand-new collection not in the exemption list, `TenantIsolatedCollection` will auto-scope it correctly for free on every request-path read/write — no manual `tenantId` filter needed in the endpoint (though it doesn't hurt to be explicit for clarity, per the pattern in `compliance_remediation_endpoints.py`).
+- Capture and persist `accuracy_radius` alongside the existing `geo` fields (same `location` dict `geoip_service.lookup()` already parses) and surface it in the UI ("±80km") and in geo-fence policy evaluation.
+- Render map markers with a radius/blur, not a pinpoint icon, and label them "approximate — IP geolocation" in any tooltip or export.
+- Geo-fence and impossible-travel logic should treat country/region as the primary signal; city/lat-long is supporting detail only — never gate a hard block purely on lat/long precision.
+- Never present this as "device location" in any exported/audit-facing artifact; use "public IP geolocation (approximate)."
 
 **Warning signs:**
-Any UAT step where Tenant A sees Tenant B's comment text on a control page; any code that does `db.compliance_controls.update_one(..., {"$push": {"comments": ...}})` or `find_one_and_update` targeting `compliance_controls`; a control-comment count that doesn't reset per tenant in manual testing.
+- Map pins rendered as precise dots at high zoom with no radius/uncertainty indicator.
+- Geo-fence policy stored as an exact polygon/point-radius check against raw lat/long with no accuracy buffer.
+- Support tickets disputing "the map shows my agent in the wrong city."
 
-**Feature area:** Comment threads on compliance controls (feature c) — this is the single highest-severity pitfall for this milestone.
+**Phase to address:** Fleet geo map phase (data contract + rendering) and location-based security phase (geo-fence policy design) — bake the accuracy caveat in from the start.
 
 ---
 
-### Pitfall 3: OCI/Alibaba/Cloudflare "add checks" only touches 1 of 4 duplicated provider gates
+### Pitfall 3: Reusing the user-login impossible-travel pipeline for agents, or wiring UI to `vpn_geo_anomaly` demo data
 
 **What goes wrong:**
-A developer adds `cloud_checks_oci.py`, `cloud_checks_alibaba.py`, `cloud_checks_cloudflare.py` (mirroring `cloud_checks_aws.py`/`cloud_checks_azure.py`), imports and concatenates them into `CLOUD_CHECKS` in `cloud_checks_service.py`, ships it — and `POST /api/cloud-checks/run` still fails with `"provider must be one of ('aws', 'azure', 'gcp', 'kubernetes', 'digitalocean', 'microsoft365', 'mongodb_atlas')"` for the 3 new providers, even though account registration (`POST /api/cloud-accounts`) happily accepted `provider: "oci"` already.
+This codebase already has two *user-login* geo-anomaly mechanisms that look reusable but are the wrong shape for agent devices:
+- `itdr_service.py::on_login_success()` — impossible travel keyed by `email`+`country`, writing to `itdr_login_events`, fired from `authentication_endpoints.py` on human logins (`>800km`/`30min` thresholds).
+- SIEM rule `impossible_travel` (`siem_endpoints.py` ~line 551) — `conditions: {"action": "login_success", "pattern": "impossible_travel", ...}`, also authentication-event-shaped.
+- `insider_threat_service.py`'s `vpn_geo_anomaly` (line 13) is **seeded/simulated demo data** — a fixed scenario list with fabricated names (e.g., "Bob Martinez," line 58) and static weight/category, not a live detector wired to real telemetry.
 
-**Why it happens:**
-This is the exact same class of bug as Phase 25's CHK-01 (documented in PROJECT.md's Key Decisions table: "Provider-allowlist widening ... touches all 4 duplicated gate locations in lockstep, not just the named execution gate"). Verified live in the current tree: `cloud_checks_endpoints.py:73` and `cloud_account_endpoints.py:13` **already** list `"oci", "alibaba", "cloudflare"` in their validation tuples (someone widened the *front-door* gates in anticipation), but `cloud_checks_service.py:37`'s `RUNNABLE_PROVIDERS = ("aws", "azure", "gcp", "kubernetes", "digitalocean", "microsoft365", "mongodb_atlas")` — the gate that actually controls whether `run_checks()` evaluates anything — does **not** include them yet. This is precisely the "currently allowlisted but zero check logic" state PROJECT.md describes. `mcp_server.py:63-65` is the 4th gate but imports `RUNNABLE_PROVIDERS` directly from `cloud_checks_service` rather than duplicating it, so it self-updates once #3 is fixed — but don't assume that of every gate; the two endpoint files hardcode their own tuples/sets independently.
+The milestone brief asks to "integrate with the existing SIEM impossible-travel rule and insider-threat `vpn_geo_anomaly` — do not duplicate." Taken literally, a developer could (a) try to route agent heartbeat geo through the login-event pipeline (wrong entity — agents aren't users, don't have `email`, heartbeat every few minutes not per-session) or (b) assume `vpn_geo_anomaly` already does real detection and build a UI on its simulated numbers, shipping a feature that displays fabricated risk data as if it were live.
 
 **How to avoid:**
-Grep for every literal occurrence of the existing provider list before touching any one of them: `grep -rn "digitalocean.*microsoft365\|microsoft365.*digitalocean\|RUNNABLE_PROVIDERS" backend/*.py`. As of this research, the 4 real locations are: `cloud_checks_service.py:37` (`RUNNABLE_PROVIDERS` — the execution gate, THE one that's currently missing oci/alibaba/cloudflare), `cloud_checks_endpoints.py:73` (already has them), `cloud_account_endpoints.py:13` (already has them), and `mcp_server.py` (imports, doesn't duplicate — safe). Update `RUNNABLE_PROVIDERS` last, after the three new `cloud_checks_<provider>.py` files exist and are wired into `CLOUD_CHECKS`, and re-run `tests/test_cloud_checks_expansion.py` as the template for new provider tests (it directly documents this exact bug class for kubernetes/digitalocean in its docstring).
+- Do not reuse `itdr_login_events`/`on_login_success` for agents — register a *parallel* rule (same pattern/thresholds, e.g. reuse the `>800km`/window-minutes convention) keyed by `agent_id`/`tenantId` against `geo` deltas in agent telemetry, not user email.
+- Add a distinct SIEM rule id (e.g. `agent_impossible_travel`) rather than mutating the existing user-login one — their false-positive profiles differ completely (see Pitfall 4: shared VPN/NAT egress is *normal* for endpoint agents, not for user logins).
+- Before wiring UI/alerts to `vpn_geo_anomaly`, confirm with whoever owns insider-threat scoring whether it's still simulated-only. If so, either label it "demo data" explicitly wherever it's surfaced, or replace it with a real detector fed by the new agent geo/location-history data — never silently present seeded fixture data as production risk signal in a new customer-facing view.
 
 **Warning signs:**
-`POST /api/cloud-accounts` with `provider: "oci"` succeeds (201) but the subsequent `POST /api/cloud-checks/run` or `/api/cloud-accounts/{id}/scan` 400s with a provider-not-supported message; `cloud_checks_service.list_checks(provider="oci")` returns entries but `run_checks(..., "oci", ...)` returns `{"error": "provider must be one of (...)"}`.
+- A new endpoint imports from `itdr_service.py` or filters `itdr_login_events` by `agent_id`.
+- A fleet-map "risk" badge traces back to `insider_threat_service.py`'s hardcoded scenario list.
+- The SIEM rule list shows one ambiguous "impossible travel" entry serving both users and agents.
 
-**Feature area:** CSPM posture checks for OCI/Alibaba/Cloudflare (feature d).
+**Phase to address:** Location-based security phase — resolve explicitly in spec/discuss before implementation; flag for deeper research (confirm current real-vs-simulated status of insider-threat data with its owner).
 
 ---
 
-### Pitfall 4: New "simulated" CSPM checks report fake PASS/FAIL without the SIMULATED label
+### Pitfall 4: Corporate VPN/CGNAT/shared-egress makes agent impossible-travel and geo-fencing produce constant false positives (or false negatives)
 
 **What goes wrong:**
-The new OCI/Alibaba/Cloudflare checks ship reporting confident PASS/FAIL results to tenants, but nothing backs them — no real cloud API calls exist for these providers (same as DigitalOcean, whose "real checks" are not live API calls either).
+Endpoint agents behind a corporate VPN, SASE/ZTNA gateway, or shared NAT egress all report the same (or a small rotating pool of) public IP regardless of physical device location — agents in three different cities can geolocate identically. This causes:
+- **False negatives:** two genuinely different devices geolocating identically hide a real anomaly (e.g., a compromised agent that actually did travel, masked because it also rides the same VPN egress).
+- **False positives:** a VPN with pooled/round-robin egress can flip country/city between heartbeats for the *same* physical device — no travel occurred — triggering "impossible travel." A residential ISP reassigning a DHCP lease overnight has the same effect.
+- Geo-fence ("allowed region") policy breaks for any tenant using centralized VPN egress: every agent outside the VPN's egress country gets flagged "out of region" even though the device never left the building.
+- Mobile/CGNAT IPs resolve to a carrier's regional aggregation point, not the subscriber — same coarse/wrong-region problem for any cellular-connected endpoint.
 
-**Why it happens:**
-Look closely at `cloud_checks_service.run_checks()` (`cloud_checks_service.py:65-114`): **none** of the providers, including AWS/Azure/GCP, call a live cloud API in this function. It evaluates checks by matching `check["name"]`/`check["id"]` keywords against previously-**imported** `cloud_findings` documents (from an external scanner ingestion path), and sets `"simulated": not has_real_findings` — i.e. `simulated: true` whenever the tenant hasn't imported any real findings for that account yet, which is the default/common case for a newly-registered account. This mirrors the precedent explicitly logged in PROJECT.md's Key Decisions ("CloudFormation container-scan 'simulated' data is labeled, not fail-closed (Phase 25, CHK-03) ... explicit `simulated` field + SIMULATED badge at 3 dashboard sites, verified via live browser run"). If the new provider check definitions are added but the frontend result-rendering component isn't checked for whether it already reads `result.simulated` generically (likely, since DO/AWS/etc. share one component) vs. needs new per-provider wiring, the SIMULATED badge could silently not render for the 3 new providers specifically, making genuinely-fake results look authoritative — a compliance-integrity issue for a GRC product.
+**Why it happens:** `geoip_service.py::_is_public()` (lines 61-67) only excludes private/reserved IPs — a corporate VPN egress IP, a VPS jump box, or a CGNAT carrier IP all pass this check and produce a confident-looking but misleading result. Nothing in the pipeline today classifies "this IP belongs to a known VPN/hosting/CGNAT ASN" — that data doesn't exist yet in this codebase.
 
 **How to avoid:**
-Don't add any new "live API" logic unless that's an explicit, separately-scoped decision — the `simulated` field is already computed automatically and correctly by `run_checks()` for any new provider added to `CLOUD_CHECKS`/`RUNNABLE_PROVIDERS`, since the function is provider-agnostic. The actual verification work is: (1) confirm the 3 dashboard sites that render the SIMULATED badge (per the CHK-03 precedent) render it for these 3 new providers too — grep the frontend for the badge component and confirm it's driven by `result.simulated` generically, not an explicit provider allowlist; (2) verify with a live browser run per account, not just code inspection (CHK-03's own verification note explicitly flags "verified via live browser run, not just code inspection" as the bar that was needed).
+- Add ASN/IP-type classification (MaxMind GeoLite2-ASN, or a hosting/VPN/proxy reputation feed if license terms allow — see Pitfall 8) *before* building impossible-travel/geo-fence logic, tagging every heartbeat's `geo` with `asn`/`asn_org`/a coarse `ip_type`.
+- Suppress or downweight impossible-travel alerts when the source IP is tagged hosting/VPN/known-corporate-egress — surface as informational ("agent reports via corporate VPN egress — geo unreliable"), not a security alert.
+- Let tenants allowlist their known VPN/proxy egress ranges or ASNs for geo-fence policy so their whole fleet doesn't spuriously violate the fence on day one.
+- Exclude same-ASN/same-egress-prefix transitions from impossible-travel entirely, even if MaxMind's city guess differs between lookups (a single VPN concentrator's city assignment can drift without any real device movement).
+- Roll out geo-fence enforcement in alert-only mode first, per tenant, before any blocking behavior — this failure mode is close to guaranteed on first deployment given how common centralized VPN egress is among compliance/MSP customers.
 
 **Warning signs:**
-A tenant's OCI/Alibaba/Cloudflare posture dashboard shows crisp PASS/FAIL percentages with no SIMULATED indicator anywhere, for an account that has never had findings imported; `cloud_findings` collection has zero documents for that `accountId` yet `cloud_check_results` shows `result: "PASS"` un-badged.
+- Alert volume spikes the moment a tenant with centralized VPN egress enables the feature.
+- Every agent for a tenant maps to the exact same lat/long on the fleet map (shared egress, not per-device location).
+- Geo-fence "violations" cluster around known SASE/VPN provider IP ranges.
 
-**Feature area:** CSPM posture checks for OCI/Alibaba/Cloudflare (feature d).
+**Phase to address:** Location-based security phase — highest-value candidate for deeper phase-specific research (ASN/VPN dataset selection, false-positive suppression heuristics) before writing detection rules.
 
 ---
 
-### Pitfall 5: Ticket-bridge naively passes a `compliance_remediation_tasks` doc where `ticketing_service.py` expects an "alert" shape
+### Pitfall 5: Geolocating and retaining employee-device location history without a privacy/legal basis review
 
 **What goes wrong:**
-`compliance_remediation_service.create_task`/`update_task` calls something like `ticketing_service.create_jira_ticket(task, config)` or `create_servicenow_incident(task, config)` directly, expecting it to "just work" since PROJECT.md says to reuse these connectors. The resulting Jira/ServiceNow ticket has a garbled or blank summary/description, missing severity mapping, and a broken MITRE/process/SHA256 section full of "N/A".
+The new location-history & audit feature computes and stores an append-only, per-agent timeline tied to a public IP that, for remote/WFH endpoints, commonly resolves to an identifiable employee's home/residential location. Continuous location tracking of a company-managed-but-employee-used device is personal-data processing under GDPR (Art. 5/6/9) and, in several jurisdictions (Germany, France, and others with works-council/co-determination regimes), requires a documented legal basis, employee notice, and works-council sign-off *before* deployment. Shipping "location history" as an incremental extension of already-collected `publicIp`/`geo` fields — because the raw data already technically exists on the agent doc — understates the legal difference between *transient, overwritten-each-heartbeat* data (already the v3.2 state) and a *new, persistent, queryable, exportable, immutable audit trail* (the v3.3 requirement).
 
-**Why it happens:**
-`ticketing_service.py`'s `create_jira_ticket`/`create_servicenow_incident`/`create_zoho_desk_ticket` were built exclusively for **security alerts** and hard-code that shape: they read `alert.get("severity")` (mapped via `JIRA_PRIORITY_MAP`/`SNOW_URGENCY_MAP`, both keyed on `critical/high/medium/low/info`), `alert.get("type")`, `alert.get("hostname")`, `alert.get("process", {}).get("name")`, `alert.get("process", {}).get("sha256")`, `alert.get("mitre_technique")`, `alert.get("alert_id")`. A `compliance_remediation_tasks` document (`compliance_remediation_service.py:44-64`) has none of these fields — it has `title`, `control_id`, `asset_id`, `framework_id`, `status`, `priority` (already `low/medium/high/critical`, matching format — that part's fine), `assignee`, `due_date`, `description`, `agent_id`. PROJECT.md itself flags this precisely: "currently zero overlap; connectors only serve security-alert tickets."
+**Why it happens:** `publicIp`/`geo` are already collected and overwritten every heartbeat (v3.2), so extending that into a persisted, queryable "location history" looks like a small technical lift — mostly a new append-only collection plus UI — and is easy to underestimate as a privacy-review trigger, especially since the underlying IP-collection mechanism isn't new.
 
 **How to avoid:**
-Write an explicit adapter/mapper function (e.g. `_remediation_task_to_alert_shape(task, control_doc, asset_doc)`) that translates a remediation task into the `alert`-shaped dict the connector functions expect before calling them — populate `type` from the control name/framework, `hostname` from the resolved asset, `description` from `task["description"]`, and drop or repurpose the process/SHA256/MITRE fields that don't apply to a compliance context (or extend `create_jira_ticket`'s payload builder to branch on a `source` field so compliance-sourced tickets get compliance-appropriate wording instead of forcing a security-alert template). Also note `_store_ticket()` (`ticketing_service.py:367-375`) writes to `db.ticketing_log` keyed only by `alert_id` — a remediation task's bridge record needs its own linkage field (e.g. `remediation_task_id`) so the UI can look up "which external ticket is this compliance task linked to," which `ticketing_log` doesn't currently support at all.
+- Get a privacy/legal review before building the history collection: identify the legal basis (legitimate interest for security monitoring is common but must be documented and balanced against employee privacy; a DPIA is likely warranted under GDPR Art. 35 given "systematic monitoring" at fleet scale).
+- Give tenants (the data controller for their own employees) a retention control and a way to export/delete an individual's location history on request — the platform is the processor and needs to make tenant-side GDPR Art. 15/17 compliance possible.
+- Precision minimization: store city/region/country in the persisted history by default; only store precise lat/long if a tenant explicitly opts in for a documented security reason (this also reduces the false-precision exposure from Pitfall 2).
+- Confirm the agent is only ever installed on company-managed endpoints per the existing deployment model — if BYOD is in scope anywhere, that's a substantially harder consent problem to resolve before shipping this.
 
 **Warning signs:**
-Jira/ServiceNow tickets created from remediation tasks show `"Process: N/A (PID N/A)"`, `"SHA256: N/A"`, `"MITRE Technique: N/A"` in the description — dead giveaway the security-alert template rendered against a shape it wasn't built for; no way to query "external ticket ref for remediation task X" because `ticketing_log` has no `remediation_task_id` field.
+- No DPIA/privacy-review ticket exists before implementation starts.
+- Retention is hardcoded to "forever" (matching "immutable audit trail" language) with no per-tenant configurability or subject-access/delete path.
+- Precise lat/long (not just city/region) stored in the long-lived history collection by default.
 
-**Feature area:** Remediation-to-ticketing bridge (feature a).
+**Phase to address:** Location history & audit phase — scope and legally review *before* implementation, ideally as a pre-phase spec/discuss step. Flag for deeper phase-specific research (jurisdiction-specific: GDPR/works-council for EU tenants; relevant US state location/biometric-privacy statutes if applicable).
 
 ---
 
-### Pitfall 6: Manual `tenant_filter` dict in `compliance_remediation_service` becomes dead code for the ticket-bridge/SLA cross-tenant paths
+### Pitfall 6: Cloning `agent_metrics_history`'s ISO-string timestamp pattern for new time-series collections — the existing TTL index is likely already a silent no-op
 
 **What goes wrong:**
-`compliance_remediation_endpoints.py`'s `_tenant_filter(user)` returns `{}` for Super Admin roles specifically so a platform-admin view can see tasks across all tenants (`compliance_remediation_endpoints.py:34-41`). But `svc.list_tasks`/`get_task`/`update_task` all call into `db.compliance_remediation_tasks` — which is `get_database()`-wrapped, i.e. `TenantIsolatedCollection`. The wrapper's `_inject_tenant_id()` doesn't care what filter dict the caller built; for any non-`"platform-admin"` value in the **contextvar**, it force-injects `tenantId = effective_tenant_id` into the query regardless. Whether Super Admin's `{}` filter actually returns cross-tenant data or gets silently re-scoped down to one tenant depends entirely on whether `set_tenant_id("platform-admin")` was called somewhere in the request middleware for that role — a fact this endpoint file doesn't control or verify locally. This is the exact class of bug fixed in commit `e55ba34` ("WR-01 read asset_compliance via raw db._db so explicit tenant_id argument is load-bearing") where an explicit tenant_id parameter threaded through a function was silently ignored because the query went through the wrapped collection instead of raw `db._db`.
+`migrations/002_scale_indexes.py` (lines 51-58) creates a TTL index on `agent_metrics_history.timestamp` with `expireAfterSeconds=30*24*3600`, commented "auto-expire records older than 30 days to bound collection growth." But `agent_heartbeat_endpoints.py` (line 181) writes that field as `datetime.now(timezone.utc).isoformat()` — a BSON **string**, not a BSON **Date**. MongoDB TTL indexes only expire documents whose indexed field is a `Date`; on a string field, the index exists, looks healthy in `getIndexes()`, but **never expires anything**. The only thing actually bounding `agent_metrics_history` growth today is the heartbeat handler's manual "count > 100 → delete oldest" logic (lines 184-190) — the TTL index appears to be dead code, giving false confidence that growth is bounded two ways when only one mechanism actually works.
+
+If fleet-observability or location-history collections clone this exact pattern (ISO string + a TTL index, "because that's how `agent_metrics_history` does it"), the new collections get the same silent no-op — and unlike `agent_metrics_history`, an **immutable, append-only** location-history trail has no equivalent per-agent manual cap catching this, so unbounded growth becomes a real production incident with no working expiry at all.
 
 **How to avoid:**
-For any new cross-tenant view added by this milestone (e.g. an MSP-wide "all overdue remediation tasks across managed tenants" escalation dashboard, or a platform-admin ticket-bridge audit view), don't rely on the `TenantIsolatedCollection`'s contextvar-driven Super Admin bypass working out of the box — verify explicitly (test with a platform-admin token) or use the same `db._db` raw-unwrap pattern used elsewhere in this codebase (`compliance_evidence_lifecycle_endpoints.py:78,116,150`, `program_service.py`'s `db._db.asset_compliance`) so the manually-built `tenant_filter` dict is what actually scopes the query, not a contextvar side-channel.
+- Store all new time-series/audit timestamps as native BSON `Date` wherever a TTL index will be relied on (keep an ISO string field alongside for API/JSON parity if needed, but index a real `datetime` field for TTL).
+- Verify any new TTL index actually reaps documents in a real MongoDB instance during phase verification (insert a synthetic old-dated document and confirm it disappears) — don't just confirm the index was created.
+- Treat the existing `agent_metrics_history` TTL-vs-string mismatch as a fix-forward backlog note (not blocking this milestone) since it means that collection is currently bounded only by the per-agent 100-row cap, not the documented 30-day policy.
+- For location-history specifically, choose retention deliberately (audit/compliance retention is often *longer* than 30 days) rather than copying the operational-metrics TTL value verbatim.
 
 **Warning signs:**
-A platform-admin/Super Admin user querying remediation tasks or escalation status sees only their own tenant's data (or zero data) despite the endpoint code appearing to special-case their role; a unit test mocks `db.compliance_remediation_tasks` directly and passes (because the mock doesn't reproduce the wrapper's contextvar override) while the live endpoint behaves differently.
+- `grep -n '"timestamp".*isoformat()'` shows the field written as a string in the same file that creates an `expireAfterSeconds` index on it.
+- Collection row-count keeps growing past its stated TTL window in a long-running staging environment.
+- Any query needing Mongo date-range operators (`$gte: datetime(...)`) against the field silently degrades to lexicographic string comparison.
 
-**Feature area:** SLA/escalation (feature b) and remediation-to-ticketing bridge (feature a), specifically any cross-tenant/admin views.
+**Phase to address:** Fleet observability phase (health/uptime timeline) and location history & audit phase both create new time-series data — verification gate in both should explicitly check "TTL/expiry actually fires against a real Date-typed field," not just "index was created."
 
----
+## Technical Debt Patterns
 
-### Pitfall 7: New routers/endpoints built but never registered in `router_registry.py`
-
-**What goes wrong:**
-New endpoint modules for the ticket-bridge trigger (e.g. `remediation_ticketing_endpoints.py`), SLA config (`compliance_remediation_sla_endpoints.py`), or control comments (`control_comments_endpoints.py`) are written, tested in isolation, and 404 on every route once deployed.
-
-**Why it happens:**
-Verified recurring in this codebase's history (Phase 28, Phase 30 per milestone context) and the mechanism is fragile-by-design: `router_registry.py`'s `_load()` wraps every import in try/except and only re-raises for the small `_REQUIRED_ROUTERS` frozenset (currently `compliance_status_endpoints`, `compliance_evidence_lifecycle_endpoints`, `compliance_bulk_evidence_endpoints`, `compliance_score_endpoints`, `evidence_review_endpoints`, `cloud_account_endpoints`) — everything else, including the entire 60+ entry `_OPTIONAL` list at the bottom, silently logs an ERROR and continues if the *module itself* fails to import, but more relevantly here: a module that's simply never *listed* in either the explicit `_load()` calls or `_OPTIONAL` tuple list is never imported at all, and there's no lint/test that catches "orphaned endpoint file with no registration."
-
-**How to avoid:**
-For each new endpoint file created this milestone, add it either as an explicit `_load(app, "module_name", "router")` call (compliance/remediation feature area is registered around `router_registry.py:169` — `compliance_remediation_endpoints` already lives there, so siblings should go nearby) or append to the `_OPTIONAL` list. Since `cloud_account_endpoints` is already in `_REQUIRED_ROUTERS` (CR-02 precedent — a `RuntimeError` at import time for missing `CLOUD_CREDENTIALS_KEY` must hard-fail startup, not be swallowed), evaluate whether any new CSPM provider file has an equivalent "must not silently vanish" import-time guard and needs the same required-router treatment. After registering, hit the route once against a running server — a passing unit test on the router object alone does not prove it's mounted.
-
-**Warning signs:**
-Endpoint works when the router's `TestClient(app_module.router)` is exercised directly in a unit test, but 404s through the real running app; `grep <new_module_name> router_registry.py` returns nothing.
-
-**Feature area:** All four (a, b, c, d) — applies to every new endpoint file this milestone introduces.
-
----
-
-### Pitfall 8: New frontend UI built but never wired into `App.tsx`/`Sidebar.tsx`
-
-**What goes wrong:**
-A new SLA-breach badge/filter on the remediation task list, a comment-thread panel on the control detail view, an OCI/Alibaba/Cloudflare posture card, or a "linked external ticket" indicator on remediation tasks gets fully built and works in isolated Storybook/dev-server testing, but is unreachable from the actual app because no route/nav entry points to it.
-
-**Why it happens:**
-Documented as recurring "repeatedly across v2.0 phases — 5 dashboards found stranded in one audit" in the milestone context. This codebase's existing remediation UI already lives inline inside `AssetComplianceList.tsx` (per HANDOFF task 3: "Fix compliance dashboard Suggested Actions/Findings icons") rather than as a dedicated top-level page — meaning the natural (and easy to skip) integration point for new remediation/SLA/comment UI is *editing an existing component*, not registering a new route, which is easy to forget precisely because it doesn't look like "adding a page."
-
-**How to avoid:**
-Before considering any of the 4 features' frontend work done, explicitly trace: comment-thread UI → which control-detail component renders it and is that component reachable from `Sidebar.tsx` nav; SLA/escalation badges → confirm they render inside the same `AssetComplianceList.tsx`/remediation task list the existing workflow already uses (don't build a parallel, disconnected view); CSPM provider cards for OCI/Alibaba/Cloudflare → confirm the existing cloud-posture dashboard's provider-icon/filter list (wherever DigitalOcean's icon/label lives) is extended to include the 3 new providers, not just the backend data.
-
-**Warning signs:**
-A UAT pass that only exercises the API (curl/Postman) reports success, but a live browser click-through can't find the feature anywhere in the nav; grep for the new component name in `App.tsx`/`Sidebar.tsx`/the relevant parent dashboard component returns nothing.
-
-**Feature area:** All four (a, b, c, d) — verify with a live browser click-through, not just API tests, per this codebase's own established verification bar (CHK-03 precedent above).
-
----
-
-### Pitfall 9: `compliance_remediation_tasks` has no index to support an SLA breach sweep at scale
-
-**What goes wrong:**
-The SLA/escalation scheduler works fine in dev/testing with a handful of tasks, then becomes a slow, full-collection-scan query once a tenant has thousands of remediation tasks across many frameworks/controls, run every N minutes forever.
-
-**Why it happens:**
-`database.py`'s index-creation block (`connect_to_mongo()`) has explicit compound indexes for the `tickets` collection supporting exactly this kind of sweep — `tickets.create_index([("tenantId", 1), ("due_date", 1), ("status", 1)])` and `tickets.create_index([("tenantId", 1), ("escalated", 1)])` (`database.py:277-278`) — because `tickets_escalation_service` already needed this at scale. There is currently **no equivalent index for `compliance_remediation_tasks`** anywhere in `database.py`'s index list. A naive `db.compliance_remediation_tasks.find({"status": {"$in": [...]}, ...})` sweep across all tenants (mirroring `run_escalation_pass`'s `db.tickets.find(query)`) will do a full collection scan every cycle without one.
-
-**How to avoid:**
-Add `compliance_remediation_tasks.create_index([("tenantId", 1), ("due_date", 1), ("status", 1)])` and, if an `escalated`/`escalation_level` field is added to the task schema (it doesn't exist yet — see Pitfall 10), a matching `(tenantId, escalated)` index, in the same `database.py` block, using the `tickets` indexes as the direct template.
-
-**Feature area:** SLA/escalation (feature b).
-
----
-
-### Pitfall 10: `compliance_remediation_tasks` schema has no `history`/`escalated`/`escalation_level`/`sla_status` fields — SLA logic can't just "port over" from `tickets_escalation_service`
-
-**What goes wrong:**
-Code is written assuming `compliance_remediation_tasks` documents already carry the same shape as `tickets` (which has `history[]`, `escalated`, `escalation_level`, computed `sla_status`, `total_hold_duration`/`hold_started_at` for pause-aware SLA math) because `tickets_escalation_service.py` is used as the direct template. It isn't — `compliance_remediation_service.create_task` (`compliance_remediation_service.py:44-64`) only sets `id, title, control_id, asset_id, framework_id, status, priority, assignee, assignee_type, due_date, description, resolution_notes, agent_id, ai_suggestion, tenantId, created_by, created_at, updated_at`. There is no `history` array, no `escalated` boolean, no `escalation_level`, and `TaskUpdate`'s Pydantic model (`compliance_remediation_endpoints.py:60-65`) doesn't accept those fields either — even if the service layer tried to `$set` them, and even if it succeeded, `status` is constrained to `Literal["open", "in_progress", "resolved"]` with no "escalated"/"overdue" state, unlike `tickets`' 6-state machine with explicit `_VALID_TRANSITIONS`.
-
-**How to avoid:**
-Treat `tickets_escalation_service.py`/`tickets_helpers.py` (`_compute_sla`, `_sla_due`, `_bump_priority`, `_history_entry`) as a **pattern reference**, not reusable code — port the *logic shape* (priority ladder bump on breach, `at_risk`/`breached`/`ok` SLA status computation, an appended history entry per auto-escalation) into new functions scoped to `compliance_remediation_tasks`, and extend the task schema (`compliance_remediation_service.create_task`) and Pydantic models to add whatever new fields (`history`, `escalated`, `escalation_level`) the new logic needs before wiring the scheduler — don't assume the fields exist. Decide explicitly whether "escalated" bumps `priority` only (as tickets does) or needs a new `status` value, since the current status enum has no room for one.
-
-**Feature area:** SLA/escalation (feature b).
-
----
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|--------------------|-----------------|------------------|
+| Write location-history row on every heartbeat instead of on-change only | Simpler write path, no "diff against last row" logic | Row count scales 1:1 with heartbeat count × fleet size; weakens privacy posture (continuous trail vs. meaningful change log); buries signal in noise for audit review | Never for the audit-trail collection |
+| Reuse `itdr_login_events`/user impossible-travel code path for agents | Fast to ship, superficially matches the "reuse" instruction | Wrong entity model (email-keyed vs agent-keyed), wrong false-positive profile (Pitfall 4), couples unrelated systems | Never — build a parallel, agent-keyed rule instead |
+| Store new timestamps as `.isoformat()` strings to match existing style | Consistent with most of the codebase, simple JSON serialization | TTL indexes silently no-op (Pitfall 6) | Acceptable only if a parallel native-Date field is also stored wherever TTL/date-math is needed |
+| Ship geo-fence as a hard block on day one | Satisfies "location-based security" fastest | Guaranteed false-positive storm from VPN/CGNAT-heavy tenants (Pitfall 4), erodes trust immediately | Never for GA; ship alert-only first |
+| Implement offline-alert/version-drift sweep with `get_database()` for convenience | Matches the "normal" request-scoped DB access pattern everywhere else in the codebase | Silently detects nothing, forever, for every tenant (Pitfall 1) — this is a proven, already-hit bug in this exact repo | Never — always pass raw `mongodb.db` into background sweeps |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
-|-------------|----------------|-------------------|
-| Jira/ServiceNow via `ticketing_service.py` | Pass a `compliance_remediation_tasks` doc straight into `create_jira_ticket()`/`create_servicenow_incident()`, which expect an "alert" shape (`severity`, `hostname`, `process.name`, `process.sha256`, `mitre_technique`, `alert_id`) | Write an explicit task→alert-shape adapter; extend `_store_ticket`/`ticketing_log` with a `remediation_task_id` field so the bridge is queryable in both directions |
-| `TenantIsolatedCollection` (any new collection) | Assume `get_database()` auto-scopes correctly in a background `asyncio` task with no request context | Background sweeps must use the raw, unwrapped `mongodb.db` (see `tickets_escalation_service` + `app_startup.py:603-608`), never `get_database()` |
-| `compliance_controls` (global-exempt collection) | Clone `tickets_service.add_comment`'s `$push` pattern directly onto the control document | New tenant-scoped `control_comments` collection, joined by `control_id` — never write tenant data into the shared global control document |
-| Cloud provider allowlists (4 duplicated locations) | Update `cloud_checks_service.py`'s `RUNNABLE_PROVIDERS` and assume the front-door gates (`cloud_checks_endpoints.py`, `cloud_account_endpoints.py`) are in sync | Grep for the current provider tuple/set literal across all `.py` files before and after any change; `mcp_server.py` imports `RUNNABLE_PROVIDERS` (safe), the two endpoint files hardcode their own copies (not safe to assume) |
-| `websocket_manager.broadcast_*` (reused for comment/SLA real-time push) | Iterate `connected_clients[tenant_id]` directly while emitting (mutation-during-iteration risk) | Snapshot with `list(connected_clients[tenant_id])` first — `broadcast_remediation_update` already does this correctly; `broadcast_network_traffic` does not (pre-existing inconsistency, don't copy that one) |
+|-------------|------------------|--------------------|
+| `TenantIsolatedDatabase`/`get_database()` | Using it inside a background scheduler/sweep for offline-agent or geo-fence evaluation | Pass raw `mongodb.db` into sweeps, exactly like `tickets_escalation_service`/`compliance_remediation_sla_service` (Pitfall 1) |
+| SIEM `impossible_travel` rule / ITDR service | Extending the user-login rule/collection to also cover agent heartbeats | Register a distinct, agent-keyed rule/collection; keep user and agent impossible-travel fully independent (Pitfall 3) |
+| `insider_threat_service.py` (`vpn_geo_anomaly`) | Wiring a real UI/alert surface to what is currently seeded/simulated demo data | Verify real-vs-simulated status first; replace with real detection or label clearly as demo (Pitfall 3) |
+| `agent_metrics_history` TTL index | Assuming the existing 30-day TTL index works because it exists | Verify TTL against a real Date-typed field before relying on it for any new collection's growth story (Pitfall 6) |
+| MaxMind GeoLite2-City (already integrated) | Adding ASN/VPN datasets assuming the same free license/mechanism | Confirm licensing and offline-bundling support per additional dataset before committing (Pitfall 8) |
+| Map rendering library (net-new — no map dependency exists in `frontend/package.json` today) | Defaulting to a tile-server-based library (Leaflet+OSM/Mapbox tiles) | Use bundled TopoJSON + SVG projection (`react-simple-maps`/`d3-geo`) for air-gapped compatibility (Pitfall 7) |
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|-----------------|
+| Location-history row per heartbeat (not per change) | Row count ≈ heartbeat count × fleet size; disk/index growth outpaces fleet growth | Write only on geo/IP delta, not every beat | Noticeable within weeks at a few hundred agents heartbeating every few minutes; severe at thousands |
+| Fleet map rendering every agent marker unclustered | Browser jank/DOM explosion once agent count grows | Client- or server-side clustering before render (the milestone already calls for clustering — implement it as a hard requirement, not a nice-to-have) | Visible in the hundreds-of-agents range, severe in the thousands |
+| Full-resolution TopoJSON/basemap bundled into the SPA | Slower initial load, larger bundle even for tenants who never open the map | Use 110m/50m-resolution TopoJSON, code-split the map route out of the main bundle | Fixed cost from day one, compounds with every other bundle addition |
+| Background sweep scanning all tenants' full `agents`/`agent_metrics_history` on every tick without an index-backed filter | Slow sweep, full collection scans as fleet/tenant count grows | Index-backed filters (`lastSeen`, `tenantId`) mirroring `idx_agents_tenant_lastseen`; batch/paginate the sweep | Noticeable once total agent count across tenants reaches the low thousands |
+
+## Security Mistakes
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Background sweep using `get_database()` instead of raw `mongodb.db` | Feature appears to ship but silently detects nothing for anyone — worse than not shipping it, because it's invisible (Pitfall 1) | Copy the proven `mongodb.db`-raw pattern from `compliance_remediation_sla_service`/`tickets_escalation_service` |
+| Treating geo-fence violation as ground truth for automated blocking | Legitimate agent/device blocked due to GeoIP centroid error or VPN-egress ambiguity (Pitfall 2, 4) — an availability/compliance-monitoring gap at exactly the moment the customer needs evidence | Alert-only mode first; require accuracy-radius/ASN context before any automated enforcement action |
+| Presenting simulated `vpn_geo_anomaly` data as live detection | False sense of security-monitoring coverage; customer believes a real detector is running when it's fixture data | Confirm/replace before exposing in any new UI surface (Pitfall 3) |
+| Storing precise (non-degraded) lat/long indefinitely in an "immutable" audit trail | Larger blast radius if the audit collection is ever exposed/breached; heavier privacy exposure than necessary | Store city/region-level by default in the long-lived history table; keep precise lat/long only where explicitly justified (Pitfall 2, 5) |
+
+## UX Pitfalls
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-------------------|
+| Precise-looking pin with no uncertainty indicator | Admin over-trusts a GeoIP guess, makes a wrong assumption about a device/employee's whereabouts | Render with an accuracy radius/blur and an explicit "approximate — IP geolocation" label (Pitfall 2) |
+| Alert-per-flap for offline agents | Admins mute/ignore the whole alert channel after a few days of noise, missing genuinely important outages | Require a debounce window (consecutive missed heartbeats, not one miss) plus hysteresis before firing, mirroring the existing dedup discipline already used for `agent_update` instructions (`agent_heartbeat_endpoints.py` lines 156-171) |
+| Map silently blank in an air-gapped install with no error message | Admin assumes the feature is broken rather than understanding it's an environment limitation | Bundle a self-contained renderer so it always works, or fail with an explicit message rather than a silent blank grid (Pitfall 7) |
+| Geo-fence "violation" shown with no explanation of why (VPN egress, ASN, accuracy) | Admin can't distinguish a real anomaly from routine VPN noise, erodes trust in the feature | Show the contributing signal (ASN/VPN tag, distance, accuracy radius) alongside every flagged event, not just a red badge |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Ticket-bridge:** External ticket actually contains compliance-relevant text (control ID, framework, asset, remediation description) — not "Process: N/A, SHA256: N/A" leftover from the security-alert template.
-- [ ] **Ticket-bridge:** `ticketing_log` (or its successor) can answer "what external ticket, if any, is linked to remediation task X" — not just "what alert created ticket Y."
-- [ ] **SLA/escalation:** Scheduler is registered with the **raw** `mongodb.db`, not `get_database()` — verify by checking `app_startup.py` registers it the same way as `tickets_escalation_service`.
-- [ ] **SLA/escalation:** A compound index exists on `compliance_remediation_tasks` for `(tenantId, due_date, status)` before the scheduler ships, not added reactively after a slow-query alert.
-- [ ] **SLA/escalation:** Escalated/overdue state is visible in the frontend remediation task list, not just computed server-side and logged.
-- [ ] **Comment threads:** Comments are stored in a new tenant-scoped collection, confirmed via code review that `compliance_controls` (or any exempted global collection) is never the write target.
-- [ ] **Comment threads:** Cross-tenant isolation verified with two different tenant logins on the same control ID, not just a single-tenant smoke test.
-- [ ] **CSPM providers:** `POST /api/cloud-checks/run` (or `/api/cloud-accounts/{id}/scan`) actually succeeds for `oci`/`alibaba`/`cloudflare` — registration succeeding is not sufficient proof.
-- [ ] **CSPM providers:** SIMULATED badge renders for the 3 new providers on a freshly-registered account with no imported findings, verified via live browser run.
-- [ ] **All four features:** New backend router is present in `router_registry.py`; new frontend component is reachable from `Sidebar.tsx`/`App.tsx` nav or an existing wired page — verified by a live click-through, not just passing unit/API tests.
-- [ ] **All four features:** Any new `@limiter.limit(...)`-decorated endpoint includes the `response: Response` parameter (slowapi requirement) — verified by hitting the route through the real app, since unit tests that bypass the middleware stack won't catch its absence.
+- [ ] **Offline-agent alerting / version-drift sweep:** Often built with `get_database()` out of habit — verify it's passed raw `mongodb.db` and actually flags a manually-staged offline agent in a real multi-tenant test (Pitfall 1)
+- [ ] **Fleet geo map:** Often missing an accuracy-radius/"approximate location" disclosure — verify markers don't imply street-level precision (Pitfall 2)
+- [ ] **Fleet geo map (air-gapped):** Often missing a no-network test pass — verify the map actually renders with outbound network blocked (Pitfall 7)
+- [ ] **Impossible-travel / geo-fence for agents:** Often missing ASN/VPN-egress suppression — verify a tenant's shared corporate VPN egress doesn't flood alerts on day one (Pitfall 4)
+- [ ] **Location history & audit:** Often missing a change-only write filter — verify row count doesn't scale 1:1 with heartbeat count (write-amplification)
+- [ ] **Location history & audit:** Often missing a documented retention/legal-basis decision — verify a privacy review happened before persisting employee-linked location timelines (Pitfall 5)
+- [ ] **New TTL indexes (any new time-series collection):** Often missing verification that the indexed field is a native Date, not an ISO string — verify by inserting a synthetic old-dated document and confirming Mongo actually reaps it (Pitfall 6)
+- [ ] **SIEM/insider-threat integration:** Often assumes `vpn_geo_anomaly` is a live detector — verify its real-vs-simulated status before building UI on top of it (Pitfall 3)
 
-## Pitfall-to-Feature Mapping
+## Recovery Strategies
 
-| Pitfall | Feature Area | Verification |
-|---------|---------------|--------------|
-| Background sweep returns zero (fail-closed tenant filter) | SLA/escalation (b) | Confirm scheduler registration uses raw `mongodb.db`; manually seed an overdue task and confirm the sweep picks it up in a live run |
-| Comment thread on global `compliance_controls` doc | Comment threads (c) | Two-tenant isolation test on the same `control_id`; code review confirms no write to `compliance_controls` |
-| Provider allowlist widened in 1 of 4 gates | CSPM providers (d) | `run_checks()`/`/scan` succeeds end-to-end for oci/alibaba/cloudflare, not just registration |
-| Simulated CSPM results unlabeled | CSPM providers (d) | Live browser run against a freshly-registered account, SIMULATED badge visible |
-| Ticket-bridge alert-shape mismatch | Ticket-bridge (a) | Inspect actual created Jira/ServiceNow ticket body for compliance-relevant content |
-| Manual tenant_filter dict silently overridden by contextvar | Ticket-bridge (a) + SLA (b), cross-tenant views | Test with an actual platform-admin/Super Admin token against a multi-tenant dataset |
-| Router never registered | All | `grep <module> router_registry.py`; hit the live route |
-| Frontend built but unwired | All | Live browser click-through from nav, not API test |
-| No index for SLA sweep at scale | SLA/escalation (b) | `explain()` the sweep query against a multi-thousand-task collection |
-| Schema fields assumed present (`history`, `escalated`, etc.) | SLA/escalation (b) | Confirm `compliance_remediation_service.create_task`/`TaskUpdate` model include the new fields before the scheduler writes to them |
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|-----------------|------------------|
+| Background sweep silently detecting nothing (Pitfall 1) | LOW-MEDIUM | Swap `get_database()` for raw `mongodb.db` passed at registration time; add a regression test asserting the sweep detects a manually-staged offline/stale agent across more than one tenant |
+| TTL index discovered non-functional after the fact (Pitfall 6) | MEDIUM | Add a native-Date field via migration/backfill, rebuild the TTL index on that field, run a one-time manual purge of over-retention documents, then let TTL take over |
+| Alert-fatigue from flapping-agent offline notifications | LOW-MEDIUM | Ship a debounce/hysteresis patch; optionally bulk-suppress/clear the noisy alert backlog and note it in a changelog so admins re-enable notifications they may have muted |
+| Legal/privacy gap discovered after location-history ships (Pitfall 5) | HIGH | Pause new-history writes pending review; retroactive DPIA; offer affected tenants an export/delete path for already-collected history; may require a retention-window change or feature opt-out |
+| Geo-fence false-positive storm on a VPN-heavy tenant (Pitfall 4) | LOW-MEDIUM | Flip that tenant (or globally) to alert-only mode immediately; add ASN/egress allowlisting; backfill suppression rules before re-enabling enforcement |
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|--------------------|----------------|
+| Background sweep tenant-isolation fail-closed (1) | Fleet observability phase + location-based security phase (any fleet-wide sweep) | Sweep registered with raw `mongodb.db`; regression test against ≥2 tenants confirms real detections, not silent zero-results |
+| False-precision GeoIP display/geo-fence (2) | Fleet geo map phase + location-based security phase | UI shows accuracy radius/label; geo-fence policy never gates on raw lat/long alone |
+| Wrong-entity reuse of user-login impossible-travel / simulated `vpn_geo_anomaly` (3) | Location-based security phase | New rule is agent-keyed, separately registered in the SIEM rule set; simulated-data status of `vpn_geo_anomaly` explicitly resolved before UI wiring |
+| VPN/CGNAT/corporate-egress false positives (4) | Location-based security phase | Alert-only rollout first; ASN/egress-based suppression tested against a simulated shared-VPN-egress fleet before enabling enforcement |
+| Privacy/legal basis for location history (5) | Location history & audit phase (pre-implementation spec/discuss step) | DPIA/legal sign-off artifact exists; retention configurable; subject export/delete path present |
+| TTL-on-string-field silent no-op (6) | Fleet observability phase + location history & audit phase | Synthetic old-dated doc inserted and confirmed reaped by Mongo in a real (non-mocked) DB during verification |
+| Air-gapped map breakage / bundle bloat (7) | Fleet geo map phase | Map tested with outbound network blocked; bundle-size delta checked against a size budget |
+| ASN/VPN dataset licensing + staleness (8) | Location-based security phase (dataset selection, pre-implementation) | License terms confirmed for air-gapped bundling; `.mmdb` build-date surfaced somewhere observable; refresh process documented |
+
+## Additional Pitfalls (folded into the mapping above but detailed here for completeness)
+
+### Pitfall 7: Air-gapped/offline map rendering breaks on external tile fetches
+
+No map library exists in `frontend/package.json` today — this is a net-new integration. Tile-based libraries (Leaflet+OSM/Mapbox, Google Maps JS) default to fetching tile images per pan/zoom from an internet endpoint. The platform explicitly targets air-gapped deployments (`geoip_service.py`'s own docstring calls this out for GeoIP, and the milestone brief flags it for the map too). Picking a tile-based library the default way renders a blank/broken-image grid in any air-gapped or heavily firewalled environment — exactly the deployment tier this product's regulated customers fall into.
+
+**Prevention:** Use a bundled, static low-resolution world/country TopoJSON (e.g., world-atlas `countries-110m.json`) rendered with `react-simple-maps`/`d3-geo` as SVG paths — no tile fetches, no basemap imagery. There's no accuracy benefit to a high-res basemap given GeoIP's own city-level accuracy ceiling (Pitfall 2). Test with network access blocked as part of phase verification, not just in a connected dev environment.
+
+### Pitfall 8: ASN/VPN/proxy datasets carry separate licensing constraints from the GeoLite2-City DB already in use
+
+`geoip_service.py` already notes the GeoLite2-City `.mmdb` is "licensed and supplied out-of-band" with no built-in staleness check (loads whatever file is present once at startup, never checks its age). Location-based security additionally needs ASN classification (free, GeoLite2-ASN, same MaxMind mechanism) and ideally VPN/hosting/proxy reputation (typically a **paid**, separately-licensed product — MaxMind GeoIP2 Anonymous IP, IPQualityScore, IP2Proxy — with its own redistribution/on-prem-bundling terms).
+
+**Prevention:** Treat "add ASN" and "add VPN/proxy detection" as two separate procurement/legal decisions. For air-gapped customers, confirm whichever VPN/proxy dataset is chosen supports offline `.mmdb`-style bundling rather than requiring live API calls (a live-lookup-only API reintroduces the outbound dependency `geoip_service.py` was designed to avoid). Add a startup log line or admin-visible indicator showing the loaded `.mmdb`'s build date so staleness is at least observable — there is currently zero staleness signal anywhere in the geo pipeline.
 
 ## Sources
 
-- `backend/database.py` (TenantIsolatedCollection, exemption allowlist, index block)
-- `backend/router_registry.py` (`_REQUIRED_ROUTERS`, `_load()`, `_OPTIONAL` list)
-- `backend/ticketing_service.py` (Jira/ServiceNow/Zoho/webhook connector shape)
-- `backend/tickets_endpoints.py`, `backend/tickets_service.py`, `backend/tickets_helpers.py`, `backend/tickets_escalation_service.py` (comment-thread pattern, SLA computation, escalation scheduler)
-- `backend/compliance_remediation_service.py`, `backend/compliance_remediation_endpoints.py` (current remediation task schema and tenant-filter handling)
-- `backend/cloud_checks_service.py`, `backend/cloud_checks_endpoints.py`, `backend/cloud_account_endpoints.py`, `backend/mcp_server.py`, `backend/tests/test_cloud_checks_expansion.py` (provider allowlist duplication, simulated-data convention)
-- `backend/websocket_manager.py` (broadcast snapshot pattern)
-- `backend/app_startup.py` (scheduler registration pattern)
-- `backend/authentication_endpoints.py` (rate-limiter `response: Response` pattern, refresh-token rotation)
-- Git history: `e55ba34` (WR-01 raw `db._db` fix), `720a76d` (auditor global-framework 404 fix)
-- `.planning/PROJECT.md` (v3.2 milestone scope, Key Decisions table — Phase 25 CHK-01/CHK-03 precedents)
-- `.planning/HANDOFF.json` (task 10/11 status)
+- This repository (all code-line references above current as of 2026-07-29, branch `feat/rust-agent-2.1.0-and-fixes`): `backend/geoip_service.py`, `backend/agent_heartbeat_endpoints.py`, `backend/agent_metrics_endpoints.py`, `backend/database.py`, `backend/tenant_context.py`, `backend/tenant_middleware.py`, `backend/agent_auth.py`, `backend/itdr_service.py`, `backend/siem_endpoints.py`, `backend/insider_threat_service.py`, `backend/compliance_remediation_sla_service.py`, `backend/migrations/002_scale_indexes.py`, `frontend/package.json`, `.planning/PROJECT.md`.
+- Prior milestone's `.planning/research/PITFALLS.md` (v3.2) — independently documents the same background-scheduler/`TenantIsolatedDatabase` fail-closed bug for `compliance_remediation_sla_service` and `tickets_escalation_service`, corroborating Pitfall 1 as a proven, recurring failure mode in this codebase rather than a hypothetical.
+- MaxMind GeoLite2 accuracy/licensing characteristics and MongoDB TTL-index Date-type requirement are well-established platform behaviors (MEDIUM-HIGH confidence, general product/platform knowledge — recommend a quick doc-check against current MaxMind/MongoDB docs during phase-specific research if exact figures are needed for customer-facing copy).
+- GDPR/works-council employee-location-monitoring risk is a well-known compliance pattern for endpoint/device-monitoring products generally (MEDIUM confidence — jurisdiction-specific; explicitly flagged for legal review rather than treated as settled here).
 
 ---
-*Pitfalls research for: Enterprise OmniAgent v3.2 — Agent Modernization & Remediation Ops*
-*Researched: 2026-07-20*
+*Pitfalls research for: Agent geo & fleet observability milestone (v3.3)*
+*Researched: 2026-07-29*
