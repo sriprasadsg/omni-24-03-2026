@@ -51,19 +51,19 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ## Current Milestone: v3.2 — Agent Modernization & Remediation Ops
 
-**Status:** Defining requirements | **Started:** 2026-07-20
+**Status:** Complete — all 10 requirements verified (Phases 40-45; see .planning/v3.2-MILESTONE-AUDIT.md) | **Started:** 2026-07-20
 
-**Goal:** Finish the Rust agent 2.1.0 dependency modernization and the outstanding 401 auth-session bug, then close real (verified, not assumed) gaps in remediation operations — bridging remediation tasks to existing ticketing connectors, SLA/escalation on overdue tasks, comment threads on controls, and CSPM checks for the 3 cloud providers that are currently dropdown-only stubs.
+**Goal:** Finish the Rust agent 2.1.x dependency modernization and the outstanding 401 auth-session bug, then close real (verified, not assumed) gaps in remediation operations — bridging remediation tasks to existing ticketing connectors, SLA/escalation on overdue tasks, comment threads on controls, and CSPM checks for the 3 cloud providers that are currently dropdown-only stubs.
 
 **Target features:**
-- Rust agent 2.1.0 dependency modernization — reqwest 0.12→0.13, sysinfo 0.32→0.39, tokio-tungstenite 0.23→0.30, rusqlite 0.32→0.40, hostname 0.3→0.4, serde_yaml→serde_yml/serde_norway migration (only `src/config.rs`), 2.1.0 exe rebuild (HANDOFF task 11, shipping tree = `agent-install/omni-agent-rs`)
+- Rust agent 2.1.x dependency modernization — reqwest 0.12→0.13, sysinfo 0.32→0.39, tokio-tungstenite 0.23→0.30, rusqlite 0.32→0.40, hostname 0.3→0.4, serde_yaml→serde_yml/serde_norway migration (only `src/config.rs`), 2.1.3 exe rebuild (corrected from 2.1.0 — 2.1.0/2.1.1/2.1.2 already shipped; HANDOFF task 11, shipping tree = `agent-install/omni-agent-rs`)
 - 401 Unauthorized auth-session bug investigation (HANDOFF task 10, never investigated)
 - Remediation-to-ticketing bridge: wire `compliance_remediation_service` task create/update to the existing Jira/ServiceNow connectors in `ticketing_service.py` — reuse, don't rebuild (currently zero overlap; connectors only serve security-alert tickets)
 - SLA/escalation for compliance remediation tasks: `due_date` breach detection + escalation scoped to `compliance_remediation_tasks` (existing `tickets_escalation_service.py` is a different domain, not reusable as-is)
 - Comment threads on compliance controls: new `control_id`-linked comment model/endpoint/UI (genuinely absent; can clone `tickets_endpoints.py`'s comment-thread pattern)
 - CSPM posture checks for OCI, Alibaba, Cloudflare — real check definitions and `RUNNABLE_PROVIDERS` inclusion (currently allowlisted but zero check logic; DigitalOcean already has real checks, IBM/Huawei/VMware are not cloud providers in this platform — those names only exist as unrelated SIEM/EDR integrations)
 
-**Phase plan:** TBD — continues from Phase 39
+**Phase plan:** Phases 40-45 — all executed and verified (40 Rust Modernization & Session Reliability, 41 CSPM Expansion, 42 Comment Threads, 43 Ticketing Bridge, 44 SLA & Escalation, 45 close RUST-01 TLS gap)
 
 ---
 
