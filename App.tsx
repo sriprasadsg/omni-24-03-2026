@@ -19,6 +19,7 @@ import { ManageTenantModal } from './components/ManageTenantModal';
 import { RegisterAgentModal } from './components/RegisterAgentModal';
 import { ChatFab } from './components/ChatFab';
 import SupportChatToast, { SupportToastData } from './components/SupportChatToast';
+import SupportChatWindow from './components/SupportChatWindow';
 import { ChatAssistant } from './components/ChatAssistant';
 import { AICommandBar, Command } from './components/AICommandBar';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
@@ -463,6 +464,9 @@ const App: React.FC = () => {
   // Ref so WebSocket handlers can read the latest view without being re-registered on every navigation
   const currentViewRef = useRef<AppView>('dashboard');
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+  // Kept in a ref so the support-message socket handler (stable closure) can
+  // tell whether the floating support window is already open.
+  const isSupportChatOpenRef = useRef(false);
 
   // Refresh metrics every 30 s while the dashboard is visible
   useEffect(() => {
@@ -493,6 +497,9 @@ const App: React.FC = () => {
   // Conversation to auto-open when the user lands on the Support tab (deep-link
   // from a toast / OS notification / admin-initiated chat).
   const [pendingSupportConvo, setPendingSupportConvo] = useState<string | null>(null);
+  // Floating, docked support-chat window (opened from a toast / notification).
+  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
+  useEffect(() => { isSupportChatOpenRef.current = isSupportChatOpen; }, [isSupportChatOpen]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [viewingTenantId, setViewingTenantId] = useState<string | null>(null);
@@ -1042,7 +1049,10 @@ const App: React.FC = () => {
       const senderId = msg?.sender_id ?? data.initiator_id ?? '';
       if (senderId && senderId === myId) return;
 
-      const isOnSupportChat = !document.hidden && ['supportChat', 'chat'].includes(currentViewRef.current);
+      const isOnSupportChat = !document.hidden && (
+        isSupportChatOpenRef.current ||
+        ['supportChat', 'chat'].includes(currentViewRef.current)
+      );
 
       // 1. Notification sound (always play unless already on support chat page)
       if (!isOnSupportChat) {
@@ -1080,7 +1090,7 @@ const App: React.FC = () => {
         notif.onclick = () => {
           window.focus();
           setPendingSupportConvo(convoId);
-          setCurrentView('supportChat');
+          setIsSupportChatOpen(true);
           notif.close();
         };
       }
@@ -2032,10 +2042,18 @@ const App: React.FC = () => {
             onDismiss={id => setSupportToasts(prev => prev.filter(t => t.id !== id))}
             onOpen={convoId => {
               if (convoId) setPendingSupportConvo(convoId);
-              setCurrentView('supportChat');
+              setIsSupportChatOpen(true);
               setSupportToasts(prev => prev.filter(t => t.convoId !== convoId));
               setSupportUnreadCount(0);
             }}
+          />
+
+          {/* Floating, docked interactive support chat window */}
+          <SupportChatWindow
+            isOpen={isSupportChatOpen}
+            initialConvoId={pendingSupportConvo}
+            onConvoConsumed={() => setPendingSupportConvo(null)}
+            onClose={() => setIsSupportChatOpen(false)}
           />
 
           {/* Sidebar Items are in Sidebar.tsx */}
