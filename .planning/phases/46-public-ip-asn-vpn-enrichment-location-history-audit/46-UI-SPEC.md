@@ -54,10 +54,10 @@ Inherited from `EscalationHistoryPanel.tsx` — no new sizes/weights introduced.
 | Panel header count | 12px (`text-xs`) | 400 (`font-normal`) | 1.5 |
 | Row primary line (city/country) | 12px (`text-xs`) | 600 (`font-semibold`) | 1.5 |
 | Row secondary line (IP/timestamp/dwell) | 12px (`text-xs`) | 400 (regular) | 1.5 |
-| Badge label | 11px (`text-[11px]`) | 700 (`font-bold`) | 1 (single-line pill) |
+| Badge label | 11px (`text-[11px]`) | 600 (`font-semibold`) | 1 (single-line pill) |
 | Empty/error state | 12px (`text-xs`) | 400, italic (empty only) | 1.5 |
 
-Only 2 weights used (400 regular, 600/700 semibold-bold for emphasis) — matches the codebase's existing 2-weight discipline.
+Only 2 weights used: 400 (`font-normal`) and 600 (`font-semibold`) — matches `EscalationHistoryPanel.tsx`, which uses only 400/600 (no `font-bold` anywhere). The badge uses 600, not 700, to stay within this 2-weight discipline.
 
 ---
 
@@ -72,7 +72,7 @@ Inherited from the existing slate/gray Tailwind palette — no new hex values in
 | Accent (10%) | `text-primary-500` / `dark:text-primary-400` | Reserved ONLY for the location-pin/globe icon in each row's leading position — never used elsewhere in this panel |
 | Destructive | N/A | This panel has zero destructive actions (D-10: read-only, no edit/delete) — no destructive color token is used anywhere in this component |
 
-**VPN/hosting heuristic badge color (specific, locked):** `bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300` — the exact existing "Quarantined" badge treatment from `AgentList.tsx`'s `statusInfo`. Muted amber, never red — this is a deliberate signal that the flag is a heuristic caution, not an alarm. **Never use `red`/`bg-red-*` for this badge under any circumstance** — that visual vocabulary is reserved elsewhere in this codebase for `Error` agent status and destructive actions, and using it here would misrepresent an unlicensed heuristic as an authoritative security detection.
+**VPN/hosting heuristic badge color (specific, locked):** `bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300` — the amber **color** classes reused from `AgentList.tsx`'s `Quarantined` status badge (color only; the badge's size/padding is a compact heuristic pill defined below — `text-[11px] font-semibold px-2 py-1` — not a verbatim clone of any one existing badge). Muted amber, never red — this is a deliberate signal that the flag is a heuristic caution, not an alarm. **Never use `red`/`bg-red-*` for this badge under any circumstance** — that visual vocabulary is reserved elsewhere in this codebase for `Error` agent status and destructive actions, and using it here would misrepresent an unlicensed heuristic as an authoritative security detection.
 
 Accent reserved for: the single leading `GlobeIcon` per timeline row. Nothing else in this panel uses accent color — badges use amber (heuristic caution), text uses gray/slate only.
 
@@ -141,7 +141,7 @@ Each row: `px-4 py-3`, `flex items-start gap-2` (icon left, content right — cl
   Line 1:  🇺🇸 San Francisco, CA, United States          [likely VPN/hosting]  <- badge only if vpn_heuristic===true
            (text-xs font-semibold text-gray-800 dark:text-gray-200)  (badge: bg-amber-100 text-amber-800
                                                                        dark:bg-amber-900/50 dark:text-amber-300
-                                                                       text-[11px] font-bold px-2 py-0.5
+                                                                       text-[11px] font-semibold px-2 py-1
                                                                        rounded-full uppercase tracking-wide
                                                                        ml-2 inline-flex items-center gap-1,
                                                                        ships with a small WifiIcon size={10})
