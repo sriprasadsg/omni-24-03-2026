@@ -39,10 +39,14 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
         .build()
         .expect("HTTP client build");
 
     let cap_mgr = CapabilityManager::new();
+    // Resolve the WAN/ISP public IP before registering so the first payload
+    // carries it. Best-effort — registration proceeds regardless.
+    heartbeat::refresh_public_ip(&client).await;
     registration::ensure_registered(&mut cfg, &client, &cap_mgr).await;
     if cfg.agent_token.is_empty() {
         log::warn!("No agent_token — heartbeats will be unauthenticated until registered");
@@ -67,6 +71,8 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 
     let mut sys = System::new_all();
     let mut tick = 0u32;
+    // Public IP rarely changes; re-resolve periodically rather than every beat.
+    let mut last_public_ip_refresh = std::time::Instant::now();
 
     loop {
         if let Some(ref rx) = stop_rx {
@@ -74,6 +80,11 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
                 log::info!("Stop signal received, shutting down.");
                 break;
             }
+        }
+
+        if last_public_ip_refresh.elapsed() >= std::time::Duration::from_secs(1800) {
+            heartbeat::refresh_public_ip(&client).await;
+            last_public_ip_refresh = std::time::Instant::now();
         }
 
         sys.refresh_all();

@@ -680,11 +680,24 @@ export interface Agent {
   status: AgentStatus;
   version: string;
   ipAddress: string;
+  /** WAN / ISP-assigned public IP resolved by the agent. */
+  publicIp?: string;
+  /** GeoIP location derived from the public IP (server-side, MaxMind GeoLite2). */
+  geo?: GeoLocation;
   lastSeen: string;
   remediationAttempts?: { timestamp: string }[];
   capabilities?: AgentCapability[];
   meta?: Record<string, unknown>;
   health: AgentHealth;
+}
+
+export interface GeoLocation {
+  country?: string;
+  country_code?: string;
+  city?: string;
+  region?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface AgenticStep {

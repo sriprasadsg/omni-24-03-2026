@@ -25,6 +25,7 @@ pub async fn ensure_registered(
         "platform": if cfg!(windows) { "Windows" } else { "Linux" },
         "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": crate::heartbeat::best_ip(),
+        "publicIp": crate::heartbeat::cached_public_ip(),
         "meta": {
             "agent_type": "rust",
             "availableCapabilities": capabilities,

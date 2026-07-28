@@ -1,6 +1,62 @@
 use crate::{buffer::MessageBuffer, capabilities::CapabilityManager, config::Config};
 use serde_json::{json, Value};
+use std::sync::{OnceLock, RwLock};
 use sysinfo::{Disks, Networks, System};
+
+// ── Public (WAN / ISP-assigned) IP ──────────────────────────────────────────
+// best_ip() returns the local LAN interface address. The public IP the ISP
+// assigns to the network's gateway can only be discovered by asking an external
+// echo service. It rarely changes, so it is resolved asynchronously and cached;
+// the (synchronous) heartbeat payload builder reads the cached value.
+
+static PUBLIC_IP: OnceLock<RwLock<Option<String>>> = OnceLock::new();
+
+fn public_ip_cell() -> &'static RwLock<Option<String>> {
+    PUBLIC_IP.get_or_init(|| RwLock::new(None))
+}
+
+/// Last-known public (ISP-assigned) IP, if it has been resolved.
+pub fn cached_public_ip() -> Option<String> {
+    public_ip_cell().read().ok().and_then(|g| g.clone())
+}
+
+/// Query public IP echo services to discover the WAN address assigned by the
+/// ISP. Tries several providers in order and caches the first valid result.
+/// Best-effort: on total failure the previous cached value (if any) is kept.
+pub async fn refresh_public_ip(client: &reqwest::Client) {
+    const ENDPOINTS: &[&str] = &[
+        "https://api.ipify.org",
+        "https://checkip.amazonaws.com",
+        "https://ifconfig.me/ip",
+        "https://icanhazip.com",
+    ];
+    for url in ENDPOINTS {
+        match client
+            .get(*url)
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await
+        {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.text().await {
+                    let ip = body.trim();
+                    if ip.parse::<std::net::IpAddr>().is_ok() {
+                        if let Ok(mut g) = public_ip_cell().write() {
+                            if g.as_deref() != Some(ip) {
+                                log::info!("Public IP resolved: {ip}");
+                                *g = Some(ip.to_string());
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+            Ok(resp) => log::debug!("public-ip {url} -> {}", resp.status()),
+            Err(e) => log::debug!("public-ip {url} failed: {e}"),
+        }
+    }
+    log::warn!("Could not resolve public IP from any provider");
+}
 
 pub fn best_ip() -> String {
     if let Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
@@ -185,6 +241,13 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
     meta["capabilities"] = json!(cap_ids);
     meta["capabilities_status"] = json!(cap_statuses);
 
+    // WAN / ISP-assigned address (resolved asynchronously, cached). Present only
+    // once discovered; absent on the very first heartbeat if resolution is slow.
+    let public_ip = cached_public_ip();
+    if let Some(ref pub_ip) = public_ip {
+        meta["public_ip"] = json!(pub_ip);
+    }
+
     json!({
         "hostname": hostname_str(),
         "tenantId": cfg.tenant_id,
@@ -192,6 +255,7 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
         "platform": if cfg!(windows) { "Windows" } else { "Linux" },
         "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": best_ip(),
+        "publicIp": public_ip,
         "meta": meta,
     })
 }

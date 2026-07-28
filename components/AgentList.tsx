@@ -74,6 +74,18 @@ const platformIcons: Record<AgentPlatform, React.ReactNode> = {
 
 const statusOptions: ('All' | AgentStatus)[] = ['All', 'Online', 'Offline', 'Error', 'Quarantined'];
 
+// ISO 3166-1 alpha-2 code -> flag emoji (regional indicator symbols).
+const flagEmoji = (code?: string): string => {
+    if (!code || code.length !== 2) return '';
+    const cc = code.toUpperCase();
+    if (!/^[A-Z]{2}$/.test(cc)) return '';
+    return String.fromCodePoint(...[...cc].map(c => 0x1f1e6 + c.charCodeAt(0) - 65));
+};
+
+// "City, Region, Country" from a geo object, skipping empty parts.
+const formatGeo = (geo?: { city?: string; region?: string; country?: string }): string =>
+    [geo?.city, geo?.region, geo?.country].filter(Boolean).join(', ');
+
 const parseLastSeen = (lastSeen: string): number => {
     // A more robust parser
     const now = new Date().getTime();
@@ -211,6 +223,21 @@ const AgentCard: React.FC<{
                                 <span className={`text-xs font-medium ${hearbeatColor}`}>{lastSeenLabel}</span>
                             </span>
                         </div>
+                        {agent.publicIp && (
+                            <div className="flex items-center">
+                                <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Public IP</span>
+                                <span className="text-gray-800 dark:text-gray-200 font-mono text-xs">{agent.publicIp}</span>
+                            </div>
+                        )}
+                        {agent.geo && formatGeo(agent.geo) && (
+                            <div className="flex items-center">
+                                <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Location</span>
+                                <span className="text-gray-800 dark:text-gray-200 text-xs flex items-center gap-1.5">
+                                    {agent.geo.country_code && <span aria-hidden>{flagEmoji(agent.geo.country_code)}</span>}
+                                    <span className="truncate">{formatGeo(agent.geo)}</span>
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

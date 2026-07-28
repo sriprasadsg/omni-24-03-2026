@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import re
 from agent_auth import verify_agent_key
 from rate_limiter import limiter, agent_limiter
+import geoip_service
 import logging
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -112,6 +113,15 @@ async def report_heartbeat(
         update_data["hostname"] = payload["hostname"]
     if payload.get("device_id"):
         update_data["deviceId"] = payload["device_id"]
+    # WAN / ISP-assigned public IP (guarded: never null out a known value on a
+    # beat where the agent hasn't resolved it yet).
+    public_ip = payload.get("publicIp") or (payload.get("meta") or {}).get("public_ip")
+    geo = None
+    if public_ip:
+        update_data["publicIp"] = public_ip
+        geo = geoip_service.lookup(public_ip)
+        if geo:
+            update_data["geo"] = geo
 
     await db.agents.update_one(
         _hb_agent_filter,
@@ -190,6 +200,10 @@ async def report_heartbeat(
             "agentVersion": payload.get("version", ""),
             "agentId": agent_id,
         }
+        if public_ip:
+            asset_update["publicIp"] = public_ip
+        if geo:
+            asset_update["geo"] = geo
 
         if "meta" in payload:
             meta = payload["meta"]
