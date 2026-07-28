@@ -10,6 +10,7 @@
 - **v3.0** — Competitive Feature Closure: 14 phases (25–38) closing the 25 gaps from the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler — cloud-check execution gaps, vendor/risk data completeness, OSCAL/SBOM export, governance documents, a real public Trust Center, AI questionnaire auto-answer, FAIR risk quantification, provider expansion, workflow connectors, passkeys, GraphQL, ReBAC, a spec-compliant MCP server, and an interactive AI security assistant. In progress — Phase 25 planning underway.
 - **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
 - **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45 + 999.1 backlog), 19 plans, 10/10 requirements. Shipped 2026-07-29.
+- **v3.3** — Agent Geo & Fleet Observability: fleet geo map (offline SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 11/11 requirements mapped. Roadmap defined 2026-07-29 — not started.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -747,6 +748,112 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 - [x] Phase 45: Close gap RUST-01 — TLS backend explicit decision
 
 </details>
+
+## v3.3 — Agent Geo & Fleet Observability
+
+**Goal:** Turn the agent public-IP/GeoIP data landed in v3.2 into a full geo + observability surface — a live fleet map, location-based security detections, health/uptime observability, and an immutable location-history audit trail. Offline-first (air-gapped safe) throughout. Per the 2026-07-29 research summary: strict dependency order front-loads the append-only location-history audit trail and its privacy/legal review gate, then the agent-scoped security detectors that depend on it, then fleet observability (mostly independent — reuses existing metrics/offline-detection), then the fleet map last since it reads everything upstream.
+
+**Status:** Roadmap defined 2026-07-29. Not started — continues phase numbering from Phase 45.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 46 | Public-IP ASN/VPN Enrichment + Location-History Audit | Not started |
+| 47 | Agent-Scoped Geo Security Detectors | Not started |
+| 48 | Fleet Observability & Uptime Rollups | Not started |
+| 49 | Fleet Geo Map | Not started |
+
+---
+
+## Phase 46: Public-IP ASN/VPN Enrichment + Location-History Audit
+
+**Milestone:** v3.3
+
+**Goal:** Give every agent's public-IP/geo change an immutable, queryable audit trail, and lay the ASN/VPN-enrichment foundation (heuristic GeoLite2-ASN + X4BNet lookup) that Phase 47's security detectors depend on — front-loading the false-positive and privacy/legal risks research flagged as this milestone's two biggest.
+
+**Requirements:** GAUD-01 (append-only `agent_location_history`, change-detected cheaply off the already-fetched agent doc, cloned from `remediation_escalations`), GAUD-02 (per-agent location-history timeline view)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An admin opening an agent's detail view can see a chronological timeline of every public-IP/geo change for that agent, with timestamps (GAUD-02).
+  2. Location-history entries are append-only — there is no update or delete path anywhere in the API, matching the `remediation_escalations` audit-integrity pattern (GAUD-01).
+  3. A given agent's public IP changing during heartbeat writes exactly one new location-history row for that change, not one row per heartbeat — write volume tracks IP changes, not heartbeat frequency (GAUD-01).
+  4. Retention for location-history is a deliberate decision routed through the existing retention module, not silently inherited from the 30-day `agent_metrics_history` convention — resolved before data starts accumulating (GAUD-01; privacy/legal pre-implementation gate per PITFALLS.md Pitfall 5).
+
+**Depends on:** Nothing (first phase — continues numbering from Phase 45)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 47: Agent-Scoped Geo Security Detectors
+
+**Milestone:** v3.3
+
+**Goal:** Give tenant admins real location-based security signal on their fleet — impossible-travel detection and geo-fence violations, both alert-only — informed by a heuristic VPN/hosting flag so admins aren't drowning in corporate-VPN false positives from day one.
+
+**Requirements:** GSEC-01 (heuristic VPN/proxy/hosting flag via GeoLite2-ASN + X4BNet, surfaced and labeled as heuristic — never "detected"), GSEC-02 (agent-scoped impossible-travel alert via haversine + time window, keyed by `agent_id`), GSEC-03 (per-tenant allowed-region geo-fence, alert-only — no blocking)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An agent's public IP is annotated with a "likely VPN/hosting" flag when its AS-org matches known VPN/hosting ranges, and every UI surface showing that flag labels it explicitly as a heuristic, never an authoritative "detected" claim (GSEC-01).
+  2. When one agent's two consecutive check-ins come from two locations physically impossible to travel between in the elapsed time, an alert reaches the existing notification/alert channel — reusing the fan-out, not building a parallel one (GSEC-02).
+  3. A tenant admin can define a list of allowed regions for their tenant, and a check-in from outside that list raises an alert without blocking or otherwise interrupting the agent's connection (GSEC-03).
+
+**Depends on:** Phase 46 (impossible-travel needs "previous known geo" from location-history; the VPN/hosting flag needs the ASN enrichment lookup built alongside 46)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 48: Fleet Observability & Uptime Rollups
+
+**Milestone:** v3.3
+
+**Goal:** Give admins a fleet-wide operational view — per-agent metrics/uptime history and an aggregate view of offline and out-of-date agents — reusing existing telemetry and detection rather than rebuilding either.
+
+**Requirements:** FOBS-01 (CPU/memory/disk history charts off the existing `GET /agents/{id}/metrics/history` endpoint via `recharts`), FOBS-02 (per-agent heartbeat/uptime timeline + selectable-range uptime %), FOBS-03 (fleet-level offline-agent and version-drift view)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An admin opening an agent's detail view sees its CPU/memory/disk history rendered as charts, not raw numbers or a table (FOBS-01).
+  2. An admin can see a per-agent heartbeat/uptime timeline and an uptime percentage computed over a range they can select (FOBS-02).
+  3. An admin can see one fleet-level view listing which agents are currently offline and which agents are running a version older than the latest available (FOBS-03).
+
+**Depends on:** Nothing new (parallel-safe with Phases 46–47; reuses existing `monitor_agent_status()` offline detection and the existing metrics-history endpoint — the new work is the uptime-rollup sweep and the frontend)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 49: Fleet Geo Map
+
+**Milestone:** v3.3
+
+**Goal:** Give admins one visual, air-gapped-safe map of where their fleet physically is, with clustering and drill-down — the highest-visibility surface in the milestone, built last since it reads everything upstream.
+
+**Requirements:** GMAP-01 (fleet map with markers by city/country, self-contained bundled TopoJSON/SVG — no external tile servers), GMAP-02 (marker clustering + filter by tenant and agent status), GMAP-03 (marker click drills into agent identity, LAN/public IP, resolved location, current status)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An admin can open a fleet map showing agent markers positioned by city/country, and the map renders fully with outbound network access blocked — no tile-server dependency (GMAP-01).
+  2. Dense clusters of nearby agents collapse into a single cluster marker with a count, and the admin can filter the map by tenant and by agent status (online/offline/error/quarantined) (GMAP-02).
+  3. Clicking a marker drills into that agent — showing hostname, LAN IP, public IP, resolved location, and current status (GMAP-03).
+
+**Depends on:** Phase 46 (location data), Phase 47 (status/flags surfaced on drill-down), Phase 48 (offline/version status feeding map filters)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
 
 ## Backlog
 

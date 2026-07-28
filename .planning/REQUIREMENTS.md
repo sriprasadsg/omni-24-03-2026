@@ -52,20 +52,20 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GMAP-01 | — | Planned |
-| GMAP-02 | — | Planned |
-| GMAP-03 | — | Planned |
-| GSEC-01 | — | Planned |
-| GSEC-02 | — | Planned |
-| GSEC-03 | — | Planned |
-| FOBS-01 | — | Planned |
-| FOBS-02 | — | Planned |
-| FOBS-03 | — | Planned |
-| GAUD-01 | — | Planned |
-| GAUD-02 | — | Planned |
+| GMAP-01 | Phase 49 | Planned |
+| GMAP-02 | Phase 49 | Planned |
+| GMAP-03 | Phase 49 | Planned |
+| GSEC-01 | Phase 47 | Planned |
+| GSEC-02 | Phase 47 | Planned |
+| GSEC-03 | Phase 47 | Planned |
+| FOBS-01 | Phase 48 | Planned |
+| FOBS-02 | Phase 48 | Planned |
+| FOBS-03 | Phase 48 | Planned |
+| GAUD-01 | Phase 46 | Planned |
+| GAUD-02 | Phase 46 | Planned |
 
 **Coverage:**
 
-- v3.3 requirements: 11 total (GMAP-01/02/03, GSEC-01/02/03, FOBS-01/02/03, GAUD-01/02), 0 complete — roadmap defined 2026-07-29. Phase mapping filled by the roadmapper.
+- v3.3 requirements: 11 total (GMAP-01/02/03, GSEC-01/02/03, FOBS-01/02/03, GAUD-01/02), 0 complete. All 11 mapped across 4 phases, no orphans: Phase 46 (GAUD-01/02 — ASN/VPN enrichment foundation + append-only location-history audit), Phase 47 (GSEC-01/02/03 — agent-scoped impossible-travel + alert-only geo-fence + heuristic VPN/hosting flag), Phase 48 (FOBS-01/02/03 — metrics-history charts + uptime timeline + offline/version-drift fleet view), Phase 49 (GMAP-01/02/03 — offline fleet map + clustering/filters + drill-down).
 
-*Last updated: 2026-07-29 — v3.3 requirements defined (VPN detection scoped to free heuristic GeoLite2-ASN + X4BNet; geo-fence alert-only).*
+*Last updated: 2026-07-29 — v3.3 roadmap defined: 11/11 requirements mapped across Phases 46–49 (no orphans). VPN detection scoped to free heuristic GeoLite2-ASN + X4BNet; geo-fence alert-only.*

@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.3
 milestone_name: Agent Geo & Fleet Observability
 status: planning
-last_updated: "2026-07-28T18:45:14.400Z"
-last_activity: 2026-07-28
+last_updated: "2026-07-29T00:00:00.000Z"
+last_activity: 2026-07-29
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 45 — close-gap-rust-01-tls-backend-explicit-decision
+**Current focus:** Phase 46 — public-ip-asn-vpn-enrichment-location-history-audit
 
 ## Current Phase
 
@@ -73,6 +73,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-20 — v3.2 roadmap defined (Phases 40-44).** Research summary (`.planning/research/SUMMARY.md`) confirmed two independent workstreams: the Rust agent 2.1.0 dependency bump is already staged and verified compiling clean (only the TLS-backend decision and the 2.1.0 rebuild remain), and four remediation-ops feature gaps close cleanly via disciplined reuse of existing patterns (Jira/ServiceNow connectors, `_compute_sla()`, the tenant-isolation wrapper, the `DO_CHECKS`-shaped check-definition pattern). 5 new phases (40-44) added, continuing numbering from Phase 39: Phase 40 (Rust Agent Modernization & Session Reliability — RUST-01, SESS-01) is a fully independent toolchain track; Phase 41 (CSPM Provider Expansion — CSPM-01/02/03) and Phase 42 (Comment Threads — CMT-01) are structurally isolated and ordered first to validate new-pattern risk cheaply; Phase 43 (Remediation-to-Ticketing Bridge — REM-01/02) is sequenced before Phase 44 (Remediation SLA & Escalation — SLA-01/02) since both mutate the same `compliance_remediation_tasks` document. All 10 v3.2 requirements mapped 1:1 to a phase, no orphans. REQUIREMENTS.md traceability table updated. Next: `/gsd-plan-phase 40`.
 
+**Session 2026-07-29 — v3.2 shipped (Phases 40-45); v3.3 roadmap defined (Phases 46-49).** v3.2 completed all 5 planned phases plus a gap-closure Phase 45 (RUST-01 TLS-backend explicit decision), archived to `milestones/v3.2-ROADMAP.md`/`v3.2-REQUIREMENTS.md`/`v3.2-MILESTONE-AUDIT.md`. New milestone v3.3 ("Agent Geo & Fleet Observability") requirements defined same day: 11 requirements across GMAP (fleet geo map), GSEC (location-based security), FOBS (fleet observability), GAUD (location-history audit). Research (`.planning/research/SUMMARY.md`/`ARCHITECTURE.md`/`PITFALLS.md`) confirmed a strict dependency-ordered 4-phase build and flagged two dominant risks specific to this milestone: the proven tenant-isolation background-scheduler bug (every new fleet-wide sweep must use raw `mongodb.db`, exactly like `compliance_remediation_sla_service`) and a privacy/legal review gate for the new immutable, queryable employee-location-history audit trail. 4 new phases (46-49) added, continuing numbering from Phase 45: Phase 46 (GAUD-01/02 — ASN/VPN enrichment foundation + append-only location-history audit) is the foundation and front-loads the privacy gate; Phase 47 (GSEC-01/02/03 — agent-scoped impossible-travel + alert-only geo-fence + heuristic VPN/hosting flag) depends on 46; Phase 48 (FOBS-01/02/03 — metrics-history charts + uptime timeline + offline/version-drift view) is mostly independent (parallel-safe with 46/47); Phase 49 (GMAP-01/02/03 — offline SVG fleet map + clustering/filters + drill-down) is last, reading everything upstream. All 11 v3.3 requirements mapped 1:1 to a phase, no orphans. REQUIREMENTS.md traceability table updated. Next: `/gsd-plan-phase 46`.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -116,11 +118,16 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 37 | Spec-Compliant MCP Server | Complete (v3.0) — tests rewritten against FastMCP and passing (12/12, 2026-07-13) |
 | 38 | Interactive AI Security Assistant | Complete (v3.0) — plan 38-03 verified 2026-07-13 (5/5 tests pass) |
 | 39 | LangChain AI Integration | Complete (v3.1) — all 12 plans executed; UAT 2026-07-19 (39-UAT.md) 7 passed / 0 issues / 2 blocked-on-live-gateway (nightly judged run, 9router re-test) — 39-01 (LangChain 1.x/LangGraph runtime install), 39-02 (9router smoke test + eval harness scaffold), 39-03 (shared ai_orchestration schemas + citation/control-ID validator), 39-04 (per-tenant model factory + persistent memory + tracing infra), 39-05 (tenant-closed tools + versioned prompts + guardrail hooks + decision-log writer), 39-06 (create_agent auditor migration — AuditFinding + citation validation + shim), 39-07 (create_agent chat migration — persistent checkpointer memory + RAG/live-findings fusion), 39-08 (create_agent questionnaire migration — CitedAnswer + citation validation + shim), 39-09 (create_agent narrative migration — NarrativeOutput + word-budget validation + framework-fidelity flagging + shim), 39-10 (48-example reference dataset: gold controls + questionnaire + chat + adversarial fixtures + fail-loud loader) executed — all four AI-surface migrations complete; 39-11/12 remaining |
-| 40 | Rust Agent Modernization & Session Reliability | Not started (v3.2) — roadmap defined 2026-07-20 |
-| 41 | CSPM Provider Expansion (OCI, Alibaba, Cloudflare) | Not started (v3.2) |
-| 42 | Comment Threads on Compliance Controls | Not started (v3.2) |
-| 43 | Remediation-to-Ticketing Bridge | Not started (v3.2) |
-| 44 | Remediation SLA & Escalation | Not started (v3.2) |
+| 40 | Rust Agent Modernization & Session Reliability | Complete (v3.2) |
+| 41 | CSPM Provider Expansion (OCI, Alibaba, Cloudflare) | Complete (v3.2) |
+| 42 | Comment Threads on Compliance Controls | Complete (v3.2) |
+| 43 | Remediation-to-Ticketing Bridge | Complete (v3.2) |
+| 44 | Remediation SLA & Escalation | Complete (v3.2) |
+| 45 | Close Gap RUST-01 — TLS Backend Explicit Decision | Complete (v3.2) |
+| 46 | Public-IP ASN/VPN Enrichment + Location-History Audit | Not started (v3.3) — roadmap defined 2026-07-29 |
+| 47 | Agent-Scoped Geo Security Detectors | Not started (v3.3) |
+| 48 | Fleet Observability & Uptime Rollups | Not started (v3.3) |
+| 49 | Fleet Geo Map | Not started (v3.3) |
 
 ## Decisions
 
@@ -403,4 +410,4 @@ Items acknowledged and deferred at v3.2 milestone close on 2026-07-29 (16 total,
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- v3.3 roadmap defined (Phases 46-49, 11/11 requirements mapped). Start planning the first phase with /gsd-plan-phase 46
