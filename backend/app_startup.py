@@ -702,6 +702,9 @@ async def run_startup_services() -> None:
     # Pre-build the Windows Rust agent in the background so the first tenant download is instant
     asyncio.create_task(_safe_bg_task(_prebuild_windows_agent(), "windows_agent_prebuild"))
 
+    from app_background_tasks import autonomous_remediation_loop
+    asyncio.create_task(_safe_bg_task(autonomous_remediation_loop(), "autonomous_remediation"))
+
     try:
         init_agentic_tracing()
     except Exception as exc:
