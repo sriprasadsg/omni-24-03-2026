@@ -106,4 +106,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-20 — milestone v3.2 kickoff*
+*Last updated: 2026-07-29 — v3.2 milestone shipped (Phases 40-45, 10/10 requirements; see .planning/milestones/v3.2-ROADMAP.md)*
