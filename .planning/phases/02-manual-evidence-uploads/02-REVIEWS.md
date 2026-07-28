@@ -1,122 +1,123 @@
 ---
 phase: 2
-cycle: 3
+cycle: 4
 reviewers: [claude]
-reviewed_at: 2026-07-28T00:00:00Z
+reviewed_at: 2026-07-28T10:19:12Z
 plans_reviewed: [02-01-PLAN.md, 02-02-PLAN.md]
-revised_commit: 59f5c6c
-prior_cycle: 02-REVIEWS.iter2.md
+revised_commit: b2759d7
+prior_cycle: 02-REVIEWS.iter3.md
 note: >
-  Convergence cycle 3 (final). Since cycle 2, 02-01-PLAN.md was revised (commits
-  3076aab then 59f5c6c) so every pytest gate now invokes
-  `cd backend && venv/bin/python -m pytest ...` — the runner is backend-relative
-  (NOT `backend/venv/...`, which from the `cd backend` cwd would resolve to the
-  stray `backend/backend/venv/...`). Only the `claude` CLI is installed on this
-  host (gemini, codex, opencode, qwen, cursor, antigravity all missing). Per the
-  independence rule the running Claude Code session normally skips `claude`; a
-  separate `claude -p` fresh-context pass was attempted but timed out, so this
-  cycle is a single-reviewer pass cross-checked directly against live source
-  (compliance_evidence_endpoints.py, compliance_artifacts_endpoints.py,
-  apiService.ts, AssetComplianceList.tsx). Treat as single-reviewer.
+  Convergence cycle 4. Since cycle 3, 02-01-PLAN.md was revised (commit b2759d7)
+  to resolve the sole open cycle-3 actionable item: the `<500`-line `wc -l` gate on
+  backend/compliance_evidence_endpoints.py was dropped and documented as an accepted
+  exception (the file ships at 515 lines under the no-new-files constraint). Only the
+  `claude` CLI is installed on this host (gemini, codex, opencode, qwen, cursor,
+  antigravity all missing). Per the independence rule the running Claude Code session
+  skips `claude`, so no distinct external CLI is available; this cycle is a
+  single-reviewer pass cross-checked directly against live source
+  (compliance_evidence_endpoints.py = 515 lines, compliance_artifacts_endpoints.py
+  = 270 lines, apiService.ts, AssetComplianceList.tsx) and git history. Treat as
+  single-reviewer.
 ---
 
-# Cross-AI Plan Review — Phase 2: Manual Evidence Uploads (Cycle 3, final)
+# Cross-AI Plan Review — Phase 2: Manual Evidence Uploads (Cycle 4)
 
 This cycle assesses the CURRENT (revised) plan state only. It does not re-count
-findings that commits a9399a9 / 3076aab / 59f5c6c already incorporated or
-explicitly dispositioned. Prior cycle: `02-REVIEWS.iter2.md`.
+findings that commits a9399a9 / 3076aab / 59f5c6c / b2759d7 already incorporated or
+explicitly dispositioned. Prior cycle: `02-REVIEWS.iter3.md`.
 
 ## Claude Review
 
-### Disposition of cycle-2's open item (verified against revised plan text + host)
+### Disposition of cycle-3's open item (verified against revised plan text + host)
 
-| Cycle-2 finding | Severity | Status in revised plan | Verification |
+| Cycle-3 finding | Severity | Status in revised plan | Verification |
 |-----------------|----------|------------------------|--------------|
-| 02-01 verify gates invoked nonexistent `python` (fail-closed, stalls TDD loop) | LOW/MEDIUM (actionable) | **RESOLVED** | All three `<automated>` gates (Task 0/1/2) and the `<verification>` block now run `cd backend && venv/bin/python -m pytest …`. Confirmed on host: `(cd backend && venv/bin/python -c ...)` prints `runner OK`. `backend/venv/bin/python` is a symlink to `python3` (deps present), so the gates now invoke a real interpreter and can genuinely reach RED-OK / pass. |
-| Double-path trap (`backend/venv/...` would double under `cd backend`) | (raised in task brief) | **AVOIDED** | The gates use the bare `venv/bin/python`, not `backend/venv/...`. This host actually has a stray `backend/backend/venv/` directory, so the double-path form would have silently resolved to the wrong tree — the revised, backend-relative form correctly targets `backend/venv/bin/python`. |
-| mawk `\s` in the 02-02 awk gate | LOW (non-actionable) | UNCHANGED / still non-actionable | Default awk is mawk (`\s` = literal `s`); every top-level decl in `apiService.ts` is at column 0, so `s*` matches zero occurrences and the range still closes on the next `export const`. No misfire on the real file. No PLAN.md change required. |
-| awk window unbounded at EOF | LOW (non-actionable) | UNCHANGED / still non-actionable | `uploadComplianceEvidence` (~L701 of 4861) has many later decls; the window closes well before EOF. No misfire. |
+| 02-01 asserted "both backend files under 500 lines" while also forbidding new source files; `compliance_evidence_endpoints.py` at 515 lines made the `wc -l` gate unsatisfiable, forcing an executor deviation | LOW (actionable) | **RESOLVED** | Commit b2759d7 revised the plan. Constraints (L71) now read: "Keep `compliance_artifacts_endpoints.py` under 500 lines. Accepted exception: `compliance_evidence_endpoints.py` exceeds the 500-line guideline (currently 515 lines) … a future refactor may split it, out of scope here." Task 1 `<done>` (L115) now asserts the cap on `compliance_artifacts_endpoints.py` only and names the evidence file as an accepted exception. `<verification>` (L185) states "`compliance_evidence_endpoints.py` is an accepted exception … do NOT gate on its line count." A `<review_resolution>` entry (L176) documents the disposition. Host confirms: `wc -l` = 515 (evidence) / 270 (artifacts). No remaining automated gate fails on the shipped file. |
 
-All cycle-1 and cycle-2 HIGH and actionable findings are now resolved,
-incorporated, or explicitly dispositioned in the revised plans. The runner-binary
-fix — the sole open item leaving cycle 2 — is genuinely correct and verified on
-this host.
+All cycle-1, cycle-2, and cycle-3 HIGH and actionable findings are now resolved,
+incorporated, or explicitly dispositioned in the revised plans. There is no open
+actionable item leaving cycle 4.
 
-### 02-01-PLAN.md (Backend) — verdict: PASS (with one LOW actionable)
-Pytest runner gates are now functional and backend-relative; RED-gate,
-tenant-scoped `$pull`, magic-byte discipline, threat model, and TDD sequencing
-remain sound. No unresolved HIGH.
+### 02-01-PLAN.md (Backend) — verdict: PASS
+The internal constraint conflict that was the sole open item from cycle 3 is gone:
+the 500-line cap is now scoped to `compliance_artifacts_endpoints.py` (270 lines,
+satisfied) and `compliance_evidence_endpoints.py` (515 lines) is a documented,
+accepted exception rather than an unsatisfiable gate. Cross-checked against live
+source: the plan continues to reflect reality — `_check_magic` import + call
+(compliance_evidence_endpoints.py L13, L79), `delete_compliance_evidence` handler
+(L252), the `systemGenerated` guard before `$pull` (L291), `_SUPER_ROLES`-based
+tenant/owner scoping, and `_MAGIC_SIGNATURES`/`_check_magic` defined in
+compliance_artifacts_endpoints.py (L71, L87) are all present. RED-gate, tenant-scoped
+`$pull`, magic-byte discipline, threat model, and TDD sequencing remain sound. No
+unresolved HIGH. No open actionable.
 
 ### 02-02-PLAN.md (Frontend) — verdict: PASS
-The `tsc` and body-scoped Content-Type gates are correct; `maxLength={1000}`
-mirror, Manual/Automated badges, confirm-guarded delete, and the blocking human
-checkpoint are intact. No unresolved HIGH. No new concerns this cycle.
+Unchanged since cycle 3 and untouched by b2759d7. The `tsc` and body-scoped
+Content-Type gates are correct; `maxLength={1000}` mirror, Manual/Automated badges,
+confirm-guarded delete, and the blocking human checkpoint are intact. No unresolved
+HIGH. No new concerns.
 
-### New concern raised this cycle
+### New concerns raised this cycle
 
-- **LOW (actionable) — 02-01's "both backend files under 500 lines" acceptance
-  criterion is already violated and is unreachable under the plan's own
-  constraints.** `compliance_evidence_endpoints.py` is currently **515 lines**
-  (`wc -l`). Git history shows the file was 496–498 lines before this phase and
-  crossed 500 as a direct result of the phase's own additions (delete endpoint
-  503 → tenant/limit fixes 506 → 510 → 515). The plan restates "Keep file under
-  500 lines" in both Task 1/Task 2 `<done>` and in `<verification>` ("Both
-  backend files remain under 500 lines (`wc -l`)"), yet it also mandates "Do NOT
-  create any new source files beyond the test file; extend the two existing
-  backend files only." Those two constraints are mutually unsatisfiable at the
-  phase's current scope, so the plan's own `wc -l` verification will fail against
-  the shipped implementation, forcing an executor deviation. This fails **safe**
-  (it reports a real state, unlike the cycle-1 falsely-green gates), so it is LOW,
-  not HIGH. **Fix needed in PLAN.md:** either (a) explicitly relax/acknowledge the
-  500-line cap for `compliance_evidence_endpoints.py` (carve a documented
-  exception in the constraints + drop it from `<verification>`), or (b) add an
-  allowed refactor/split task and lift the "no new source files" restriction for
-  that split. This is the one actionable item still needed in PLAN.md.
+- **Non-actionable (cosmetic) — Task 1 `<action>` prose still ends "Keep file under
+  500 lines."** (02-01-PLAN.md L111). This is guidance prose inside the `<action>`
+  block, not a verify gate. It is now mildly inconsistent with the authoritative
+  constraints section (L71), which explicitly exempts
+  `compliance_evidence_endpoints.py`. It does NOT gate execution: there is no
+  `<automated>`/`<verification>` `wc -l` assertion tied to it, and the file Task 1
+  primarily extends (`compliance_artifacts_endpoints.py`) is 270 lines, so read
+  against that file the instruction is satisfied. No executor failure results. Not
+  counted as actionable (invisible-to-execute-phase test not met — no gate depends on
+  it). A future tidy could drop or re-scope the trailing clause for consistency, but
+  it changes nothing operationally.
 
 ### Risk
-**LOW.** Both plans achieve EVID-01..05 with correct, now-functional automated
-gates and a backstopping human checkpoint. The single residual actionable item
-(a 15-line overage vs. a self-imposed cap the plan simultaneously forbids
-resolving) fails safe and is a one-paragraph plan edit.
+**LOW.** Both plans achieve EVID-01..05 with correct, functional automated gates and
+a backstopping human checkpoint. The single cycle-3 residual (the self-conflicting
+500-line cap) is now resolved via a documented exception; no actionable item remains.
 
 ---
 
 ## Consensus Summary
 
-Single reviewer (claude), cross-checked against live source and the host
-environment. Cycle-2's sole open actionable item (the `python` runner binary) is
-genuinely fixed and verified. One new LOW actionable item surfaced: an internal
-constraint conflict in 02-01 (500-line cap vs. no-new-files, with the file already
-at 515).
+Single reviewer (claude), cross-checked against live source, git history, and the
+host environment. Cycle-3's sole open actionable item — the 500-line cap vs.
+no-new-files conflict on `compliance_evidence_endpoints.py` — is resolved by commit
+b2759d7, which relaxes the cap for that file with a documented exception and removes
+the `wc -l` assertion from `<done>` and `<verification>`. No HIGH findings remain and
+no actionable MEDIUM/LOW findings remain open.
 
 ### Agreed Strengths
-- The 02-01 pytest gates now invoke a real, backend-relative interpreter
-  (`venv/bin/python`), verified `runner OK` on host; the double-path trap
-  (`backend/backend/venv`) is correctly avoided.
-- Every cycle-1/cycle-2 HIGH (falsely-green pytest RED + inverted `tsc`) and
-  actionable MEDIUM/LOW is resolved or explicitly dispositioned.
-- Tenant-scoped `$pull`, docx/xlsx ZIP-magic ack, limiter test strategy, client
-  `maxLength={1000}`, and the WR-02/CR-02 shipped-code dispositions all hold.
+- The cycle-3 constraint conflict is cleanly resolved: the 500-line cap now applies
+  only to `compliance_artifacts_endpoints.py` (270 lines), and the 515-line
+  `compliance_evidence_endpoints.py` is an explicitly accepted exception — no gate
+  fails on the shipped file.
+- The plan still matches live source (magic-byte check, delete handler,
+  `systemGenerated` guard, tenant-scoped `$pull`, `_SUPER_ROLES`), verified this
+  cycle.
+- Every prior-cycle HIGH (falsely-green pytest RED, inverted `tsc`) and every prior
+  actionable MEDIUM/LOW (limiter test strategy, tenant-scoped `$pull`, docx/xlsx
+  ZIP-magic ack, client `maxLength={1000}`, backend-relative `venv/bin/python`
+  runner, WR-02/CR-02 shipped-code dispositions) is resolved or explicitly
+  dispositioned.
 
 ### Agreed Concerns (current)
-- **LOW (actionable):** 02-01 asserts "both backend files under 500 lines" while
-  also forbidding new source files; `compliance_evidence_endpoints.py` is 515
-  lines, so the `wc -l` verification cannot pass without a plan change. Relax/ack
-  the cap for that file, or authorize a split.
-- **LOW (non-actionable):** mawk `\s` and EOF-unbounded awk in the 02-02 gate —
-  latent portability nits that do not misfire on the actual `apiService.ts`.
+- **None actionable.** One non-actionable cosmetic residual: the trailing "Keep file
+  under 500 lines." in Task 1's `<action>` prose is now inconsistent with the
+  constraints exception, but no gate depends on it and it causes no executor failure.
 
 ### Divergent Views
 None — single reviewer.
 
 ### Disposition
-- **Resolved / incorporated (this cycle):** 02-01 runner binary now
-  backend-relative and functional; double-path trap avoided.
-- **Still open (actionable):** 02-01 500-line cap vs. no-new-files constraint
-  conflict (file at 515) — needs an explicit cap relaxation or an authorized
-  split task in PLAN.md.
-- **Non-actionable:** mawk `\s` / EOF-unbounded awk nits.
+- **Resolved / incorporated (this cycle):** 02-01 500-line cap vs. no-new-files
+  conflict — relaxed via documented exception (b2759d7); `wc -l` assertion removed
+  from `<done>` and `<verification>` for the evidence file.
+- **Still open (actionable):** None.
+- **Non-actionable:** trailing "Keep file under 500 lines." prose in Task 1 action
+  (cosmetic, no gate); prior mawk `\s` / EOF-unbounded awk nits in the 02-02 gate
+  (latent portability, do not misfire on the real file).
 
-**Overall milestone risk: LOW.**
+**Overall milestone risk: LOW. Plans are converged.**
 
-CYCLE_SUMMARY: current_high=0 current_actionable=1
+CYCLE_SUMMARY: current_high=0 current_actionable=0
