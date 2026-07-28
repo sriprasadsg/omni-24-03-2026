@@ -783,7 +783,26 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase — continues numbering from Phase 45)
 
-**Plans:** TBD
+**Plans:** 7 plans across 4 waves
+
+**Wave 1** *(parallel, independent backend services)*
+
+- [ ] 46-01-PLAN.md — GAUD-01: `agent_asn_service.py` (GeoLite2-ASN + bundled X4BNet VPN heuristic, lazy graceful-degrade) + vendored snapshot + tests (D-11/D-12)
+- [ ] 46-02-PLAN.md — GAUD-01: `agent_location_history_service.py` (change-detection + NAT-flip de-noise state machine + per-tenant toggle + append-only write) + 003 index migration + tests (D-05/D-06/D-07/D-02)
+- [ ] 46-03-PLAN.md — GAUD-01: 365-day retention routed through the existing retention module (`cleanup_agent_location_history` + policy default + run_cleanup wiring) + real-cutoff test (D-01/D-04)
+
+**Wave 2** *(depends on Wave 1 services)*
+
+- [ ] 46-04-PLAN.md — GAUD-01/02: `agent_location_history_endpoints.py` (tenant-scoped GET-only timeline with read-time dwell + admin-gated toggle GET/PATCH, no mutation route) + router registration + tests (D-10/D-02)
+- [ ] 46-05-PLAN.md — GAUD-01: wire ASN enrichment + `record_location_change` into heartbeat + registration handlers, toggle-gated, `geo.asn`/`geo.vpn_heuristic` persisted (D-13/D-05)
+
+**Wave 3** *(frontend timeline)*
+
+- [ ] 46-06-PLAN.md — GAUD-02: `AgentLocationHistory.tsx` read-only timeline panel (clone of `EscalationHistoryPanel`) mounted in the Overview tab + shared `utils/geo.ts` + apiService clients (D-08/D-09/D-10)
+
+**Wave 4** *(privacy settings consumer)*
+
+- [ ] 46-07-PLAN.md — GAUD-01: Agent Location Tracking disclosure note + per-tenant toggle control in `PrivacyDashboard.tsx` (D-02/D-03 privacy gate)
 
 **UI hint**: yes
 
