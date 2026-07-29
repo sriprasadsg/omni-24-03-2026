@@ -366,14 +366,16 @@ rows = await db.agent_metrics.find(metrics_filter, {"_id": 0, "timestamp": 1}).s
 
 **If this table is empty:** N/A — see above; all three items are low-risk implementation-detail assumptions, not compliance/security/retention-policy assumptions, and none block planning.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which permission string gates the new Fleet Observability nav page?**
+> Both resolved in CONTEXT.md during `/gsd-plan-phase`: Q1 → **D-07** (`manage:agents`), Q2 → **D-08** (no backfill). Implemented in 48-05 / 48-02.
+
+1. **[RESOLVED — D-07: `manage:agents`]** Which permission string gates the new Fleet Observability nav page?
    - What we know: `manage:settings` (used by the Phase 47 Security Settings clone target), `manage:agents`, and `view:agents` all already exist as valid `Permission` values in `types.ts`/`rbac_utils.py`.
    - What's unclear: Whether Fleet Observability should be scoped as narrowly as Security Settings (Tenant Admin + Super Admin via `manage:settings`) or should also be visible to any role that can already see agents (`view:agents`, broader).
    - Recommendation: Default to `manage:agents` (semantically closest — it's about agents, not tenant settings) unless the planner/discuss-phase determines a broader read-only audience is wanted; either choice is a one-line change.
 
-2. **Does the daily rollup sweep need a "first ever run" backfill, or does it only start accumulating from the day it's deployed?**
+2. **[RESOLVED — D-08: no backfill]** Does the daily rollup sweep need a "first ever run" backfill, or does it only start accumulating from the day it's deployed?
    - What we know: `snapshot_compliance_scores_loop` and `refresh_mitre_heatmap_loop` both just start fresh with no backfill — there's no historical-data-backfill precedent anywhere in this codebase's background-task history.
    - What's unclear: Whether the phase's acceptance criteria expect the rollup collection to have data immediately after deploy, or whether "starts empty, fills in over the following days" is acceptable (matching every other daily sweep's behavior).
    - Recommendation: No backfill — match the existing precedent exactly; document this as expected behavior in the rollup's module docstring so a future reader doesn't mistake an empty rollup collection on day 1 for a bug.

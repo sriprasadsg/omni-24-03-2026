@@ -51,8 +51,9 @@ created: 2026-07-29
 
 ## Wave 0 Requirements
 
-- [ ] `backend/tests/test_agent_uptime.py` — gap-detection + rollup sweep stubs (mock `agent_metrics` timestamps)
-- [ ] `backend/tests/test_fleet_observability.py` — aggregate endpoint (offline + drift) stubs
+- [ ] `backend/tests/test_agent_uptime_service.py` (48-01) — gap-detection over `agent_metrics` (mock 30s-cadence timestamps + injected gaps)
+- [ ] `backend/tests/test_agent_uptime_rollup_loop.py` (48-02) — daily rollup sweep stubs
+- [ ] `backend/tests/test_agent_fleet_observability.py` (48-03) — aggregate endpoint (offline + version-drift) stubs
 - [ ] Shared fixtures: fake `agent_metrics` rows at 30s cadence with injected gaps; agents with mixed reported versions/status
 
 ---
