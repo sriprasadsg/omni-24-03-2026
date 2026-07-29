@@ -1597,6 +1597,68 @@ export const fetchAssetMetrics = async (assetId: string, range: '1h' | '24h' | '
     }
 };
 
+export interface AgentMetricsHistoryPoint {
+    timestamp: string;
+    cpu_percent: number;
+    memory_percent: number;
+    disk_percent: number;
+    [key: string]: any;
+}
+
+export interface AgentMetricsHistoryResponse {
+    agent_id: string;
+    hours: number;
+    metrics: AgentMetricsHistoryPoint[];
+    summary: Record<string, number>;
+}
+
+// FOBS-01: agent-scoped metrics history (D-02 — hours is ≤48h only: 1/6/24/48).
+// Mirrors fetchAssetMetrics's auth/error shape but returns the full payload
+// (metrics + summary), not just the metrics array, since AgentMetricsTab needs both.
+export const fetchAgentMetricsHistory = async (
+    agentId: string,
+    hours: 1 | 6 | 24 | 48
+): Promise<AgentMetricsHistoryResponse> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/metrics/history?hours=${hours}`);
+        if (!res.ok) throw new Error("Failed to fetch agent metrics history");
+        return await res.json();
+    } catch (e) {
+        console.warn("Backend offline or error, returning empty agent metrics history");
+        return { agent_id: agentId, hours, metrics: [], summary: {} };
+    }
+};
+
+export interface AgentUptimeTimelineBucket {
+    start: string;
+    up: boolean;
+}
+
+export interface AgentUptimeResponse {
+    agent_id: string;
+    hours: number;
+    uptime_percent: number;
+    expected_buckets: number;
+    received_buckets: number;
+    timeline: AgentUptimeTimelineBucket[];
+}
+
+// FOBS-02: agent-scoped heartbeat-presence uptime % + bucketed timeline
+// (D-02 — hours is ≤48h only: 1/6/24/48; server clamps regardless — T-48-11).
+export const fetchAgentUptime = async (
+    agentId: string,
+    hours: 1 | 6 | 24 | 48
+): Promise<AgentUptimeResponse> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/uptime?hours=${hours}`);
+        if (!res.ok) throw new Error("Failed to fetch agent uptime");
+        return await res.json();
+    } catch (e) {
+        console.warn("Backend offline or error, returning empty agent uptime");
+        return { agent_id: agentId, hours, uptime_percent: 0, expected_buckets: 0, received_buckets: 0, timeline: [] };
+    }
+};
+
 export const triggerFrameworkScan = async (frameworkId: string) => {
     try {
         const response = await authFetch(`${API_BASE}/compliance-automation/collect-evidence`, {
