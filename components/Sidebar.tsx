@@ -414,6 +414,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'msspMonitoring', label: 'MSSP Monitoring', icon: <BuildingIcon size={20} />, permission: 'view:mssp' },
                 { view: 'knowledgeBase', label: 'Knowledge Base (RAG)', icon: <BookKeyIcon size={20} />, permission: 'view:dashboard' },
                 { view: 'geoSecurity', label: 'Geo Security', icon: <ShieldLockIcon size={20} />, permission: 'manage:settings' },
+                { view: 'fleetObservability', label: 'Fleet Observability', icon: <ActivityIcon size={20} />, permission: 'manage:agents' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'apiStatus', label: 'API Status', icon: <RadioTower size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },

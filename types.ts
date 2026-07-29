@@ -197,7 +197,8 @@ export type AppView =
   | 'soar'
   | 'deploymentApprovals'
   | 'cloudChecksScanner'
-  | 'stagedDeployments';
+  | 'stagedDeployments'
+  | 'fleetObservability';
 
 
 export type Permission =
