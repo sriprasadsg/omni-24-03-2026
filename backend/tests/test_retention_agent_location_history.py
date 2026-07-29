@@ -62,7 +62,7 @@ def _make_db(location_history_docs):
     also touches, so run_cleanup() can be exercised end-to-end."""
     db = MagicMock()
     db.agent_location_history = _FakeLocationHistoryCollection(location_history_docs)
-    for name in ("audit_logs", "metrics", "notifications"):
+    for name in ("audit_logs", "metrics", "notifications", "agent_uptime_rollups"):
         col = MagicMock()
         col.delete_many = AsyncMock(return_value=_DeleteResult(0))
         setattr(db, name, col)

@@ -50,6 +50,23 @@ class RetentionService:
         })
         return result.deleted_count
 
+    async def cleanup_agent_uptime_rollups(self, retention_days: int = 90) -> int:
+        """Delete agent_uptime_rollups rows older than retention_days.
+
+        agent_uptime_rollups.timestamp is a real BSON Date (native datetime,
+        never .isoformat()'d on write — see 48-02) so the cutoff here is
+        compared as a datetime object directly, matching the
+        cleanup_agent_location_history convention (Phase 46 precedent).
+        Platform-wide sweep, no tenantId filter. Does NOT touch agent_metrics
+        (out of scope per D-02 / Pitfall 4 — that collection's retention is
+        deliberately not addressed by this plan).
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        result = await self.db.agent_uptime_rollups.delete_many({
+            "timestamp": {"$lt": cutoff}
+        })
+        return result.deleted_count
+
     async def run_cleanup(self, policies: dict = None) -> dict:
         """Run cleanup tasks using DB-configured retention days."""
         p = policies or {}
@@ -59,11 +76,15 @@ class RetentionService:
         location_history_deleted = await self.cleanup_agent_location_history(
             p.get("agent_location_history", 365)
         )
+        uptime_rollups_deleted = await self.cleanup_agent_uptime_rollups(
+            p.get("agent_uptime_rollups", 90)
+        )
         report = {
             "audit_logs_deleted":   audit_deleted,
             "metrics_deleted":      metrics_deleted,
             "notifications_deleted": notif_deleted,
             "agent_location_history_deleted": location_history_deleted,
+            "agent_uptime_rollups_deleted": uptime_rollups_deleted,
             "status": "completed",
         }
         return report

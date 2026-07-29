@@ -16,13 +16,14 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
 import app_background_tasks
+import retention_service as retention_service_mod
 
 
 def _run(coro):
@@ -198,3 +199,99 @@ class TestAgentUptimeRollupSweep:
     def test_loop_function_exists_and_is_registered_by_name(self):
         assert hasattr(app_background_tasks, "agent_uptime_rollup_loop")
         assert asyncio.iscoroutinefunction(app_background_tasks.agent_uptime_rollup_loop)
+
+
+class _DeleteResult:
+    def __init__(self, deleted_count):
+        self.deleted_count = deleted_count
+
+
+class _FakeRollupsRetentionCollection:
+    """Minimal in-memory stand-in for db.agent_uptime_rollups supporting the
+    one delete_many shape cleanup_agent_uptime_rollups needs:
+    {"timestamp": {"$lt": cutoff}} evaluated against native datetime rows."""
+
+    def __init__(self, docs):
+        self._docs = list(docs)
+        self.last_filter = None
+
+    async def delete_many(self, filt):
+        self.last_filter = filt
+        cutoff = filt["timestamp"]["$lt"]
+        assert isinstance(cutoff, datetime), (
+            "cutoff must be a real datetime object, not an .isoformat() string"
+        )
+        before = len(self._docs)
+        self._docs = [d for d in self._docs if d["timestamp"] >= cutoff]
+        return _DeleteResult(before - len(self._docs))
+
+
+def _make_retention_db(rollup_docs):
+    db = MagicMock()
+    db.agent_uptime_rollups = _FakeRollupsRetentionCollection(rollup_docs)
+    for name in ("audit_logs", "metrics", "notifications", "agent_location_history"):
+        col = MagicMock()
+        col.delete_many = AsyncMock(return_value=_DeleteResult(0))
+        setattr(db, name, col)
+    return db
+
+
+class TestCleanupAgentUptimeRollups:
+    def test_90_day_old_row_deleted_1_day_old_row_retained(self):
+        now = datetime.now(timezone.utc)
+        old_row = {"timestamp": now - timedelta(days=91), "agent_id": "agent-1"}
+        recent_row = {"timestamp": now - timedelta(days=1), "agent_id": "agent-2"}
+        db = _make_retention_db([old_row, recent_row])
+        svc = retention_service_mod.RetentionService(db)
+
+        deleted = _run(svc.cleanup_agent_uptime_rollups(retention_days=90))
+
+        assert deleted == 1
+        assert db.agent_uptime_rollups._docs == [recent_row]
+
+    def test_cutoff_uses_native_datetime_not_isoformat_string(self):
+        now = datetime.now(timezone.utc)
+        db = _make_retention_db([{"timestamp": now - timedelta(days=120), "agent_id": "a1"}])
+        svc = retention_service_mod.RetentionService(db)
+
+        _run(svc.cleanup_agent_uptime_rollups(retention_days=90))
+
+        cutoff = db.agent_uptime_rollups.last_filter["timestamp"]["$lt"]
+        assert isinstance(cutoff, datetime)
+
+
+class TestRunCleanupWiringForUptimeRollups:
+    def test_run_cleanup_report_includes_agent_uptime_rollups_deleted_key(self):
+        now = datetime.now(timezone.utc)
+        old_row = {"timestamp": now - timedelta(days=91), "agent_id": "agent-1"}
+        recent_row = {"timestamp": now - timedelta(days=1), "agent_id": "agent-2"}
+        db = _make_retention_db([old_row, recent_row])
+        svc = retention_service_mod.RetentionService(db)
+
+        report = _run(svc.run_cleanup(policies={"agent_uptime_rollups": 90}))
+
+        assert "agent_uptime_rollups_deleted" in report
+        assert report["agent_uptime_rollups_deleted"] == 1
+
+    def test_run_cleanup_defaults_agent_uptime_rollups_to_90_when_no_policy_passed(self):
+        now = datetime.now(timezone.utc)
+        old_row = {"timestamp": now - timedelta(days=91), "agent_id": "agent-1"}
+        recent_row = {"timestamp": now - timedelta(days=1), "agent_id": "agent-2"}
+        db = _make_retention_db([old_row, recent_row])
+        svc = retention_service_mod.RetentionService(db)
+
+        report = _run(svc.run_cleanup(policies={}))
+
+        assert report["agent_uptime_rollups_deleted"] == 1
+
+    def test_run_cleanup_does_not_add_agent_metrics_retention(self):
+        """Pitfall 4 / D-02 out-of-scope guard: agent_metrics retention must
+        NOT be added by this plan."""
+        now = datetime.now(timezone.utc)
+        db = _make_retention_db([{"timestamp": now - timedelta(days=91), "agent_id": "a1"}])
+        svc = retention_service_mod.RetentionService(db)
+
+        report = _run(svc.run_cleanup(policies={}))
+
+        assert "agent_metrics_deleted" not in report
+        assert not hasattr(svc, "cleanup_agent_metrics")
