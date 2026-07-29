@@ -9,6 +9,7 @@ import {
 import { ConfirmationModal } from './ConfirmationModal';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
+import { flagEmoji, formatGeo } from '../utils/geo';
 
 interface AgentListProps {
     agents: Agent[];
@@ -73,18 +74,6 @@ const platformIcons: Record<AgentPlatform, React.ReactNode> = {
 };
 
 const statusOptions: ('All' | AgentStatus)[] = ['All', 'Online', 'Offline', 'Error', 'Quarantined'];
-
-// ISO 3166-1 alpha-2 code -> flag emoji (regional indicator symbols).
-const flagEmoji = (code?: string): string => {
-    if (!code || code.length !== 2) return '';
-    const cc = code.toUpperCase();
-    if (!/^[A-Z]{2}$/.test(cc)) return '';
-    return String.fromCodePoint(...[...cc].map(c => 0x1f1e6 + c.charCodeAt(0) - 65));
-};
-
-// "City, Region, Country" from a geo object, skipping empty parts.
-const formatGeo = (geo?: { city?: string; region?: string; country?: string }): string =>
-    [geo?.city, geo?.region, geo?.country].filter(Boolean).join(', ');
 
 const parseLastSeen = (lastSeen: string): number => {
     // A more robust parser
