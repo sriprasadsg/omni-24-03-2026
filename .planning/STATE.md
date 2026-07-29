@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v3.3
 milestone_name: — Agent Geo & Fleet Observability
 current_phase: 48
-current_phase_name: Fleet Observability & Uptime Rollups
-status: verifying
+current_phase_name: fleet-observability-uptime-rollups
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-29T17:25:16.546Z"
+last_updated: "2026-07-29T17:56:44.070Z"
 last_activity: 2026-07-29
-last_activity_desc: Phase 47 complete, transitioned to Phase 48
+last_activity_desc: Phase 48 execution started
 progress:
-  total_phases: 5
+  total_phases: 4
   completed_phases: 2
-  total_plans: 13
-  completed_plans: 13
-  percent: 40
+  total_plans: 18
+  completed_plans: 14
+  percent: 50
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 47 — agent-scoped-geo-security-detectors
+**Current focus:** Phase 48 — fleet-observability-uptime-rollups
 
 ## Current Phase
 
@@ -306,6 +306,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 47-04: allowed_country_codes ISO 3166 alpha-2 validation lives in a Pydantic field_validator on GeoSecuritySettingsUpdate (API boundary), separate from geo_security_service's own defensive normalization
 - [Phase ?]: 47-06: Kept SecuritySettingsDashboard.tsx as a new, separate component rather than folding into PrivacyDashboard.tsx per D-06 (security config distinct from privacy config)
 - [Phase ?]: 47-06: geoSecurity nav item and viewPermissionMap entry both gated on manage:settings (client-side gate; backend PATCH's _require_admin is the authoritative control per T-47-06-E)
+- [Phase 48]: 48-01: compute_uptime accepts optional now= kwarg for deterministic testing; endpoint never passes it, no production behavior change
+- [Phase 48]: 48-01: min(received/expected,1.0) clip is a documented safety net; received_bucket_indices is bounded by construction to expected_buckets, so it never actually needs to clip
 
 ## Performance Metrics
 
@@ -381,6 +383,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 47 P03 | 20min | 2 tasks | 2 files |
 | Phase 47 P04 | 20min | 2 tasks | 3 files |
 | Phase 47 P06 | 12min | 3 tasks | 6 files |
+| Phase 48 P01 | 15min | 2 tasks | 4 files |
 
 ## Last Session
 
@@ -411,7 +414,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-29T17:25:16.529Z
+**Last session:** 2026-07-29T17:56:11.438Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -426,10 +429,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 48 — Fleet Observability & Uptime Rollups
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-29 — Phase 47 complete, transitioned to Phase 48
+Phase: 48 (fleet-observability-uptime-rollups) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-07-29 — Phase 48 execution started
 
 ## Deferred Items
 

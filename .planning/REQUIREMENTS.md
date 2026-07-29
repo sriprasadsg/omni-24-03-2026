@@ -23,7 +23,7 @@
 ### Fleet Observability (FOBS)
 
 - [ ] **FOBS-01**: An admin can view an agent's CPU / memory / disk history as charts (consuming the existing `GET /agents/{id}/metrics/history` endpoint via the already-installed `recharts`).
-- [ ] **FOBS-02**: An admin can see a per-agent heartbeat/uptime timeline and an uptime % over a selectable range.
+- [x] **FOBS-02**: An admin can see a per-agent heartbeat/uptime timeline and an uptime % over a selectable range.
 - [ ] **FOBS-03**: An admin can see a fleet-level view of offline agents and agent version-drift (which agents lag the latest version).
 
 ### Location Audit (GAUD)
