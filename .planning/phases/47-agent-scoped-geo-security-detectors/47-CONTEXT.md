@@ -29,6 +29,10 @@ Turn Phase 46's geo/ASN enrichment and location-history into **alert-only** loca
 
 ### Alert Noise Control (GSEC-02 + GSEC-03)
 - **D-05:** **Dedup per (agent_id, violation_type) on state transition + cooldown window.** Fire one alert when the violation state changes (clean→violating), then suppress repeats within a cooldown window (default **6h**) even if every heartbeat keeps violating. Model the transition/de-noise after Phase 46's `record_location_change` state-machine idea — alert volume tracks violations, not heartbeat frequency.
+- **D-07:** (resolves RESEARCH Open Question 1) **Cooldown re-fires.** When an agent is still violating after the 6h window elapses, emit a fresh reminder alert and reset the cooldown — a persistent violation must not go permanently silent after the first alert. Not "one alert per transition, ever".
+
+### Impossible-Travel Noise Floor (GSEC-02)
+- **D-08:** (resolves RESEARCH Open Question 2 / Pitfall 4) **Minimum-elapsed-time floor before evaluating impossible-travel.** Skip the 1000 km/h check unless ≥ **15 minutes** elapsed between the two consecutive check-ins. At ~30s heartbeat cadence the raw threshold has an ~8.3 km false-positive floor from GeoIP city-level imprecision + CGNAT/mobile-carrier IP churn — a false-positive class D-02's VPN suppression does not cover. This is a deliberate, signed-off modification to D-01.
 
 ### Config Surface (UI — GSEC-03)
 - **D-06:** Geo-fence allowed-regions + detector on/off live in a **new admin-gated Security settings panel** (separate from Phase 46's PrivacyDashboard — keep security config distinct from privacy). Per-tenant config stored via the existing `system_settings` type-keyed doc pattern (clone of `track_agent_location`), admin-gated GET/PATCH like the 46 toggle endpoints.
