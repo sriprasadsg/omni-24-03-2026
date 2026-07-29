@@ -824,13 +824,13 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 46 (impossible-travel needs "previous known geo" from location-history; the VPN/hosting flag needs the ASN enrichment lookup built alongside 46)
 
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 
 - [x] 47-01-PLAN.md — Fix ueba_service.persist_security_alert fan-out (Wave 0 prerequisite; reactivates 5 dormant call sites)
 - [x] 47-02-PLAN.md — geo_security_service.py: impossible-travel + geo-fence + dedup/cooldown + config resolution
-- [ ] 47-03-PLAN.md — Wire toggle-gated detectors into the heartbeat handler, fan out via persist_security_alert
+- [x] 47-03-PLAN.md — Wire toggle-gated detectors into the heartbeat handler, fan out via persist_security_alert
 - [ ] 47-04-PLAN.md — Admin-gated GET/PATCH /api/settings/geo-security config endpoints
 - [x] 47-05-PLAN.md — GSEC-01 heuristic VPN/hosting badge on the agent card + GeoLocation type
 - [ ] 47-06-PLAN.md — Security settings panel (detector toggles + allowed-region allowlist) + apiService + nav
