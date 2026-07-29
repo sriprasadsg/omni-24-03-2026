@@ -182,7 +182,11 @@ class TestValidationNormalizesCase:
             state.update(update["$set"])
             return MagicMock()
 
+        async def _find_one(filter_):
+            return dict(state) if state else None
+
         db.system_settings.update_one = AsyncMock(side_effect=_update_one)
+        db.system_settings.find_one = AsyncMock(side_effect=_find_one)
 
         with patch.object(endpoints_mod, "get_database", return_value=db):
             with TestClient(_app_for(_TENANT_A_ADMIN)) as client:
