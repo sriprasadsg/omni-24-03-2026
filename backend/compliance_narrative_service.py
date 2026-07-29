@@ -1,19 +1,50 @@
 """
-Phase 13 — AI Compliance Narrative Service.
-Generates LLM-backed executive summaries and per-framework narratives for scheduled PDF reports.
-"""
-import re
-import html as _html
-import logging
-from pydantic import BaseModel, field_validator, model_validator, ValidationError
+Phase 13 / Phase 39-09 — AI Compliance Narrative Service (LangChain shim).
 
-from ai_service import ai_service
-from tenant_context import set_tenant_id
+`generate_executive_summary`/`generate_framework_narrative` keep their exact
+pre-39-09 signatures and `str` return type (with two new *optional* trailing
+`tenant_id`/`db` kwargs — see below) so `enrich_report_data`,
+`scheduled_reports_service`, and the reportlab render path (`_render_narratives`)
+need no change (39-CONTEXT.md: "internals swap to LangChain paths"). Both now
+delegate to `ai_orchestration.agents.narrative` — a `create_agent`-based
+agent producing schema-validated `NarrativeOutput` (39-03) — replacing the
+old `ai_service.generate_text` + regex/word-trim path.
+
+`tenant_id`/`db`: `enrich_report_data` already has both as real parameters
+(not ambient context) and passes them explicitly to the agent layer per
+RESEARCH Pitfall B ("pass tenant_id explicitly rather than relying on
+ambient context"). The two trailing kwargs default to `None` so any other
+existing caller of `generate_executive_summary`/`generate_framework_narrative`
+keeps working unchanged — in that case tenant/db are resolved from ambient
+`tenant_context.get_tenant_id()` / `database.get_database()`, mirroring
+`ai_auditor_service.py`'s shim (39-06).
+
+The fail-closed contract is unchanged: a validation failure, guardrail
+block, framework-fidelity flag, or agent/gateway exception all resolve to
+the same deterministic fallback narrative string inside
+`ai_orchestration.agents.narrative` — this module never lets a model/gateway
+failure hard-fail report generation, and the `try/except` below is an extra
+safety net around ambient tenant/db resolution itself, not the primary
+guarantee.
+
+`NarrativeOutput` and `_sanitise` are re-exported from
+`ai_orchestration.schemas`/`ai_orchestration.agents.narrative` for backward
+compatibility with any caller (including this module's own pre-existing
+test suite) that still imports them from this module's pre-39-09 location.
+"""
+import logging
+from typing import Any, Optional
+
+from ai_orchestration.agents.narrative import (
+    _sanitise,  # noqa: F401 — backward-compat re-export
+    _fallback_executive_summary,
+    generate_executive,
+    generate_framework,
+)
+from ai_orchestration.schemas import NarrativeOutput  # noqa: F401 — backward-compat re-export
+from tenant_context import get_tenant_id, set_tenant_id
 
 logger = logging.getLogger(__name__)
-
-_UNSAFE = re.compile(r"[<>{}\[\]\\]")
-_NEWLINES = re.compile(r"[\r\n]+")
 
 _CATEGORY_SEVERITY = {
     "Access Control": "Critical", "Cryptography": "Critical", "Incident Response": "Critical",
@@ -23,67 +54,18 @@ _CATEGORY_SEVERITY = {
 _SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
 
 
-def _sanitise(value: str, max_len: int = 200) -> str:
-    # Collapse embedded newlines first so a crafted control/framework name can't
-    # inject new "instruction" lines inside the <compliance_data> block.
-    value = _NEWLINES.sub(" ", str(value))
-    return _UNSAFE.sub("", value).strip()[:max_len]
+def _resolve_tenant_and_db(tenant_id: Optional[str], db: Any) -> tuple:
+    """Resolve tenant_id/db from ambient context when a caller does not
+    supply them explicitly — mirrors `ai_auditor_service.py`'s shim
+    (39-06). Callers that already have both (e.g. `enrich_report_data`)
+    should always pass them explicitly per RESEARCH Pitfall B."""
+    if tenant_id is None:
+        tenant_id = get_tenant_id()
+    if db is None:
+        from database import get_database
 
-
-def _trim_to_words(text: str, limit: int) -> str:
-    words = text.split()
-    return " ".join(words[:limit]) if len(words) > limit else text
-
-
-class NarrativeOutput(BaseModel):
-    text: str
-    word_count: int
-    limit: int = 200
-
-    @field_validator("text")
-    @classmethod
-    def text_not_empty(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("narrative text must not be empty")
-        if v.startswith(("BLOCKED:", "Error:")):
-            raise ValueError(f"LLM returned error string: {v[:80]}")
-        return v
-
-    @model_validator(mode="after")
-    def within_budget(self) -> "NarrativeOutput":
-        # `limit` is the call-site-specific budget (executive: 150 words,
-        # framework: 200 words). _trim_to_words is the primary enforcer;
-        # this validator catches any bypass against the *actual* limit that
-        # applies, rather than a shared hardcoded ceiling.
-        if self.word_count > self.limit:
-            raise ValueError(
-                f"narrative exceeds word budget: {self.word_count} words (limit {self.limit})"
-            )
-        return self
-
-    @classmethod
-    def from_raw(cls, raw: str, limit: int = 200) -> "NarrativeOutput":
-        words = raw.split()
-        return cls(text=raw.strip(), word_count=len(words), limit=limit)
-
-
-def _validated_narrative(raw: str, fallback: str, limit: int = 200) -> str:
-    try:
-        output = NarrativeOutput.from_raw(raw, limit=limit)
-        return output.text
-    except ValidationError as exc:
-        logger.warning("[NarrativeService] Pydantic validation failed: %s", exc)
-        return fallback
-
-
-def _fallback_executive_summary(framework: str, score: float) -> str:
-    return (
-        f"This report presents the {framework} compliance posture for the reporting period. "
-        f"The overall compliance score is {score:.1f}%. "
-        "Detailed findings are available in the per-framework section below. "
-        "Please review the failing controls and engage your compliance team for remediation guidance."
-    )
+        db = get_database()
+    return tenant_id, db
 
 
 async def generate_executive_summary(
@@ -91,30 +73,14 @@ async def generate_executive_summary(
     score: float,
     failing_controls: list,
     period: str,
+    tenant_id: Optional[str] = None,
+    db: Any = None,
 ) -> str:
-    safe_fw = _sanitise(framework_name)
-    safe_controls = [_sanitise(c, 80) for c in failing_controls[:5]]
-    controls_block = "\n".join(f"- {c}" for c in safe_controls) or "- None recorded"
-    fallback = _fallback_executive_summary(safe_fw, score)
-    system_part = (
-        "You are a compliance analyst writing an executive summary for a PDF report. "
-        "Write in clear, non-technical prose suitable for a C-level audience. "
-        "Do not invent control names, scores, or findings not present in the data below. "
-        "Respond with the summary text only — no preamble, no markdown, no bullet points."
+    resolved_tenant_id, resolved_db = _resolve_tenant_and_db(tenant_id, db)
+    result = await generate_executive(
+        framework_name, score, failing_controls, period, resolved_tenant_id, resolved_db
     )
-    user_part = (
-        f"<compliance_data>\nFramework: {safe_fw}\nCompliance score: {score:.1f}%\n"
-        f"Reporting period: {period}\nTop failing controls:\n{controls_block}\n"
-        "</compliance_data>\n\nWrite an executive summary of no more than 150 words."
-    )
-    result = await ai_service.generate_text(
-        f"{system_part}\n\n{user_part}", source="compliance_narrative"
-    )
-    if result.startswith(("BLOCKED:", "Error:")):
-        logger.warning("[NarrativeService] generate_text failed: %s", result[:80])
-        return fallback
-    trimmed = _trim_to_words(result.strip(), 150)
-    return _validated_narrative(trimmed, fallback, limit=150)
+    return result.text
 
 
 async def generate_framework_narrative(
@@ -122,33 +88,14 @@ async def generate_framework_narrative(
     score: float,
     failing_controls: list,
     remediation_summary,
+    tenant_id: Optional[str] = None,
+    db: Any = None,
 ) -> str:
-    safe_fw = _sanitise(framework_name)
-    safe_controls = [_sanitise(c, 80) for c in failing_controls[:7]]
-    ctrl_block = "\n".join(f"- {c}" for c in safe_controls) or "- None recorded"
-    safe_rem = _sanitise(str(remediation_summary or ""), 300) or "None provided"
-    fallback = (
-        f"The {safe_fw} framework scored {score:.1f}%. "
-        "Detailed findings are available in the attached control table."
+    resolved_tenant_id, resolved_db = _resolve_tenant_and_db(tenant_id, db)
+    result = await generate_framework(
+        framework_name, score, failing_controls, remediation_summary, resolved_tenant_id, resolved_db
     )
-    system_part = (
-        "You are a compliance analyst writing a findings narrative for a PDF report. "
-        "Write factual, concise prose. Do not reference controls not listed below. "
-        "Respond with narrative text only — no headings, no markdown."
-    )
-    user_part = (
-        f"<compliance_data>\nFramework: {safe_fw}\nScore: {score:.1f}%\n"
-        f"Failing controls:\n{ctrl_block}\nRemediation notes: {safe_rem}\n"
-        "</compliance_data>\n\nWrite a findings narrative of no more than 200 words."
-    )
-    result = await ai_service.generate_text(
-        f"{system_part}\n\n{user_part}", source="compliance_narrative_framework"
-    )
-    if result.startswith(("BLOCKED:", "Error:")):
-        logger.warning("[NarrativeService] framework generate_text failed: %s", result[:80])
-        return fallback
-    trimmed = _trim_to_words(result.strip(), 200)
-    return _validated_narrative(trimmed, fallback, limit=200)
+    return result.text
 
 
 async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
@@ -229,6 +176,8 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
             score=float(primary.get("score", 0.0)),
             failing_controls=data.get("top_failing_controls", []),
             period=period,
+            tenant_id=tenant_id,
+            db=db,
         )
     except Exception as exc:
         logger.warning("[NarrativeService] Executive summary failed: %s", exc)
@@ -250,6 +199,8 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
                 score=score,
                 failing_controls=failing_by_framework.get(fw_name, []),
                 remediation_summary=None,
+                tenant_id=tenant_id,
+                db=db,
             )
         except Exception as exc:
             logger.warning("[NarrativeService] Framework narrative failed for %s: %s", fw_name, exc)
@@ -258,6 +209,7 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
 
 def _render_narratives(story: list, report_data: dict, styles, section: str = "all") -> None:
     from reportlab.platypus import Paragraph, Spacer
+    import html as _html
     if section in ("executive", "all"):
         ai_summary = report_data.get("ai_executive_summary", "")
         if ai_summary:

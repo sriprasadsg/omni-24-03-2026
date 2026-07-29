@@ -106,6 +106,36 @@ async def test_no_regression_for_existing_providers():
     assert all(d.get("simulated") is True for d in docs)
 
 
+async def test_run_checks_evaluates_oci():
+    from cloud_checks_oci import OCI_CHECKS
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "oci"}
+    db = _mkdb(account)
+    with patch("database.get_database", return_value=db):
+        result = await m.cloud_checks_service.run_checks("acct-1", "oci", "tenant-a")
+    assert result.get("error") is None, f"Got {result}"
+    assert result["ran"] == len(OCI_CHECKS), f"Got {result}"
+
+
+async def test_run_checks_evaluates_alibaba():
+    from cloud_checks_alibaba import ALIBABA_CHECKS
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "alibaba"}
+    db = _mkdb(account)
+    with patch("database.get_database", return_value=db):
+        result = await m.cloud_checks_service.run_checks("acct-1", "alibaba", "tenant-a")
+    assert result.get("error") is None, f"Got {result}"
+    assert result["ran"] == len(ALIBABA_CHECKS), f"Got {result}"
+
+
+async def test_run_checks_evaluates_cloudflare():
+    from cloud_checks_cloudflare import CLOUDFLARE_CHECKS
+    account = {"id": "acct-1", "tenantId": "tenant-a", "provider": "cloudflare"}
+    db = _mkdb(account)
+    with patch("database.get_database", return_value=db):
+        result = await m.cloud_checks_service.run_checks("acct-1", "cloudflare", "tenant-a")
+    assert result.get("error") is None, f"Got {result}"
+    assert result["ran"] == len(CLOUDFLARE_CHECKS), f"Got {result}"
+
+
 async def test_all_gates_accept_microsoft365_and_mongodb_atlas():
     """microsoft365 and mongodb_atlas must pass through all four CSPM gates in lockstep."""
     from cloud_account_endpoints import _VALID_PROVIDERS
@@ -116,16 +146,16 @@ async def test_all_gates_accept_microsoft365_and_mongodb_atlas():
     assert "mongodb_atlas" in RUNNABLE_PROVIDERS
 
 
-async def test_registration_gates_accept_oci_alibaba_cloudflare():
-    """oci/alibaba/cloudflare pass through the 3 registration/validation gates but NOT RUNNABLE_PROVIDERS."""
+async def test_registration_gates_accept_oci_alibaba_cloudflare_now_runnable():
+    """oci/alibaba/cloudflare pass through the registration/validation gates AND are now runnable."""
     from cloud_account_endpoints import _VALID_PROVIDERS
     from cloud_checks_service import RUNNABLE_PROVIDERS
     assert "oci" in _VALID_PROVIDERS
     assert "alibaba" in _VALID_PROVIDERS
     assert "cloudflare" in _VALID_PROVIDERS
-    assert "oci" not in RUNNABLE_PROVIDERS
-    assert "alibaba" not in RUNNABLE_PROVIDERS
-    assert "cloudflare" not in RUNNABLE_PROVIDERS
+    assert "oci" in RUNNABLE_PROVIDERS
+    assert "alibaba" in RUNNABLE_PROVIDERS
+    assert "cloudflare" in RUNNABLE_PROVIDERS
 
 
 async def test_coverage_denominator_includes_new_providers():

@@ -19,6 +19,7 @@ import { ManageTenantModal } from './components/ManageTenantModal';
 import { RegisterAgentModal } from './components/RegisterAgentModal';
 import { ChatFab } from './components/ChatFab';
 import SupportChatToast, { SupportToastData } from './components/SupportChatToast';
+import SupportChatWindow from './components/SupportChatWindow';
 import { ChatAssistant } from './components/ChatAssistant';
 import { AICommandBar, Command } from './components/AICommandBar';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
@@ -85,6 +86,7 @@ const FutureOpsDashboard = lazy(() => import('./components/UnifiedFutureOpsDashb
 const RiskRegister = lazy(() => import('./components/RiskRegister'));
 import { InteractiveVoiceBot } from './components/InteractiveVoiceBot';
 import { CharacterTourBot } from './components/CharacterTourBot';
+import { CallOverlay } from './components/CallOverlay';
 const VendorManagement = lazy(() => import('./components/VendorManagement'));
 const TrustCenter = lazy(() => import('./components/TrustCenter'));
 const GovernanceDocumentsDashboard = lazy(() => import('./components/GovernanceDocumentsDashboard').then(m => ({ default: m.GovernanceDocumentsDashboard })));
@@ -462,6 +464,9 @@ const App: React.FC = () => {
   // Ref so WebSocket handlers can read the latest view without being re-registered on every navigation
   const currentViewRef = useRef<AppView>('dashboard');
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+  // Kept in a ref so the support-message socket handler (stable closure) can
+  // tell whether the floating support window is already open.
+  const isSupportChatOpenRef = useRef(false);
 
   // Refresh metrics every 30 s while the dashboard is visible
   useEffect(() => {
@@ -489,6 +494,12 @@ const App: React.FC = () => {
   // ── Support chat in-app toast queue & unread count ────────────────────────
   const [supportToasts, setSupportToasts] = useState<SupportToastData[]>([]);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+  // Conversation to auto-open when the user lands on the Support tab (deep-link
+  // from a toast / OS notification / admin-initiated chat).
+  const [pendingSupportConvo, setPendingSupportConvo] = useState<string | null>(null);
+  // Floating, docked support-chat window (opened from a toast / notification).
+  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
+  useEffect(() => { isSupportChatOpenRef.current = isSupportChatOpen; }, [isSupportChatOpen]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [viewingTenantId, setViewingTenantId] = useState<string | null>(null);
@@ -1021,10 +1032,27 @@ const App: React.FC = () => {
   // ── Support chat: in-app toast + sound + OS notification + unread count ────
   useEffect(() => {
     if (!currentUser) return;
+    const myId = (currentUser as any)?.email ?? (currentUser as any)?.username ?? '';
     const handler = (data: any) => {
-      if (data.event !== 'new_message') return;
+      // A new inbound message OR a freshly-opened conversation (e.g. an admin
+      // starting a direct chat with this user) should both surface a notification.
+      const isNewConvo = data.event === 'new_conversation';
+      if (data.event !== 'new_message' && !isNewConvo) return;
 
-      const isOnSupportChat = !document.hidden && ['supportChat', 'chat'].includes(currentViewRef.current);
+      // For new_conversation the whole convo object is spread onto `data`
+      // (id/subject/messages/initiator_*); for new_message it's convo_id + message.
+      const convoId = isNewConvo ? (data.id ?? '') : (data.convo_id ?? '');
+      const msg = isNewConvo ? (data.messages?.[data.messages.length - 1] ?? null) : (data.message ?? null);
+
+      // Don't notify the person who just acted (initiator/sender receives the
+      // broadcast too — they're already looking at the conversation).
+      const senderId = msg?.sender_id ?? data.initiator_id ?? '';
+      if (senderId && senderId === myId) return;
+
+      const isOnSupportChat = !document.hidden && (
+        isSupportChatOpenRef.current ||
+        ['supportChat', 'chat'].includes(currentViewRef.current)
+      );
 
       // 1. Notification sound (always play unless already on support chat page)
       if (!isOnSupportChat) {
@@ -1039,11 +1067,11 @@ const App: React.FC = () => {
       // 3. In-app toast (visible from any page while tab is open)
       if (!isOnSupportChat) {
         const toast: SupportToastData = {
-          id: `${data.convo_id}-${data.message?.id ?? Date.now()}`,
-          senderRole: data.message?.sender_role ?? 'user',
-          senderName: data.message?.sender_id ?? '',
-          preview: String(data.message?.content ?? '').slice(0, 160),
-          convoId: data.convo_id ?? '',
+          id: `${convoId}-${msg?.id ?? Date.now()}`,
+          senderRole: msg?.sender_role ?? data.initiator_role ?? 'user',
+          senderName: msg?.sender_id ?? data.initiator_name ?? '',
+          preview: String(msg?.content ?? data.subject ?? '').slice(0, 160),
+          convoId,
           at: Date.now(),
         };
         setSupportToasts(prev => [...prev.slice(-4), toast]); // max 5 stacked
@@ -1051,16 +1079,18 @@ const App: React.FC = () => {
 
       // 4. OS-level push notification (works when tab is hidden/minimised)
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-        const sender = (data.message?.sender_role ?? 'Someone').replace(/_/g, ' ');
-        const preview = String(data.message?.content ?? '').slice(0, 120);
-        const notif = new Notification(`New support message from ${sender}`, {
+        const sender = (msg?.sender_role ?? data.initiator_role ?? 'Someone').replace(/_/g, ' ');
+        const preview = String(msg?.content ?? data.subject ?? '').slice(0, 120);
+        const title = isNewConvo ? `New chat from ${sender}` : `New support message from ${sender}`;
+        const notif = new Notification(title, {
           body: preview || 'You have a new support message.',
           icon: '/favicon.ico',
-          tag: `support-${data.convo_id}`,
+          tag: `support-${convoId}`,
         });
         notif.onclick = () => {
           window.focus();
-          setCurrentView('chat');
+          setPendingSupportConvo(convoId);
+          setIsSupportChatOpen(true);
           notif.close();
         };
       }
@@ -1908,8 +1938,8 @@ const App: React.FC = () => {
       case 'pam': return <ErrorBoundary name="PAMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading PAM...</div>}><PAMDashboard /></Suspense></ErrorBoundary>;
       case 'baaManagement': return <ErrorBoundary name="BAAManagement"><Suspense fallback={<div className="p-8 text-slate-400">Loading BAA Management...</div>}><BAAManagement /></Suspense></ErrorBoundary>;
       case 'codeReviewGraph': return <ErrorBoundary name="CodeReviewGraphDashboard"><CodeReviewGraphDashboard /></ErrorBoundary>;
-      case 'supportChat': return <ErrorBoundary name="ChatHubSupport"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab="support" /></Suspense></ErrorBoundary>;
-      case 'chat': return <ErrorBoundary name="ChatHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub /></Suspense></ErrorBoundary>;
+      case 'supportChat': return <ErrorBoundary name="ChatHubSupport"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab="support" initialSupportConvoId={pendingSupportConvo} onSupportConvoConsumed={() => setPendingSupportConvo(null)} /></Suspense></ErrorBoundary>;
+      case 'chat': return <ErrorBoundary name="ChatHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab={pendingSupportConvo ? 'support' : 'endpoint'} initialSupportConvoId={pendingSupportConvo} onSupportConvoConsumed={() => setPendingSupportConvo(null)} /></Suspense></ErrorBoundary>;
       case 'certificates': return <ErrorBoundary name="CertificatesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Certificates...</div>}><CertificatesDashboard /></Suspense></ErrorBoundary>;
       case 'aiAnomaly': return <ErrorBoundary name="AIAnomalyDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading AI Anomaly Detection...</div>}><AIAnomalyDashboard /></Suspense></ErrorBoundary>;
       case 'problemManagement': return <ErrorBoundary name="ProblemManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Problem Management...</div>}><ProblemManagementDashboard /></Suspense></ErrorBoundary>;
@@ -1999,15 +2029,31 @@ const App: React.FC = () => {
           </ErrorBoundary>
           <ChatFab onClick={() => setIsChatOpen(true)} />
 
+          {/* Global audio/video call overlay (incoming ring + in-call window) */}
+          {currentUser && (
+            <ErrorBoundary name="CallOverlay">
+              <CallOverlay />
+            </ErrorBoundary>
+          )}
+
           {/* Support chat in-app toast notifications */}
           <SupportChatToast
             toasts={supportToasts}
             onDismiss={id => setSupportToasts(prev => prev.filter(t => t.id !== id))}
             onOpen={convoId => {
-              setCurrentView('chat');
+              if (convoId) setPendingSupportConvo(convoId);
+              setIsSupportChatOpen(true);
               setSupportToasts(prev => prev.filter(t => t.convoId !== convoId));
               setSupportUnreadCount(0);
             }}
+          />
+
+          {/* Floating, docked interactive support chat window */}
+          <SupportChatWindow
+            isOpen={isSupportChatOpen}
+            initialConvoId={pendingSupportConvo}
+            onConvoConsumed={() => setPendingSupportConvo(null)}
+            onClose={() => setIsSupportChatOpen(false)}
           />
 
           {/* Sidebar Items are in Sidebar.tsx */}

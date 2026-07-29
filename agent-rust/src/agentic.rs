@@ -44,7 +44,7 @@ pub async fn agentic_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, runni
         let mut sys = System::new();
         sys.refresh_all();
         sys.refresh_memory();
-        let cpu     = sys.global_cpu_info().cpu_usage();
+        let cpu     = sys.global_cpu_usage();
         let mem_pct = sys.used_memory() as f32 / sys.total_memory().max(1) as f32 * 100.0;
 
         // ── Rule-based autonomous decisions ───────────────────────────────────

@@ -6,7 +6,7 @@ interface Category { id: string; name: string; description: string; required: bo
 interface Config { tenantId: string; categories: Category[]; version: string; bannerTitle: string; bannerText: string; privacyPolicyUrl: string; }
 interface Stats { total: number; byCategory: Record<string, number>; byCategoryPct: Record<string, number>; fullConsent: number; fullConsentPct: number; necessaryOnly: number; }
 
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 export default function CookieConsentDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -17,7 +17,7 @@ export default function CookieConsentDashboard() {
   const [records, setRecords] = useState<any[]>([]);
 
   const tenantId = (() => {
-    try { const t = localStorage.getItem('token'); if (!t) return ''; const p = JSON.parse(atob(t.split('.')[1])); return p.tenant_id || ''; } catch { return ''; }
+    try { const t = sessionStorage.getItem('token'); if (!t) return ''; const p = JSON.parse(atob(t.split('.')[1])); return p.tenant_id || ''; } catch { return ''; }
   })();
 
   const fetchAll = useCallback(async () => {

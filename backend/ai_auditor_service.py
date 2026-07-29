@@ -1,133 +1,115 @@
-import json
-import logging
-from typing import Dict, Any
-from datetime import datetime, timezone
+"""Compliance AI Auditor — LangChain compatibility shim (Phase 39-06).
 
-try:
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-    _ML_AVAILABLE = True
-except ImportError:
-    torch = None
-    _ML_AVAILABLE = False
+`get_auditor()`/`LocalAIAuditor.evaluate_evidence(framework_name, control_desc,
+evidence_text)` keep their exact pre-existing signature and return shape
+(`{verified, reasoning, raw_response, evaluatedAt}`) so `ai_auditor_endpoints.py`
+and its Mongo write path (`evaluation_record = {..., "model_used": auditor.model_id}`)
+need no change (39-CONTEXT.md: "internals swap to LangChain paths"). Internally
+this now delegates to `ai_orchestration.agents.auditor.evaluate_control` — a
+`create_agent`-based agent with citation validation, guardrails, and
+provenance (Phase 39-06) — replacing the old raw VERDICT/REASONING text
+parse and its bespoke local-Ollama-provider-selection logic.
+
+Fail-closed contract preserved: any agent exception, or a downgraded
+`insufficient_evidence` finding, returns `verified: False` with a reasoning
+string — this shim never raises into `ai_auditor_endpoints.py`'s background
+task, and never presents a fallback-model `pass` finding as equivalent to a
+primary-model one (Failure Mode 5): those are mapped to `verified: False`
+with an explicit `NEEDS_REVIEW` marker in `reasoning`, since the legacy
+boolean contract has no third "pending human review" state to hold.
+
+`evaluate_evidence`'s acting tenant/db handle come from ambient request
+context (`tenant_context.get_tenant_id()` / `database.get_database()`) rather
+than new required parameters — set by the same auth middleware
+`ai_auditor_endpoints.py`'s dependencies already populate, so the endpoint's
+call signature is unchanged.
+"""
+
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("ai_auditor")
-logging.basicConfig(level=logging.INFO)
+
 
 class LocalAIAuditor:
-    def __init__(self, model_id: str = "HuggingFaceTB/SmolLM-135M-Instruct"):
-        """
-        Initializes the local AI auditor.
-        Using a very small model by default for speed/memory on local dev machines.
-        For production quality, we would use Meta-Llama-3-8B-Instruct or Phi-3-mini-4k-instruct.
-        """
-        self.model_id = model_id
-        self.pipeline = None
-        self.tokenizer = None
-        self._load_model()
+    """Thin async wrapper delegating to the LangChain auditor agent."""
 
-    def _load_model(self):
-        if not _ML_AVAILABLE:
-            logger.warning("torch/transformers not installed — AI auditor disabled. Run: pip install -r requirements-ml.txt")
-            return
-        logger.info(f"Loading local model weights for {self.model_id}...")
+    def __init__(self) -> None:
+        # Filled in after each evaluation with the model_provenance string
+        # ("primary" / "fallback:<model>") so ai_auditor_endpoints.py's
+        # `evaluation_record["model_used"] = auditor.model_id` keeps working.
+        self.model_id = "langchain-auditor"
+
+    async def evaluate_evidence(
+        self,
+        framework_name: str,
+        control_desc: str,
+        evidence_text: str,
+        control_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc).isoformat()
+
         try:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            logger.info(f"Using device: {device}")
+            from ai_orchestration.agents.auditor import evaluate_control
+            from database import get_database
+            from tenant_context import get_tenant_id
 
-            # B615: supply-chain note — pin revision= to a specific commit hash in production
-            # to prevent model substitution on HuggingFace Hub between deployments.
-            model_revision = os.getenv("AI_AUDITOR_MODEL_REVISION")  # e.g. "abc1234"
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, revision=model_revision)
-            model = AutoModelForCausalLM.from_pretrained(
-                self.model_id,
-                revision=model_revision,
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                device_map="auto" if device == "cuda" else None,
-                low_cpu_mem_usage=True
+            tenant_id = get_tenant_id()
+            db = get_database()
+
+            result = await evaluate_control(
+                framework_name=framework_name,
+                control_desc=control_desc,
+                evidence_text=evidence_text,
+                tenant_id=tenant_id,
+                db=db,
+                control_id=control_id,
             )
-            
-            self.pipeline = pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=self.tokenizer,
-                device_map="auto" if device == "cuda" else None,
-                device=-1 if device == "cpu" else None
-            )
-            logger.info("Model loaded successfully.")
         except Exception as e:
-            logger.error(f"Failed to load model {self.model_id}: {e}")
-            self.pipeline = None
-
-    def evaluate_evidence(self, framework_name: str, control_desc: str, evidence_text: str) -> Dict[str, Any]:
-        """Runs the LLM inference to act as an auditor."""
-        if not self.pipeline:
+            logger.error("AI auditor (LangChain) inference failed: %s", e)
             return {
                 "verified": False,
-                "reasoning": "AI Model failed to load locally on this server.",
-                "evaluatedAt": datetime.now(timezone.utc).isoformat()
+                "reasoning": f"AI auditor inference error: {e}",
+                "raw_response": "",
+                "evaluatedAt": now,
             }
 
-        messages = [
-            {"role": "system", "content": "You are a strict technical auditor. You evaluate evidence against a control requirement.\n\nRULES:\n1. Output MUST be exactly two lines.\n2. Line 1 MUST be 'VERDICT: PASS' or 'VERDICT: FAIL'.\n3. Line 2 MUST be 'REASONING: ' followed by a 1-sentence explanation.\n4. DO NOT hallucinate. Base your answer ONLY on the provided evidence.\n\nEXAMPLE INPUT:\nRequirement: Ensure disk encryption is enabled.\nEvidence: BitLocker Drive Encryption: Protection On\n\nEXAMPLE OUTPUT:\nVERDICT: PASS\nREASONING: The evidence explicitly states that BitLocker Drive Encryption Protection is On, satisfying the disk encryption requirement."},
-            {"role": "user", "content": f"Requirement: {control_desc}\nEvidence: {evidence_text[:1000]}"}
-        ]
-        
-        try:
-            prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            
-            outputs = self.pipeline(
-                prompt, 
-                max_new_tokens=150, 
-                temperature=0.1, 
-                do_sample=False,
-                return_full_text=False
-            )
-            
-            response = outputs[0]['generated_text'].strip()
-            
-            # Parse output
-            lines = response.split('\n')
-            verdict = "FAIL"
-            reasoning = response
-            
-            for line in lines:
-                if line.startswith("VERDICT:"):
-                    verdict = line.replace("VERDICT:", "").strip().upper()
-                elif line.startswith("REASONING:"):
-                    reasoning = line.replace("REASONING:", "").strip()
+        finding = result.finding
+        self.model_id = result.model_provenance
 
-            return {
-                "verified": "PASS" in verdict,
-                "reasoning": reasoning,
-                "raw_response": response,
-                "evaluatedAt": datetime.now(timezone.utc).isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"Inference failed: {e}")
-            return {
-                "verified": False,
-                "reasoning": f"Local inference error: {str(e)}",
-                "evaluatedAt": datetime.now(timezone.utc).isoformat()
-            }
+        if result.needs_review:
+            # Failure Mode 5: a fallback-provenance pass must never be
+            # silently equal to a primary pass — fail closed to verified=False
+            # with an explicit marker rather than auto-applying the score.
+            verified = False
+            reasoning = f"NEEDS_REVIEW (fallback model): {finding.rationale}"
+        else:
+            verified = finding.status == "pass"
+            reasoning = finding.rationale
+
+        raw_response = (
+            f"control_id={finding.control_id} status={finding.status} "
+            f"citations={len(finding.citations)} "
+            f"citation_validation={result.citation_validation} "
+            f"model_provenance={result.model_provenance}"
+        )
+
+        return {
+            "verified": verified,
+            "reasoning": reasoning,
+            "raw_response": raw_response,
+            "evaluatedAt": now,
+            "model_used": result.model_provenance,
+        }
+
 
 # Singleton instance
 _auditor_instance = None
+
 
 def get_auditor() -> LocalAIAuditor:
     global _auditor_instance
     if _auditor_instance is None:
         _auditor_instance = LocalAIAuditor()
     return _auditor_instance
-
-# Test standalone
-if __name__ == "__main__":
-    auditor = get_auditor()
-    res = auditor.evaluate_evidence(
-        "CISSP", 
-        "Deploy and maintain modern anti-malware and Endpoint Detection and Response (EDR).",
-        "AMServiceEnabled: True, RealTimeProtectionEnabled: True, SignatureAge: 1 day"
-    )
-    print("\n--- TEST RESULT ---")
-    print(json.dumps(res, indent=2))

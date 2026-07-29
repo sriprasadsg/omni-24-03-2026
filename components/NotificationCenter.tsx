@@ -20,6 +20,7 @@ import {
     getNotificationConfig,
     updateNotificationConfig
 } from '../services/apiService';
+import { useUser } from '../contexts/UserContext';
 
 interface Notification {
     alert_id: string;
@@ -40,6 +41,11 @@ interface NotificationConfig {
 }
 
 const NotificationCenter: React.FC = () => {
+    const { hasPermission } = useUser();
+    // Notification config (Slack/email) is a tenant-settings feature — only users
+    // with manage:settings may read/edit it. Gate the fetch and the gear so other
+    // roles don't trigger a 403 on the config endpoint.
+    const canManageSettings = hasPermission('manage:settings' as any);
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [configs, setConfigs] = useState<NotificationConfig[]>([]);
@@ -59,7 +65,7 @@ const NotificationCenter: React.FC = () => {
         setLoading(true);
         const [notifs, cfgs] = await Promise.all([
             getNotifications(),
-            getNotificationConfig()
+            canManageSettings ? getNotificationConfig() : Promise.resolve([]),
         ]);
         setNotifications(notifs);
         setConfigs(cfgs);
@@ -165,13 +171,15 @@ const NotificationCenter: React.FC = () => {
                             Notifications
                         </h3>
                         <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setShowConfig(!showConfig)}
-                                className={`p-1.5 rounded-lg transition-colors ${showConfig ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:bg-white/10'}`}
-                                title="Notification Settings"
-                            >
-                                <SettingsIcon size={16} />
-                            </button>
+                            {canManageSettings && (
+                                <button
+                                    onClick={() => setShowConfig(!showConfig)}
+                                    className={`p-1.5 rounded-lg transition-colors ${showConfig ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:bg-white/10'}`}
+                                    title="Notification Settings"
+                                >
+                                    <SettingsIcon size={16} />
+                                </button>
+                            )}
                             <button
                                 onClick={fetchAll}
                                 className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors"

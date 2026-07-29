@@ -49,33 +49,25 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone was about evidence and compliance
 - Billing and subscription management — separate concern not related to compliance portal completeness
 
-## Current Milestone: v1.1 — Evidence Quality & Compliance Scoring
+## Current Milestone: v3.3 — Agent Geo & Fleet Observability
 
-**Status:** In Progress (Phase 6 complete, Phase 7 next) | **Started:** 2026-06-20
+**Status:** Defining requirements | **Started:** 2026-07-29
 
-**Goal:** Make the compliance evidence lifecycle trustworthy end-to-end — from first upload through audit export — by wiring the broken status buttons, adding staleness detection, bulk upload, an immutable audit trail, and a tenant-level compliance score operators can trust.
+**Goal:** Turn the agent public-IP/GeoIP data landed in v3.2 into a full geo + observability surface — a live fleet map, location-based security detections, health/uptime observability, and an immutable location-history audit trail.
 
-**Target features (13 requirements, 4 phases):**
-- STATUS-01/02: Wire Mark Compliant / Mark Non-Compliant buttons to backend (`PATCH /api/assets/{id}/compliance/status`)
-- STALE-01/02: Flag automated evidence older than configurable threshold (default 7 days) as stale
-- COC-01/02: Immutable chain-of-custody log per evidence record (create/update/delete events)
-- BULK-01/02/03: Bulk evidence upload via zip file + JSON manifest mapping files to control IDs
-- SCORE-01/02/03: Tenant compliance score (severity-weighted %) with per-framework breakdown on dashboard
-- UI-01: Source badge `text-[10px]` → `text-xs` WCAG AA fix (carry-forward from v1.0 audit F-08)
+**Target features:**
+- Fleet geo map on the admin dashboard — agent markers by city/country, clustering, filter by tenant/status. Builds on the `publicIp` + `geo` fields already persisted on agent/asset docs (v3.2). Map rendering must stay self-contained for air-gapped deployments (no external tile servers) — flag for research.
+- Location-based security — impossible-travel / login-from-new-geo anomaly detection, per-tenant geo-fencing (allowed-region policy), VPN/proxy/hosting-ASN flagging. Integrate with the existing SIEM "impossible travel" rule and insider-threat `vpn_geo_anomaly` — do not duplicate.
+- Fleet observability — agent health/metrics history (CPU/mem/disk already captured in `agent_metrics_history`), heartbeat/uptime timeline, offline-agent alerting, agent version-drift surfacing. Reuse existing heartbeat + ETW telemetry, don't rebuild.
+- Location history & audit — per-agent public-IP/geo change timeline with an immutable, append-only audit trail (clone the append-only pattern from `remediation_escalations`).
 
-**Phase plan:** Phases 6–9 (continues v1.0 phase numbering)
+**Phase plan:** TBD — continues numbering from Phase 45 (v3.3 starts at Phase 46)
 
 ---
 
 ## v2 Backlog Candidates
 
-Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Remaining candidates:
-
-- AUDIT-V2-01: Scheduled report generation (auto-email)
-- REM-V2-01: External ticketing system integration (Jira/ServiceNow webhook)
-- REM-V2-02: SLA tracking for overdue remediation tasks
-- Comment threads on controls
-- 10-provider CSPM posture scans (OCI, IBM, Alibaba, DigitalOcean, Cloudflare, Huawei, VMware now supported)
+(none currently — the prior list was mostly stale: scheduled-report auto-email was already shipped in Phase 10, and ticketing/SLA/comment-threads/CSPM-providers were promoted into the v3.2 milestone above after verification against the actual codebase, 2026-07-20)
 
 ## Context
 
@@ -99,7 +91,7 @@ Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Rema
 | Provider-allowlist widening (Phase 25, CHK-01) touches all 4 duplicated gate locations in lockstep, not just the named execution gate | Leaving account registration narrower than execution would leave the multi-account UI flow still broken | Done — `cloud_checks_service.py`, `cloud_checks_endpoints.py`, `cloud_account_endpoints.py`, `mcp_server_endpoints.py` all widened together |
 | CloudFormation container-scan "simulated" data is labeled, not fail-closed (Phase 25, CHK-03) | Labeled simulated data is more useful to the user than an empty/error result when Trivy isn't installed; matches the existing `finops_service` simulated-spend precedent | Done — explicit `simulated` field + SIMULATED badge at 3 dashboard sites, verified via live browser run, not just code inspection |
 
-**Note (2026-07-06):** This file's Requirements/Milestone sections above still reflect the v1.1 era and were not kept current through v2.0/v2.1/v3.0 — a pre-existing maintenance gap, not something to silently paper over. A full catch-up pass is out of scope for a single phase's transition; flagged here for a future `/gsd-complete-milestone` pass.
+**Note (2026-07-06, resolved 2026-07-20):** This file's Requirements/Milestone sections had drifted since v1.1 and weren't kept current through v2.0/v2.1/v3.0/v3.1 — a pre-existing maintenance gap. Corrected at the v3.2 milestone kickoff (2026-07-20): Current Milestone and v2 Backlog Candidates rewritten against verified codebase state (one backlog item, scheduled-report auto-email, turned out to already be shipped in Phase 10). The Validated/Out of Scope requirement lists below still predate v2.0+ and remain a known gap — full catch-up still deferred to a proper `/gsd-complete-milestone` pass.
 
 ## Evolution
 
@@ -112,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after Phase 25 (cloud-checks-execution-gaps)*
+*Last updated: 2026-07-29 — v3.2 milestone shipped (Phases 40-45, 10/10 requirements; see .planning/milestones/v3.2-ROADMAP.md)*

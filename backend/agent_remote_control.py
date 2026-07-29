@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from authentication_service import get_current_user
 from database import get_database
 from auth_types import TokenData
-from rbac_utils import require_permission
+from rbac_utils import require_permission, is_super_admin
 import websocket_manager
 
 _RC_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
@@ -23,6 +23,19 @@ _ALLOWED_COMMANDS = {
 }
 # Shell metacharacters that must not appear in arguments
 _SHELL_META_RE = re.compile(r'[;&|`$()<>\\\n\r]')
+
+
+def _assert_may_execute(role: str) -> None:
+    """Defense-in-depth role gate for remote command/control endpoints.
+
+    `manage:agents` permission alone is not sufficient — the caller must also
+    hold an elevated role. Super Admins (all variants) bypass; Tenant Admins and
+    platform admins are explicitly allowed via _RC_EXECUTE_ROLES.
+    """
+    if is_super_admin(role) or role in _RC_EXECUTE_ROLES:
+        return
+    raise HTTPException(status_code=403, detail="Your role is not permitted to issue remote commands")
+
 
 router = APIRouter(prefix="/api/agents/remote", tags=["agent-remote-control"])
 logger = logging.getLogger(__name__)
@@ -43,6 +56,7 @@ async def execute_command(
     # Verify agent exists and belongs to user's tenant
     db = get_database()
     _caller_role = getattr(current_user, "role", "")
+    _assert_may_execute(_caller_role)
     _caller_tenant = getattr(current_user, "tenant_id", None)
     _agent_filter: dict = {"id": agent_id}
     if _caller_role not in _RC_SUPER_ROLES:
@@ -117,6 +131,7 @@ async def restart_agent(
     
     db = get_database()
     _caller_role = getattr(current_user, "role", "")
+    _assert_may_execute(_caller_role)
     _caller_tenant = getattr(current_user, "tenant_id", None)
     _agent_filter: dict = {"id": agent_id}
     if _caller_role not in _RC_SUPER_ROLES:

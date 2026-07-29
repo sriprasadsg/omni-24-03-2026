@@ -2649,9 +2649,9 @@ export const addCloudAccount = async (data: any, tenantId: string) => {
             method: 'POST',
             body: JSON.stringify({
                 provider: (data.provider || 'aws').toLowerCase(),
-                name: data.name,
+                account_name: data.name,
                 account_id: data.accountId,
-                credentials: data.credentials || {},
+                credentials_ref: JSON.stringify(data.credentials || {}),
             }),
         });
         if (res.ok) {
@@ -4532,6 +4532,28 @@ export const suggestRemediation = async (taskId: string): Promise<{ suggestion: 
     return res.json();
 };
 
+export const createTicketForRemediationTask = async (
+    taskId: string,
+    provider: 'jira' | 'servicenow',
+): Promise<{ ticket_provider: string; ticket_ref: string; ticket_url: string }> => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks/${taskId}/create-ticket`, {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+    });
+    if (!res.ok) throw new Error(`Failed to create ticket: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const getTicketingConfig = async (): Promise<{ jira_url?: string; snow_instance?: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/ticketing/config`);
+        if (!res.ok) return {};
+        return await res.json();
+    } catch {
+        return {};
+    }
+};
+
 export const fetchStalenessThreshold = async (): Promise<{ thresholdDays: number }> => {
     try {
         const res = await authFetch(`${API_BASE}/settings/evidence-staleness`);
@@ -4569,6 +4591,87 @@ export const fetchControlAuditLog = async (controlId: string): Promise<{ entries
     } catch {
         return { entries: [] };
     }
+};
+
+export const fetchRemediationEscalations = async (taskId: string): Promise<{ task_id: string; entries: { escalation_level: number; created_at: string; notified: string[] }[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/remediation-tasks/${taskId}/escalations`);
+        if (!res.ok) return { task_id: taskId, entries: [] };
+        return await res.json();
+    } catch {
+        return { task_id: taskId, entries: [] };
+    }
+};
+
+// Single row of GET /api/agents/{agent_id}/location-history (GAUD-02).
+// Note: dwell_seconds is a read-time value computed by the backend — the
+// AgentLocationHistory panel deliberately ignores it and recomputes dwell
+// client-side (46-UI-SPEC.md Behavior Contract; RESEARCH.md Pitfall 2).
+export interface LocationHistoryEntry {
+    publicIp?: string;
+    geo?: {
+        city?: string;
+        region?: string;
+        country?: string;
+        country_code?: string;
+    };
+    vpn_heuristic?: boolean;
+    timestamp: string;
+    dwell_seconds?: number;
+}
+
+export const fetchAgentLocationHistory = async (agentId: string): Promise<{ agent_id: string; entries: LocationHistoryEntry[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/location-history`);
+        if (!res.ok) return { agent_id: agentId, entries: [] };
+        return await res.json();
+    } catch {
+        return { agent_id: agentId, entries: [] };
+    }
+};
+
+export const getAgentLocationTracking = async (): Promise<{ enabled: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`);
+        if (!res.ok) return { enabled: true };
+        return await res.json();
+    } catch {
+        return { enabled: true };
+    }
+};
+
+export const setAgentLocationTracking = async (enabled: boolean): Promise<{ enabled: boolean }> => {
+    const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update agent location tracking setting');
+    }
+    return await res.json();
+};
+
+// ── Control Comments (Phase 42-03) ────────────────────────────────────────────
+export const fetchControlComments = async (controlId: string): Promise<any[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/control-comments?control_id=${controlId}`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+};
+
+export const postControlComment = async (controlId: string, text: string): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/control-comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ control_id: controlId, text }),
+    });
+    if (!res.ok) throw new Error('Failed to post comment');
+    return await res.json();
 };
 
 // ── Vendor Subprocessors (Phase 26-02) ───────────────────────────────────────────

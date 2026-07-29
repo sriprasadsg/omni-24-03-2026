@@ -39,12 +39,22 @@ const TabBtn: React.FC<{
 
 interface ChatHubProps {
     initialTab?: ChatTab;
+    /** Deep-link: conversation to auto-open in the Support tab. */
+    initialSupportConvoId?: string | null;
+    /** Called once the deep-linked conversation has been consumed. */
+    onSupportConvoConsumed?: () => void;
 }
 
-const ChatHub: React.FC<ChatHubProps> = ({ initialTab = 'endpoint' }) => {
-    const [activeTab, setActiveTab]         = useState<ChatTab>(initialTab);
+const ChatHub: React.FC<ChatHubProps> = ({ initialTab = 'endpoint', initialSupportConvoId = null, onSupportConvoConsumed }) => {
+    const [activeTab, setActiveTab]         = useState<ChatTab>(initialSupportConvoId ? 'support' : initialTab);
     const [endpointUnread, setEndpointUnread] = useState(0);
     const [supportUnread, setSupportUnread]   = useState(0);
+
+    // A deep-link arriving after mount (e.g. a new toast while the hub is open)
+    // should pull the user onto the Support tab.
+    useEffect(() => {
+        if (initialSupportConvoId) setActiveTab('support');
+    }, [initialSupportConvoId]);
 
     // Fetch initial support unread count
     useEffect(() => {
@@ -119,7 +129,10 @@ const ChatHub: React.FC<ChatHubProps> = ({ initialTab = 'endpoint' }) => {
             </div>
             <div className={`flex-1 overflow-hidden min-h-0 ${activeTab === 'support' ? 'flex' : 'hidden'}`}>
                 <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Loading…</div>}>
-                    <SupportChatPanel />
+                    <SupportChatPanel
+                        initialConvoId={initialSupportConvoId}
+                        onConvoConsumed={onSupportConvoConsumed}
+                    />
                 </Suspense>
             </div>
         </div>

@@ -121,8 +121,8 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     }
 
     const [isDownloadingZip,  setIsDownloadingZip]  = React.useState(false);
-    const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
     const [isDownloadingRust, setIsDownloadingRust] = React.useState(false);
+    const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
 
     const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
 

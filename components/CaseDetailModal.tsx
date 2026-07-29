@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { SecurityCase, Comment, ThreatIntelResult, User } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
-import { XIcon, UserIcon, ClockIcon, MessageSquareQuoteIcon, PaperclipIcon, ExternalLinkIcon, ShieldSearchIcon, CheckIcon, AlertTriangleIcon, Share2Icon } from './icons';
+import { ClockIcon, MessageSquareQuoteIcon, PaperclipIcon, ExternalLinkIcon, ShieldSearchIcon, Share2Icon } from './icons';
+import { Modal } from './Modal';
 
 interface CaseDetailModalProps {
     isOpen: boolean;
@@ -66,22 +67,40 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({ isOpen, onClos
         }
     };
 
-    if (!isOpen || !caseItem) return null;
+    if (!caseItem) return null;
+
+    const footer = (
+        <div className="flex justify-between items-center w-full">
+            {canInvestigate ? (
+                <button type="button" onClick={() => onAnalyzeImpact('case', caseItem.id)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center">
+                    <Share2Icon size={16} className="mr-2" />
+                    Analyze Impact
+                </button>
+            ) : (
+                <div></div> // Placeholder to keep layout consistent
+            )}
+            <button type="button" onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600">
+                Close
+            </button>
+        </div>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex-shrink-0 flex justify-between items-start mb-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">{caseItem.title}</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{caseItem.id}</p>
-                    </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-                        <XIcon size={20} />
-                    </button>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={
+                <div>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">{caseItem.title}</span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{caseItem.id}</p>
                 </div>
-
-                <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+            }
+            size="2xl"
+            footer={footer}
+        >
+                <div className="space-y-4">
                     {/* Case Details */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                         <div><strong className="block text-gray-500 dark:text-gray-400">Status</strong> {caseItem.status}</div>
@@ -153,7 +172,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({ isOpen, onClos
 
                 {/* Add Comment Form */}
                 {canManageCases && (
-                    <div className="flex-shrink-0 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <form onSubmit={handleSubmitComment} className="flex items-start space-x-3">
                             <img src={currentUser?.avatar} alt={currentUser?.name} className="h-8 w-8 rounded-full object-cover" />
                             <div className="flex-1">
@@ -177,23 +196,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({ isOpen, onClos
                         </form>
                     </div>
                 )}
-
-                <div className="flex-shrink-0 mt-6 flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-                    {canInvestigate ? (
-                        <button type="button" onClick={() => onAnalyzeImpact('case', caseItem.id)}
-                            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center">
-                            <Share2Icon size={16} className="mr-2" />
-                            Analyze Impact
-                        </button>
-                    ) : (
-                        <div></div> // Placeholder to keep layout consistent
-                    )}
-                    <button type="button" onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };

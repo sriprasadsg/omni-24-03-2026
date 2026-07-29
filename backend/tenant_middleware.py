@@ -2,7 +2,7 @@ import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from tenant_context import set_tenant_id
+from tenant_context import set_tenant_id, reset_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,11 @@ class TenantMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         token = auth_header.split(" ")[1]
+        # SEC-03: track the ContextVar reset token so it's ALWAYS cleared in the
+        # finally block below, regardless of whether call_next() succeeds or
+        # raises — otherwise an exception mid-request leaves this tenant_id
+        # visible to whatever reuses this task/thread next.
+        _tenant_ctx_token = None
         try:
             import jwt
             from authentication_service import SECRET_KEY, ALGORITHM
@@ -71,7 +76,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 tenant_id = override_tenant
 
             if tenant_id:
-                set_tenant_id(tenant_id)
+                _tenant_ctx_token = set_tenant_id(tenant_id)
 
         except jwt.ExpiredSignatureError:
             logger.debug("Expired JWT on %s — route handler will reject if auth required", request.url.path)
@@ -80,4 +85,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             logger.warning("Unexpected error in TenantMiddleware on %s: %s", request.url.path, exc)
 
-        return await call_next(request)
+        try:
+            return await call_next(request)
+        finally:
+            if _tenant_ctx_token is not None:
+                reset_tenant_id(_tenant_ctx_token)

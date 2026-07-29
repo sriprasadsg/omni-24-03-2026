@@ -28,7 +28,7 @@ interface Gap { domain: string; currentLevel: number; targetLevel: number; gap: 
 
 const LEVEL_COLORS = ['', 'bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'];
 const LEVEL_LABELS = ['', 'Initial', 'Managed', 'Defined', 'Quantitatively Managed', 'Optimizing'];
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 function LevelBar({ level, target }: { level: number; target?: number }) {
   return (

@@ -23,6 +23,24 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_IP="${SERVER_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
 SERVER_IP="${SERVER_IP:-127.0.0.1}"
 
+# ── TLS: ensure a self-signed cert exists so Vite serves the app over HTTPS ────
+# Vite (vite.config.ts) auto-enables HTTPS on port 443 when certs/server.{key,crt}
+# are present. The cert carries SubjectAltName IP:${SERVER_IP} so browsers on the
+# LAN accept it (after a one-time self-signed warning).
+CERT_DIR="$PROJECT_ROOT/certs"
+if [ ! -f "$CERT_DIR/server.crt" ] || [ ! -f "$CERT_DIR/server.key" ]; then
+    print_info "Generating self-signed TLS certificate for ${SERVER_IP}..."
+    mkdir -p "$CERT_DIR"
+    if openssl req -x509 -newkey rsa:2048 -nodes \
+        -keyout "$CERT_DIR/server.key" -out "$CERT_DIR/server.crt" -days 825 \
+        -subj "/C=US/ST=Local/L=Local/O=OmniAgent/CN=${SERVER_IP}" \
+        -addext "subjectAltName=IP:${SERVER_IP},IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1; then
+        print_success "TLS cert created at certs/"
+    else
+        print_warning "openssl unavailable — Vite will fall back to HTTP on :3000"
+    fi
+fi
+
 # Stop all child processes cleanly on Ctrl+C
 cleanup() {
     echo ""
@@ -61,8 +79,10 @@ fi
 (
     cd "$PROJECT_ROOT/backend"
     export SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-Admin@2030}"
-    # PLATFORM_URL is used by agent install instructions endpoint — must be
-    # reachable from OTHER machines, so default to the server IP, not localhost
+    # PLATFORM_URL is used by the agent install-instructions endpoint. Agents talk
+    # HTTP directly to the backend (:5000) — they can't verify the self-signed TLS
+    # cert — so this stays HTTP even though the browser front door is HTTPS.
+    # Override with PLATFORM_URL=... .
     export PLATFORM_URL="${PLATFORM_URL:-http://${SERVER_IP}:5000}"
     # Ticket file upload directory (auto-created by tickets_endpoints on start)
     export TICKET_ATTACHMENT_DIR="${TICKET_ATTACHMENT_DIR:-/tmp/ticket_attachments}"
@@ -87,7 +107,9 @@ for i in $(seq 1 30); do
 done
 
 # ── 2. Frontend ───────────────────────────────────────────────────────────────
-print_info "[2/3] Starting Frontend (port 3000)..."
+# Serves HTTPS on :443 when certs/ exist (see vite.config.ts). Binding :443
+# requires root — run this launcher with sudo, or set VITE_PORT for a high port.
+print_info "[2/3] Starting Frontend (HTTPS on port 443)..."
 (
     cd "$PROJECT_ROOT"
     npm run dev
@@ -117,9 +139,12 @@ echo "============================================="
 print_success "All services running!"
 echo "============================================="
 echo ""
-echo "  Frontend:  http://${SERVER_IP}:3000"
-echo "  Backend:   http://${SERVER_IP}:5000"
-echo "  Health:    http://${SERVER_IP}:5000/api/health"
+echo "  Frontend:  https://${SERVER_IP}"
+echo "  API:       https://${SERVER_IP}/api        (proxied to backend over TLS)"
+echo "  Health:    https://${SERVER_IP}/api/health"
+echo "  Backend:   http://${SERVER_IP}:5000        (direct, HTTP — internal/debug only)"
+echo ""
+echo "  Note: self-signed cert — accept the one-time browser warning, or trust certs/server.crt."
 echo ""
 echo "Press Ctrl+C to stop all services."
 echo ""

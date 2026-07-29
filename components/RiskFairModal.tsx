@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
 import * as api from '../services/apiService';
 import { Risk } from '../types';
+import { Modal } from './Modal';
 
 interface RiskFairModalProps {
     isOpen: boolean;
@@ -52,7 +52,7 @@ export const RiskFairModal: React.FC<RiskFairModalProps> = ({ isOpen, risk, onCl
         setError(null);
     }, [risk]);
 
-    if (!isOpen || !risk) return null;
+    if (!risk) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -86,18 +86,29 @@ export const RiskFairModal: React.FC<RiskFairModalProps> = ({ isOpen, risk, onCl
     const isLmValid = lmMin <= lmLikely && lmLikely <= lmMax;
     const isFormValid = isLefValid && isLmValid;
 
+    const footer = (
+        <>
+            <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            >
+                Cancel
+            </button>
+            <button
+                type="submit"
+                form="risk-fair-form"
+                disabled={running || !isFormValid}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+            >
+                {running ? 'Running...' : 'Run Simulation'}
+            </button>
+        </>
+    );
+
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl overflow-hidden">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                        Quantify Risk: {risk.title}
-                    </h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <Modal isOpen={isOpen} onClose={onClose} title={`Quantify Risk: ${risk.title}`} size="2xl" footer={footer}>
+                <form id="risk-fair-form" onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -215,25 +226,7 @@ export const RiskFairModal: React.FC<RiskFairModalProps> = ({ isOpen, risk, onCl
                             </div>
                         </div>
                     )}
-
-                    <div className="flex justify-end gap-3 pt-4">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={running || !isFormValid}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
-                        >
-                            {running ? 'Running...' : 'Run Simulation'}
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </Modal>
     );
 };

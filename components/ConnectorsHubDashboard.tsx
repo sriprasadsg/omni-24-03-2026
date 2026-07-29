@@ -58,7 +58,7 @@ export default function ConnectorsHubDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(API, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const r = await fetch(API, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
       if (r.ok) {
         const data = await r.json();
         if (Array.isArray(data) && data.length > 0) setConnectors(data);
@@ -86,7 +86,7 @@ export default function ConnectorsHubDashboard() {
     try {
       await fetch(`${API}/${selected.id}/configure`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify({ credential: configValue }),
       });
       setConnectors(prev => prev.map(c => c.id === selected.id ? { ...c, status: 'connected' } : c));

@@ -23,11 +23,31 @@ $MONGO_PORT    = 27017
 
 $MONGODB_URL   = "mongodb://127.0.0.1:$MONGO_PORT"
 $DATABASE_NAME = "omni_agent_platform"
-$CORS_ORIGINS  = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
+$CORS_ORIGINS  = "https://localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
 
 $API_BASE_URL     = "http://127.0.0.1:$BACKEND_PORT"
 $REGISTRATION_KEY = "reg_platformadmin123"
 $TENANT_ID        = "platform-admin"
+
+# ── TLS: generate a self-signed cert so Vite serves HTTPS (vite.config picks it
+# up automatically when certs/server.{key,crt} exist). Falls back to HTTP if
+# openssl is not installed.
+$CERT_DIR        = Join-Path $ROOT "certs"
+$FRONTEND_SCHEME = "http"
+if ((Test-Path (Join-Path $CERT_DIR "server.crt")) -and (Test-Path (Join-Path $CERT_DIR "server.key"))) {
+    $FRONTEND_SCHEME = "https"
+} elseif (Get-Command openssl -ErrorAction SilentlyContinue) {
+    New-Item -ItemType Directory -Force -Path $CERT_DIR | Out-Null
+    & openssl req -x509 -newkey rsa:2048 -nodes `
+        -keyout (Join-Path $CERT_DIR "server.key") -out (Join-Path $CERT_DIR "server.crt") `
+        -days 825 -subj "/CN=localhost" `
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>$null
+    if ($LASTEXITCODE -eq 0) { $FRONTEND_SCHEME = "https" }
+    else { Write-Host "    !!  openssl failed - frontend will stay HTTP" -ForegroundColor Yellow }
+} else {
+    Write-Host "    !!  openssl not found - frontend stays HTTP (install openssl for HTTPS)" -ForegroundColor Yellow
+}
+$FRONTEND_URL = "${FRONTEND_SCHEME}://localhost:$FRONTEND_PORT"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 function Write-Step { param($n, $msg) Write-Host "[$n] $msg" -ForegroundColor Cyan }
@@ -228,7 +248,7 @@ $frontendScript = @"
 Set-Location '$ROOT'
 Write-Host ''
 Write-Host '  Omni-Agent Frontend' -ForegroundColor Cyan
-Write-Host '  http://localhost:$FRONTEND_PORT' -ForegroundColor Green
+Write-Host "  $FRONTEND_URL" -ForegroundColor Green
 Write-Host ''
 npm run dev -- --port $FRONTEND_PORT
 "@
@@ -237,7 +257,7 @@ Start-WindowedProcess "Omni-Frontend :$FRONTEND_PORT" $ROOT $frontendScript
 
 Write-Host "    Waiting for frontend to compile (up to 60s)..." -ForegroundColor Gray
 if (Wait-Port $FRONTEND_PORT "Frontend" 60) {
-    Write-OK "Frontend is up -> http://localhost:$FRONTEND_PORT"
+    Write-OK "Frontend is up -> $FRONTEND_URL"
 } else {
     Write-Warn "Frontend not responding - check the frontend terminal window."
 }
@@ -273,7 +293,7 @@ Write-Host "   All services started!" -ForegroundColor Green
 Write-Host "  ====================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Service URLs:" -ForegroundColor White
-Write-Host "    Frontend   http://localhost:$FRONTEND_PORT" -ForegroundColor Cyan
+Write-Host "    Frontend   $FRONTEND_URL" -ForegroundColor Cyan
 Write-Host "    Backend    http://127.0.0.1:$BACKEND_PORT" -ForegroundColor Cyan
 Write-Host "    API Docs   http://127.0.0.1:$BACKEND_PORT/docs" -ForegroundColor Cyan
 Write-Host "    Health     http://127.0.0.1:$BACKEND_PORT/health" -ForegroundColor Cyan
@@ -287,5 +307,5 @@ Write-Host ""
 
 $open = Read-Host "  Open browser now? (Y/N)"
 if ($open -match "^[Yy]") {
-    Start-Process "http://localhost:$FRONTEND_PORT"
+    Start-Process "$FRONTEND_URL"
 }

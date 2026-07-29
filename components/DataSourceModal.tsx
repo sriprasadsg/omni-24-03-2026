@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { DataSource, DataSourceType } from '../types';
-import { XIcon, CogIcon, CheckIcon, AlertTriangleIcon } from './icons';
+import { CogIcon, CheckIcon, AlertTriangleIcon } from './icons';
 import { testDataSourceConnection } from '../services/apiService';
+import { Modal } from './Modal';
 
 interface DataSourceModalProps {
   isOpen: boolean;
@@ -104,16 +105,29 @@ export const DataSourceModal: React.FC<DataSourceModalProps> = ({ isOpen, onClos
     }
   };
   
-  if (!isOpen) return null;
+  const footer = (
+    <div className="flex justify-between items-center w-full">
+        <button type="button" onClick={handleTestConnection} disabled={testStatus === 'testing'}
+            className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 dark:bg-primary-900/50 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900 disabled:opacity-50"
+        >
+            Test Connection
+        </button>
+        <div className="flex space-x-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md">Cancel</button>
+            <button type="submit" form="datasource-form" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Save</button>
+        </div>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{dataSource ? 'Edit Data Source' : 'Add New Data Source'}</h2>
-            <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"><XIcon size={20} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={dataSource ? 'Edit Data Source' : 'Add New Data Source'}
+      size="lg"
+      footer={footer}
+    >
+        <form id="datasource-form" onSubmit={handleSubmit} className="space-y-4">
             <style>{`.input-style { padding: 0.5rem 0.75rem; background-color: white; border: 1px solid #d1d5db; border-radius: 0.375rem; } .dark .input-style { background-color: #374151; border-color: #4b5563; }`}</style>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data Source Name</label>
@@ -150,20 +164,7 @@ export const DataSourceModal: React.FC<DataSourceModalProps> = ({ isOpen, onClos
                     </p>
                 </div>
             )}
-
-            <div className="mt-6 flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button type="button" onClick={handleTestConnection} disabled={testStatus === 'testing'}
-                    className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 dark:bg-primary-900/50 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900 disabled:opacity-50"
-                >
-                    Test Connection
-                </button>
-                <div className="flex space-x-3">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md">Cancel</button>
-                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Save</button>
-                </div>
-            </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };

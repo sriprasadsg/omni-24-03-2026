@@ -280,7 +280,7 @@ async def seed_database():
             "manage:security_cases", "investigate:security", "view:compliance",
             "manage:compliance_evidence", "view:ai_governance", "manage:ai_risks",
             "view:cloud_security", "view:finops", "view:audit_log",
-            "manage:rbac", "manage:api_keys", "view:logs", "view:profile",
+            "manage:rbac", "manage:api_keys", "manage:settings", "view:logs", "view:profile",
             "view:automation", "manage:automation", "view:devsecops", "manage:devsecops",
             "view:sbom", "manage:sbom", "view:insights", "view:software_updates",
             "view:threat_hunting", "view:tracing", "view:dspm", "view:attack_path",
@@ -485,6 +485,18 @@ def init_agentic_tracing() -> None:
         )
         trace.set_tracer_provider(provider)
         AnthropicInstrumentor().instrument()
+
+        # Phase 39 (AISPEC-39-S5): wire LangChainInstrumentor spans into this
+        # same Phoenix pipeline via ai_orchestration.tracing, reusing
+        # `provider`/`endpoint` — single startup hook, graceful-degrade
+        # internally so a missing package can never break the Anthropic
+        # instrumentation that already succeeded above.
+        try:
+            from ai_orchestration.tracing import instrument_langchain
+            instrument_langchain(provider)
+        except Exception as lc_exc:
+            logger.warning("[AgenticTracing] LangChain instrumentation wiring failed: %s", lc_exc)
+
         logger.info("[AgenticTracing] Phoenix tracing active at %s", endpoint)
     except ImportError:
         logger.warning(
@@ -596,6 +608,22 @@ async def run_startup_services() -> None:
         logger.warning("[Tickets] Escalation scheduler failed to start: %s", _e)
 
     try:
+        from ticketing_bridge import start_close_loop_scheduler
+        from database import mongodb as _mdb
+        asyncio.create_task(start_close_loop_scheduler(_mdb.db))
+        logger.info("[Ticketing] Remediation close-loop scheduler started")
+    except Exception as _e:
+        logger.warning("[Ticketing] Close-loop scheduler failed to start: %s", _e)
+
+    try:
+        from compliance_remediation_sla_service import start_remediation_sla_scheduler
+        from database import mongodb as _mdb
+        asyncio.create_task(start_remediation_sla_scheduler(_mdb.db))
+        logger.info("[Remediation] SLA escalation scheduler started")
+    except Exception as _e:
+        logger.warning("[Remediation] SLA escalation scheduler failed to start: %s", _e)
+
+    try:
         from syslog_receiver import start_syslog_server
         _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
         asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port))
@@ -673,6 +701,9 @@ async def run_startup_services() -> None:
 
     # Pre-build the Windows Rust agent in the background so the first tenant download is instant
     asyncio.create_task(_safe_bg_task(_prebuild_windows_agent(), "windows_agent_prebuild"))
+
+    from app_background_tasks import autonomous_remediation_loop
+    asyncio.create_task(_safe_bg_task(autonomous_remediation_loop(), "autonomous_remediation"))
 
     try:
         init_agentic_tracing()

@@ -8,6 +8,9 @@
 - **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
 - **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, complete — verified 2026-07-05).
 - **v3.0** — Competitive Feature Closure: 14 phases (25–38) closing the 25 gaps from the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler — cloud-check execution gaps, vendor/risk data completeness, OSCAL/SBOM export, governance documents, a real public Trust Center, AI questionnaire auto-answer, FAIR risk quantification, provider expansion, workflow connectors, passkeys, GraphQL, ReBAC, a spec-compliant MCP server, and an interactive AI security assistant. In progress — Phase 25 planning underway.
+- **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
+- **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45 + 999.1 backlog), 19 plans, 10/10 requirements. Shipped 2026-07-29.
+- **v3.3** — Agent Geo & Fleet Observability: fleet geo map (offline SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 11/11 requirements mapped. Roadmap defined 2026-07-29 — not started.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -671,3 +674,194 @@ June 2026 audit.
 **Plans:** 1/1 complete — all 16 review findings fixed, dashboard restyled and wired into navigation, verified 2026-07-05
 
 - [x] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs). All 16 `24-REVIEW.md` findings fixed (inverted PASS/FAIL logic, Kubernetes always-fail override, missing CloudFormation checks, broken test auth override, dashboard/API type mismatch, plus 8 warning/info findings) — 8/8 tests pass, re-run and confirmed. Dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md`, and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation (`view: 'iacContainer'`, Security (SecOps) section) — confirmed reachable via build chunk output.
+
+## v3.1 — AI Orchestration Layer
+
+**Goal:** Unify the platform's AI surfaces behind LangChain as a model-agnostic orchestration layer, per the AI-SPEC design contract generated 2026-07-17.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 39 | LangChain AI Integration | Complete (12/12) — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test) |
+
+---
+
+## Phase 39: LangChain AI Integration
+
+**Milestone:** v3.1
+
+**Goal:** Migrate the platform's existing AI surfaces — AI compliance auditor (`ai_auditor_endpoints.py`), Phase 38 grounded chat assistant (`ai_assistant_service.py` / `/api/assistant/chat` — legacy `/api/ai/chat` and `ChatAssistant.tsx` explicitly deferred per 39-CONTEXT.md), questionnaire auto-answer RAG (`rag_service.py`), narrative generation (`compliance_narrative_service.py`) — onto LangChain 1.x (`create_agent` + `init_chat_model`) as a model-agnostic orchestration layer over the 9router gateway with Ollama fallback, with citation-required structured outputs, tenant-scoped tools, and the evaluation harness specified in 39-AI-SPEC.md (Phoenix tracing, 8 eval dimensions, online guardrails).
+
+**Requirements:** Per 39-AI-SPEC.md design contract (framework decision, guardrails, eval strategy) — no standalone REQUIREMENTS.md IDs registered yet
+
+**Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
+
+**Plans:** 12/12 plans executed
+
+Plans:
+
+- [x] 39-01-PLAN.md — Pin + install LangChain 1.x runtime stack (legitimacy checkpoint)
+- [x] 39-02-PLAN.md — 9router passthrough smoke test + eval harness scaffold (markers, two-tenant fixtures)
+- [x] 39-03-PLAN.md — Shared citation-required schemas + one citation/control-ID validator
+- [x] 39-04-PLAN.md — Model factory + persistent tenant-prefixed checkpointer + LangChain tracing wiring
+- [x] 39-05-PLAN.md — Agent substrate: tenant-closed tools + versioned prompts + online guardrail hooks
+- [x] 39-06-PLAN.md — Auditor migration onto create_agent (AuditFinding + citation validation + shim)
+- [x] 39-07-PLAN.md — Phase 38 assistant chat migration onto create_agent (+ checkpointer memory + shim)
+- [x] 39-08-PLAN.md — Questionnaire auto-answer migration (CitedAnswer + RAG-02 gate preserved + shim)
+- [x] 39-09-PLAN.md — Narrative generation migration (NarrativeOutput + fail-closed fallback + shim)
+- [x] 39-10-PLAN.md — 48-example reference dataset (gold controls, Q&A, chat, adversarial) + loader
+- [x] 39-11-PLAN.md — Six code-based eval dimensions (phase gate: traceability, conservative status, fidelity, tenant isolation, provenance, RAG-02)
+- [x] 39-12-PLAN.md — Three judged eval dimensions (questionnaire honesty, chat relevance, retrieval quality — nightly)
+
+---
+
+## v3.2 — Agent Modernization & Remediation Ops
+
+**Goal:** Finish the Rust agent 2.1.0 dependency modernization and the outstanding 401 auth-session bug, then close real (verified, not assumed) gaps in remediation operations — bridging remediation tasks to existing ticketing connectors, SLA/escalation on overdue tasks, comment threads on controls, and CSPM checks for the 3 cloud providers that are currently dropdown-only stubs. Per the 2026-07-20 research summary: the Rust agent work is a fully independent toolchain track that can run in parallel with everything else; the four remediation-ops features are sequenced by risk — CSPM checks and comment threads first (structurally isolated, new-pattern risk validated cheaply), then the ticketing bridge before SLA/escalation, since both mutate the same `compliance_remediation_tasks` document.
+
+**Status:** Roadmap defined 2026-07-20. Not started — continues phase numbering from Phase 39.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 40 | Rust Agent Modernization & Session Reliability | Complete |
+| 41 | CSPM Provider Expansion (OCI, Alibaba, Cloudflare) | Complete |
+| 42 | Comment Threads on Compliance Controls | Complete |
+| 43 | Remediation-to-Ticketing Bridge | Complete |
+| 44 | Remediation SLA & Escalation | Complete |
+
+---
+
+<details>
+<summary>✅ v3.2 Agent Modernization & Remediation Ops (Phases 40–45) — SHIPPED 2026-07-29</summary>
+
+Full phase detail archived to [milestones/v3.2-ROADMAP.md](milestones/v3.2-ROADMAP.md).
+Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md) · Audit: [milestones/v3.2-MILESTONE-AUDIT.md](milestones/v3.2-MILESTONE-AUDIT.md).
+
+- [x] Phase 40: Rust Agent Modernization & Session Reliability (RUST-01, SESS-01)
+- [x] Phase 41: CSPM Provider Expansion — OCI/Alibaba/Cloudflare (CSPM-01/02/03)
+- [x] Phase 42: Comment Threads on Compliance Controls (CMT-01)
+- [x] Phase 43: Remediation-to-Ticketing Bridge (REM-01/02)
+- [x] Phase 44: Remediation SLA & Escalation (SLA-01/02)
+- [x] Phase 45: Close gap RUST-01 — TLS backend explicit decision
+
+</details>
+
+## v3.3 — Agent Geo & Fleet Observability
+
+**Goal:** Turn the agent public-IP/GeoIP data landed in v3.2 into a full geo + observability surface — a live fleet map, location-based security detections, health/uptime observability, and an immutable location-history audit trail. Offline-first (air-gapped safe) throughout. Per the 2026-07-29 research summary: strict dependency order front-loads the append-only location-history audit trail and its privacy/legal review gate, then the agent-scoped security detectors that depend on it, then fleet observability (mostly independent — reuses existing metrics/offline-detection), then the fleet map last since it reads everything upstream.
+
+**Status:** Roadmap defined 2026-07-29. Not started — continues phase numbering from Phase 45.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 46 | Public-IP ASN/VPN Enrichment + Location-History Audit | Not started |
+| 47 | Agent-Scoped Geo Security Detectors | Not started |
+| 48 | Fleet Observability & Uptime Rollups | Not started |
+| 49 | Fleet Geo Map | Not started |
+
+---
+
+## Phase 46: Public-IP ASN/VPN Enrichment + Location-History Audit
+
+**Milestone:** v3.3
+
+**Goal:** Give every agent's public-IP/geo change an immutable, queryable audit trail, and lay the ASN/VPN-enrichment foundation (heuristic GeoLite2-ASN + X4BNet lookup) that Phase 47's security detectors depend on — front-loading the false-positive and privacy/legal risks research flagged as this milestone's two biggest.
+
+**Requirements:** GAUD-01 (append-only `agent_location_history`, change-detected cheaply off the already-fetched agent doc, cloned from `remediation_escalations`), GAUD-02 (per-agent location-history timeline view)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An admin opening an agent's detail view can see a chronological timeline of every public-IP/geo change for that agent, with timestamps (GAUD-02).
+  2. Location-history entries are append-only — there is no update or delete path anywhere in the API, matching the `remediation_escalations` audit-integrity pattern (GAUD-01).
+  3. A given agent's public IP changing during heartbeat writes exactly one new location-history row for that change, not one row per heartbeat — write volume tracks IP changes, not heartbeat frequency (GAUD-01).
+  4. Retention for location-history is a deliberate decision routed through the existing retention module, not silently inherited from the 30-day `agent_metrics_history` convention — resolved before data starts accumulating (GAUD-01; privacy/legal pre-implementation gate per PITFALLS.md Pitfall 5).
+
+**Depends on:** Nothing (first phase — continues numbering from Phase 45)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 47: Agent-Scoped Geo Security Detectors
+
+**Milestone:** v3.3
+
+**Goal:** Give tenant admins real location-based security signal on their fleet — impossible-travel detection and geo-fence violations, both alert-only — informed by a heuristic VPN/hosting flag so admins aren't drowning in corporate-VPN false positives from day one.
+
+**Requirements:** GSEC-01 (heuristic VPN/proxy/hosting flag via GeoLite2-ASN + X4BNet, surfaced and labeled as heuristic — never "detected"), GSEC-02 (agent-scoped impossible-travel alert via haversine + time window, keyed by `agent_id`), GSEC-03 (per-tenant allowed-region geo-fence, alert-only — no blocking)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An agent's public IP is annotated with a "likely VPN/hosting" flag when its AS-org matches known VPN/hosting ranges, and every UI surface showing that flag labels it explicitly as a heuristic, never an authoritative "detected" claim (GSEC-01).
+  2. When one agent's two consecutive check-ins come from two locations physically impossible to travel between in the elapsed time, an alert reaches the existing notification/alert channel — reusing the fan-out, not building a parallel one (GSEC-02).
+  3. A tenant admin can define a list of allowed regions for their tenant, and a check-in from outside that list raises an alert without blocking or otherwise interrupting the agent's connection (GSEC-03).
+
+**Depends on:** Phase 46 (impossible-travel needs "previous known geo" from location-history; the VPN/hosting flag needs the ASN enrichment lookup built alongside 46)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 48: Fleet Observability & Uptime Rollups
+
+**Milestone:** v3.3
+
+**Goal:** Give admins a fleet-wide operational view — per-agent metrics/uptime history and an aggregate view of offline and out-of-date agents — reusing existing telemetry and detection rather than rebuilding either.
+
+**Requirements:** FOBS-01 (CPU/memory/disk history charts off the existing `GET /agents/{id}/metrics/history` endpoint via `recharts`), FOBS-02 (per-agent heartbeat/uptime timeline + selectable-range uptime %), FOBS-03 (fleet-level offline-agent and version-drift view)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An admin opening an agent's detail view sees its CPU/memory/disk history rendered as charts, not raw numbers or a table (FOBS-01).
+  2. An admin can see a per-agent heartbeat/uptime timeline and an uptime percentage computed over a range they can select (FOBS-02).
+  3. An admin can see one fleet-level view listing which agents are currently offline and which agents are running a version older than the latest available (FOBS-03).
+
+**Depends on:** Nothing new (parallel-safe with Phases 46–47; reuses existing `monitor_agent_status()` offline detection and the existing metrics-history endpoint — the new work is the uptime-rollup sweep and the frontend)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Phase 49: Fleet Geo Map
+
+**Milestone:** v3.3
+
+**Goal:** Give admins one visual, air-gapped-safe map of where their fleet physically is, with clustering and drill-down — the highest-visibility surface in the milestone, built last since it reads everything upstream.
+
+**Requirements:** GMAP-01 (fleet map with markers by city/country, self-contained bundled TopoJSON/SVG — no external tile servers), GMAP-02 (marker clustering + filter by tenant and agent status), GMAP-03 (marker click drills into agent identity, LAN/public IP, resolved location, current status)
+
+**Success Criteria** (what must be TRUE):
+
+  1. An admin can open a fleet map showing agent markers positioned by city/country, and the map renders fully with outbound network access blocked — no tile-server dependency (GMAP-01).
+  2. Dense clusters of nearby agents collapse into a single cluster marker with a count, and the admin can filter the map by tenant and by agent status (online/offline/error/quarantined) (GMAP-02).
+  3. Clicking a marker drills into that agent — showing hostname, LAN IP, public IP, resolved location, and current status (GMAP-03).
+
+**Depends on:** Phase 46 (location data), Phase 47 (status/flags surfaced on drill-down), Phase 48 (offline/version status feeding map filters)
+
+**Plans:** TBD
+
+**UI hint**: yes
+
+---
+
+## Backlog
+
+### Phase 999.1: Remediation SLA Settings UI (BACKLOG)
+
+**Goal:** [Captured for future planning] Build the Remediation SLA settings surface (At-Risk Window field). Backend `GET/PATCH /api/settings/remediation-sla` has been live since 44-03 but has no UI consumer — deliberately deferred during Phase 44, flagged twice by UI audits (44-UI-REVIEW.md).
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)

@@ -5,7 +5,12 @@ from datetime import datetime, timezone
 import re
 from agent_auth import verify_agent_key
 from rate_limiter import limiter, agent_limiter
+import geoip_service
+import agent_asn_service
 import logging
+from agent_location_history_service import record_location_change, get_track_agent_location
+from agent_auto_update_service import maybe_push_update_instruction
+from agent_heartbeat_alerts_service import persist_persistence_detection, persist_pii_scanner
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -112,6 +117,29 @@ async def report_heartbeat(
         update_data["hostname"] = payload["hostname"]
     if payload.get("device_id"):
         update_data["deviceId"] = payload["device_id"]
+    # WAN / ISP-assigned public IP (guarded: never null out a known value on a
+    # beat where the agent hasn't resolved it yet).
+    public_ip = payload.get("publicIp") or (payload.get("meta") or {}).get("public_ip")
+    geo = None
+    if public_ip:
+        update_data["publicIp"] = public_ip
+        geo = geoip_service.lookup(public_ip)
+        if geo:
+            update_data["geo"] = geo
+
+    # ASN + VPN heuristic enrichment + location-history (Phase 46, GAUD-01/02).
+    # Both are gated on the per-tenant track_agent_location toggle (D-02) —
+    # when OFF, neither runs, but the geoip_service city/country enrichment
+    # above stays unconditional (scope boundary, T-46-05-B).
+    asn_enrichment = None
+    track_location = False
+    if public_ip:
+        track_location = await get_track_agent_location(db, _hb_tenant_id)
+        if track_location:
+            asn_enrichment = agent_asn_service.lookup(public_ip)
+            if asn_enrichment:
+                geo = {**(geo or {}), "asn": asn_enrichment.get("asn"), "vpn_heuristic": asn_enrichment.get("vpn_heuristic")}
+                update_data["geo"] = geo
 
     await db.agents.update_one(
         _hb_agent_filter,
@@ -119,24 +147,20 @@ async def report_heartbeat(
         upsert=True
     )
 
-    # Auto-push update instruction when the agent reports an outdated binary version.
-    _LATEST_AGENT_VERSION = "2.0.1-rust"
-    _reported_version = payload.get("version", "")
-    if _reported_version and _reported_version != _LATEST_AGENT_VERSION:
-        _pending = await db.agent_instructions.find_one(
-            {"agent_id": agent_id, "instruction": "agent_update", "status": "pending"}
-        )
-        if not _pending:
-            await db.agent_instructions.insert_one({
-                "agent_id": agent_id,
-                "instruction": "agent_update",
-                "status": "pending",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "created_by": "auto_update",
-                "priority": "normal",
-            })
-            logger.info("Auto-pushed agent_update instruction to %s (reported %s < %s)",
-                        agent_id, _reported_version, _LATEST_AGENT_VERSION)
+    # Record location history after enrichment (Phase 46, GAUD-01) — reuses
+    # the existing_agent doc already fetched above (D-05, zero extra reads).
+    if public_ip and track_location:
+        try:
+            await record_location_change(
+                db, existing_agent, agent_id, _hb_tenant_id, public_ip, geo, asn_enrichment
+            )
+        except Exception as loc_err:
+            logger.warning("Failed to record location history for agent %s: %s", agent_id, loc_err)
+
+    # Auto-push update instruction when the agent reports an outdated binary
+    # version — extracted to agent_auto_update_service.py to keep this file
+    # under the CLAUDE.md 500-line cap (see module docstring there).
+    await maybe_push_update_instruction(db, agent_id, payload)
 
     _meta = payload.get("meta", {})
     if _meta.get("current_cpu") is not None or _meta.get("current_memory") is not None:
@@ -168,6 +192,10 @@ async def report_heartbeat(
             "agentVersion": payload.get("version", ""),
             "agentId": agent_id,
         }
+        if public_ip:
+            asset_update["publicIp"] = public_ip
+        if geo:
+            asset_update["geo"] = geo
 
         if "meta" in payload:
             meta = payload["meta"]
@@ -299,15 +327,7 @@ async def report_heartbeat(
                     pass
 
     if "persistence_detection" in meta:
-        p_data = meta["persistence_detection"]
-        if isinstance(p_data, dict) and p_data.get("findings"):
-            import uuid as _uuid
-            await db.persistence_results.insert_one({
-                "id": _uuid.uuid4().hex, "tenantId": _hb_tenant_id,
-                "agentId": agent_id, "findings": p_data.get("findings", []),
-                "count": p_data.get("count", 0), "platform": p_data.get("platform"),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+        await persist_persistence_detection(db, agent_id, _hb_tenant_id, meta["persistence_detection"])
 
     if "shadow_ai" in meta:
         s_data = meta["shadow_ai"]
@@ -422,28 +442,7 @@ async def report_heartbeat(
             ])
 
     if "pii_scanner" in meta:
-        pii_data = meta["pii_scanner"]
-        if isinstance(pii_data, dict) and pii_data.get("pii_found"):
-            try:
-                from ueba_service import persist_security_alert
-                background_tasks.add_task(
-                    persist_security_alert, db, alert_type="pii_detected", severity="high",
-                    title=f"PII Detected on Agent {agent_id}",
-                    description=f"{pii_data.get('findings_count', 0)} file(s) contain PII patterns.",
-                    metadata={**pii_data, "agent_id": agent_id, "tenantId": _hb_tenant_id},
-                )
-            except ImportError:
-                pass
-            _allowed_pii = {"findings_count", "pii_found", "files_scanned", "categories"}
-            await db.pii_findings.update_one(
-                {"agent_id": agent_id},
-                {"$set": {k: pii_data[k] for k in _allowed_pii if k in pii_data} | {
-                    "agent_id": agent_id,
-                    "tenantId": _hb_tenant_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }},
-                upsert=True,
-            )
+        await persist_pii_scanner(db, agent_id, _hb_tenant_id, meta["pii_scanner"], background_tasks)
 
     if "runtime_security" in meta:
         rs_data = meta["runtime_security"]

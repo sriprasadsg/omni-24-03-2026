@@ -1,48 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-13T18:57:54+05:30",
-  "phase": "38",
-  "phase_name": "Interactive AI Security Assistant",
-  "phase_dir": ".planning/phases/38-interactive-ai-security-assistant",
-  "plan": 3,
-  "task": 5,
-  "total_tasks": 5,
-  "status": "complete",
+  "timestamp": "2026-07-17T00:00:00Z",
+  "phase": "ai-integration",
+  "phase_name": "AI Integration Phase (gsd-ai-integration-phase)",
+  "phase_dir": ".planning/phases/39-langchain-ai-integration",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "phase-39-planned-checked",
   "completed_tasks": [
-    {"id": 1, "name": "Plan 38-01: Backend Chat API and RAG Integration", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 2, "name": "Plan 38-02: Frontend Chat UI implementation", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 3, "name": "Plan 38-02: Sidebar and App.tsx integration", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 4, "name": "Plan 38-03: Integration Tests (test file created)", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 5, "name": "Plans 36, 37, 38 execution", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 6, "name": "Plan 38-03: Run tests — fixed app.py import chain, ai_assistant_endpoints NameError, None-singleton call; rewrote test_ai_assistant.py (5/5 pass)", "status": "done", "commit": "c06d5369"},
-    {"id": 7, "name": "Plan 37-03: Rewrote test_mcp_server.py against real FastMCP server (12/12 pass; old file imported nonexistent 'main' and tested removed REST routes)", "status": "done", "commit": "c06d5369"}
+    {"id": 1, "name": "Framework selection interview", "status": "done", "detail": "User answered 6 questions: 1=H 2=E 3=A 4=C 5=A 6=G"},
+    {"id": 2, "name": "Framework recommendation", "status": "done", "detail": "Primary: LangChain, Alternative: LlamaIndex"},
+    {"id": 3, "name": "Fix compliance dashboard Suggested Actions/Findings icons", "status": "done", "detail": "AssetComplianceList.tsx updated with clickable icons and modal fallbacks; committed e180247"},
+    {"id": 4, "name": "Fix 404 on /api/compliance/audit-framework/{id}", "status": "done", "detail": "GET route added to ai_auditor_endpoints.py; committed e180247"},
+    {"id": 5, "name": "Fix syntax error in AssetComplianceList onChange", "status": "done", "detail": "Missing closing paren on line 265 fixed; committed e180247"},
+    {"id": 6, "name": "gsd-ai-researcher: LangChain deep-dive for AI-SPEC.md", "status": "done", "detail": "Sections 3/4/4b written; langchain==1.3.14 pinned (2026-07-17)"},
+    {"id": 7, "name": "gsd-domain-researcher: Business domain context", "status": "done", "detail": "Section 1b + Critical Failure Modes written (GRC/MSP multi-tenant, 5 rubric ingredients, EU AI Act/GDPR context)"},
+    {"id": 8, "name": "gsd-eval-planner: Evaluation strategy", "status": "done", "detail": "Sections 5/6/7 written; Phoenix (already in codebase) confirmed as tracing tool; 8 eval dimensions; 48-example reference dataset spec"},
+    {"id": 9, "name": "Write AI-SPEC.md", "status": "done", "detail": ".planning/phases/39-langchain-ai-integration/39-AI-SPEC.md committed c6eae01; all checklist items checked"}
   ],
   "remaining_tasks": [
-    {"id": 8, "name": "Phase 33: Workflow Automation Connectors — 4 plans ready, not executed", "status": "not_started"},
-    {"id": 9, "name": "Phase 34: Passkey/WebAuthn — planned, not executed (test_passkey_auth.py errors)", "status": "not_started"},
-    {"id": 10, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"},
-    {"id": 11, "name": "Clear remaining test debt: 7 failures + 5 errors (phase 28 governance, 34 passkey, 35 graphql, plus e2e-integration/powershell/rust-parity/smoke singles). Phase 30 (21) and 32 (8) cleared in 7c4727a9.", "status": "in_progress"},
-    {"id": 12, "name": "UAT backlog: phases 28 (4 items), 29 (6), 30 (6), 32 (1 must-have human_needed)", "status": "not_started"},
-    {"id": 13, "name": "Install openfga_sdk so test_rebac.py can run (Phase 36 caveat; breaks full-suite collection — use --ignore until fixed)", "status": "not_started"}
+    {"id": 10, "name": "Investigate 401 Unauthorized errors (auth session)", "status": "not_started"},
+    {"id": 11, "name": "Check outdated Rust packages (reqwest 0.11, sysinfo 0.30, serde_yaml 0.9)", "status": "partial", "detail": "Audited 3 trees; shipping tree = agent-install/omni-agent-rs. Safe semver cargo update applied + cargo check green (7e050f6). REMAINING (needs code changes + 2.1.0 exe rebuild): reqwest 0.12->0.13, sysinfo 0.32->0.39, tokio-tungstenite 0.23->0.30, rusqlite 0.32->0.40, hostname 0.3->0.4; serde_yaml is deprecated/unmaintained (0.9.34+deprecated) -> migrate to serde_yml/serde_norway (only used in src/config.rs from_str/to_string). Legacy trees rust_agent (reqwest 0.11/sysinfo 0.29) and agent-rust are non-shipping."}
   ],
-  "blockers": [
-    {"description": "Phase 35 GraphQL API blocked by strawberry-graphql/pydantic dependency incompatibility in externally managed environment", "type": "technical", "workaround": "System admin must resolve dependency incompatibility. app.py no longer breaks without it (fixed in c06d5369) — GraphQL routes are simply absent."},
-    {"description": "openfga_sdk not installed — test_rebac.py fails at collection and interrupts full-suite runs", "type": "technical", "workaround": "Run suite with --ignore=backend/tests/test_rebac.py until the package is installed"}
-  ],
+  "blockers": [],
   "async_jobs": [],
-  "human_actions_pending": [
-    {"action": "Resolve strawberry-graphql/pydantic dependency incompatibility for Phase 35", "context": "ImportError: cannot import name 'is_new_type' from 'pydantic._internal._typing_extra'. Environment is externally managed, pip install blocked.", "blocking": true},
-    {"action": "Install openfga_sdk in backend/venv for Phase 36 ReBAC tests", "context": "requirements.txt lists openfga>=0.6.0 but it is not installed; test_rebac.py cannot collect.", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Used OpenFGA for ReBAC in Phase 36", "rationale": "Superior Python client maturity, active development, flexible deployment", "phase": "36"},
-    {"decision": "Implemented MCP server with FastMCP for Phase 37", "rationale": "Official Python SDK provides spec-compliant stdio/SSE transports", "phase": "37"},
-    {"decision": "AI Assistant uses RAG + live MongoDB findings for grounded responses", "rationale": "Combines knowledge base with real-time compliance/risk data", "phase": "38"},
-    {"decision": "Removed app.py's trailing unconditional graphql_endpoints import instead of guarding it", "rationale": "router_registry already registers it as optional with logged, non-fatal failure; the trailing lines also called include_router on socketio.ASGIApp which has no such method", "phase": "38"},
-    {"decision": "ai_assistant_endpoints calls chat() function directly instead of an ai_assistant_service singleton", "rationale": "The singleton was a module-level None that nothing initialized — every request would have raised AttributeError", "phase": "38"},
-    {"decision": "test_mcp_server.py tests the FastMCP instance (mcp.list_tools/call_tool), not HTTP routes", "rationale": "Phase 37 removed the REST-shaped /api/mcp surface; the protocol layer is the real contract. call_tool returns (content, structured) tuple on mcp 1.28 for typed tools.", "phase": "37"}
+    {"decision": "Framework: LangChain (primary), LlamaIndex (alternative)", "rationale": "Exploratory use case, model-agnostic, Python+TS, fast prototype, broadest ecosystem", "phase": "ai-integration"},
+    {"decision": "AI-SPEC placed at .planning/phases/39-langchain-ai-integration/ (new phase dir 39)", "rationale": "No numbered phase existed for the ad-hoc AI integration work; 39 is next after v3.0's 25-38", "phase": "ai-integration"},
+    {"decision": "Eval tooling: Arize Phoenix (self-hosted, already wired in app_startup.py) + openinference-instrumentation-langchain; LangSmith/Promptfoo not adopted", "rationale": "Phoenix OTLP tracing + RAGAS already in codebase; traces contain tenant evidence so self-hosted required", "phase": "ai-integration"}
   ],
   "uncommitted_files": [],
-  "next_action": "Execute Phase 33 (plans ready) or Phase 34, or clear the remaining test debt in phases 28/34/35.",
-  "context_notes": "Phases 36-38 complete (c06d5369). Phase 30/32 test debt cleared 2026-07-13 (7c4727a9): 884 passed, 22 skipped; remaining 7 failures + 5 errors are phases 28/34/35 + e2e-integration/powershell/rust-parity/smoke singles. IMPORTANT: 30-01's tenant-scoped RAG had never actually been implemented despite SUMMARY/UAT claiming it passed — implemented in 7c4727a9 with a real-ChromaDB isolation test; treat other unverified phase summaries with suspicion. Run tests with backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py from repo root. Junk file c.txt at repo root (from Phase 32) and misplaced .planning/phases/27-UAT.md still to clean up."
+  "next_action": "Run /gsd-execute-phase 39 (12 plans, 5 waves; 39-01 is autonomous:false — human package-legitimacy checkpoint before pip install). Or tackle tasks 10 (401 debug) / 11 (Rust package updates).",
+  "context_notes": "Phase 39 fully planned: 12 plans committed (465ddd8 + 964df7e for omitted 39-01/39-03/PATTERNS), revision iter 2 (9c2987c), plan-checker iteration 3 PASS (0 blockers; 4 warnings all fixed 2026-07-18: cd backend python -c prefixes, RESEARCH RESOLVED markers, VALIDATION 34-task count, ROADMAP chat-surface goal sentence). ChatAssistant.tsx UI will not change this phase — legacy /api/ai/chat deferred by CONTEXT decision.",
+  "timestamp_planned": "2026-07-18T00:00:00Z"
 }

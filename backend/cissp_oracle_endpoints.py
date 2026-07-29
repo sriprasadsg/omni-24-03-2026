@@ -151,7 +151,7 @@ async def _generate_cissp_response(message: str, context: str, findings: list, d
                 import anthropic
                 client = anthropic.Anthropic(api_key=api_key)
                 msg = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
+                    model=os.getenv("ORACLE_MODEL", "cc/claude-haiku-4-5-20251001"),
                     max_tokens=1024,
                     system=system_prompt,
                     messages=[{"role": "user", "content": message}],

@@ -3,6 +3,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { ComplianceFramework, ControlStatus, Asset, AssetCompliance } from '../types';
 import { AssetComplianceList } from './AssetComplianceList';
 import { ChainOfCustodyPanel } from './ChainOfCustodyPanel';
+import { ControlCommentsPanel } from './ControlCommentsPanel';
 import { BulkEvidenceUploadModal } from './BulkEvidenceUploadModal';
 import { ControlEvidenceUploadModal } from './ControlEvidenceUploadModal';
 import { AddControlModal } from './AddControlModal';
@@ -430,6 +431,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                         }}
                       />
                       {canViewCoC && <ChainOfCustodyPanel controlId={control.id} />}
+                      <ControlCommentsPanel controlId={control.id} />
                     </td>
                   </tr>
                 )}

@@ -9,6 +9,7 @@ import {
 import { ConfirmationModal } from './ConfirmationModal';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
+import { flagEmoji, formatGeo } from '../utils/geo';
 
 interface AgentListProps {
     agents: Agent[];
@@ -211,6 +212,21 @@ const AgentCard: React.FC<{
                                 <span className={`text-xs font-medium ${hearbeatColor}`}>{lastSeenLabel}</span>
                             </span>
                         </div>
+                        {agent.publicIp && (
+                            <div className="flex items-center">
+                                <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Public IP</span>
+                                <span className="text-gray-800 dark:text-gray-200 font-mono text-xs">{agent.publicIp}</span>
+                            </div>
+                        )}
+                        {agent.geo && formatGeo(agent.geo) && (
+                            <div className="flex items-center">
+                                <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Location</span>
+                                <span className="text-gray-800 dark:text-gray-200 text-xs flex items-center gap-1.5">
+                                    {agent.geo.country_code && <span aria-hidden>{flagEmoji(agent.geo.country_code)}</span>}
+                                    <span className="truncate">{formatGeo(agent.geo)}</span>
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -96,6 +96,7 @@ def register_all_routers(app: FastAPI) -> None:
 
     # ── Security & Threat Management ──────────────────────────────────────────
     _load(app, "edr_telemetry_endpoints",  "router")
+    _load(app, "agent_telemetry_endpoints", "router")
     _load(app, "response_endpoints",       "router")
     _load(app, "mdr_endpoints",            "router")
     _load(app, "security_endpoints",       "router")
@@ -167,6 +168,8 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "access_review_endpoints",   "router")
     _load(app, "cloud_checks_endpoints",    "router")
     _load(app, "compliance_remediation_endpoints", "router")
+    _load(app, "compliance_remediation_sla_endpoints", "router")
+    _load(app, "agent_location_history_endpoints", "router")
     _load(app, "compliance_evidence_lifecycle_endpoints", "router")
     _load(app, "compliance_bulk_evidence_endpoints", "router")
     _load(app, "compliance_score_endpoints", "router")
@@ -177,10 +180,15 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "powershell_evidence_endpoints", "router")
     _load(app, "program_endpoints",             "router")
     _load(app, "evidence_review_endpoints", "router")
+    _load(app, "control_comments_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
     _load(app, "ai_assistant_endpoints",   "router")
+    _load(app, "ai_supervisor_endpoints",  "router")
+    _load(app, "framework_mappings_endpoints", "router")
+    _load(app, "ot_ics_endpoints",         "router")
+    _load(app, "firmware_attestation_endpoints", "router")
     _load(app, "ai_services.training_endpoints", "router")
     _load(app, "ai_system_endpoints",      "router")
     _load(app, "ai_remediation_service",   "router")

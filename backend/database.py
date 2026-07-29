@@ -254,6 +254,13 @@ async def connect_to_mongo():
         await mongodb.db.audit_logs.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.fim_events.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.edr_telemetry.create_index([("tenantId", 1), ("timestamp", -1)])
+        # agent_telemetry: real-time ETW events (agent-rust ETW engine). High-volume, so
+        # compound indexes for tenant + per-agent queries, plus a TTL below.
+        await mongodb.db.agent_telemetry.create_index([("tenantId", 1), ("received_at", -1)])
+        await mongodb.db.agent_telemetry.create_index([("agent_id", 1), ("received_at", -1)])
+        await mongodb.db.agent_telemetry_batches.create_index([("agent_id", 1), ("received_at", -1)])
+        await mongodb.db.agent_detections.create_index([("tenantId", 1), ("received_at", -1)])
+        await mongodb.db.agent_detections.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("timestamp", -1)])
         await mongodb.db.threat_alerts.create_index([("tenantId", 1), ("severity", 1)])
         await mongodb.db.correlation_rules.create_index([("tenantId", 1), ("enabled", 1)])
@@ -276,6 +283,13 @@ async def connect_to_mongo():
         await mongodb.db.tickets.create_index([("tenantId", 1), ("assignee", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("due_date", 1), ("status", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("escalated", 1)])
+        # compliance_remediation_tasks: supports the SLA sweep query and the
+        # escalated-tasks lookup (SLA-01/SLA-02, T-44-02) — same shape as the
+        # tickets compound indexes directly above.
+        await mongodb.db.compliance_remediation_tasks.create_index(
+            [("tenantId", 1), ("due_date", 1), ("status", 1)]
+        )
+        await mongodb.db.compliance_remediation_tasks.create_index([("tenantId", 1), ("escalated", 1)])
 
         # software_inventory: compound unique index so per-heartbeat upserts are O(1) not O(n)
         await mongodb.db.software_inventory.create_index(
@@ -286,6 +300,8 @@ async def connect_to_mongo():
         await mongodb.db.security_events.create_index("timestamp", expireAfterSeconds=7776000)   # 90 days
         await mongodb.db.audit_logs.create_index("timestamp", expireAfterSeconds=15552000)       # 180 days
         await mongodb.db.edr_telemetry.create_index("timestamp", expireAfterSeconds=2592000)     # 30 days
+        await mongodb.db.agent_telemetry.create_index("received_at", expireAfterSeconds=2592000)         # 30 days
+        await mongodb.db.agent_telemetry_batches.create_index("received_at", expireAfterSeconds=2592000) # 30 days
         await mongodb.db.fim_events.create_index("timestamp", expireAfterSeconds=7776000)        # 90 days
 
         # TTL indexes for auth/security collections that previously grew unboundedly.
@@ -295,6 +311,15 @@ async def connect_to_mongo():
         await mongodb.db.password_reset_tokens.create_index("created_at", expireAfterSeconds=3600)
         # revoked_tokens: only needs to outlive the longest possible access-token TTL (24 h)
         await mongodb.db.revoked_tokens.create_index("revoked_at", expireAfterSeconds=86400)
+        # revoked_tokens.jti: SESS-01 (D-05 Mechanism A) — refresh_access_token's
+        # find_one_and_update + $setOnInsert atomic-consume logic
+        # (authentication_endpoints.py) already assumes this unique index exists;
+        # without it, two concurrent /refresh calls with the same token could both
+        # "win", corrupting single-use rotation and producing intermittent 401s.
+        # This closes that gap. Mechanism B (multi-tab sessionStorage divergence,
+        # a separate frontend surface) is deferred per 40-CONTEXT.md D-05 and is
+        # NOT addressed here.
+        await mongodb.db.revoked_tokens.create_index("jti", unique=True, background=True)
         # report_delivery_logs: compound index for per-schedule history queries (SCHED-02)
         await mongodb.db.report_delivery_logs.create_index(
             [("schedule_id", 1), ("run_at", -1)],

@@ -120,6 +120,24 @@ async def scan_account(db, account_id: str, tenant_id: str) -> dict:
             try: config = json.loads(creds)
             except: config = {}
             await poll_mongodb_atlas_findings(config, account_id, tenant_id)
+        elif provider == "oci":
+            from oci_ingest import poll_oci_cspm_findings
+            creds = _decrypt(account.get("credentials_ref", ""))
+            try: config = json.loads(creds)
+            except: config = {}
+            await poll_oci_cspm_findings(config, account_id, tenant_id)
+        elif provider == "alibaba":
+            from alibaba_ingest import poll_alibaba_cspm_findings
+            creds = _decrypt(account.get("credentials_ref", ""))
+            try: config = json.loads(creds)
+            except: config = {}
+            await poll_alibaba_cspm_findings(config, account_id, tenant_id)
+        elif provider == "cloudflare":
+            from cloudflare_ingest import poll_cloudflare_cspm_findings
+            creds = _decrypt(account.get("credentials_ref", ""))
+            try: config = json.loads(creds)
+            except: config = {}
+            await poll_cloudflare_cspm_findings(config, account_id, tenant_id)
 
         result = await cloud_checks_service.run_checks(account_id, provider, tenant_id)
         await db._db.cloud_accounts.update_one(

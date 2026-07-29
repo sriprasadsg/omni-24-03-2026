@@ -680,11 +680,24 @@ export interface Agent {
   status: AgentStatus;
   version: string;
   ipAddress: string;
+  /** WAN / ISP-assigned public IP resolved by the agent. */
+  publicIp?: string;
+  /** GeoIP location derived from the public IP (server-side, MaxMind GeoLite2). */
+  geo?: GeoLocation;
   lastSeen: string;
   remediationAttempts?: { timestamp: string }[];
   capabilities?: AgentCapability[];
   meta?: Record<string, unknown>;
   health: AgentHealth;
+}
+
+export interface GeoLocation {
+  country?: string;
+  country_code?: string;
+  city?: string;
+  region?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface AgenticStep {
@@ -1701,6 +1714,10 @@ export interface RemediationTask {
     created_at: string;
     updated_at: string;
     tenantId: string;
+    ticket_provider?: 'jira' | 'servicenow';
+    ticket_ref?: string;
+    ticket_url?: string;
+    sla_status?: 'ok' | 'at_risk' | 'breached' | 'none';
 }
 
 export interface FrameworkScore {

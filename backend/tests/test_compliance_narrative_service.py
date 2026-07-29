@@ -4,6 +4,16 @@ Tests: compliance_narrative_service.py
 Pattern: asyncio.run() + AsyncMock (NO pytest-asyncio).
 Pattern: asyncio.run() isolates each test from prior event-loop state — order-independent.
            Test 8 fails with AssertionError (_build_pdf does not yet render narrative text).
+
+Phase 39-09 rewired `compliance_narrative_service.py` as a thin shim
+delegating to `ai_orchestration.agents.narrative` (a `create_agent`-based
+agent) — `compliance_narrative_service.ai_service` no longer exists, so
+Tests 1-4/7 below are retargeted onto the new boundary
+(`ai_orchestration.agents.narrative.build_model_for_tenant`/`create_agent`,
+mirroring `test_auditor_agent.py`'s/`test_ai_assistant.py`'s conventions)
+instead of the old `ai_service.generate_text` mock. The behavioral contract
+these tests assert — `str` return, word-budget enforcement, fail-closed
+fallback on BLOCKED:/Error: output — is unchanged (39-CONTEXT.md).
 """
 import sys
 import os
@@ -15,6 +25,51 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic import ValidationError
 
 
+def _stub_cursor(docs):
+    cursor = MagicMock()
+    cursor.to_list = AsyncMock(return_value=docs)
+    return cursor
+
+
+def _stub_db():
+    """Minimal mocked db satisfying agents/narrative.py's read path:
+    guardrails.cross_tenant_output_scan (tenants.find), decision_log
+    (agent_ai_decisions.insert_one), models._tenant_model_names
+    (system_settings.find_one — only reached when tenant_id is truthy)."""
+    db = MagicMock(spec=["tenants", "agent_ai_decisions", "system_settings"])
+    db.tenants = MagicMock()
+    db.tenants.find = MagicMock(return_value=_stub_cursor([]))
+    db.agent_ai_decisions = MagicMock()
+    db.agent_ai_decisions.insert_one = AsyncMock(return_value=None)
+    db.system_settings = MagicMock()
+    db.system_settings.find_one = AsyncMock(return_value=None)
+    return db
+
+
+def _narrative_agent_patches(text):
+    """Patch the call-graph seams `generate_executive_summary`/
+    `generate_framework_narrative` -> `ai_orchestration.agents.narrative`
+    traverse to reach a model, without any live model/gateway/Mongo call —
+    mirrors test_narrative_agent.py's `_patched`."""
+    structured = MagicMock()
+    structured.text = text
+    agent = MagicMock()
+    agent.ainvoke = AsyncMock(return_value={"structured_response": structured, "messages": []})
+    return (
+        patch(
+            "ai_orchestration.agents.narrative.build_model_for_tenant",
+            AsyncMock(return_value=MagicMock()),
+        ),
+        patch("ai_orchestration.agents.narrative.create_agent", MagicMock(return_value=agent)),
+        patch(
+            "ai_orchestration.guardrails.guardrail_service.scan_and_log",
+            AsyncMock(return_value=MagicMock(passed=True, findings=[])),
+        ),
+        patch("compliance_narrative_service.get_tenant_id", MagicMock(return_value=None)),
+        patch("database.get_database", MagicMock(return_value=_stub_db())),
+    )
+
+
 # ===========================================================================
 # Test 1 — AI-05: generate_executive_summary returns str within 150 words
 # ===========================================================================
@@ -22,10 +77,10 @@ from pydantic import ValidationError
 class TestGenerateExecutiveSummary:
     def test_returns_str_on_success(self):
         async def run():
-            with patch("compliance_narrative_service.ai_service") as mock_svc:
-                mock_svc.generate_text = AsyncMock(
-                    return_value="The SOC 2 compliance posture is sound."
-                )
+            p1, p2, p3, p4, p5 = _narrative_agent_patches(
+                "The SOC 2 compliance posture is sound."
+            )
+            with p1, p2, p3, p4, p5:
                 from compliance_narrative_service import generate_executive_summary
                 result = await generate_executive_summary(
                     framework_name="SOC 2",
@@ -47,10 +102,8 @@ class TestGenerateExecutiveSummary:
 class TestWordBudget:
     def test_trims_to_150_words(self):
         async def run():
-            with patch("compliance_narrative_service.ai_service") as mock_svc:
-                mock_svc.generate_text = AsyncMock(
-                    return_value=" ".join(["word"] * 200)
-                )
+            p1, p2, p3, p4, p5 = _narrative_agent_patches(" ".join(["word"] * 200))
+            with p1, p2, p3, p4, p5:
                 from compliance_narrative_service import generate_executive_summary
                 result = await generate_executive_summary(
                     framework_name="SOC 2",
@@ -71,8 +124,8 @@ class TestWordBudget:
 class TestFallbackOnError:
     def test_returns_fallback_on_error_prefix(self):
         async def run():
-            with patch("compliance_narrative_service.ai_service") as mock_svc:
-                mock_svc.generate_text = AsyncMock(return_value="Error: API timeout")
+            p1, p2, p3, p4, p5 = _narrative_agent_patches("Error: API timeout")
+            with p1, p2, p3, p4, p5:
                 from compliance_narrative_service import generate_executive_summary
                 result = await generate_executive_summary(
                     framework_name="SOC 2",
@@ -94,10 +147,8 @@ class TestFallbackOnError:
 class TestFallbackOnBlocked:
     def test_returns_fallback_on_blocked_prefix(self):
         async def run():
-            with patch("compliance_narrative_service.ai_service") as mock_svc:
-                mock_svc.generate_text = AsyncMock(
-                    return_value="BLOCKED: PII detected in output"
-                )
+            p1, p2, p3, p4, p5 = _narrative_agent_patches("BLOCKED: PII detected in output")
+            with p1, p2, p3, p4, p5:
                 from compliance_narrative_service import generate_executive_summary
                 result = await generate_executive_summary(
                     framework_name="SOC 2",
@@ -149,10 +200,8 @@ class TestNarrativeOutput:
 class TestFrameworkNarrative:
     def test_framework_narrative_within_200_words(self):
         async def run():
-            with patch("compliance_narrative_service.ai_service") as mock_svc:
-                mock_svc.generate_text = AsyncMock(
-                    return_value=" ".join(["word"] * 250)
-                )
+            p1, p2, p3, p4, p5 = _narrative_agent_patches(" ".join(["word"] * 250))
+            with p1, p2, p3, p4, p5:
                 from compliance_narrative_service import generate_framework_narrative
                 result = await generate_framework_narrative(
                     framework_name="ISO 27001",

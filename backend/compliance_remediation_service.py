@@ -57,6 +57,12 @@ async def create_task(db, data: dict, tenant_filter: dict, created_by: str) -> d
         "resolution_notes": None,
         "agent_id": agent_id,
         "ai_suggestion": None,
+        # SLA-01 defaults (D-01) — system-managed, never client-writable via
+        # TaskUpdate; recomputed by the SLA sweep (44-02), not trusted from
+        # this initial value beyond "no SLA state yet".
+        "sla_status": "ok" if data.get("due_date") else "none",
+        "escalated": False,
+        "escalation_level": 0,
         "tenantId": tenant_filter.get("tenantId", ""),
         "created_by": created_by,
         "created_at": now,
@@ -64,6 +70,20 @@ async def create_task(db, data: dict, tenant_filter: dict, created_by: str) -> d
     }
     await db.compliance_remediation_tasks.insert_one(task)
     task.pop("_id", None)
+
+    # D-01 (revised 2026-07-21): auto-create a ticket for critical/high/medium
+    # priority tasks. D-04: non-blocking — a ticketing failure must never
+    # prevent the task itself from being created/returned.
+    if task.get("priority") in ("critical", "high", "medium"):
+        try:
+            import ticketing_bridge  # noqa: PLC0415 — lazy import, avoid import cycle
+
+            await ticketing_bridge.create_ticket_for_remediation_task(
+                db, task, task.get("tenantId", "")
+            )
+        except Exception as exc:
+            logger.warning("Auto-create ticket failed (non-fatal): %s", exc)
+
     return task
 
 

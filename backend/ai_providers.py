@@ -216,6 +216,56 @@ class AnthropicProvider(AIProvider):
             yield await self.generate(prompt)
 
 
+class OpenAICompatProvider(AIProvider):
+    """OpenAI-compatible chat-completions provider (e.g. the 9router gateway).
+
+    Talks to `{base_url}/v1/chat/completions`. Sends stream:false for a single
+    JSON body and omits `temperature` for models that reject it (Claude 5 family
+    returns 400 "temperature is deprecated for this model").
+    """
+
+    def __init__(self):
+        self.base_url = ""
+        self.api_key = ""
+        self.model_name = ""
+
+    @property
+    def name(self) -> str:
+        return "OpenAI-Compatible"
+
+    async def configure(self, settings: dict) -> bool:
+        import os
+        self.base_url = (settings.get("baseUrl") or settings.get("routerUrl")
+                         or os.getenv("AI_ROUTER_URL") or "").rstrip("/")
+        self.api_key = (settings.get("apiKey") or os.getenv("AI_ROUTER_KEY") or "")
+        self.model_name = (settings.get("model") or os.getenv("AI_ROUTER_MODEL") or "")
+        if not (self.base_url and self.api_key and self.model_name):
+            logger.warning("OpenAICompatProvider: baseUrl/apiKey/model incomplete")
+            return False
+        return True
+
+    def _payload(self, prompt: str) -> dict:
+        body = {
+            "model": self.model_name,
+            "stream": False,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1024,
+        }
+        # Claude 5 models reject temperature; only send it for others.
+        if "claude" not in self.model_name.lower():
+            body["temperature"] = 0.1
+        return body
+
+    async def generate(self, prompt: str) -> str:
+        url = f"{self.base_url}/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=self._payload(prompt), headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+
 class MockProvider(AIProvider):
     _DEGRADED_NOTICE = (
         "\n\n⚠️ **AI running in limited mode** — no LLM provider is configured. "

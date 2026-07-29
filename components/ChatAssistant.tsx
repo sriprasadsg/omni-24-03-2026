@@ -55,15 +55,18 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
 
   useEffect(() => {
     if (!isOpen) return;
+    const token = sessionStorage.getItem('token') || '';
     setMessages([{
       role: 'assistant',
       content: `Hello! I'm Chitti, your Omni-Agent AI. I have context on the **${context.currentView}** page. Ask me anything, or type \`/\` for quick skills.`
     }]);
-    fetch(`${API_BASE}/api/ai`)
+    fetch(`${API_BASE}/api/ai`, {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(r => r.json())
       .then(d => setIsMockMode(!!d.is_mock_mode))
       .catch(() => {});
-    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
     fetch(`${API_BASE}/api/ai/skills`, {
       credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {},

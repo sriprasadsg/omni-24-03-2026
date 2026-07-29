@@ -232,6 +232,72 @@ async def support_typing(sid, data):
         if usid != sid and user_tenants.get(uname, "") == tenant_id:
             await sio.emit("support_typing", relay, room=usid)
 
+
+# ===== WebRTC CALL SIGNALING =====
+# Relays SDP offers/answers and ICE candidates between two authenticated users
+# for browser-to-browser audio/video calls launched from the support chat.
+# The media itself is peer-to-peer (WebRTC); only signaling passes through here.
+
+async def _relay_call_signal(sid: str, data: dict, event_name: str) -> None:
+    """
+    Forward a signaling message to `data['to']` (a username), stamping the
+    authenticated sender as `from`. Enforces tenant isolation: caller and
+    callee must belong to the same tenant. If the target is offline the caller
+    is notified via `webrtc_unavailable` (except for terminal end/reject events).
+    """
+    sender = next((u for u, s in user_sessions.items() if s == sid), None)
+    if not sender:
+        return
+    target = (data or {}).get("to")
+    if not target:
+        return
+    sender_tenant = user_tenants.get(sender, "")
+    # Tenant isolation — never bridge a call across tenants.
+    if not sender_tenant or user_tenants.get(target, "\x00") != sender_tenant:
+        return
+    target_sid = user_sessions.get(target)
+    if not target_sid:
+        if event_name not in ("webrtc_call_end", "webrtc_call_reject"):
+            await sio.emit(
+                "webrtc_unavailable",
+                {"to": target, "convo_id": (data or {}).get("convo_id", "")},
+                room=sid,
+            )
+        return
+    relay = {**(data or {}), "from": sender}
+    await sio.emit(event_name, relay, room=target_sid)
+
+
+@sio.event
+async def webrtc_offer(sid, data):
+    """Caller -> callee: SDP offer. Payload: { to, convo_id, call_id, sdp, media, from_name }"""
+    await _relay_call_signal(sid, data, "webrtc_offer")
+
+
+@sio.event
+async def webrtc_answer(sid, data):
+    """Callee -> caller: SDP answer. Payload: { to, call_id, sdp }"""
+    await _relay_call_signal(sid, data, "webrtc_answer")
+
+
+@sio.event
+async def webrtc_ice(sid, data):
+    """Bidirectional ICE candidate trickle. Payload: { to, call_id, candidate }"""
+    await _relay_call_signal(sid, data, "webrtc_ice")
+
+
+@sio.event
+async def webrtc_call_reject(sid, data):
+    """Callee declines an incoming call. Payload: { to, call_id }"""
+    await _relay_call_signal(sid, data, "webrtc_call_reject")
+
+
+@sio.event
+async def webrtc_call_end(sid, data):
+    """Either party hangs up an active/ringing call. Payload: { to, call_id }"""
+    await _relay_call_signal(sid, data, "webrtc_call_end")
+
+
 # ===== BROADCAST FUNCTIONS =====
 
 async def broadcast_notification(tenant_id: str, notification: dict):

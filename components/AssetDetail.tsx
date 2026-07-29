@@ -21,6 +21,15 @@ interface AssetDetailProps {
 
 type DetailTab = 'overview' | 'metrics' | 'vulnerabilities' | 'software' | 'patches' | 'integrity' | 'remote' | 'stream';
 
+// Agents report RAM as a raw GB float (e.g. 31.433788). Render it as "31.4 GB"
+// while leaving already-formatted or empty values untouched.
+const formatRam = (ram: unknown): string => {
+    if (ram === null || ram === undefined || ram === '') return '—';
+    const n = typeof ram === 'number' ? ram : parseFloat(String(ram));
+    if (Number.isNaN(n)) return String(ram);
+    return /gb|mb|tb/i.test(String(ram)) ? String(ram) : `${n.toFixed(1)} GB`;
+};
+
 const DetailCard: React.FC<{ icon: React.ReactNode; label: string; value: string; }> = ({ icon, label, value }) => (
     <div className="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
         <div className="mr-3 text-primary-500">{icon}</div>
@@ -236,13 +245,13 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <DetailCard icon={<CpuIcon size={20} />} label="CPU Model" value={displayAsset.cpuModel} />
-                            <DetailCard icon={<MemoryStickIcon size={20} />} label="RAM" value={displayAsset.ram} />
+                            <DetailCard icon={<MemoryStickIcon size={20} />} label="RAM" value={formatRam(displayAsset.ram)} />
                         </div>
                         <div>
                             <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Storage Devices</h4>
                             <div className="space-y-3">
-                                {(displayAsset.disks || []).map(disk => (
-                                    <div key={disk.device}>
+                                {(displayAsset.disks || []).map((disk, idx) => (
+                                    <div key={`${disk.device || 'disk'}-${idx}`}>
                                         <div className="flex justify-between items-center mb-1 text-sm">
                                             <span className="font-mono text-xs text-gray-800 dark:text-gray-200 flex items-center">
                                                 {disk.isRemovable ? <UsbIcon size={14} className="mr-1 text-blue-500" title="Removable Device" /> : <HardDriveIcon size={14} className="mr-1 text-gray-400" />}
