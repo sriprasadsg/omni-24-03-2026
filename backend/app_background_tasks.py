@@ -1,9 +1,41 @@
 """Background coroutines started during the application lifespan."""
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
+
+# New imports for autonomous remediation
+from autonomous_remediation_service import AutonomousRemediationService, AUTONOMOUS_REMEDIATION_INTERVAL_SEC
+from tenant_context import set_tenant_id, reset_tenant_id # Import set_tenant_id, reset_tenant_id
+
+
+async def autonomous_remediation_loop():
+    """Continuous loop to run autonomous remediation across tenants."""
+    logger = logging.getLogger(__name__ + ".auto_remediation")
+    logger.info("Autonomous remediation loop started (interval=%ds)", AUTONOMOUS_REMEDIATION_INTERVAL_SEC)
+
+    service = AutonomousRemediationService()
+
+    while True:
+        _tenant_ctx_token = None
+        try:
+            db = get_database() # Ensure get_database is imported or globally available
+            # Scan all tenants
+            tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
+            for tenant in tenants:
+                tid = tenant.get("id")
+                if tid:
+                    _tenant_ctx_token = set_tenant_id(tid) # Set tenant context before running cycle
+                    await service.run_cycle(tid)
+        except Exception as e:
+            logger.error("Autonomous remediation loop error for tenant %s: %s", tid, e)
+        finally:
+            if _tenant_ctx_token is not None:
+                reset_tenant_id(_tenant_ctx_token) # Ensure context is reset
+
+        await asyncio.sleep(AUTONOMOUS_REMEDIATION_INTERVAL_SEC)
 
 
 async def monitor_agent_status():
@@ -179,40 +211,148 @@ async def snapshot_compliance_scores_loop():
                     await db._db.compliance_score_history.update_one(
                         {"tenant_id": tid, "date": date_key},
                         {"$set": snapshot},
-                        upsert=True,
+                        upsert=True
                     )
-                    _log.debug("Snapshot saved for tenant %s: score=%s threat=%s", tid, compliance_pct, threat_score)
-                except Exception as _te:
-                    _log.error("Snapshot failed for tenant %s: %s", tid, _te)
+                    _log.info("Compliance score snapshot recorded for tenant %s: %s", tid, threat_score)
 
+                except Exception as _te:
+                    _log.error("Compliance score snapshot error for tenant %s: %s", tid, _te)
         except Exception as _e:
-            _log.error("Score snapshot loop error: %s", _e)
+            _log.error("Compliance score snapshot cycle error: %s", _e)
         finally:
-            # Restores pre-cycle state even though per-tenant set_tenant_id(tid)
-            # calls happened after this token was minted (SEC-03).
             if _tenant_ctx_token is not None:
                 reset_tenant_id(_tenant_ctx_token)
 
+async def _run_agent_uptime_rollup_once(db) -> int:
+    """
+    Single-pass body of `agent_uptime_rollup_loop()`, factored out so tests
+    can drive one sweep iteration directly rather than the infinite
+    `while True` loop.
 
-async def refresh_mitre_heatmap_loop():
-    """Recompute and broadcast MITRE ATT&CK heatmap to connected tenants every 60 seconds."""
-    import websocket_manager
-    from mitre_service import get_coverage_heatmap
+    Reuses `agent_uptime_service.compute_uptime` for the daily % (D-01b) —
+    NEVER re-implements the uptime math here. Iterates ALL tenants via raw
+    `db._db` (Pattern 1 — this is a legitimate cross-tenant background
+    sweep), writing one upserted row per agent per day into
+    `agent_uptime_rollups` keyed on `{agent_id, date}`. Every row carries an
+    explicit `tenant_id` (T-48-04).
 
-    _log = logging.getLogger(__name__ + ".mitre_refresh")
-    _log.info("MITRE heatmap auto-refresh loop started (interval=60s)")
+    Returns the number of rollup rows upserted this pass.
+    """
+    from agent_uptime_service import compute_uptime
+
+    _log = logging.getLogger(__name__ + ".uptime_rollup")
+    _tenant_ctx_token = None
+    written = 0
+    try:
+        _tenant_ctx_token = set_tenant_id("platform-admin")
+        tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
+        now = datetime.now(timezone.utc)
+        date_key = now.strftime("%Y-%m-%d")
+        window_start_iso = (now - timedelta(hours=24)).isoformat()
+
+        for tenant in tenants:
+            tid = tenant.get("id")
+            if not tid:
+                continue
+            try:
+                set_tenant_id(tid)
+                agents = await db._db.agents.find(
+                    {"tenantId": tid}, {"id": 1}
+                ).to_list(length=5000)
+
+                for agent in agents:
+                    aid = agent.get("id")
+                    if not aid:
+                        continue
+
+                    rows = await db._db.agent_metrics.find(
+                        {"agent_id": aid, "timestamp": {"$gte": window_start_iso}},
+                        {"_id": 0, "timestamp": 1},
+                    ).to_list(length=5760)  # 24h ceiling at 30s cadence
+
+                    result = compute_uptime(rows, 24)
+
+                    await db._db.agent_uptime_rollups.update_one(
+                        {"agent_id": aid, "date": date_key},
+                        {
+                            "$set": {
+                                "tenant_id": tid,
+                                "uptime_percent": result["uptime_percent"],
+                                # Native BSON Date — NEVER .isoformat() here
+                                # (Pattern 3 / T-48-06): retention_service
+                                # compares this field with a datetime $lt.
+                                "timestamp": datetime.now(timezone.utc),
+                            }
+                        },
+                        upsert=True,
+                    )
+                    written += 1
+            except Exception as _te:
+                _log.error("Agent uptime rollup error for tenant %s: %s", tid, _te)
+    except Exception as _e:
+        _log.error("Agent uptime rollup cycle error: %s", _e)
+    finally:
+        if _tenant_ctx_token is not None:
+            reset_tenant_id(_tenant_ctx_token)
+    return written
+
+
+async def agent_uptime_rollup_loop():
+    """
+    Daily background sweep (FOBS-02, D-01b): writes one row per agent per
+    day into `agent_uptime_rollups`, so aggregate/long-range uptime is cheap
+    and a future longer-range UI is a switch-on, not a rebuild.
+
+    D-08: this performs NO historical backfill. Each run writes ONLY the
+    current day's row — an empty `agent_uptime_rollups` collection right
+    after first deploy is expected (it fills in one row per agent per day
+    going forward), not a bug.
+    """
+    from database import get_database
+
+    _log = logging.getLogger(__name__ + ".uptime_rollup")
+    _log.info("Agent uptime rollup loop started (interval=86400s)")
 
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(86400)  # run once per day; no backfill (D-08)
         try:
-            tenant_ids = websocket_manager.get_connected_tenant_ids()
-            for tenant_id in tenant_ids:
-                if not tenant_id or tenant_id == "platform-admin":
-                    continue
-                try:
-                    heatmap = await get_coverage_heatmap(tenant_id)
-                    await websocket_manager.broadcast_mitre_heatmap(tenant_id, heatmap)
-                except Exception as _te:
-                    _log.debug("MITRE refresh failed for tenant %s: %s", tenant_id, _te)
+            db = get_database()
+            written = await _run_agent_uptime_rollup_once(db)
+            _log.info("Agent uptime rollup sweep wrote %d row(s)", written)
         except Exception as _e:
-            _log.error("MITRE heatmap refresh loop error: %s", _e)
+            _log.error("Agent uptime rollup loop error: %s", _e)
+
+
+async def refresh_mitre_heatmap_loop():
+    """Nightly rebuild of the MITRE ATT&CK heatmap cache."""
+    from mitre_heatmap_service import MitreHeatmapService
+    from database import get_database
+    from tenant_context import set_tenant_id, reset_tenant_id
+
+    _log = logging.getLogger(__name__ + ".mitre_heatmap")
+    _log.info("MITRE heatmap refresh loop started (interval=86400s)")
+
+    while True:
+        await asyncio.sleep(86400)  # run once per day
+        _tenant_ctx_token = None
+        try:
+            db = get_database()
+            _tenant_ctx_token = set_tenant_id("platform-admin") # Admin context for tenant enumeration
+
+            tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
+            heatmap_service = MitreHeatmapService(db)
+
+            for tenant in tenants:
+                tid = tenant.get("id")
+                if tid:
+                    try:
+                        set_tenant_id(tid) # Switch to tenant context for heatmap generation
+                        await heatmap_service.rebuild_heatmap_cache(tid)
+                        _log.info("MITRE heatmap refreshed for tenant %s", tid)
+                    except Exception as _te:
+                        _log.error("MITRE heatmap refresh error for tenant %s: %s", tid, _te)
+        except Exception as _e:
+            _log.error("MITRE heatmap refresh cycle error: %s", _e)
+        finally:
+            if _tenant_ctx_token is not None:
+                reset_tenant_id(_tenant_ctx_token)

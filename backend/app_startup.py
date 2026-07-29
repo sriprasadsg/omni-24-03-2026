@@ -581,11 +581,13 @@ async def run_startup_services() -> None:
     from app_background_tasks import (
         monitor_agent_status, refresh_mitre_heatmap_loop,
         compliance_evidence_sweep_loop, snapshot_compliance_scores_loop,
+        agent_uptime_rollup_loop,
     )
     asyncio.create_task(_safe_bg_task(monitor_agent_status(), "agent_status_monitor"))
     asyncio.create_task(_safe_bg_task(refresh_mitre_heatmap_loop(), "mitre_heatmap_refresh"))
     asyncio.create_task(_safe_bg_task(compliance_evidence_sweep_loop(), "compliance_evidence_sweep"))
     asyncio.create_task(_safe_bg_task(snapshot_compliance_scores_loop(), "compliance_score_snapshot"))
+    asyncio.create_task(_safe_bg_task(agent_uptime_rollup_loop(), "agent_uptime_rollup"))
 
     try:
         from scheduler import start_scheduler as start_deployment_scheduler
