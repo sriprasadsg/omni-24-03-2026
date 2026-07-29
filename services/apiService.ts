@@ -5010,3 +5010,31 @@ export const submitAnswerDraft = async (draftId: string): Promise<AnswerDraftDoc
     }
     return await res.json();
 };
+
+// ── Fleet Observability (Phase 48 Plan 05, FOBS-03) ──────────────────────────
+// Renderer over the 48-03 aggregate endpoint — no client-side offline/version
+// recomputation (D-03). Backed by GET /api/fleet/observability.
+export interface FleetObservabilityAgent {
+    id: string;
+    hostname: string;
+    status: string;
+    version: string | null;
+    tenantId: string | null;
+}
+
+export interface FleetObservability {
+    latest_version: string;
+    offline_agents: FleetObservabilityAgent[];
+    offline_count: number;
+    version_drift: FleetObservabilityAgent[];
+    drift_count: number;
+}
+
+export const fetchFleetObservability = async (): Promise<FleetObservability> => {
+    const res = await authFetch(`${API_BASE}/fleet/observability`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load fleet observability data');
+    }
+    return await res.json();
+};
