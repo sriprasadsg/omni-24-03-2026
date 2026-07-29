@@ -337,25 +337,37 @@ async fn execute_instruction(
             let preview: String = content.chars().take(120).collect();
             log::info!("Chat [{session_id}] from {sender}: {preview}");
 
-            // If the interactive window is open it polls new admin messages on its
-            // own — do not also fire a msg.exe popup. Only fall back to the one-way
-            // notice when no window is running for this session.
+            // If the interactive window is already open it polls new admin messages
+            // on its own. Otherwise open a real two-way chat window with this message
+            // as the opener, so admin↔endpoint is a genuine interactive session — not
+            // a one-way msg.exe popup. Fall back to the one-way notice only when no
+            // interactive session can be opened (no logged-on user / non-Windows).
             if crate::chat_ui::is_active(session_id) {
                 log::debug!("Interactive window active for {session_id}; UI will poll this message");
-            } else if let Err(e) = crate::chat_display::show_message(sender, content) {
-                log::warn!("Chat on-screen display failed: {e}");
-                if !session_id.is_empty() {
-                    let url = format!(
-                        "{}/api/agent-chat/sessions/{}/user-message",
-                        cfg.api_base_url.trim_end_matches('/'),
-                        session_id
-                    );
-                    let _ = client
-                        .post(&url)
-                        .bearer_auth(&cfg.agent_token)
-                        .json(&serde_json::json!({"content": format!("⚠ Could not display on endpoint: {e}")}))
-                        .send()
-                        .await;
+            } else if let Err(e) = crate::chat_ui::launch_interactive(
+                session_id,
+                "Support Chat",
+                content,
+                sender,
+                cfg.api_base_url.trim_end_matches('/'),
+                &cfg.agent_token,
+            ) {
+                log::warn!("Interactive chat launch failed ({e}); using one-way display");
+                if let Err(de) = crate::chat_display::show_message(sender, content) {
+                    log::warn!("Chat on-screen display failed: {de}");
+                    if !session_id.is_empty() {
+                        let url = format!(
+                            "{}/api/agent-chat/sessions/{}/user-message",
+                            cfg.api_base_url.trim_end_matches('/'),
+                            session_id
+                        );
+                        let _ = client
+                            .post(&url)
+                            .bearer_auth(&cfg.agent_token)
+                            .json(&serde_json::json!({"content": format!("⚠ Could not display on endpoint: {de}")}))
+                            .send()
+                            .await;
+                    }
                 }
             }
             serde_json::json!({"status": "success", "received": true})
