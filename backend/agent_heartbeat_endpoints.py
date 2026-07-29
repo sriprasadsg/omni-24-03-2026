@@ -11,6 +11,8 @@ import logging
 from agent_location_history_service import record_location_change, get_track_agent_location
 from agent_auto_update_service import maybe_push_update_instruction
 from agent_heartbeat_alerts_service import persist_persistence_detection, persist_pii_scanner
+from geo_security_service import run_geo_security_detectors
+from ueba_service import persist_security_alert
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -156,6 +158,20 @@ async def report_heartbeat(
             )
         except Exception as loc_err:
             logger.warning("Failed to record location history for agent %s: %s", agent_id, loc_err)
+
+        # Agent-scoped geo security detectors (Phase 47, GSEC-02/GSEC-03) —
+        # alert-only (D-04): a detector fault is logged and never fails the
+        # heartbeat response or affects the connection. Reuses the RAW
+        # existing_agent doc (pre-update) as the previous check-in state.
+        try:
+            _geo_sec_now = datetime.now(timezone.utc)
+            geo_sec_alerts = await run_geo_security_detectors(
+                db, existing_agent, agent_id, _hb_tenant_id, geo, _geo_sec_now
+            )
+            for geo_sec_alert in geo_sec_alerts:
+                await persist_security_alert(db, **geo_sec_alert)
+        except Exception as geo_sec_err:
+            logger.warning("Failed to run geo security detectors for agent %s: %s", agent_id, geo_sec_err)
 
     # Auto-push update instruction when the agent reports an outdated binary
     # version — extracted to agent_auto_update_service.py to keep this file
@@ -346,17 +362,13 @@ async def report_heartbeat(
                 ]
                 if events:
                     await db.shadow_ai_events.insert_many(events, ordered=False)
-                try:
-                    from ueba_service import persist_security_alert
-                    for evt in events:
-                        await persist_security_alert(
-                            db, alert_type="shadow_ai", severity="medium",
-                            title=f"Shadow AI Usage Detected: {evt.get('remote_host')}",
-                            description=f"Process '{evt.get('process')}' on agent {_agent_id} connected to {evt.get('remote_host')}.",
-                            metadata=evt,
-                        )
-                except ImportError:
-                    pass
+                for evt in events:
+                    await persist_security_alert(
+                        db, alert_type="shadow_ai", severity="medium",
+                        title=f"Shadow AI Usage Detected: {evt.get('remote_host')}",
+                        description=f"Process '{evt.get('process')}' on agent {_agent_id} connected to {evt.get('remote_host')}.",
+                        metadata=evt,
+                    )
 
             background_tasks.add_task(_persist_shadow_ai, s_data["ai_connections"], agent_id, _hb_tenant_id)
 
@@ -364,17 +376,13 @@ async def report_heartbeat(
         u_data = meta["ueba"]
         if isinstance(u_data, dict):
             for anomaly in u_data.get("anomalies_detected", []):
-                try:
-                    from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="ueba_anomaly",
-                        severity=anomaly.get("severity", "medium").lower(),
-                        title=f"UEBA Anomaly: {anomaly.get('type')}",
-                        description=f"{anomaly.get('type')} detected for user {anomaly.get('user')}.",
-                        metadata={**anomaly, "agent_id": agent_id, "tenantId": _hb_tenant_id}
-                    )
-                except ImportError:
-                    pass
+                background_tasks.add_task(
+                    persist_security_alert, db, alert_type="ueba_anomaly",
+                    severity=anomaly.get("severity", "medium").lower(),
+                    title=f"UEBA Anomaly: {anomaly.get('type')}",
+                    description=f"{anomaly.get('type')} detected for user {anomaly.get('user')}.",
+                    metadata={**anomaly, "agent_id": agent_id, "tenantId": _hb_tenant_id}
+                )
 
     if "software_inventory" in meta:
         sw_list = meta["software_inventory"]
@@ -421,16 +429,12 @@ async def report_heartbeat(
         fim_data = meta["fim"]
         if isinstance(fim_data, dict) and fim_data.get("violations"):
             for v in fim_data["violations"][:200]:
-                try:
-                    from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="fim_violation", severity="high",
-                        title=f"File Integrity Violation: {v.get('path')}",
-                        description=f"Critical file modified on agent {agent_id}: {v.get('path')}.",
-                        metadata={**v, "agent_id": agent_id, "tenantId": _hb_tenant_id},
-                    )
-                except ImportError:
-                    pass
+                background_tasks.add_task(
+                    persist_security_alert, db, alert_type="fim_violation", severity="high",
+                    title=f"File Integrity Violation: {v.get('path')}",
+                    description=f"Critical file modified on agent {agent_id}: {v.get('path')}.",
+                    metadata={**v, "agent_id": agent_id, "tenantId": _hb_tenant_id},
+                )
             _allowed_fim = {"path", "hash", "size", "modified", "action", "severity"}
             await db.fim_violations.insert_many([
                 {k: v_item[k] for k in _allowed_fim if k in v_item} | {
@@ -448,19 +452,15 @@ async def report_heartbeat(
         rs_data = meta["runtime_security"]
         if isinstance(rs_data, dict) and rs_data.get("suspicious_activities"):
             for item in [a for a in rs_data["suspicious_activities"] if a.get("severity") in ("critical", "high")]:
-                try:
-                    from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="runtime_security",
-                        severity=item.get("severity", "high"),
-                        title=f"Runtime Threat: {item.get('type')} on {agent_id}",
-                        description=item.get("description", "Suspicious runtime activity detected"),
-                        metadata={"type": item.get("type"), "severity": item.get("severity"),
-                                  "description": item.get("description"), "agent_id": agent_id,
-                                  "tenantId": _hb_tenant_id},
-                    )
-                except ImportError:
-                    pass
+                background_tasks.add_task(
+                    persist_security_alert, db, alert_type="runtime_security",
+                    severity=item.get("severity", "high"),
+                    title=f"Runtime Threat: {item.get('type')} on {agent_id}",
+                    description=item.get("description", "Suspicious runtime activity detected"),
+                    metadata={"type": item.get("type"), "severity": item.get("severity"),
+                              "description": item.get("description"), "agent_id": agent_id,
+                              "tenantId": _hb_tenant_id},
+                )
 
     task_feedback_list = meta.get("task_feedback", [])
     if isinstance(task_feedback_list, list) and task_feedback_list:
