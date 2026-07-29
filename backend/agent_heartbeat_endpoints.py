@@ -6,7 +6,11 @@ import re
 from agent_auth import verify_agent_key
 from rate_limiter import limiter, agent_limiter
 import geoip_service
+import agent_asn_service
 import logging
+from agent_location_history_service import record_location_change, get_track_agent_location
+from agent_auto_update_service import maybe_push_update_instruction
+from agent_heartbeat_alerts_service import persist_persistence_detection, persist_pii_scanner
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -123,52 +127,40 @@ async def report_heartbeat(
         if geo:
             update_data["geo"] = geo
 
+    # ASN + VPN heuristic enrichment + location-history (Phase 46, GAUD-01/02).
+    # Both are gated on the per-tenant track_agent_location toggle (D-02) —
+    # when OFF, neither runs, but the geoip_service city/country enrichment
+    # above stays unconditional (scope boundary, T-46-05-B).
+    asn_enrichment = None
+    track_location = False
+    if public_ip:
+        track_location = await get_track_agent_location(db, _hb_tenant_id)
+        if track_location:
+            asn_enrichment = agent_asn_service.lookup(public_ip)
+            if asn_enrichment:
+                geo = {**(geo or {}), "asn": asn_enrichment.get("asn"), "vpn_heuristic": asn_enrichment.get("vpn_heuristic")}
+                update_data["geo"] = geo
+
     await db.agents.update_one(
         _hb_agent_filter,
         {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
 
-    # Auto-push update instruction when the agent reports an outdated binary version.
-    # Windows-only: the published update binary is the Windows rust agent; pushing to
-    # other platforms just generates "unavailable" instruction noise.
-    #
-    # Only push to agents whose self-updater actually works. The updater resolves its
-    # own service by binary path (rather than a hardcoded name) starting in 2.0.5
-    # (commit 1439b2e1); before that it ran `net stop OmniAgent`, which silently fails
-    # on hosts installed as the "OmniAgentRust" service — the swap never happens and
-    # the agent re-reports the old version forever. Pushing to those hosts only spams
-    # the instruction history; they require a one-time manual reinstall instead.
-    _LATEST_AGENT_VERSION = "2.1.3"
-    _MIN_SELF_UPDATE_VERSION = (2, 0, 5)
-    _reported_version = payload.get("version", "")
+    # Record location history after enrichment (Phase 46, GAUD-01) — reuses
+    # the existing_agent doc already fetched above (D-05, zero extra reads).
+    if public_ip and track_location:
+        try:
+            await record_location_change(
+                db, existing_agent, agent_id, _hb_tenant_id, public_ip, geo, asn_enrichment
+            )
+        except Exception as loc_err:
+            logger.warning("Failed to record location history for agent %s: %s", agent_id, loc_err)
 
-    def _parse_ver(v: str):
-        m = re.match(r"(\d+)\.(\d+)\.(\d+)", v or "")
-        return tuple(int(g) for g in m.groups()) if m else None
-
-    _rv = _parse_ver(_reported_version)
-    if (_reported_version and _reported_version != _LATEST_AGENT_VERSION
-            and payload.get("platform") == "Windows"
-            and _rv is not None and _rv >= _MIN_SELF_UPDATE_VERSION):
-        # Dedup against pending AND sent: auto-pushed instructions flip to "sent" as
-        # soon as the agent polls, so checking only "pending" would insert a new row on
-        # every heartbeat until the agent finishes updating.
-        _existing = await db.agent_instructions.find_one(
-            {"agent_id": agent_id, "instruction": "agent_update",
-             "status": {"$in": ["pending", "sent"]}}
-        )
-        if not _existing:
-            await db.agent_instructions.insert_one({
-                "agent_id": agent_id,
-                "instruction": "agent_update",
-                "status": "pending",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "created_by": "auto_update",
-                "priority": "normal",
-            })
-            logger.info("Auto-pushed agent_update instruction to %s (reported %s < %s)",
-                        agent_id, _reported_version, _LATEST_AGENT_VERSION)
+    # Auto-push update instruction when the agent reports an outdated binary
+    # version — extracted to agent_auto_update_service.py to keep this file
+    # under the CLAUDE.md 500-line cap (see module docstring there).
+    await maybe_push_update_instruction(db, agent_id, payload)
 
     _meta = payload.get("meta", {})
     if _meta.get("current_cpu") is not None or _meta.get("current_memory") is not None:
@@ -335,15 +327,7 @@ async def report_heartbeat(
                     pass
 
     if "persistence_detection" in meta:
-        p_data = meta["persistence_detection"]
-        if isinstance(p_data, dict) and p_data.get("findings"):
-            import uuid as _uuid
-            await db.persistence_results.insert_one({
-                "id": _uuid.uuid4().hex, "tenantId": _hb_tenant_id,
-                "agentId": agent_id, "findings": p_data.get("findings", []),
-                "count": p_data.get("count", 0), "platform": p_data.get("platform"),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+        await persist_persistence_detection(db, agent_id, _hb_tenant_id, meta["persistence_detection"])
 
     if "shadow_ai" in meta:
         s_data = meta["shadow_ai"]
@@ -458,28 +442,7 @@ async def report_heartbeat(
             ])
 
     if "pii_scanner" in meta:
-        pii_data = meta["pii_scanner"]
-        if isinstance(pii_data, dict) and pii_data.get("pii_found"):
-            try:
-                from ueba_service import persist_security_alert
-                background_tasks.add_task(
-                    persist_security_alert, db, alert_type="pii_detected", severity="high",
-                    title=f"PII Detected on Agent {agent_id}",
-                    description=f"{pii_data.get('findings_count', 0)} file(s) contain PII patterns.",
-                    metadata={**pii_data, "agent_id": agent_id, "tenantId": _hb_tenant_id},
-                )
-            except ImportError:
-                pass
-            _allowed_pii = {"findings_count", "pii_found", "files_scanned", "categories"}
-            await db.pii_findings.update_one(
-                {"agent_id": agent_id},
-                {"$set": {k: pii_data[k] for k in _allowed_pii if k in pii_data} | {
-                    "agent_id": agent_id,
-                    "tenantId": _hb_tenant_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }},
-                upsert=True,
-            )
+        await persist_pii_scanner(db, agent_id, _hb_tenant_id, meta["pii_scanner"], background_tasks)
 
     if "runtime_security" in meta:
         rs_data = meta["runtime_security"]
