@@ -102,6 +102,18 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
         logger.debug("Blockchain audit block write failed (non-fatal): %s", e)
 
 
+# Public alias — five existing heartbeat call sites (shadow_ai, ueba_anomaly,
+# fim_violation, pii_detected, runtime_security in agent_heartbeat_endpoints.py
+# / agent_heartbeat_alerts_service.py) already do
+# `from ueba_service import persist_security_alert` wrapped in
+# `try/except ImportError: pass`. That name never existed until now, so all
+# five silently no-op'd (47-RESEARCH.md Pitfall 1). Do NOT rename
+# `_persist_alert` — its 4 internal call sites (above, and in analyze_login/
+# report_shadow_ai/analyze_data_access) reference the private name directly.
+# This is the ONLY alert-persistence path; never add a second one.
+persist_security_alert = _persist_alert
+
+
 def _parse_dt(val: str) -> datetime:
     return datetime.fromisoformat(val.replace("Z", "+00:00"))
 
