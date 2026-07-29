@@ -7,6 +7,7 @@ import {
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { fetchAssets, linkAgentToAsset, authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { AgentLocationHistory } from './AgentLocationHistory';
 
 const severityClasses: Record<VulnerabilitySeverity, string> = {
     Critical: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
@@ -208,6 +209,11 @@ export const AgentOverviewTab: React.FC<Props> = ({
                     </div>
                 </DetailRow>
             </dl>
+
+            {/* Location History (GAUD-02) */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <AgentLocationHistory agentId={agent.id} />
+            </div>
 
             {/* Live Performance Metrics */}
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
