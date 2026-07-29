@@ -4641,16 +4641,16 @@ export const getAgentLocationTracking = async (): Promise<{ enabled: boolean }> 
 };
 
 export const setAgentLocationTracking = async (enabled: boolean): Promise<{ enabled: boolean }> => {
-    try {
-        const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`, {
-            method: 'PATCH',
-            body: JSON.stringify({ enabled }),
-        });
-        if (!res.ok) return { enabled };
-        return await res.json();
-    } catch {
-        return { enabled };
+    const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update agent location tracking setting');
     }
+    return await res.json();
 };
 
 // ── Control Comments (Phase 42-03) ────────────────────────────────────────────
