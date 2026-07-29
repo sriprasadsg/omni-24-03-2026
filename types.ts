@@ -698,6 +698,12 @@ export interface GeoLocation {
   region?: string;
   latitude?: number;
   longitude?: number;
+  /** Heuristic-only flag (GSEC-01) — never an authoritative "detected" classification. */
+  vpn_heuristic?: boolean;
+  asn?: {
+    number?: number | string;
+    org?: string;
+  };
 }
 
 export interface AgenticStep {
