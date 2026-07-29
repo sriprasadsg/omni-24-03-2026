@@ -783,7 +783,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase — continues numbering from Phase 45)
 
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 **Wave 1** *(parallel, independent backend services)*
 
@@ -794,7 +794,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Wave 2** *(depends on Wave 1 services)*
 
 - [x] 46-04-PLAN.md — GAUD-01/02: `agent_location_history_endpoints.py` (tenant-scoped GET-only timeline with read-time dwell + admin-gated toggle GET/PATCH, no mutation route) + router registration + tests (D-10/D-02)
-- [ ] 46-05-PLAN.md — GAUD-01: wire ASN enrichment + `record_location_change` into heartbeat + registration handlers, toggle-gated, `geo.asn`/`geo.vpn_heuristic` persisted (D-13/D-05)
+- [x] 46-05-PLAN.md — GAUD-01: wire ASN enrichment + `record_location_change` into heartbeat + registration handlers, toggle-gated, `geo.asn`/`geo.vpn_heuristic` persisted (D-13/D-05)
 
 **Wave 3** *(frontend timeline)*
 
