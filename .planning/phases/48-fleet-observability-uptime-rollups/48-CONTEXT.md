@@ -30,7 +30,16 @@ Reuse-first: the metrics-history endpoint, `recharts`, `MetricsChartsTab.tsx`, `
 - **D-03:** **New admin-gated "Fleet Observability" nav page**, cloning the Phase 47 Security-panel pattern (dedicated view, admin-gated, registered in App.tsx + Sidebar.tsx). Backed by a **new aggregate endpoint** returning: offline agents (from the existing `status == "Offline"` set maintained by `monitor_agent_status()`) + version-drift list. **Version-drift = each agent's reported version compared to the single global `_LATEST_AGENT_VERSION`** (currently 2.1.4). Single-version compare — per-OS latest tracking is deferred (only one binary today).
 
 ### FOBS-01 Charts (reuse + mount)
-- **D-04:** **Reuse `MetricsChartsTab.tsx` as-is** (already renders CPU/mem/disk AreaCharts via recharts, consuming the metrics-history endpoint). Scope = **mount it into the agent detail view** (a new tab in `AgentDetailModal.tsx`, or in `AgentOverviewTab.tsx`) — it is currently only mounted in `AssetDetail.tsx` — and add the shared ≤48h range selector (D-02). No chart rework beyond the mount + range prop.
+- **D-04:** Render CPU/mem/disk AreaCharts in the agent detail view via recharts, ≤48h range selector.
+- **D-04 CORRECTION (per RESEARCH):** `MetricsChartsTab.tsx` is **asset-scoped** — it takes `assetId` and calls `GET /api/assets/{id}/metrics?range=`, NOT the agent metrics-history endpoint. So it is **not a literal drop-in**. Planner: adapt the recharts CPU/mem/disk chart structure into an **agent-scoped variant** that consumes `GET /agents/{id}/metrics/history?hours=N`, OR parametrize the fetch source. `AgentDetailModal.tsx` is already **703 lines (>500 cap)** — the new chart/timeline tab content MUST live in its own file, not inline in the modal.
+- **D-04 range fix:** MetricsChartsTab's internal presets are `1h/24h/7d/30d`; the ≤48h target needs `1h/6h/24h/48h`. If the asset path is touched, `asset_endpoints.py`'s `range_hours` dict silently falls back to 24h for unknown keys — add `6h`/`48h` keys there too (latent bug if only the frontend changes).
+
+### Data Source & Cadence (per RESEARCH)
+- **D-09:** Uptime source is the **`agent_metrics`** collection (per-heartbeat rows). `agent_metrics_history` is a **decoy** (capped ~100 rows/agent, ~25–50 min) — do NOT use it for uptime. No per-agent heartbeat interval is persisted, so uptime uses a **fixed 30s cadence assumption** (matches `monitor_agent_status()`).
+
+### Open-Question Resolutions (per RESEARCH)
+- **D-07:** Fleet Observability nav page is gated by the **`manage:agents`** permission.
+- **D-08:** The daily uptime-rollup sweep does **no historical backfill** on first run (matches every existing daily-sweep precedent).
 
 ### Claude's Discretion
 - Exact rollup sweep cadence + retention for `agent_uptime_rollups` (suggest daily sweep, retention routed through the existing retention module like Phase 46's location-history — planner/research decide).
