@@ -4,7 +4,7 @@ import { Agent, AgentPlatform, AgentStatus, Asset, Filter } from '../types';
 import {
     WindowsIcon, LinuxIcon, DockerIcon, KubernetesIcon, ServerIcon, HistoryIcon,
     RefreshCwIcon, FileTextIcon, TerminalSquareIcon, ArrowUpIcon, ArrowDownIcon,
-    FilterIcon, CheckIcon, XCircleIcon, AlertCircleIcon, ZapIcon, CogIcon, DownloadIcon, PlusCircleIcon, TrashIcon, ShieldIcon
+    FilterIcon, CheckIcon, XCircleIcon, AlertCircleIcon, ZapIcon, CogIcon, DownloadIcon, PlusCircleIcon, TrashIcon, ShieldIcon, WifiIcon
 } from './icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useUser } from '../contexts/UserContext';
@@ -224,6 +224,12 @@ const AgentCard: React.FC<{
                                 <span className="text-gray-800 dark:text-gray-200 text-xs flex items-center gap-1.5">
                                     {agent.geo.country_code && <span aria-hidden>{flagEmoji(agent.geo.country_code)}</span>}
                                     <span className="truncate">{formatGeo(agent.geo)}</span>
+                                    {agent.geo.vpn_heuristic === true && (
+                                        <span className="ml-2 inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 text-[11px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide">
+                                            <WifiIcon size={10} />
+                                            likely VPN/hosting
+                                        </span>
+                                    )}
                                 </span>
                             </div>
                         )}
