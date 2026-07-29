@@ -150,3 +150,12 @@ None - no external service configuration required.
 ---
 *Phase: 47-agent-scoped-geo-security-detectors*
 *Completed: 2026-07-29*
+
+## Self-Check: PASSED
+
+- FOUND: backend/geo_security_endpoints.py
+- FOUND: backend/tests/test_geo_security_endpoints.py
+- FOUND: .planning/phases/47-agent-scoped-geo-security-detectors/47-04-SUMMARY.md
+- FOUND commit: 9134bbe (test)
+- FOUND commit: 9b48750 (feat)
+- FOUND commit: 96eee69 (docs: summary)
