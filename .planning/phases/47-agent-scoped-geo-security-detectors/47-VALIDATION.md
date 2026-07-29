@@ -1,8 +1,8 @@
 ---
 phase: 47
 slug: agent-scoped-geo-security-detectors
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-29
 ---
@@ -38,14 +38,14 @@ created: 2026-07-29
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 47-00-01 | 00 | 0 | (prereq) | — | `persist_security_alert` importable + actually fans out (fixes 5 dormant no-op call sites) | unit | `pytest backend/tests/test_persist_security_alert.py -q` | ❌ W0 | ⬜ pending |
-| 47-0x-xx | — | 1 | GSEC-02 | — | Impossible-travel raises exactly one alert on genuine jump; suppressed when either endpoint vpn_heuristic is True | unit | `pytest backend/tests/test_impossible_travel.py -q` | ❌ W0 | ⬜ pending |
-| 47-0x-xx | — | 1 | GSEC-03 | — | Check-in country outside tenant allowlist raises alert; alert-only (no block) | unit | `pytest backend/tests/test_geo_fence.py -q` | ❌ W0 | ⬜ pending |
-| 47-0x-xx | — | 1 | GSEC-02/03 | — | Dedup: per-(agent,type) transition + 6h cooldown suppresses repeats | unit | `pytest backend/tests/test_detector_dedup.py -q` | ❌ W0 | ⬜ pending |
-| 47-0x-xx | — | 2 | GSEC-03 | — | Admin-gated GET/PATCH allowed-regions config; tenant-isolated; non-admin 403 | unit | `pytest backend/tests/test_geo_security_endpoints.py -q` | ❌ W0 | ⬜ pending |
-| 47-0x-xx | — | 3 | GSEC-01 | — | `vpn_heuristic` surfaced on agent card, labeled "likely VPN/hosting" (heuristic, never "detected") | manual+build | `npx tsc --noEmit && npm run build` | ❌ W0 | ⬜ pending |
+| 47-01/T1-T2 | 01 | 1 | GSEC-02/03 (prereq) | — | `persist_security_alert` alias importable + actually fans out (reactivates 5 dormant no-op call sites) | unit | `pytest backend/tests/ -k persist_security_alert -q` | ❌ W0 | ⬜ pending |
+| 47-02/T1-T3 | 02 | 1 | GSEC-02/03 | — | Impossible-travel (1000 km/h + 15-min floor, VPN-suppressed); geo-fence allowlist; dedup transition + 6h re-fire; returns payloads (no side effects) | unit | `pytest backend/tests/ -k geo_security -q` | ❌ W0 | ⬜ pending |
+| 47-03/T1-T2 | 03 | 2 | GSEC-02/03 | — | Heartbeat wiring: toggle-gated call-through, fans returned payloads to persist; alert-only, exception-safe; <500 lines | unit | `pytest backend/tests/ -k geo_security_wiring -q` | ❌ W0 | ⬜ pending |
+| 47-04/T1-T2 | 04 | 2 | GSEC-03 | — | Admin-gated GET/PATCH `/api/settings/geo-security` allowed-regions; ISO-3166 validation; tenant-isolated; non-admin 403 | unit | `pytest backend/tests/ -k geo_security_endpoints -q` | ❌ W0 | ⬜ pending |
+| 47-05/T1-T2 | 05 | 1 | GSEC-01 | — | `vpn_heuristic` on `GeoLocation` type + amber "likely VPN/hosting" badge on agent card (heuristic, never "detected") | build | `npx tsc --noEmit && npm run build` | ❌ W0 | ⬜ pending |
+| 47-06/T1-T2 | 06 | 3 | GSEC-03 | — | Security settings panel (detector toggles + allowlist editor), distinct from PrivacyDashboard | build+manual | `npx tsc --noEmit && npm run build` | ❌ W0 | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. Task IDs finalized by the planner.*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. `File Exists ❌ W0` → tests are Wave-0 stubs created during execution.*
 
 ---
 

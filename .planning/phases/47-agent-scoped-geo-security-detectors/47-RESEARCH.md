@@ -410,14 +410,16 @@ Not applicable in the usual "library version drift" sense — no external librar
 
 **All claims above are grounded in direct reads of this repo's own source and one live Python execution** — none are external-library or ecosystem claims requiring `[ASSUMED]`/`[CITED]` tags; both entries above are marked because they involve interpreting an intentionally-ambiguous locked decision (D-05) or an explicitly-deferred-to-planner choice, not because the underlying facts are unverified.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does the 6h cooldown in D-05 re-fire on a still-violating agent, or is it strictly "one alert per transition, ever"?**
+> Both resolved during `/gsd-plan-phase` and locked in CONTEXT.md: Q1 → **D-07** (re-fire after cooldown), Q2 → **D-08** (15-min elapsed floor). Implemented in 47-02.
+
+1. **[RESOLVED — D-07: re-fire]** Does the 6h cooldown in D-05 re-fire on a still-violating agent, or is it strictly "one alert per transition, ever"?
    - What we know: D-05's wording ("fire one alert when the violation state changes... then suppress repeats within a cooldown window... even if every heartbeat keeps violating") clearly bounds noise *within* the cooldown window, modeled after Phase 46's state machine (which itself never "re-fires" for an unchanged confirmed state).
    - What's unclear: whether a violation that persists *past* 6 hours should produce a fresh reminder alert (Pattern 3's implementation above) or stay silent until the agent returns to a clean state and violates again.
    - Recommendation: Default to "re-fire after cooldown elapses if still violating" (implemented in Pattern 3) since it matches typical security-alerting UX (a week-long geo-fence violation shouldn't go completely silent after the first alert) — but flag for explicit user confirmation during `/gsd-plan-phase`'s own review, since it's a genuine behavioral choice, not purely an implementation detail.
 
-2. **Should the ~1000 km/h "consecutive check-ins" comparison have any noise floor (minimum elapsed time or minimum distance) given the real ~30-60s heartbeat cadence documented in Pitfall 4?**
+2. **[RESOLVED — D-08: 15-min elapsed floor]** Should the ~1000 km/h "consecutive check-ins" comparison have any noise floor (minimum elapsed time or minimum distance) given the real ~30-60s heartbeat cadence documented in Pitfall 4?
    - What we know: At 30s intervals, the false-positive distance floor is ~8.3 km, well within normal GeoIP city-level imprecision and CGNAT/mobile-carrier IP churn — a class of false positive D-02's VPN suppression does not address.
    - What's unclear: whether the user wants this addressed now (e.g., a minimum elapsed-time floor before evaluating, or comparing against the last several beats' median location) or is comfortable accepting the noise for v3.3 given it's alert-only (D-04) with no blocking consequence.
    - Recommendation: Surface this explicitly during planning/discuss rather than silently adding an unrequested floor — D-01 is a locked decision and any floor is a modification to it that needs explicit sign-off.
