@@ -15,11 +15,13 @@ Exports (this module grows across Task 2/3 of 47-02-PLAN.md):
     default resolution, cloned from agent_location_history_service's
     get_track_agent_location / compliance_remediation_sla_service's
     get_sla_at_risk_window)
-  - dedup_and_maybe_alert(...) / run_geo_security_detectors(...) land in
-    Task 3 — the orchestrator RETURNS alert payloads for 47-03's heartbeat
-    wiring to persist via ueba_service.persist_security_alert; this module
-    never imports or calls persist_security_alert itself (D-04 alert-only,
-    no connection side effects).
+  - dedup_and_maybe_alert(...) -> bool       (D-05/D-07, shadow field on the
+    agents doc: geoSecurityState.<violation_type>.{violating,lastAlertedAt})
+  - run_geo_security_detectors(...) -> list[dict]  the orchestrator: RETURNS
+    alert payloads for the caller (47-03's heartbeat wiring) to persist via
+    ueba_service's public alert-persistence alias. This module never
+    imports or calls that alert fan-out itself and performs no connection
+    side effects (D-04 alert-only).
 
 Anti-pattern guard (47-RESEARCH.md Pattern 2 / Pitfall 2): impossible-travel
 compares against the RAW existing_agent.geo/lastSeen (updated every
@@ -30,7 +32,7 @@ problem (NAT-flip audit-trail noise).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from ueba_service import _haversine_km
@@ -44,6 +46,10 @@ MAX_SPEED_KMH = 1000
 # D-08 — noise floor below GeoIP city-level jitter / CGNAT-mobile-carrier IP
 # churn at real ~30-60s heartbeat cadence (47-RESEARCH.md Pitfall 4).
 MIN_ELAPSED_MINUTES = 15
+
+# D-05 default cooldown; D-07 re-fires once elapsed while still violating
+# rather than staying permanently silent after the first alert.
+COOLDOWN_WINDOW = timedelta(hours=6)
 
 
 def evaluate_impossible_travel(
@@ -144,3 +150,129 @@ async def get_geo_security_settings(db, tenant_id) -> Dict[str, Any]:
         return {**defaults, **{k: v for k, v in doc.items() if k in defaults}}
 
     return defaults
+
+
+async def dedup_and_maybe_alert(
+    raw_db,
+    agent_id: str,
+    existing_agent: Optional[Dict[str, Any]],
+    violation_type: str,
+    violating: bool,
+) -> bool:
+    """D-05/D-07: returns True iff the caller should fire the alert
+    fan-out now.
+
+    Shadow field: geoSecurityState.<violation_type>.{violating, lastAlertedAt}
+    on the agents doc — zero extra reads, since existing_agent is already
+    fetched by the heartbeat handler before this is called
+    (47-RESEARCH.md Pattern 3, deliberately simplified vs. Phase 46's
+    4-branch NAT-flip debounce machine — see module docstring).
+
+    Behavior:
+      - clean -> violating transition: fires, writes violating=True + now.
+      - repeat within COOLDOWN_WINDOW: suppressed, no write.
+      - repeat after COOLDOWN_WINDOW elapses, still violating: re-fires
+        (D-07), resets lastAlertedAt.
+      - violating -> clean: clears violating=False, never fires.
+    """
+    state = ((existing_agent or {}).get("geoSecurityState") or {}).get(violation_type, {})
+    was_violating = state.get("violating", False)
+    last_alerted = state.get("lastAlertedAt")
+    now = datetime.now(timezone.utc)
+
+    if not violating:
+        if was_violating:
+            await raw_db.agents.update_one(
+                {"id": agent_id},
+                {"$set": {f"geoSecurityState.{violation_type}.violating": False}},
+            )
+        return False
+
+    should_fire = (not was_violating) or (
+        last_alerted is None or (now - last_alerted) >= COOLDOWN_WINDOW
+    )
+    if should_fire:
+        await raw_db.agents.update_one(
+            {"id": agent_id},
+            {"$set": {
+                f"geoSecurityState.{violation_type}.violating": True,
+                f"geoSecurityState.{violation_type}.lastAlertedAt": now,
+            }},
+        )
+    return should_fire
+
+
+async def run_geo_security_detectors(
+    db,
+    existing_agent: Optional[Dict[str, Any]],
+    agent_id: str,
+    tenant_id: Optional[str],
+    curr_geo: Optional[Dict[str, Any]],
+    now: datetime,
+) -> List[Dict[str, Any]]:
+    """Orchestrator: evaluates both detectors (toggle-gated) and RETURNS the
+    alert payloads that should be persisted — it does NOT call the alert
+    fan-out itself (47-03's heartbeat wiring fires them, keeping this
+    module decoupled per the phase's Wave-1 scope). No connection side
+    effects (D-04 alert-only).
+
+    Reads the RAW prior heartbeat's geo/lastSeen off existing_agent — never
+    the debounced locationConfirmed/locationPending shadow fields (Pitfall 2).
+    """
+    raw = db._db if hasattr(db, "_db") else db
+    existing_agent = existing_agent or {}
+    settings = await get_geo_security_settings(raw, tenant_id)
+    payloads: List[Dict[str, Any]] = []
+
+    if settings["impossible_travel_enabled"]:
+        prev_geo = existing_agent.get("geo")
+        prev_last_seen = existing_agent.get("lastSeen")
+        prev_vpn = (prev_geo or {}).get("vpn_heuristic")
+        curr_vpn = (curr_geo or {}).get("vpn_heuristic")
+        violating = evaluate_impossible_travel(
+            prev_geo, prev_last_seen, curr_geo, now, prev_vpn, curr_vpn,
+        )
+        should_fire = await dedup_and_maybe_alert(
+            raw, agent_id, existing_agent, "impossible_travel", violating,
+        )
+        if should_fire:
+            payloads.append({
+                "alert_type": "impossible_travel",
+                "severity": "high",
+                "title": f"Impossible travel detected for agent {agent_id}",
+                "description": (
+                    f"Agent {agent_id} checked in from a location that is physically "
+                    "impossible to reach from its previous check-in within the elapsed time."
+                ),
+                "metadata": {
+                    "agent_id": agent_id,
+                    "tenant_id": tenant_id,
+                    "prev_geo": prev_geo,
+                    "curr_geo": curr_geo,
+                },
+            })
+
+    if settings["geo_fence_enabled"]:
+        country_code = (curr_geo or {}).get("country_code")
+        violating = evaluate_geo_fence(country_code, settings["allowed_country_codes"])
+        should_fire = await dedup_and_maybe_alert(
+            raw, agent_id, existing_agent, "geo_fence_violation", violating,
+        )
+        if should_fire:
+            payloads.append({
+                "alert_type": "geo_fence_violation",
+                "severity": "medium",
+                "title": f"Geo-fence violation for agent {agent_id}",
+                "description": (
+                    f"Agent {agent_id} checked in from country '{country_code}', which is "
+                    "outside the tenant's allowed-country allowlist."
+                ),
+                "metadata": {
+                    "agent_id": agent_id,
+                    "tenant_id": tenant_id,
+                    "country_code": country_code,
+                    "allowed_country_codes": settings["allowed_country_codes"],
+                },
+            })
+
+    return payloads
