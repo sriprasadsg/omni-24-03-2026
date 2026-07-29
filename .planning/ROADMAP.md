@@ -855,7 +855,12 @@ Plans:
 
 **Depends on:** Nothing new (parallel-safe with Phases 46–47; reuses existing `monitor_agent_status()` offline detection and the existing metrics-history endpoint — the new work is the uptime-rollup sweep and the frontend)
 
-**Plans:** TBD
+**Plans:** 5 plans (3 waves)
+- [ ] 48-01-PLAN.md — On-the-fly uptime service + GET /api/agents/{id}/uptime endpoint (FOBS-02, wave 1)
+- [ ] 48-02-PLAN.md — Daily uptime-rollup sweep + agent_uptime_rollups retention (FOBS-02, wave 2)
+- [ ] 48-03-PLAN.md — Fleet aggregate endpoint: offline set + version-drift (FOBS-03, wave 2)
+- [ ] 48-04-PLAN.md — Agent detail Metrics tab: CPU/mem/disk charts + uptime timeline (FOBS-01/02, wave 2)
+- [ ] 48-05-PLAN.md — Admin-gated Fleet Observability nav page (FOBS-03, wave 3)
 
 **UI hint**: yes
 
