@@ -7,6 +7,7 @@ import { RuntimeSecurityTab } from './RuntimeSecurityTab';
 import { AgentComplianceTab, ComplianceData, ComplianceRule } from './AgentComplianceTab';
 import { PredictiveHealthTab } from './PredictiveHealthTab';
 import { AgentOverviewTab } from './AgentOverviewTab';
+import { AgentMetricsTab } from './AgentMetricsTab';
 import { AgentSoftwareTab } from './AgentSoftwareTab';
 import { AgentPatchingTab } from './AgentPatchingTab';
 import { AgentInstructionsTab } from './AgentInstructionsTab';
@@ -180,7 +181,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const { timeZone } = useTimeZone();
 
     const canViewLogs = hasPermission('view:agent_logs');
-    const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'software' | 'patching' | 'instructions'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'runtime' | 'compliance' | 'health' | 'metrics' | 'software' | 'patching' | 'instructions'>('overview');
     const [fetchedComplianceData, setFetchedComplianceData] = useState<ComplianceData | null>(null);
     const [tenantName, setTenantName] = useState<string>('Loading...');
 
@@ -581,6 +582,16 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             Predictive Health
                         </button>
                         <button
+                            onClick={() => setActiveTab('metrics')}
+                            className={`flex items-center whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'metrics'
+                                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                                } `}
+                        >
+                            <BarChart3Icon size={16} className="mr-2" />
+                            Metrics
+                        </button>
+                        <button
                             onClick={() => setActiveTab('software')}
                             className={`flex items-center whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'software'
                                 ? 'border-primary-500 text-primary-600 dark:text-primary-400'
@@ -635,6 +646,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             onRefresh={canTriggerScan ? handleRefreshCompliance : undefined}
                             onCollect={canTriggerScan ? handleCollectEvidence : undefined}
                         />
+                    ) : activeTab === 'metrics' ? (
+                        <AgentMetricsTab agent={agent} />
                     ) : activeTab === 'software' ? (
                         <AgentSoftwareTab agent={agent} asset={asset} />
                     ) : activeTab === 'patching' ? (
