@@ -4653,6 +4653,45 @@ export const setAgentLocationTracking = async (enabled: boolean): Promise<{ enab
     return await res.json();
 };
 
+// Per-tenant Security settings — geo-security detectors config (GSEC-03, D-06).
+// Clone of getAgentLocationTracking/setAgentLocationTracking's shape/error
+// handling, targeting the distinct admin-gated /settings/geo-security surface
+// (backend/geo_security_endpoints.py, Plan 47-04) rather than folding into
+// the Phase 46 privacy toggle.
+export interface GeoSecuritySettings {
+    impossible_travel_enabled: boolean;
+    geo_fence_enabled: boolean;
+    allowed_country_codes: string[];
+}
+
+export const getGeoSecuritySettings = async (): Promise<GeoSecuritySettings> => {
+    const defaults: GeoSecuritySettings = {
+        impossible_travel_enabled: true,
+        geo_fence_enabled: false,
+        allowed_country_codes: [],
+    };
+    try {
+        const res = await authFetch(`${API_BASE}/settings/geo-security`);
+        if (!res.ok) return defaults;
+        return await res.json();
+    } catch {
+        return defaults;
+    }
+};
+
+export const setGeoSecuritySettings = async (settings: Partial<GeoSecuritySettings>): Promise<GeoSecuritySettings> => {
+    const res = await authFetch(`${API_BASE}/settings/geo-security`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update geo-security settings');
+    }
+    return await res.json();
+};
+
 // ── Control Comments (Phase 42-03) ────────────────────────────────────────────
 export const fetchControlComments = async (controlId: string): Promise<any[]> => {
     try {
