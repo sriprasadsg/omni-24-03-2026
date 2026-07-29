@@ -4,17 +4,17 @@ milestone: v3.3
 milestone_name: — Agent Geo & Fleet Observability
 current_phase: 48
 current_phase_name: fleet-observability-uptime-rollups
-status: executing
+status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-29T18:21:15.740Z"
+last_updated: "2026-07-29T18:31:22.500Z"
 last_activity: 2026-07-29
 last_activity_desc: Phase 48 execution started
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 18
-  completed_plans: 17
-  percent: 40
+  completed_plans: 18
+  percent: 60
 ---
 
 # Project State
@@ -315,6 +315,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 48]: 48-03: Response includes offline_count/drift_count alongside full lists so 48-05's nav page can render summary tiles without client-side recompute
 - [Phase ?]: 48-04: AgentMetricsTab and MetricsChartsTab kept as separate components (not a shared prop-toggle component) since data source, tenancy scoping, and range presets genuinely differ per D-04 CORRECTION
 - [Phase ?]: 48-04: AgentUptimeTimeline receives agentId/hours as props rather than deriving its own agent-id, keeping AgentMetricsTab the single source of truth for the shared range selector
+- [Phase 48]: 48-05: fetchFleetObservability throws on non-ok (rather than returning defaults) so a failed fleet load surfaces as a visible error to the admin
+- [Phase 48]: 48-05: Fleet Observability nav page cloned Phase 47's SecuritySettingsDashboard 4-file registration verbatim, gated by manage:agents (D-07)
 
 ## Performance Metrics
 
@@ -394,6 +396,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 48 P02 | 25min | 2 tasks | 5 files |
 | Phase 48 P03 | 15min | 2 tasks | 3 files |
 | Phase 48 P04 | 20min | 3 tasks | 4 files |
+| Phase 48 P05 | 20min | 2 tasks | 5 files |
 
 ## Last Session
 
@@ -424,7 +427,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-29T18:20:57.384Z
+**Last session:** 2026-07-29T18:30:33.760Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -441,7 +444,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Phase: 48 (fleet-observability-uptime-rollups) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-29 — Phase 48 execution started
 
 ## Deferred Items
