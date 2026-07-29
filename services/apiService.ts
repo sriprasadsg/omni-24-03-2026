@@ -4603,6 +4603,56 @@ export const fetchRemediationEscalations = async (taskId: string): Promise<{ tas
     }
 };
 
+// Single row of GET /api/agents/{agent_id}/location-history (GAUD-02).
+// Note: dwell_seconds is a read-time value computed by the backend — the
+// AgentLocationHistory panel deliberately ignores it and recomputes dwell
+// client-side (46-UI-SPEC.md Behavior Contract; RESEARCH.md Pitfall 2).
+export interface LocationHistoryEntry {
+    publicIp?: string;
+    geo?: {
+        city?: string;
+        region?: string;
+        country?: string;
+        country_code?: string;
+    };
+    vpn_heuristic?: boolean;
+    timestamp: string;
+    dwell_seconds?: number;
+}
+
+export const fetchAgentLocationHistory = async (agentId: string): Promise<{ agent_id: string; entries: LocationHistoryEntry[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/location-history`);
+        if (!res.ok) return { agent_id: agentId, entries: [] };
+        return await res.json();
+    } catch {
+        return { agent_id: agentId, entries: [] };
+    }
+};
+
+export const getAgentLocationTracking = async (): Promise<{ enabled: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`);
+        if (!res.ok) return { enabled: true };
+        return await res.json();
+    } catch {
+        return { enabled: true };
+    }
+};
+
+export const setAgentLocationTracking = async (enabled: boolean): Promise<{ enabled: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`, {
+            method: 'PATCH',
+            body: JSON.stringify({ enabled }),
+        });
+        if (!res.ok) return { enabled };
+        return await res.json();
+    } catch {
+        return { enabled };
+    }
+};
+
 // ── Control Comments (Phase 42-03) ────────────────────────────────────────────
 export const fetchControlComments = async (controlId: string): Promise<any[]> => {
     try {
