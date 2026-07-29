@@ -117,6 +117,7 @@ export type AppView =
   | 'jitAccess'
   | 'incidentWarRoom'
   | 'privacy'
+  | 'geoSecurity'
   | 'scheduledReports'
   | 'secretsManagement'
   | 'hadr'

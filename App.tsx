@@ -162,6 +162,7 @@ const FIMDashboard = lazy(() => import('./components/FIMDashboard'));
 const ActiveResponseDashboard = lazy(() => import('./components/ActiveResponseDashboard'));
 const IncidentWarRoomDashboard = lazy(() => import('./components/IncidentWarRoomDashboard'));
 const PrivacyDashboard = lazy(() => import('./components/PrivacyDashboard'));
+const SecuritySettingsDashboard = lazy(() => import('./components/SecuritySettingsDashboard').then(m => ({ default: m.SecuritySettingsDashboard })));
 const ScheduledReportsDashboard = lazy(() => import('./components/ScheduledReportsDashboard'));
 const SecretsManagementDashboard = lazy(() => import('./components/SecretsManagementDashboard').then(m => ({ default: m.SecretsManagementDashboard })));
 const CustomFrameworkBuilder = lazy(() => import('./components/CustomFrameworkBuilder'));
@@ -363,6 +364,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   activeResponse: 'view:active_response',
   incidentWarRoom: 'investigate:security',
   privacy: 'view:compliance',
+  geoSecurity: 'manage:settings',
   scheduledReports: 'view:reporting',
   secretsManagement: 'manage:settings',
   customFrameworks: 'view:compliance',
@@ -1907,6 +1909,7 @@ const App: React.FC = () => {
       case 'activeResponse': return <ErrorBoundary name="ActiveResponseDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ActiveResponseDashboard /></Suspense></ErrorBoundary>;
       case 'incidentWarRoom': return <ErrorBoundary name="IncidentWarRoomDashboard"><IncidentWarRoomDashboard /></ErrorBoundary>;
       case 'privacy': return <ErrorBoundary name="PrivacyDashboard"><PrivacyDashboard /></ErrorBoundary>;
+      case 'geoSecurity': return <ErrorBoundary name="SecuritySettingsDashboard"><SecuritySettingsDashboard /></ErrorBoundary>;
       case 'privacyLegal': return <ErrorBoundary name="PrivacyLegalDashboard"><PrivacyLegalDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
       case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
