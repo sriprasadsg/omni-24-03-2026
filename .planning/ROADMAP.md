@@ -783,12 +783,12 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase — continues numbering from Phase 45)
 
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 
 **Wave 1** *(parallel, independent backend services)*
 
 - [x] 46-01-PLAN.md — GAUD-01: `agent_asn_service.py` (GeoLite2-ASN + bundled X4BNet VPN heuristic, lazy graceful-degrade) + vendored snapshot + tests (D-11/D-12)
-- [ ] 46-02-PLAN.md — GAUD-01: `agent_location_history_service.py` (change-detection + NAT-flip de-noise state machine + per-tenant toggle + append-only write) + 003 index migration + tests (D-05/D-06/D-07/D-02)
+- [x] 46-02-PLAN.md — GAUD-01: `agent_location_history_service.py` (change-detection + NAT-flip de-noise state machine + per-tenant toggle + append-only write) + 003 index migration + tests (D-05/D-06/D-07/D-02)
 - [ ] 46-03-PLAN.md — GAUD-01: 365-day retention routed through the existing retention module (`cleanup_agent_location_history` + policy default + run_cleanup wiring) + real-cutoff test (D-01/D-04)
 
 **Wave 2** *(depends on Wave 1 services)*
