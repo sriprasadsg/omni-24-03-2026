@@ -4,17 +4,17 @@ milestone: v3.3
 milestone_name: — Agent Geo & Fleet Observability
 current_phase: 46
 current_phase_name: public-ip-asn-vpn-enrichment-location-history-audit
-status: executing
+status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-29T08:08:48.780Z"
+last_updated: "2026-07-29T08:17:37.724Z"
 last_activity: 2026-07-29
 last_activity_desc: Phase 46 execution resumed (wave continue)
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 0
+  completed_plans: 7
+  percent: 20
 ---
 
 # Project State
@@ -290,6 +290,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 46-05: track_agent_location toggle resolved once per request in the endpoint, gating both agent_asn_service.lookup and record_location_change; geoip_service.lookup city/country enrichment stays unconditional (scope boundary, T-46-05-B)
 - [Phase ?]: 46-05: extracted auto-update-push/persistence-detection/pii-scanner blocks out of agent_heartbeat_endpoints.py into two new service modules to satisfy the CLAUDE.md 500-line cap (file was already at 517 lines pre-existing this plan)
 - [Phase 46]: 46-06: resolved dwell computation conflict in favor of 46-UI-SPEC.md (client-side, ignores backend dwell_seconds) — Backend computes dwell_seconds for other consumers/back-compat; UI-SPEC locks client-side computation as the panel's authoritative behavior contract.
+- [Phase ?]: PrivacyDashboard reuses its own existing dark palette/toggle conventions rather than the 46-UI-SPEC.md tokens (that spec is scoped to the AgentLocationHistory timeline panel from 46-06)
+- [Phase ?]: Fixed setAgentLocationTracking() to throw on non-OK PATCH responses instead of silently returning a false-success value, so 403s surface as error toasts (T-46-07-A)
 
 ## Performance Metrics
 
@@ -358,6 +360,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 46 P04 | 15min | 2 tasks | 3 files |
 | Phase 46 P05 | 25min | 2 tasks | 5 files |
 | Phase 46 P06 | 25min | 2 tasks | 5 files |
+| Phase 46 P07 | 20min | 1 tasks | 2 files |
 
 ## Last Session
 
@@ -388,7 +391,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-29T08:08:01.368Z
+**Last session:** 2026-07-29T08:16:44.956Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -405,7 +408,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Phase: 46 (public-ip-asn-vpn-enrichment-location-history-audit) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-29 — Phase 46 execution resumed (wave continue)
 
 ## Deferred Items

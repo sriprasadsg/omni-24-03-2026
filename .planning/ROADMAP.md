@@ -783,7 +783,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase — continues numbering from Phase 45)
 
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 **Wave 1** *(parallel, independent backend services)*
 
@@ -802,7 +802,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Wave 4** *(privacy settings consumer)*
 
-- [ ] 46-07-PLAN.md — GAUD-01: Agent Location Tracking disclosure note + per-tenant toggle control in `PrivacyDashboard.tsx` (D-02/D-03 privacy gate)
+- [x] 46-07-PLAN.md — GAUD-01: Agent Location Tracking disclosure note + per-tenant toggle control in `PrivacyDashboard.tsx` (D-02/D-03 privacy gate)
 
 **UI hint**: yes
 
