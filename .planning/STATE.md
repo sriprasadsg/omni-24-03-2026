@@ -4,17 +4,17 @@ milestone: v3.3
 milestone_name: — Agent Geo & Fleet Observability
 current_phase: 47
 current_phase_name: agent-scoped-geo-security-detectors
-status: executing
+status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-29T13:36:40.648Z"
+last_updated: "2026-07-29T13:50:34.821Z"
 last_activity: 2026-07-29
 last_activity_desc: Phase 47 execution started
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 13
-  completed_plans: 12
-  percent: 20
+  completed_plans: 13
+  percent: 40
 ---
 
 # Project State
@@ -304,6 +304,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 47-03: existing_agent (PRE-update doc) passed as previous state to run_geo_security_detectors, never a debounced shadow field
 - [Phase ?]: 47-04: PATCH /api/settings/geo-security re-reads via get_geo_security_settings and returns the resolved dict rather than echoing the request body, so the response always reflects actual persisted+resolved state
 - [Phase ?]: 47-04: allowed_country_codes ISO 3166 alpha-2 validation lives in a Pydantic field_validator on GeoSecuritySettingsUpdate (API boundary), separate from geo_security_service's own defensive normalization
+- [Phase ?]: 47-06: Kept SecuritySettingsDashboard.tsx as a new, separate component rather than folding into PrivacyDashboard.tsx per D-06 (security config distinct from privacy config)
+- [Phase ?]: 47-06: geoSecurity nav item and viewPermissionMap entry both gated on manage:settings (client-side gate; backend PATCH's _require_admin is the authoritative control per T-47-06-E)
 
 ## Performance Metrics
 
@@ -378,6 +380,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 47 P05 | 8min | 2 tasks | 2 files |
 | Phase 47 P03 | 20min | 2 tasks | 2 files |
 | Phase 47 P04 | 20min | 2 tasks | 3 files |
+| Phase 47 P06 | 12min | 3 tasks | 6 files |
 
 ## Last Session
 
@@ -408,7 +411,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-29T13:35:54.765Z
+**Last session:** 2026-07-29T13:50:00.429Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -425,7 +428,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Phase: 47 (agent-scoped-geo-security-detectors) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-29 — Phase 47 execution started
 
 ## Deferred Items
