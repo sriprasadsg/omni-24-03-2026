@@ -783,7 +783,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase — continues numbering from Phase 45)
 
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 
 **Wave 1** *(parallel, independent backend services)*
 
@@ -798,7 +798,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Wave 3** *(frontend timeline)*
 
-- [ ] 46-06-PLAN.md — GAUD-02: `AgentLocationHistory.tsx` read-only timeline panel (clone of `EscalationHistoryPanel`) mounted in the Overview tab + shared `utils/geo.ts` + apiService clients (D-08/D-09/D-10)
+- [x] 46-06-PLAN.md — GAUD-02: `AgentLocationHistory.tsx` read-only timeline panel (clone of `EscalationHistoryPanel`) mounted in the Overview tab + shared `utils/geo.ts` + apiService clients (D-08/D-09/D-10)
 
 **Wave 4** *(privacy settings consumer)*
 
