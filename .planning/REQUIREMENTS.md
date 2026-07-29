@@ -17,8 +17,8 @@
 ### Location Security (GSEC)
 
 - [ ] **GSEC-01**: An agent's public IP is enriched with a heuristic VPN/proxy/hosting flag (AS-org from GeoLite2-ASN + X4BNet public VPN IP-range lists, bundled offline) and the flag is surfaced on the agent. UI labels it as a heuristic ("likely VPN/hosting"), never an authoritative "detected".
-- [ ] **GSEC-02**: Agent-scoped impossible-travel detection raises an alert when an agent's consecutive check-ins come from two locations too far apart for the elapsed time (haversine + time window, keyed by `agent_id`), reusing the existing alert/notification fan-out.
-- [ ] **GSEC-03**: A tenant admin can define allowed regions (geo-fence); an agent check-in from outside the allowed regions raises an alert. v3.3 is **alert-only** — no connection blocking.
+- [x] **GSEC-02**: Agent-scoped impossible-travel detection raises an alert when an agent's consecutive check-ins come from two locations too far apart for the elapsed time (haversine + time window, keyed by `agent_id`), reusing the existing alert/notification fan-out.
+- [x] **GSEC-03**: A tenant admin can define allowed regions (geo-fence); an agent check-in from outside the allowed regions raises an alert. v3.3 is **alert-only** — no connection blocking.
 
 ### Fleet Observability (FOBS)
 
