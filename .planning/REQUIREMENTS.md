@@ -28,7 +28,7 @@
 
 ### Location Audit (GAUD)
 
-- [ ] **GAUD-01**: Every change to an agent's public IP / geo is recorded in an immutable, append-only location-history collection (change detected cheaply against the already-fetched agent doc on heartbeat; append-only pattern cloned from `remediation_escalations`).
+- [x] **GAUD-01**: Every change to an agent's public IP / geo is recorded in an immutable, append-only location-history collection (change detected cheaply against the already-fetched agent doc on heartbeat; append-only pattern cloned from `remediation_escalations`).
 - [ ] **GAUD-02**: An admin can view a per-agent location-history timeline (chronological IP/geo changes with timestamps).
 
 ---

@@ -2,17 +2,18 @@
 gsd_state_version: 1.0
 milestone: v3.3
 milestone_name: — Agent Geo & Fleet Observability
-current_phase_name: defining requirements
+current_phase: 46
+current_phase_name: public-ip-asn-vpn-enrichment-location-history-audit
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-28T20:17:29.786Z"
-last_activity: 2026-07-28
-last_activity_desc: Milestone v3.3 started
+last_updated: "2026-07-29T07:18:44.039Z"
+last_activity: 2026-07-29
+last_activity_desc: Phase 46 execution resumed (wave continue)
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 7
+  completed_plans: 1
   percent: 0
 ---
 
@@ -276,6 +277,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 44]: 44-04: SLA badge always falls back to the neutral 'none' pill for tasks missing sla_status, never blank/undefined (T-44-11 mitigation)
 - [Phase 44]: 44-04: Escalation panel renders only when task?.id is set and contains zero edit/delete/confirm/destructive controls (T-44-10 mitigation, SLA-02 locked constraint)
 - [Phase 45]: reqwest pinned to native-tls-only via default-features=false; non-TLS defaults (charset/http2/system-proxy) re-listed explicitly
+- [Phase ?]: 46-01: Reused geoip_service._is_public() via direct import rather than duplicating the classifier
+- [Phase ?]: 46-01: lookup() omits 'asn'/'vpn_heuristic' keys entirely rather than setting None/False placeholders when their respective data sources are unavailable
 
 ## Performance Metrics
 
@@ -338,11 +341,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 44 P03 | 8min | 2 tasks | 2 files |
 | Phase 44 P04 | 20min | 3 tasks | 4 files |
 | Phase 45 P01 | 20min | 2 tasks | 2 files |
+| Phase 46 P01 | 20min | 2 tasks | 3 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Phase 46 UI-SPEC approved
+- **Stopped at:** context exhaustion at 90% (2026-07-28)
 - **Resume file:** .planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-UI-SPEC.md
 
 ## Configuration
@@ -368,7 +372,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-28T19:56:47.872Z
+**Last session:** 2026-07-29T07:18:11.801Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -383,10 +387,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
+Phase: 46 (public-ip-asn-vpn-enrichment-location-history-audit) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-07-28 — Milestone v3.3 started
+Last activity: 2026-07-29 — Phase 46 execution resumed (wave continue)
 
 ## Deferred Items
 

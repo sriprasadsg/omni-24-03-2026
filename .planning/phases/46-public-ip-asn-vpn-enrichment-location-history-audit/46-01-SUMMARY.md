@@ -158,3 +158,13 @@ None for this plan — `GEOIP_ASN_DB_PATH`/`GeoLite2-ASN.mmdb` supply is documen
 ---
 *Phase: 46-public-ip-asn-vpn-enrichment-location-history-audit*
 *Completed: 2026-07-29*
+
+## Self-Check: PASSED
+
+- FOUND: `backend/agent_asn_service.py`
+- FOUND: `backend/tests/test_agent_asn_service.py`
+- FOUND: `backend/data/vpn_ranges/x4bnet_vpn_ipv4.txt`
+- FOUND: `.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-01-SUMMARY.md`
+- FOUND commit: `fdcdd9c` (test scaffold + vendored snapshot)
+- FOUND commit: `2343849` (module implementation)
+- FOUND commit: `ac7c589` (this SUMMARY)
