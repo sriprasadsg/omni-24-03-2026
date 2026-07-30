@@ -1,21 +1,21 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.3
-milestone_name: — Agent Geo & Fleet Observability
-milestone_status: complete — archived 2026-07-30 (tag v3.3); next milestone v3.4 Native Security Scanning (requirements drafted)
-current_phase: 49
-current_phase_name: fleet-geo-map
-status: milestone-complete
+milestone: v3.4
+milestone_name: — Native Security Scanning & Autonomous Remediation Agent
+milestone_status: roadmap-defined 2026-07-30 (16 reqs, 5 phases 50-54); not started. Prior v3.3 archived (tag v3.3).
+current_phase: 50
+current_phase_name: native-security-scanning
+status: not-started
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
 last_updated: "2026-07-29T20:36:38.859Z"
 last_activity: 2026-07-30
-last_activity_desc: v3.3 milestone archived (audit passed, tag v3.3); ROADMAP/REQUIREMENTS/PROJECT/MILESTONES updated; REQUIREMENTS.md left intact (holds next milestone v3.4)
+last_activity_desc: v3.4 milestone opened — ROADMAP phases 50-54 defined from the drafted requirements (16 reqs); STATE reset. Next — /gsd-plan-phase 50.
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 23
-  completed_plans: 23
-  percent: 75
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State

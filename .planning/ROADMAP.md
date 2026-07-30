@@ -11,7 +11,7 @@
 - **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
 - **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45 + 999.1 backlog), 19 plans, 10/10 requirements. Shipped 2026-07-29.
 - **[v3.3](milestones/v3.3-ROADMAP.md)** — Agent Geo & Fleet Observability: fleet geo map (air-gapped bundled-SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 23 plans, 11/11 requirements. Audit passed. Shipped 2026-07-30.
-- **v3.4** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 5 phases (50–54), 17 requirements. Roadmap defined 2026-07-30 — not started.
+- **v3.4** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 5 phases (50–54), 16 requirements. Roadmap defined 2026-07-30 — not started.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -749,6 +749,120 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 - [x] Phase 45: Close gap RUST-01 — TLS backend explicit decision
 
 </details>
+
+## v3.4 — Native Security Scanning & Autonomous Remediation Agent
+
+**Goal:** Build native security scanning and autonomous remediation into the OmniAgent — replacing external integrations (VirusTotal API, Wazuh SIEM) with built-in, offline-first agent modules. The agent scans files/URLs/IPs/hashes, detects endpoint vulnerabilities, monitors file integrity, and autonomously remediates via a playbook system, all with no live external API at scan time. Sequenced by dependency: the scan engine + signed-bundle update mechanism first (50), then the two other detection sources that reuse it (51 vuln, 52 FIM), then the remediation engine that consumes all findings (53, building on the existing remediation/playbook services), then the operator UI + API that surfaces everything (54).
+
+**Status:** Requirements drafted 2026-07-30 (`REQUIREMENTS.md`, 16 reqs). Roadmap defined 2026-07-30 — not started. Continues phase numbering from Phase 49.
+
+**Agent-side note:** NSCAN/VULN/FIM run on the endpoint in the Rust agent (`agent-install/omni-agent-rs`; see the two-agent-tree caveat). Backend work is capability registration + finding ingestion + orchestration; frontend is the operator console (54).
+
+## Phase 50: Native Security Scanning
+
+**Milestone:** v3.4
+
+**Goal:** Give the agent an offline scan engine: file scanning against a bundled ClamAV signature subset + YARA rules (verdict Clean/Suspicious/Malicious + confidence), and URL/IP/domain/hash reputation against signed, bundled threat-intel feeds — no live lookup. Exposed as a `scan_file`/`scan_url`/`scan_hash`/`scan_ip` capability, callable by an operator or triggered by FIM/behavioral events. Extends the existing `agent_security_endpoints.py` / `binary_analysis_service.py` surfaces rather than adding a parallel scanner.
+
+**Requirements:** NSCAN-01 (offline file scan — ClamAV subset + YARA), NSCAN-02 (URL/IP/domain/hash reputation via signed bundled feeds), NSCAN-03 (scan API surface + event trigger)
+
+**Success Criteria** (what must be TRUE):
+  1. The agent scans a file fully offline and returns a Clean/Suspicious/Malicious verdict with a confidence score, matching against a bundled signature + YARA set (NSCAN-01).
+  2. The agent returns a reputation verdict for a URL/IP/domain/hash from bundled feeds updated only via signed bundle — no network call at scan time (NSCAN-02).
+  3. `scan_file`/`scan_url`/`scan_hash`/`scan_ip` are invokable by an operator and by an internal event, with verdicts ingested per-tenant on the backend (NSCAN-03).
+
+**Depends on:** none (foundational — defines the signed-bundle update mechanism reused by 51/52)
+
+**Plans:** TBD
+
+**UI hint**: findings surfaced in Phase 54
+
+---
+
+## Phase 51: Vulnerability Detection Engine
+
+**Milestone:** v3.4
+
+**Goal:** Agent-side local vulnerability scan — installed-package CVE matching against a bundled, signed NVD/CVE feed (autonomous delta updates, no NVD API at scan time), misconfiguration checks (weak SSH, open ports, deprecated protocols), and exposed-secret detection — returning a prioritized finding list. Reuses the Phase 50 signed-bundle update mechanism for feed distribution.
+
+**Requirements:** VULN-01 (local CVE + misconfig + secret scan, prioritized), VULN-02 (signed bundled feed + autonomous delta updates), VULN-03 (findings carry CVE ID, CVSS, affected package/path, remediation hint, playbook reference)
+
+**Success Criteria** (what must be TRUE):
+  1. The agent produces a prioritized list of local findings — CVEs (package-version matched), misconfigurations, and exposed secrets — with no external NVD call at scan time (VULN-01).
+  2. The CVE/vuln feed ships as a signed bundle and the agent applies delta updates autonomously (VULN-02).
+  3. Each finding carries CVE ID, CVSS, affected package/path, a remediation hint, and a playbook reference usable by Phase 53 (VULN-03).
+
+**Depends on:** Phase 50 (shared signed-feed bundle + update pattern)
+
+**Plans:** TBD
+
+**UI hint**: findings surfaced in Phase 54
+
+---
+
+## Phase 52: File Integrity Monitoring
+
+**Milestone:** v3.4
+
+**Goal:** Agent-side FIM watching configured critical paths (binaries, configs, scripts, keys) for create/modify/delete/permission changes via inotify/fanotify (Linux) or the USN Journal (Windows) at low overhead. Change events carry before/after hash, process tree, and user context, routed to a local queue for the remediation engine. Baseline snapshots are signed, with drift detection on agent restart.
+
+**Requirements:** FIM-01 (low-overhead path monitoring, native OS facilities), FIM-02 (rich change events → local remediation queue), FIM-03 (signed baseline snapshots + restart drift detection)
+
+**Success Criteria** (what must be TRUE):
+  1. The agent detects create/modify/delete/permission changes on configured critical paths using native OS facilities, at low overhead (FIM-01).
+  2. Each change event includes before/after hash, process tree, and user context, and is routed to the local remediation queue (FIM-02).
+  3. Baseline snapshots are signed and drift against them is detected on agent restart (FIM-03).
+
+**Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern)
+
+**Plans:** TBD
+
+**UI hint**: FIM status surfaced in Phase 54
+
+---
+
+## Phase 53: Autonomous Remediation
+
+**Milestone:** v3.4
+
+**Goal:** Wire NSCAN/VULN/FIM findings into a remediation engine that selects a matching YAML playbook per finding class, executes the action, verifies the fix, and emits a completion event — building on the existing `autonomous_remediation_service.py` / `ai_playbook_service.py` / `enhanced_playbook_endpoints.py` rather than a new engine. Safety guards throughout: dry-run mode, an approval gate for destructive actions, rollback on verification failure, and a max-concurrent-remediations cap. Every remediation is written to an immutable audit trail (cloning the append-only pattern used by `remediation_escalations` / agent location-history).
+
+**Requirements:** AUTO-01 (finding → playbook → execute → verify → complete, human override at any step), AUTO-02 (YAML playbook system per finding class, operator-extensible), AUTO-03 (safety guards: dry-run, approval gate, rollback, concurrency cap), AUTO-04 (immutable remediation audit trail)
+
+**Success Criteria** (what must be TRUE):
+  1. A finding from VULN/FIM/NSCAN is matched to a playbook, executed, verified, and completed — with a human override available at every step (AUTO-01).
+  2. Remediation actions (patch package, kill process, restore file, block IP, rotate key, disable service) are YAML-defined per finding class and extensible by operators (AUTO-02).
+  3. Destructive actions honor dry-run + approval gate, verification failure triggers rollback, and per-agent concurrent remediations are capped (AUTO-03).
+  4. Every remediation writes an immutable record — finding, playbook, actions, verification result, any operator override (AUTO-04).
+
+**Depends on:** Phase 50, 51, 52 (finding sources) + existing remediation/playbook services
+
+**Plans:** TBD
+
+**UI hint**: remediation queue + approvals surfaced in Phase 54
+
+---
+
+## Phase 54: Integration & Operator UI
+
+**Milestone:** v3.4
+
+**Goal:** Surface the whole native-security stack in a per-tenant operator console and API. Dashboard shows live scan status, findings feed, remediation queue, and audit trail; operators can trigger on-demand scans, approve/deny pending remediations, browse the playbook library, and create custom playbooks. API endpoints expose every agent security function (scan, vuln-scan, fim-status, remediation-trigger, playbook CRUD).
+
+**Requirements:** INT-01 (per-tenant operator dashboard: scan status + findings + remediation queue + audit trail), INT-02 (on-demand scans, approve/deny remediations, playbook library + custom-playbook CRUD), INT-03 (API endpoints for all agent security functions)
+
+**Success Criteria** (what must be TRUE):
+  1. A per-tenant operator dashboard shows live scan status, the findings feed, the remediation queue, and the audit trail (INT-01).
+  2. An operator can trigger on-demand scans, approve/deny pending remediations, and view/create playbooks from the UI (INT-02).
+  3. Every agent security function is reachable via an API endpoint — scan, vuln-scan, fim-status, remediation-trigger, playbook CRUD (INT-03).
+
+**Depends on:** Phase 50, 51, 52, 53 (surfaces all upstream)
+
+**Plans:** TBD
+
+**UI hint**: yes (major — the operator console)
+
+---
 
 ## Backlog
 
