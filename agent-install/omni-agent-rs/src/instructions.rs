@@ -82,6 +82,50 @@ async fn execute_instruction(
                 .await;
             serde_json::json!({"status": "success", "result": scan})
         }
+        "scan_file" | "scan_url" | "scan_hash" | "scan_ip" => {
+            let kind = &action[5..]; // file|url|hash|ip
+            let param_key = if kind == "file" { "path" } else { "target" };
+            let target = item
+                .get("parameters")
+                .and_then(|p| p.get(param_key))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            if target.is_empty() {
+                serde_json::json!({"status": "error", "error": format!("missing {param_key}")})
+            } else {
+                // Refresh the verified feed + run the (blocking) scan off the async runtime.
+                let api = cfg.api_base_url.clone();
+                let tok = cfg.agent_token.clone();
+                let kind_owned = kind.to_string();
+                let target_scan = target.clone();
+                let verdict = tokio::task::spawn_blocking(move || {
+                    let _ = crate::capabilities::feed_bundle::update(&api, &tok); // best-effort
+                    match kind_owned.as_str() {
+                        "file" => crate::capabilities::security_scan::scan_file(&target_scan),
+                        "url" => crate::capabilities::security_scan::scan_url(&target_scan),
+                        "hash" => crate::capabilities::security_scan::scan_hash(&target_scan),
+                        _ => crate::capabilities::security_scan::scan_ip(&target_scan),
+                    }
+                })
+                .await
+                .unwrap_or_else(|e| serde_json::json!({"verdict": "error", "error": format!("scan task: {e}")}));
+
+                // POST the verdict (enriched with type + target) to the ingestion endpoint.
+                let mut body = verdict.clone();
+                if let Some(obj) = body.as_object_mut() {
+                    obj.insert("type".to_string(), serde_json::json!(kind));
+                    obj.insert("target".to_string(), serde_json::json!(target));
+                }
+                let url = format!(
+                    "{}/api/agents/{}/security/scan-result",
+                    cfg.api_base_url.trim_end_matches('/'),
+                    hostname_str()
+                );
+                let _ = client.post(&url).bearer_auth(&cfg.agent_token).json(&body).send().await;
+                verdict
+            }
+        }
         "install_software" => {
             let pkg = item
                 .get("parameters")
