@@ -11,6 +11,7 @@
 - **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
 - **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45 + 999.1 backlog), 19 plans, 10/10 requirements. Shipped 2026-07-29.
 - **v3.3** — Agent Geo & Fleet Observability: fleet geo map (offline SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 11/11 requirements mapped. Roadmap defined 2026-07-29 — not started.
+- **v3.4** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 5 phases (50–54), 17 requirements. Roadmap defined 2026-07-30 — not started.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -883,7 +884,14 @@ Plans:
 
 **Depends on:** Phase 46 (location data), Phase 47 (status/flags surfaced on drill-down), Phase 48 (offline/version status feeding map filters)
 
-**Plans:** TBD
+**Plans:** (planned + executed 2026-07-30 — 5 plans, 3 waves)
+- [x] 49-01-PLAN.md — GMAP-02/03 backend: `agent_fleet_geo_endpoints.py` `GET /api/fleet/geo` cross-tenant aggregate (clones 48-03 gating) + router registration + hermetic tests [Wave 1]
+- [x] 49-02-PLAN.md — GMAP-01/02/03 contract: `FleetGeoAgent`/`FleetGeoResponse` types + `fleetGeoMap` AppView + `fetchFleetGeo` client [Wave 1]
+- [x] 49-03-PLAN.md — GMAP-01: air-gapped basemap — `components/worldMapAsset.ts` (self-contained world backdrop) + `utils/worldMap.ts` (equirectangular projection) + tests [Wave 1]
+- [x] 49-04-PLAN.md — GMAP-01/02/03: `FleetGeoMap.tsx` (backdrop + status markers + grid clustering + tenant/status filters + drill-down) + `utils/fleetClustering.ts` [Wave 2]
+- [x] 49-05-PLAN.md — GMAP-01: nav registration (App.tsx + Sidebar), `manage:agents`-gated, GlobeIcon (clones 48-05) [Wave 3]
+
+**Status:** Executed 2026-07-30 (commits d8f26e6..2221900) — air-gapped bundled-SVG equirectangular map, zero new deps; new admin-gated `/api/fleet/geo` cross-tenant endpoint. Backend 1446 pass (+5 geo), frontend 157 app tests pass (+11: 5 projection, 6 clustering), build clean, FleetGeoMap lazy chunk emitted, air-gap verified. **Pending human UAT:** live map render offline (no tile requests), tenant/status filters, marker drill-down, and the `manage:agents` gate as a non-admin. NOTE: 49-03 ships the graticule backdrop fallback (D-01) — a public-domain land outline can be prepended to `worldMapAsset.ts` later.
 
 **UI hint**: yes
 
