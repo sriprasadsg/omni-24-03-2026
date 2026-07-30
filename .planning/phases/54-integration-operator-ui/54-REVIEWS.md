@@ -6,7 +6,11 @@
 54-CONTEXT/54-03 say the Findings tab shows scan verdicts + native VULN + FIM, but `54-01`'s `GET /security-ops/findings` only lists `security_scan_results` (scan verdicts), "optionally referencing vuln/fim counts." So the tab must federate three endpoints (findings + `vuln_endpoints` + `fim-events`) with three shapes + three paginations.
 **Fix:** decide explicitly — either (a) `GET /findings` aggregates all three server-side into one paginated, normalized feed (cleaner for the UI), or (b) the tab federates three sources with a defined merge/sort/pagination strategy. Pick one in 54-01/54-03; don't leave it split.
 
-## MED — Playbook CRUD store compatibility (cross-ref 53-01 HIGH)
+## MED — Playbook CRUD store compatibility (cross-ref 53-01 HIGH) — UPDATED 2026-07-30
+**Now actionable after the 53 replan:** 53-01 introduced a dedicated `remediation_playbooks` collection + CRUD endpoints (`remediation_playbook_endpoints.py`). So 54-03's Playbooks tab must **target that store**, not the LLM `PlaybookManager`/`enhanced_playbook_endpoints`. When Phase 54 is (re)planned, change 54-03's Playbooks tab to consume the `remediation_playbooks` CRUD (list/create/edit deterministic YAML playbooks) — `PlaybookManager` manages a different (LLM) store and will NOT edit the playbooks the engine runs. Left as a flagged edit for a `/gsd-plan-phase 54 --reviews` pass.
+
+_Original finding:_
+
 INT-03 lists "playbook CRUD" as satisfied by the existing `enhanced_playbook_endpoints`. But those manage the LLM playbook shape; the Phase-53 deterministic YAML playbooks are a different schema. If 53-01 doesn't reconcile them, the console's Playbooks tab (reusing `PlaybookManager`) will not create/edit the deterministic playbooks the engine actually runs.
 **Fix:** ensure 53-01's store decision and 54's Playbooks tab target the SAME playbook store/schema. Verify `PlaybookManager` can author deterministic playbooks, or the tab needs a new editor.
 
