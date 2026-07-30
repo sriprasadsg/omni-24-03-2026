@@ -773,7 +773,16 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** none (foundational — defines the signed-bundle update mechanism reused by 51/52)
 
-**Plans:** TBD
+**Plans:** (planned 2026-07-30 — 5 plans, 3 waves)
+- [ ] 50-01-PLAN.md — Backend signed feed-bundle: SQLite bundle (hash_sigs/yara_rules/url_feed/ip_feed/manifest incl. EICAR) + ed25519 detached sig + `GET /api/agents/security/feed-bundle` (versioned) + tests [Wave 1]
+- [ ] 50-02-PLAN.md — Agent `feed_bundle` (Rust): fetch + ed25519-verify (embedded pubkey, fail-closed) + local sqlite cache + graceful-degrade lookups [Wave 1]
+- [ ] 50-03-PLAN.md — Agent `security_scan` engine: `scan_file` (yara-x + hash-sig DB) + `scan_url/ip/hash` (feed lookup) → verdict JSON; yara-x Windows cross-compile gate [Wave 2]
+- [ ] 50-04-PLAN.md — Backend native-verdict ingestion `POST /api/agents/{id}/security/scan-result` + Malicious alert (source: native, clones `_raise_malware_alert`) + tests [Wave 2]
+- [ ] 50-05-PLAN.md — Agent `instructions.rs` dispatch (`scan_file/url/hash/ip` → POST) + `yara-x`/`ed25519-dalek` Cargo deps + linux/windows build [Wave 3]
+
+**Decisions:** yara-x (pure-Rust YARA, no libclamav/libyara) + hash-sig DB; native bundled signed feeds only (no VirusTotal at scan time); code in `omni-agent-rs` (shipped tree). Cargo-dep coupling: 50-05 owns the single Cargo edit but 50-02/03 need it to compile — add `ed25519-dalek`/`yara-x` when first compiling those modules.
+
+**Status:** Planned — plans written 2026-07-30
 
 **UI hint**: findings surfaced in Phase 54
 
