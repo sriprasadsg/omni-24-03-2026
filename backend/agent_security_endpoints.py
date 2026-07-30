@@ -47,9 +47,14 @@ async def ingest_fim_event(
     changes = payload.get("changes")
     events: List[Dict[str, Any]] = changes[:_MAX_ARRAY] if isinstance(changes, list) else [payload]
 
-    # Collect created/modified file hashes and enrich them server-side.
-    hashes = [ev.get("new_hash") or ev.get("hash") for ev in events
-              if isinstance(ev, dict) and (ev.get("new_hash") or ev.get("hash"))]
+    # Collect created/modified file hashes and enrich them server-side. The
+    # rich shape (Phase 52-01) carries `hash_after` as the primary post-change
+    # hash; fall back to the legacy `new_hash`/`hash` for backward compatibility.
+    def _primary_hash(ev: Dict[str, Any]) -> str:
+        return ev.get("hash_after") or ev.get("new_hash") or ev.get("hash") or ""
+
+    hashes = [_primary_hash(ev) for ev in events
+              if isinstance(ev, dict) and _primary_hash(ev)]
     from virustotal_client import enrich_file_hashes
     verdicts = await asyncio.to_thread(enrich_file_hashes, hashes) if hashes else {}
 
@@ -58,7 +63,7 @@ async def ingest_fim_event(
     for ev in events:
         if not isinstance(ev, dict):
             continue
-        file_hash = (ev.get("new_hash") or ev.get("hash") or "")
+        file_hash = _primary_hash(ev)
         verdict = verdicts.get(file_hash.strip().lower()) if file_hash else None
         doc = {
             "id": str(uuid.uuid4()),
@@ -73,6 +78,14 @@ async def ingest_fim_event(
             "vt_verdict": (verdict or {}).get("verdict"),
             "vt_detection_ratio": (verdict or {}).get("detectionRatio"),
             "received_at": received_at,
+            # Rich FIM change-event fields (Phase 52-01, FIM-02) — additive;
+            # absent fields default to None so legacy events still ingest.
+            "change_type": ev.get("change_type"),
+            "hash_before": ev.get("hash_before"),
+            "hash_after": ev.get("hash_after"),
+            "process": ev.get("process"),
+            "user": ev.get("user"),
+            "ts": ev.get("ts"),
         }
         await db.fim_events.insert_one(doc)
         doc.pop("_id", None)
