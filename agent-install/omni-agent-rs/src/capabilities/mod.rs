@@ -1,3 +1,4 @@
+pub mod feed_bundle;
 pub mod agent_update;
 pub mod compliance;
 pub mod ebpf_tracing;
