@@ -281,6 +281,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "agent_fleet_observability_endpoints", "router")
     _load(app, "agent_fleet_geo_endpoints",  "router")
     _load(app, "agent_security_feed_endpoints", "router")
+    _load(app, "agent_security_scan_endpoints", "router")
     _load(app, "asset_metrics_endpoints",    "router")
     _load(app, "digital_twin_service",       "router")
     _load(app, "swarm_endpoints",            "router")
