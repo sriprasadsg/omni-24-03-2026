@@ -51,6 +51,25 @@ _IP_FEED: List[Tuple[str, str]] = [
     ("198.51.100.0/24", "Malicious"),
     ("203.0.113.66/32", "Malicious"),
 ]
+# cve_feed (VULN-02): (package, version_range, cve_id, cvss, severity,
+# remediation_hint, playbook_ref). Seeded from the agent's former hardcoded
+# CVE_PATTERNS, enriched; grow with a vendored NVD subset over time.
+_CVE_FEED: List[Tuple[str, str, str, float, str, str, str]] = [
+    ("openssl", "<1.0.2", "CVE-2022-0778", 7.5, "HIGH", "Upgrade OpenSSL to >=1.1.1n", "patch_package"),
+    ("openssl", "1.1.1", "CVE-2023-0286", 7.4, "HIGH", "Upgrade OpenSSL to >=1.1.1t", "patch_package"),
+    ("log4j", "2.0-2.14", "CVE-2021-44228", 10.0, "CRITICAL", "Upgrade log4j to >=2.17.1", "patch_package"),
+    ("log4j", "2.15", "CVE-2021-45046", 9.0, "CRITICAL", "Upgrade log4j to >=2.17.1", "patch_package"),
+    ("python", "<3.0", "CVE-2022-45061", 7.5, "MEDIUM", "Upgrade Python to a supported 3.x", "patch_package"),
+    ("putty", "<0.81", "CVE-2024-31497", 7.4, "HIGH", "Upgrade PuTTY to >=0.81", "patch_package"),
+    ("7-zip", "21", "CVE-2022-29072", 7.8, "HIGH", "Upgrade 7-Zip to >=21.07", "patch_package"),
+    ("winscp", "5", "CVE-2022-39369", 5.3, "MEDIUM", "Upgrade WinSCP to >=5.21.5", "patch_package"),
+    ("notepad++", "7", "CVE-2023-40031", 7.8, "HIGH", "Upgrade Notepad++ to >=8.5.7", "patch_package"),
+    ("zoom", "5.1", "CVE-2022-28762", 7.3, "HIGH", "Upgrade Zoom to the latest release", "patch_package"),
+    ("vlc", "3.0", "CVE-2022-41325", 8.8, "HIGH", "Upgrade VLC to >=3.0.18", "patch_package"),
+    ("apache", "2.4.49", "CVE-2021-41773", 7.5, "HIGH", "Upgrade Apache httpd to >=2.4.51", "patch_package"),
+    ("sudo", "<1.9.5p2", "CVE-2021-3156", 7.8, "HIGH", "Upgrade sudo to >=1.9.5p2", "patch_package"),
+    ("curl", "<7.87.0", "CVE-2022-42916", 6.5, "MEDIUM", "Upgrade curl to >=7.87.0", "patch_package"),
+]
 
 
 def _key_path() -> str:
@@ -94,6 +113,7 @@ def _seed_rows() -> Dict[str, Any]:
         "yara_rules": _YARA_RULES,
         "url_feed": _URL_FEED,
         "ip_feed": _IP_FEED,
+        "cve_feed": _CVE_FEED,
     }
 
 
@@ -111,11 +131,13 @@ def build_bundle() -> bytes:
         con.execute("CREATE TABLE yara_rules (name TEXT, severity TEXT, source TEXT)")
         con.execute("CREATE TABLE url_feed (pattern TEXT, kind TEXT, verdict TEXT)")
         con.execute("CREATE TABLE ip_feed (cidr TEXT, verdict TEXT)")
+        con.execute("CREATE TABLE cve_feed (package TEXT, version_range TEXT, cve_id TEXT, cvss REAL, severity TEXT, remediation_hint TEXT, playbook_ref TEXT)")
         con.execute("CREATE TABLE manifest (version TEXT, created_at TEXT)")
         con.executemany("INSERT INTO hash_sigs VALUES (?,?,?,?)", _HASH_SIGS)
         con.executemany("INSERT INTO yara_rules VALUES (?,?,?)", _YARA_RULES)
         con.executemany("INSERT INTO url_feed VALUES (?,?,?)", _URL_FEED)
         con.executemany("INSERT INTO ip_feed VALUES (?,?)", _IP_FEED)
+        con.executemany("INSERT INTO cve_feed VALUES (?,?,?,?,?,?,?)", _CVE_FEED)
         con.execute(
             "INSERT INTO manifest VALUES (?,?)",
             (bundle_version(), datetime.now(timezone.utc).isoformat()),
