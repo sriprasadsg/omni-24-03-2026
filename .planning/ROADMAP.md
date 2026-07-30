@@ -829,9 +829,17 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
   2. Each change event includes before/after hash, process tree, and user context, and is routed to the local remediation queue (FIM-02).
   3. Baseline snapshots are signed and drift against them is detected on agent restart (FIM-03).
 
-**Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern)
+**Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern; reuses the `ed25519-dalek` dep for baseline signing)
 
-**Plans:** TBD
+**Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+- [ ] 52-01-PLAN.md — Backend: extend `POST /fim-events` to accept/persist the rich event shape (change_type/before-after/process/user); keep VT enrichment + list [Wave 1]
+- [ ] 52-02-PLAN.md — Agent: event-driven `notify` FIM watcher + local sqlite `fim_queue` + rich event assembly (+ `notify` Cargo dep) [Wave 1]
+- [ ] 52-03-PLAN.md — Agent: ed25519-signed baseline snapshot + restart drift detection → queue (fail-closed) [Wave 2]
+- [ ] 52-04-PLAN.md — Agent: `agent_loop` starts watcher + drift check + background drain → POST `fim-events`; `fim_paths` config; windows cross-check [Wave 3]
+
+**Decisions:** `notify` crate (inotify/ReadDirectoryChangesW, event-driven — deviates from literal USN Journal); local sqlite `fim_queue` (drained by Phase 53) + backend report; agent-local ed25519-signed baseline w/ restart drift. Replaces the current poll-and-hash stub. Process/user context best-effort.
+
+**Status:** Planned — plans written 2026-07-30
 
 **UI hint**: FIM status surfaced in Phase 54
 
