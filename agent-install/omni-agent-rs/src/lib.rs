@@ -53,6 +53,21 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     }
     log::info!("Capabilities loaded: {}", cap_mgr.ids().join(", "));
 
+    // FIM setup
+    crate::capabilities::fim_baseline::check_drift_on_start(&cfg.fim_paths);
+
+    if let Some(ref rx) = stop_rx {
+        let watcher_stop = rx.clone();
+        if let Err(e) = crate::capabilities::fim::start_watcher(cfg.fim_paths.clone(), watcher_stop) {
+            log::warn!("FIM watcher start failed: {e}");
+        }
+
+        let drain_stop = rx.clone();
+        let cfg_drain = cfg.clone();
+        let client_drain = client.clone();
+        tokio::spawn(crate::capabilities::fim::drain_queue(cfg_drain, client_drain, drain_stop));
+    }
+
     // Materialize the interactive-session UI helpers now that we have a token:
     // the chat-window and tray scripts + a user-readable tray-config the logon
     // tray task consumes. Non-fatal — telemetry continues regardless.
