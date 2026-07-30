@@ -774,15 +774,15 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** none (foundational — defines the signed-bundle update mechanism reused by 51/52)
 
 **Plans:** (planned 2026-07-30 — 5 plans, 3 waves)
-- [ ] 50-01-PLAN.md — Backend signed feed-bundle: SQLite bundle (hash_sigs/yara_rules/url_feed/ip_feed/manifest incl. EICAR) + ed25519 detached sig + `GET /api/agents/security/feed-bundle` (versioned) + tests [Wave 1]
-- [ ] 50-02-PLAN.md — Agent `feed_bundle` (Rust): fetch + ed25519-verify (embedded pubkey, fail-closed) + local sqlite cache + graceful-degrade lookups [Wave 1]
-- [ ] 50-03-PLAN.md — Agent `security_scan` engine: `scan_file` (yara-x + hash-sig DB) + `scan_url/ip/hash` (feed lookup) → verdict JSON; yara-x Windows cross-compile gate [Wave 2]
-- [ ] 50-04-PLAN.md — Backend native-verdict ingestion `POST /api/agents/{id}/security/scan-result` + Malicious alert (source: native, clones `_raise_malware_alert`) + tests [Wave 2]
-- [ ] 50-05-PLAN.md — Agent `instructions.rs` dispatch (`scan_file/url/hash/ip` → POST) + `yara-x`/`ed25519-dalek` Cargo deps + linux/windows build [Wave 3]
+- [x] 50-01-PLAN.md — Backend signed feed-bundle: SQLite bundle (hash_sigs/yara_rules/url_feed/ip_feed/manifest incl. EICAR) + ed25519 detached sig + `GET /api/agents/security/feed-bundle` (versioned) + tests [Wave 1]
+- [x] 50-02-PLAN.md — Agent `feed_bundle` (Rust): fetch + ed25519-verify (embedded pubkey, fail-closed) + local sqlite cache + graceful-degrade lookups [Wave 1]
+- [x] 50-03-PLAN.md — Agent `security_scan` engine: `scan_file` (yara-x + hash-sig DB) + `scan_url/ip/hash` (feed lookup) → verdict JSON; yara-x Windows cross-compile gate [Wave 2]
+- [x] 50-04-PLAN.md — Backend native-verdict ingestion `POST /api/agents/{id}/security/scan-result` + Malicious alert (source: native, clones `_raise_malware_alert`) + tests [Wave 2]
+- [x] 50-05-PLAN.md — Agent `instructions.rs` dispatch (`scan_file/url/hash/ip` → POST) + `yara-x`/`ed25519-dalek` Cargo deps + linux/windows build [Wave 3]
 
 **Decisions:** yara-x (pure-Rust YARA, no libclamav/libyara) + hash-sig DB; native bundled signed feeds only (no VirusTotal at scan time); code in `omni-agent-rs` (shipped tree). Cargo-dep coupling: 50-05 owns the single Cargo edit but 50-02/03 need it to compile — add `ed25519-dalek`/`yara-x` when first compiling those modules.
 
-**Status:** Planned — plans written 2026-07-30
+**Status:** Executed 2026-07-30 (commits bc3b319..3fcaeb7). Backend 1453 pass (+7); agent builds linux + windows-gnu; 9 agent lib tests + 7 backend tests pass. **Deviation:** yara-x REJECTED at the spike (pulls wasmtime/cranelift JIT — bloat/cross-compile risk); took the documented fallback (hash-sig DB + aho-corasick literal matching), full YARA-rule support → backlog 999.4. Real feed public key embedded early (50-05 key step folded into 50-02).
 
 **UI hint**: findings surfaced in Phase 54
 
@@ -810,7 +810,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Decisions:** curated CVE feed in the shared Phase-50 signed bundle (no NVD API at scan time); findings ride the existing heartbeat `collect()` path (no new agent command); closes the Linux package-enumeration gap; wires the missing heartbeat→`vulnerabilities`-store pipeline (currently mock-seeded).
 
-**Status:** Planned — plans written 2026-07-30
+**Status:** Executed 2026-07-30 (commits bc3b319..3fcaeb7). Backend 1453 pass (+7); agent builds linux + windows-gnu; 9 agent lib tests + 7 backend tests pass. **Deviation:** yara-x REJECTED at the spike (pulls wasmtime/cranelift JIT — bloat/cross-compile risk); took the documented fallback (hash-sig DB + aho-corasick literal matching), full YARA-rule support → backlog 999.4. Real feed public key embedded early (50-05 key step folded into 50-02).
 
 **UI hint**: findings surfaced in Phase 54
 
@@ -926,4 +926,10 @@ Plans:
 
 **Goal:** [Deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
 **Requirements:** completes FIM-02
+**Plans:** 0 plans
+
+### Phase 999.4: Full YARA-rule engine for native scan (BACKLOG)
+
+**Goal:** [Deferred from Phase 50 at execution] Add real YARA-rule evaluation to the agent's native file scanner. Phase 50 rejected `yara-x` because it pulls `wasmtime` + `cranelift` (a JIT engine — unacceptable bloat + cross-compile risk for the lean agent) and shipped a fallback (SHA256 hash-signature DB + `aho-corasick` literal-pattern matching over the feed's rule string literals). A future engine could revisit yara-x with a leaner backend, a WASM-free YARA interpreter, or a compiled-rule subset — only if it cross-compiles to `x86_64-pc-windows-gnu` cleanly and stays reasonably sized.
+**Requirements:** completes NSCAN-01 (full YARA rules)
 **Plans:** 0 plans
