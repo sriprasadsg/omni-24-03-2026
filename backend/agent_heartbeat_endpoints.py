@@ -11,6 +11,7 @@ import logging
 from agent_location_history_service import record_location_change, get_track_agent_location
 from agent_auto_update_service import maybe_push_update_instruction
 from agent_heartbeat_alerts_service import persist_persistence_detection, persist_pii_scanner
+import agent_vuln_ingest_service
 from geo_security_service import run_geo_security_detectors
 from ueba_service import persist_security_alert
 
@@ -148,6 +149,11 @@ async def report_heartbeat(
         {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
+
+    # Phase 51-03 (VULN-01/03): upsert the agent's vuln-capability findings into
+    # the `vulnerabilities` store the dashboard reads. Non-blocking — a vuln
+    # error is swallowed inside and never fails the heartbeat (T-51-07).
+    await agent_vuln_ingest_service.ingest_from_heartbeat(db, _hb_tenant_id, agent_id, payload)
 
     # Record location history after enrichment (Phase 46, GAUD-01) — reuses
     # the existing_agent doc already fetched above (D-05, zero extra reads).
