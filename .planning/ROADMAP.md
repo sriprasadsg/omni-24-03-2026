@@ -803,7 +803,14 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50 (shared signed-feed bundle + update pattern)
 
-**Plans:** TBD
+**Plans:** (planned 2026-07-30 — 3 plans, 3 waves)
+- [ ] 51-01-PLAN.md — Backend: extend the Phase-50 signed bundle with a `cve_feed` table (package/version_range/cve_id/cvss/severity/remediation_hint/playbook_ref, curated + vendored NVD subset) + tests [Wave 1]
+- [ ] 51-02-PLAN.md — Agent `vulnerability_scan.rs`: feed-based CVE matching (replaces hardcoded `CVE_PATTERNS`) + Linux dpkg/rpm enumeration + misconfig (SSH/ports/deprecated protocols) + exposed-secret checks → prioritized enriched findings [Wave 2]
+- [ ] 51-03-PLAN.md — Backend heartbeat vuln pipeline: upsert agent findings into the real `vulnerabilities` store (tenant-scoped, deduped, non-blocking) + tests [Wave 3]
+
+**Decisions:** curated CVE feed in the shared Phase-50 signed bundle (no NVD API at scan time); findings ride the existing heartbeat `collect()` path (no new agent command); closes the Linux package-enumeration gap; wires the missing heartbeat→`vulnerabilities`-store pipeline (currently mock-seeded).
+
+**Status:** Planned — plans written 2026-07-30
 
 **UI hint**: findings surfaced in Phase 54
 
