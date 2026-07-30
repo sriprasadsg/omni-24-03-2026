@@ -832,10 +832,10 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern; reuses the `ed25519-dalek` dep for baseline signing)
 
 **Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
-- [ ] 52-01-PLAN.md — Backend: extend `POST /fim-events` to accept/persist the rich event shape (change_type/before-after/process/user); keep VT enrichment + list [Wave 1]
-- [ ] 52-02-PLAN.md — Agent: event-driven `notify` FIM watcher + local sqlite `fim_queue` + rich event assembly (+ `notify` Cargo dep) [Wave 1]
-- [ ] 52-03-PLAN.md — Agent: ed25519-signed baseline snapshot + restart drift detection → queue (fail-closed) [Wave 2]
-- [ ] 52-04-PLAN.md — Agent: `agent_loop` starts watcher + drift check + background drain → POST `fim-events`; `fim_paths` config; windows cross-check [Wave 3]
+- [x] 52-01-PLAN.md — Backend: extend `POST /fim-events` to accept/persist the rich event shape (change_type/before-after/process/user); keep VT enrichment + list [Wave 1]
+- [x] 52-02-PLAN.md — Agent: event-driven `notify` FIM watcher + local sqlite `fim_queue` + rich event assembly (+ `notify` Cargo dep) [Wave 1]
+- [x] 52-03-PLAN.md — Agent: ed25519-signed baseline snapshot + restart drift detection → queue (fail-closed) [Wave 2]
+- [x] 52-04-PLAN.md — Agent: `agent_loop` starts watcher + drift check + background drain → POST `fim-events`; `fim_paths` config; windows cross-check [Wave 3]
 
 **Decisions:** `notify` crate (inotify/ReadDirectoryChangesW, event-driven — deviates from literal USN Journal); local sqlite `fim_queue` (drained by Phase 53) + backend report; agent-local ed25519-signed baseline w/ restart drift. Replaces the current poll-and-hash stub. Process/user context best-effort.
 
