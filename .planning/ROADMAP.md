@@ -804,13 +804,13 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** Phase 50 (shared signed-feed bundle + update pattern)
 
 **Plans:** (planned 2026-07-30 — 3 plans, 3 waves)
-- [ ] 51-01-PLAN.md — Backend: extend the Phase-50 signed bundle with a `cve_feed` table (package/version_range/cve_id/cvss/severity/remediation_hint/playbook_ref, curated + vendored NVD subset) + tests [Wave 1]
-- [ ] 51-02-PLAN.md — Agent `vulnerability_scan.rs`: feed-based CVE matching (replaces hardcoded `CVE_PATTERNS`) + Linux dpkg/rpm enumeration + misconfig (SSH/ports/deprecated protocols) + exposed-secret checks → prioritized enriched findings [Wave 2]
-- [ ] 51-03-PLAN.md — Backend heartbeat vuln pipeline: upsert agent findings into the real `vulnerabilities` store (tenant-scoped, deduped, non-blocking) + tests [Wave 3]
+- [x] 51-01-PLAN.md — Backend: extend the Phase-50 signed bundle with a `cve_feed` table (package/version_range/cve_id/cvss/severity/remediation_hint/playbook_ref, curated + vendored NVD subset) + tests [Wave 1]
+- [x] 51-02-PLAN.md — Agent `vulnerability_scan.rs`: feed-based CVE matching (replaces hardcoded `CVE_PATTERNS`) + Linux dpkg/rpm enumeration + misconfig (SSH/ports/deprecated protocols) + exposed-secret checks → prioritized enriched findings [Wave 2]
+- [x] 51-03-PLAN.md — Backend heartbeat vuln pipeline: upsert agent findings into the real `vulnerabilities` store (tenant-scoped, deduped, non-blocking) + tests [Wave 3]
 
 **Decisions:** curated CVE feed in the shared Phase-50 signed bundle (no NVD API at scan time); findings ride the existing heartbeat `collect()` path (no new agent command); closes the Linux package-enumeration gap; wires the missing heartbeat→`vulnerabilities`-store pipeline (currently mock-seeded).
 
-**Status:** Executed 2026-07-30 (commits bc3b319..3fcaeb7). Backend 1453 pass (+7); agent builds linux + windows-gnu; 9 agent lib tests + 7 backend tests pass. **Deviation:** yara-x REJECTED at the spike (pulls wasmtime/cranelift JIT — bloat/cross-compile risk); took the documented fallback (hash-sig DB + aho-corasick literal matching), full YARA-rule support → backlog 999.4. Real feed public key embedded early (50-05 key step folded into 50-02).
+**Status:** Executed 2026-07-30. All 3 plans complete. 51-01: `cve_feed` table in the signed bundle (2 backend tests). 51-02: agent `vulnerability_scan.rs` rewritten — feed-based CVE matching (documented version-range comparator), Linux dpkg/rpm enumeration, SSH/port misconfig + bounded secret detection, prioritized enriched findings, graceful degrade; 11 agent lib tests pass, builds linux + windows-gnu. 51-03: `agent_vuln_ingest_service.py` upserts heartbeat findings into the real `vulnerabilities` store (tenant-scoped, deduped, non-blocking) + heartbeat wiring; 6 backend tests. Full backend suite 1469 pass, no new regressions. **Deviation:** `CVE_PATTERNS` removed entirely (feed authoritative) rather than kept as a live fallback, honoring the absent-feed → empty+degraded contract. **Human check deferred:** confirm the vulnerabilities dashboard shows live agent CVEs (not mock seeds) end-to-end.
 
 **UI hint**: findings surfaced in Phase 54
 
