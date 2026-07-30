@@ -21,7 +21,7 @@
 ## File Integrity Monitoring (FIM)
 
 - [ ] **FIM-01**: Agent monitors configured critical paths (binaries, configs, scripts, keys) for create/modify/delete/permission changes. Uses inotify/fanotify (Linux) or USN Journal (Windows) — low overhead.
-- [ ] **FIM-02**: Change events include hash before/after, process tree, user context. Alerts routed to local queue for remediation engine.
+- [x] **FIM-02**: Change events include hash before/after, process tree, user context. Alerts routed to local queue for remediation engine.
 - [ ] **FIM-03**: Baseline snapshots signed; drift detection on agent restart.
 
 ## Autonomous Remediation (AUTO)

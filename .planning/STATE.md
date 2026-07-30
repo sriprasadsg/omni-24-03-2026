@@ -1,21 +1,21 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.4
-milestone_name: — Native Security Scanning & Autonomous Remediation Agent
-milestone_status: roadmap-defined 2026-07-30 (16 reqs, 5 phases 50-54); not started. Prior v3.3 archived (tag v3.3).
-current_phase: 50
+milestone_name: Native Security Scanning & Autonomous Remediation Agent
+current_phase: 48
 current_phase_name: native-security-scanning
 status: phase-51-executed
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-07-29T20:36:38.859Z"
-last_activity: 2026-07-30
-last_activity_desc: "Phase 51 (Vulnerability Detection Engine) EXECUTED — all 3 plans. Corrected the roadmap's false 'Executed' block for phase 51 (was a copy-paste of phase 50's status; only 51-01 had actually landed, uncommitted). 51-01 cve_feed in signed bundle (2 tests); 51-02 agent vulnerability_scan.rs feed-based rewrite + Linux dpkg/rpm enum + misconfig/secret checks (11 lib tests, builds linux+windows-gnu, CVE_PATTERNS removed); 51-03 agent_vuln_ingest_service.py heartbeat->vulnerabilities upsert, tenant-scoped/deduped/non-blocking (6 tests) + heartbeat wiring. Full backend 1469 pass, no new regressions. Path-scoped commits (tree otherwise broadly dirty). Human check deferred: live-agent CVEs on the dashboard. Next — phase 52 (File Integrity Monitoring; plans already written) or verify 51."
+last_updated: "2026-07-30T20:44:55.479Z"
+last_activity: 2026-07-29
+last_activity_desc: Phase 48 execution started
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 20
+  completed_plans: 3
   percent: 0
+milestone_status: roadmap-defined 2026-07-30 (16 reqs, 5 phases 50-54); not started. Prior v3.3 archived (tag v3.3).
 ---
 
 # Project State
@@ -398,11 +398,16 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 48 P03 | 15min | 2 tasks | 3 files |
 | Phase 48 P04 | 20min | 3 tasks | 4 files |
 | Phase 48 P05 | 20min | 2 tasks | 5 files |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 52-file-integrity-monitoring P01 | 2m 14s | 2 tasks | 2 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** context exhaustion at 86% (2026-07-29)
+- **Stopped at:** Completed 52-file-integrity-monitoring-01-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -428,7 +433,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-07-29T20:36:38.840Z
+**Last session:** 2026-07-30T20:44:55.446Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 

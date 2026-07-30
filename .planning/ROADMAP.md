@@ -767,6 +767,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Requirements:** NSCAN-01 (offline file scan — ClamAV subset + YARA), NSCAN-02 (URL/IP/domain/hash reputation via signed bundled feeds), NSCAN-03 (scan API surface + event trigger)
 
 **Success Criteria** (what must be TRUE):
+
   1. The agent scans a file fully offline and returns a Clean/Suspicious/Malicious verdict with a confidence score, matching against a bundled signature + YARA set (NSCAN-01).
   2. The agent returns a reputation verdict for a URL/IP/domain/hash from bundled feeds updated only via signed bundle — no network call at scan time (NSCAN-02).
   3. `scan_file`/`scan_url`/`scan_hash`/`scan_ip` are invokable by an operator and by an internal event, with verdicts ingested per-tenant on the backend (NSCAN-03).
@@ -774,6 +775,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** none (foundational — defines the signed-bundle update mechanism reused by 51/52)
 
 **Plans:** (planned 2026-07-30 — 5 plans, 3 waves)
+
 - [x] 50-01-PLAN.md — Backend signed feed-bundle: SQLite bundle (hash_sigs/yara_rules/url_feed/ip_feed/manifest incl. EICAR) + ed25519 detached sig + `GET /api/agents/security/feed-bundle` (versioned) + tests [Wave 1]
 - [x] 50-02-PLAN.md — Agent `feed_bundle` (Rust): fetch + ed25519-verify (embedded pubkey, fail-closed) + local sqlite cache + graceful-degrade lookups [Wave 1]
 - [x] 50-03-PLAN.md — Agent `security_scan` engine: `scan_file` (yara-x + hash-sig DB) + `scan_url/ip/hash` (feed lookup) → verdict JSON; yara-x Windows cross-compile gate [Wave 2]
@@ -797,6 +799,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Requirements:** VULN-01 (local CVE + misconfig + secret scan, prioritized), VULN-02 (signed bundled feed + autonomous delta updates), VULN-03 (findings carry CVE ID, CVSS, affected package/path, remediation hint, playbook reference)
 
 **Success Criteria** (what must be TRUE):
+
   1. The agent produces a prioritized list of local findings — CVEs (package-version matched), misconfigurations, and exposed secrets — with no external NVD call at scan time (VULN-01).
   2. The CVE/vuln feed ships as a signed bundle and the agent applies delta updates autonomously (VULN-02).
   3. Each finding carries CVE ID, CVSS, affected package/path, a remediation hint, and a playbook reference usable by Phase 53 (VULN-03).
@@ -804,6 +807,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** Phase 50 (shared signed-feed bundle + update pattern)
 
 **Plans:** (planned 2026-07-30 — 3 plans, 3 waves)
+
 - [x] 51-01-PLAN.md — Backend: extend the Phase-50 signed bundle with a `cve_feed` table (package/version_range/cve_id/cvss/severity/remediation_hint/playbook_ref, curated + vendored NVD subset) + tests [Wave 1]
 - [x] 51-02-PLAN.md — Agent `vulnerability_scan.rs`: feed-based CVE matching (replaces hardcoded `CVE_PATTERNS`) + Linux dpkg/rpm enumeration + misconfig (SSH/ports/deprecated protocols) + exposed-secret checks → prioritized enriched findings [Wave 2]
 - [x] 51-03-PLAN.md — Backend heartbeat vuln pipeline: upsert agent findings into the real `vulnerabilities` store (tenant-scoped, deduped, non-blocking) + tests [Wave 3]
@@ -825,13 +829,15 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Requirements:** FIM-01 (low-overhead path monitoring, native OS facilities), FIM-02 (rich change events → local remediation queue), FIM-03 (signed baseline snapshots + restart drift detection)
 
 **Success Criteria** (what must be TRUE):
+
   1. The agent detects create/modify/delete/permission changes on configured critical paths using native OS facilities, at low overhead (FIM-01).
   2. Each change event includes before/after hash, process tree, and user context, and is routed to the local remediation queue (FIM-02).
   3. Baseline snapshots are signed and drift against them is detected on agent restart (FIM-03).
 
 **Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern; reuses the `ed25519-dalek` dep for baseline signing)
 
-**Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+**Plans:** 1/4 plans executed
+
 - [x] 52-01-PLAN.md — Backend: extend `POST /fim-events` to accept/persist the rich event shape (change_type/before-after/process/user); keep VT enrichment + list [Wave 1]
 - [x] 52-02-PLAN.md — Agent: event-driven `notify` FIM watcher + local sqlite `fim_queue` + rich event assembly (+ `notify` Cargo dep) [Wave 1]
 - [x] 52-03-PLAN.md — Agent: ed25519-signed baseline snapshot + restart drift detection → queue (fail-closed) [Wave 2]
@@ -854,6 +860,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Requirements:** AUTO-01 (finding → playbook → execute → verify → complete, human override at any step), AUTO-02 (YAML playbook system per finding class, operator-extensible), AUTO-03 (safety guards: dry-run, approval gate, rollback, concurrency cap), AUTO-04 (immutable remediation audit trail)
 
 **Success Criteria** (what must be TRUE):
+
   1. A finding from VULN/FIM/NSCAN is matched to a playbook, executed, verified, and completed — with a human override available at every step (AUTO-01).
   2. Remediation actions (patch package, kill process, restore file, block IP, rotate key, disable service) are YAML-defined per finding class and extensible by operators (AUTO-02).
   3. Destructive actions honor dry-run + approval gate, verification failure triggers rollback, and per-agent concurrent remediations are capped (AUTO-03).
@@ -862,6 +869,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** Phase 50, 51, 52 (finding sources) + existing remediation/playbook services
 
 **Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+
 - [ ] 53-01-PLAN.md — Backend: deterministic YAML playbook system (`remediation_playbook_service.py` + 6 vendored default playbooks + finding_class→playbook selection + fixed ACTION_MAP) + CRUD via `enhanced_playbook_endpoints` + tests [Wave 1]
 - [ ] 53-02-PLAN.md — Agent: new `instructions.rs` action arms (kill_process/restore_file/block_ip/rotate_key/disable_service, bounded + param-validated) + tests [Wave 1]
 - [ ] 53-03-PLAN.md — Backend engine: ingest NSCAN/VULN/FIM findings + playbook selection + execute (existing dispatch) + verify loop + completion + append-only `remediation_audit` writes [Wave 2]
@@ -884,6 +892,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Requirements:** INT-01 (per-tenant operator dashboard: scan status + findings + remediation queue + audit trail), INT-02 (on-demand scans, approve/deny remediations, playbook library + custom-playbook CRUD), INT-03 (API endpoints for all agent security functions)
 
 **Success Criteria** (what must be TRUE):
+
   1. A per-tenant operator dashboard shows live scan status, the findings feed, the remediation queue, and the audit trail (INT-01).
   2. An operator can trigger on-demand scans, approve/deny pending remediations, and view/create playbooks from the UI (INT-02).
   3. Every agent security function is reachable via an API endpoint — scan, vuln-scan, fim-status, remediation-trigger, playbook CRUD (INT-03).
@@ -891,6 +900,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** Phase 50, 51, 52, 53 (surfaces all upstream)
 
 **Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+
 - [ ] 54-01-PLAN.md — Backend `security_ops_endpoints.py`: GET findings, GET remediation-queue, POST trigger-scan (dispatch via `agent_instructions`), GET fim-status/summary + registry + tests [Wave 1]
 - [ ] 54-02-PLAN.md — Frontend contract: `nativeSecurity` AppView + `manage:active_response` permission entry + response types + apiService clients [Wave 1]
 - [ ] 54-03-PLAN.md — `NativeSecurityConsole.tsx` tabbed console (Findings / Remediation Queue+approve-deny / Playbooks (reuse PlaybookManager) / Audit) + trigger-scan controls [Wave 2]
