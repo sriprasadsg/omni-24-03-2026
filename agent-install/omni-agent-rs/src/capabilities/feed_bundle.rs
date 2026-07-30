@@ -109,6 +109,45 @@ pub fn update(api_base: &str, agent_token: &str) -> Result<bool, String> {
     Ok(true)
 }
 
+/// A single `cve_feed` row from the signed bundle (Phase 51, VULN-02).
+#[derive(Debug, Clone)]
+pub struct CveFeedRow {
+    pub package: String,
+    pub version_range: String,
+    pub cve_id: String,
+    pub cvss: f64,
+    pub severity: String,
+    pub remediation_hint: String,
+    pub playbook_ref: String,
+}
+
+/// All `cve_feed` rows from the cached bundle, or `None` when the bundle is
+/// absent / unreadable / lacks the table (degraded — the caller reports no CVE
+/// findings rather than crash). No network: reads the verified local cache only.
+pub fn cve_feed_rows() -> Option<Vec<CveFeedRow>> {
+    let con = open_cache()?;
+    let mut stmt = con
+        .prepare(
+            "SELECT package, version_range, cve_id, cvss, severity, remediation_hint, playbook_ref \
+             FROM cve_feed",
+        )
+        .ok()?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(CveFeedRow {
+                package: r.get(0)?,
+                version_range: r.get(1)?,
+                cve_id: r.get(2)?,
+                cvss: r.get(3)?,
+                severity: r.get(4)?,
+                remediation_hint: r.get(5)?,
+                playbook_ref: r.get(6)?,
+            })
+        })
+        .ok()?;
+    Some(rows.flatten().collect())
+}
+
 /// Open the cached feed DB, or None if absent/unreadable.
 pub fn open_cache() -> Option<Connection> {
     let p = cache_path();
