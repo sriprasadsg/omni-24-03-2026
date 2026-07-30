@@ -367,6 +367,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   privacy: 'view:compliance',
   geoSecurity: 'manage:settings',
   fleetObservability: 'manage:agents',
+  fleetGeoMap: 'manage:agents',
   scheduledReports: 'view:reporting',
   secretsManagement: 'manage:settings',
   customFrameworks: 'view:compliance',

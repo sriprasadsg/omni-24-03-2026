@@ -198,7 +198,8 @@ export type AppView =
   | 'deploymentApprovals'
   | 'cloudChecksScanner'
   | 'stagedDeployments'
-  | 'fleetObservability';
+  | 'fleetObservability'
+  | 'fleetGeoMap';
 
 
 export type Permission =

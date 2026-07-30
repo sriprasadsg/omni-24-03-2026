@@ -5038,3 +5038,38 @@ export const fetchFleetObservability = async (): Promise<FleetObservability> => 
     }
     return await res.json();
 };
+
+// Fleet Geo Map (GMAP-01/02/03) — client renders markers/clusters over this
+// cross-tenant projection; server does RBAC + tenant scoping. GET /api/fleet/geo.
+export interface FleetGeoAgent {
+    id: string;
+    hostname: string;
+    status: string;
+    tenantId: string;
+    lanIp?: string | null;
+    publicIp?: string | null;
+    geo: {
+        city?: string | null;
+        country?: string | null;
+        country_code?: string | null;
+        latitude: number;
+        longitude: number;
+    } | null;
+}
+
+export interface FleetGeoResponse {
+    agents: FleetGeoAgent[];
+    total: number;
+    located_count: number;
+    unlocated_count: number;
+    tenants: string[];
+}
+
+export const fetchFleetGeo = async (): Promise<FleetGeoResponse> => {
+    const res = await authFetch(`${API_BASE}/fleet/geo`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load fleet geo data');
+    }
+    return await res.json();
+};
