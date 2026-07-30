@@ -164,6 +164,7 @@ const IncidentWarRoomDashboard = lazy(() => import('./components/IncidentWarRoom
 const PrivacyDashboard = lazy(() => import('./components/PrivacyDashboard'));
 const SecuritySettingsDashboard = lazy(() => import('./components/SecuritySettingsDashboard').then(m => ({ default: m.SecuritySettingsDashboard })));
 const FleetObservabilityDashboard = lazy(() => import('./components/FleetObservabilityDashboard').then(m => ({ default: m.FleetObservabilityDashboard })));
+const FleetGeoMap = lazy(() => import('./components/FleetGeoMap').then(m => ({ default: m.FleetGeoMap })));
 const ScheduledReportsDashboard = lazy(() => import('./components/ScheduledReportsDashboard'));
 const SecretsManagementDashboard = lazy(() => import('./components/SecretsManagementDashboard').then(m => ({ default: m.SecretsManagementDashboard })));
 const CustomFrameworkBuilder = lazy(() => import('./components/CustomFrameworkBuilder'));
@@ -1914,6 +1915,7 @@ const App: React.FC = () => {
       case 'privacy': return <ErrorBoundary name="PrivacyDashboard"><PrivacyDashboard /></ErrorBoundary>;
       case 'geoSecurity': return <ErrorBoundary name="SecuritySettingsDashboard"><SecuritySettingsDashboard /></ErrorBoundary>;
       case 'fleetObservability': return <ErrorBoundary name="FleetObservabilityDashboard"><FleetObservabilityDashboard /></ErrorBoundary>;
+      case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
       case 'privacyLegal': return <ErrorBoundary name="PrivacyLegalDashboard"><PrivacyLegalDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
       case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
