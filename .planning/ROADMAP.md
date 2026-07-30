@@ -890,7 +890,15 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50, 51, 52, 53 (surfaces all upstream)
 
-**Plans:** TBD
+**Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+- [ ] 54-01-PLAN.md — Backend `security_ops_endpoints.py`: GET findings, GET remediation-queue, POST trigger-scan (dispatch via `agent_instructions`), GET fim-status/summary + registry + tests [Wave 1]
+- [ ] 54-02-PLAN.md — Frontend contract: `nativeSecurity` AppView + `manage:active_response` permission entry + response types + apiService clients [Wave 1]
+- [ ] 54-03-PLAN.md — `NativeSecurityConsole.tsx` tabbed console (Findings / Remediation Queue+approve-deny / Playbooks (reuse PlaybookManager) / Audit) + trigger-scan controls [Wave 2]
+- [ ] 54-04-PLAN.md — Nav registration (App.tsx + Sidebar), `manage:active_response`, cloning 49-05 [Wave 3]
+
+**Decisions:** one unified Native Security Console (tabbed) gated on `manage:active_response`; thin new ops endpoints complete INT-03 on top of the 50-53 surfaces (no duplication); reuse existing PlaybookManager/vuln components; server enforces the Phase-53 approval gate (UI triggers/displays only).
+
+**Status:** Planned — plans written 2026-07-30
 
 **UI hint**: yes (major — the operator console)
 
