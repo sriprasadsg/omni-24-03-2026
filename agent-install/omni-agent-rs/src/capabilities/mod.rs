@@ -4,6 +4,7 @@ pub mod agent_update;
 pub mod compliance;
 pub mod ebpf_tracing;
 pub mod fim;
+pub mod fim_baseline;
 pub mod logs;
 pub mod metrics;
 pub mod network_discovery;
