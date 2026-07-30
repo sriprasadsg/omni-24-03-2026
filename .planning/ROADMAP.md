@@ -861,7 +861,15 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50, 51, 52 (finding sources) + existing remediation/playbook services
 
-**Plans:** TBD
+**Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+- [ ] 53-01-PLAN.md — Backend: deterministic YAML playbook system (`remediation_playbook_service.py` + 6 vendored default playbooks + finding_class→playbook selection + fixed ACTION_MAP) + CRUD via `enhanced_playbook_endpoints` + tests [Wave 1]
+- [ ] 53-02-PLAN.md — Agent: new `instructions.rs` action arms (kill_process/restore_file/block_ip/rotate_key/disable_service, bounded + param-validated) + tests [Wave 1]
+- [ ] 53-03-PLAN.md — Backend engine: ingest NSCAN/VULN/FIM findings + playbook selection + execute (existing dispatch) + verify loop + completion + append-only `remediation_audit` writes [Wave 2]
+- [ ] 53-04-PLAN.md — Backend: safety guards (approval gate for destructive + rollback on verify-fail + per-agent concurrency cap) + approve/deny + audit-read endpoints [Wave 3]
+
+**Decisions:** backend-orchestrated engine (extend `autonomous_remediation_service`, dispatch via the existing `agent_instructions` queue — no agent-local engine); deterministic YAML playbooks (no LLM in the execution path); immutable append-only audit; approval gate default-on for destructive actions. Reuses the existing engine's dry-run/severity-ceiling/dedup.
+
+**Status:** Planned — plans written 2026-07-30
 
 **UI hint**: remediation queue + approvals surfaced in Phase 54
 
