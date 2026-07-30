@@ -915,3 +915,15 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 Plans:
 
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.2: `rotate_key` remediation action (BACKLOG)
+
+**Goal:** [Deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Deferred because the original scope was under-specified + dangerous + hard to make reversible. Ship after the four reversible actions (kill/restore/block/disable) are proven.
+**Requirements:** extends AUTO-02
+**Plans:** 0 plans
+
+### Phase 999.3: FIM process attribution via fanotify (BACKLOG)
+
+**Goal:** [Deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
+**Requirements:** completes FIM-02
+**Plans:** 0 plans

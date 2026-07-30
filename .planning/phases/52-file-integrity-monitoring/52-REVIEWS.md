@@ -2,6 +2,17 @@
 
 > Reviewer: claude-self (adversarial; no independent external model available).
 
+## RESOLUTION STATUS (replan 2026-07-30, `/gsd-plan-phase --all --reviews`)
+
+- **HIGH (FIM-02 process-tree best-effort) — ACCEPTED PARTIAL, documented.** CONTEXT "Review resolutions": must be recorded as best-effort in VERIFICATION + milestone audit; backlog item filed for fanotify PID attribution. hash-before/after + user + change_type fully met.
+- **HIGH (cross-phase Cargo dep on Phase 50) — DOCUMENTED.** Hard ordering 50→52 stated in CONTEXT.
+- **MED (permission-only change detection) — VERIFY AT EXECUTE.** Platform-dependent; documented.
+- **LOW (baseline key rotation) — SPECIFIED.** New keypair + re-sign on reset.
+
+---
+_Original findings below._
+
+
 ## HIGH — FIM-02's "process tree" is only best-effort with `notify` (requirement gap)
 `notify` events carry no PID, so `process: {pid, name, tree}` is `unknown` on most events. FIM-02 explicitly requires "process tree." The plans call this out as best-effort, but a strict reading of FIM-02 is only partially met — the raw-fanotify option (declined) is what would truly satisfy it.
 **Disposition:** accepted partial by the engine-choice decision — but make it EXPLICIT in the phase VERIFICATION and the milestone audit that FIM-02's process-tree clause is best-effort, not full. Consider a follow-up backlog item for fanotify-based PID attribution on Linux.

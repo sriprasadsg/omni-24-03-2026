@@ -38,6 +38,13 @@ Turn the agent's poll-and-hash FIM stub into a real event-driven integrity monit
 - **Baseline key:** agent-generated, persisted locally, **never shipped** in an installer; rotate on baseline reset.
 - **Windows cross-compile:** `cargo check --target x86_64-pc-windows-gnu` after adding `notify`.
 
+## Review resolutions (2026-07-30, from 52-REVIEWS.md)
+
+- **HIGH (FIM-02 process-tree only best-effort) — ACCEPTED PARTIAL, documented.** `notify` carries no PID, so `process.tree` is best-effort (often `unknown`). This is an explicit, accepted consequence of the D-01 engine choice, NOT a silent gap: the phase VERIFICATION and the milestone audit MUST record FIM-02's process-tree clause as best-effort. **Backlog item:** "FIM process attribution via Linux fanotify (PID → real process tree)" — a follow-up that would fully satisfy FIM-02's process clause. The `hash_before/hash_after` + `user` + `change_type` parts of FIM-02 are fully met.
+- **HIGH (hard cross-phase build dep) — DOCUMENTED.** `52-03` uses `ed25519-dalek`, which **Phase 50 (50-02) adds**. Hard ordering: Phase 50's agent Cargo deps must land before Phase 52 compiles. Execute 50 before 52 (or, if 52 runs first, 52-03 must add `ed25519-dalek` itself — but the intended order is 50→52).
+- **MED (permission-only changes) — VERIFY AT EXECUTE.** Whether ReadDirectoryChangesW / inotify surface a permission-only change as a distinct event is platform-dependent; 52-02 maps permission→modify best-effort. Confirm per-platform at execute and document any gap in the FIM-01 verification.
+- **LOW (baseline key rotation) — SPECIFIED:** on a baseline reset, generate a NEW keypair and re-sign (fail-closed reset), per D-03.
+
 ## Plan breakdown
 
 | Plan | Wave | Scope | Requirements |
