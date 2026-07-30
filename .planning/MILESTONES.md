@@ -1,5 +1,19 @@
 # Milestones
 
+## v3.3 Agent Geo & Fleet Observability (Shipped: 2026-07-30)
+
+**Phases completed:** 4 phases (46–49), 23 plans
+
+**Key accomplishments:**
+
+- Immutable per-agent location-history audit trail: append-only `agent_location_history` with NAT-flip de-noise, per-tenant toggle, 365-day retention, and an ASN/VPN-enrichment foundation (GeoLite2-ASN + bundled X4BNet heuristic) — front-loaded with its privacy/legal review gate (GAUD-01/02).
+- Agent-scoped geo security detectors reusing the existing alert fan-out: heuristic (never "detected") VPN/hosting badge, impossible-travel via haversine + time window keyed by `agent_id`, and per-tenant alert-only geo-fence with admin config endpoints (GSEC-01/02/03).
+- Fleet observability: per-agent CPU/memory/disk history charts + selectable-range uptime timeline (daily rollups), and an admin-gated aggregate offline + version-drift view (`GET /api/fleet/observability`) (FOBS-01/02/03).
+- Air-gapped Fleet Geo Map: self-contained bundled-SVG equirectangular basemap (zero new deps, no tile servers), client-side grid clustering, tenant/status filters, and marker drill-down, backed by a new cross-tenant `GET /api/fleet/geo` endpoint cloning the 48-03 tenant-gating (GMAP-01/02/03).
+- Milestone audit passed (11/11 requirements, cross-phase integration confirmed live: the map reads phase-46 geo enrichment + phase-48 status through `geoip_service` + `monitor_agent_status`).
+
+---
+
 ## v3.2 Agent Modernization & Remediation Ops (Shipped: 2026-07-28)
 
 **Phases completed:** 7 phases, 19 plans, 50 tasks

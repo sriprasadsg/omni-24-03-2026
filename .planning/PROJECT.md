@@ -10,6 +10,10 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ## Current State
 
+**Latest: v3.3 Agent Geo & Fleet Observability shipped 2026-07-30** (4 phases 46–49, 23 plans, 11/11 requirements, audit passed). Immutable per-agent location-history audit trail + ASN/VPN enrichment (46); agent-scoped geo detectors — impossible-travel, alert-only geo-fence, heuristic VPN badge (47); fleet observability — metrics/uptime charts + offline/version-drift view (48); air-gapped fleet geo map — bundled-SVG, clustering, tenant/status filters, drill-down, cross-tenant `/api/fleet/geo` (49). **Next: v3.4 Native Security Scanning & Autonomous Remediation** (phases 50–54, requirements drafted in `REQUIREMENTS.md`); **v4.0 ITAM** context held in `MILESTONE-CONTEXT.md`.
+
+<details><summary>Earlier milestones (v1.0 → v3.2)</summary>
+
 **v1.0 shipped 2026-06-18 — all 4 new capabilities live:**
 
 - Rust agent evidence parity — heartbeats feed `compliance_evidence_processor` identically to the Python agent; `agent_type: rust` preserved in evidence records
@@ -24,6 +28,8 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Compliance status override — `PATCH /api/assets/{id}/compliance/status` with tenant isolation, immutable `status_history` (changedBy/changedAt/previous_status), and `manual_override` flag
 - Frontend wired — "Mark Compliant / Mark Non-Compliant" buttons in `AssetComplianceList` call backend endpoint; success refreshes data, failure shows toast error
 - WCAG AA badge fix — evidence source badges use `text-xs` (previously non-standard `text-[10px]`)
+
+</details>
 
 ## Requirements
 
@@ -49,17 +55,19 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone was about evidence and compliance
 - Billing and subscription management — separate concern not related to compliance portal completeness
 
-## Current Milestone: v3.3 — Agent Geo & Fleet Observability
+## Current Milestone: Native Security Scanning & Autonomous Remediation Agent
 
-**Status:** Defining requirements | **Started:** 2026-07-29
+**Status:** Defining requirements | **Started:** 2026-07-30
 
-**Goal:** Turn the agent public-IP/GeoIP data landed in v3.2 into a full geo + observability surface — a live fleet map, location-based security detections, health/uptime observability, and an immutable location-history audit trail.
+**Goal:** Build native security capabilities into the OmniAgent — file/URL/IP/hash scanning (like VirusTotal), vulnerability detection on endpoints (like Wazuh's FIM/config-assessment/vuln-detection), and autonomous remediation. No external SIEM dependencies — all security features built as first-class agent modules.
 
 **Target features:**
-- Fleet geo map on the admin dashboard — agent markers by city/country, clustering, filter by tenant/status. Builds on the `publicIp` + `geo` fields already persisted on agent/asset docs (v3.2). Map rendering must stay self-contained for air-gapped deployments (no external tile servers) — flag for research.
-- Location-based security — impossible-travel / login-from-new-geo anomaly detection, per-tenant geo-fencing (allowed-region policy), VPN/proxy/hosting-ASN flagging. Integrate with the existing SIEM "impossible travel" rule and insider-threat `vpn_geo_anomaly` — do not duplicate.
-- Fleet observability — agent health/metrics history (CPU/mem/disk already captured in `agent_metrics_history`), heartbeat/uptime timeline, offline-agent alerting, agent version-drift surfacing. Reuse existing heartbeat + ETW telemetry, don't rebuild.
-- Location history & audit — per-agent public-IP/geo change timeline with an immutable, append-only audit trail (clone the append-only pattern from `remediation_escalations`).
+- **Native File Scanner** — scan files for malware signatures, YARA rules, heuristic detection. Built into agent, no external API dependency.
+- **Native URL/IP/Hash Scanner** — reputation checks, threat-intel lookup against bundled feeds, heuristic classification.
+- **Vulnerability Detection Engine** — agent-side scanning for CVEs, misconfigurations, weak cipher/port detection. Like Wazuh's vulnerability detector but native.
+- **File Integrity Monitoring (FIM)** — track file changes, detect unauthorized modifications, alert on critical-path changes.
+- **Autonomous Remediation** — agent receives detection → selects remediation action → executes fix → verifies → reports. Human-override always available.
+- **Remediation Playbook System** — predefined remediation actions per vulnerability class, extensible by operators.
 
 **Phase plan:** TBD — continues numbering from Phase 45 (v3.3 starts at Phase 46)
 
