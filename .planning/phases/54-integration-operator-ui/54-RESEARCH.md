@@ -19,7 +19,7 @@ Codebase-grounded. Refs verified 2026-07-30.
 ## 2. Backend ops endpoints (INT-03) — D-03
 
 `security_ops_endpoints.py`, `APIRouter(prefix="/api/security-ops")`:
-- `GET /findings` — merge/list scan verdicts (`security_scan_results`) [+ optionally reference vuln/fim counts]; tenant-scoped, paginated.
+- `GET /findings` — ONE normalized, paginated feed aggregating `security_scan_results` + `vulnerabilities` + `fim_events` server-side (item: `{source, severity, hostname, target, verdict_or_detail, ts}`); tenant-scoped. The UI never federates the three sources (review MED).
 - `GET /remediation-queue` — pending/in-flight remediations (pending_approval + dispatched-not-verified), tenant-scoped.
 - `POST /trigger-scan` — body `{agent_id, type: file|vuln|fim, target?}` → insert an `agent_instructions` doc `{type: "scan_file"|..., agent_id, payload}` (reuse the Phase-53 dispatch shape); check agent connectivity; return `{queued: true}`.
 - `GET /fim-status` — per-agent FIM watcher status (from `agent.meta.capabilities` fim summary) + recent `fim_events` counts.
@@ -31,7 +31,7 @@ All gated `manage:active_response`, wrapped db, never `db._db`.
 `NativeSecurityConsole.tsx` — a tabbed shell (reuse the tab pattern from an existing multi-tab dashboard):
 - **Findings**: table/feed of scan verdicts + vuln findings + FIM events (from `/security-ops/findings`, `vuln_endpoints`, `fim-events`), filterable, paginated; a "Scan now" action (`POST /trigger-scan`).
 - **Remediation Queue**: pending_approval + in-flight (from `/remediation-queue`), each with Approve/Deny buttons (`POST /api/remediation/{id}/approve|deny`, 53-04).
-- **Playbooks**: embed `PlaybookManager` (D-04).
+- **Playbooks**: `PlaybooksTab` lists/creates/edits the deterministic `remediation_playbooks` via the 53-01 CRUD (D-04) — NOT `PlaybookManager` (that manages the LLM store; it will not edit the engine's playbooks).
 - **Audit**: the `remediation_audit` trail (`GET /api/remediation/audit`, 53-04), read-only, paginated.
 Keep < 500 lines — one child component per tab.
 

@@ -2,6 +2,17 @@
 
 > Reviewer: claude-self (adversarial; no independent external model available).
 
+## RESOLUTION STATUS (replan 2026-07-30, `/gsd-plan-phase 54 --reviews`)
+
+- **MED (findings-feed source inconsistency) — RESOLVED.** `GET /security-ops/findings` now aggregates scan+vuln+FIM server-side into one normalized paginated feed; the UI consumes the single feed, no client federation. CONTEXT D-03; 54-01/54-03 updated.
+- **MED (playbook CRUD store compatibility) — RESOLVED.** The Playbooks tab now targets the dedicated `remediation_playbooks` CRUD (53-01) via a new `PlaybooksTab`; `PlaybookManager`/LLM store dropped. CONTEXT D-04; 54-02/54-03 updated.
+- **MED (trigger-scan async surfacing) — PARTIAL.** 54-03 now re-fetches the feed after a trigger (verdicts return async); the connectivity check (`websocket_manager.is_agent_connected`) is specified in 54-01. A push/live-update is still out of scope (poll/refresh only).
+- **LOW (sidebar icon import) — carried** as an execute-time check in 54-04.
+
+---
+_Original findings below._
+
+
 ## MED — Findings-feed source inconsistency (scan-only endpoint vs scan+vuln+FIM tab)
 54-CONTEXT/54-03 say the Findings tab shows scan verdicts + native VULN + FIM, but `54-01`'s `GET /security-ops/findings` only lists `security_scan_results` (scan verdicts), "optionally referencing vuln/fim counts." So the tab must federate three endpoints (findings + `vuln_endpoints` + `fim-events`) with three shapes + three paginations.
 **Fix:** decide explicitly — either (a) `GET /findings` aggregates all three server-side into one paginated, normalized feed (cleaner for the UI), or (b) the tab federates three sources with a defined merge/sort/pagination strategy. Pick one in 54-01/54-03; don't leave it split.
