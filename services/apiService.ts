@@ -9,7 +9,8 @@ import {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload
+    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload,
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook
 } from '../types';
 
 export type {
@@ -22,7 +23,8 @@ export type {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    ComplianceScorePayload
+    ComplianceScorePayload,
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook
 };
 // Helper to ensure severity strings are consistent (e.g., "critical" -> "Critical")
 const normalizeSeverity = (severity: any): any => {
@@ -4867,4 +4869,210 @@ export const fetchFleetGeo = async (): Promise<FleetGeoResponse> => {
         throw new Error(err.detail || 'Failed to load fleet geo data');
     }
     return await res.json();
+};
+
+// ── Security Ops Endpoints ──────────────────────────────────────────────────
+export const fetchFindings = async (params: { limit?: number; offset?: number }): Promise<SecurityFinding[]> => {
+    try {
+        const query = new URLSearchParams();
+        if (params.limit) query.append('limit', String(params.limit));
+        if (params.offset) query.append('offset', String(params.offset));
+        const res = await authFetch(`${API_BASE}/security-ops/findings?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch aggregated findings");
+        const data = await res.json();
+        return data.findings || [];
+    } catch (e) {
+        console.error("Error fetching aggregated findings:", e);
+        return [];
+    }
+};
+
+export const fetchRemediationQueue = async (): Promise<RemediationQueueItem[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/remediation-queue`);
+        if (!res.ok) throw new Error("Failed to fetch remediation queue");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation queue:", e);
+        return [];
+    }
+};
+
+export const triggerScan = async (agentId: string, type: 'file' | 'vuln' | 'fim', target?: string): Promise<{ queued: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/trigger-scan`, {
+            method: 'POST',
+            body: JSON.stringify({ agent_id: agentId, type, target })
+        });
+        if (!res.ok) throw new Error("Failed to trigger scan");
+        return await res.json();
+    } catch (e) {
+        console.error("Error triggering scan:", e);
+        throw e;
+    }
+};
+
+export const fetchFimStatus = async (): Promise<FimStatus[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/fim-status`);
+        if (!res.ok) throw new Error("Failed to fetch FIM status");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching FIM status:", e);
+        return [];
+    }
+};
+
+export const fetchSecuritySummary = async (): Promise<SecuritySummary> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/summary`);
+        if (!res.ok) throw new Error("Failed to fetch security summary");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching security summary:", e);
+        return { totalFindings: 0, criticalFindings: 0, openRemediations: 0, agentsWithFim: 0, fimDriftDetected: false };
+    }
+};
+
+// ── Remediation Audit & Actions (Phase 53-04) ──────────────────────────────
+export const fetchRemediationAudit = async (params: { limit?: number; offset?: number }): Promise<RemediationAuditEntry[]> => {
+    try {
+        const query = new URLSearchParams();
+        if (params.limit) query.append('limit', String(params.limit));
+        if (params.offset) query.append('offset', String(params.offset));
+        const res = await authFetch(`${API_BASE}/remediation/audit?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch remediation audit log");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation audit:", e);
+        return [];
+    }
+};
+
+export const approveRemediation = async (id: string): Promise<RemediationQueueItem> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation/${id}/approve`, { method: 'POST' });
+        if (!res.ok) throw new Error("Failed to approve remediation");
+        return await res.json();
+    } catch (e) {
+        console.error("Error approving remediation:", e);
+        throw e;
+    }
+};
+
+export const denyRemediation = async (id: string, reason: string): Promise<RemediationQueueItem> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation/${id}/deny`, {
+            method: 'POST',
+            body: JSON.stringify({ reason })
+        });
+        if (!res.ok) throw new Error("Failed to deny remediation");
+        return await res.json();
+    } catch (e) {
+        console.error("Error denying remediation:", e);
+        throw e;
+    }
+};
+
+// ── Remediation Playbook CRUD (Phase 53-01) ────────────────────────────────
+export const fetchRemediationPlaybooks = async (): Promise<RemediationPlaybook[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks`);
+        if (!res.ok) throw new Error("Failed to fetch remediation playbooks");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation playbooks:", e);
+        return [];
+    }
+};
+
+export const createRemediationPlaybook = async (playbook: Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>): Promise<RemediationPlaybook> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks`, {
+            method: 'POST',
+            body: JSON.stringify(playbook)
+        });
+        if (!res.ok) throw new Error("Failed to create remediation playbook");
+        return await res.json();
+    } catch (e) {
+        console.error("Error creating remediation playbook:", e);
+        throw e;
+    }
+};
+
+export const updateRemediationPlaybook = async (id: string, playbook: Partial<Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>>): Promise<RemediationPlaybook> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(playbook)
+        });
+        if (!res.ok) throw new Error("Failed to update remediation playbook");
+        return await res.json();
+    } catch (e) {
+        console.error("Error updating remediation playbook:", e);
+        throw e;
+    }
+};
+
+export const deleteRemediationPlaybook = async (id: string): Promise<void> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error("Failed to delete remediation playbook");
+    } catch (e) {
+        console.error("Error deleting remediation playbook:", e);
+        throw e;
+    }
+};
+
+// Wrapper object to satisfy imports in new dashboards (DataWarehouse, Streaming, etc.)
+export const apiService = {
+    get: async (endpoint: string) => {
+        const res = await authFetch(endpoint);
+        if (!res.ok) throw new Error(`GET ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    post: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`POST ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    put: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`PUT ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    patch: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'PATCH',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`PATCH ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    delete: async (endpoint: string) => {
+        const res = await authFetch(endpoint, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`DELETE ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    // Security Ops Endpoints
+    fetchFindings,
+    fetchRemediationQueue,
+    triggerScan,
+    fetchFimStatus,
+    fetchSecuritySummary,
+    // Remediation Audit & Actions
+    fetchRemediationAudit,
+    approveRemediation,
+    denyRemediation,
+    // Remediation Playbook CRUD
+    fetchRemediationPlaybooks,
+    createRemediationPlaybook,
+    updateRemediationPlaybook,
+    deleteRemediationPlaybook,
 };
