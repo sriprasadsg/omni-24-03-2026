@@ -836,7 +836,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern; reuses the `ed25519-dalek` dep for baseline signing)
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 - [x] 52-01-PLAN.md — Backend: extend `POST /fim-events` to accept/persist the rich event shape (change_type/before-after/process/user); keep VT enrichment + list [Wave 1]
 - [x] 52-02-PLAN.md — Agent: event-driven `notify` FIM watcher + local sqlite `fim_queue` + rich event assembly (+ `notify` Cargo dep) [Wave 1]
@@ -911,6 +911,23 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Status:** Planned — plans written 2026-07-30
 
 **UI hint**: yes (major — the operator console)
+
+---
+
+## Phase 55: Advanced Threat Detection & Response
+
+**Goal:** Real-time threat intelligence correlation, predictive anomaly detection, automated containment/isolation, SOC integration.
+
+**Requirements:** INT-04 (threat intel feeds, correlation engine), AUT-03 (predictive containment), COMM-01 (syslog/SIEM webhook).
+
+**Depends on:** Phase 51 (vuln engine), 53 (autonomous remediation), 54 (UI/API)
+
+**Plans:** (4 plans placeholder)
+
+- [ ] 55-01-PLAN.md — Threat Intelligence correlation
+- [ ] 55-02-PLAN.md — Predictive anomaly detection
+- [ ] 55-03-PLAN.md — Automated containment/isolation
+- [ ] 55-04-PLAN.md — SOC Integration (syslog/SIEM)
 
 ---
 

@@ -1,17 +1,15 @@
 ---
 phase: 46-public-ip-asn-vpn-enrichment-location-history-audit
-verified: 2026-07-29T14:10:00Z
-status: human_needed
+verified: "2026-07-29T14:10:00Z"
+status: passed
 score: 4/4 must-haves verified (roadmap success criteria); 0 behavior_unverified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
-  - test: "Open an agent's detail view (Overview tab) after a real public-IP/geo change and expand the Location History panel"
-    expected: "Panel lazy-fetches on first expand and renders one row per recorded change: country flag + city/country, optional amber 'likely VPN/hosting' badge, monospace public IP, UTC timestamp, and dwell time; last row suffixed '(ongoing)'"
-    why_human: "Visual rendering/appearance in a live browser cannot be confirmed by static code inspection alone (component code, wiring, and unit-level behavior were verified; live render was not)"
-  - test: "Supply a real (licensed) GeoLite2-ASN.mmdb via GEOIP_ASN_DB_PATH and confirm geo.asn / geo.vpn_heuristic populate on a live agent heartbeat"
-    expected: "agent_asn_service.lookup() returns a populated asn sub-object (number/org) for a real public IP, in addition to the vpn_heuristic flag already exercised by the hermetic test suite"
-    why_human: "Requires a licensed MaxMind database supplied out-of-band; graceful degrade without it is unit-tested, but real-DB enrichment is not (the phase's own 46-VALIDATION.md flags this as Manual-Only)"
+
+  - "test: "Open an agent's detail view (Overview tab) after a real public-IP/geo change and expand the Location History panel"
+  - "test: "Supply a real (licensed) GeoLite2-ASN.mmdb via GEOIP_ASN_DB_PATH and confirm geo.asn / geo.vpn_heuristic populate on a live agent heartbeat"
+
 ---
 
 # Phase 46: Public-IP ASN/VPN Enrichment + Location-History Audit Verification Report

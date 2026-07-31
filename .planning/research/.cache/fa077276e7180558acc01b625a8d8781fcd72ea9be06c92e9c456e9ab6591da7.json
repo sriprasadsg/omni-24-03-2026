@@ -1,0 +1,1 @@
+{"content":"X4BNet/lists_vpn ships output/vpn/ipv4.txt (strict known VPN networks) and output/datacenter/ipv4.txt (VPN+datacenter, broader), plain CIDR-per-line text files, auto-rebuilt via GitHub Actions from ASN source data.","source":"web","provider":"websearch","confidence":"MEDIUM","fetched_at":"2026-07-28T19:46:36.033Z","ttl":86400000,"kind":"web"}
