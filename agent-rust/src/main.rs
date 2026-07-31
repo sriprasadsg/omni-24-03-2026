@@ -21,6 +21,7 @@ mod poll;
 mod shell;
 mod agentic;
 mod agent;
+mod remediation_actions;
 mod log;
 
 use std::sync::{Arc, atomic::AtomicBool};

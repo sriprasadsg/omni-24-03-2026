@@ -440,7 +440,7 @@ function rescueSummaryArtifacts(worktreePath, repoRoot, deps) {
         // relPath is the path relative to the worktree root (e.g. ".planning/q1-SUMMARY.md")
         // Normalize to forward slashes so the Set comparison against `git status --porcelain`
         // output works on Windows too (git always emits forward slashes in porcelain output).
-        const relPath = absPath.slice(worktreePath.length).replace(/^[/\\]/, '').replace(/\\/g, '/');
+        const relPath = (0, shell_command_projection_cjs_1.posixNormalize)(absPath.slice(worktreePath.length).replace(/^[/\\]/, ''));
         // #706: skip rescue when the SUMMARY is already committed on the branch.
         // Use `git cat-file -e HEAD:<relPath>` (not `ls-files --error-unmatch`) so
         // the check is against the committed tree, not the index.  ls-files also
@@ -692,6 +692,206 @@ function cmdWorktreeCleanupWave(cwd, args = []) {
     if (!result.ok) {
         process.exitCode = 1;
     }
+}
+/**
+ * Pure planner for the per-agent wave-manifest append.
+ *
+ * Validates the candidate entry at write time using the SAME rules the
+ * cleanup-wave reader enforces (via `normalizeCleanupManifestEntry`), so an
+ * entry that `record-agent` accepts is guaranteed to survive
+ * `normalizeCleanupManifest` on read — a field that would be silently dropped
+ * at cleanup time fails loudly here instead.
+ *
+ * `agent_id` is treated write-strict (required) even though the reader is
+ * lenient (nullable): the whole point of this verb is to catch an
+ * under-populated entry at write time, and an entry whose author cannot be
+ * identified defeats that. A duplicate `(worktree_path, branch)` is also
+ * rejected loudly — the reader dedups on that key, so a re-record would be
+ * silently dropped (the failure mode this verb exists to eliminate). The
+ * on-disk shape stays the existing 4-field entry (`agent_id`, `worktree_path`,
+ * `branch`, `expected_base`) — no schema change; the reader re-derives
+ * `allowed_bases`.
+ */
+function planWorktreeRecordAgent(manifestRaw, fields) {
+    // 1. Write-strict required-field check (loud, with which flag is missing).
+    //    Trim first so a whitespace-only value ("   ") is rejected here rather
+    //    than deferred to a guaranteed `git worktree remove` failure at cleanup.
+    const agentId = (fields.agentId || '').trim();
+    const worktreePath = (fields.worktreePath || '').trim();
+    const branch = (fields.branch || '').trim();
+    const base = (fields.base || '').trim();
+    const missing = [];
+    if (!agentId)
+        missing.push('--agent-id');
+    if (!worktreePath)
+        missing.push('--path');
+    if (!branch)
+        missing.push('--branch');
+    if (!base)
+        missing.push('--base');
+    if (missing.length > 0) {
+        return {
+            ok: false,
+            reason: 'missing_field',
+            hint: `record-agent requires ${missing.join(', ')}. Re-run with all of --agent-id, --path, --branch, --base set to non-empty (non-whitespace) values.`,
+            entry: null,
+            manifest: null,
+        };
+    }
+    // 2. Shared validation: run the candidate through the reader's normalizer.
+    //    If it returns null the reader would drop this entry on read — reject now.
+    const candidate = {
+        agent_id: agentId,
+        worktree_path: worktreePath,
+        branch,
+        expected_base: base,
+    };
+    const entry = normalizeCleanupManifestEntry(candidate);
+    if (!entry) {
+        return {
+            ok: false,
+            reason: 'invalid_entry',
+            hint: `Entry failed cleanup-manifest validation: --path/--branch/--base must be non-empty and --branch must match ^worktree-agent-[A-Za-z0-9._/-]+$ (got branch="${branch}"). Fix the field and re-run.`,
+            entry: null,
+            manifest: null,
+        };
+    }
+    // 3. Parse the existing manifest. The init shell ({orchestrator_root, worktrees: []})
+    //    is written inline by the orchestrator before any agent spawns; a missing or
+    //    malformed manifest is a loud failure here, not a silent under-populated write.
+    let parsed;
+    try {
+        parsed = JSON.parse(manifestRaw);
+    }
+    catch {
+        return {
+            ok: false,
+            reason: 'invalid_manifest_json',
+            hint: 'Manifest is not valid JSON. The orchestrator must initialize it as {"orchestrator_root": "...", "worktrees": []} before recording agents.',
+            entry: null,
+            manifest: null,
+        };
+    }
+    // Accept the canonical {worktrees: []} shell or a bare top-level array (both
+    // are read by normalizeCleanupManifest); preserve any other top-level keys.
+    let worktrees;
+    let writeBack;
+    if (Array.isArray(parsed)) {
+        worktrees = parsed;
+        writeBack = worktrees;
+    }
+    else if (parsed && typeof parsed === 'object') {
+        const container = parsed;
+        if (container.worktrees === undefined)
+            container.worktrees = [];
+        if (!Array.isArray(container.worktrees)) {
+            return {
+                ok: false,
+                reason: 'manifest_shape_invalid',
+                hint: 'Manifest "worktrees" must be an array. Re-initialize as {"orchestrator_root": "...", "worktrees": []}.',
+                entry: null,
+                manifest: null,
+            };
+        }
+        worktrees = container.worktrees;
+        writeBack = container;
+    }
+    else {
+        return {
+            ok: false,
+            reason: 'manifest_shape_invalid',
+            hint: 'Manifest must be a JSON object {"worktrees": []} or a top-level array.',
+            entry: null,
+            manifest: null,
+        };
+    }
+    // 4. Reject a duplicate (worktree_path, branch). The reader dedups on this
+    //    exact key, but only over entries that NORMALIZE successfully — so an
+    //    existing malformed same-key entry (which the reader would drop) must NOT
+    //    block recording a valid one. Run each existing entry through the reader's
+    //    own normalizer and compare only the entries the reader would keep; this
+    //    matches its dedup behavior exactly. A real duplicate signals an upstream
+    //    double-spawn — surface it loudly instead of silently dropping it.
+    const dupKey = `${entry.worktree_path}\0${entry.branch}`;
+    const isDuplicate = worktrees.some((existing) => {
+        const normalized = normalizeCleanupManifestEntry(existing);
+        return normalized !== null && `${normalized.worktree_path}\0${normalized.branch}` === dupKey;
+    });
+    if (isDuplicate) {
+        return {
+            ok: false,
+            reason: 'duplicate_entry',
+            hint: `The manifest already records worktree_path="${entry.worktree_path}" branch="${entry.branch}". The cleanup reader dedups on (worktree_path, branch), so re-recording would be silently dropped — this usually signals an upstream double-spawn. Investigate rather than re-record.`,
+            entry: null,
+            manifest: null,
+        };
+    }
+    // 5. Append the minimal 4-field entry, matching the existing on-disk format.
+    const recorded = {
+        agent_id: entry.agent_id,
+        worktree_path: entry.worktree_path,
+        branch: entry.branch,
+        expected_base: entry.expected_base,
+    };
+    worktrees.push(recorded);
+    return {
+        ok: true,
+        reason: 'ok',
+        entry: recorded,
+        manifest: `${JSON.stringify(writeBack, null, 2)}\n`,
+    };
+}
+/**
+ * CLI command: append a validated per-agent entry to a wave cleanup manifest.
+ *
+ * Usage: worktree record-agent --manifest <path> --agent-id <id> --path <worktree> --branch <branch> --base <sha>
+ *
+ * Fails loudly (non-zero exit + recovery hint on stderr) when a field is
+ * missing/garbled or the manifest is absent/malformed, rather than appending an
+ * under-populated entry that the cleanup reader would silently drop.
+ */
+function cmdWorktreeRecordAgent(cwd, args = [], deps = {}) {
+    const flag = (name) => {
+        const i = args.indexOf(name);
+        return i >= 0 && i + 1 < args.length ? args[i + 1] : '';
+    };
+    const write = deps.write || ((s) => process.stdout.write(s));
+    const writeErr = deps.writeErr || ((s) => process.stderr.write(s));
+    const manifestPath = flag('--manifest');
+    if (!manifestPath) {
+        writeErr('Usage: worktree record-agent --manifest <path> --agent-id <id> --path <worktree> --branch <branch> --base <sha>\n');
+        process.exitCode = 2;
+        return { ok: false, reason: 'usage', entry: null };
+    }
+    const resolved = node_path_1.default.resolve(cwd, manifestPath);
+    const readFile = deps.readFile || ((p) => node_fs_1.default.readFileSync(p, 'utf8'));
+    let manifestRaw;
+    try {
+        manifestRaw = readFile(resolved);
+    }
+    catch (err) {
+        const hint = `Manifest not found or unreadable at ${manifestPath}. The orchestrator must initialize it ({"orchestrator_root": "...", "worktrees": []}) before recording agents.`;
+        writeErr(`[gsd] worktree.record-agent: manifest_read_failed — ${hint}\n`);
+        write(`${JSON.stringify({ ok: false, reason: 'manifest_read_failed', hint, error: err.message }, null, 2)}\n`);
+        process.exitCode = 1;
+        return { ok: false, reason: 'manifest_read_failed', hint, entry: null };
+    }
+    const plan = planWorktreeRecordAgent(manifestRaw, {
+        agentId: flag('--agent-id'),
+        worktreePath: flag('--path'),
+        branch: flag('--branch'),
+        base: flag('--base'),
+    });
+    if (!plan.ok || plan.manifest === null) {
+        writeErr(`[gsd] worktree.record-agent: ${plan.reason} — ${plan.hint || ''}\n`);
+        write(`${JSON.stringify({ ok: false, reason: plan.reason, hint: plan.hint }, null, 2)}\n`);
+        process.exitCode = 1;
+        return { ok: false, reason: plan.reason, hint: plan.hint, entry: null };
+    }
+    const writeFile = deps.writeFile || ((p, content) => node_fs_1.default.writeFileSync(p, content, 'utf8'));
+    writeFile(resolved, plan.manifest);
+    write(`${JSON.stringify({ ok: true, reason: 'ok', entry: plan.entry, manifest_path: resolved }, null, 2)}\n`);
+    return { ok: true, reason: 'ok', entry: plan.entry, manifest_path: resolved };
 }
 /**
  * Reap orphaned linked worktrees whose lock owner process is dead, whose
@@ -978,6 +1178,8 @@ module.exports = {
     planWorktreeWaveCleanup,
     executeWorktreeWaveCleanupPlan,
     cmdWorktreeCleanupWave,
+    planWorktreeRecordAgent,
+    cmdWorktreeRecordAgent,
     reapOrphanWorktrees,
     cmdWorktreeReapOrphans,
     resolveWorktreeRoot,

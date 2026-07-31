@@ -32,7 +32,7 @@ SPYGLASS_UNIFIED = os.path.join(SPYGLASS_DIR, "unified-collection.ps1")
 AGENT_COLLECT_PS1 = os.path.join(PROJECT_ROOT, "agent", "installer", "Collect-Evidence.ps1")
 
 
-def _run_build(task_id: str):
+def _run_build(task_id: str, capabilities: list[str] = None):
     """Build the EXE/MSI installer with spyglass evidence capture (runs on thread pool)."""
     import sys
     import shutil
@@ -253,16 +253,17 @@ def _sha256_of(path: str) -> str:
 
 
 @router.get("/download/{filename}")
-async def download_agent_binary(filename: str):
+async def download_agent_binary(filename: str, capabilities: str = None):
     # Allow downloading specific named files like 'omni-agent.exe' if they exist
     # or map 'omni-agent.exe' to the latest version
     target_path, filename = _resolve_servable_path(filename)
 
     if not os.path.exists(target_path):
         # Auto-trigger build if file doesn't exist and it's the installer
-        if filename in ("OmniAgent-Setup.exe", "OmniAgent-2.0.0.msi"):
+        if filename in ("OmniAgent-Setup.exe",):
             task_id = str(uuid.uuid4())
-            _executor.submit(_run_build, task_id)
+            parsed_capabilities = capabilities.split(',') if capabilities else None
+            _executor.submit(_run_build, task_id, parsed_capabilities)
             raise HTTPException(
                 status_code=202,
                 detail={
@@ -293,13 +294,13 @@ async def get_agent_checksum(filename: str):
 
 
 @router.post("/build")
-async def trigger_build():
+async def trigger_build(capabilities: list[str] = None):
     """
     Trigger an async installer build with Spyglass evidence collection.
     Returns a task_id for polling build status.
     """
     task_id = str(uuid.uuid4())
-    _executor.submit(_run_build, task_id)
+    _executor.submit(_run_build, task_id, capabilities)
     return {
         "task_id": task_id,
         "status": "building",

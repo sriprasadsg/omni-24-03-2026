@@ -426,7 +426,49 @@ async fn execute_instruction(
                 Err(e) => serde_json::json!({"status": "error", "error": e}),
             }
         }
-
+        "kill_process" => {
+            let target = item.get("parameters").and_then(|p| p.get("target")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::remediation_actions::kill_process(target).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Process kill initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "restore_file" => {
+            let path = item.get("parameters").and_then(|p| p.get("path")).and_then(|v| v.as_str()).unwrap_or("");
+            let backup = item.get("parameters").and_then(|p| p.get("backup_path")).and_then(|v| v.as_str());
+            match crate::remediation_actions::restore_file(path, backup).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "File restore initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "block_ip" => {
+            let ip = item.get("parameters").and_then(|p| p.get("ip_address")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::remediation_actions::block_ip(ip).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "IP block initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "unblock_ip" => {
+            let ip = item.get("parameters").and_then(|p| p.get("ip_address")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::remediation_actions::unblock_ip(ip).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "IP unblock initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "disable_service" => {
+            let service = item.get("parameters").and_then(|p| p.get("service_name")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::remediation_actions::disable_service(service).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Service disable initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "enable_service" => {
+            let service = item.get("parameters").and_then(|p| p.get("service_name")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::remediation_actions::enable_service(service).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Service enable initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
         _ => {
             // Report instead of silently returning: an unhandled instruction must
             // surface as an error in the dashboard, not sit "sent" forever looking

@@ -5,6 +5,7 @@ pub mod chat_ui;
 pub mod config;
 pub mod heartbeat;
 pub mod instructions;
+pub mod remediation_actions;
 pub mod registration;
 pub mod tray;
 

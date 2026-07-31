@@ -4,12 +4,19 @@ FROM python:3.13-slim AS builder
 WORKDIR /build
 
 # System deps for native packages (motor, cryptography, etc.)
+# Added nsis, rustup/gcc-mingw for windows build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libffi-dev \
     libssl-dev \
     curl \
+    nsis \
+    rustup \
+    gcc-mingw-w64-x86-64 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install rust stable
+RUN rustup toolchain install stable
 
 COPY requirements.txt .
 RUN pip install --upgrade pip \
@@ -21,9 +28,16 @@ FROM python:3.13-slim AS runtime
 WORKDIR /app
 
 # Runtime system deps only
+# Added nsis, rustup/gcc-mingw for windows build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    nsis \
+    rustup \
+    gcc-mingw-w64-x86-64 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install rust stable
+RUN rustup toolchain install stable
 
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local

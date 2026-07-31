@@ -1,10 +1,11 @@
 {
-  "timestamp": "2026-07-13T22:31:10.027Z",
+  "timestamp": "2026-07-31T18:11:21.430Z",
   "distillationEnabled": true,
   "patternsConsolidated": 0,
   "memoryCleaned": 0,
   "duplicatesRemoved": 0,
   "episodes": 0,
+  "episodeEmbeddings": 0,
   "patternEmbeddings": 0,
   "causalEdges": 0,
   "promoted": 0,
@@ -12,5 +13,5 @@
   "namespaces": [],
   "dryRun": false,
   "corrupt": false,
-  "skipped": "no-db"
+  "skipped": "target table episodes missing (agentdb schema not initialised)"
 }

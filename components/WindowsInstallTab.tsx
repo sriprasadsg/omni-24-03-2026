@@ -136,7 +136,7 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
     return (
         <div className="space-y-5">
             {/* EXE Installer download card — Windows only */}
-            {isWindows ? (
+            {true ? ( /* Always true, remove isWindows check */
             <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <DownloadIcon size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">

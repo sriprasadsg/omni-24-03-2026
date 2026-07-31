@@ -213,14 +213,65 @@ async def get_backup_status(
     - RTO target
     """
     hadr_service = get_hadr_service(db)
-    
+    issues = []
+
+    if hadr_service is None:
+        logger.error("HADR service initialization failed for status check.")
+        return {
+            "status": "critical",
+            "database_connected": False,
+            "backup_system_healthy": False,
+            "rpo_compliant": False,
+            "rto_achievable": False,
+            "last_backup": None,
+            "issues": ["HADR service initialization failed"]
+        }
+
+    # Check database connection
     try:
-        status = await hadr_service.get_backup_status()
-        return status
-    
+        await db.command("ping")
+        database_connected = True
     except Exception as e:
-        logger.error("Failed to get HADR status: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        database_connected = False
+        logger.error("Database connectivity check failed: %s", e)
+        issues.append("Database connection failed")
+
+    # Check backup system
+    try:
+        backup_status = await hadr_service.get_backup_status()
+        backup_system_healthy = True
+        rpo_compliant = backup_status.get("rpo_compliant", False)
+        last_backup = backup_status.get("latest_backup_time")
+
+        if not rpo_compliant:
+            issues.append(f"RPO not compliant - last backup: {last_backup}")
+    except Exception as e:
+        backup_system_healthy = False
+        rpo_compliant = False
+        last_backup = None
+        logger.error("Backup system check failed: %s", e)
+        issues.append("Backup system check failed")
+
+    # Determine overall status
+    if database_connected and backup_system_healthy and rpo_compliant:
+        status = "healthy"
+    elif database_connected and backup_system_healthy:
+        status = "degraded"
+    else:
+        status = "critical"
+
+    return {
+        "status": status,
+        "database_connected": database_connected,
+        "backup_system_healthy": backup_system_healthy,
+        "rpo_compliant": rpo_compliant,
+        "rto_achievable": False,
+        "last_backup": last_backup,
+        "issues": issues
+    }
+
+
+@router.get("/health")
 
 
 @router.post("/test-dr")
@@ -310,43 +361,56 @@ async def health_check(
     """
     hadr_service = get_hadr_service(db)
     issues = []
-    
+
+    database_connected = False
+    backup_system_healthy = False
+    rpo_compliant = False
+    rto_achievable = False
+    last_backup = None
+
+    if hadr_service is None:
+        logger.error("HADR service initialization failed.")
+        return {
+            "status": "critical",
+            "database_connected": database_connected,
+            "backup_system_healthy": backup_system_healthy,
+            "rpo_compliant": rpo_compliant,
+            "rto_achievable": rto_achievable,
+            "last_backup": last_backup,
+            "issues": ["HADR service initialization failed"]
+        }
+
     # Check database connection
     try:
         await db.command("ping")
         database_connected = True
     except Exception as e:
-        database_connected = False
         logger.error("Database connectivity check failed: %s", e)
         issues.append("Database connection failed")
-    
+
     # Check backup system
     try:
         backup_status = await hadr_service.get_backup_status()
         backup_system_healthy = True
-        rpo_compliant = backup_status["rpo_compliant"]
-        last_backup = backup_status["latest_backup_time"]
-        
+        rpo_compliant = backup_status.get("rpo_compliant", False)
+        last_backup = backup_status.get("latest_backup_time")
+
         if not rpo_compliant:
             issues.append(f"RPO not compliant - last backup: {last_backup}")
     except Exception as e:
-        backup_system_healthy = False
-        rpo_compliant = False
-        last_backup = None
         logger.error("Backup system check failed: %s", e)
         issues.append("Backup system check failed")
-    
+
     # Check RTO achievability (based on last DR test)
     try:
         latest_test = await db.dr_test_log.find_one(sort=[("started_at", -1)])
-        rto_achievable = latest_test["rto_achieved"] if latest_test else False
-        
+        rto_achievable = latest_test.get("rto_achieved", False) if latest_test else False
+
         if not rto_achievable and latest_test:
             issues.append(f"RTO not achievable - last test took {latest_test['duration_minutes']} minutes")
     except Exception:
-        rto_achievable = False
         issues.append("No DR test results available")
-    
+
     # Determine overall status
     if database_connected and backup_system_healthy and rpo_compliant and rto_achievable:
         status = "healthy"
@@ -354,7 +418,7 @@ async def health_check(
         status = "degraded"
     else:
         status = "critical"
-    
+
     return {
         "status": status,
         "database_connected": database_connected,

@@ -13,7 +13,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use tokio::sync::RwLock;
 
-use crate::{buffer::Spool, caps, caps2, cissp, config::Config, yara_scan};
+use crate::{buffer::Spool, caps, caps2, cissp, config::Config, remediation_actions, yara_scan};
 
 // ── Instruction polling ────────────────────────────────────────────────────────
 
@@ -555,12 +555,27 @@ pub async fn dispatch_edr_action(action: &str, params: &Value) -> Value {
         },
 
         "remediation_executor" => {
-            let base = params.get("base_url").and_then(|v| v.as_str()).unwrap_or("http://localhost:5000");
-            let agent_id = params.get("agent_id").and_then(|v| v.as_str()).unwrap_or("");
-            let token = params.get("token").and_then(|v| v.as_str()).unwrap_or("");
-            let client = reqwest::Client::new();
-            let r = caps2::run_remediation(&client, base, agent_id, token).await;
-            json!({"success": true, "result": r})
+            let action_type = params.get("action_type").and_then(|v| v.as_str()).unwrap_or("");
+            let target = params.get("target").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+            let action = match action_type {
+                "kill_process" => Some(remediation_actions::RemediationAction::KillProcess(target)),
+                "restore_file" => Some(remediation_actions::RemediationAction::RestoreFile(target)),
+                "block_ip" => Some(remediation_actions::RemediationAction::BlockIp(target)),
+                "disable_service" => Some(remediation_actions::RemediationAction::DisableService(target)),
+                "unblock_ip" => Some(remediation_actions::RemediationAction::UnblockIp(target)),
+                "enable_service" => Some(remediation_actions::RemediationAction::EnableService(target)),
+                _ => None,
+            };
+
+            if let Some(action) = action {
+                match remediation_actions::execute_remediation_action(&action).await {
+                    Ok(result) => json!({"success": true, "result": result}),
+                    Err(e) => json!({"success": false, "error": e.to_string()}),
+                }
+            } else {
+                json!({"success": false, "error": format!("Unknown remediation action type: {}", action_type)})
+            }
         },
 
         "process_injection_simulation" => {

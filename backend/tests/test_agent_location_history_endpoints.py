@@ -201,8 +201,10 @@ class TestDwell:
         last_dwell = entries[0]["dwell_seconds"]
         # Never a stored/persisted field — must land in the live now()-t0 window.
         assert (before - t0).total_seconds() <= last_dwell <= (after - t0).total_seconds()
-        # The seeded row itself carries no dwell_seconds — it is derived, not read back.
-        assert "dwell_seconds" not in rows[0]
+        # Never written back to the collection — dwell is a read-time-only
+        # derived value, not a database write (Pitfall 2).
+        db.agent_location_history.insert_one.assert_not_called()
+        db.agent_location_history.update_one.assert_not_called()
 
 
 # ===========================================================================

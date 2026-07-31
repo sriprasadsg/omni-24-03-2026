@@ -38,6 +38,8 @@ from .deception_monitor import DeceptionMonitorCapability
 from .threat_intel import ThreatIntelCapability
 from .ticket_reporter import TicketReporterCapability
 from .chat_window import ChatWindowCapability
+from .virustotal_scan import VirusTotalScanCapability # ADDED
+
 # CISSP analysis is a standalone function module (no BaseCapability subclass needed)
 
 __all__ = [
@@ -77,6 +79,7 @@ __all__ = [
     'ThreatIntelCapability',
     'TicketReporterCapability',
     'ChatWindowCapability',
+    'VirusTotalScanCapability', # ADDED
 ]
 
 # Capability registry mapping IDs to classes
@@ -117,4 +120,5 @@ CAPABILITY_REGISTRY = {
     'threat_intel':                      ThreatIntelCapability,
     'ticket_reporter':                   TicketReporterCapability,
     'chat_window':                       ChatWindowCapability,
+    'virustotal_scan':                 VirusTotalScanCapability, # ADDED
 }

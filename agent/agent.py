@@ -686,6 +686,20 @@ class AgentCapabilityManager:
                 return cap.execute()
             return {"status": "error", "error": "Agent Update capability not enabled"}
 
+        # ── Run VirusTotal Scan ──────────────────────────────────────
+        if instruction in ("run_virustotal_scan", "Run VirusTotal Scan"):
+            cap = self.capability_instances.get('virustotal_scan')
+            if cap:
+                logger.info("Direct Execution: Running VirusTotal Endpoint Scan")
+                result = cap.collect() if hasattr(cap, 'collect') else cap.execute()
+                try:
+                    url = self.cfg.get("api_base_url").rstrip("/") + f"/api/agents/{self.agent_id}/virustotal-results"
+                    requests.post(url, json={"results": result}, headers=self._auth_headers(), timeout=15)
+                except Exception as e:
+                    logger.error(f"Failed to report VirusTotal scan: {e}")
+                return result
+            return {"status": "error", "error": "virustotal_scan capability not available"}
+
         # ── Run Vulnerability Scan ─────────────────────────────────────────
         if instruction in ("run_vulnerability_scan", "Run Vulnerability Scan"):
             cap = self.capability_instances.get('vulnerability_scanning')
@@ -1086,6 +1100,7 @@ class AgentCapabilityManager:
             "cloud_metadata",
             "shadow_ai",
             "web_monitor",
+            "virustotal_scan", # ADDED: VirusTotal scanning capability
         ]
         self.collection_intervals = {
             "metrics_collection":           60,
@@ -1106,6 +1121,7 @@ class AgentCapabilityManager:
             "cloud_metadata":               3600,
             "shadow_ai":                    3600,
             "web_monitor":                  300,
+            "virustotal_scan":              3600, # ADDED
         }
         logger.info(f"Using default configuration: {len(self.enabled_capabilities)} capabilities")
 

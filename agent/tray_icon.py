@@ -379,8 +379,8 @@ class AgentTrayIcon:
 
         try:
             import pystray
-        except ImportError:
-            logger.debug("tray_icon: pystray not installed — skipping")
+        except (ImportError, Exception) as exc:
+            logger.debug("tray_icon: pystray not installed or cannot connect — skipping: %s", exc)
             return
 
         icon_image = _make_icon_image()

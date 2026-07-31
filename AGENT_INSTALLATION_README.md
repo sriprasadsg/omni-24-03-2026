@@ -36,13 +36,15 @@ This installs the agent to `C:\Program Files\OmniAgent` and creates a startup sc
 
 This installs the agent as a Windows service that starts automatically on system boot.
 
-### Method 3: Custom Installation Path
+### Method 3: Custom Installation Path (REQUIRED for Multiple Agents)
+
+If installing multiple agents on same machine, or conflicting with MSI, YOU MUST use `-InstallPath`:
 
 ```powershell
 .\install-agent.ps1 -BackendUrl "http://192.168.0.105:5000" `
                     -AgentToken "your-agent-token-here" `
                     -TenantId "your-tenant-id" `
-                    -InstallPath "D:\CustomPath\OmniAgent"
+                    -InstallPath "C:\Program Files\OmniAgent_Custom"
 ```
 
 ## Parameters

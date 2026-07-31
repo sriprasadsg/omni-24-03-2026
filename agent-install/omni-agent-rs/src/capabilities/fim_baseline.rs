@@ -46,50 +46,80 @@ pub enum DriftEvent {
 }
 
 /// Agent-local storage paths for the baseline and signature.
-fn baseline_dir() -> PathBuf {
-    let mut dir = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    dir.push("omni-agent");
-    dir.push("baseline");
+fn baseline_dir_for_path(base_path: Option<&Path>) -> PathBuf {
+    let mut dir = if let Some(path) = base_path {
+        path.to_path_buf()
+    } else if let Ok(env_dir) = std::env::var("OMNI_AGENT_BASELINE_DIR") {
+        PathBuf::from(env_dir)
+    } else {
+        dirs::data_dir().unwrap_or_else(|| PathBuf::from("."))
+    };
+    if base_path.is_none() { // Only append if not a custom test path
+        dir.push("omni-agent");
+        dir.push("baseline");
+    }
     fs::create_dir_all(&dir).unwrap_or_else(|_| {});
     dir
 }
 
+fn baseline_dir() -> PathBuf {
+    baseline_dir_for_path(None)
+}
+
+fn baseline_path_for_dir(base_path: &Path) -> PathBuf {
+    base_path.join("baseline.bin")
+}
+
 fn baseline_path() -> PathBuf {
-    baseline_dir().join("baseline.bin")
+    baseline_path_for_dir(&baseline_dir())
+}
+
+fn signature_path_for_dir(base_path: &Path) -> PathBuf {
+    base_path.join("signature.sig")
 }
 
 fn signature_path() -> PathBuf {
-    baseline_dir().join("signature.sig")
+    signature_path_for_dir(&baseline_dir())
+}
+
+fn key_path_for_dir(base_path: &Path) -> PathBuf {
+    base_path.join("signing_key.dat")
 }
 
 fn key_path() -> PathBuf {
-    baseline_dir().join("signing_key.dat")
+    key_path_for_dir(&baseline_dir())
 }
 
 /// Loads or generates and persists an agent-local ed25519 keypair.
 /// The private key is stored locally with 0600 permissions (not shipped).
-fn local_keypair() -> SigningKey {
-    if key_path().exists() {
-        let mut file = File::open(&key_path()).expect("Failed to open key file");
+fn local_keypair_for_dir(base_path: &Path) -> SigningKey {
+    let key_path_actual = key_path_for_dir(base_path);
+    if key_path_actual.exists() {
+        let mut file = File::open(&key_path_actual).expect("Failed to open key file");
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).expect("Failed to read key file");
         let arr: [u8; 32] = bytes[..32].try_into().expect("Invalid key length");
         SigningKey::from_bytes(&arr)
     } else {
         let signing_key = SigningKey::generate(&mut OsRng); // Use OsRng for generation
-        let mut file = File::create(&key_path()).expect("Failed to create key file");
+        let mut file = File::create(&key_path_actual).expect("Failed to create key file");
         file.write_all(signing_key.to_bytes().as_ref()).expect("Failed to write key file"); // Use to_bytes().as_ref()
         // Set 0600 permissions on Unix (no-op on Windows)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&key_path()).unwrap().permissions();
+            let mut perms = fs::metadata(&key_path_actual).unwrap().permissions();
             perms.set_mode(0o600);
-            fs::set_permissions(&key_path(), perms).ok();
+            fs::set_permissions(&key_path_actual, perms).ok();
         }
         signing_key
     }
 }
+
+fn local_keypair() -> SigningKey {
+    local_keypair_for_dir(&baseline_dir())
+}
+
 
 /// Computes SHA256 hash of a file.
 fn hash_file(path: &Path) -> Result<(String, u64, String), Box<dyn std::error::Error>> {
@@ -137,30 +167,31 @@ pub fn compute_baseline(paths: &[String]) -> Baseline {
 }
 
 /// Serializes and saves the baseline + detached ed25519 signature.
-pub fn save_signed(baseline: &Baseline) {
-    let signing_key = local_keypair();
+pub fn save_signed_to_dir(baseline: &Baseline, base_path: &Path) {
+    let signing_key = local_keypair_for_dir(base_path);
     let serialized = bincode::serialize(baseline).expect("Failed to serialize baseline");
     let signature: Signature = signing_key.sign(&serialized);
 
-    // Atomic-ish write: temp then rename
-    let tmp_baseline = baseline_path().with_extension("bin.tmp");
-    let tmp_sig = signature_path().with_extension("sig.tmp");
+    let tmp_baseline = baseline_path_for_dir(base_path).with_extension("bin.tmp");
+    let tmp_sig = signature_path_for_dir(base_path).with_extension("sig.tmp");
 
     fs::write(&tmp_baseline, &serialized).expect("Failed to write baseline temp");
     fs::write(&tmp_sig, signature.to_bytes()).expect("Failed to write signature temp");
 
-    fs::rename(&tmp_baseline, baseline_path()).expect("Failed to rename baseline");
-    fs::rename(&tmp_sig, signature_path()).expect("Failed to rename signature");
+    fs::rename(&tmp_baseline, baseline_path_for_dir(base_path)).expect("Failed to rename baseline");
+    fs::rename(&tmp_sig, signature_path_for_dir(base_path)).expect("Failed to rename signature");
 }
 
-/// Loads and verifies the signed baseline using the local public key.
-/// Returns None on any verification failure (fail-closed).
-pub fn load_verified() -> Option<Baseline> {
-    let signing_key = local_keypair();
+pub fn save_signed(baseline: &Baseline) {
+    save_signed_to_dir(baseline, &baseline_dir());
+}
+
+pub fn load_verified_from_dir(base_path: &Path) -> Option<Baseline> {
+    let signing_key = local_keypair_for_dir(base_path);
     let verifying_key = VerifyingKey::from(&signing_key);
 
-    let baseline_bytes = fs::read(baseline_path()).ok()?;
-    let sig_bytes = fs::read(signature_path()).ok()?;
+    let baseline_bytes = fs::read(baseline_path_for_dir(base_path)).ok()?;
+    let sig_bytes = fs::read(signature_path_for_dir(base_path)).ok()?;
 
     if sig_bytes.len() != 64 {
         return None;
@@ -175,10 +206,11 @@ pub fn load_verified() -> Option<Baseline> {
     bincode::deserialize(&baseline_bytes).ok()
 }
 
-/// Checks for drift on restart and enqueues events into fim_queue.
-/// If baseline is missing/invalid: recomputes, saves, enqueues baseline_reset (fail-closed).
-/// Else diffs current hashes vs baseline entries, emits drift events, then re-saves signed baseline.
-pub fn check_drift_on_start(paths: &[String]) {
+pub fn load_verified() -> Option<Baseline> {
+    load_verified_from_dir(&baseline_dir())
+}
+
+pub fn check_drift_on_start(paths: &[String], base_path: &Path) {
     let current_baseline = compute_baseline(paths);
     let current_entries: HashMap<String, FileEntry> = current_baseline
         .entries
@@ -186,7 +218,7 @@ pub fn check_drift_on_start(paths: &[String]) {
         .map(|e| (e.path.clone(), e.clone()))
         .collect();
 
-    let verified_baseline = load_verified();
+    let verified_baseline = load_verified_from_dir(base_path);
 
     if let Some(baseline) = verified_baseline {
         let baseline_entries: HashMap<String, FileEntry> = baseline
@@ -204,14 +236,14 @@ pub fn check_drift_on_start(paths: &[String]) {
                             path: path.clone(),
                             hash_before: entry.sha256.clone(),
                             hash_after: current_entry.sha256.clone(),
-                        });
+                        }, base_path);
                     }
                 }
                 None => {
                     enqueue_drift(DriftEvent::Removed {
                         path: path.clone(),
                         hash_before: entry.sha256.clone(),
-                    });
+                    }, base_path);
                 }
             }
         }
@@ -222,25 +254,26 @@ pub fn check_drift_on_start(paths: &[String]) {
                 enqueue_drift(DriftEvent::Added {
                     path: path.clone(),
                     hash_after: entry.sha256.clone(),
-                });
+                }, base_path);
             }
         }
 
         // Re-save the signed baseline with current state
-        save_signed(&current_baseline);
+        save_signed_to_dir(&current_baseline, base_path);
     } else {
         // Missing or invalid baseline - fail-closed: recompute + flag reset
         log::warn!("baseline missing or invalid — recomputing and flagging reset (fail-closed)");
         enqueue_drift(DriftEvent::BaselineReset {
-            reason: if baseline_path().exists() { "signature_verification_failed" } else { "missing_baseline" }.to_string(),
-        });
-        save_signed(&current_baseline);
+            reason: if baseline_path_for_dir(base_path).exists() { "signature_verification_failed" } else { "missing_baseline" }.to_string(),
+        }, base_path);
+        save_signed_to_dir(&current_baseline, base_path);
     }
 }
 
+
 /// Enqueues a drift event into fim_queue (local SQLite).
-fn enqueue_drift(event: DriftEvent) {
-    let db_path = fim_queue_path();
+fn enqueue_drift(event: DriftEvent, base_path: &Path) {
+    let db_path = fim_queue_path_for_dir(base_path);
     let Ok(conn) = rusqlite::Connection::open(&db_path) else {
         log::error!("Failed to open fim_queue DB at {:?}", db_path);
         return;
@@ -267,11 +300,12 @@ fn enqueue_drift(event: DriftEvent) {
     log::debug!("Enqueued FIM drift event: {:?}", event);
 }
 
+fn fim_queue_path_for_dir(base_path: &Path) -> PathBuf {
+    base_path.join("fim_queue.db")
+}
+
 fn fim_queue_path() -> PathBuf {
-    crate::config::config_path()
-        .parent()
-        .map(|p| p.join("fim_queue.db"))
-        .unwrap_or_else(|| PathBuf::from("fim_queue.db"))
+    fim_queue_path_for_dir(&baseline_dir())
 }
 
 #[cfg(test)]
@@ -288,9 +322,9 @@ mod tests {
 
         let paths = vec![test_path.to_string_lossy().to_string()];
         let baseline = compute_baseline(&paths);
-        save_signed(&baseline);
+        save_signed_to_dir(&baseline, dir.path());
 
-        let loaded = load_verified();
+        let loaded = load_verified_from_dir(dir.path());
         assert!(loaded.is_some());
         let loaded = loaded.unwrap();
         assert_eq!(loaded.version, baseline.version);
@@ -306,17 +340,17 @@ mod tests {
 
         let paths = vec![test_path.to_string_lossy().to_string()];
         let baseline = compute_baseline(&paths);
-        save_signed(&baseline);
+        save_signed_to_dir(&baseline, dir.path());
 
         // Tamper with the baseline file
-        let baseline_file = baseline_path();
+        let baseline_file = baseline_path_for_dir(dir.path());
         let mut bytes = fs::read(&baseline_file).unwrap();
         if !bytes.is_empty() {
             bytes[0] ^= 0xFF; // Flip a bit
             fs::write(&baseline_file, &bytes).unwrap();
         }
 
-        let loaded = load_verified();
+        let loaded = load_verified_from_dir(dir.path());
         assert!(loaded.is_none(), "Tampered baseline should fail verification");
     }
 
@@ -329,7 +363,7 @@ mod tests {
         fs::write(&file1, b"content1").unwrap();
         let paths = vec![file1.to_string_lossy().to_string()];
         let baseline = compute_baseline(&paths);
-        save_signed(&baseline);
+        save_signed_to_dir(&baseline, dir.path());
 
         // Now: file1 changed, file2 added, file1 removed from watched paths
         // Simulate by creating a new file and removing file1 from paths
@@ -344,7 +378,7 @@ mod tests {
             .map(|e| (e.path.clone(), e.clone()))
             .collect();
 
-        let verified = load_verified().unwrap();
+        let verified = load_verified_from_dir(dir.path()).unwrap();
         let baseline_entries: HashMap<String, FileEntry> = verified
             .entries
             .iter()
@@ -372,10 +406,36 @@ mod tests {
 
         // Compute and save
         let baseline = compute_baseline(&paths);
-        save_signed(&baseline);
+        save_signed_to_dir(&baseline, dir.path());
 
         // Now should load
-        let loaded = load_verified();
+        let loaded = load_verified_from_dir(dir.path());
         assert!(loaded.is_some());
+    }
+
+    #[test]
+    fn check_drift_on_start_baseline_reset() {
+        let dir = tempdir().unwrap();
+        // No baseline exists initially
+        let test_path = dir.path().join("test_file.txt");
+        fs::write(&test_path, b"initial content").unwrap();
+        let paths = vec![test_path.to_string_lossy().to_string()];
+
+        // Call check_drift_on_start without existing baseline
+        check_drift_on_start(&paths, dir.path());
+
+        // Should have a BaselineReset event
+        let conn = rusqlite::Connection::open(fim_queue_path_for_dir(dir.path())).unwrap();
+        let mut stmt = conn.prepare("SELECT event_json FROM fim_queue").unwrap();
+        let event_jsons: Vec<String> = stmt.query_map([], |row| row.get(0)).unwrap().filter_map(|r| r.ok()).collect();
+        assert_eq!(event_jsons.len(), 1);
+        let event: DriftEvent = serde_json::from_str(&event_jsons[0]).unwrap();
+        match event {
+            DriftEvent::BaselineReset { reason } => assert_eq!(reason, "missing_baseline"),
+            _ => panic!("Expected BaselineReset event"),
+        }
+
+        // A new baseline should be saved
+        assert!(load_verified_from_dir(dir.path()).is_some());
     }
 }

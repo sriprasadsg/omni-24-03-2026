@@ -199,7 +199,8 @@ export type AppView =
   | 'cloudChecksScanner'
   | 'stagedDeployments'
   | 'fleetObservability'
-  | 'fleetGeoMap';
+  | 'fleetGeoMap'
+  | 'nativeSecurity';
 
 
 export type Permission =
@@ -1745,4 +1746,56 @@ export interface ComplianceScorePayload {
     frameworks: FrameworkScore[];
     computed_at: string;
     tenant_id: string;
+}
+
+export interface SecurityFinding {
+  source: 'scan' | 'vulnerability' | 'fim';
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+  hostname?: string;
+  target?: string;
+  verdict_or_detail?: string;
+  ts: string;
+}
+
+export interface RemediationQueueItem {
+  id: string;
+  findingId: string;
+  status: 'pending_approval' | 'dispatched' | 'in_progress' | 'completed' | 'failed';
+  action: string;
+  description: string;
+  requestedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
+export interface RemediationAuditEntry {
+  id: string;
+  remediationId: string;
+  timestamp: string;
+  user: string;
+  action: 'approved' | 'denied' | 'triggered' | 'failed';
+  details: string;
+}
+
+export interface FimStatus {
+  agent_id: string;
+  hostname?: string;
+  events_count: number;
+}
+
+export interface SecuritySummary {
+  totalFindings: number;
+  criticalFindings: number;
+  openRemediations: number;
+  agentsWithFim: number;
+  fimDriftDetected: boolean;
+}
+
+export interface RemediationPlaybook {
+  id: string;
+  name: string;
+  description: string;
+  actions: string[];
+  createdAt: string;
+  createdBy: string;
 }
