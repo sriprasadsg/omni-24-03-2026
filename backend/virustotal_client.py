@@ -1,122 +1,142 @@
+"""VirusTotal API v3 client.
+
+Real, synchronous outbound calls to https://www.virustotal.com/api/v3/*
+using httpx (already a project dependency — no new packages). Every
+scan_* method is SYNCHRONOUS by design: the four real callers
+(threat_intel_endpoints.py, threat_endpoints.py, soar_engine.py,
+agent_security_endpoints.py) invoke these via asyncio.to_thread /
+run_in_executor so a slow/rate-limited VirusTotal call never blocks the
+event loop (T-55-05).
+
+API-key-absent = graceful degrade: construction never fails, and every
+lookup returns {"error": ...} with NO fabricated verdict (T-55-04). The
+dead VirusTotalScanCapability(BaseCapability) class that made this module
+unimportable (NameError at import time, silently swallowing the whole
+/api/threat-intel router — INT-04, 55-VERIFICATION.md gap #1) has been
+removed as part of this rewrite (55-05).
+"""
+import base64
 import os
-import json
-import logging
-from typing import Dict, Any
-from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
-class VirusTotalScanCapability(BaseCapability):
-    """
-    VirusTotal integration for endpoint scanning.
-    Provides scan capability for agent assets using VT API v3.
-    """
+import httpx
 
-    @property
-    def capability_id(self) -> str:
-        return "virustotal_scan"
+_BASE_URL = "https://www.virustotal.com/api/v3"
+_TIMEOUT = 10.0
 
-    @property
-    def capability_name(self) -> str:
-        return "VirusTotal Endpoint Scanner"
 
-    def collect(self) -> Dict[str, Any]:
+class VirusTotalClient:
+    """Synchronous VirusTotal API v3 client."""
+
+    def __init__(self, api_key: Optional[str] = None):
+        self._api_key = api_key if api_key is not None else os.getenv("VIRUSTOTAL_API_KEY", "")
+
+    def _lookup(self, path: str) -> Dict[str, Any]:
+        """GET a fixed VirusTotal v3 path and map the response into the
+        shared caller contract.
+
+        Never raises. `path` is always built by the caller from the FIXED
+        `_BASE_URL` host constant plus a URL-encoded artifact segment —
+        the artifact itself never becomes the host/scheme (T-55-02).
+        Key-absent and error paths return {"error": ...} with NO "verdict"
+        key — callers must never mistake a degraded/failed lookup for a
+        real Harmless/Clean result (T-55-04).
         """
-        Execute scans against collected artifacts.
-        Returns structured result dictionary.
-        """
-        base_url = "https://www.virustotal.com/api/v3"
-        api_key = os.getenv("VIRUSTOTAL_API_KEY", "")
-        headers = {"x-apikey": api_key, "Accept": "application/json"}
-        client = requests.Session()
-        client.headers.update(headers)
+        if not self._api_key:
+            return {"error": "VirusTotal API key not configured"}
 
-        results = {
-            "scanned_ips": [],
-            "scanned_domains": [],
-            "scanned_urls": [],
-            "scanned_hashes": [],
-            "malicious_count": 0,
-            "scan_time": datetime.now(timezone.utc).isoformat(),
-            "status": "completed"
+        headers = {"x-apikey": self._api_key, "Accept": "application/json"}
+        url = f"{_BASE_URL}/{path}"
+        try:
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                resp = client.get(url, headers=headers)
+            if resp.status_code != 200:
+                return {"error": f"VirusTotal API returned status {resp.status_code}"}
+            attributes = resp.json().get("data", {}).get("attributes", {}) or {}
+        except Exception as exc:
+            return {"error": f"VirusTotal request failed: {exc}"}
+
+        stats = attributes.get("last_analysis_stats", {}) or {}
+        malicious = int(stats.get("malicious", 0) or 0)
+        suspicious = int(stats.get("suspicious", 0) or 0)
+        harmless = int(stats.get("harmless", 0) or 0)
+        undetected = int(stats.get("undetected", 0) or 0)
+        timeout_n = int(stats.get("timeout", 0) or 0)
+
+        if malicious > 0:
+            verdict = "Malicious"
+        elif suspicious > 0:
+            verdict = "Suspicious"
+        elif harmless > 0:
+            verdict = "Harmless"
+        else:
+            verdict = "Unknown"
+
+        total = malicious + suspicious + harmless + undetected + timeout_n
+        detection_ratio = f"{malicious + suspicious}/{total}" if total else "0/0"
+
+        return {
+            "verdict": verdict,
+            "detectionRatio": detection_ratio,
+            "malicious": malicious,
+            "suspicious": suspicious,
+            "harmless": harmless,
+            "undetected": undetected,
+            "scanDate": attributes.get("last_analysis_date"),
+            "reputation": attributes.get("reputation", 0),
+            "details": attributes,
         }
 
-        # Scan open ports for malicious IPs
-        try:
-            for conn in psutil.net_connections(kind="tcp"):
-                if not conn.raddr:
-                    continue
-                ip, _ = conn.raddr
-                ip_hash = hashlib.md5(ip.encode()).hexdigest()
-                # Use VT hash endpoint
-                resp = client.get(f"{base_url}/ip_addresses/{ip_hash}", timeout=10)
-                if resp.status_code == 200:
-                    results["scanned_ips"].append({
-                        **resp.json().get("data", {}).get("attributes", {}),
-                        "verdict": "Malicious" if
-                        resp.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0) > 0 else "Clean",
-                        "ratio": "0/0"
-                    })
-        except Exception as e:
-            logger.error(f"[VT scan] IP scan failed: {e}")
+    def scan_ip(self, ip: str) -> Dict[str, Any]:
+        """Look up an IP address's VirusTotal reputation."""
+        return self._lookup(f"ip_addresses/{quote(ip, safe='')}")
 
-        # Scan process hashes
-        try:
-            exe_path = next(
-                (proc.exe() for proc in psutil.process_iter(['exe']) if proc.exe()),
-                None
-            )
-            if exe_path:
-                sha256 = hashlib.sha256(open(exe_path, "rb").read()).hexdigest()
-                resp = client.get(f"{base_url}/files/{sha256}", timeout=10)
-                if resp.status_code == 200:
-                    data = resp.json().get("data", {}).get("attributes", {})
-                    stats = data.get("last_analysis_stats", {})
-                    results["scanned_hashes"].append({
-                        "verdict": "Malicious" if stats.get("malicious", 0) > 0 else "Clean",
-                        "ratio": f"{stats.get('malicious', 0)+stats.get('suspicious', 0)}/{stats.get('total', 0)}",
-                        "hash": sha256
-                    })
-        except Exception as e:
-            logger.error(f"[VT scan] Hash scan failed: {e}")
+    def scan_domain(self, domain: str) -> Dict[str, Any]:
+        """Look up a domain's VirusTotal reputation."""
+        return self._lookup(f"domains/{quote(domain, safe='')}")
 
-        # Scan live network addresses
-        try:
-            for conn in psutil.net_connections(kind="tcp"):
-                if not conn.raddr:
-                    continue
-                domain = socket.gethostbyaddr(conn.raddr[0])[0]
-                resp = client.get(f"{base_url}/domains/{domain}", timeout=10)
-                if resp.status_code == 200:
-                    results["scanned_domains"].append({
-                        **resp.json().get("data", {}).get("attributes", {}),
-                        "verdict": "Malicious" if resp.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0) > 0 else "Clean",
-                        "ratio": "0/0"
-                    })
-        except Exception as e:
-            logger.error(f"[VT scan] Domain scan failed: {e}")
+    def scan_url(self, url: str) -> Dict[str, Any]:
+        """Look up a URL's VirusTotal reputation.
 
-        # Scan URLs from connections
-        try:
-            for conn in psutil.net_connections(kind="tcp"):
-                if not conn.raddr:
-                    continue
-                if conn.status == psutil.CONN_ESTABLISHED and conn.laddr:
-                    cmdline = subprocess.Popen(
-                        ["ps", "-p", str(conn.pid), "-o", "args="],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
-                    ).communicate()
-                    if "http" in cmdline[0]:
-                        url = re.search(r"https?://\S+", cmdline[0])
-                        if url:
-                            resp = client.get(f"{base_url}/urls/{url.group()}", timeout=10)
-                            if resp.status_code == 200:
-                                results["scanned_urls"].append({
-                                    **resp.json().get("data", {}).get("attributes", {}),
-                                    "verdict": "Malicious" if resp.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0) > 0 else "Clean",
-                                    "ratio": "0/0"
-                                })
-        except Exception as e:
-            logger.error(f"[VT scan] URL scan failed: {e}")
+        VT v3 identifies URLs by the urlsafe-base64 encoding of the URL
+        string with '=' padding stripped.
+        """
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+        return self._lookup(f"urls/{url_id}")
 
-        return results
+    def scan_file_hash(self, file_hash: str) -> Dict[str, Any]:
+        """Look up a file hash's (md5/sha1/sha256) VirusTotal reputation."""
+        return self._lookup(f"files/{quote(file_hash, safe='')}")
+
+
+def get_virustotal_client() -> VirusTotalClient:
+    """Module-level factory. Never requires a key to construct — the
+    key-absent graceful-degrade path lives inside VirusTotalClient itself."""
+    return VirusTotalClient()
+
+
+def enrich_file_hashes(hashes: List[str]) -> Dict[str, Any]:
+    """Bulk hash-lookup helper.
+
+    Consumed by agent_security_endpoints.py (FIM/YARA ingestion) via
+    asyncio.to_thread. Returns {lowercased-hash: result} for every hash
+    whose lookup succeeded (no "error" key) — hashes that are empty or
+    whose lookup errored are omitted entirely so callers' `if verdict:`
+    checks degrade cleanly rather than treating an error dict as a verdict.
+    An empty/falsy input returns {}.
+    """
+    if not hashes:
+        return {}
+    client = get_virustotal_client()
+    results: Dict[str, Any] = {}
+    for raw_hash in hashes:
+        if not raw_hash:
+            continue
+        key = raw_hash.strip().lower()
+        if not key:
+            continue
+        result = client.scan_file_hash(raw_hash)
+        if result and "error" not in result:
+            results[key] = result
+    return results
