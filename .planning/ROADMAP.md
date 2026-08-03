@@ -922,7 +922,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 51 (vuln engine), 53 (autonomous remediation), 54 (UI/API)
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 **Wave 1** *(parallel — no file overlap)*
 
@@ -931,7 +931,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Wave 2** *(blocked on 55-02)*
 
-- [ ] 55-03-PLAN.md — AUT-03: FIRST production caller of remediate() — UEBA shadow_ai anomaly → RemediationFinding("anomaly") → deduped, fire-and-forget, approval-gated containment; leads with a checkpoint:decision (Assumption A2 scope / reversibility gate) [tracer: containment spine]
+- [x] 55-03-PLAN.md — AUT-03: FIRST production caller of remediate() — UEBA shadow_ai anomaly → RemediationFinding("anomaly") → deduped, fire-and-forget, approval-gated containment; leads with a checkpoint:decision (Assumption A2 scope / reversibility gate) [tracer: containment spine]
 
 **Wave 3** *(blocked on 55-01, 55-03)*
 

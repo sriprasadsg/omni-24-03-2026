@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v3.4
 milestone_name: Native Security Scanning & Autonomous Remediation Agent
-current_phase: 48
-current_phase_name: fleet-observability-uptime-rollups
-status: verifying
-stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-03T14:06:58.219Z"
-last_activity: 2026-07-29
-last_activity_desc: Phase 48 execution started
+current_phase: 55
+current_phase_name: advanced-threat-detection
+status: executing
+stopped_at: "Phase 55 plan 55-03 (UEBA predictive containment trigger, AUT-03) executed and committed 2026-08-03 (commits abcd8ae/a78cca4) — backend/ueba_service.py's report_shadow_ai endpoint becomes the FIRST production caller of Phase 53's autonomous_remediation_service.remediate() engine: _dispatch_anomaly_containment_if_eligible() fail-closed-gates on anomaly_rule==shadow_ai_detected + real agent_id + resolved tenant_id, then schedules _dispatch_anomaly_remediation via background_tasks.add_task (never awaited inline); that background body calls ResponseOrchestrator().is_duplicate_task(...) BEFORE building a RemediationFinding(finding_type='anomaly') and calling remediate() — deduped, fire-and-forget, and routed through the identical approval-gate/dry-run/DB-lease/audit path as every other finding_type (D-02/D-04). Checkpoint:decision resolved as option-a (user-selected): only shadow_ai_detected is eligible this phase; the other 9 UEBA rule types resolve to no_playbook via 55-02's select_playbook() branch and remain recorded/correlated/SIEM-pushed. 21 tests green (16 new in test_ueba_remediation_trigger.py + 10 in test_remediation_guards.py re-run unchanged as the integration regression, including a max-risk_score no-approval-gate-bypass proof for D-04/T-55-06). Pre-existing _AUTO_BAN_RULES block left byte-for-byte unmodified (Pitfall 4). Full backend suite: 1539 passed / 34 skipped / 5 failed (all 5 pre-existing/environmental — 2 test_webhook_logic.py DB-connection-dependent, plus the known baseline test_e2e_integration.py/test_rust_heartbeat_parity.py/test_agentic_ai.py trio — unrelated to this plan). Discovered: REQUIREMENTS.md was rewritten to a v4.0 requirement set that does not track AUT-03 (or any AUT-* id) — requirements.mark-complete AUT-03 returned not_found; recorded as a deferred item below rather than silently reconciling milestone/requirements bookkeeping outside this plan's scope. Next — Plan 55-04 (final plan in phase 55-advanced-threat-detection, wave/dependency per 55-04-PLAN.md)."
+last_updated: "2026-08-03T14:31:04.280Z"
+last_activity: 2026-08-03
+last_activity_desc: Plan 55-03 (UEBA predictive containment trigger, AUT-03) executed and committed (abcd8ae/a78cca4)
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 24
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -320,6 +320,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 55-01: correlate_native_findings() added as a method ON SiemEngine (not a standalone module) so existing siem_rules apply to native findings automatically (D-01)
 - [Phase ?]: 55-01: companion correlate-native trigger route lives in threat_intel_endpoints.py, not siem_endpoints.py (already 736 lines, over the 500-line cap)
 - [Phase ?]: 55-02: anomaly branch scoped to shadow_ai_detected only (RESEARCH Assumption A2) - other 9 UEBA rule types resolve to no_playbook pending checkpoint:decision in Plan 55-03
+- [Phase 55]: 55-03: checkpoint:decision resolved as option-a: only shadow_ai_detected UEBA anomalies trigger automated approval-gated containment (kill_process); the other 9 UEBA rule types resolve to no_playbook and remain recorded/correlated/SIEM-pushed — no fabricated user->agent mapping, no second dispatch engine.
+- [Phase 55]: 55-03: wired the containment call site into report_shadow_ai only (not analyze_event's shadow-AI branch, which is built from a LoginEvent with no agent_id field) — per the plan's tracer instruction to wire ONLY this single shadow_ai path end-to-end.
+- [Phase 55]: 55-03: dedup check + RemediationFinding build + remediate() call all live inside one background-task-only function (_dispatch_anomaly_remediation), scheduled via background_tasks.add_task — never awaited inline in report_shadow_ai's request/response cycle.
 
 ## Performance Metrics
 
@@ -408,11 +411,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 52 P04 | 60 | 2 tasks | 4 files |
 | Phase 55 P01 | 10min | 2 tasks | 3 files |
 | Phase 55 P02 | 8min | 1 tasks | 2 files |
+| Phase 55 P03 | 35min | 3 tasks | 2 files |
 
 ## Last Session
 
-- **Timestamp:** 2026-07-14T04:30:00.000Z
-- **Stopped at:** Completed 55-02-PLAN.md (AUT-03: select_playbook anomaly branch mapping shadow_ai_detected+agent_id to kill_process)
+- **Timestamp:** 2026-08-03T14:30:10.000Z
+- **Stopped at:** Completed 55-03-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -438,7 +442,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-03T14:06:58.186Z
+**Last session:** 2026-08-03T14:31:04.245Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -453,12 +457,17 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 48 (fleet-observability-uptime-rollups) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-07-29 — Phase 48 execution started
+Phase: 55 (advanced-threat-detection) — EXECUTING
+Plan: 3 of 4
+Status: Plan 55-03 complete — Plan 55-04 remaining before phase verification
+Last activity: 2026-08-03 — Plan 55-03 (UEBA predictive containment trigger, AUT-03) executed and committed (abcd8ae/a78cca4)
+
+Note: Phase 48 (fleet-observability-uptime-rollups) was the prior recorded position in this section; phases 49-54 executed since then are not individually reflected here (pre-existing drift, not fixed by this plan — see Deferred Items).
 
 ## Deferred Items
+
+- **[55-03] REQUIREMENTS.md AUT-03 traceability gap:** `.planning/REQUIREMENTS.md` was rewritten to a "v4.0" requirement set (SCALE-*/SEC-*/UX-*/SIEM-*) that does not track `AUT-03` (or any `AUT-*` id from the "v3.4 — Native Security Scanning & Autonomous Remediation Agent" milestone this phase actually belongs to, per this file's own frontmatter `milestone: v3.4`). `requirements.mark-complete AUT-03` returned `not_found`. Not reconciled here — out of this plan's scope (milestone/requirements bookkeeping, not UEBA containment wiring). A future housekeeping pass should either restore AUT-03 to REQUIREMENTS.md's traceability table or confirm it was intentionally retired.
+- **["Current Position" staleness]:** This section and the frontmatter `current_phase`/`stopped_at` fields were stuck at Phase 48 (fleet-observability-uptime-rollups, 2026-07-29) despite phases 49-54 and 55-01/55-02 having already executed and committed (confirmed via `git log` and existing `.planning/phases/*-SUMMARY.md` files) — `gsd-tools query state.advance-plan` was computing off this stale position (`current_plan: 5, total_plans: 5` matched Phase 48's plan count, not Phase 55's). Manually corrected to Phase 55 / Plan 3 of 4 as part of this plan's state update; phases 49-54's individual plan-level detail was NOT backfilled (out of scope for this executor run).
 
 Items acknowledged and deferred at v3.2 milestone close on 2026-07-29 (16 total, project-wide scan — all predate v3.2 or are environmental). Supersedes the 2026-07-21 paused-close list: Phase 40's items are now resolved — the 401 concurrent-refresh test passes (test_auth_refresh_race.py), and the RUST-01 TLS-backend gap was closed by Phase 45 (40-VERIFICATION.md now status: passed). The only Phase 40 residue is one UAT scenario blocked on a physical Windows device.
 
