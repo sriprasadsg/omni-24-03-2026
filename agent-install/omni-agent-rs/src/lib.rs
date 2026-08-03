@@ -5,7 +5,6 @@ pub mod chat_ui;
 pub mod config;
 pub mod heartbeat;
 pub mod instructions;
-pub mod remediation_actions;
 pub mod registration;
 pub mod tray;
 
@@ -13,7 +12,7 @@ pub mod tray;
 pub mod service;
 
 use buffer::MessageBuffer;
-use capabilities::{CapabilityManager, fim};
+use capabilities::{CapabilityManager, fim, fim_baseline};
 use sysinfo::System;
 
 pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
