@@ -14,10 +14,11 @@ from remediation_playbook_service import (
 
 
 class _Finding:
-    def __init__(self, finding_type, resource_id=None, details=None):
+    def __init__(self, finding_type, resource_id=None, details=None, agent_id=None):
         self.finding_type = finding_type
         self.resource_id = resource_id
         self.details = details or {}
+        self.agent_id = agent_id
 
 
 def test_load_default_playbooks_returns_at_least_five():
@@ -68,6 +69,23 @@ def test_select_playbook_for_vuln_misconfig_finding():
 
 def test_select_playbook_unknown_finding_type_returns_none():
     finding = _Finding("compliance", resource_id="ctrl-1")
+    assert select_playbook(finding) is None
+
+
+def test_select_playbook_for_shadow_ai_anomaly_with_agent_returns_kill_process():
+    finding = _Finding("anomaly", details={"anomaly_rule": "shadow_ai_detected"}, agent_id="agent-1")
+    playbook = select_playbook(finding)
+    assert playbook is not None
+    assert playbook["name"] == "kill_process"
+
+
+def test_select_playbook_for_shadow_ai_anomaly_without_agent_returns_none():
+    finding = _Finding("anomaly", details={"anomaly_rule": "shadow_ai_detected"}, agent_id=None)
+    assert select_playbook(finding) is None
+
+
+def test_select_playbook_for_other_anomaly_rule_returns_none():
+    finding = _Finding("anomaly", details={"anomaly_rule": "brute_force"}, agent_id=None)
     assert select_playbook(finding) is None
 
 

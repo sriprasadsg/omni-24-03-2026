@@ -97,6 +97,10 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
       - fim  -> restore_file
       - nscan + scan type "ip" -> block_ip; otherwise -> kill_process
       - vuln + a resolvable CVE id -> patch_package; no CVE (misconfig) -> disable_service
+      - anomaly + anomaly_rule "shadow_ai_detected" + a real agent_id -> kill_process
+        (reuses the existing agent-dispatch playbook verbatim, AUT-03); every
+        other anomaly (no agent_id, or a different anomaly_rule) honestly
+        returns None -> no_playbook. Pure deterministic lookup, no LLM (D-02).
     """
     if playbooks is None:
         playbooks = load_default_playbooks()
@@ -119,6 +123,13 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
         if cve_id:
             return by_name.get("patch_package")
         return by_name.get("disable_service")
+
+    if finding_type == "anomaly":
+        anomaly_details = _finding_attr(finding, "details", {}) or {}
+        agent_id = _finding_attr(finding, "agent_id")
+        if anomaly_details.get("anomaly_rule") == "shadow_ai_detected" and agent_id:
+            return by_name.get("kill_process")
+        return None
 
     return None
 
