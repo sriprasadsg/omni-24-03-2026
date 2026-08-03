@@ -569,6 +569,7 @@ class AutonomousRemediationService:
             "agentId": finding.agent_id,
             "finding": {"id": finding.finding_id, "type": finding.finding_type, "severity": finding.severity},
             "playbook": playbook["name"],
+            "tenantId": tenant_id, # Add tenantId to base_record
         }
         await write_audit(db, tenant_id, {**base_record, "stage": "selected"})
 
@@ -592,6 +593,14 @@ class AutonomousRemediationService:
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
         await db.remediation_requests.insert_one(dict(request_doc))
+
+        # Store the current state of remediation in the remediation_audit collection
+        await write_audit(db, tenant_id, {
+            **base_record,
+            "stage": "requested",
+            "status": "pending_approval" if is_destructive else "dispatching",
+            "request_doc": request_doc,
+        })
 
         if is_destructive:
             await write_audit(db, tenant_id, {**base_record, "stage": "pending_approval"})
@@ -678,6 +687,7 @@ class AutonomousRemediationService:
             "agentId": finding.agent_id,
             "finding": {"id": finding.finding_id, "type": finding.finding_type, "severity": finding.severity},
             "playbook": playbook["name"],
+            "tenantId": tenant_id, # Add tenantId to base_record
         }
 
         if not await self._acquire_agent_lease(db, agent_id, remediation_id):
