@@ -922,7 +922,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 51 (vuln engine), 53 (autonomous remediation), 54 (UI/API)
 
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans executed + 1 gap-closure plan (55-05)
 
 **Wave 1** *(parallel — no file overlap)*
 
@@ -936,6 +936,10 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Wave 3** *(blocked on 55-01, 55-03)*
 
 - [x] 55-04-PLAN.md — COMM-01: outbound OCSF (class_uid=2004) push via existing webhook_service at 3 pipeline points (correlation/anomaly/remediation), fire-and-forget, SSRF+HMAC reused unchanged; soc_integration_service.py [tracer: outbound spine]
+
+**Gap closure** *(55-VERIFICATION.md gap #1, INT-04)*
+
+- [ ] 55-05-PLAN.md — INT-04: implement the missing virustotal_client.py get_virustotal_client() factory + sync client (scan_ip/scan_domain/scan_url/scan_file_hash + enrich_file_hashes) so threat_intel_endpoints.py imports and POST /api/threat-intel/correlate-native finally mounts; live TestClient reachability test; graceful key-absent degrade; dead VirusTotalScanCapability class deleted
 
 ---
 

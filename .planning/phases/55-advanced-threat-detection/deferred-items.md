@@ -87,3 +87,22 @@ this-session regressions): `tests/test_graphql.py` (strawberry/pydantic version 
 - **Recommendation:** A future housekeeping pass should reconcile `REQUIREMENTS.md` and `STATE.md`
   frontmatter against the real phase history (phases 46-55+ per `55-advanced-threat-detection/`'s
   own RESEARCH/CONTEXT docs) before starting the v4.0 cycle those files currently describe.
+
+## 55-05 (gap closure)
+
+### 4. `backend/test_virustotal.py` — stale manual smoke-script for a non-existent API surface
+
+- **Found during:** 55-05 gap-closure planning (rewriting `virustotal_client.py`).
+- **Root cause:** `backend/test_virustotal.py` (backend root, NOT `tests/`) is a manual dev
+  smoke-test hitting `http://localhost:5000/api/threat-intelligence/config` and
+  `/api/threat-intelligence/scan` — **neither endpoint exists anywhere in the codebase**
+  (`grep -rn "threat-intelligence" backend/*.py` returns nothing). It references a DIFFERENT,
+  never-built-or-already-removed API surface: note `threat-intelligence` vs the real
+  `threat-intel` prefix in `threat_intel_endpoints.py`, and its `{"artifact","type"}` scan
+  payload differs from the real `ScanRequest {"artifact","artifact_type"}`.
+- **Why not fixed by 55-05:** Out of the gap's scope (the gap is `virustotal_client.py`'s missing
+  `get_virustotal_client()` factory + the unmounted `/correlate-native` route). This script does
+  not import `virustotal_client` and is not run by pytest (it is a `__main__` httpx script against
+  a live server). Reconciling or deleting it is unrelated pre-existing drift.
+- **Recommendation:** Leave as-is (pre-existing unrelated drift); a future cleanup pass may delete
+  it or repoint it at the real `/api/threat-intel/*` routes.
