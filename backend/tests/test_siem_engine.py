@@ -107,3 +107,82 @@ class TestCorrelateNativeFindings:
             collection.find.assert_called_once_with({"tenantId": "t1"})
             _, to_list_kwargs = collection.find.return_value.to_list.call_args
             assert to_list_kwargs.get("length") == NATIVE_FINDING_READ_LIMIT
+
+
+class TestBoundedReadRegression:
+    """INT-04 acceptance: every native-collection read must cap to_list at
+    <= 200 — never an unbounded .find({}) scan. Patches each collection's
+    find(...) directly (rather than relying on _mock_db's defaults) so this
+    regression test fails loudly if a future edit removes/raises the cap."""
+
+    async def test_every_native_collection_read_caps_to_list_at_200(self):
+        db = MagicMock()
+        for collection_name in ("security_scan_results", "vulnerabilities", "fim_events", "remediation_audit"):
+            collection = getattr(db, collection_name)
+            collection.find.return_value.to_list = AsyncMock(return_value=[])
+        db.siem_rules.find.return_value.to_list = AsyncMock(return_value=[])
+
+        engine = SiemEngine(db)
+        await engine.correlate_native_findings("t1")
+
+        for collection_name in ("security_scan_results", "vulnerabilities", "fim_events", "remediation_audit"):
+            collection = getattr(db, collection_name)
+            collection.find.assert_called_once()
+            call_args, call_kwargs = collection.find.return_value.to_list.call_args
+            length = call_kwargs.get("length") if "length" in call_kwargs else (call_args[0] if call_args else None)
+            assert length is not None, f"{collection_name}.find(...).to_list() was called with no length cap"
+            assert length <= 200, f"{collection_name}.find(...).to_list(length={length}) exceeds the 200 cap"
+
+
+class TestCrossTenantIsolation:
+    """INT-04/T-55-01: a tenant B finding must never be evaluated into a
+    tenant A security_cases document. Each native-collection find() is
+    keyed off the {"tenantId": ...} filter siem_engine.py actually passes,
+    proving correlate_native_findings() never mixes tenants within a call."""
+
+    def _tenant_scoped_db(self):
+        tenant_docs = {
+            "tenant-a": _scan_doc(id="scan-a", tenantId="tenant-a"),
+            "tenant-b": _scan_doc(id="scan-b", tenantId="tenant-b"),
+        }
+
+        def _cursor(docs):
+            cursor = MagicMock()
+            cursor.to_list = AsyncMock(return_value=docs)
+            return cursor
+
+        def _scan_find(filter_query, *args, **kwargs):
+            tenant_id = filter_query.get("tenantId")
+            doc = tenant_docs.get(tenant_id)
+            return _cursor([doc] if doc else [])
+
+        db = MagicMock()
+        db.security_scan_results.find = MagicMock(side_effect=_scan_find)
+        db.vulnerabilities.find.return_value.to_list = AsyncMock(return_value=[])
+        db.fim_events.find.return_value.to_list = AsyncMock(return_value=[])
+        db.remediation_audit.find.return_value.to_list = AsyncMock(return_value=[])
+        db.siem_rules.find.return_value.to_list = AsyncMock(return_value=[_matching_rule()])
+        db.security_cases.insert_one = AsyncMock(return_value=MagicMock(inserted_id="case-1"))
+        db.smtp_config.find_one = AsyncMock(return_value=None)
+        db.users.find.return_value.to_list = AsyncMock(return_value=[])
+        return db
+
+    async def test_tenant_b_finding_not_correlated_into_tenant_a_case(self):
+        db = self._tenant_scoped_db()
+        engine = SiemEngine(db)
+
+        result_a = await engine.correlate_native_findings("tenant-a")
+        assert result_a["evaluated_count"] == 1
+        inserted_a = db.security_cases.insert_one.call_args.args[0]
+        assert inserted_a["tenantId"] == "tenant-a"
+        assert inserted_a["relatedEvents"] == ["scan-a"]
+        assert "scan-b" not in inserted_a["relatedEvents"]
+
+        db.security_cases.insert_one.reset_mock()
+
+        result_b = await engine.correlate_native_findings("tenant-b")
+        assert result_b["evaluated_count"] == 1
+        inserted_b = db.security_cases.insert_one.call_args.args[0]
+        assert inserted_b["tenantId"] == "tenant-b"
+        assert inserted_b["relatedEvents"] == ["scan-b"]
+        assert "scan-a" not in inserted_b["relatedEvents"]
