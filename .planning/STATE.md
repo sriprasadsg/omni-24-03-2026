@@ -6,15 +6,15 @@ current_phase: 55
 current_phase_name: advanced-threat-detection
 status: executing
 stopped_at: "Phase 55 plan 55-04 (COMM-01, SOC/OCSF outbound push) executed, committed, and phase-verified 2026-08-03. Wave-3 worktree merge (e0874d0) landed with soc_integration_service.py using package-relative imports (ImportError under the bare-module convention its 3 callers use) and a test that patched the wrong dual-import module identity (masked a real failure as green). Fixed post-merge (b9077b1): bare imports + severity_map hoisted to module scope; also added the delivery-failure-non-fatal test the plan's own acceptance criteria required but the executor never wrote (89de3f9). Rewrote 55-04-SUMMARY.md with proper frontmatter (9805df4). Ran gsd-verifier (55-VERIFICATION.md): 12/14 must-haves, gaps_found — AUT-03 fully solid; COMM-01 was only 1/3 wired (ueba_service.py/remediation_audit_service.py call asyncio.create_task(...) with no `import asyncio`, NameError silently swallowed by the same non-fatal try/except); INT-04's correlate-native route unreachable (virustotal_client.py transitively broken — pre-existing, predates phase 55). Fixed the asyncio-import gap immediately (0a7d227), RED/GREEN-reproduced against the verifier's own repro, phase now 13/14. Investigated the INT-04 gap further: it's deeper than a missing import — virustotal_client.py's get_virustotal_client() factory, which 3 files actually import, does not exist anywhere in the 121-line file; fixing BaseCapability alone would only surface the next ImportError. This is real missing-feature implementation work on an unrelated file, not in any phase-55 plan's files_modified — asked the user, who chose to leave it as a formal gap (not fix inline). Phase 55 stays gaps_found; ROADMAP/STATE plan-level tracking updated to reflect 55-04 as executed (4/4 plans), but phase-level completion (phase.complete, REQUIREMENTS traceability, STATE advance to next phase) intentionally NOT run since verification has not passed. Next — /gsd-plan-phase 55 --gaps to scope the virustotal_client.py fix as its own plan, then re-run /gsd-execute-phase 55 to re-verify. Full backend suite after all fixes: 1543 passed / 34 skipped / 5 failed (same 5 pre-existing/environmental failures as the 55-03 baseline — test_webhook_logic.py x2, test_agentic_ai.py, test_e2e_integration.py, test_rust_heartbeat_parity.py — zero new regressions)."
-last_updated: "2026-08-04T00:20:00.000Z"
+last_updated: "2026-08-03T19:07:12.349Z"
 last_activity: 2026-08-04
-last_activity_desc: Executing gap-closure plan 55-05-PLAN.md (INT-04, virustotal_client.py get_virustotal_client() factory + correlate-native route)
+last_activity_desc: Gap-closure plan 55-05-PLAN.md created and checker-verified (commit e722a7c)
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 25
-  completed_plans: 9
-  percent: 0
+  completed_plans: 10
+  percent: 17
 ---
 
 # Project State
@@ -323,6 +323,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 55]: 55-03: checkpoint:decision resolved as option-a: only shadow_ai_detected UEBA anomalies trigger automated approval-gated containment (kill_process); the other 9 UEBA rule types resolve to no_playbook and remain recorded/correlated/SIEM-pushed — no fabricated user->agent mapping, no second dispatch engine.
 - [Phase 55]: 55-03: wired the containment call site into report_shadow_ai only (not analyze_event's shadow-AI branch, which is built from a LoginEvent with no agent_id field) — per the plan's tracer instruction to wire ONLY this single shadow_ai path end-to-end.
 - [Phase 55]: 55-03: dedup check + RemediationFinding build + remediate() call all live inside one background-task-only function (_dispatch_anomaly_remediation), scheduled via background_tasks.add_task — never awaited inline in report_shadow_ai's request/response cycle.
+- [Phase ?]: 55-05: get_virustotal_client() is a plain factory (no singleton) to avoid stale VIRUSTOTAL_API_KEY state across process/tests
+- [Phase ?]: 55-05: Task 1/Task 2 implementation boundary collapsed — all four scan_* methods + enrich_file_hashes implemented in Task 1's shared _lookup() rewrite; Task 2 became a test-only commit (see 55-05-SUMMARY.md Deviations)
 
 ## Performance Metrics
 
@@ -412,11 +414,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 55 P01 | 10min | 2 tasks | 3 files |
 | Phase 55 P02 | 8min | 1 tasks | 2 files |
 | Phase 55 P03 | 35min | 3 tasks | 2 files |
+| Phase 55 P05 | 6min | 2 tasks | 3 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 55-03-PLAN.md
+- **Stopped at:** Completed 55-05-PLAN.md (INT-04 gap closure: virustotal_client.py rewrite, correlate-native route reachable, 55-VERIFICATION.md gap #1 closed)
 - **Resume file:** None
 
 ## Configuration
@@ -442,7 +445,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-03T14:31:04.245Z
+**Last session:** 2026-08-03T19:07:12.314Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 

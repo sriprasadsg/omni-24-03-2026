@@ -160,3 +160,11 @@ None - no external service configuration required. `VIRUSTOTAL_API_KEY` remains 
 ---
 *Phase: 55-advanced-threat-detection*
 *Completed: 2026-08-04*
+
+## Self-Check: PASSED
+
+All created files confirmed present (`backend/virustotal_client.py`,
+`backend/tests/test_threat_intel_correlate_native_route.py`,
+`backend/tests/test_virustotal_client.py`, this SUMMARY.md). All 4 commit
+hashes (`8c32082`, `766e3ca`, `f7c9992`, `c01e91c`) confirmed present in
+`git log --oneline --all`.
