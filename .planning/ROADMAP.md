@@ -922,12 +922,20 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 51 (vuln engine), 53 (autonomous remediation), 54 (UI/API)
 
-**Plans:** (4 plans placeholder)
+**Plans:** 4 plans, 3 waves
 
-- [ ] 55-01-PLAN.md — Threat Intelligence correlation
-- [ ] 55-02-PLAN.md — Predictive anomaly detection
-- [ ] 55-03-PLAN.md — Automated containment/isolation
-- [ ] 55-04-PLAN.md — SOC Integration (syslog/SIEM)
+**Wave 1** *(parallel — no file overlap)*
+
+- [ ] 55-01-PLAN.md — INT-04: extend SiemEngine with correlate_native_findings() (bounded, tenant-scoped reads of the 4 native collections → existing rule loop → security_cases) + companion trigger route; first direct test_siem_engine.py [tracer: correlation spine]
+- [ ] 55-02-PLAN.md — AUT-03: deterministic anomaly branch in select_playbook() (shadow_ai_detected + agent_id → kill_process; else no_playbook); no new ACTION_MAP entry
+
+**Wave 2** *(blocked on 55-02)*
+
+- [ ] 55-03-PLAN.md — AUT-03: FIRST production caller of remediate() — UEBA shadow_ai anomaly → RemediationFinding("anomaly") → deduped, fire-and-forget, approval-gated containment; leads with a checkpoint:decision (Assumption A2 scope / reversibility gate) [tracer: containment spine]
+
+**Wave 3** *(blocked on 55-01, 55-03)*
+
+- [ ] 55-04-PLAN.md — COMM-01: outbound OCSF (class_uid=2004) push via existing webhook_service at 3 pipeline points (correlation/anomaly/remediation), fire-and-forget, SSRF+HMAC reused unchanged; soc_integration_service.py [tracer: outbound spine]
 
 ---
 
