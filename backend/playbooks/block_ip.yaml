@@ -1,0 +1,14 @@
+name: block_ip
+finding_class: nscan
+match:
+  scan_type: ip
+steps:
+  - action: block_ip
+    params:
+      ip_address: "{{finding.resource_id}}"
+    destructive: true
+# Reversible — unblock_ip removes the firewall rule this playbook adds.
+rollback:
+  - action: unblock_ip
+    params:
+      ip_address: "{{finding.resource_id}}"

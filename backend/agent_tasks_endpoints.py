@@ -46,7 +46,16 @@ async def get_agent_instructions(
         )
 
     return [
-        {"task_id": i.get("id") or str(i.get("_id", "")), "instruction": i.get("instruction") or i.get("type"), "payload": i.get("payload")}
+        {
+            "task_id": i.get("id") or str(i.get("_id", "")),
+            "instruction": i.get("instruction") or i.get("type"),
+            "payload": i.get("payload"),
+            # Some producers set "parameters" (SOAR/active-response/remediation),
+            # others set "payload" — relay both under both keys so either the
+            # legacy ("payload") or newer ("parameters") dispatch arms resolve
+            # their arguments regardless of which key the producer used.
+            "parameters": i.get("parameters") if i.get("parameters") is not None else i.get("payload"),
+        }
         for i in instructions
     ]
 

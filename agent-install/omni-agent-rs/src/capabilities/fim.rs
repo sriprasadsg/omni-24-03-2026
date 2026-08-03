@@ -80,7 +80,7 @@ fn map_event_kind(kind: &EventKind) -> ChangeType {
 }
 
 /// Best-effort current process user (owner of the agent process).
-fn current_user() -> String {
+pub(crate) fn current_user() -> String {
     #[cfg(unix)]
     {
         use std::process::Command;

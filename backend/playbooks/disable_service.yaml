@@ -1,0 +1,15 @@
+name: disable_service
+finding_class: vuln
+match:
+  requires_cve: false
+steps:
+  - action: disable_service
+    params:
+      service_name: "{{finding.details.package}}"
+    destructive: true
+# Reversible — enable_service restarts and re-enables what this playbook
+# stopped.
+rollback:
+  - action: enable_service
+    params:
+      service_name: "{{finding.details.package}}"

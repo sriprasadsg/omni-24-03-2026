@@ -13,7 +13,7 @@ pub mod tray;
 pub mod service;
 
 use buffer::MessageBuffer;
-use capabilities::CapabilityManager;
+use capabilities::{CapabilityManager, fim};
 use sysinfo::System;
 
 pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
@@ -55,15 +55,16 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     log::info!("Capabilities loaded: {}", cap_mgr.ids().join(", "));
 
     // FIM setup
-    crate::capabilities::fim_baseline::check_drift_on_start(&cfg.fim_paths);
+    crate::capabilities::fim_baseline::check_drift_on_start(&cfg.fim_paths, &crate::capabilities::fim_baseline::baseline_dir());
 
-    if let Some(ref rx) = stop_rx {
-        let watcher_stop = rx.clone();
+    // FIM watcher + drift check + background drain
+    if let Some(ref stop_rx_clone) = stop_rx {
+        let watcher_stop = stop_rx_clone.clone();
         if let Err(e) = crate::capabilities::fim::start_watcher(cfg.fim_paths.clone(), watcher_stop) {
             log::warn!("FIM watcher start failed: {e}");
         }
 
-        let drain_stop = rx.clone();
+        let drain_stop = stop_rx_clone.clone();
         let cfg_drain = cfg.clone();
         let client_drain = client.clone();
         tokio::spawn(crate::capabilities::fim::drain_queue(cfg_drain, client_drain, drain_stop));

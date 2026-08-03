@@ -365,6 +365,9 @@ def register_all_routers(app: FastAPI) -> None:
         ("fim_endpoints",                     {}),
         ("active_response_endpoints",         {}),
         ("security_ops_endpoints",            {}),
+        ("native_security_ops_endpoints",      {}),
+        ("remediation_playbook_endpoints",     {}),
+        ("remediation_control_endpoints",      {}),
     ]
 
     seen: set[str] = set()

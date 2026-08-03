@@ -1757,24 +1757,39 @@ export interface SecurityFinding {
   ts: string;
 }
 
+export type RemediationStatus =
+  | 'pending_approval' | 'dispatching' | 'dispatched'
+  | 'resolved' | 'failed' | 'unverified' | 'deferred' | 'denied' | 'dry_run' | 'no_playbook';
+
 export interface RemediationQueueItem {
   id: string;
+  tenantId: string;
+  agentId?: string;
   findingId: string;
-  status: 'pending_approval' | 'dispatched' | 'in_progress' | 'completed' | 'failed';
-  action: string;
-  description: string;
-  requestedAt: string;
-  approvedBy?: string;
-  approvedAt?: string;
+  findingType: string;
+  findingSeverity: string;
+  findingResourceId?: string;
+  playbookName: string;
+  status: RemediationStatus;
+  createdAt: string;
 }
 
 export interface RemediationAuditEntry {
-  id: string;
-  remediationId: string;
-  timestamp: string;
-  user: string;
-  action: 'approved' | 'denied' | 'triggered' | 'failed';
-  details: string;
+  remediation_id: string;
+  tenantId: string;
+  ts: string;
+  // selected | pending_approval | dispatched | verified | rollback_dispatched
+  // | escalated | override_approved | override_denied | dry_run | deferred
+  // | dispatch_incomplete | dispatch_failed
+  stage: string;
+  agentId?: string;
+  finding?: { id: string; type: string; severity: string };
+  playbook?: string;
+  approver?: string;
+  reason?: string;
+  steps_dispatched?: { action: string; task_id?: string; status: string }[];
+  rollback_steps?: { action: string; task_id?: string; status: string }[];
+  verification_result?: string;
 }
 
 export interface FimStatus {
@@ -1791,11 +1806,21 @@ export interface SecuritySummary {
   fimDriftDetected: boolean;
 }
 
+export interface RemediationPlaybookStep {
+  action: string;
+  params: Record<string, any>;
+  destructive: boolean;
+}
+
 export interface RemediationPlaybook {
   id: string;
   name: string;
-  description: string;
-  actions: string[];
-  createdAt: string;
-  createdBy: string;
+  finding_class: string;
+  match?: Record<string, any>;
+  steps: RemediationPlaybookStep[];
+  rollback: { action: string; params: Record<string, any> }[];
+  source?: 'vendored' | 'operator';
+  tenantId?: string;
+  createdAt?: string;
+  createdBy?: string;
 }

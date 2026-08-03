@@ -2126,8 +2126,179 @@ export const addTenant = async (tenantData: { name: string; subscriptionTier?: s
     }
 };
 
+export const updateTenantFeatures = async (tenantId: string, features: Permission[], tier: SubscriptionTier) => {
+    try {
+        const res = await authFetch(`${API_BASE}/tenants/${tenantId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                enabledFeatures: features,
+                subscriptionTier: tier
+            })
+        });
 
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || "Failed to update tenant");
+        }
 
+        const updatedTenant: Tenant = await res.json();
+
+        // Update local cache after successful backend update
+        const tenantIndex = TENANTS.findIndex(t => t.id === tenantId);
+        if (tenantIndex > -1) {
+            TENANTS[tenantIndex] = updatedTenant;
+        }
+
+        return updatedTenant;
+    } catch (e) {
+        console.error("Error updating tenant:", e);
+        throw e;
+    }
+};
+
+export const getTenantBranding = async (tenantId: string) => {
+    try {
+        const res = await authFetch(`${API_BASE}/tenants/${tenantId}/branding`);
+        if (!res.ok) throw new Error("Failed to fetch branding");
+        return await res.json();
+    } catch (e) {
+        console.warn("Branding fetch failed", e);
+        return {};
+    }
+};
+
+export const deleteTenant = async (tenantId: string) => {
+    try {
+        const res = await authFetch(`${API_BASE}/tenants/${tenantId}`, {
+            method: 'DELETE'
+        });
+
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || "Failed to delete tenant");
+        }
+
+        // Update local cache only after successful deletion
+        TENANTS = TENANTS.filter(t => t.id !== tenantId);
+        USERS = USERS.filter(u => u.tenantId !== tenantId);
+
+        return await res.json();
+    } catch (e) {
+        console.error("Error deleting tenant:", e);
+        throw e;
+    }
+};
+
+export const registerAgent = async (data: any) => {
+    const res = await authFetch(`${API_BASE}/agents/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || "Failed to register agent");
+    }
+    const result = await res.json();
+
+    // Update local cache if needed (though usually we'd re-fetch)
+    if (result.agent) {
+        AGENTS = [...AGENTS, result.agent];
+    }
+    if (result.asset) {
+        ASSETS = [...ASSETS, result.asset];
+    }
+
+    return { newAgent: result.agent, newAsset: result.asset };
+};
+
+// --- Tenant Voice Bot Settings ---
+export const updateTenantVoiceBotSettings = async (tenantId: string, settings: VoiceBotSettings): Promise<Tenant> => {
+    const res = await authFetch(`${API_BASE}/tenants/${tenantId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ voiceBotSettings: settings })
+    });
+    if (!res.ok) throw new Error("Failed to update tenant voice bot settings");
+    return await res.json();
+};
+
+export const updateAgent = async (agent: Agent) => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agent.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(agent)
+        });
+        if (!res.ok) throw new Error("Failed to update agent");
+        const updated = await res.json();
+
+        // Update local cache
+        const index = AGENTS.findIndex(a => a.id === agent.id);
+        if (index > -1) {
+            AGENTS[index] = updated;
+        }
+        return updated;
+    } catch (e) {
+        console.warn("Backend offline for updateAgent");
+        const index = AGENTS.findIndex(a => a.id === agent.id);
+        if (index > -1) {
+            AGENTS[index] = agent;
+            return agent;
+        }
+        return agent;
+    }
+};
+
+export const deleteAgent = async (agentId: string) => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || "Failed to delete agent");
+        }
+        return await res.json();
+    } catch (e) {
+        console.error("Error deleting agent:", e);
+        throw e;
+    }
+};
+
+export const quarantineAgent = async (agentId: string, reason: string) => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/quarantine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, notify: true }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to quarantine agent');
+    }
+    return res.json();
+};
+
+export const releaseAgent = async (agentId: string) => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/release`, { method: 'POST' });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to release agent');
+    }
+    return res.json();
+};
+
+export const setAgentSoftwareExclusion = async (agentId: string, exclude: boolean) => {
+    const res = await authFetch(`${API_BASE}/agents/${agentId}/software-exclusion`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exclude }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update software exclusion');
+    }
+    return res.json();
+};
 
 export const runAgentDiagnostics = async (agentId: string): Promise<Agent> => {
     const res = await authFetch(`${API_BASE}/agents/${agentId}/diagnostics`, { method: 'POST' });
@@ -4863,159 +5034,6 @@ export const fetchFleetGeo = async (): Promise<FleetGeoResponse> => {
         throw new Error(err.detail || 'Failed to load fleet geo data');
     }
     return await res.json();
-};
-
-// ── Security Ops Endpoints ──────────────────────────────────────────────────
-export const fetchFindings = async (params: { limit?: number; offset?: number }): Promise<SecurityFinding[]> => {
-    try {
-        const query = new URLSearchParams();
-        if (params.limit) query.append('limit', String(params.limit));
-        if (params.offset) query.append('offset', String(params.offset));
-        const res = await authFetch(`${API_BASE}/security-ops/findings?${query.toString()}`);
-        if (!res.ok) throw new Error("Failed to fetch aggregated findings");
-        const data = await res.json();
-        return data.findings || [];
-    } catch (e) {
-        console.error("Error fetching aggregated findings:", e);
-        return [];
-    }
-};
-
-export const fetchRemediationQueue = async (): Promise<RemediationQueueItem[]> => {
-    try {
-        const res = await authFetch(`${API_BASE}/security-ops/remediation-queue`);
-        if (!res.ok) throw new Error("Failed to fetch remediation queue");
-        return await res.json();
-    } catch (e) {
-        console.error("Error fetching remediation queue:", e);
-        return [];
-    }
-};
-
-export const triggerScan = async (agentId: string, type: 'file' | 'vuln' | 'fim', target?: string): Promise<{ queued: boolean }> => {
-    try {
-        const res = await authFetch(`${API_BASE}/security-ops/trigger-scan`, {
-            method: 'POST',
-            body: JSON.stringify({ agent_id: agentId, type, target })
-        });
-        if (!res.ok) throw new Error("Failed to trigger scan");
-        return await res.json();
-    } catch (e) {
-        console.error("Error triggering scan:", e);
-        throw e;
-    }
-};
-
-export const fetchFimStatus = async (): Promise<FimStatus[]> => {
-    try {
-        const res = await authFetch(`${API_BASE}/security-ops/fim-status`);
-        if (!res.ok) throw new Error("Failed to fetch FIM status");
-        return await res.json();
-    } catch (e) {
-        console.error("Error fetching FIM status:", e);
-        return [];
-    }
-};
-
-export const fetchSecuritySummary = async (): Promise<SecuritySummary> => {
-    try {
-        const res = await authFetch(`${API_BASE}/security-ops/summary`);
-        if (!res.ok) throw new Error("Failed to fetch security summary");
-        return await res.json();
-    } catch (e) {
-        console.error("Error fetching security summary:", e);
-        return { totalFindings: 0, criticalFindings: 0, openRemediations: 0, agentsWithFim: 0, fimDriftDetected: false };
-    }
-};
-
-// ── Remediation Audit & Actions (Phase 53-04) ──────────────────────────────
-export const fetchRemediationAudit = async (params: { limit?: number; offset?: number }): Promise<RemediationAuditEntry[]> => {
-    try {
-        const query = new URLSearchParams();
-        if (params.limit) query.append('limit', String(params.limit));
-        if (params.offset) query.append('offset', String(params.offset));
-        const res = await authFetch(`${API_BASE}/remediation/audit?${query.toString()}`);
-        if (!res.ok) throw new Error("Failed to fetch remediation audit log");
-        return await res.json();
-    } catch (e) {
-        console.error("Error fetching remediation audit:", e);
-        return [];
-    }
-};
-
-export const approveRemediation = async (id: string): Promise<RemediationQueueItem> => {
-    try {
-        const res = await authFetch(`${API_BASE}/remediation/${id}/approve`, { method: 'POST' });
-        if (!res.ok) throw new Error("Failed to approve remediation");
-        return await res.json();
-    } catch (e) {
-        console.error("Error approving remediation:", e);
-        throw e;
-    }
-};
-
-export const denyRemediation = async (id: string, reason: string): Promise<RemediationQueueItem> => {
-    try {
-        const res = await authFetch(`${API_BASE}/remediation/${id}/deny`, {
-            method: 'POST',
-            body: JSON.stringify({ reason })
-        });
-        if (!res.ok) throw new Error("Failed to deny remediation");
-        return await res.json();
-    } catch (e) {
-        console.error("Error denying remediation:", e);
-        throw e;
-    }
-};
-
-// ── Remediation Playbook CRUD (Phase 53-01) ────────────────────────────────
-export const fetchRemediationPlaybooks = async (): Promise<RemediationPlaybook[]> => {
-    try {
-        const res = await authFetch(`${API_BASE}/remediation-playbooks`);
-        if (!res.ok) throw new Error("Failed to fetch remediation playbooks");
-        return await res.json();
-    } catch (e) {
-        console.error("Error fetching remediation playbooks:", e);
-        return [];
-    }
-};
-
-export const createRemediationPlaybook = async (playbook: Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>): Promise<RemediationPlaybook> => {
-    try {
-        const res = await authFetch(`${API_BASE}/remediation-playbooks`, {
-            method: 'POST',
-            body: JSON.stringify(playbook)
-        });
-        if (!res.ok) throw new Error("Failed to create remediation playbook");
-        return await res.json();
-    } catch (e) {
-        console.error("Error creating remediation playbook:", e);
-        throw e;
-    }
-};
-
-export const updateRemediationPlaybook = async (id: string, playbook: Partial<Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>>): Promise<RemediationPlaybook> => {
-    try {
-        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(playbook)
-        });
-        if (!res.ok) throw new Error("Failed to update remediation playbook");
-        return await res.json();
-    } catch (e) {
-        console.error("Error updating remediation playbook:", e);
-        throw e;
-    }
-};
-
-export const deleteRemediationPlaybook = async (id: string): Promise<void> => {
-    try {
-        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error("Failed to delete remediation playbook");
-    } catch (e) {
-        console.error("Error deleting remediation playbook:", e);
-        throw e;
-    }
 };
 
 // ── Security Ops Endpoints ──────────────────────────────────────────────────

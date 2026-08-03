@@ -1,0 +1,12 @@
+name: kill_process
+finding_class: nscan
+match:
+  scan_type_not: ip
+steps:
+  - action: kill_process
+    params:
+      target: "{{finding.resource_id}}"
+    destructive: true
+# Irreversible — a killed process cannot be un-killed. A failed verify
+# escalates to a human rather than guessing a rollback.
+rollback: []

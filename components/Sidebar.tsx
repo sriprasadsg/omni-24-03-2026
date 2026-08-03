@@ -416,6 +416,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'geoSecurity', label: 'Geo Security', icon: <ShieldLockIcon size={20} />, permission: 'manage:settings' },
                 { view: 'fleetObservability', label: 'Fleet Observability', icon: <ActivityIcon size={20} />, permission: 'manage:agents' },
                 { view: 'fleetGeoMap', label: 'Fleet Geo Map', icon: <GlobeIcon size={20} />, permission: 'manage:agents' },
+                { view: 'nativeSecurity', label: 'Native Security', icon: <ShieldZapIcon size={20} />, permission: 'manage:active_response' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'apiStatus', label: 'API Status', icon: <RadioTower size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },

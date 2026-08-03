@@ -1,0 +1,12 @@
+name: restore_file
+finding_class: fim
+match: {}
+steps:
+  - action: restore_file
+    params:
+      path: "{{finding.resource_id}}"
+      backup_path: "{{finding.details.backup_path}}"
+    destructive: true
+# Irreversible via this playbook (there is no second-order backup of the
+# restored content) — a failed verify escalates to a human.
+rollback: []

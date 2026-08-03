@@ -18,6 +18,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use rand::rngs::OsRng;
+use super::fim::{current_user, ProcessInfo};
 
 /// The versioned baseline snapshot of file states.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,7 +63,7 @@ fn baseline_dir_for_path(base_path: Option<&Path>) -> PathBuf {
     dir
 }
 
-fn baseline_dir() -> PathBuf {
+pub fn baseline_dir() -> PathBuf {
     baseline_dir_for_path(None)
 }
 
@@ -280,21 +281,69 @@ fn enqueue_drift(event: DriftEvent, base_path: &Path) {
     };
 
     // Ensure table exists (created by fim.rs on init, but be safe)
-    let _ = conn.execute(
+    if let Err(e) = conn.execute(
         "CREATE TABLE IF NOT EXISTS fim_queue (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_json TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL,
+            change_type TEXT NOT NULL,
+            hash_before TEXT,
+            hash_after TEXT,
+            process_json TEXT NOT NULL,
+            user TEXT NOT NULL,
+            ts TEXT NOT NULL,
+            posted INTEGER NOT NULL DEFAULT 0
         )",
         [],
-    );
+    ) {
+        log::error!("Failed to create fim_queue table: {e}");
+        return;
+    }
 
     let event_json = serde_json::to_string(&event).unwrap_or_default();
     let now = Utc::now().to_rfc3339();
 
+    // Construct parameters based on the unified schema. DriftEvent needs to be serialized and inserted into event_json.
+    let change_type_str = match event {
+        DriftEvent::Added { .. } => "added",
+        DriftEvent::Removed { .. } => "removed",
+        DriftEvent::Changed { .. } => "modified",
+        DriftEvent::BaselineReset { .. } => "baseline_reset",
+    };
+
+    let (hash_before, hash_after) = match event {
+        DriftEvent::Added { ref hash_after, .. } => (None, Some(hash_after.clone())),
+        DriftEvent::Removed { ref hash_before, .. } => (Some(hash_before.clone()), None),
+        DriftEvent::Changed { ref hash_before, ref hash_after, .. } => (Some(hash_before.clone()), Some(hash_after.clone())),
+        DriftEvent::BaselineReset { .. } => (None, None),
+    };
+
+    // BaselineReset carries no process — store its reason in process_json instead of a
+    // meaningless ProcessInfo placeholder, so drain/backend consumers still see WHY it reset.
+    let process_json = match event {
+        DriftEvent::BaselineReset { .. } => event_json.clone(),
+        _ => serde_json::to_string(&ProcessInfo::default()).unwrap_or_else(|_| "{}".to_string()),
+    };
+    let user = current_user(); // Get current user
+
+    let path_str = match event {
+        DriftEvent::Added { ref path, .. } => path.clone(),
+        DriftEvent::Removed { ref path, .. } => path.clone(),
+        DriftEvent::Changed { ref path, .. } => path.clone(),
+        DriftEvent::BaselineReset { .. } => String::new(),
+    };
+
     let _ = conn.execute(
-        "INSERT INTO fim_queue (event_json, created_at) VALUES (?1, ?2)",
-        rusqlite::params![event_json, now],
+        "INSERT INTO fim_queue (path, change_type, hash_before, hash_after, process_json, user, ts, posted)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)",
+        rusqlite::params![
+            path_str,
+            change_type_str,
+            hash_before,
+            hash_after,
+            process_json,
+            user,
+            now,
+        ],
     );
 
     log::debug!("Enqueued FIM drift event: {:?}", event);
@@ -400,8 +449,8 @@ mod tests {
         fs::write(&test_path, b"hello world").unwrap();
         let paths = vec![test_path.to_string_lossy().to_string()];
 
-        // load_verified should return None
-        let loaded = load_verified();
+        // load_verified_from_dir should return None
+        let loaded = load_verified_from_dir(dir.path());
         assert!(loaded.is_none());
 
         // Compute and save
@@ -426,14 +475,13 @@ mod tests {
 
         // Should have a BaselineReset event
         let conn = rusqlite::Connection::open(fim_queue_path_for_dir(dir.path())).unwrap();
-        let mut stmt = conn.prepare("SELECT event_json FROM fim_queue").unwrap();
-        let event_jsons: Vec<String> = stmt.query_map([], |row| row.get(0)).unwrap().filter_map(|r| r.ok()).collect();
-        assert_eq!(event_jsons.len(), 1);
-        let event: DriftEvent = serde_json::from_str(&event_jsons[0]).unwrap();
-        match event {
-            DriftEvent::BaselineReset { reason } => assert_eq!(reason, "missing_baseline"),
-            _ => panic!("Expected BaselineReset event"),
-        }
+        let mut stmt = conn.prepare("SELECT change_type, process_json FROM fim_queue").unwrap();
+        let rows: Vec<(String, String)> = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().filter_map(|r| r.ok()).collect();
+        assert_eq!(rows.len(), 1);
+        let (change_type, process_json) = &rows[0];
+        assert_eq!(change_type, "baseline_reset");
+        let process_data: serde_json::Value = serde_json::from_str(process_json).unwrap();
+        assert_eq!(process_data["reason"], "missing_baseline");
 
         // A new baseline should be saved
         assert!(load_verified_from_dir(dir.path()).is_some());
