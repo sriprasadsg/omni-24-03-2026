@@ -6,13 +6,13 @@ current_phase: 55
 current_phase_name: advanced-threat-detection
 status: executing
 stopped_at: "Phase 55 plan 55-04 (COMM-01, SOC/OCSF outbound push) executed, committed, and phase-verified 2026-08-03. Wave-3 worktree merge (e0874d0) landed with soc_integration_service.py using package-relative imports (ImportError under the bare-module convention its 3 callers use) and a test that patched the wrong dual-import module identity (masked a real failure as green). Fixed post-merge (b9077b1): bare imports + severity_map hoisted to module scope; also added the delivery-failure-non-fatal test the plan's own acceptance criteria required but the executor never wrote (89de3f9). Rewrote 55-04-SUMMARY.md with proper frontmatter (9805df4). Ran gsd-verifier (55-VERIFICATION.md): 12/14 must-haves, gaps_found — AUT-03 fully solid; COMM-01 was only 1/3 wired (ueba_service.py/remediation_audit_service.py call asyncio.create_task(...) with no `import asyncio`, NameError silently swallowed by the same non-fatal try/except); INT-04's correlate-native route unreachable (virustotal_client.py transitively broken — pre-existing, predates phase 55). Fixed the asyncio-import gap immediately (0a7d227), RED/GREEN-reproduced against the verifier's own repro, phase now 13/14. Investigated the INT-04 gap further: it's deeper than a missing import — virustotal_client.py's get_virustotal_client() factory, which 3 files actually import, does not exist anywhere in the 121-line file; fixing BaseCapability alone would only surface the next ImportError. This is real missing-feature implementation work on an unrelated file, not in any phase-55 plan's files_modified — asked the user, who chose to leave it as a formal gap (not fix inline). Phase 55 stays gaps_found; ROADMAP/STATE plan-level tracking updated to reflect 55-04 as executed (4/4 plans), but phase-level completion (phase.complete, REQUIREMENTS traceability, STATE advance to next phase) intentionally NOT run since verification has not passed. Next — /gsd-plan-phase 55 --gaps to scope the virustotal_client.py fix as its own plan, then re-run /gsd-execute-phase 55 to re-verify. Full backend suite after all fixes: 1543 passed / 34 skipped / 5 failed (same 5 pre-existing/environmental failures as the 55-03 baseline — test_webhook_logic.py x2, test_agentic_ai.py, test_e2e_integration.py, test_rust_heartbeat_parity.py — zero new regressions)."
-last_updated: "2026-08-03T23:55:00.000Z"
-last_activity: 2026-08-03
-last_activity_desc: Plan 55-04 (SOC/OCSF outbound push, COMM-01) executed + post-merge fixes; phase 55 verified 13/14, gaps_found (1 open gap deferred by user decision — virustotal_client.py, out of phase-55 scope)
+last_updated: "2026-08-04T00:20:00.000Z"
+last_activity: 2026-08-04
+last_activity_desc: Gap-closure plan 55-05-PLAN.md created (INT-04, virustotal_client.py get_virustotal_client() factory + correlate-native route) and passed plan-checker verification; ready for /gsd-execute-phase 55 --gaps-only
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 24
+  total_plans: 25
   completed_plans: 9
   percent: 0
 ---
@@ -457,10 +457,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 55 (advanced-threat-detection) — VERIFICATION: gaps_found (13/14)
-Plan: 4 of 4 (all plans executed)
-Status: All 4 plans executed; phase verified 13/14 must-haves. 1 open gap deferred by user decision (INT-04 correlate-native route unreachable — backend/virustotal_client.py is broken pre-existing scaffolding, real implementation work outside phase 55's scope, not fixed here). Next: /gsd-plan-phase 55 --gaps to scope its closure, then re-run /gsd-execute-phase 55 to re-verify.
-Last activity: 2026-08-03 — Plan 55-04 (SOC/OCSF outbound push, COMM-01) executed, post-merge bugs fixed (b9077b1, 0a7d227), phase verified (55-VERIFICATION.md)
+Phase: 55 (advanced-threat-detection) — GAP CLOSURE: 55-05-PLAN.md ready to execute
+Plan: 5 of 5 planned (4 executed, 1 pending — 55-05)
+Status: 55-05-PLAN.md created via /gsd-plan-phase 55 --gaps to close the remaining INT-04 gap (virustotal_client.py missing get_virustotal_client() factory + undefined BaseCapability, blocking the correlate-native route). Passed gsd-plan-checker verification, requirements coverage (3/3), and decision coverage (4/4) gates. Next: /gsd-execute-phase 55 --gaps-only to execute 55-05, then re-verify.
+Last activity: 2026-08-04 — Gap-closure plan 55-05-PLAN.md created and checker-verified (commit e722a7c)
 
 Note: Phase 48 (fleet-observability-uptime-rollups) was the prior recorded position in this section; phases 49-54 executed since then are not individually reflected here (pre-existing drift, not fixed by this plan — see Deferred Items).
 
