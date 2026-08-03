@@ -19,6 +19,7 @@ pub mod software_management;
 pub mod system_patching;
 pub mod ueba;
 pub mod vulnerability_scan;
+pub mod remediation_actions;
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
