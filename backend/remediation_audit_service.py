@@ -19,6 +19,15 @@ async def write_audit(db, tenant_id: str, record: Dict[str, Any]) -> str:
     doc.setdefault("tenantId", tenant_id)
     doc.setdefault("ts", datetime.now(timezone.utc).isoformat())
     result = await db.remediation_audit.insert_one(doc)
+
+    # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
+    # Fire-and-forget; never raises into the remediation pipeline.
+    try:
+        from soc_integration_service import push_ocsf_event
+        asyncio.create_task(push_ocsf_event("remediation.event", doc))
+    except Exception as e:
+        logger.debug("Remediation OCSF push failed (non-fatal): %s", e)
+
     return str(result.inserted_id)
 
 

@@ -68,6 +68,14 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
     }
     await db.security_alerts.insert_one(alert)
 
+    # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
+    # Fire-and-forget; never raises into the UEBA pipeline.
+    try:
+        from soc_integration_service import push_ocsf_event
+        asyncio.create_task(push_ocsf_event("ueba.anomaly", alert))
+    except Exception as e:
+        logger.debug("UEBA OCSF push failed (non-fatal): %s", e)
+
     # Publish to streaming broker so the Streaming Dashboard receives live events
     try:
         from streaming_service import broker as _broker
