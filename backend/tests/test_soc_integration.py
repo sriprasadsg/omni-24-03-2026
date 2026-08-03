@@ -75,6 +75,40 @@ def test_siem_engine_trigger_alert_calls_push_ocsf():
 
     asyncio.run(main())
 
+def test_delivery_failure_is_non_fatal_for_ueba_and_remediation():
+    # Task 2 acceptance criterion: a failing push_ocsf_event must not stop
+    # _persist_alert's or write_audit's own insert from completing.
+    import backend.ueba_service as ueba_mod
+    import backend.remediation_audit_service as audit_mod
+
+    async def main():
+        with patch('soc_integration_service.push_ocsf_event', side_effect=RuntimeError("SIEM down")):
+            alerts_col = type('MockCol', (), {'insert_one': AsyncMock()})()
+            blockchain_col = type('MockCol', (), {
+                'find_one': AsyncMock(return_value=None),
+                'insert_one': AsyncMock(),
+            })()
+            mock_db = type('MockDB', (), {
+                'security_alerts': alerts_col,
+                'blockchain_audit': blockchain_col,
+            })()
+
+            await ueba_mod._persist_alert(mock_db, "shadow_ai_detected", "High", "t", "d", {})
+            await asyncio.sleep(0)
+            alerts_col.insert_one.assert_awaited_once()
+
+            audit_col = type('MockCol', (), {
+                'insert_one': AsyncMock(return_value=type('Result', (), {'inserted_id': 'abc'})())
+            })()
+            audit_db = type('MockDB', (), {'remediation_audit': audit_col})()
+
+            audit_id = await audit_mod.write_audit(audit_db, "tenant-1", {"stage": "selected"})
+            await asyncio.sleep(0)
+            assert audit_id == "abc"
+            audit_col.insert_one.assert_awaited_once()
+
+    asyncio.run(main())
+
 def test_multiple_call_sites_exist():
     # Verify there are at least 3 call sites of push_ocsf_event across the three services
     import inspect
