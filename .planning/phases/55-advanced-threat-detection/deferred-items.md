@@ -53,3 +53,24 @@ in unrelated files are logged here, not fixed).
 this-session regressions): `tests/test_graphql.py` (strawberry/pydantic version mismatch),
 `test_ai_service_config.py`, `test_network_endpoint.py` (live network calls), `test_sbom_api.py`
 (live network calls).
+
+## 55-02
+
+### 3. `REQUIREMENTS.md` does not contain AUT-03 (or any 55-advanced-threat-detection requirement)
+
+- **Found during:** post-execution state update (`requirements.mark-complete AUT-03`).
+- **Root cause:** `.planning/REQUIREMENTS.md` currently holds a completely different, later
+  requirements set (header `# Requirements: v4.0`, defined 2026-07-31, requirements SCALE-*/SEC-*/
+  UX-*/SIEM-*) that was written over whatever v3.4 requirements set originally defined AUT-03/
+  INT-04/COMM-01 for phase 55. `STATE.md`'s own frontmatter is likewise stale (`current_phase: 48`,
+  `milestone: v3.4`) despite phase 55 plans 01/02 already being executed and committed — this is a
+  pre-existing, project-wide STATE/REQUIREMENTS drift, not something introduced by 55-01 or 55-02.
+- **Why not fixed:** Out of this plan's scope (file list: `backend/remediation_playbook_service.py`,
+  `backend/tests/test_remediation_playbook.py` only). Reconciling REQUIREMENTS.md/STATE.md against
+  the actual v3.4 phase 55 plan set is a project-level documentation repair, not a code deviation.
+- **Impact:** `requirements.mark-complete AUT-03` returned `not_found` — no checkbox/traceability
+  row exists to check off. Requirement completion is still traceable via this plan's `SUMMARY.md`
+  frontmatter (`requirements-completed: [AUT-03]`) and the coverage block's test refs.
+- **Recommendation:** A future housekeeping pass should reconcile `REQUIREMENTS.md` and `STATE.md`
+  frontmatter against the real phase history (phases 46-55+ per `55-advanced-threat-detection/`'s
+  own RESEARCH/CONTEXT docs) before starting the v4.0 cycle those files currently describe.
