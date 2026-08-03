@@ -34,6 +34,19 @@ in unrelated files are logged here, not fixed).
   base class `VirusTotalScanCapability` can extend, or drop the unused capability-class wrapper
   and keep only the module-level `get_virustotal_client()`/scan functions the rest of the codebase
   actually calls.
+- **UPDATE (55-04 phase-verification pass, 2026-08-03):** Confirmed via `gsd-verifier` +
+  independent orchestrator investigation that this is deeper than the `BaseCapability` NameError
+  alone. `virustotal_client.py` is 121 lines total and defines ONLY `VirusTotalScanCapability` —
+  the `get_virustotal_client()` factory that `threat_intel_endpoints.py`, `threat_endpoints.py`,
+  and `soar_engine.py` all actually import and call **does not exist anywhere in the file**
+  (confirmed by stubbing a fake `BaseCapability` and executing the module: it runs clean, but
+  `get_virustotal_client` is absent from its namespace). `VirusTotalScanCapability.collect()` is
+  separately broken too — it references `requests`/`psutil`/`hashlib`/`socket`/`subprocess`/`re`/
+  `logger`, none imported in this file. Fixing the NameError alone would only change the failure
+  to `ImportError: cannot import name 'get_virustotal_client'`. This is missing-feature
+  implementation work (a real client factory + whatever scan interface the three callers expect),
+  not a one-line fix — flagged as its own gap in `55-VERIFICATION.md`, left open for a user
+  decision rather than fixed as part of phase 55.
 
 ### 2. Full backend suite baseline (re-run at end of 55-01)
 
