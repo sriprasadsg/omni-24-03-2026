@@ -5,15 +5,15 @@ milestone_name: Native Security Scanning & Autonomous Remediation Agent
 current_phase: 55
 current_phase_name: advanced-threat-detection
 status: executing
-stopped_at: "Phase 55 plan 55-03 (UEBA predictive containment trigger, AUT-03) executed and committed 2026-08-03 (commits abcd8ae/a78cca4) — backend/ueba_service.py's report_shadow_ai endpoint becomes the FIRST production caller of Phase 53's autonomous_remediation_service.remediate() engine: _dispatch_anomaly_containment_if_eligible() fail-closed-gates on anomaly_rule==shadow_ai_detected + real agent_id + resolved tenant_id, then schedules _dispatch_anomaly_remediation via background_tasks.add_task (never awaited inline); that background body calls ResponseOrchestrator().is_duplicate_task(...) BEFORE building a RemediationFinding(finding_type='anomaly') and calling remediate() — deduped, fire-and-forget, and routed through the identical approval-gate/dry-run/DB-lease/audit path as every other finding_type (D-02/D-04). Checkpoint:decision resolved as option-a (user-selected): only shadow_ai_detected is eligible this phase; the other 9 UEBA rule types resolve to no_playbook via 55-02's select_playbook() branch and remain recorded/correlated/SIEM-pushed. 21 tests green (16 new in test_ueba_remediation_trigger.py + 10 in test_remediation_guards.py re-run unchanged as the integration regression, including a max-risk_score no-approval-gate-bypass proof for D-04/T-55-06). Pre-existing _AUTO_BAN_RULES block left byte-for-byte unmodified (Pitfall 4). Full backend suite: 1539 passed / 34 skipped / 5 failed (all 5 pre-existing/environmental — 2 test_webhook_logic.py DB-connection-dependent, plus the known baseline test_e2e_integration.py/test_rust_heartbeat_parity.py/test_agentic_ai.py trio — unrelated to this plan). Discovered: REQUIREMENTS.md was rewritten to a v4.0 requirement set that does not track AUT-03 (or any AUT-* id) — requirements.mark-complete AUT-03 returned not_found; recorded as a deferred item below rather than silently reconciling milestone/requirements bookkeeping outside this plan's scope. Next — Plan 55-04 (final plan in phase 55-advanced-threat-detection, wave/dependency per 55-04-PLAN.md)."
-last_updated: "2026-08-03T14:31:04.280Z"
+stopped_at: "Phase 55 plan 55-04 (COMM-01, SOC/OCSF outbound push) executed, committed, and phase-verified 2026-08-03. Wave-3 worktree merge (e0874d0) landed with soc_integration_service.py using package-relative imports (ImportError under the bare-module convention its 3 callers use) and a test that patched the wrong dual-import module identity (masked a real failure as green). Fixed post-merge (b9077b1): bare imports + severity_map hoisted to module scope; also added the delivery-failure-non-fatal test the plan's own acceptance criteria required but the executor never wrote (89de3f9). Rewrote 55-04-SUMMARY.md with proper frontmatter (9805df4). Ran gsd-verifier (55-VERIFICATION.md): 12/14 must-haves, gaps_found — AUT-03 fully solid; COMM-01 was only 1/3 wired (ueba_service.py/remediation_audit_service.py call asyncio.create_task(...) with no `import asyncio`, NameError silently swallowed by the same non-fatal try/except); INT-04's correlate-native route unreachable (virustotal_client.py transitively broken — pre-existing, predates phase 55). Fixed the asyncio-import gap immediately (0a7d227), RED/GREEN-reproduced against the verifier's own repro, phase now 13/14. Investigated the INT-04 gap further: it's deeper than a missing import — virustotal_client.py's get_virustotal_client() factory, which 3 files actually import, does not exist anywhere in the 121-line file; fixing BaseCapability alone would only surface the next ImportError. This is real missing-feature implementation work on an unrelated file, not in any phase-55 plan's files_modified — asked the user, who chose to leave it as a formal gap (not fix inline). Phase 55 stays gaps_found; ROADMAP/STATE plan-level tracking updated to reflect 55-04 as executed (4/4 plans), but phase-level completion (phase.complete, REQUIREMENTS traceability, STATE advance to next phase) intentionally NOT run since verification has not passed. Next — /gsd-plan-phase 55 --gaps to scope the virustotal_client.py fix as its own plan, then re-run /gsd-execute-phase 55 to re-verify. Full backend suite after all fixes: 1543 passed / 34 skipped / 5 failed (same 5 pre-existing/environmental failures as the 55-03 baseline — test_webhook_logic.py x2, test_agentic_ai.py, test_e2e_integration.py, test_rust_heartbeat_parity.py — zero new regressions)."
+last_updated: "2026-08-03T23:55:00.000Z"
 last_activity: 2026-08-03
-last_activity_desc: Plan 55-03 (UEBA predictive containment trigger, AUT-03) executed and committed (abcd8ae/a78cca4)
+last_activity_desc: Plan 55-04 (SOC/OCSF outbound push, COMM-01) executed + post-merge fixes; phase 55 verified 13/14, gaps_found (1 open gap deferred by user decision — virustotal_client.py, out of phase-55 scope)
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 24
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -457,10 +457,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 55 (advanced-threat-detection) — EXECUTING
-Plan: 3 of 4
-Status: Plan 55-03 complete — Plan 55-04 remaining before phase verification
-Last activity: 2026-08-03 — Plan 55-03 (UEBA predictive containment trigger, AUT-03) executed and committed (abcd8ae/a78cca4)
+Phase: 55 (advanced-threat-detection) — VERIFICATION: gaps_found (13/14)
+Plan: 4 of 4 (all plans executed)
+Status: All 4 plans executed; phase verified 13/14 must-haves. 1 open gap deferred by user decision (INT-04 correlate-native route unreachable — backend/virustotal_client.py is broken pre-existing scaffolding, real implementation work outside phase 55's scope, not fixed here). Next: /gsd-plan-phase 55 --gaps to scope its closure, then re-run /gsd-execute-phase 55 to re-verify.
+Last activity: 2026-08-03 — Plan 55-04 (SOC/OCSF outbound push, COMM-01) executed, post-merge bugs fixed (b9077b1, 0a7d227), phase verified (55-VERIFICATION.md)
 
 Note: Phase 48 (fleet-observability-uptime-rollups) was the prior recorded position in this section; phases 49-54 executed since then are not individually reflected here (pre-existing drift, not fixed by this plan — see Deferred Items).
 
