@@ -922,11 +922,11 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 51 (vuln engine), 53 (autonomous remediation), 54 (UI/API)
 
-**Plans:** 4 plans, 3 waves
+**Plans:** 1/4 plans executed
 
 **Wave 1** *(parallel — no file overlap)*
 
-- [ ] 55-01-PLAN.md — INT-04: extend SiemEngine with correlate_native_findings() (bounded, tenant-scoped reads of the 4 native collections → existing rule loop → security_cases) + companion trigger route; first direct test_siem_engine.py [tracer: correlation spine]
+- [x] 55-01-PLAN.md — INT-04: extend SiemEngine with correlate_native_findings() (bounded, tenant-scoped reads of the 4 native collections → existing rule loop → security_cases) + companion trigger route; first direct test_siem_engine.py [tracer: correlation spine]
 - [ ] 55-02-PLAN.md — AUT-03: deterministic anomaly branch in select_playbook() (shadow_ai_detected + agent_id → kill_process; else no_playbook); no new ACTION_MAP entry
 
 **Wave 2** *(blocked on 55-02)*
