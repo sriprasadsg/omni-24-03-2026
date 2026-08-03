@@ -210,8 +210,16 @@ class SiemEngine:
         }
         
         await self.db.security_cases.insert_one(case_doc)
-        
-        # Dispatch notification 
+
+        # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
+        # Fire-and-forget; never raises into the correlation path.
+        try:
+            from soc_integration_service import push_ocsf_event
+            await push_ocsf_event("threat.correlation", case_doc)
+        except Exception as e:
+            print(f"[SIEMEngine] Failed to push OCSF event: {e}")
+
+        # Dispatch notification
         try:
             from email_service import email_service
             smtp_config = await self.db.smtp_config.find_one({"tenant_id": tenant_id})
