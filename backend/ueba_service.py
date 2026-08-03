@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
+import asyncio
 import logging
 from database import get_database
 from authentication_service import get_current_user

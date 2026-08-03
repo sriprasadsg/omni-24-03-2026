@@ -4,6 +4,7 @@ Only `write_audit` (insert) and `list_audit` (read) are exposed — there is
 no update/delete function anywhere in this module, so a record, once
 written, can never be altered or removed by anything importing it.
 """
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional

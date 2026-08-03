@@ -82,7 +82,7 @@ def test_delivery_failure_is_non_fatal_for_ueba_and_remediation():
     import backend.remediation_audit_service as audit_mod
 
     async def main():
-        with patch('soc_integration_service.push_ocsf_event', side_effect=RuntimeError("SIEM down")):
+        with patch('soc_integration_service.push_ocsf_event', side_effect=RuntimeError("SIEM down")) as mock_push:
             alerts_col = type('MockCol', (), {'insert_one': AsyncMock()})()
             blockchain_col = type('MockCol', (), {
                 'find_one': AsyncMock(return_value=None),
@@ -96,6 +96,10 @@ def test_delivery_failure_is_non_fatal_for_ueba_and_remediation():
             await ueba_mod._persist_alert(mock_db, "shadow_ai_detected", "High", "t", "d", {})
             await asyncio.sleep(0)
             alerts_col.insert_one.assert_awaited_once()
+            # The push must actually be attempted (asyncio.create_task reached) —
+            # not just silently skipped by an unrelated NameError before it runs.
+            assert mock_push.called, "push_ocsf_event was never called — check for a NameError before it (e.g. missing `import asyncio`)"
+            mock_push.reset_mock()
 
             audit_col = type('MockCol', (), {
                 'insert_one': AsyncMock(return_value=type('Result', (), {'inserted_id': 'abc'})())
@@ -106,6 +110,7 @@ def test_delivery_failure_is_non_fatal_for_ueba_and_remediation():
             await asyncio.sleep(0)
             assert audit_id == "abc"
             audit_col.insert_one.assert_awaited_once()
+            assert mock_push.called, "push_ocsf_event was never called — check for a NameError before it (e.g. missing `import asyncio`)"
 
     asyncio.run(main())
 
