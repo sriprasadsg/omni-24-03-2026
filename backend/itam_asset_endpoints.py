@@ -19,9 +19,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/assets", tags=["ITAM Assets"])
 
-# Note: This router shares the /api/assets prefix with backend/asset_endpoints.py.
-# It is registered *after* asset_endpoints so its single-segment GET /{asset_id}
-# route keeps first-match priority.
+# WR-04 (57-REVIEW): This router shares the /api/assets prefix with
+# backend/asset_endpoints.py. This file defines only POST "" (create_manual_asset)
+# — no GET /{asset_id} — so it has nothing that could be shadowed by, or shadow,
+# asset_endpoints.py's own GET /{asset_id} regardless of registration order.
+# router_registry.py in fact registers this router *before* asset_endpoints. The
+# routes that ARE shadowing-sensitive live in itam_lifecycle_endpoints.py, whose
+# module docstring covers that reasoning.
 #
 # Phase 59 will reuse `next_asset_tag` for PO numbers.
 #
