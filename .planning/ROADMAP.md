@@ -795,7 +795,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 56 | Catalog & Foundation | In Progress|
+| 56 | Catalog & Foundation | Complete    |
 | 57 | Lifecycle & Check-In/Out | Not started |
 | 58 | Asset Tags & Offline Labels | Not started |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
@@ -821,7 +821,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase of v4.0; reuses and extends the existing `assets` model)
 
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 - [x] 56-01-PLAN.md — Tracer slice: Manufacturer catalog CRUD + `POST /api/assets` manual creation + `assetSource`/`lifecycleStatus` fields + atomic per-tenant asset-tag counter [Wave 1]
 - [x] 56-02-PLAN.md — Remaining catalog kinds: Category/Location/Supplier CRUD + asset Model (references Manufacturer+Category) + custom fields/fieldsets [Wave 2]
