@@ -9,10 +9,19 @@ guarantee behind this plan's first authored prohibition (assignment history must
 never gain an alter/remove path, including a TTL index).
 
 Modelled 1:1 on remediation_audit_service.py, minus its OCSF push side-effect.
+
+`_revert_on_history_failure` below is unrelated to that guarantee — it compensates
+`assets` (not `assignment_history`) when a write_history call fails after the asset
+mutation already committed (WR-01). It is private (leading underscore) and imported
+by name from itam_lifecycle_endpoints.py, kept here only to keep that file under the
+CLAUDE.md 500-line cap.
 """
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
@@ -51,3 +60,67 @@ async def list_history(
         .limit(limit)
     )
     return await cursor.to_list(length=limit)
+
+
+def _apply_known_delta(pre_image: Dict[str, Any], set_doc: Dict[str, Any], unset_keys) -> Dict[str, Any]:
+    """Reconstructs an after-mutation document from a pre-image plus the exact
+    $set/$unset a caller just issued (WR-01's BEFORE-not-AFTER pattern) — used
+    by every checkout/checkin/audit route so find_one_and_update need only be
+    called once per request, preserving the no-extra-read-on-success invariant."""
+    doc = {**pre_image, **set_doc}
+    for key in unset_keys:
+        doc.pop(key, None)
+    return doc
+
+
+async def _revert_on_history_failure(
+    db,
+    asset_id: str,
+    pre_image: Dict[str, Any],
+    touched_keys: list,
+    action: str,
+    exc: Exception,
+) -> None:
+    """Compensate for an `assets` mutation that already committed when the
+    follow-up `write_history` call then fails (WR-01). Without this, a caller
+    sees a 500 while the asset is left in the new (mutated) state with no
+    corresponding history entry, and a retry would then hit a stale 409
+    instead of succeeding.
+
+    `pre_image` is the asset document as it was immediately before the
+    guarded mutation ran (used only to reconstruct prior field values for
+    this compensating write, never to make the original accept/reject
+    decision). `touched_keys` lists every key the mutation may have set or
+    unset; each key reverts to its pre-image value, or is unset if it was
+    absent from pre_image.
+    """
+    revert_set: Dict[str, Any] = {}
+    revert_unset: Dict[str, Any] = {}
+    for key in touched_keys:
+        if pre_image is not None and key in pre_image:
+            revert_set[key] = pre_image[key]
+        else:
+            revert_unset[key] = ""
+
+    revert_update: Dict[str, Any] = {}
+    if revert_set:
+        revert_update["$set"] = revert_set
+    if revert_unset:
+        revert_update["$unset"] = revert_unset
+
+    if not revert_update:
+        return
+
+    try:
+        await db.assets.find_one_and_update({"id": asset_id}, revert_update)
+    except Exception as revert_exc:
+        # Best-effort: the original error is already surfaced as a 500 to the
+        # caller. If the compensating write also fails, log loudly — this is
+        # the one case where the asset and its history trail can genuinely
+        # drift, and it needs a human to reconcile.
+        logger.error(
+            "Failed to revert asset %s after %s history write failure "
+            "(original error: %s); asset state may now be inconsistent with "
+            "its history trail: %s",
+            asset_id, action, exc, revert_exc,
+        )

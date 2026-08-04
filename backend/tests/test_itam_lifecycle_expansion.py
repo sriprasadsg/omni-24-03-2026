@@ -144,6 +144,36 @@ class TestCheckoutExpansion:
         mock_db.assignment_history.insert_one.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_checkout_reverts_asset_when_history_write_fails(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """WR-01 regression: the guarded find_one_and_update already committed the
+        checkout mutation before write_history is attempted. If that history write
+        fails, the asset mutation must be compensated (reverted) — not left as an
+        invisible, untracked state change behind a 500."""
+        pre_image_doc = deployable_asset()  # lifecycleStatus: deployable, no assignment fields yet
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=pre_image_doc)
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(side_effect=RuntimeError("boom"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 500, r.text
+        # Called twice: once for the guarded mutation, once for the compensating revert.
+        assert mock_db.assets.find_one_and_update.await_count == 2
+        revert_filt, revert_update = mock_db.assets.find_one_and_update.call_args_list[1][0][:2]
+        assert revert_filt["id"] == "asset-1"
+        # lifecycleStatus reverts to its pre-image value; fields this checkout
+        # added (absent from the pre-image) are unset, not left behind.
+        assert revert_update["$set"]["lifecycleStatus"] == "deployable"
+        assert "assignedToType" in revert_update["$unset"]
+        assert "checkedOutBy" in revert_update["$unset"]
+
+    @pytest.mark.asyncio
     async def test_checkout_of_agent_asset_without_lifecycle_key_succeeds(self, mock_db, lifecycle_app, patch_get_database_globally):
         """An asset document with no lifecycleStatus key at all is checked out successfully —
         proves the guard admits the absent-key case (every pre-existing agent-discovered asset)."""

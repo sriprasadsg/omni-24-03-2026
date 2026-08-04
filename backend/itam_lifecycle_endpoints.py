@@ -19,7 +19,9 @@ from database import get_database
 from cache_service import invalidate_cache
 from itam_asset_endpoints import _require_itam_admin
 from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, LifecycleStatus
-from itam_lifecycle_service import list_history, write_history
+from itam_lifecycle_service import (
+    list_history, write_history, _apply_known_delta, _revert_on_history_failure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,14 +143,15 @@ async def checkout_asset(
     # added by hand; the TenantIsolatedCollection wrapper injects it.
     filt: Dict[str, Any] = {"id": asset_id, **_deployable_guard()}
 
-    updated = await db.assets.find_one_and_update(
-        filt, update, return_document=ReturnDocument.AFTER
+    # WR-01: BEFORE not AFTER — captures the pre-image in this same guarded
+    # call (no second read on the success path); after-state is rebuilt below.
+    pre_image = await db.assets.find_one_and_update(
+        filt, update, return_document=ReturnDocument.BEFORE
     )
 
-    if not updated:
-        # The atomic operation above has already decided the outcome; this
-        # follow-up read is purely to disambiguate the failure reason and does
-        # not reintroduce a race. Never write a history entry on a refused checkout.
+    if not pre_image:
+        # The atomic op above already decided the outcome; this read only
+        # disambiguates 404 vs 409 and never writes history on a refusal.
         existing = await db.assets.find_one({"id": asset_id})
         if not existing:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
@@ -156,6 +159,8 @@ async def checkout_asset(
             status_code=status.HTTP_409_CONFLICT,
             detail="Asset is not in a deployable status.",
         )
+
+    updated = _apply_known_delta(pre_image, set_doc, update.get("$unset", {}))
 
     history_record: Dict[str, Any] = {
         "assetId": asset_id,
@@ -172,12 +177,17 @@ async def checkout_asset(
     except Exception as exc:
         # A check-out that returns success while its trail write failed is exactly
         # the invisible hole this plan's second authored prohibition forbids.
-        logger.error(
-            "Failed to write assignment_history entry for asset %s: %s", asset_id, exc
+        # WR-01: revert the mutation too, so the 500 is honest and a retry works.
+        logger.error("Failed to write assignment_history entry for asset %s: %s", asset_id, exc)
+        await _revert_on_history_failure(
+            db, asset_id, pre_image,
+            ("lifecycleStatus", "assignedToType", "assignedToId", "checkedOutAt",
+             "checkedOutBy", "updatedAt", "locationId", "expectedReturnDate"),
+            ACTION_CHECKOUT, exc,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Check-out succeeded but its history entry failed to write.",
+            detail="Check-out failed: its history entry could not be written, and the change has been reverted.",
         )
 
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
@@ -237,14 +247,15 @@ async def checkin_asset(
     # wrapper injects it.
     filt: Dict[str, Any] = {"id": asset_id, **_deployed_guard()}
 
-    updated = await db.assets.find_one_and_update(
-        filt, update, return_document=ReturnDocument.AFTER
+    # WR-01: BEFORE not AFTER — captures the pre-image in this same guarded
+    # call (no second read on the success path); after-state is rebuilt below.
+    pre_image = await db.assets.find_one_and_update(
+        filt, update, return_document=ReturnDocument.BEFORE
     )
 
-    if not updated:
-        # The atomic operation above has already decided the outcome; this
-        # follow-up read is purely to disambiguate the failure reason and does
-        # not reintroduce a race. Never write a history entry on a refused checkin.
+    if not pre_image:
+        # The atomic op above already decided the outcome; this read only
+        # disambiguates 404 vs 409 and never writes history on a refusal.
         existing = await db.assets.find_one({"id": asset_id})
         if not existing:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
@@ -252,6 +263,8 @@ async def checkin_asset(
             status_code=status.HTTP_409_CONFLICT,
             detail="Asset is not currently checked out.",
         )
+
+    updated = _apply_known_delta(pre_image, set_doc, unset_doc)
 
     # A check-in has no target — the target fields are simply absent.
     history_record: Dict[str, Any] = {
@@ -266,12 +279,18 @@ async def checkin_asset(
     except Exception as exc:
         # A check-in that reports success without a trail entry is the same
         # invisible hole as an untracked check-out.
-        logger.error(
-            "Failed to write assignment_history entry for asset %s: %s", asset_id, exc
+        # WR-01: revert the mutation too, so the 500 is honest and a retry works.
+        logger.error("Failed to write assignment_history entry for asset %s: %s", asset_id, exc)
+        await _revert_on_history_failure(
+            db, asset_id, pre_image,
+            ("lifecycleStatus", "checkedInAt", "checkedInBy", "updatedAt",
+             "assignedToType", "assignedToId", "checkedOutAt", "checkedOutBy",
+             "expectedReturnDate"),
+            ACTION_CHECKIN, exc,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Check-in succeeded but its history entry failed to write.",
+            detail="Check-in failed: its history entry could not be written, and the change has been reverted.",
         )
 
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
@@ -362,11 +381,14 @@ async def mark_asset_audited(
         "updatedAt": now,
     }
 
-    updated = await db.assets.find_one_and_update(
-        {"id": asset_id}, {"$set": set_doc}, return_document=ReturnDocument.AFTER
+    # WR-01: BEFORE not AFTER — after-state is rebuilt below from pre_image.
+    pre_image = await db.assets.find_one_and_update(
+        {"id": asset_id}, {"$set": set_doc}, return_document=ReturnDocument.BEFORE
     )
-    if not updated:
+    if not pre_image:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    updated = _apply_known_delta(pre_image, set_doc, ())
 
     history_record: Dict[str, Any] = {
         "assetId": asset_id,
@@ -379,12 +401,17 @@ async def mark_asset_audited(
     try:
         history_id = await write_history(db, tenant_id, history_record)
     except Exception as exc:
-        # Success without a trail entry would be the same invisible hole as
-        # an untracked check-out.
+        # Success without a trail entry would be the same invisible hole as an
+        # untracked check-out. WR-01: revert the mutation too, so the 500 is honest.
         logger.error("Failed to write assignment_history entry for asset %s: %s", asset_id, exc)
+        await _revert_on_history_failure(
+            db, asset_id, pre_image,
+            ("lastAuditedAt", "lastAuditedBy", "lastAuditRecordedAt", "updatedAt"),
+            ACTION_AUDIT, exc,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Audit mark succeeded but its history entry failed to write.",
+            detail="Audit mark failed: its history entry could not be written, and the change has been reverted.",
         )
 
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
