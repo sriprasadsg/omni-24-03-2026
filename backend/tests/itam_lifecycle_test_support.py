@@ -82,6 +82,13 @@ def mock_db():
     # find_one_and_update is not part of _make_col()'s default surface — the
     # lifecycle router's guarded transition needs it explicitly present.
     db.assets.find_one_and_update = AsyncMock(return_value=None)
+    # _make_col()'s bare find()/to_list() double does not survive the
+    # .sort().limit().to_list() chain itam_lifecycle_service.list_history performs
+    # (precedent: tests/test_remediation_guards.py:207). Default to an empty result;
+    # individual tests override this AsyncMock's return_value as needed.
+    db.assignment_history.find.return_value.sort.return_value.limit.return_value.to_list = AsyncMock(
+        return_value=[]
+    )
     return db
 
 
