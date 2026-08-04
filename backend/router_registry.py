@@ -79,7 +79,10 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as exc:
         logger.error("[Router] Failed to register global task alias: %s", exc)
 
+    _load(app, "itam_catalog_endpoints", "router")  # ITAM Phase 56 Catalog Router
+    _load(app, "itam_asset_endpoints", "router")    # ITAM Phase 56 Asset Router
     _load(app, "asset_endpoints",          "router")
+
     _load(app, "user_endpoints",           "router")
     _load(app, "tenant_endpoints",         "router")
     _load(app, "role_endpoints",           "router")
@@ -376,3 +379,15 @@ def register_all_routers(app: FastAPI) -> None:
             continue
         seen.add(module_name)
         _load(app, module_name, "router", **kwargs)
+# ITAM Catalog Routers
+from backend import itam_catalog_endpoints
+from backend import itam_asset_endpoints
+
+def register_itam_routers(app):
+    # Register ITAM catalog routers. They share the '/api/assets' prefix with
+    # the existing asset_endpoints.py, so they must be registered after it
+    # to ensure the single-segment GET /{asset_id} route from asset_endpoints
+    # keeps first-match priority.
+    app.include_router(itam_asset_endpoints.router)
+    app.include_router(itam_catalog_endpoints.router)
+

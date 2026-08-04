@@ -227,6 +227,22 @@ async def connect_to_mongo():
         await mongodb.db.assets.create_index("hostname")
         await mongodb.db.assets.create_index("tenantId")
         await mongodb.db.assets.create_index("id", unique=True)
+        # Compound unique index for assets (tenantId, assetTag)
+        # partialFilterExpression excludes untagged agent-discovered assets
+        await mongodb.db.assets.create_index(
+            [("tenantId", 1), ("assetTag", 1)],
+            unique=True,
+            partialFilterExpression={"assetTag": {"$type": "string"}},
+            background=True
+        )
+
+        # Compound unique index for counters
+        await mongodb.db.counters.create_index(
+            [("tenantId", 1), ("name", 1)],
+            unique=True,
+            background=True
+        )
+
         await mongodb.db.vulnerabilities.create_index("assetId")
         await mongodb.db.patches.create_index("tenantId")
         await mongodb.db.security_events.create_index("tenantId")

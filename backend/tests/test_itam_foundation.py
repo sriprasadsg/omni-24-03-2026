@@ -1,0 +1,334 @@
+"""End-to-end ITAM foundation tests — Phase 56 Plan 01."""
+import sys
+import os
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from httpx import AsyncClient, ASGITransport
+from pymongo import ReturnDocument
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from tests.conftest import make_test_app, make_token_data, _make_col
+from itam_models import ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_SOURCE_AGENT
+
+# Patch authentication_service.get_current_user globally for all tests using make_test_app
+# This ensures that FastAPI's Depends(get_current_user) resolves to our test user.
+from authentication_service import get_current_user as real_get_current_user
+
+
+# Simplified MockTenantIsolatedDatabase and Collection.
+# The original _make_col already provides a good base.
+# We just need to ensure tenantId is filtered/added correctly.
+class MockTenantIsolatedCollection:
+    def __init__(self, collection_name, tenant_id, raw_collection_mock):
+        self._collection_name = collection_name
+        self._tenant_id = tenant_id
+        self._raw_collection = raw_collection_mock
+
+        # Proxy calls, injecting tenantId into filters/documents
+        self.find_one = AsyncMock(side_effect=lambda f, *args, **kwargs:
+                                  raw_collection_mock.find_one({**f, "tenantId": self._tenant_id}, *args, **kwargs))
+        self.insert_one = AsyncMock(side_effect=lambda doc, *args, **kwargs:
+                                   raw_collection_mock.insert_one({**doc, "tenantId": self._tenant_id}, *args, **kwargs))
+        self.count_documents = AsyncMock(side_effect=lambda f, *args, **kwargs:
+                                         raw_collection_mock.count_documents({**f, "tenantId": self._tenant_id}, *args, **kwargs))
+        self.find_one_and_update = AsyncMock(side_effect=lambda f, u, *args, **kwargs:
+                                             raw_collection_mock.find_one_and_update({**f, "tenantId": self._tenant_id}, u, *args, **kwargs))
+        self.find = MagicMock(side_effect=lambda f=None, *args, **kwargs:
+                              raw_collection_mock.find({**(f if f else {}), "tenantId": self._tenant_id}, *args, **kwargs))
+
+
+class MockTenantIsolatedDatabase:
+    def __init__(self, raw_db_mock, tenant_id):
+        self._raw_db = raw_db_mock
+        self._tenant_id = tenant_id
+
+    def __getattr__(self, name):
+        return MockTenantIsolatedCollection(name, self._tenant_id, getattr(self._raw_db, name))
+
+    def __getitem__(self, name):
+        return self.__getattr__(name)
+
+
+@pytest.fixture
+def mock_db():
+    """Basic mock database with required collections."""
+    db = MagicMock()
+    for name in ("assets", "manufacturers", "counters"):
+        setattr(db, name, _make_col())
+    # Initialize a sequence counter for the mock 'counters' collection
+    db.counters.current_seq = 0
+    return db
+
+
+@pytest.fixture(autouse=True)
+def patch_get_database_globally(mock_db, monkeypatch):
+    """
+    Patch database.get_database globally to return our mock wrapped for tenant isolation.
+    This fixture is auto-used by pytest.
+    """
+    import database
+    _current_tenant_id = "default-tenant" # Default tenant for patching
+
+    def get_mock_tenant_db():
+        return MockTenantIsolatedDatabase(mock_db, _current_tenant_id)
+
+    # Patch the function itself
+    monkeypatch.setattr(database, "get_database", get_mock_tenant_db)
+
+    # Provide a way for tests to change the tenant_id if needed
+    def set_current_tenant_id(tenant_id):
+        nonlocal _current_tenant_id
+        _current_tenant_id = tenant_id
+        # Re-patch the get_database function to use the new tenant_id
+        monkeypatch.setattr(database, "get_database", get_mock_tenant_db)
+
+    return set_current_tenant_id
+
+
+@pytest.fixture
+def itam_app(mock_db, patch_get_database_globally, monkeypatch):
+    """Fixture to create a test FastAPI app with ITAM routers and mocked DB."""
+    import itam_catalog_endpoints
+    import itam_asset_endpoints
+    import rbac_utils
+    import cache_service
+
+    monkeypatch.setattr(rbac_utils, "verify_permission", AsyncMock(return_value=True))
+    monkeypatch.setattr(cache_service, "invalidate_cache", AsyncMock())
+
+    app, _ = make_test_app(
+        itam_catalog_endpoints.router,
+        itam_asset_endpoints.router,
+    )
+    return app
+
+
+class TestCatalogManufacturer:
+    """Tests for manufacturer CRUD in /api/itam/catalog/manufacturers."""
+
+    @pytest.mark.asyncio
+    async def test_create_manufacturer_returns_generated_id(self, mock_db, itam_app, patch_get_database_globally):
+        """POST to manufacturers kind returns a body with id and name."""
+        # Setup mock db's underlying raw collection's insert_one
+        inserted_docs = []
+        mock_db.manufacturers.insert_one = AsyncMock(side_effect=lambda doc: (inserted_docs.append(doc), MagicMock(inserted_id="mock-id"))[1])
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Acme Inc"})
+
+        assert r.status_code == 201, r.text # Changed to 201 as per itam_catalog_endpoints.py
+        data = r.json()
+        assert data["id"].startswith("manufacturer-")
+        assert data["name"] == "Acme Inc"
+        assert "createdAt" in data
+        assert len(inserted_docs) == 1
+        assert inserted_docs[0]["name"] == "Acme Inc"
+        assert inserted_docs[0]["tenantId"] == "tenant-a"
+
+    @pytest.mark.asyncio
+    async def test_get_manufacturer_round_trip(self, mock_db, itam_app, patch_get_database_globally):
+        """Round-trip create then read by ID."""
+        stored = []
+
+        mock_db.manufacturers.insert_one = AsyncMock(side_effect=lambda doc: (stored.append(doc), MagicMock(inserted_id="mock-id"))[1])
+        mock_db.manufacturers.find_one = AsyncMock(side_effect=lambda f, *args, **kwargs:
+                                                   next((d for d in stored if d.get("tenantId") == f.get("tenantId") and d.get("id") == f.get("id")), None))
+        mock_db.manufacturers.find = MagicMock(return_value=MagicMock(to_list=AsyncMock(side_effect=lambda length: [d for d in stored])))
+
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            # create
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Roundtrip Corp"})
+            assert r.status_code == 201, r.text
+            created_id = r.json()["id"]
+
+            # get by ID
+            r2 = await ac.get(f"/api/itam/catalog/manufacturers/{created_id}")
+            assert r2.status_code == 200, r2.text
+            assert r2.json()["name"] == "Roundtrip Corp"
+
+            # list
+            r3 = await ac.get("/api/itam/catalog/manufacturers")
+            assert r3.status_code == 200
+            assert any(d["id"] == created_id for d in r3.json())
+
+    @pytest.mark.asyncio
+    async def test_unknown_catalog_kind_returns_404(self, itam_app, patch_get_database_globally):
+        """Unrecognized kind returns 404."""
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/unknown_kind", json={"name": "Bogus"})
+            assert r.status_code == 404
+            assert "not found" in r.json()["detail"].lower()
+
+            r2 = await ac.get("/api/itam/catalog/unknown_kind/some-id")
+            assert r2.status_code == 404
+            assert "not found" in r2.json()["detail"].lower()
+
+
+class TestManualAssetCreate:
+    """Tests for POST /api/assets manual asset creation."""
+
+    @pytest.mark.asyncio
+    async def test_create_manual_asset_end_to_end(self, mock_db, itam_app, patch_get_database_globally):
+        """E2E: create manufacturer then manual asset returns correct fields."""
+        asset_docs = []
+        mf_docs = []
+        _counter_seq = 0
+
+        async def manuf_insert(doc):
+            mf_docs.append(doc)
+            return MagicMock(inserted_id="x")
+
+        async def manuf_find_one(f, *args, **kwargs):
+            for d in mf_docs:
+                if d.get("tenantId") == f.get("tenantId") and d.get("id") == f.get("id"):
+                    return dict(d)
+            return None
+
+        async def asset_insert(doc):
+            asset_docs.append(doc)
+            return MagicMock(inserted_id="x")
+
+        # Mock the underlying raw collection calls for find_one_and_update for counters
+        async def counter_find_one_and_update(f, u, *, upsert=False, return_document=None):
+            # This is a mock of _raw_collection.find_one_and_update
+            nonlocal counter_seq
+            counter_seq += 1
+            # Return a dictionary with 'seq' key as an integer
+            return {"tenantId": f["tenantId"], "name": f["name"], "seq": counter_seq}
+
+        mock_db.manufacturers._raw_collection.insert_one = AsyncMock(side_effect=manuf_insert)
+        mock_db.manufacturers._raw_collection.find_one = AsyncMock(side_effect=manuf_find_one)
+        mock_db.assets._raw_collection.insert_one = AsyncMock(side_effect=asset_insert)
+        mock_db.counters._raw_collection.find_one_and_update = AsyncMock(side_effect=counter_find_one_and_update)
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            # create manufacturer
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Acme"})
+            assert r.status_code == 201, r.text
+            mid = r.json()["id"]
+
+            # create manual asset
+            r2 = await ac.post("/api/assets", json={
+                "name": "Laptop X1",
+                "manufacturerId": mid
+            })
+            assert r2.status_code == 201, r2.text
+            data = r2.json()
+            assert data["assetSource"] == ASSET_SOURCE_MANUAL
+            assert data["lifecycleStatus"] == DEFAULT_LIFECYCLE_STATUS.value
+            assert data["id"].startswith("asset-")
+            assert "assetTag" in data
+            assert data["assetTag"].startswith("IT-")
+            assert len(data["assetTag"]) == 6 # tag format IT-0001
+            assert "status" not in data # Should not have agent-liveness status
+
+    @pytest.mark.asyncio
+    async def test_manual_asset_does_not_write_agent_status_field(self, mock_db, itam_app, patch_get_database_globally):
+        """Manual asset must not write the 'status' key (agent-liveness)."""
+        inserted = []
+        mock_db.assets.insert_one = AsyncMock(side_effect=lambda doc: (inserted.append(doc), MagicMock(inserted_id="x"))[1])
+        _counter_seq = 0
+        mock_db.counters.find_one_and_update = AsyncMock(side_effect=lambda f, u, *args, **kwargs: (_counter_seq:=_counter_seq + 1, {"seq": _counter_seq, **f})[1])
+        mock_db.manufacturers.find_one = AsyncMock(return_value={"id": "mf-abc", "name": "Acme"})
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets", json={
+                "name": "Server Z",
+                "manufacturerId": "mf-abc"
+            })
+            assert r.status_code == 201, r.text
+
+        assert len(inserted) >= 1
+        assert "status" not in inserted[0]
+
+    @pytest.mark.asyncio
+    async def test_manual_asset_rejects_unknown_manufacturer(self, mock_db, itam_app, patch_get_database_globally):
+        """Unknown manufacturerId returns 400 and no asset inserted."""
+        asset_called = False
+        mock_db.assets.insert_one = AsyncMock(side_effect=lambda doc: (asset_called:=True, MagicMock(inserted_id="x"))[1])
+        mock_db.manufacturers.find_one = AsyncMock(return_value=None)
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets", json={"name": "x", "manufacturerId": "bad-id"})
+            assert r.status_code == 400, r.text
+            assert "not found" in r.json()["detail"].lower()
+
+        assert asset_called is False
+
+    @pytest.mark.asyncio
+    async def test_privileged_fields_rejected_422(self, mock_db, itam_app, patch_get_database_globally):
+        """Body containing tenantId, id, assetSource, or status is rejected with 422."""
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets", json={
+                "name": "Bad",
+                "id": "forged-id",
+                "assetSource": ASSET_SOURCE_AGENT,
+                "status": "compromised",
+                "tenantId": "evil",
+            })
+            assert r.status_code == 422, r.text
+            errs = r.json()["detail"]
+            fields = {e["loc"][-1] for e in errs if e["type"] == "extra_forbidden"}
+            assert "id" in fields
+            assert "assetSource" in fields
+            assert "status" in fields
+            assert "tenantId" in fields
+
+    @pytest.mark.asyncio
+    async def test_catalog_and_asset_routes_require_permission(self, itam_app, patch_get_database_globally, monkeypatch):
+        """Routes without manage:assets permission return 403."""
+        # Temporarily override verify_permission for this test to return False
+        monkeypatch.setattr("rbac_utils.verify_permission", AsyncMock(return_value=False))
+
+        current_user = make_token_data(role="user", tenant_id="tenant-a")
+        patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            # Test catalog route
+            r_cat = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Blocked"})
+            assert r_cat.status_code == 403, r_cat.text
+
+            # Test asset route
+            r_asset = await ac.post("/api/assets", json={"name": "Blocked Asset"})
+            assert r_asset.status_code == 403, r_asset.text

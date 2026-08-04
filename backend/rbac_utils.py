@@ -71,6 +71,7 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
         "platform-admin": ["*"],
         # Tenant-scoped admin
         "admin": [
+            "manage:assets", # Added for ITAM Phase 56-01
             "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
             "view:agents", "view:agent_capabilities", "view:software_deployment",
             "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
@@ -87,6 +88,7 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:secrets", "manage:agents", "view:approvals", "view:remote_access",
         ],
         "Tenant Admin": [
+            "manage:assets", # Added for ITAM Phase 56-01
             "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
             "view:agents", "view:agent_capabilities", "view:software_deployment",
             "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
