@@ -157,3 +157,15 @@ class AssetModelUpdate(CatalogEntityUpdate):
     fieldsets: Optional[List[FieldsetDef]] = None
 
     model_config = ConfigDict(extra="forbid")
+
+
+# Lifecycle Check-Out (Phase 57-01, ITAM-LIFE-02). targetType/targetId are a polymorphic
+# pair (PD-01): a user or a location, never two separate optional id fields.
+class CheckoutRequest(BaseModel):
+    """Request contract for POST /api/assets/{asset_id}/checkout."""
+    targetType: Literal["user", "location"]
+    targetId: str
+    note: Optional[str] = None
+    expectedReturnDate: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
