@@ -820,7 +820,12 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase of v4.0; reuses and extends the existing `assets` model)
 
-**Plans:** TBD
+**Plans:** 1/2 plans executed
+
+- [x] 56-01-PLAN.md — Tracer slice: Manufacturer catalog CRUD + `POST /api/assets` manual creation + `assetSource`/`lifecycleStatus` fields + atomic per-tenant asset-tag counter [Wave 1]
+- [ ] 56-02-PLAN.md — Remaining catalog kinds: Category/Location/Supplier CRUD + asset Model (references Manufacturer+Category) + custom fields/fieldsets [Wave 2]
+
+**Status:** 56-01 executed 2026-08-04 (commits `1218c37`, `e1d377f`, `329a698`) — 13/13 tests pass, full backend suite 1564 passed / 34 skipped / 6 pre-existing unrelated fails, no regressions. See `56-01-SUMMARY.md`. 56-02 planned, not yet executed.
 
 ---
 

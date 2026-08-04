@@ -2,13 +2,17 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: ITAM
+current_phase: 56
+current_phase_name: Catalog & Foundation
 status: planning
-last_updated: "2026-08-04T01:18:50.470Z"
+stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
+last_updated: "2026-08-04T07:34:51.136Z"
 last_activity: 2026-08-04
+last_activity_desc: v4.0 ROADMAP.md + STATE.md written, REQUIREMENTS.md traceability updated (17/17 mapped, no orphans)
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -130,7 +134,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 47 | Agent-Scoped Geo Security Detectors | Not started (v3.3) |
 | 48 | Fleet Observability & Uptime Rollups | Not started (v3.3) |
 | 49 | Fleet Geo Map | Not started (v3.3) |
-| 56 | Catalog & Foundation | Not started (v4.0) — roadmap defined 2026-08-04 |
+| 56 | Catalog & Foundation | In progress (v4.0) — 1/2 plans executed 2026-08-04 |
 | 57 | Lifecycle & Check-In/Out | Not started (v4.0) |
 | 58 | Asset Tags & Offline Labels | Not started (v4.0) |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started (v4.0) |
@@ -329,6 +333,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 55]: 55-03: dedup check + RemediationFinding build + remediate() call all live inside one background-task-only function (_dispatch_anomaly_remediation), scheduled via background_tasks.add_task — never awaited inline in report_shadow_ai's request/response cycle.
 - [Phase ?]: 55-05: get_virustotal_client() is a plain factory (no singleton) to avoid stale VIRUSTOTAL_API_KEY state across process/tests
 - [Phase ?]: 55-05: Task 1/Task 2 implementation boundary collapsed — all four scan_* methods + enrich_file_hashes implemented in Task 1's shared _lookup() rewrite; Task 2 became a test-only commit (see 55-05-SUMMARY.md Deviations)
+- [Phase ?]: IT-0001 zero-padded counter, six-value verbatim vocabulary, read-time default (RECOMMENDED). Asset tags will be IT-{seq:04d}, lifecycle status will be one of the six verbatim ROADMAP values, and pre-existing agent assets will read as 'deployable' via a read-time default.
 
 ## Performance Metrics
 
@@ -423,7 +428,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** context exhaustion at 75% (2026-08-03)
+- **Stopped at:** Completed Task 2 foundation implementation
 - **Resume file:** None
 
 ## Configuration
@@ -449,7 +454,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-03T22:43:57.271Z
+**Last session:** 2026-08-04T07:34:51.108Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -466,10 +471,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 56 (Catalog & Foundation) — not yet planned
-Plan: —
-Status: v4.0 ROADMAP.md defined (Phases 56-61); ready for /gsd-plan-phase 56
-Last activity: 2026-08-04 — v4.0 ROADMAP.md + STATE.md written, REQUIREMENTS.md traceability updated (17/17 mapped, no orphans)
+Phase: 56 (Catalog & Foundation) — 1/2 plans executed
+Plan: 56-02 (remaining catalog kinds: Category/Location/Supplier/Model + custom fields) — planned, not yet executed
+Status: 56-01 (tracer slice) executed and verified 2026-08-04 — 13/13 tests pass, full backend suite 1564 passed / 34 skipped / 6 pre-existing unrelated fails, no regressions. See 56-01-SUMMARY.md.
+Last activity: 2026-08-04 — /gsd-plan-phase 56 spawned gsd-planner, which (beyond its normal plan-only scope) also implemented and committed 56-01's tracer slice before hitting a session limit; the committed test suite was not green (5/8 failing, all test-infrastructure bugs, no application-code bugs). Diagnosed and fixed (commits e1d377f, 329a698), plus closed a real must_haves coverage gap (4 of 11 untested truths — delete-protection, duplicate-tag, cross-tenant isolation, concurrency — added 5 tests). 56-02-PLAN.md exists (planned) but has not been executed.
 
 ## Deferred Items
 
