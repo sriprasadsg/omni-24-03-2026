@@ -878,7 +878,13 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (stable asset tag field)
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 58-01-PLAN.md — Tracer: offline QR label endpoint end-to-end (service + route + router registration + test scaffold)
+- [ ] 58-02-PLAN.md — python-barcode legitimacy checkpoint and pinned install (SUS gate)
+- [ ] 58-03-PLAN.md — Code128 barcode generation, its route, and the socket-blocked offline proof
+- [ ] 58-04-PLAN.md — Avery-5160 PDF label sheet, no-silent-drop bulk contract, offline proof completed
 
 ---
 
