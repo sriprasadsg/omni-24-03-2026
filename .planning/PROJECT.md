@@ -12,6 +12,8 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 **Latest: v3.4 Native Security Scanning & Autonomous Remediation Agent shipped 2026-08-04** (6 phases 50–55, 25 plans, 19/19 requirements). Native offline scan engine — file/URL/IP/hash verdicts against signed bundled feeds, no live lookup (50); agent-side vulnerability detection — signed CVE feed matching, misconfig + secret detection (51); File Integrity Monitoring — event-driven watcher, signed baseline + restart drift detection (52); autonomous remediation — deterministic YAML playbooks, approval gate, rollback, immutable audit trail (53); operator console + API surfacing the whole stack (54); threat-intel correlation, UEBA-triggered predictive containment, outbound SIEM/OCSF webhook (55). See `.planning/milestones/v3.4-ROADMAP.md` / `v3.4-REQUIREMENTS.md`. **Now building: v4.0 ITAM** (asset-lifecycle management, started 2026-08-04 — see Current Milestone below).
 
+**Phase 57 (Lifecycle & Check-In/Out) complete 2026-08-05** — 3 plans, ITAM-LIFE-02/03/04/05 all done. New `backend/itam_lifecycle_endpoints.py` + `backend/itam_lifecycle_service.py`: atomic deployable-gated checkout to a user or location, checkin returns to stock, append-only `assignment_history` collection (separate collection, mirrors the existing `remediation_audit_service.py` insert-only pattern), physical-audit mark + query-time overdue-audit report (fixed 12-month interval). Code review found and fixed 1 critical bug (malformed `createdAt` timestamp silently broke the overdue-report's date math for manually-created assets) plus 5 warnings (no-rollback on history-write failure, unvalidated date strings, disposed assets not excluded from overdue report, stale comment, duplicate router registrations). Full backend suite: 1645 passed / 35 skipped / 3 pre-existing unrelated fails.
+
 <details><summary>Earlier milestones (v1.0 → v3.2)</summary>
 
 **v1.0 shipped 2026-06-18 — all 4 new capabilities live:**
@@ -54,6 +56,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - ✓ **Autonomous remediation engine** — YAML playbooks, approval gate, rollback on verify-fail, concurrency cap, immutable audit trail (v3.4 Phase 53, AUTO-01/02/03/04)
 - ✓ **Native security operator console + API** — findings/remediation-queue/playbooks/audit tabs, full agent-security API surface (v3.4 Phase 54, INT-01/02/03)
 - ✓ **Threat-intel correlation + predictive containment + SIEM webhook** — `SiemEngine.correlate_native_findings()`, UEBA shadow_ai auto-containment, outbound OCSF push, real VirusTotal v3 client (v3.4 Phase 55, INT-04/AUT-03/COMM-01)
+- ✓ **ITAM check-out/check-in lifecycle** — deployable-gated checkout to a user or location, checkin returns to stock and clears assignment, append-only `assignment_history` audit trail, physical-audit mark + overdue-audit report (v4.0 Phase 57, ITAM-LIFE-02/03/04/05)
 
 ### Out of Scope
 
@@ -113,6 +116,8 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 | yara-x rejected in favor of hash-signature DB + aho-corasick literal matching (v3.4 Phase 50) | yara-x pulls in wasmtime/cranelift JIT — bloat and cross-compile risk for the shipped Windows/Linux agent binary | Done — full YARA-rule support deferred to backlog 999.4 |
 | Autonomous remediation is backend-orchestrated (extends `autonomous_remediation_service`, dispatches via existing `agent_instructions` queue), not a new agent-local engine (v3.4 Phase 53) | Reuses the existing engine's dry-run/severity-ceiling/dedup rather than duplicating safety logic in two places | Done — deterministic YAML playbooks, no LLM in the execution path |
 | UEBA `shadow_ai` anomaly containment honors the identical approval gate as manual remediation, no confidence/severity bypass (v3.4 Phase 55, D-04) | A predictive/automated trigger must never have weaker safety guarantees than a human-initiated one | Done — dedicated regression test proves no bypass |
+| Checkout-to-location overwrites the asset's existing `locationId` rather than adding a separate `assignedLocationId` (v4.0 Phase 57, D-02) | `locationId` means "where the asset currently is" — one field, not a home/current split | Done — costly-rated (not one-way): prior value stays recoverable from the append-only `assignment_history` ledger the same task authors |
+| Overdue-audit interval fixed at 12 months, not per-tenant/per-model configurable (v4.0 Phase 57, D-03) | v1 scope discipline — a config value can be made configurable later without a migration | Done |
 
 **Note (2026-07-06, resolved 2026-07-20):** This file's Requirements/Milestone sections had drifted since v1.1 and weren't kept current through v2.0/v2.1/v3.0/v3.1 — a pre-existing maintenance gap. Corrected at the v3.2 milestone kickoff (2026-07-20): Current Milestone and v2 Backlog Candidates rewritten against verified codebase state (one backlog item, scheduled-report auto-email, turned out to already be shipped in Phase 10). The Validated/Out of Scope requirement lists below still predate v2.0+ and remain a known gap — full catch-up still deferred to a proper `/gsd-complete-milestone` pass.
 
@@ -134,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-04 — v4.0 milestone started (ITAM asset lifecycle)*
+*Last updated: 2026-08-05 — Phase 57 (Lifecycle & Check-In/Out) complete*
