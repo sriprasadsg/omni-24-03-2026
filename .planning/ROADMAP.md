@@ -796,7 +796,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 | Phase | Name | Status |
 |-------|------|--------|
 | 56 | Catalog & Foundation | Complete    |
-| 57 | Lifecycle & Check-In/Out | Not started |
+| 57 | Lifecycle & Check-In/Out | In Progress|
 | 58 | Asset Tags & Offline Labels | Not started |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
 | 60 | Licenses & Consumables | Not started |
@@ -847,10 +847,10 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (lifecycleStatus field + manual asset records)
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 **Wave 1**
 
-- [ ] 57-01-PLAN.md — Tracer slice: check-out to a user end-to-end (new lifecycle router + append-only `assignment_history` service + registration), then location targets, refusal paths and the concurrency guarantee, plus Phase-57 indexes [Wave 1]
+- [x] 57-01-PLAN.md — Tracer slice: check-out to a user end-to-end (new lifecycle router + append-only `assignment_history` service + registration), then location targets, refusal paths and the concurrency guarantee, plus Phase-57 indexes [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
