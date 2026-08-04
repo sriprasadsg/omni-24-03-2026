@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.4
-milestone_name: Native Security Scanning & Autonomous Remediation Agent
+milestone_name: — Native Security Scanning & Autonomous Remediation Agent
 current_phase: 55
-current_phase_name: advanced-threat-detection
-status: executing
-stopped_at: "Phase 55 plan 55-04 (COMM-01, SOC/OCSF outbound push) executed, committed, and phase-verified 2026-08-03. Wave-3 worktree merge (e0874d0) landed with soc_integration_service.py using package-relative imports (ImportError under the bare-module convention its 3 callers use) and a test that patched the wrong dual-import module identity (masked a real failure as green). Fixed post-merge (b9077b1): bare imports + severity_map hoisted to module scope; also added the delivery-failure-non-fatal test the plan's own acceptance criteria required but the executor never wrote (89de3f9). Rewrote 55-04-SUMMARY.md with proper frontmatter (9805df4). Ran gsd-verifier (55-VERIFICATION.md): 12/14 must-haves, gaps_found — AUT-03 fully solid; COMM-01 was only 1/3 wired (ueba_service.py/remediation_audit_service.py call asyncio.create_task(...) with no `import asyncio`, NameError silently swallowed by the same non-fatal try/except); INT-04's correlate-native route unreachable (virustotal_client.py transitively broken — pre-existing, predates phase 55). Fixed the asyncio-import gap immediately (0a7d227), RED/GREEN-reproduced against the verifier's own repro, phase now 13/14. Investigated the INT-04 gap further: it's deeper than a missing import — virustotal_client.py's get_virustotal_client() factory, which 3 files actually import, does not exist anywhere in the 121-line file; fixing BaseCapability alone would only surface the next ImportError. This is real missing-feature implementation work on an unrelated file, not in any phase-55 plan's files_modified — asked the user, who chose to leave it as a formal gap (not fix inline). Phase 55 stays gaps_found; ROADMAP/STATE plan-level tracking updated to reflect 55-04 as executed (4/4 plans), but phase-level completion (phase.complete, REQUIREMENTS traceability, STATE advance to next phase) intentionally NOT run since verification has not passed. Next — /gsd-plan-phase 55 --gaps to scope the virustotal_client.py fix as its own plan, then re-run /gsd-execute-phase 55 to re-verify. Full backend suite after all fixes: 1543 passed / 34 skipped / 5 failed (same 5 pre-existing/environmental failures as the 55-03 baseline — test_webhook_logic.py x2, test_agentic_ai.py, test_e2e_integration.py, test_rust_heartbeat_parity.py — zero new regressions)."
-last_updated: "2026-08-03T19:07:12.349Z"
+current_phase_name: Advanced Threat Detection & Response
+status: complete
+stopped_at: "v3.4 milestone (phases 50-55) fully verified complete 2026-08-04. Phase 54 (Integration & Operator UI) re-verified this session: ROADMAP.md had all 4 plans unchecked / status 'Planned' despite the code being committed in ea12a13 (security_ops_endpoints.py, NativeSecurityConsole.tsx + tabs, App.tsx/Sidebar.tsx nav, manage:active_response permission) — confirmed via git log, grep for nav wiring, and a live test run: test_native_security_ops_endpoints.py 6/6 pass, full backend suite 1547 passed / 35 skipped / 3 pre-existing unrelated fails (test_agentic_ai tool_choice kwarg, test_e2e_integration golden path, test_rust_heartbeat_parity agent_type field — same 3 as prior sessions' baseline). ROADMAP.md updated to Complete. Phase 52 (52-04 agent_loop wiring) and Phase 53 (playbook engine) also spot-checked and confirmed present/wired (lib.rs:57-69 FIM watcher+drift+drain; remediation guard/playbook/audit tests 37/37 pass) — ROADMAP.md corrected for both (52: 3/4→4/4 plans, Planned→Complete; 53: Planned→Complete). Phase 55 was already marked Complete/verified 2026-08-04 prior to this session. All 6 v3.4 phases (50-55) now consistently marked Complete in both ROADMAP.md and STATE.md. Next: v3.5 milestone not yet defined."
+last_updated: "2026-08-04T00:00:00.000Z"
 last_activity: 2026-08-04
-last_activity_desc: Gap-closure plan 55-05-PLAN.md created and checker-verified (commit e722a7c)
+last_activity_desc: Phase 54 re-verified complete (stale ROADMAP status corrected); v3.4 milestone (50-55) all phases confirmed done
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 6
   total_plans: 25
-  completed_plans: 10
-  percent: 17
+  completed_plans: 25
+  percent: 100
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 48 — fleet-observability-uptime-rollups
+**Current focus:** Phase 54 — Integration & Operator UI
 
 ## Current Phase
 
@@ -419,7 +419,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 55-05-PLAN.md (INT-04 gap closure: virustotal_client.py rewrite, correlate-native route reachable, 55-VERIFICATION.md gap #1 closed)
+- **Stopped at:** context exhaustion at 75% (2026-08-03)
 - **Resume file:** None
 
 ## Configuration
@@ -445,7 +445,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-03T19:07:12.314Z
+**Last session:** 2026-08-03T22:43:57.271Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -460,12 +460,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 55 (advanced-threat-detection) — GAP CLOSURE: 55-05-PLAN.md ready to execute
-Plan: 5 of 5 planned (4 executed, 1 pending — 55-05)
-Status: 55-05-PLAN.md created via /gsd-plan-phase 55 --gaps to close the remaining INT-04 gap (virustotal_client.py missing get_virustotal_client() factory + undefined BaseCapability, blocking the correlate-native route). Passed gsd-plan-checker verification, requirements coverage (3/3), and decision coverage (4/4) gates. Next: /gsd-execute-phase 55 --gaps-only to execute 55-05, then re-verify.
-Last activity: 2026-08-04 — Gap-closure plan 55-05-PLAN.md created and checker-verified (commit e722a7c)
+Phase: 55 (Advanced Threat Detection & Response) — COMPLETE
+Plan: 5 of 5
+Status: v3.4 milestone complete (phases 50-55, 25/25 plans)
+Last activity: 2026-08-04 — Phase 54 re-verified complete against real code/tests; ROADMAP.md corrected (was stale at "Planned")
 
-Note: Phase 48 (fleet-observability-uptime-rollups) was the prior recorded position in this section; phases 49-54 executed since then are not individually reflected here (pre-existing drift, not fixed by this plan — see Deferred Items).
+Note: this section was previously stuck at Phase 54/Plan 1 ("Executing", 2026-08-03) despite phase 54's code being committed (ea12a13) and phase 55 already fully executed — same class of staleness flagged below for the pre-Phase-48 drift. Corrected 2026-08-04 by direct git log + test verification, not by trusting either ROADMAP.md or this file's own prior claim.
 
 ## Deferred Items
 

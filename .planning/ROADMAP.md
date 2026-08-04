@@ -11,7 +11,7 @@
 - **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
 - **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45 + 999.1 backlog), 19 plans, 10/10 requirements. Shipped 2026-07-29.
 - **[v3.3](milestones/v3.3-ROADMAP.md)** — Agent Geo & Fleet Observability: fleet geo map (air-gapped bundled-SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 23 plans, 11/11 requirements. Audit passed. Shipped 2026-07-30.
-- **v3.4** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 5 phases (50–54), 16 requirements. Roadmap defined 2026-07-30 — not started.
+- **v3.4** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 6 phases (50–55), 16 requirements. Shipped 2026-08-04.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -836,7 +836,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50 (agent scan/hash primitives + signed-bundle pattern; reuses the `ed25519-dalek` dep for baseline signing)
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 52-01-PLAN.md — Backend: extend `POST /fim-events` to accept/persist the rich event shape (change_type/before-after/process/user); keep VT enrichment + list [Wave 1]
 - [x] 52-02-PLAN.md — Agent: event-driven `notify` FIM watcher + local sqlite `fim_queue` + rich event assembly (+ `notify` Cargo dep) [Wave 1]
@@ -845,7 +845,7 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Decisions:** `notify` crate (inotify/ReadDirectoryChangesW, event-driven — deviates from literal USN Journal); local sqlite `fim_queue` (drained by Phase 53) + backend report; agent-local ed25519-signed baseline w/ restart drift. Replaces the current poll-and-hash stub. Process/user context best-effort.
 
-**Status:** Planned — plans written 2026-07-30
+**Status:** Complete — verified 2026-08-04 (`lib.rs:57-69` wires drift-check-on-start + watcher + background drain; `test_fim_events_rich.py` 4/4 pass)
 
 **UI hint**: FIM status surfaced in Phase 54
 
@@ -868,16 +868,16 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50, 51, 52 (finding sources) + existing remediation/playbook services
 
-**Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+**Plans:** 4/4 plans complete
 
-- [ ] 53-01-PLAN.md — Backend: deterministic YAML playbook system (`remediation_playbook_service.py` + 6 vendored default playbooks + finding_class→playbook selection + fixed ACTION_MAP) + CRUD via `enhanced_playbook_endpoints` + tests [Wave 1]
-- [ ] 53-02-PLAN.md — Agent: new `instructions.rs` action arms (kill_process/restore_file/block_ip/rotate_key/disable_service, bounded + param-validated) + tests [Wave 1]
-- [ ] 53-03-PLAN.md — Backend engine: ingest NSCAN/VULN/FIM findings + playbook selection + execute (existing dispatch) + verify loop + completion + append-only `remediation_audit` writes [Wave 2]
-- [ ] 53-04-PLAN.md — Backend: safety guards (approval gate for destructive + rollback on verify-fail + per-agent concurrency cap) + approve/deny + audit-read endpoints [Wave 3]
+- [x] 53-01-PLAN.md — Backend: deterministic YAML playbook system (`remediation_playbook_service.py` + 6 vendored default playbooks + finding_class→playbook selection + fixed ACTION_MAP) + CRUD via `enhanced_playbook_endpoints` + tests [Wave 1]
+- [x] 53-02-PLAN.md — Agent: new `instructions.rs` action arms (kill_process/restore_file/block_ip/rotate_key/disable_service, bounded + param-validated) + tests [Wave 1]
+- [x] 53-03-PLAN.md — Backend engine: ingest NSCAN/VULN/FIM findings + playbook selection + execute (existing dispatch) + verify loop + completion + append-only `remediation_audit` writes [Wave 2]
+- [x] 53-04-PLAN.md — Backend: safety guards (approval gate for destructive + rollback on verify-fail + per-agent concurrency cap) + approve/deny + audit-read endpoints [Wave 3]
 
 **Decisions:** backend-orchestrated engine (extend `autonomous_remediation_service`, dispatch via the existing `agent_instructions` queue — no agent-local engine); deterministic YAML playbooks (no LLM in the execution path); immutable append-only audit; approval gate default-on for destructive actions. Reuses the existing engine's dry-run/severity-ceiling/dedup.
 
-**Status:** Planned — plans written 2026-07-30
+**Status:** Complete — verified 2026-08-04 (`test_remediation_guards.py`/`test_remediation_playbook.py`/`test_autonomous_remediation_loop.py` 37/37 pass)
 
 **UI hint**: remediation queue + approvals surfaced in Phase 54
 
@@ -899,16 +899,16 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 
 **Depends on:** Phase 50, 51, 52, 53 (surfaces all upstream)
 
-**Plans:** (planned 2026-07-30 — 4 plans, 3 waves)
+**Plans:** 4/4 plans complete
 
-- [ ] 54-01-PLAN.md — Backend `security_ops_endpoints.py`: GET findings, GET remediation-queue, POST trigger-scan (dispatch via `agent_instructions`), GET fim-status/summary + registry + tests [Wave 1]
-- [ ] 54-02-PLAN.md — Frontend contract: `nativeSecurity` AppView + `manage:active_response` permission entry + response types + apiService clients [Wave 1]
-- [ ] 54-03-PLAN.md — `NativeSecurityConsole.tsx` tabbed console (Findings / Remediation Queue+approve-deny / Playbooks (reuse PlaybookManager) / Audit) + trigger-scan controls [Wave 2]
-- [ ] 54-04-PLAN.md — Nav registration (App.tsx + Sidebar), `manage:active_response`, cloning 49-05 [Wave 3]
+- [x] 54-01-PLAN.md — Backend `security_ops_endpoints.py`: GET findings, GET remediation-queue, POST trigger-scan (dispatch via `agent_instructions`), GET fim-status/summary + registry + tests [Wave 1]
+- [x] 54-02-PLAN.md — Frontend contract: `nativeSecurity` AppView + `manage:active_response` permission entry + response types + apiService clients [Wave 1]
+- [x] 54-03-PLAN.md — `NativeSecurityConsole.tsx` tabbed console (Findings / Remediation Queue+approve-deny / Playbooks (reuse PlaybookManager) / Audit) + trigger-scan controls [Wave 2]
+- [x] 54-04-PLAN.md — Nav registration (App.tsx + Sidebar), `manage:active_response`, cloning 49-05 [Wave 3]
 
 **Decisions:** one unified Native Security Console (tabbed) gated on `manage:active_response`; thin new ops endpoints complete INT-03 on top of the 50-53 surfaces (no duplication); reuse existing PlaybookManager/vuln components; server enforces the Phase-53 approval gate (UI triggers/displays only).
 
-**Status:** Planned — plans written 2026-07-30
+**Status:** Complete — shipped in commit ea12a13; verified 2026-08-04 (`test_native_security_ops_endpoints.py` 6/6 pass, full backend suite 1547 passed / 35 skipped / 3 pre-existing unrelated fails)
 
 **UI hint**: yes (major — the operator console)
 
@@ -923,6 +923,8 @@ Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md)
 **Depends on:** Phase 51 (vuln engine), 53 (autonomous remediation), 54 (UI/API)
 
 **Plans:** 5/5 plans executed
+
+**Status:** Complete — verified 2026-08-04
 
 **Wave 1** *(parallel — no file overlap)*
 
