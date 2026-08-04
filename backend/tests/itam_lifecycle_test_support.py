@@ -97,6 +97,12 @@ def mock_db():
     _history_cursor.limit.return_value = _history_cursor
     _history_cursor.to_list = AsyncMock(return_value=[])
     db.assignment_history.find = MagicMock(return_value=_history_cursor)
+    # Same chainable-cursor fix, needed by the 57-03 overdue-audit report's
+    # .find(query, projection).limit(limit).to_list(...) chain.
+    _assets_cursor = MagicMock()
+    _assets_cursor.limit.return_value = _assets_cursor
+    _assets_cursor.to_list = AsyncMock(return_value=[])
+    db.assets.find = MagicMock(return_value=_assets_cursor)
     return db
 
 
