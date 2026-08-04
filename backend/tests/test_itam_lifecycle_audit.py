@@ -386,6 +386,34 @@ class TestOverdueAuditReport:
         query = mock_db.assets.find.call_args[0][0]
         assert len(query["$or"]) == 3
 
+    def test_overdue_query_excludes_disposed_assets(self):
+        """WR-03 regression: an asset marked disposed must never be reported as
+        overdue for physical audit — requiring physical verification of hardware
+        the system itself has recorded as gone is a logical inconsistency."""
+        import itam_lifecycle_endpoints as m
+
+        cutoff = m._audit_cutoff_iso()
+        query = m._overdue_query(cutoff)
+        assert query["lifecycleStatus"] == {"$ne": "disposed"}
+
+    @pytest.mark.asyncio
+    async def test_overdue_report_excludes_disposed_asset(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """End-to-end: _overdue_query's disposed exclusion is actually wired into
+        the report route's db.assets.find() call, not just defined in isolation."""
+        mock_db.assets.find.return_value.limit.return_value.to_list = AsyncMock(return_value=[])
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/assets/reports/overdue-audit")
+
+        assert r.status_code == 200, r.text
+        query = mock_db.assets.find.call_args[0][0]
+        assert query["lifecycleStatus"] == {"$ne": "disposed"}
+
     @pytest.mark.asyncio
     async def test_overdue_marking_audited_removes_from_report(self, mock_db, lifecycle_app, patch_get_database_globally):
         import itam_lifecycle_endpoints as m

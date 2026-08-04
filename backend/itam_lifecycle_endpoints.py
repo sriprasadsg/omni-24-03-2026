@@ -428,13 +428,21 @@ def _overdue_query(cutoff: str) -> Dict[str, Any]:
     optional: every agent-discovered asset lands there, since the registration
     upsert writes `lastScanned` (refreshed each heartbeat — recency, not age)
     and never `createdAt`. Omitting it would quietly report a fleet as audited
-    when most has never been physically verified."""
+    when most has never been physically verified.
+
+    WR-03: `lifecycleStatus` is excluded whenever it is `disposed` — physical
+    verification of hardware the system has itself recorded as gone (destroyed,
+    sold, ...) is a logical inconsistency, not an overdue audit. The top-level
+    key forms an implicit AND with `$or` below (Mongo query semantics), so this
+    exclusion applies across all three age-basis branches.
+    """
     return {
+        "lifecycleStatus": {"$ne": LifecycleStatus.DISPOSED.value},
         "$or": [
             {"lastAuditedAt": {"$lt": cutoff}},
             {"lastAuditedAt": {"$exists": False}, "createdAt": {"$lt": cutoff}},
             {"lastAuditedAt": {"$exists": False}, "createdAt": {"$exists": False}},
-        ]
+        ],
     }
 
 
