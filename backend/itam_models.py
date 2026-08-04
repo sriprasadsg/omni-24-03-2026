@@ -178,3 +178,13 @@ class CheckinRequest(BaseModel):
     note: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+
+# Physical Audit Mark (Phase 57-03, ITAM-LIFE-05). An omitted auditedAt means
+# "audited now" — the server clock is used as the asserted date.
+class AuditMarkRequest(BaseModel):
+    """Request contract for POST /api/assets/{asset_id}/audit."""
+    auditedAt: Optional[str] = None
+    note: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
