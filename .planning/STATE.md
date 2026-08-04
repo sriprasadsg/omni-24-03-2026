@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-08-04T01:18:50.470Z"
 last_activity: 2026-08-04
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Planning next milestone (v4.0)
+**Current focus:** Building v4.0 ITAM — ROADMAP.md defined (6 phases, 56-61), ready for `/gsd-plan-phase 56`
 
 ## Current Phase
 
@@ -75,6 +75,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-07-29 — v3.2 shipped (Phases 40-45); v3.3 roadmap defined (Phases 46-49).** v3.2 completed all 5 planned phases plus a gap-closure Phase 45 (RUST-01 TLS-backend explicit decision), archived to `milestones/v3.2-ROADMAP.md`/`v3.2-REQUIREMENTS.md`/`v3.2-MILESTONE-AUDIT.md`. New milestone v3.3 ("Agent Geo & Fleet Observability") requirements defined same day: 11 requirements across GMAP (fleet geo map), GSEC (location-based security), FOBS (fleet observability), GAUD (location-history audit). Research (`.planning/research/SUMMARY.md`/`ARCHITECTURE.md`/`PITFALLS.md`) confirmed a strict dependency-ordered 4-phase build and flagged two dominant risks specific to this milestone: the proven tenant-isolation background-scheduler bug (every new fleet-wide sweep must use raw `mongodb.db`, exactly like `compliance_remediation_sla_service`) and a privacy/legal review gate for the new immutable, queryable employee-location-history audit trail. 4 new phases (46-49) added, continuing numbering from Phase 45: Phase 46 (GAUD-01/02 — ASN/VPN enrichment foundation + append-only location-history audit) is the foundation and front-loads the privacy gate; Phase 47 (GSEC-01/02/03 — agent-scoped impossible-travel + alert-only geo-fence + heuristic VPN/hosting flag) depends on 46; Phase 48 (FOBS-01/02/03 — metrics-history charts + uptime timeline + offline/version-drift view) is mostly independent (parallel-safe with 46/47); Phase 49 (GMAP-01/02/03 — offline SVG fleet map + clustering/filters + drill-down) is last, reading everything upstream. All 11 v3.3 requirements mapped 1:1 to a phase, no orphans. REQUIREMENTS.md traceability table updated. Next: `/gsd-plan-phase 46`.
 
+**Session 2026-08-04 — v4.0 roadmap defined (Phases 56-61).** v3.4 shipped same day (Phases 50-55, 6 phases, 25 plans, 19/19 requirements — see MILESTONES.md). New milestone v4.0 ("ITAM — IT Asset Management Lifecycle") requirements defined same session: 17 v1 requirements across ITAM-CAT (catalog & organization), ITAM-LIFE (lifecycle & check-in/out), ITAM-FIN (procurement & finance), ITAM-LIC (licenses & consumables), ITAM-UI (operator console). Research (`.planning/research/SUMMARY.md`) confirmed the central architectural decision up front: extend the existing `assets` collection with an `assetSource` discriminator and additive fields — every cross-cutting feature (vuln findings, remediation playbooks, criticality gating, compliance evidence, global search) already assumes one `assets` collection is the CMDB, so a parallel `itam_assets` collection would fork the source of truth. Research also flagged the recurring background-scheduler tenant-isolation bug class (warranty/depreciation sweeps must use the raw `_mdb.db` + explicit per-tenant `set_tenant_id` pattern from `compliance_remediation_sla_service.py`, never `get_database()`) as the highest-severity risk in this milestone. 6 new phases (56-61) added, continuing numbering from Phase 55: Phase 56 (Catalog & Foundation — ITAM-CAT-01/02/03/04, ITAM-LIFE-01) establishes the catalog entities, `assetSource` discriminator, and `lifecycleStatus` field naming once so later phases copy it rather than reinvent it; Phase 57 (Lifecycle & Check-In/Out — ITAM-LIFE-02/03/04/05) depends on 56's lifecycleStatus/manual-asset foundation and folds in the physical-audit-workflow requirement (ITAM-LIFE-05) alongside the append-only assignment-history ledger it's most related to; Phase 58 (Asset Tags & Offline Labels — ITAM-CAT-05) depends on 56's stable asset-tag field and is kept as its own increment since it introduces the one new dependency (`python-barcode`) and a distinct offline-verification obligation; Phase 59 (Procurement & Finance — ITAM-FIN-01/02/03) depends on 56's Model entity for model-level depreciation policy; Phase 60 (Licenses & Consumables — ITAM-LIC-01/02/03) is architecturally independent of 57-59 (different collections, same tenant-isolation/RBAC conventions); Phase 61 (Frontend ITAM Console — ITAM-UI-01) is threaded last, integrating all five backend phases behind one admin-gated nav entry per the Phase 47/48 precedent. All 17 v1 requirements mapped 1:1 to a phase, no orphans — REQUIREMENTS.md traceability table updated (17/17). Next: `/gsd-plan-phase 56`.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -128,6 +130,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 47 | Agent-Scoped Geo Security Detectors | Not started (v3.3) |
 | 48 | Fleet Observability & Uptime Rollups | Not started (v3.3) |
 | 49 | Fleet Geo Map | Not started (v3.3) |
+| 56 | Catalog & Foundation | Not started (v4.0) — roadmap defined 2026-08-04 |
+| 57 | Lifecycle & Check-In/Out | Not started (v4.0) |
+| 58 | Asset Tags & Offline Labels | Not started (v4.0) |
+| 59 | Procurement & Finance (Warranty & Depreciation) | Not started (v4.0) |
+| 60 | Licenses & Consumables | Not started (v4.0) |
+| 61 | Frontend ITAM Console | Not started (v4.0) |
 
 ## Decisions
 
@@ -454,12 +462,14 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - Phase 24 added: IaC & Container Security (Terraform/CloudFormation/Kubernetes scanning + container image vulnerability scanning). A `24-01-PLAN.md` already existed on disk (drafted ahead of execution, never wired into ROADMAP.md) — registered as Phase 24 in ROADMAP.md and REQUIREMENTS.md (IAC-01..03) reusing the existing directory/plan rather than generating a new one, so `/gsd-autonomous --only 24` can discover and execute it.
 - v3.0 milestone added 2026-07-06: 14 new phases (25–38) scaffolded from a feature-parity audit run the same day against Comp AI, Probo, OpenLane Core, and Prowler (69 features checked directly against source — 41 implemented, 10 partial, 15 absent). Phases are ordered in 3 risk tiers — Tier 1 quick fixes (25–27), Tier 2 medium features (28–33), Tier 3 architectural bets (34–38: GraphQL, ReBAC, real MCP protocol, public Trust Center, passkeys). User explicitly chose "everything, in tiers" over a smaller subset. Requirements CHK/VRISK/RISK/EXP/DOC/TRUST/RAG/FAIR/PROV/WF/AUTH/GQL/REBAC/MCP/ASSIST added to REQUIREMENTS.md. Phase 25 is the first to go through full research → plan → verify.
 
+- v4.0 milestone added 2026-08-04: 6 new phases (56-61) scaffolded from research run the same day against the milestone's 4 target clusters (lifecycle/check-in-out, procurement/finance, catalog/org, licenses/consumables) plus a Snipe-IT/GLPI/Freshservice feature-convergence pass. Phase 56 (Catalog & Foundation) is the hard prerequisite for every later phase; Phase 61 (Frontend ITAM Console) is threaded last, mirroring the Phase 47/48 admin-gated nav pattern. All 17 v1 requirements (ITAM-CAT/LIFE/FIN/LIC/UI) mapped 1:1 to a phase, no orphans.
+
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 56 (Catalog & Foundation) — not yet planned
 Plan: —
-Status: Defining requirements
-Last activity: 2026-08-04 — Milestone v4.0 started
+Status: v4.0 ROADMAP.md defined (Phases 56-61); ready for /gsd-plan-phase 56
+Last activity: 2026-08-04 — v4.0 ROADMAP.md + STATE.md written, REQUIREMENTS.md traceability updated (17/17 mapped, no orphans)
 
 ## Deferred Items
 
@@ -514,4 +524,4 @@ Items acknowledged and deferred at v3.4 milestone close on 2026-08-04 (20 total,
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan the first v4.0 phase with /gsd-plan-phase 56

@@ -12,6 +12,7 @@
 - **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45 + 999.1 backlog), 19 plans, 10/10 requirements. Shipped 2026-07-29.
 - **[v3.3](milestones/v3.3-ROADMAP.md)** — Agent Geo & Fleet Observability: fleet geo map (air-gapped bundled-SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 23 plans, 11/11 requirements. Audit passed. Shipped 2026-07-30.
 - **[v3.4](milestones/v3.4-ROADMAP.md)** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 6 phases (50–55), 19 requirements. Shipped 2026-08-04.
+- **v4.0** — ITAM (IT Asset Management Lifecycle): Snipe-IT-parity asset lifecycle on top of the existing security CMDB — catalog & manual asset cataloging, check-out/check-in with append-only assignment history, offline QR/barcode labels, procurement/warranty/depreciation, software licenses & consumables, and an admin-gated ITAM console. 6 phases (56–61), 17 requirements. Roadmap defined 2026-08-04 — not started.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -781,6 +782,143 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 - [x] Phase 55: Advanced Threat Detection & Response (INT-04, AUT-03, COMM-01)
 
 </details>
+
+---
+
+## v4.0 — ITAM (IT Asset Management Lifecycle)
+
+**Goal:** Add a full Snipe-IT-parity IT Asset Management lifecycle on top of the existing security/observability CMDB: manage physical/virtual assets through procurement → assignment → maintenance → retirement, with people checking gear in and out, licenses/consumables, and financial/warranty tracking — turning the security-monitoring "asset inventory" into a true ITAM system. Extends the existing `assets` collection with a source discriminator (per research: every cross-cutting feature already assumes one `assets` collection is the CMDB) rather than forking a parallel `itam_assets` collection.
+
+**Status:** Roadmap defined 2026-08-04. Not started — continues phase numbering from Phase 55.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 56 | Catalog & Foundation | Not started |
+| 57 | Lifecycle & Check-In/Out | Not started |
+| 58 | Asset Tags & Offline Labels | Not started |
+| 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
+| 60 | Licenses & Consumables | Not started |
+| 61 | Frontend ITAM Console | Not started |
+
+---
+
+## Phase 56: Catalog & Foundation
+
+**Milestone:** v4.0
+
+**Goal:** Establish the ITAM catalog layer and the additive fields (`assetSource` discriminator, `lifecycleStatus`) that every later phase builds on: normalized Manufacturer/Model/Category/Location/Supplier reference data, custom fields attached at the model level, and the ability to hand-catalogue a manual (non-agent) asset with a unique per-tenant asset tag that coexists with agent-discovered assets.
+
+**Requirements:** ITAM-CAT-01 (Manufacturer/Model/Category/Location catalog CRUD), ITAM-CAT-02 (manual asset creation with unique per-tenant asset tag + source discriminator), ITAM-CAT-03 (Suppliers catalog entity), ITAM-CAT-04 (custom fields grouped into fieldsets, attached at the model level), ITAM-LIFE-01 (lifecycleStatus field, distinct from agent connectivity status)
+
+**Success Criteria:**
+1. Admin can create, edit, and delete Manufacturer, Model, Category, Location, and Supplier entries, each referenced by ID from assets.
+2. Admin can create a manual (non-agent) asset with a unique per-tenant asset tag; it appears in the asset list alongside agent-discovered assets, distinguishable by source.
+3. Admin can define custom fields grouped into fieldsets at the model level, and those fields appear on assets using that model.
+4. Every asset — agent-discovered or manual — carries a distinct lifecycle status (deployable/deployed/archived/retired/disposed/broken) that is separate from its agent connectivity/heartbeat status.
+
+**Depends on:** Nothing (first phase of v4.0; reuses and extends the existing `assets` model)
+
+**Plans:** TBD
+
+---
+
+## Phase 57: Lifecycle & Check-In/Out
+
+**Milestone:** v4.0
+
+**Goal:** Give users a real "who has this" workflow — assign assets to a person or location, return them to stock, and keep a trustworthy, append-only history of every hand-off, plus a way to confirm assets are still where records say they are.
+
+**Requirements:** ITAM-LIFE-02 (check out to a user or location, gated on deployable status), ITAM-LIFE-03 (check in, returns to stock and clears assignment), ITAM-LIFE-04 (append-only assignment history/audit trail), ITAM-LIFE-05 (mark physically audited + overdue-audit report)
+
+**Success Criteria:**
+1. User can check out a deployable-status asset to a user or a location; checkout is rejected for assets not in a deployable-typed status.
+2. User can check in an asset, returning it to stock/available and clearing its current assignment.
+3. Every check-out/check-in is recorded in an append-only assignment history visible per asset (who, where, when).
+4. User can mark an asset as physically audited on a given date and pull a report of assets overdue for audit.
+
+**Depends on:** Phase 56 (lifecycleStatus field + manual asset records)
+
+**Plans:** TBD
+
+---
+
+## Phase 58: Asset Tags & Offline Labels
+
+**Milestone:** v4.0
+
+**Goal:** Let users print physical asset-tag labels — QR and 1D barcode, in a ready-to-print PDF sheet — entirely offline, so labeling works in air-gapped deployments with no external service or network call.
+
+**Requirements:** ITAM-CAT-05 (printable QR + 1D barcode label / PDF label sheet, fully offline)
+
+**Success Criteria:**
+1. User can generate a QR code and a 1D barcode encoding an asset's tag.
+2. User can export a printable PDF label sheet for one or more assets.
+3. Label generation succeeds with outbound network access blocked (no external service or network call).
+
+**Depends on:** Phase 56 (stable asset tag field)
+
+**Plans:** TBD
+
+---
+
+## Phase 59: Procurement & Finance (Warranty & Depreciation)
+
+**Milestone:** v4.0
+
+**Goal:** Give every asset a financial record — purchase cost/date/PO/supplier, warranty tracking with proactive expiry alerts, and a computed book value — without any external accounting/GL integration.
+
+**Requirements:** ITAM-FIN-01 (purchase cost, purchase date, PO number, supplier), ITAM-FIN-02 (warranty tracking + expiry alerts via existing notification/webhook infra), ITAM-FIN-03 (straight-line depreciation, model-level, computed at read time)
+
+**Success Criteria:**
+1. Admin can record and view purchase cost, purchase date, PO number, and supplier on an asset.
+2. Admin sees each asset's warranty status/expiry and receives an alert as the warranty approaches or passes expiry, delivered through the existing notification/webhook infrastructure.
+3. Admin can view an asset's current book value, computed at read time from a straight-line depreciation schedule assigned at the model level (no persisted mutable value, no external GL integration).
+
+**Depends on:** Phase 56 (Model entity for model-level depreciation policy)
+
+**Plans:** TBD
+
+---
+
+## Phase 60: Licenses & Consumables
+
+**Milestone:** v4.0
+
+**Goal:** Track software licenses, consumables, and components as first-class ITAM sub-inventory — seats assigned/reclaimed against a real seat count, consumables checked out in quantity, and components attached to a parent asset.
+
+**Requirements:** ITAM-LIC-01 (software licenses: seat counts, assign/reclaim to user or asset, expiry tracking), ITAM-LIC-02 (accessories/consumables with quantity-aware checkout, quantity > 1 supported), ITAM-LIC-03 (components attached to a parent asset)
+
+**Success Criteria:**
+1. Admin can create a software license with a seat count, assign a seat to a user or asset, reclaim it, and see remaining/expired seats.
+2. Admin can create an accessory/consumable and check it out in a quantity greater than one in a single transaction, with available quantity correctly decremented.
+3. Admin can attach a component (RAM/HDD/GPU-style item) to a parent asset and see it listed on that asset's record.
+
+**Depends on:** Phase 56 (tenant-isolation/RBAC scaffolding; architecturally independent of Phases 57-59)
+
+**Plans:** TBD
+
+---
+
+## Phase 61: Frontend ITAM Console
+
+**Milestone:** v4.0
+
+**Goal:** Make every ITAM capability from Phases 56-60 reachable and usable from one admin-gated console, following the same nav pattern used for the native security operator console (Phase 47/48).
+
+**Requirements:** ITAM-UI-01 (admin-gated nav entry — new AppView + App.tsx route + Sidebar entry + dedicated `manage:itam` permission)
+
+**Success Criteria:**
+1. An admin user sees an "ITAM" entry in the Sidebar, gated by a new `manage:itam` permission and invisible to non-admin/non-permitted users.
+2. Selecting the ITAM nav entry opens a dedicated console (new AppView) with sections for Catalog, Check-Out/In, Procurement & Finance, and Licenses & Consumables.
+3. From the console, a user can complete at least one full round trip per cluster — e.g. create a catalog asset, check it out, view its warranty/finance tab, and assign a license — without leaving the ITAM console.
+
+**Depends on:** Phases 56, 57, 58, 59, 60 (integrates every backend surface)
+
+**Plans:** TBD
+
+**UI hint:** yes
 
 ---
 

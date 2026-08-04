@@ -67,29 +67,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ITAM-CAT-01 | TBD | Pending |
-| ITAM-CAT-02 | TBD | Pending |
-| ITAM-CAT-03 | TBD | Pending |
-| ITAM-CAT-04 | TBD | Pending |
-| ITAM-CAT-05 | TBD | Pending |
-| ITAM-LIFE-01 | TBD | Pending |
-| ITAM-LIFE-02 | TBD | Pending |
-| ITAM-LIFE-03 | TBD | Pending |
-| ITAM-LIFE-04 | TBD | Pending |
-| ITAM-LIFE-05 | TBD | Pending |
-| ITAM-FIN-01 | TBD | Pending |
-| ITAM-FIN-02 | TBD | Pending |
-| ITAM-FIN-03 | TBD | Pending |
-| ITAM-LIC-01 | TBD | Pending |
-| ITAM-LIC-02 | TBD | Pending |
-| ITAM-LIC-03 | TBD | Pending |
-| ITAM-UI-01 | TBD | Pending |
+| ITAM-CAT-01 | Phase 56 | Pending |
+| ITAM-CAT-02 | Phase 56 | Pending |
+| ITAM-CAT-03 | Phase 56 | Pending |
+| ITAM-CAT-04 | Phase 56 | Pending |
+| ITAM-CAT-05 | Phase 58 | Pending |
+| ITAM-LIFE-01 | Phase 56 | Pending |
+| ITAM-LIFE-02 | Phase 57 | Pending |
+| ITAM-LIFE-03 | Phase 57 | Pending |
+| ITAM-LIFE-04 | Phase 57 | Pending |
+| ITAM-LIFE-05 | Phase 57 | Pending |
+| ITAM-FIN-01 | Phase 59 | Pending |
+| ITAM-FIN-02 | Phase 59 | Pending |
+| ITAM-FIN-03 | Phase 59 | Pending |
+| ITAM-LIC-01 | Phase 60 | Pending |
+| ITAM-LIC-02 | Phase 60 | Pending |
+| ITAM-LIC-03 | Phase 60 | Pending |
+| ITAM-UI-01 | Phase 61 | Pending |
 
 **Coverage:**
 - v1 requirements: 17 total
-- Mapped to phases: 0 (roadmapper to fill)
-- Unmapped: 17 ⚠️ (expected — roadmap not yet created)
+- Mapped to phases: 17/17 ✓
+- Unmapped: 0
+
+**Phase map:**
+- Phase 56 — Catalog & Foundation (ITAM-CAT-01/02/03/04, ITAM-LIFE-01)
+- Phase 57 — Lifecycle & Check-In/Out (ITAM-LIFE-02/03/04/05)
+- Phase 58 — Asset Tags & Offline Labels (ITAM-CAT-05)
+- Phase 59 — Procurement & Finance (Warranty & Depreciation) (ITAM-FIN-01/02/03)
+- Phase 60 — Licenses & Consumables (ITAM-LIC-01/02/03)
+- Phase 61 — Frontend ITAM Console (ITAM-UI-01)
 
 ---
 *Requirements defined: 2026-08-04*
-*Last updated: 2026-08-04 after initial definition*
+*Last updated: 2026-08-04 after roadmap creation — 17/17 v1 requirements mapped to phases 56–61*
