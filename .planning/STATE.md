@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.4
-milestone_name: Native Security Scanning & Autonomous Remediation Agent
-status: complete
-stopped_at: "v3.4 milestone (phases 50-55, 25 plans, 19/19 requirements) archived and closed 2026-08-04. Pre-close artifact audit ran: Phase 55's INT-04 verification gap (55-VERIFICATION.md gap #1 — threat_intel_endpoints.py failing to import via a dead virustotal_client.py) was found already fixed in code by commit 766e3ca (plan 55-05) but the verification doc was stale — updated to status: passed, re-confirmed live (app boots, router mounts, no import failure). GSD's init.manager flagged phases 50/51/52/54 as not formally phase_complete (Phase 50/51 status text said 'Executed' not 'Complete'; phases 50/52/54 have missing per-plan SUMMARY.md files, Phase 54 has zero) despite all plans checked off and real passing-test evidence in ROADMAP.md/STATE.md — user chose override-and-proceed (bookkeeping gap, not functional gap). REQUIREMENTS.md's auto-generated v3.4 archive initially captured the wrong content (a stale, unrelated v4.0 SCALE/SEC/UX/SIEM draft that had overwritten REQUIREMENTS.md on 2026-07-31) — manually reconstructed the correct v3.4-REQUIREMENTS.md from the 19 per-phase requirement IDs in the ROADMAP.md phase sections. ROADMAP.md collapsed (Phase 50-55 detail moved to milestones/v3.4-ROADMAP.md, matching the v3.2/v3.3 pattern). PROJECT.md full evolution review done (Validated requirements, Key Decisions, Context, Out of Scope updated). RETROSPECTIVE.md created (first use of this workflow step in the project). Next: v4.0 milestone not yet defined — MILESTONE-CONTEXT.md holds a ready ITAM (asset-lifecycle) scope from 2026-07-30; a separate, unrelated v4.0 SCALE/SEC/UX/SIEM draft exists but has no roadmap and was judged stale. User chose ITAM."
-last_updated: "2026-08-04T01:10:14.206Z"
+milestone: v4.0
+milestone_name: ITAM
+status: planning
+last_updated: "2026-08-04T01:18:50.470Z"
 last_activity: 2026-08-04
-last_activity_desc: v3.4 milestone archived and closed; RETROSPECTIVE.md started; awaiting v4.0 definition
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 25
-  completed_plans: 25
-  percent: 100
-current_phase: 55
-current_phase_name: Advanced Threat Detection & Response
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -460,10 +456,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: Milestone v3.4 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-04 — Milestone v3.4 completed and archived
+Status: Defining requirements
+Last activity: 2026-08-04 — Milestone v4.0 started
 
 ## Deferred Items
 

@@ -10,7 +10,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ## Current State
 
-**Latest: v3.4 Native Security Scanning & Autonomous Remediation Agent shipped 2026-08-04** (6 phases 50–55, 25 plans, 19/19 requirements). Native offline scan engine — file/URL/IP/hash verdicts against signed bundled feeds, no live lookup (50); agent-side vulnerability detection — signed CVE feed matching, misconfig + secret detection (51); File Integrity Monitoring — event-driven watcher, signed baseline + restart drift detection (52); autonomous remediation — deterministic YAML playbooks, approval gate, rollback, immutable audit trail (53); operator console + API surfacing the whole stack (54); threat-intel correlation, UEBA-triggered predictive containment, outbound SIEM/OCSF webhook (55). See `.planning/milestones/v3.4-ROADMAP.md` / `v3.4-REQUIREMENTS.md`. **Next: v4.0 ITAM** (asset-lifecycle management — see `MILESTONE-CONTEXT.md`).
+**Latest: v3.4 Native Security Scanning & Autonomous Remediation Agent shipped 2026-08-04** (6 phases 50–55, 25 plans, 19/19 requirements). Native offline scan engine — file/URL/IP/hash verdicts against signed bundled feeds, no live lookup (50); agent-side vulnerability detection — signed CVE feed matching, misconfig + secret detection (51); File Integrity Monitoring — event-driven watcher, signed baseline + restart drift detection (52); autonomous remediation — deterministic YAML playbooks, approval gate, rollback, immutable audit trail (53); operator console + API surfacing the whole stack (54); threat-intel correlation, UEBA-triggered predictive containment, outbound SIEM/OCSF webhook (55). See `.planning/milestones/v3.4-ROADMAP.md` / `v3.4-REQUIREMENTS.md`. **Now building: v4.0 ITAM** (asset-lifecycle management, started 2026-08-04 — see Current Milestone below).
 
 <details><summary>Earlier milestones (v1.0 → v3.2)</summary>
 
@@ -63,6 +63,22 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Live VirusTotal lookup at native scan time — offline-first design; signed bundled feeds only (v3.4). The VirusTotal v3 client added in Phase 55 serves the separate threat-intel correlation surface, not the NSCAN scan path.
 - Third-party SIEM agents — native agent capability supersedes them for v3.4's scope; outbound OCSF webhook (COMM-01) is the integration point instead
 - Full YARA-rule engine — yara-x rejected at the Phase 50 spike (pulls in wasmtime/cranelift JIT, cross-compile risk); hash-signature + aho-corasick literal matching shipped instead, full YARA support deferred to backlog item 999.4
+
+## Current Milestone: v4.0 ITAM
+
+**Goal:** Add a full Snipe-IT-parity IT Asset Management lifecycle on top of the existing security/observability CMDB: manage physical/virtual assets through procurement → assignment → maintenance → retirement, with people checking gear in and out, licenses/consumables, and financial/warranty tracking — turning the security-monitoring "asset inventory" into a true ITAM system.
+
+**Target features (all 4 clusters in scope):**
+- **Cluster A — Lifecycle + check-in/out:** assign assets to users/locations, check-out/check-in flows, status lifecycle labels (deployable/deployed/archived/retired/disposed/broken), assignment history/audit trail.
+- **Cluster B — Procurement + finance:** purchase cost/date/PO number/supplier, warranty tracking + expiry alerts, depreciation schedules (straight-line at minimum).
+- **Cluster C — Catalog + org:** manufacturers, asset models, categories, suppliers, locations, custom fields, asset tags + QR/barcode label generation.
+- **Cluster D — Licenses + consumables:** software license seats (assign/reclaim/expiry), accessories/consumables/components with check-out + quantities.
+
+**Key constraints:** reuse the existing `assets` model / `asset_endpoints.py` where sensible — don't fork it; support manual (non-agent) assets since Snipe-IT-style assets are hand-catalogued, unlike the current agent-auto-discovered inventory; tenant isolation on every new collection/endpoint; offline-first/air-gapped (label/QR generation with no external services); admin-gated nav pages following the Phase 47/48 pattern (new AppView + App.tsx + Sidebar entry + permission gate).
+
+**Out of scope:** deep accounting/GL integration beyond basic depreciation; multi-currency finance; physical RFID hardware integration (QR/barcode generation only, no scanner drivers); migrating existing security-CMDB semantics (ITAM is additive).
+
+**Phase plan:** TBD — continues numbering from Phase 55 (v4.0 starts at Phase 56)
 
 ---
 
@@ -118,4 +134,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-04 — v3.4 milestone shipped (Phases 50-55, 19/19 requirements; see .planning/milestones/v3.4-ROADMAP.md)*
+*Last updated: 2026-08-04 — v4.0 milestone started (ITAM asset lifecycle)*
