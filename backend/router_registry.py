@@ -180,8 +180,6 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "compliance_score_endpoints", "router")
     _load(app, "saas_integration_endpoints", "router")
     _load(app, "saas_posture_checks_endpoints", "router")
-    _load(app, "saas_posture_checks_endpoints", "router")
-    _load(app, "saas_posture_checks_endpoints", "router")
     _load(app, "powershell_evidence_endpoints", "router")
     _load(app, "program_endpoints",             "router")
     _load(app, "evidence_review_endpoints", "router")
@@ -272,7 +270,6 @@ def register_all_routers(app: FastAPI) -> None:
     # it with the standalone FastMCP server (backend/mcp_server.py).
     _load(app, "ocsf_endpoints",              "router")
     _load(app, "oscal_endpoints",             "router") # NEW
-    _load(app, "oscal_endpoints",             "router")
     _load(app, "analytics_endpoints",        "router")
     _load(app, "settings_endpoints",         "router")
     _load(app, "log_endpoints",              "router")
