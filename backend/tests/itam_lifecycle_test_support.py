@@ -84,11 +84,19 @@ def mock_db():
     db.assets.find_one_and_update = AsyncMock(return_value=None)
     # _make_col()'s bare find()/to_list() double does not survive the
     # .sort().limit().to_list() chain itam_lifecycle_service.list_history performs
-    # (precedent: tests/test_remediation_guards.py:207). Default to an empty result;
-    # individual tests override this AsyncMock's return_value as needed.
-    db.assignment_history.find.return_value.sort.return_value.limit.return_value.to_list = AsyncMock(
-        return_value=[]
-    )
+    # (precedent: tests/test_remediation_guards.py:207): _make_col() sets
+    # `find = MagicMock(return_value=AsyncMock())`, and an AsyncMock's own
+    # unconfigured child attributes default to AsyncMock too, so `.sort(...)`
+    # returns an unawaited coroutine rather than a chainable cursor. A
+    # self-referencing MagicMock cursor (sort/limit return the cursor itself,
+    # to_list is the only async leaf) fixes the chain; tests override
+    # `.find.return_value.sort.return_value.limit.return_value.to_list`'s
+    # return_value as needed (that path resolves back to the same cursor object).
+    _history_cursor = MagicMock()
+    _history_cursor.sort.return_value = _history_cursor
+    _history_cursor.limit.return_value = _history_cursor
+    _history_cursor.to_list = AsyncMock(return_value=[])
+    db.assignment_history.find = MagicMock(return_value=_history_cursor)
     return db
 
 

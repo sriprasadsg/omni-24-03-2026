@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pymongo import ReturnDocument
 
 from auth_types import TokenData
@@ -19,7 +19,7 @@ from database import get_database
 from cache_service import invalidate_cache
 from itam_asset_endpoints import _require_itam_admin
 from itam_models import CheckinRequest, CheckoutRequest, LifecycleStatus
-from itam_lifecycle_service import write_history
+from itam_lifecycle_service import list_history, write_history
 
 logger = logging.getLogger(__name__)
 
@@ -273,3 +273,45 @@ async def checkin_asset(
     updated.pop("_id", None)
     response_history = {**history_record, "id": history_id}
     return {**updated, "history": response_history}
+
+
+@router.get("/{asset_id}/history", response_model=Dict[str, Any])
+async def list_assignment_history(
+    asset_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """Read one asset's full assignment-history trail, newest first (ITAM-LIFE-04).
+
+    The asset lookup below is this route's tenant-isolation boundary: because the
+    `assets` collection is auto-tenant-scoped, an asset id belonging to another
+    tenant resolves to nothing here and produces exactly the same 404 as a
+    genuinely unknown id, so the response never discloses that the id exists
+    elsewhere. History is only read once the asset resolves, so a cross-tenant
+    lookup reads zero assignment_history rows.
+
+    An asset that resolves but has no entries returns 200 with an empty list —
+    never 404, never a null body — because "this asset has never been handed
+    off" is a real and useful answer, distinct from "this asset does not exist".
+
+    No route on this router alters or removes a history entry, under any method
+    or name — a correction is always a new appended entry, never a rewrite.
+    """
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant ID not found for the current user.",
+        )
+
+    db = get_database()
+
+    asset = await db.assets.find_one({"id": asset_id})
+    if not asset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    # Delegates the read to list_history rather than querying the collection
+    # inline — list_history owns the ts-descending/_id-descending sort and the
+    # {"_id": 0} projection.
+    entries = await list_history(db, tenant_id, asset_id, limit)
+    return {"assetId": asset_id, "entries": entries}
