@@ -847,7 +847,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (lifecycleStatus field + manual asset records)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans executed
 **Wave 1**
 
 - [x] 57-01-PLAN.md — Tracer slice: check-out to a user end-to-end (new lifecycle router + append-only `assignment_history` service + registration), then location targets, refusal paths and the concurrency guarantee, plus Phase-57 indexes [Wave 1]
@@ -858,7 +858,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 57-03-PLAN.md — Mark physically audited (attributed, orthogonal to checkout state) and the query-time overdue-audit report with an explicit age basis [Wave 3]
+- [x] 57-03-PLAN.md — Mark physically audited (attributed, orthogonal to checkout state) and the query-time overdue-audit report with an explicit age basis [Wave 3]
 
 ---
 

@@ -19,7 +19,7 @@
 - [x] **ITAM-LIFE-02**: User can check out an asset to a user or a location; checkout is only allowed from a deployable-typed status.
 - [x] **ITAM-LIFE-03**: User can check in an asset, returning it to stock and clearing its assignment.
 - [x] **ITAM-LIFE-04**: Every check-out/check-in is recorded in an append-only assignment history / audit trail.
-- [ ] **ITAM-LIFE-05**: User can mark an asset as physically audited on a given date, with an overdue-audit report.
+- [x] **ITAM-LIFE-05**: User can mark an asset as physically audited on a given date, with an overdue-audit report.
 
 ### Procurement & Finance (ITAM-FIN)
 
@@ -76,7 +76,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-LIFE-02 | Phase 57 | Complete |
 | ITAM-LIFE-03 | Phase 57 | Complete |
 | ITAM-LIFE-04 | Phase 57 | Complete |
-| ITAM-LIFE-05 | Phase 57 | Pending |
+| ITAM-LIFE-05 | Phase 57 | Complete |
 | ITAM-FIN-01 | Phase 59 | Pending |
 | ITAM-FIN-02 | Phase 59 | Pending |
 | ITAM-FIN-03 | Phase 59 | Pending |
