@@ -27,15 +27,27 @@ class MockTenantIsolatedCollection:
         self._tenant_id = tenant_id
         self._raw_collection = raw_collection_mock
 
-        # Proxy calls, injecting tenantId into filters/documents
-        self.find_one = AsyncMock(side_effect=lambda f, *args, **kwargs:
-                                  raw_collection_mock.find_one({**f, "tenantId": self._tenant_id}, *args, **kwargs))
-        self.insert_one = AsyncMock(side_effect=lambda doc, *args, **kwargs:
-                                   raw_collection_mock.insert_one({**doc, "tenantId": self._tenant_id}, *args, **kwargs))
-        self.count_documents = AsyncMock(side_effect=lambda f, *args, **kwargs:
-                                         raw_collection_mock.count_documents({**f, "tenantId": self._tenant_id}, *args, **kwargs))
-        self.find_one_and_update = AsyncMock(side_effect=lambda f, u, *args, **kwargs:
-                                             raw_collection_mock.find_one_and_update({**f, "tenantId": self._tenant_id}, u, *args, **kwargs))
+        # Proxy calls, injecting tenantId into filters/documents. These are real
+        # coroutine functions (not AsyncMock(side_effect=lambda ...) wrapping another
+        # AsyncMock) — wrapping an AsyncMock in a sync lambda calls it without awaiting,
+        # so the "result" is a live, never-awaited coroutine object instead of the real
+        # value. A single `await` here avoids that double-wrap.
+        async def _find_one(f, *args, **kwargs):
+            return await raw_collection_mock.find_one({**f, "tenantId": self._tenant_id}, *args, **kwargs)
+
+        async def _insert_one(doc, *args, **kwargs):
+            return await raw_collection_mock.insert_one({**doc, "tenantId": self._tenant_id}, *args, **kwargs)
+
+        async def _count_documents(f, *args, **kwargs):
+            return await raw_collection_mock.count_documents({**f, "tenantId": self._tenant_id}, *args, **kwargs)
+
+        async def _find_one_and_update(f, u, *args, **kwargs):
+            return await raw_collection_mock.find_one_and_update({**f, "tenantId": self._tenant_id}, u, *args, **kwargs)
+
+        self.find_one = _find_one
+        self.insert_one = _insert_one
+        self.count_documents = _count_documents
+        self.find_one_and_update = _find_one_and_update
         self.find = MagicMock(side_effect=lambda f=None, *args, **kwargs:
                               raw_collection_mock.find({**(f if f else {}), "tenantId": self._tenant_id}, *args, **kwargs))
 
@@ -66,24 +78,35 @@ def mock_db():
 @pytest.fixture(autouse=True)
 def patch_get_database_globally(mock_db, monkeypatch):
     """
-    Patch database.get_database globally to return our mock wrapped for tenant isolation.
+    Patch get_database globally to return our mock wrapped for tenant isolation.
     This fixture is auto-used by pytest.
+
+    itam_catalog_endpoints.py and itam_asset_endpoints.py both do
+    `from database import get_database` (name-binding import), so patching
+    database.get_database alone does not affect their already-bound local
+    references — each importing module's own name must be patched too.
     """
     import database
+    import itam_catalog_endpoints
+    import itam_asset_endpoints
     _current_tenant_id = "default-tenant" # Default tenant for patching
 
     def get_mock_tenant_db():
         return MockTenantIsolatedDatabase(mock_db, _current_tenant_id)
 
-    # Patch the function itself
-    monkeypatch.setattr(database, "get_database", get_mock_tenant_db)
+    def _patch_all():
+        monkeypatch.setattr(database, "get_database", get_mock_tenant_db)
+        monkeypatch.setattr(itam_catalog_endpoints, "get_database", get_mock_tenant_db)
+        monkeypatch.setattr(itam_asset_endpoints, "get_database", get_mock_tenant_db)
+
+    _patch_all()
 
     # Provide a way for tests to change the tenant_id if needed
     def set_current_tenant_id(tenant_id):
         nonlocal _current_tenant_id
         _current_tenant_id = tenant_id
-        # Re-patch the get_database function to use the new tenant_id
-        monkeypatch.setattr(database, "get_database", get_mock_tenant_db)
+        # Re-patch get_database everywhere to use the new tenant_id
+        _patch_all()
 
     return set_current_tenant_id
 
@@ -93,11 +116,14 @@ def itam_app(mock_db, patch_get_database_globally, monkeypatch):
     """Fixture to create a test FastAPI app with ITAM routers and mocked DB."""
     import itam_catalog_endpoints
     import itam_asset_endpoints
-    import rbac_utils
-    import cache_service
 
-    monkeypatch.setattr(rbac_utils, "verify_permission", AsyncMock(return_value=True))
-    monkeypatch.setattr(cache_service, "invalidate_cache", AsyncMock())
+    # itam_catalog_endpoints/itam_asset_endpoints both do `from rbac_utils import
+    # verify_permission` / `from cache_service import invalidate_cache` (name-binding
+    # imports), so patching the rbac_utils/cache_service module attribute does not affect
+    # their already-bound local references — patch each module's own imported name.
+    monkeypatch.setattr(itam_catalog_endpoints, "verify_permission", AsyncMock(return_value=True))
+    monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=True))
+    monkeypatch.setattr(itam_asset_endpoints, "invalidate_cache", AsyncMock())
 
     app, _ = make_test_app(
         itam_catalog_endpoints.router,
@@ -114,6 +140,7 @@ class TestCatalogManufacturer:
         """POST to manufacturers kind returns a body with id and name."""
         # Setup mock db's underlying raw collection's insert_one
         inserted_docs = []
+        # For itam_catalog_endpoints, insert_one returns a MagicMock with inserted_id
         mock_db.manufacturers.insert_one = AsyncMock(side_effect=lambda doc: (inserted_docs.append(doc), MagicMock(inserted_id="mock-id"))[1])
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
@@ -141,7 +168,12 @@ class TestCatalogManufacturer:
         mock_db.manufacturers.insert_one = AsyncMock(side_effect=lambda doc: (stored.append(doc), MagicMock(inserted_id="mock-id"))[1])
         mock_db.manufacturers.find_one = AsyncMock(side_effect=lambda f, *args, **kwargs:
                                                    next((d for d in stored if d.get("tenantId") == f.get("tenantId") and d.get("id") == f.get("id")), None))
-        mock_db.manufacturers.find = MagicMock(return_value=MagicMock(to_list=AsyncMock(side_effect=lambda length: [d for d in stored])))
+        # app code chains .find(...).limit(...).to_list(...) — .limit() must return the same
+        # cursor-shaped mock that carries to_list, not a fresh unconfigured MagicMock.
+        find_cursor = MagicMock()
+        find_cursor.limit = MagicMock(return_value=find_cursor)
+        find_cursor.to_list = AsyncMock(side_effect=lambda length: [d for d in stored])
+        mock_db.manufacturers.find = MagicMock(return_value=find_cursor)
 
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
@@ -191,7 +223,7 @@ class TestManualAssetCreate:
         """E2E: create manufacturer then manual asset returns correct fields."""
         asset_docs = []
         mf_docs = []
-        _counter_seq = 0
+        counter_seq = 0
 
         async def manuf_insert(doc):
             mf_docs.append(doc)
@@ -215,10 +247,10 @@ class TestManualAssetCreate:
             # Return a dictionary with 'seq' key as an integer
             return {"tenantId": f["tenantId"], "name": f["name"], "seq": counter_seq}
 
-        mock_db.manufacturers._raw_collection.insert_one = AsyncMock(side_effect=manuf_insert)
-        mock_db.manufacturers._raw_collection.find_one = AsyncMock(side_effect=manuf_find_one)
-        mock_db.assets._raw_collection.insert_one = AsyncMock(side_effect=asset_insert)
-        mock_db.counters._raw_collection.find_one_and_update = AsyncMock(side_effect=counter_find_one_and_update)
+        mock_db.manufacturers.insert_one = AsyncMock(side_effect=manuf_insert)
+        mock_db.manufacturers.find_one = AsyncMock(side_effect=manuf_find_one)
+        mock_db.assets.insert_one = AsyncMock(side_effect=asset_insert)
+        mock_db.counters.find_one_and_update = AsyncMock(side_effect=counter_find_one_and_update)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
@@ -243,7 +275,7 @@ class TestManualAssetCreate:
             assert data["id"].startswith("asset-")
             assert "assetTag" in data
             assert data["assetTag"].startswith("IT-")
-            assert len(data["assetTag"]) == 6 # tag format IT-0001
+            assert len(data["assetTag"]) == 7 # tag format IT-0001
             assert "status" not in data # Should not have agent-liveness status
 
     @pytest.mark.asyncio
@@ -251,8 +283,15 @@ class TestManualAssetCreate:
         """Manual asset must not write the 'status' key (agent-liveness)."""
         inserted = []
         mock_db.assets.insert_one = AsyncMock(side_effect=lambda doc: (inserted.append(doc), MagicMock(inserted_id="x"))[1])
-        _counter_seq = 0
-        mock_db.counters.find_one_and_update = AsyncMock(side_effect=lambda f, u, *args, **kwargs: (_counter_seq:=_counter_seq + 1, {"seq": _counter_seq, **f})[1])
+        # A lambda using `:=` on an outer-scope name creates a new local binding inside the
+        # lambda itself (UnboundLocalError on read-before-assign) — use a mutable container instead.
+        _counter_state = {"seq": 0}
+
+        async def _counter_find_one_and_update(f, u, *args, **kwargs):
+            _counter_state["seq"] += 1
+            return {"seq": _counter_state["seq"], **f}
+
+        mock_db.counters.find_one_and_update = AsyncMock(side_effect=_counter_find_one_and_update)
         mock_db.manufacturers.find_one = AsyncMock(return_value={"id": "mf-abc", "name": "Acme"})
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
@@ -316,8 +355,12 @@ class TestManualAssetCreate:
     @pytest.mark.asyncio
     async def test_catalog_and_asset_routes_require_permission(self, itam_app, patch_get_database_globally, monkeypatch):
         """Routes without manage:assets permission return 403."""
-        # Temporarily override verify_permission for this test to return False
-        monkeypatch.setattr("rbac_utils.verify_permission", AsyncMock(return_value=False))
+        # Temporarily override verify_permission for this test to return False (must patch
+        # each module's own imported name — see the itam_app fixture comment above).
+        import itam_catalog_endpoints
+        import itam_asset_endpoints
+        monkeypatch.setattr(itam_catalog_endpoints, "verify_permission", AsyncMock(return_value=False))
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
 
         current_user = make_token_data(role="user", tenant_id="tenant-a")
         patch_get_database_globally("tenant-a") # Set tenant for this test
