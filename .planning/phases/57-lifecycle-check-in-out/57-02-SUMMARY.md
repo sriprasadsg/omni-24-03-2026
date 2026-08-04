@@ -236,3 +236,7 @@ None — no external service configuration required. No new indexes or migration
 ---
 *Phase: 57-lifecycle-check-in-out*
 *Completed: 2026-08-04*
+
+## Self-Check: PASSED
+
+All 5 files created/modified by this plan (plus this SUMMARY.md) confirmed present on disk; all 5 commits (`dc4c74c`, `d76c97e`, `7be8d00`, `0f5995b`, `0326fa8`) confirmed present in `git log --all`.
