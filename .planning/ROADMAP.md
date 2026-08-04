@@ -847,14 +847,14 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (lifecycleStatus field + manual asset records)
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 **Wave 1**
 
 - [x] 57-01-PLAN.md — Tracer slice: check-out to a user end-to-end (new lifecycle router + append-only `assignment_history` service + registration), then location targets, refusal paths and the concurrency guarantee, plus Phase-57 indexes [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 57-02-PLAN.md — Check-in returns the asset to stock and clears its assignment; per-asset history read with its empty/tie/ordering edge semantics and structural immutability [Wave 2]
+- [x] 57-02-PLAN.md — Check-in returns the asset to stock and clears its assignment; per-asset history read with its empty/tie/ordering edge semantics and structural immutability [Wave 2]
 
 **Wave 3** *(blocked on Wave 2 completion)*
 

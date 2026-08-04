@@ -6,14 +6,14 @@ current_phase: 57
 current_phase_name: lifecycle-check-in-out
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-04T13:41:40.589Z"
+last_updated: "2026-08-04T14:00:36.863Z"
 last_activity: 2026-08-04
 last_activity_desc: Phase 57 execution started
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 17
 ---
 
@@ -340,6 +340,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 57-01: checkout guard folded into find_one_and_update filter (deployable-or-absent), never a preceding conditional read (PD-03/atomicity)
 - [Phase ?]: 57-01: repaired Phase-56 defect - removed erroneous await on synchronous cache_service.invalidate_cache in create_manual_asset
 - [Phase ?]: 57-01: split test_itam_lifecycle.py (609 lines) into itam_lifecycle_test_support.py + test_itam_lifecycle.py + test_itam_lifecycle_expansion.py to satisfy CLAUDE.md's 500-line limit
+- [Phase ?]: 57-02: check-in gated on lifecycleStatus==deployed exactly (no missing-key admission); clears 5 assignment fields, retains locationId (D-02)
+- [Phase ?]: 57-02: history route resolves asset first (tenant-isolation boundary) then delegates to list_history; empty history is 200+[], unknown/cross-tenant both 404
 
 ## Performance Metrics
 
@@ -432,11 +434,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 55 P05 | 6min | 2 tasks | 3 files |
 | Phase 56 P02 | 40min | 2 tasks | 4 files |
 | Phase 57 P01 | 19min | 3 tasks | 9 files |
+| Phase 57 P02 | 30min | 2 tasks | 5 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 57-01-PLAN.md (checkout tracer, ITAM-LIFE-02/04)
+- **Stopped at:** Completed 57-02-PLAN.md (check-in + history read); next: 57-03 physical audit
 - **Resume file:** None
 
 ## Configuration
@@ -462,7 +465,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-04T13:41:40.562Z
+**Last session:** 2026-08-04T14:00:36.834Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -480,7 +483,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 57 (lifecycle-check-in-out) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-08-04 — Phase 57 execution started
 
