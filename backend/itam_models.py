@@ -169,3 +169,12 @@ class CheckoutRequest(BaseModel):
     expectedReturnDate: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+
+# Lifecycle Check-In (Phase 57-02, ITAM-LIFE-03). Check-in takes no target — the
+# target of a check-in is always stock.
+class CheckinRequest(BaseModel):
+    """Request contract for POST /api/assets/{asset_id}/checkin."""
+    note: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
