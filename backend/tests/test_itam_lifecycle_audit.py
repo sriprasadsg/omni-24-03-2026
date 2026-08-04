@@ -308,6 +308,35 @@ class TestOverdueAuditReport:
         assert row["neverAudited"] is True
 
     @pytest.mark.asyncio
+    async def test_overdue_parses_real_create_manual_asset_timestamp(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """Regression for CR-01: create_manual_asset must produce a createdAt value
+        that _overdue_row can actually parse into a non-null daysOverdue. Round-trips
+        the exact timestamp expression itam_asset_endpoints.create_manual_asset uses
+        (rather than a hand-crafted well-formed string) through the report's date math."""
+        from datetime import datetime, timezone, timedelta
+
+        real_created_at = (
+            (datetime.now(timezone.utc) - timedelta(days=400)).isoformat(timespec="milliseconds")
+        )
+        never_audited_doc = {"id": "asset-4", "createdAt": real_created_at}
+        mock_db.assets.find.return_value.limit.return_value.to_list = AsyncMock(return_value=[never_audited_doc])
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/assets/reports/overdue-audit")
+
+        assert r.status_code == 200, r.text
+        row = r.json()["rows"][0]
+        assert row["ageBasis"] == "createdAt"
+        assert row["neverAudited"] is True
+        assert row["daysOverdue"] is not None
+        assert row["daysOverdue"] >= 30
+
+    @pytest.mark.asyncio
     async def test_overdue_includes_asset_with_no_dates_as_unknown_basis(self, mock_db, lifecycle_app, patch_get_database_globally):
         no_dates_doc = {"id": "asset-3", "name": "Agent-discovered box"}
         mock_db.assets.find.return_value.limit.return_value.to_list = AsyncMock(return_value=[no_dates_doc])

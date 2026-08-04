@@ -115,7 +115,7 @@ async def create_manual_asset(
                 detail=f"Asset with tag '{asset_tag}' already exists in this tenant."
             )
 
-    now = datetime.now(timezone.utc).isoformat(timespec='milliseconds') + 'Z'
+    now = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
     asset_id = f"asset-{uuid.uuid4().hex[:8]}"
 
     document = payload.model_dump(exclude_none=True, exclude={
