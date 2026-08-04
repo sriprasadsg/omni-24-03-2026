@@ -23,19 +23,21 @@ export function NativeSecurityConsole() {
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen text-white">
-      <div className="mb-6">
+      <header className="mb-6">
         <h1 className="text-2xl font-bold">Native Security Console</h1>
         <p className="text-gray-400 text-sm mt-1">
           Offline scan verdicts, local vulnerability findings, file-integrity drift, and the
           autonomous remediation queue — all agent-native, no external SIEM dependency.
         </p>
-      </div>
+      </header>
 
-      <div className="flex gap-1 mb-4 border-b border-gray-700">
+
+      <nav className="flex gap-1 mb-4 border-b border-gray-700" aria-label="Tabs">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
+            aria-current={tab === t.id ? 'page' : undefined}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t.id
                 ? 'border-cyan-500 text-white'
@@ -45,12 +47,14 @@ export function NativeSecurityConsole() {
             {t.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {tab === 'findings' && <FindingsTab />}
-      {tab === 'queue' && <RemediationQueueTab />}
-      {tab === 'playbooks' && <PlaybooksTab />}
-      {tab === 'audit' && <AuditTab />}
+      <main>
+        {tab === 'findings' && <FindingsTab />}
+        {tab === 'queue' && <RemediationQueueTab />}
+        {tab === 'playbooks' && <PlaybooksTab />}
+        {tab === 'audit' && <AuditTab />}
+      </main>
     </div>
   );
 }

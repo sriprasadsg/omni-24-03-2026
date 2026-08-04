@@ -2,12 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { fetchRemediationQueue, approveRemediation, denyRemediation } from '../../services/apiService';
 import { RemediationQueueItem } from '../../types';
 import { showToast } from '../../utils/toast';
+import Modal from '../ui/Modal';
 
 export function RemediationQueueTab() {
   const [items, setItems] = useState<RemediationQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [denyModalOpen, setDenyModalOpen] = useState(false);
+  const [currentDenyId, setCurrentDenyId] = useState<string | null>(null);
+  const [denyReason, setDenyReason] = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -37,17 +41,26 @@ export function RemediationQueueTab() {
     }
   }
 
-  async function handleDeny(id: string) {
-    const reason = window.prompt('Reason for denying this remediation (optional):') || '';
-    setBusyId(id);
+  function handleDeny(id: string) {
+    setCurrentDenyId(id);
+    setDenyReason('');
+    setDenyModalOpen(true);
+  }
+
+  async function confirmDeny() {
+    if (!currentDenyId) return;
+    setBusyId(currentDenyId);
     try {
-      await denyRemediation(id, reason);
+      await denyRemediation(currentDenyId, denyReason);
       showToast('Remediation denied.', 'success');
       await load();
     } catch (e: any) {
       showToast(e?.message || 'Failed to deny remediation', 'error');
     } finally {
       setBusyId(null);
+      setDenyModalOpen(false);
+      setCurrentDenyId(null);
+      setDenyReason('');
     }
   }
 
@@ -101,6 +114,26 @@ export function RemediationQueueTab() {
             </div>
           ))}
         </div>
+      )}
+
+      {denyModalOpen && (
+        <Modal
+          isOpen={denyModalOpen}
+          onClose={() => setDenyModalOpen(false)}
+          title="Confirm Deny"
+          confirmLabel="Deny Remediation"
+          onConfirm={confirmDeny}
+        >
+          <div className="mb-4">
+            <label className="block text-sm text-gray-400 mb-1">Reason (optional):</label>
+            <textarea
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white text-sm"
+              rows={3}
+              value={denyReason}
+              onChange={(e) => setDenyReason(e.target.value)}
+            />
+          </div>
+        </Modal>
       )}
     </div>
   );

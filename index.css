@@ -160,6 +160,23 @@
     100% { background-position: 200% 0; }
 }
 
+/* ── Micro-interaction transitions ────────────────────────────────────────── */
+.transition-focus {
+  transition: outline-color 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.transition-press {
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.transition-opacity {
+  transition: opacity 0.15s ease-in-out;
+}
+
 /* ── Fade / slide animations ───────────────────────────────────────────────── */
 .fade-in {
     animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -199,6 +216,7 @@
 .status-dot.warning { background: #f59e0b; }
 .status-dot.danger  { background: #ef4444; }
 
+@keyframes typingDot { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
 @keyframes statusPulse {
     0%, 100% { transform: scale(1); opacity: 0.6; }
     50%       { transform: scale(1.6); opacity: 0; }
@@ -272,6 +290,16 @@ input:-webkit-autofill:focus {
 .animation-delay-200  { animation-delay: 200ms; }
 .animation-delay-400  { animation-delay: 400ms; }
 .animation-delay-1000 { animation-delay: 1000ms; }
+
+/* ── Pulse animations ─────────────────────────────────────────────────────── */
+.animate-subtle-pulse {
+  animation: subtlePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes subtlePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
+}
 
 /* Accessibility: honour the user's reduced-motion preference app-wide.
    (ui-ux-pro-max pre-delivery checklist — respect prefers-reduced-motion.) */
