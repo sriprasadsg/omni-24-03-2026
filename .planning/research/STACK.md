@@ -1,120 +1,125 @@
 # Stack Research
 
-**Domain:** Agent geo fleet map + VPN/hosting-ASN detection + fleet observability (time-series) for an air-gapped-capable enterprise security/compliance platform
-**Researched:** 2026-07-29
-**Confidence:** MEDIUM-HIGH (package versions verified directly against the npm/PyPI registries = HIGH; feature/licensing claims cross-checked across official docs + community sources via web search = MEDIUM)
+**Domain:** ITAM (IT Asset Management) lifecycle features — Snipe-IT parity — added to an existing FastAPI + MongoDB + React security/compliance platform
+**Researched:** 2026-08-04
+**Confidence:** HIGH
 
-This file covers ONLY the new v3.3 additions. It assumes the existing FastAPI + MongoDB (Motor) + React/TS/Vite/Tailwind + `backend/geoip_service.py` (MaxMind GeoLite2-City) + `agent_metrics_history` capped-by-app-logic collection already in place — do not re-research or replace those. (Note: this file replaces the prior milestone's STACK.md, which covered an unrelated domain — Rust crate bumps + CSPM SDKs — and is now stale; that content is preserved in git history / the archived v3.2 milestone.)
+This file covers ONLY the new v4.0 ITAM additions. It assumes the existing FastAPI (Python 3.12) + MongoDB (Motor async driver) + React/TypeScript frontend + `TenantIsolatedCollection`/`set_tenant_id`/`reset_tenant_id` tenant-isolation pattern + `backend/asset_endpoints.py` CMDB already in place — do not re-research or replace those. (Note: this file replaces the prior milestone's STACK.md, which covered an unrelated domain — v3.3 agent geo fleet map + VPN/ASN detection — and is now stale; that content is preserved in git history / the archived v3.3 milestone.)
 
 ## Recommended Stack
 
 ### Core Technologies
 
+No new core technologies are needed. This milestone is additive endpoints/collections/UI on the existing stack. The only additions are **one new Python library** plus reuse of three libraries the project already has installed for an unrelated purpose (MFA QR codes, compliance PDF/Excel reports) — a strong signal this milestone needs zero new infrastructure.
+
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| `react-simple-maps` + `d3-geo` + `topojson-client` + `world-atlas` | 3.0.0 / 3.1.1 / 3.1.0 / 2.0.2 | Fleet geo map (world SVG map, agent markers by city/country) | Pure client-side SVG — no tile server, no tile files, no network calls at runtime *at all*. The world outline is a bundled TopoJSON (`world-atlas`'s `countries-110m.json`, ~100KB, public-domain Natural Earth data) that ships inside the Vite JS bundle. This is the simplest possible air-gapped story for a country/city-level fleet map with clustering and tenant/status filters — no infra to stand up, no basemap licensing questions, no glyph/sprite self-hosting. `react-simple-maps` itself hasn't shipped a release since 2023, but its two real rendering engines (`d3-geo`, `topojson-client`) are independently maintained and this is a widely-used, stable pattern for exactly this kind of "dots on a world map" dashboard widget. |
-| `supercluster` | 8.0.1 | Marker clustering for the fleet map | Renderer-agnostic geospatial clustering (KD-tree based) — works purely on `[lng, lat]` arrays, so it plugs into the SVG map above (or MapLibre, if you escalate to that later) without change. This is the standard clustering choice used by both Mapbox/MapLibre's own examples and Leaflet.markercluster's design lineage. |
-| MaxMind **GeoIP2 Anonymous IP** database (commercial) | current `.mmdb` release (subscription-based, no fixed version number — MaxMind ships rolling updates) | VPN / public-proxy / hosting-provider / Tor-exit flagging for agent public IPs | This is the correct, purpose-built product for "VPN/proxy/hosting-ASN flagging" — it returns explicit `is_anonymous_vpn`, `is_hosting_provider`, `is_public_proxy`, `is_residential_proxy`, and `is_tor_exit_node` booleans per IP. It is a downloadable `.mmdb` file read with the exact same `maxminddb` Python reader already vendored in `backend/geoip_service.py` — zero new runtime dependency, zero per-lookup network calls, same "supplied out-of-band, degrades gracefully when absent" pattern already established for GeoLite2-City. Requires a paid MaxMind subscription (the project already has a commercial MaxMind relationship for GeoLite2-City licensing, so this is an add-on to an existing vendor, not a new one). |
-| MongoDB **time-series collections** (native, MongoDB 5.0+; already running 8.0.26) | n/a (server feature, not a package) | Fleet observability — heartbeat/uptime timeline, health-history rollups for the new fleet-observability views | The backend already runs MongoDB 8.0.26, which fully supports time-series collections (`db.createCollection(..., timeseries={...})`), including 7.0+ downsampling. Time-series collections auto-bucket by `metaField` (e.g. `agent_id`) and `timeField`, giving 50–90% storage reduction and materially faster range/aggregation queries than a plain collection — the right structure for a new per-agent uptime/health timeline feature. **Do not migrate `agent_metrics_history`** (it already has a working TTL index + app-level 100-per-agent cap from `002_scale_indexes.py` / `agent_heartbeat_endpoints.py` — leave it as-is per the "don't rebuild" instruction). Use a time-series collection only for genuinely new v3.3 time-series data (e.g. a rolled-up hourly/daily uptime-percentage series, if the raw heartbeat cap isn't enough resolution for long-range charts). |
-| `recharts` | ^3.5.1 already installed (latest is 3.10.1) | Health/uptime charting on the fleet observability dashboard | Already the project's charting library elsewhere — no new dependency. `AreaChart`/`LineChart` with a time-domain `XAxis` is the standard recharts pattern for uptime/CPU/mem sparklines and history views; reuse the existing chart component conventions rather than introducing a second charting library. |
+| FastAPI + Motor + MongoDB | (existing, unchanged) | New ITAM collections/endpoints | Already the project's async data layer; every new ITAM collection (`asset_assignments`, `licenses`, `license_seats`, `consumables`, `accessories`, `components`, `manufacturers`, `asset_models`, `suppliers`, `locations`, `custom_fields`) is just a new Mongo collection behind the same `TenantIsolatedCollection` pattern — no new datastore justified for this scope |
+| React/TypeScript (existing) | unchanged | ITAM UI (new AppView pages) | Follows the Phase 47/48 admin-gated nav pattern already established for the native security console: new `AppView` entries + `App.tsx` routes + `Sidebar` entries + permission gate |
 
 ### Supporting Libraries
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `X4BNet/lists_vpn` (data, not npm) | rolling (GitHub Actions auto-rebuild) | Free/open-source VPN & datacenter IP-range fallback | If there's no budget for the paid GeoIP2 Anonymous IP database, pull `output/vpn/ipv4.txt` / `output/datacenter/ipv4.txt` periodically (out-of-band, same as the GeoLite2 supply model) and load into an in-memory CIDR trie (`python-radix` or a hand-rolled sorted-interval lookup) for O(log n) IP→flag lookups. Weaker signal than MaxMind (no residential-proxy/Tor granularity) but zero cost and fully offline-compatible. |
-| MaxMind **GeoLite2-ASN** (free) | rolling (free tier, license key + attribution required under GeoLite2 EULA) | Cheap ASN-name heuristic as a second fallback tier, or to enrich agent records with AS-org display name regardless of VPN detection | Returns ASN + AS-organization name only — it does **not** itself flag VPN/hosting status. Useful for a lightweight heuristic (substring-match AS-org name against a maintained list of cloud/hosting/VPN brand names) if you want a third, zero-cost tier below GeoIP2 Anonymous IP and X4BNet, or just to show "AWS / DigitalOcean / Hetzner" next to an agent's IP in the UI. |
-| `maplibre-gl` + `pmtiles` + `tileserver-gl` (self-hosted) | 6.0.0 / 4.4.1 / current | Escalation path ONLY if product later wants true interactive pan/zoom/street-level basemap | MapLibre GL JS v6 is the actively-maintained open-source fork of Mapbox GL JS, ships as ES modules, and has zero forced network calls as long as you self-host the style JSON, sprite sheet, glyph PBFs, and a `.pmtiles` vector basemap (PMTiles supports single-file HTTP range-request serving — no separate tile database/server process required, just a static file on the existing app server). A full-planet vector tileset is ~80GB, but a basemap simplified to low zoom levels only (country/region borders, no street detail) is a few MB and is all a fleet-map widget needs. Reach for this only if the SVG approach above proves visually insufficient (e.g. product wants smooth zoom/pan into dense city clusters) — it's meaningfully more integration work (style/sprite/glyph self-hosting + a custom basemap build step) than `react-simple-maps`. |
-| `react-map-gl` | 8.1.1 | React wrapper for MapLibre, only needed if escalating to MapLibre | Thin declarative React bindings over `maplibre-gl`; pairs with `supercluster` for clustering exactly as it would with the SVG approach. |
+| `python-barcode` | **0.16.1** (confirmed live via PyPI JSON API `pypi.org/pypi/python-barcode/json`; `requires_python >=3.9`) — **the one genuinely new dependency this milestone needs** | Linear/1D barcode generation: Code128 (recommended default), Code39, EAN-13, EAN-8, UPC-A | Asset-tag labels that need a 1D barcode (many printed asset-tag labels and handheld scanners still expect Code128/Code39, not QR). Pure-Python for SVG output — zero extra deps; PNG raster output uses Pillow, which is **already installed** (`Pillow>=12.2.0` pinned, `12.3.0` in the venv) |
+| `qrcode[pil]` | **already installed** — pinned `>=7.4.2` in `backend/requirements.txt`, venv currently has **8.2** | QR-code generation for asset tags/labels | **No new dependency.** Already used in `backend/mfa_service.py` for MFA-enrollment QR codes (`qrcode.QRCode(version=1, box_size=10, border=4)` → `.make_image()`). Reuse the identical call pattern for asset-tag QR payloads (e.g. a deep-link URL to the asset detail page, or a bare `{tenant_id}:{asset_tag}` string for fully air-gapped tenants with no reachable hostname) |
+| `reportlab` | **already installed** — pinned `>=4.0.0`, venv currently has **5.0.0** | PDF label-sheet generation (multi-up asset-tag label sheets, e.g. Avery-style grids) | **No new dependency.** Already used for compliance PDF reports (`backend/compliance_reporting_pdf.py`, using `reportlab.platypus.SimpleDocTemplate`/`Table`/`TableStyle`). Reuse that exact flowable pattern: place a QR/barcode PNG as an `Image` flowable next to a `Paragraph` of the plain-text asset tag, inside a `Table` grid, laid out across pages |
+| `Pillow` | **already installed** — pinned `>=12.2.0`, venv currently has **12.3.0** | Underlying raster support for both `qrcode[pil]` and `python-barcode`'s PNG writer | No action needed; `python-barcode` reuses the existing pin, no version bump required |
+| `openpyxl` | **already installed** — pinned `>=3.1.0`, venv currently has **3.1.5** | Excel export of ITAM data (e.g. asset/license/consumable inventory exports) | Reuse for any ITAM-side "export to Excel" need, following `backend/compliance_reporting_excel.py`'s existing pattern — no new dependency |
+| `python-dateutil` | verify presence (very likely already transitive via `pandas`); if absent, add `>=2.9.0` | Warranty-expiry date math, calendar-month depreciation-schedule stepping (`dateutil.relativedelta`) | Warranty-expiry alerts and month-based depreciation schedules need calendar-month arithmetic, not fixed 30-day deltas. `pandas>=2.1.0` (already pinned) depends on `python-dateutil` transitively, but relying on a transitive dependency for a module you `import` directly is fragile — add an explicit line to `requirements.txt` once `pip show python-dateutil` confirms it's present |
+| *(none — hand-roll)* | n/a | Straight-line depreciation calculation | **Do not add a depreciation/accounting library.** Straight-line depreciation is `current_value = cost - (cost - salvage_floor) * (months_elapsed / months_total)`, clamped at the floor — roughly 10 lines of arithmetic. This is the exact formula Snipe-IT itself hand-rolls in `App\Models\Depreciable` (verified via Snipe-IT's own docs/issue tracker). A library would be over-engineering here, and PROJECT.md explicitly scopes this milestone to "straight-line at minimum" with "deep accounting/GL integration" and "multi-currency finance" out of scope |
 
 ### Development Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| MaxMind account / license key (already provisioned) | Download GeoIP2 Anonymous IP `.mmdb` alongside the existing GeoLite2-City `.mmdb` | Same out-of-band supply mechanism already documented in `backend/geoip_service.py` — drop at a sibling path (e.g. `backend/data/geoip/GeoIP2-Anonymous-IP.mmdb`) and add a second lazy reader following the exact pattern already used (`_get_reader`, graceful `None` on absence). |
-| `mongosh` / migration script | One-time `db.createCollection(<name>, {timeseries: {timeField: "ts", metaField: "agent_id", granularity: "minutes"}})` for any new v3.3 time-series collection | Time-series collections must be created with the `timeseries` option at creation time — they cannot be converted from an existing regular collection in place. Add as a new numbered migration (following the `002_scale_indexes.py` convention), do not touch `agent_metrics_history`. |
+| `pip show <pkg>` in `backend/venv` | Version verification during this research pass | Confirmed installed versions ahead of `requirements.txt` floor pins: reportlab 5.0.0, qrcode 8.2, Pillow 12.3.0, openpyxl 3.1.5, pandas 2.3.3 |
+| PyPI JSON API (`pypi.org/pypi/<pkg>/json`) | Authoritative version + `requires_python` lookup for the one new dependency | Used directly (not via search snippet) to confirm `python-barcode` is 0.16.1, avoiding stale-cache search-result versions |
 
 ## Installation
 
 ```bash
-# Core — fleet geo map (frontend)
-npm install react-simple-maps d3-geo topojson-client world-atlas supercluster
-npm install -D @types/react-simple-maps @types/d3-geo @types/topojson-client @types/supercluster
+# Only ONE new package needed — everything else is already installed
+cd backend
+pip install python-barcode==0.16.1
 
-# recharts already installed (^3.5.1) — no action needed unless bumping to 3.10.1
+# Add to backend/requirements.txt, next to the existing qrcode/Pillow/reportlab block:
+#   python-barcode>=0.16.0    # Code128/Code39 barcode generation for ITAM asset-tag labels
+
+# Verify python-dateutil is present (likely already transitive via pandas — confirm, don't assume):
+pip show python-dateutil || pip install "python-dateutil>=2.9.0"
 ```
 
-```bash
-# Backend — no new pip packages required.
-# maxminddb>=2.5.0 (already in requirements.txt) reads GeoIP2 Anonymous IP .mmdb
-# identically to how it reads GeoLite2-City.mmdb — same reader, different file.
-```
-
-If escalating to MapLibre later:
-
-```bash
-npm install maplibre-gl react-map-gl pmtiles supercluster
-# plus a one-time offline build step to generate/trim a low-zoom .pmtiles basemap
-# and self-host style.json + sprite + glyph assets under the existing static server.
-```
+No frontend package additions are required. QR/barcode images are generated server-side (PNG/SVG, or embedded directly into a server-rendered label-sheet PDF) and served as static image responses, base64 payloads, or PDF downloads — the React side renders an `<img>` or triggers a download, exactly like the existing compliance-report PDF/Excel flow.
 
 ## Alternatives Considered
 
 | Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| `react-simple-maps` (pure SVG, bundled TopoJSON) | `maplibre-gl` + self-hosted PMTiles/tileserver-gl | Use MapLibre when the fleet map needs to support real interactive pan/zoom into dense clusters at street/neighborhood level, or the roadmap anticipates tens of thousands of agents needing a proper slippy-map UX. It's fully air-gapped-viable too, just more integration work (self-hosted style/sprite/glyphs + a custom trimmed basemap build). |
-| `react-simple-maps` | `react-leaflet` + self-hosted raster tiles or Leaflet.VectorGrid | Leaflet is mature and MIT-licensed, but its offline vector-tile story (VectorGrid plugin) is less actively maintained than MapLibre's native vector pipeline, and its raster-tile path means pre-rendering and shipping actual map images. Only reach for Leaflet if the team has existing Leaflet expertise/investment elsewhere in the codebase (it does not currently). |
-| MaxMind GeoIP2 Anonymous IP (paid) | GeoLite2-ASN (free) + `X4BNet/lists_vpn` heuristic | Use the free tier if there's no budget for a second MaxMind commercial database. Accept weaker signal (no residential-proxy/Tor granularity, ASN-name substring matching is fuzzier than MaxMind's own classification) in exchange for $0 cost. |
-| MongoDB native time-series collection (new collection, new data only) | Keep everything in `agent_metrics_history` as-is | Correct choice **for the existing collection** — it already has a working TTL + app-cap pattern; don't touch it. Only introduce a time-series collection for genuinely new v3.3 telemetry (e.g. rolled-up uptime-percentage series) where the existing 100-snapshot-per-agent cap doesn't give enough history depth for the requested charts. |
+|-------------|-------------|--------------------------|
+| `python-barcode` (pure-Python) | `treepoem` (wraps Ghostscript/BWIPP) | Only if the project needed exotic symbologies (GS1-128, PDF417, Data Matrix) beyond Code128/Code39/EAN/UPC. Rejected: pulls in a Ghostscript **system binary** dependency, which is a heavier air-gapped packaging burden than a pure-Python library, for zero benefit at this milestone's scope |
+| `qrcode[pil]` (already installed) | `segno` | `segno` is a more actively maintained, zero-dependency QR library with broader QR variants (Micro QR, structured append). Not worth the churn: the project already has a proven, working QR call-site (`mfa_service.py`); a second QR library for the same "encode a short string, render a PNG" job adds inconsistency for no functional gain |
+| `reportlab` (already installed) for label PDFs | `weasyprint` (HTML/CSS-to-PDF) | Only if label layout needed complex CSS-driven design. Rejected: `weasyprint` requires system-level Cairo/Pango libraries — heavier air-gapped install footprint than pure-Python reportlab, and the project has an established, working reportlab pattern with zero existing weasyprint usage |
+| Hand-rolled straight-line depreciation | A dedicated `depreciation`/accounting PyPI package | Only if the milestone scope included declining-balance, MACRS, or multi-schedule depreciation. PROJECT.md explicitly excludes "deep accounting/GL integration beyond basic depreciation" — a library would be premature for a formula this small |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| Any tile provider requiring a live internet connection at runtime (Mapbox-hosted tiles, Google Maps JS API, OpenStreetMap public tile servers, `{s}.tile.openstreetmap.org`) | Breaks air-gapped deployments outright — the milestone explicitly calls this out as a hard requirement | `react-simple-maps` with a bundled TopoJSON (primary), or MapLibre + self-hosted PMTiles (escalation path) |
-| Third-party VPN/IP-intel **web APIs** (IPQualityScore, ipinfo.io privacy API, IP2Proxy web service, AbuseIPDB) called per-lookup | All require live outbound HTTPS calls per IP lookup — same air-gapped violation as hosted map tiles | MaxMind GeoIP2 Anonymous IP `.mmdb` (downloaded once, read locally) or the free `X4BNet/lists_vpn` snapshot pulled out-of-band |
-| Converting `agent_metrics_history` into a time-series collection in place | MongoDB cannot convert an existing regular collection into a time-series collection without a full rebuild/migration+backfill; the milestone explicitly says reuse, don't rebuild, existing heartbeat/ETW telemetry | Leave `agent_metrics_history` untouched; add a new time-series collection only for new v3.3 rollup data if/when the existing cap proves insufficient |
-| MaxMind GeoLite2-ASN alone as a "VPN detector" | It returns ASN/AS-org name only — no VPN/hosting/proxy boolean fields exist in that database; treating raw ASN name matching as authoritative VPN detection will both over- and under-flag | GeoIP2 Anonymous IP (paid, purpose-built) or GeoLite2-ASN + a maintained hosting/VPN ASN-name list, clearly labeled as a heuristic, not a hard flag |
+|-------|-----|--------------|
+| Any cloud/SaaS QR or barcode generation API (e.g. goqr.me, QuickChart) | Violates the platform's offline-first/air-gapped constraint — asset-tag generation must work with zero network calls, including in fully air-gapped deployments | `qrcode[pil]` (already installed) + `python-barcode` (new, pure-Python) — both generate images entirely in-process, no network required |
+| A message queue/broker (Celery, RabbitMQ, Redis Streams) for check-in/out or bulk label generation | Nothing in this milestone's scope needs async job processing. Check-in/out is a synchronous state transition on a Mongo document; even a batch label-sheet PDF for a few hundred assets is a sub-second synchronous reportlab call. The existing sync request/response FastAPI pattern (as used for compliance PDF/Excel export) is sufficient | Keep it synchronous: `POST /api/itam/assets/{id}/checkout` returns immediately; `POST /api/itam/labels/generate` streams the PDF directly in the response, matching `compliance_reporting_pdf.py`'s existing pattern |
+| A separate/forked "ITAM asset" collection or model | PROJECT.md explicitly says reuse `assets`/`asset_endpoints.py`, don't fork it | Extend the existing `assets` collection with new optional fields (`asset_tag`, `status_label`, `assigned_to`, `purchase_cost`, `warranty_expires`, `depreciation`, etc.) plus a `source: "manual"` vs `source: "agent"` discriminator, so agent-auto-discovered and hand-catalogued assets share one collection and one detail view |
+| A new ORM/schema library (SQLAlchemy, Beanie, ODMantic) | The codebase uses raw Motor + Pydantic request/response models throughout `asset_endpoints.py`; introducing an ODM for just the ITAM slice creates two data-access patterns in one family of files | Follow the existing pattern exactly: Pydantic `BaseModel` for request/response validation, raw `db["collection_name"]` Motor calls for persistence |
+| `barcode` (unqualified PyPI package name — a different, stale/unrelated package) | Name-collision risk in `requirements.txt` | Always pin `python-barcode` explicitly as the **PyPI package name** (the `import barcode` statement at call sites is correct and expected — only the requirements-file package name differs) |
 
 ## Stack Patterns by Variant
 
-**If the fleet map only needs country/city-level dots with clustering and filters (matches the stated v3.3 scope):**
-- Use `react-simple-maps` + `d3-geo` + `topojson-client` + bundled `world-atlas` TopoJSON + `supercluster`
-- Because it is zero-infrastructure, zero-network-call, and matches the existing lightweight frontend stack (no new backend endpoints beyond what already returns `geo` on agent/asset docs)
+**If asset tags need both a human-readable code and a machine-scannable code on one label (the default assumption for Snipe-IT parity):**
+- Render the QR/barcode image via `qrcode[pil]`/`python-barcode`, place it as a reportlab `Image` flowable next to a `Paragraph` showing the plain-text asset tag, inside a `Table` grid (e.g. 3x8 cells per page for standard label sheets) — the same flowable/`Table` machinery already used for compliance PDF report tables
 
-**If a future milestone wants true street-level interactive zoom/pan (not currently in scope):**
-- Escalate to `maplibre-gl` + `react-map-gl` + self-hosted PMTiles basemap + self-hosted style/sprite/glyphs
-- Because MapLibre is the only one of the three options that supports smooth GPU-accelerated pan/zoom into real basemap detail while still being fully self-hostable
+**If a label needs to deep-link into the app when scanned with a generic phone camera (not a dedicated barcode scanner):**
+- Encode a URL in the QR payload (e.g. `https://<tenant-host>/itam/assets/{asset_tag}`) instead of a bare asset tag
+- Fall back to bare-tag encoding for fully air-gapped deployments with no externally reachable hostname — make this configurable per tenant rather than hardcoded
 
-**If budget allows a second MaxMind commercial database:**
-- Use GeoIP2 Anonymous IP for VPN/proxy/hosting flags
-- Because it is purpose-built, offline, and reuses the exact reader/pattern already in `backend/geoip_service.py`
-
-**If there is no budget for a second commercial MaxMind database:**
-- Use free GeoLite2-ASN + `X4BNet/lists_vpn` snapshot, clearly labeled in the UI as a heuristic/best-effort flag (not a hard VPN determination)
-- Because it costs nothing and still works fully offline once the list is pulled out-of-band
+**If check-out/check-in volume is low (typical for ITAM — dozens to low-hundreds of transactions/day, not high-frequency event streams):**
+- A small `asset_assignments` collection (`asset_id`/`assigned_to`/`checked_out_at`/`checked_in_at`/`checked_out_by`) or an `assignment_history` sub-array on the asset document is sufficient — no event-sourcing or CQRS needed
+- This mirrors the existing `status_history` pattern already used for compliance-status overrides (Phase 6 decision: immutable `status_history` with `changedBy`/`changedAt`/`previous_status`)
 
 ## Version Compatibility
 
 | Package A | Compatible With | Notes |
-|-----------|-----------------|-------|
-| `react-simple-maps@3.0.0` | React 19.2.0 (project's current React version) | No official React 19 support declared by the upstream package (last published 2023); works in practice via d3-geo/topojson-client with no React-version-specific code, but if peer-dependency warnings during install are a blocker, use the community fork `react19-simple-maps` (or `@vnedyalk0v/react19-simple-maps`) instead — same API. |
-| `maxminddb>=2.5.0` (already pinned) | GeoIP2 Anonymous IP `.mmdb` format | Same reader works for GeoLite2-City, GeoLite2-ASN, and GeoIP2 Anonymous IP — MaxMind DB format is generic; no new Python dependency needed to add the second database. |
-| MongoDB time-series collections | MongoDB >= 5.0 (server running 8.0.26) | Time-series collections cannot be capped and cannot be converted in-place from a regular collection — must be created fresh via `createCollection(..., timeseries={...})` at migration time. |
-| `supercluster@8.0.1` | Any map renderer (SVG, MapLibre, Leaflet) | Pure geospatial/JS, no map-library dependency — safe to adopt now with `react-simple-maps` and reuse unchanged if the map layer is swapped later. |
+|-----------|------------------|-------|
+| `python-barcode==0.16.1` | `Pillow>=12.2.0` (already pinned), Python `>=3.9` | Project runs Python 3.12 — well within range. The SVG output path has zero image-library dependency; the PNG output path imports Pillow lazily |
+| `qrcode[pil]>=7.4.2` (venv has 8.2) | `Pillow>=12.2.0` | Already validated in production via `mfa_service.py` — no compatibility risk adding a second call-site for a different payload |
+| `reportlab>=4.0.0` (venv has 5.0.0) | Python 3.12, Pillow (for embedding raster images as flowables) | Already validated via `compliance_reporting_pdf.py`; embedding a `qrcode`/`python-barcode` PNG as a reportlab `Image` flowable is a standard, documented reportlab pattern |
+| `python-dateutil>=2.9.0` (verify presence) | `pandas>=2.1.0,<3.0.0` (already pinned; pandas depends on `python-dateutil` transitively) | Very likely already present transitively — confirm with `pip show python-dateutil` before assuming, and add an explicit `requirements.txt` line once confirmed present, since a directly-`import`ed module should not rely on an unpinned transitive dependency |
+
+## Integration Points with Existing `asset_endpoints.py` / Tenant Isolation
+
+- **Tenant isolation is non-negotiable and project-wide, not per-feature.** Every new ITAM collection (`asset_assignments`, `licenses`, `license_seats`, `consumables`, `accessories`, `components`, `manufacturers`, `asset_models`, `suppliers`, `locations`, `custom_fields`) MUST go through the same `TenantIsolatedCollection` wrapper (`backend/database.py`) and the `set_tenant_id`/`reset_tenant_id` context pattern (`backend/tenant_context.py`). Every query in `asset_endpoints.py` already follows an `is_super_admin(current_user.role)` branch + `tenantId` filter pattern (see every `find_one`/`find`/`update_one`/`delete_one`/`delete_many` call in that file, plus the defense-in-depth `tenantId` filter on the delete/update paths) — new ITAM routers must replicate this exactly, not introduce a shortcut.
+- **Extend the `assets` collection, don't fork it.** Add ITAM fields (`asset_tag`, `status_label`, `assigned_to`, `assigned_location`, `purchase_cost`, `po_number`, `supplier_id`, `warranty_expires`, `depreciation`, `manufacturer_id`, `model_id`, `category_id`, `custom_fields`) as optional keys on the existing document shape rather than a parallel `itam_assets` collection — this directly satisfies PROJECT.md's constraint. A `source` field (`"agent"` | `"manual"`) discriminates auto-discovered vs. hand-catalogued rows so `AssetManagementDashboard`/`AssetIntelligenceDashboard` can filter/badge without a schema fork, and so the manual-catalog creation path (required since ITAM assets are hand-entered, unlike the agent-auto-discovered inventory) writes into the same collection the security/observability CMDB already reads.
+- **New router files, not one bloated `asset_endpoints.py`.** `asset_endpoints.py` is already ~500 lines — at the CLAUDE.md ceiling. New ITAM capability belongs in **new sibling router files**, each kept under 500 lines and mounted alongside the existing router in the FastAPI app, following the identical `APIRouter(prefix="/api/...", tags=[...])` + `Depends(get_database)` + `Depends(get_current_user)` construction already used:
+  - `backend/asset_lifecycle_endpoints.py` — check-out/check-in, status-label transitions, assignment history (Cluster A)
+  - `backend/asset_procurement_endpoints.py` — purchase cost/PO/supplier, warranty, depreciation schedule (Cluster B)
+  - `backend/asset_catalog_endpoints.py` — manufacturers, models, categories, suppliers, locations, custom fields (Cluster C)
+  - `backend/asset_labels_endpoints.py` — QR/barcode generation + label-sheet PDF export (part of Cluster C, split out because it's the one file that needs the `qrcode`/`python-barcode`/`reportlab` imports — keeps that dependency surface contained to a single ~200-line file rather than spreading image-generation code across catalog endpoints)
+  - `backend/asset_licenses_endpoints.py` — license seats + accessories/consumables/components checkout with quantity tracking (Cluster D)
+- **Cache invalidation.** `GET /api/assets` is `@cached(ttl=60, key_prefix="assets")`. Any lifecycle/assignment mutation (check-out, check-in, status change) must call `invalidate_cache("assets:*")` afterward — same as the existing `delete_asset`/`bulk_update_assets`/`set_asset_criticality` endpoints already do — otherwise a checked-out asset can show stale assignment state for up to 60 seconds.
+- **Frontend nav.** New ITAM pages follow the Phase 47/48 admin-gated nav pattern PROJECT.md names explicitly: new `AppView` entries + `App.tsx` routes + `Sidebar` entries + permission gate, mirroring how `NativeSecurityConsole` was wired for the v3.4 native security console.
 
 ## Sources
 
-- npm registry (`npm view <pkg> version`, direct query 2026-07-29) — confirmed current versions: `maplibre-gl@6.0.0`, `react-simple-maps@3.0.0`, `d3-geo@3.1.1`, `topojson-client@3.1.0`, `world-atlas@2.0.2`, `supercluster@8.0.1`, `pmtiles@4.4.1`, `react-map-gl@8.1.1`, `leaflet@1.9.4`, `react-leaflet@5.0.0`, `recharts@3.10.1` — HIGH confidence (primary registry source)
-- PyPI (`pip index versions` / registry JSON, direct query 2026-07-29) — `maxminddb@3.1.1` (project pins `>=2.5.0`), `geoip2@5.3.0` (official MaxMind Python wrapper, optional) — HIGH confidence
-- dev.maxmind.com/geoip/docs/databases/anonymous-ip/ and maxmind.com/en/geoip-anonymous-ip-database — GeoIP2 Anonymous IP field list (`is_anonymous_vpn`, `is_hosting_provider`, `is_public_proxy`, `is_residential_proxy`, `is_tor_exit_node`) — MEDIUM confidence (official vendor docs surfaced via web search, not fetched raw)
-- maxmind.com/en/geolite/eula and dev.maxmind.com/geoip/geolite2-free-geolocation-data — GeoLite2-ASN free tier, license-key + attribution requirement — MEDIUM confidence
-- github.com/X4BNet/lists_vpn — free VPN/datacenter IP list, GitHub-Actions auto-rebuilt — MEDIUM confidence
-- mongodb.com/docs/manual/core/timeseries-collections/ and mongodb.com/docs/v8.2/core/timeseries-collections/ — time-series vs capped collection guidance, compression/query benefits — MEDIUM confidence
-- maplibre.org/maplibre-gl-js/docs/, github.com/maplibre/maplibre-gl-js, github.com/maplibre/demotiles, keimaps.com self-hosted-basemap articles — self-hosted/offline MapLibre + PMTiles pattern — MEDIUM confidence
-- npmjs.com/package/react-simple-maps, react-simple-maps.io, github.com/zcreativelabs/react-simple-maps — SVG/TopoJSON approach, staleness of upstream release, React-19 fork existence — MEDIUM confidence
-- Codebase inspection (`backend/geoip_service.py`, `backend/agent_heartbeat_endpoints.py`, `backend/migrations/002_scale_indexes.py`, `backend/database.py`, `package.json`, live `mongod --version` = 8.0.26) — HIGH confidence (direct source read)
+- `backend/requirements.txt` (repo, read directly) — confirmed existing pins: `qrcode[pil]>=7.4.2`, `Pillow>=12.2.0`, `pandas>=2.1.0,<3.0.0`, `reportlab>=4.0.0`, `openpyxl>=3.1.0`, `jinja2>=3.1.0` — HIGH confidence (primary source, the actual repo)
+- `backend/venv` `pip show` (executed directly, 2026-08-04) — confirmed installed versions: reportlab 5.0.0, qrcode 8.2, Pillow 12.3.0, openpyxl 3.1.5, pandas 2.3.3 — HIGH confidence (primary source, live environment)
+- `backend/mfa_service.py` (repo, read directly) — confirmed existing QR-generation call-site to reuse as the pattern for asset-tag QR generation — HIGH confidence
+- `backend/compliance_reporting_pdf.py` (repo, read directly) — confirmed existing reportlab usage pattern (`platypus.SimpleDocTemplate`, `Table`, `TableStyle`) to reuse for label-sheet PDF generation — HIGH confidence
+- `backend/asset_endpoints.py` (repo, read directly, 501 lines) — confirmed the tenant-isolation query pattern (`is_super_admin` branch + `tenantId` filter) every new ITAM endpoint must replicate, and that the file is already at the CLAUDE.md 500-line ceiling, motivating new sibling router files — HIGH confidence
+- PyPI JSON API (`https://pypi.org/pypi/python-barcode/json`, queried directly, 2026-08-04) — confirmed `python-barcode` latest version 0.16.1, `requires_python >=3.9` — HIGH confidence (primary source, live API)
+- [python-barcode · PyPI](https://pypi.org/project/python-barcode/) — package overview, pure-Python + optional Pillow — MEDIUM confidence (web search corroboration of the PyPI API result)
+- [Supported Formats — python-barcode docs](https://python-barcode.readthedocs.io/en/stable/supported-formats.html) — confirms Code128/Code39/EAN-13/EAN-8/UPC-A support — MEDIUM confidence
+- [qrcode · PyPI](https://pypi.org/project/qrcode/) — confirms `qrcode` is actively maintained, Production/Stable, Python 3.9–3.13 — MEDIUM confidence
+- [Depreciation Types — Snipe-IT Documentation](https://snipe-it.readme.io/docs/depreciation-types) — confirms the straight-line depreciation reference formula: `current_value = cost - (cost - floor) * (months_passed / months_total)` — MEDIUM confidence (vendor docs for the product this milestone targets parity with)
+- [Depreciation Calculations · Issue #11822 · grokability/snipe-it](https://github.com/grokability/snipe-it/issues/11822) — corroborates that Snipe-IT's own depreciation math is hand-rolled, not library-driven — MEDIUM confidence
 
 ---
-*Stack research for: Agent Geo & Fleet Observability (v3.3)*
-*Researched: 2026-07-29*
+*Stack research for: ITAM (Snipe-IT-parity) lifecycle features on existing FastAPI+MongoDB+React platform (v4.0)*
+*Researched: 2026-08-04*

@@ -1,133 +1,165 @@
 # Project Research Summary
 
-**Project:** Enterprise OmniAgent — Security & Compliance Portal
-**Domain:** Multi-tenant agent geolocation + fleet observability (v3.3)
-**Researched:** 2026-07-29
-**Confidence:** HIGH (codebase-integration claims verified against source; MEDIUM on external ecosystem/library choices)
+**Project:** Enterprise OmniAgent — v4.0 ITAM (IT Asset Management) Lifecycle Milestone
+**Domain:** IT Asset Management (Snipe-IT parity), added as new lifecycle capability onto an existing multi-tenant FastAPI + MongoDB + React security/compliance CMDB
+**Researched:** 2026-08-04
+**Confidence:** HIGH
 
 ## Executive Summary
 
-v3.3 turns the `publicIp` + `geo` data v3.2 landed on agent/asset docs into four surfaces: a fleet geo map, location-based security detectors, fleet observability, and a location-history audit trail. Research against the live codebase shows the milestone is **less greenfield than the brief implies** — two "target features" (offline-agent alerting, agent version tracking) already exist in `app_background_tasks.py::monitor_agent_status()` and `AgentList.tsx`, and `agent_metrics_history` already has a working `GET /agents/{id}/metrics/history` endpoint with **zero frontend consumption**. Those should be scoped as "add the missing UI," not "build."
+This milestone bolts a full ITAM lifecycle — manual asset cataloging, check-out/check-in, procurement/warranty/depreciation, software licenses, and consumables/accessories/components — onto an existing agent-centric security CMDB (`assets` collection, `asset_endpoints.py`). Experts building ITAM tools (Snipe-IT, GLPI, Freshservice) converge on a common shape: normalized catalog entities (manufacturer/model/category/supplier/location) referenced by ID, a status-typed lifecycle gating checkout, an append-only checkout ledger with a denormalized "current assignment" for fast reads, and model-level depreciation policy. All four research passes independently converge on the same central architectural decision: **extend the existing `assets` collection with a `source`/`assetSource` discriminator and additive optional fields — do not fork a parallel `itam_assets` collection.** This is corroborated by direct code reads (every cross-cutting feature — vuln findings, remediation playbooks, criticality gating, compliance evidence, global search — already assumes one `assets` collection is the CMDB) and is explicitly named in PROJECT.md as the risk to avoid.
 
-The genuinely new work is: **VPN/proxy/hosting-ASN classification** (100% new — today's `geoip_service.py` only reads GeoLite2-City, no anonymizer data), **agent-scoped geo security detectors** (the existing SIEM "impossible-travel" is user-login-keyed in `ueba_service`/`itdr_service`, and insider-threat `vpn_geo_anomaly` is demo seed data — neither is a live agent detector), an **append-only `agent_location_history`** audit (cleanly clonable from `remediation_escalations`), and an **offline/air-gapped fleet map** (no map lib exists; `GeographicAttackMap.tsx` is a heatmap-bar mock).
+The recommended approach requires almost no new stack: one new pure-Python dependency (`python-barcode` for 1D barcodes), reusing three already-installed libraries (`qrcode[pil]`, `reportlab`, `openpyxl`) that already have proven call-sites in this codebase (MFA QR codes, compliance PDF/Excel export). New backend work is organized as five new sibling router files (catalog, checkout, licenses, consumables, labels) plus a `POST /api/assets` endpoint that doesn't currently exist, following the router_registry.py + TenantIsolatedCollection conventions already established. Frontend work mirrors the Phase 47/48 `NativeSecurityConsole` pattern (tabs behind a `manage:itam` permission gate).
 
-Two risks dominate: (1) the **tenant-isolation background-scheduler bug** this repo has already hit twice (`get_database()` fail-closes to zero results outside an HTTP request — v3.2's SLA sweep and the ticketing escalation loop both had to use raw `mongodb.db`); every new geo/observability sweep must use raw `mongodb.db` from day one. (2) **Privacy/legal** — an immutable, queryable location timeline of (often WFH-home) employee IPs is a materially different GDPR/works-council posture than the current transient `geo` field, and needs review *before* implementation.
+The key risks are all well-precedented failure modes this exact codebase has hit before: (1) background schedulers (warranty/depreciation sweeps) bypassing tenant isolation — must copy the raw-`db._db` + explicit per-tenant `set_tenant_id` pattern already proven in `compliance_remediation_sla_service.py`, not the naive `get_database()` approach; (2) forking the assets collection instead of extending it; (3) colliding the new ITAM lifecycle status with the existing agent-liveness `status` field (must be a distinctly named `lifecycleStatus`); (4) non-atomic sequential ID generation and checkout/quantity race conditions, both of which need atomic `find_one_and_update` filters, not read-then-write; and (5) QR/label generation accidentally depending on network access, breaking the platform's air-gapped deployment requirement. All five are addressable with patterns already present elsewhere in this codebase — this is a well-understood integration, not exploratory territory.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Offline-first throughout — deployments may be air-gapped, so **no runtime external network calls** (no tile servers, no live IP-intel APIs). All map/geo data bundles at build time or ships as a licensed `.mmdb` supplied out-of-band, mirroring the existing `geoip_service.py` model.
+No new core technologies are needed — this is additive collections/endpoints/UI on the existing FastAPI (Python 3.12) + Motor/MongoDB + React/TypeScript stack. The only genuinely new dependency is `python-barcode==0.16.1` for 1D barcode (Code128/Code39) generation; QR codes, PDF label sheets, and Excel export all reuse already-installed and already-proven libraries (`qrcode[pil]`, `reportlab`, `Pillow`, `openpyxl`) via the same call patterns used in `mfa_service.py` and `compliance_reporting_pdf.py`. Straight-line depreciation is hand-rolled arithmetic (~10 lines), matching Snipe-IT's own approach — no accounting/depreciation library is justified. No message queue is needed; checkout and label generation are synchronous, matching the existing sync request/response FastAPI pattern.
 
 **Core technologies:**
-- `react-simple-maps@3.0.0` + `d3-geo@3.1.1` + `topojson-client@3.1.0` + `world-atlas@2.0.2` — pure-SVG country/city fleet map, ~50–100 KB bundled TopoJSON, zero tile servers. Right-sized for marker-by-location; MapLibre GL + self-hosted PMTiles is a heavier escalation only if street-level pan/zoom is ever needed.
-- `supercluster@8.0.1` — marker clustering for dense fleets.
-- `recharts@^3.5.1` — **already installed**; sufficient for metrics-history/uptime charts. No new charting dep.
-- **MaxMind GeoIP2 Anonymous IP** `.mmdb` (commercial; fields `is_anonymous_vpn`/`is_hosting_provider`/`is_public_proxy`/`is_residential_proxy`/`is_tor_exit_node`) read with the **same `maxminddb` reader already in `geoip_service.py`**. Free fallback: GeoLite2-ASN (AS-org only, no VPN flag) + `X4BNet/lists_vpn` heuristic ranges. **Product decision required** (paid "detected" vs free "heuristic flag") — affects UI copy.
-- MongoDB native time-series collections are available (8.0.26) for any *new* rollup data; leave `agent_metrics_history` untouched.
+- FastAPI + Motor + MongoDB (existing, unchanged): every new ITAM collection is a Mongo collection behind the same `TenantIsolatedCollection` wrapper — no new datastore justified
+- `python-barcode` 0.16.1 (new): the one genuinely new dependency, pure-Python 1D barcode generation for asset-tag labels
+- `qrcode[pil]` / `reportlab` / `Pillow` / `openpyxl` (already installed): QR codes, PDF label sheets, Excel export — reuse proven call-sites, zero new dependencies
 
 ### Expected Features
 
-**Must have (table stakes):**
-- Fleet geo map with markers by city/country, clustering, tenant/status filter, drill-down to agent.
-- Agent metrics-history charts (backend already exists — pure frontend gap).
-- Per-agent location-history timeline + immutable audit trail.
-- Offline-agent alerting surfaced in UI (detection already exists — add aggregate view).
+Table-stakes ITAM functionality is well-defined by cross-referencing Snipe-IT, GLPI, and Freshservice. The current `assets` collection is confirmed (via direct code read) to be an agent-fingerprint record with no concept of manual assets, check-out/in, catalog entities, licenses, or custom fields — validating that this milestone is a genuine gap, not duplicative work.
 
-**Should have (competitive):**
-- Agent-scoped impossible-travel detection (haversine + time window, `agent_id`-keyed).
-- Per-tenant geo-fencing (allowed-region policy + violation alert).
-- VPN/proxy/hosting-ASN flagging on agent public IPs.
-- Uptime % / heartbeat timeline; agent version-drift surfacing.
+**Must have (table stakes / MVP):**
+- Manual (non-agent) asset creation — nothing else has anything to operate on without this
+- Manufacturer/Model/Category/Location catalog entities — hard prerequisite for everything else
+- Asset tag (unique per tenant) — needed before checkout and before labels
+- Status lifecycle labels (deployable/deployed/archived/retired/disposed/broken), gating checkout correctness
+- Check-out/check-in to user or location, with assignment history audit trail
+- Purchase cost/date/PO/supplier fields — low cost, unlocks warranty + depreciation
+- Admin-gated ITAM nav page (Phase 47/48 pattern)
 
-**Defer / anti-features:**
-- Street-level precise-location map (GeoIP lat/long is a coarse centroid — implying precision is a legal/UX trap).
-- Real-time GPS tracking (not available; agents report IP only).
+**Should have (v1.x within milestone):**
+- Suppliers as distinct catalog entity, warranty expiry alerts, depreciation schedule + book value, custom fields/fieldsets, QR/barcode label generation, software license seats, accessories/consumables with quantity-aware checkout
+
+**Defer (v2+):**
+- Physical audit/inventory-verification workflow, agent-discovered ↔ manual-asset linking (differentiator), compliance-evidence-aware retirement (differentiator), requestable-assets self-service flow, multi-currency/GL integration, RFID/scanner hardware driver integration
+
+**Genuine differentiator:** this platform can link a manually-catalogued ITAM record to its agent-discovered security twin (vuln/patch/criticality data) — something no pure ITAM competitor can do, since none combine ITAM with a security agent. Recommended as a deliberate, later phase, not left implicit.
 
 ### Architecture Approach
 
-Extend, don't parallel-build. Enrichment slots **inline** where geo already runs.
+Extend the single `assets` collection via an `assetSource: "agent" | "manual"` discriminator; add five new normalized catalog collections (manufacturers, asset_models, asset_categories, suppliers, locations) referenced by ID; use an append-only ledger (`asset_checkouts`, `consumable_checkouts`) plus a denormalized `currentAssignment` sub-document for fast reads; compute depreciation/warranty-remaining at read time as a pure function of stored inputs, never persist a mutable computed value; and run any cross-tenant background sweep (warranty-expiry) using the exact raw-db + per-tenant `set_tenant_id`/`reset_tenant_id` pattern already proven in `app_background_tasks.py`.
 
 **Major components:**
-1. `agent_asn_service.py` — sibling lazy-`.mmdb` module called at the same spot as `geoip_service.lookup()` in `report_heartbeat()` / registration; adds ASN/VPN flags to the agent doc.
-2. `agent_location_history` collection — append-only, cloned from `remediation_escalations`; written only when `public_ip != existing_agent["publicIp"]` (the `existing_agent` doc is already fetched each beat — no extra read).
-3. `agent_impossible_travel.py` — clone the haversine/time-window algorithm from `ueba_service.analyze_login()`, keyed by `agent_id` (NOT the email-keyed user path); reuse the existing alert/notification fan-out.
-4. `agent_uptime_rollup_loop` + `agent_uptime_daily` — new scheduler cloned from `compliance_remediation_sla_service`'s shape, using **raw `mongodb.db`**; extend `monitor_agent_status()` in place for real-time offline.
-5. Fleet-map aggregation endpoint (tenant-scoped, projection-safe) + `react-simple-maps` UI behind a **new** permission/nav slot (not the unrelated seeded `view:geographic_map`).
-
-**Dependency-ordered build:** (1) ASN/VPN enrichment → (2) location-history + change-detection → (3) impossible-travel + geo-fence detectors → (4) offline extension + uptime rollups → (5) map + observability UI.
+1. `assets` collection (extended) — single CMDB source of truth for agent-discovered AND manually catalogued assets
+2. Catalog collections (manufacturers/models/categories/suppliers/locations) — normalized reference data, small CRUD routers
+3. `asset_checkouts` / `consumable_checkouts` ledgers — immutable audit trail, atomic guarded quantity/availability updates
+4. `licenses` / `license_seats` — 1-to-N catalog + per-seat assignment, seats pre-created at license-creation time
+5. `itam_finance_service.py` — pure-function depreciation/warranty computation at read time
+6. `itam_label_endpoints.py` — offline QR/barcode + PDF label generation
+7. Frontend `components/itam/*` + `ITAMDashboard.tsx` — mirrors `components/nativeSecurity/*` pattern, gated by new `manage:itam` permission
 
 ### Critical Pitfalls
 
-1. **Tenant-isolation scheduler bug (highest-certainty).** `get_database()` fail-closes to zero results in background context — every geo/observability sweep MUST use raw `mongodb.db`. Already hit twice in this repo.
-2. **Privacy/legal.** Immutable employee location history = new GDPR/works-council exposure. Legal review is a *pre-implementation gate* for the audit phase, not a post-hoc audit.
-3. **False positives near-certain day 1.** Corporate VPN/SASE egress + CGNAT make agents look co-located or "teleporting." No ASN/VPN classification exists yet to suppress on — build enrichment before detectors.
-4. **Wrong-shape reuse.** `itdr_service` impossible-travel is email/user-keyed; `vpn_geo_anomaly` is seeded demo data. Clone the algorithm, don't wire agents into user-login collections.
-5. **Dormant TTL bug — don't clone.** `agent_metrics_history`'s 30-day TTL index sits on an ISO-string field, not a BSON Date, so it's a silent no-op. New collections must use BSON Date TTL (or an app-level cap).
-6. **Air-gapped map breakage.** Any tile-based lib (Leaflet+OSM/Mapbox) fetches external tiles → breaks air-gapped. Commit to bundled TopoJSON+SVG explicitly.
+1. **Background ITAM schedulers bypass tenant isolation** — warranty-expiry, depreciation, and license-expiry sweeps must never call `get_database()` internally; wire them at startup with the raw `_mdb.db` handle and thread `tenantId` explicitly per document, exactly like `compliance_remediation_sla_service.py`. This bug class has recurred across multiple past milestones in this codebase.
+2. **Forking a parallel `itam_assets` collection instead of extending `assets`** — creates two sources of truth; every existing asset-aware surface (search, dashboards, bulk ops, criticality gating) only knows about `assets`.
+3. **Reusing the `status` field name for ITAM lifecycle labels** — `assets.status` already means agent-liveness (heartbeat sets `"active"`); the new lifecycle enum needs a distinctly named field (`lifecycleStatus`).
+4. **Non-atomic ID generation and checkout/quantity race conditions** — no existing precedent for atomic counters in this codebase; must use `find_one_and_update` with `$inc` for tags/PO numbers, and embed availability checks directly in checkout/seat/consumable update filters (not read-then-write).
+5. **QR/label generation silently depending on network access** — must generate fully offline via already-vendored `qrcode`/`Pillow`/`reportlab`, verified by testing with outbound network access blocked, consistent with the platform's air-gapped deployment requirement.
 
 ## Implications for Roadmap
 
-Continues numbering from Phase 45 → v3.3 starts at **Phase 46**. Suggested 4 phases:
+Based on research, suggested phase structure (architecture research's "Suggested Build Order" and feature-dependency graph converge on the same sequence):
 
-### Phase 46: Public-IP ASN/VPN Enrichment + Location-History Audit
-**Rationale:** Foundation — detectors and map need ASN/VPN flags and a location timeline; both low-risk (inline enrichment + append-only clone). Front-loads the VPN data-source decision and the privacy/legal review gate.
-**Delivers:** `agent_asn_service.py` inline enrichment (VPN/hosting/proxy flags on agent docs), append-only `agent_location_history` with cheap change-detection, retention decision routed through the existing retention module.
-**Avoids:** false-positive pitfall (enrichment before detectors), TTL-index pitfall (BSON Date), privacy pitfall (legal gate up front).
+### Phase 1: Catalog & Foundation
+**Rationale:** Manufacturer/Model/Category/Supplier/Location catalog entities are a hard prerequisite for manual asset creation and everything downstream (feature dependency graph confirms this); this is also where the `assetSource`/`source` discriminator, `lifecycleStatus` field naming, and atomic-counter pattern must be established once so later phases copy it, not reinvent it.
+**Delivers:** 5 catalog CRUD collections/routers, `POST /api/assets` (manual asset creation, currently missing entirely), `assetSource` discriminator, `lifecycleStatus` field, tenant-scoped unique asset-tag counter.
+**Addresses:** Manual asset creation, catalog entities (Table Stakes, P1) from FEATURES.md.
+**Avoids:** Pitfall 2 (forking assets), Pitfall 3 (`status` collision), Pitfall 4 (non-atomic ID generation), Pitfall 8 (manual assets breaking agent-assuming code paths).
 
-### Phase 47: Agent-Scoped Geo Security Detectors
-**Rationale:** Depends on Phase 46 enrichment + history. Highest new-security value.
-**Delivers:** `agent_impossible_travel.py` (`agent_id`-keyed haversine), per-tenant geo-fencing (allowed-region policy + alert), VPN/hosting flags surfaced; reuse existing notification fan-out.
-**Avoids:** wrong-shape reuse (new module, not user-login path); needs the data-source decision resolved in 46.
+### Phase 2: Check-Out/Check-In Lifecycle
+**Rationale:** Depends on Phase 1's `lifecycleStatus` and manual asset records existing; this is the milestone's own headline verb ("who has this laptop").
+**Delivers:** `asset_checkouts` append-only ledger, denormalized `currentAssignment`, atomic checkout/checkin endpoints, assignment history audit trail, heartbeat-vs-retired-asset conflict handling.
+**Uses:** Motor's `find_one_and_update` atomic guard pattern from STACK.md/PITFALLS.md.
+**Implements:** Architecture Pattern 2 (append-only ledger + denormalized current state).
 
-### Phase 48: Fleet Observability UI + Uptime Rollups
-**Rationale:** Mostly frontend + one new sweep; backend detection (offline) and metrics endpoint already exist.
-**Delivers:** metrics-history charts (`recharts`), heartbeat/uptime timeline + `agent_uptime_daily` rollup loop (raw `mongodb.db`), offline-alert aggregate view, version-drift surfacing.
-**Avoids:** scheduler tenant-isolation bug (raw db from day one).
+### Phase 3: Asset Tags & Offline Labels
+**Rationale:** Depends on Phase 1's asset tag field existing and being stable; self-contained increment once the tag exists.
+**Delivers:** `itam_label_endpoints.py` — server-side QR (`qrcode[pil]`) + 1D barcode (`python-barcode`, new dependency) generation, `reportlab` label-sheet PDF export, all fully offline.
+**Uses:** `python-barcode` (new), `qrcode[pil]`/`reportlab`/`Pillow` (existing) from STACK.md.
+**Avoids:** Pitfall 6 (network-dependent label generation breaking air-gapped deployments).
 
-### Phase 49: Fleet Geo Map
-**Rationale:** Reads everything from 46–48; last, highest-visibility.
-**Delivers:** `react-simple-maps` + bundled `world-atlas` offline SVG map, `supercluster` clustering, tenant/status filters, agent drill-down, new permission/nav slot.
-**Uses:** the offline-first map stack; **avoids** air-gapped tile breakage.
+### Phase 4: Procurement & Finance (Warranty/Depreciation)
+**Rationale:** Depends on Phase 1's purchase/warranty fields being decided on the asset shape; depreciation requires the Model entity (Phase 1) so policy is assigned once per model, not re-entered per asset.
+**Delivers:** Purchase cost/date/PO/supplier fields, warranty tracking, `itam_finance_service.py` (pure-function depreciation, no persisted mutable book value), warranty-expiry background scheduler wired via the raw-db cross-tenant pattern.
+**Addresses:** Purchase/warranty/depreciation (Table Stakes P1/P2) from FEATURES.md.
+**Avoids:** Pitfall 1 (scheduler tenant-isolation bypass) — the highest-severity, most-recurred pitfall in this codebase.
+
+### Phase 5: Licenses & Consumables
+**Rationale:** Independent of Phases 2-4 except reusing tenant-isolation/RBAC scaffolding; can be sequenced in parallel with Phase 3/4 if desired, but is listed after core lifecycle since it's lower urgency per the prioritization matrix.
+**Delivers:** `licenses`/`license_seats` collections with atomic seat assign/reclaim, `consumables`/`consumable_checkouts` with atomic quantity-guarded checkout (supporting quantity > 1, deliberately not inheriting Snipe-IT's 1-per-transaction limitation), components attached to parent assets.
+**Uses:** Architecture Pattern 2 (ledger) and the atomic `$gte`-guarded `$inc` pattern for quantity decrements.
+
+### Phase 6: Frontend ITAM Console
+**Rationale:** Can start in parallel once backend contracts for Phases 1-5 stabilize enough to mock, but final integration depends on all backend phases landing; threads through all prior phases.
+**Delivers:** `ITAMDashboard.tsx` + `components/itam/*` tabs (Catalog, Checkout, Licenses, Consumables, Finance, Label printout), new `AppView` entry, `App.tsx`/`Sidebar.tsx` wiring, new `manage:itam` RBAC permission.
+**Implements:** Phase 47/48 admin-gated nav pattern (`NativeSecurityConsole.tsx` precedent).
 
 ### Phase Ordering Rationale
-- Strict dependency order (enrichment → history → detectors → observability → map) surfaced identically by the Features and Architecture research.
-- Front-loading enrichment + the privacy gate prevents the two dominant risks (false positives, legal) from blocking later phases.
-- Map last because it consumes all upstream data.
+
+- Catalog-before-assets-reference-catalog, assets-before-things-that-target-assets is a strict dependency chain confirmed independently by both FEATURES.md's dependency graph and ARCHITECTURE.md's suggested build order.
+- Checkout/lifecycle-status must exist before assignment history can be tested or before agent-heartbeat conflict handling is meaningful — sequencing it as its own phase right after foundation avoids the "gating built as an afterthought" rework risk PITFALLS.md flags.
+- Licenses/consumables are architecturally independent of lifecycle/procurement (different collections, same conventions) — flagged as safely parallelizable if the team wants to compress the timeline, but sequenced last here since FEATURES.md's prioritization matrix ranks them P2 vs P1 for core lifecycle/catalog/procurement.
+- Frontend is deliberately its own phase, threaded last, because all four research files converge on reusing the exact Phase 47/48 pattern (low risk, well-documented) rather than needing dedicated architectural exploration.
 
 ### Research Flags
-Phases likely needing deeper phase-specific research:
-- **Phase 46:** VPN/proxy data-source selection (paid GeoIP2 Anonymous IP vs free GeoLite2-ASN + X4BNet) — stakeholder cost/accuracy decision; retention-window legal decision.
-- **Phase 49:** confirm bundled-TopoJSON size/UX at country+city zoom (approach decided, sizing not benchmarked).
 
-Standard-pattern phases (lighter research):
-- **Phase 48:** established chart/scheduler patterns already in-repo.
+Phases likely needing deeper research during planning:
+- **Phase 4 (Procurement & Finance):** the warranty-expiry background scheduler is the single highest-risk pattern in this milestone (Pitfall 1, HIGH severity, recurring bug class) — worth a focused `--research-phase` pass on the exact `app_startup.py` wiring and index strategy before planning.
+- **Phase 5 (Licenses & Consumables):** the concurrency-safety pattern (atomic `$gte`-guarded decrement) has no existing precedent anywhere in this codebase to copy from — first-of-its-kind in this repo, worth verifying the chosen pattern against a concurrent-request test plan during phase planning.
+
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (Catalog & Foundation):** directly modeled on existing CRUD router conventions already used throughout the codebase (`compliance_frameworks`, `roles`) — no new patterns.
+- **Phase 3 (Labels):** fully solved by reusing existing, already-installed, already-proven libraries with a documented call-site to copy (`mfa_service.py`, `compliance_reporting_pdf.py`).
+- **Phase 6 (Frontend):** directly modeled on the Phase 47/48 `NativeSecurityConsole` precedent, exact files and line numbers already identified.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM-HIGH | Versions verified against npm/PyPI 2026-07-29; offline-map viability cross-checked, not benchmarked |
-| Features | HIGH (codebase) / MEDIUM (competitor) | Existing-capability gaps read from source; ecosystem patterns from web |
-| Architecture | HIGH | Integration points read from exact source lines in heartbeat/register/scheduler code |
-| Pitfalls | HIGH | All grounded in repo source with file/line; scheduler bug corroborated by v3.2's own history |
+| Stack | HIGH | Verified directly against `backend/requirements.txt`, live `pip show` output in the venv, and the PyPI JSON API for the one new dependency |
+| Features | MEDIUM | Web-search-verified against Snipe-IT's documented behavior and cross-checked against GLPI/Freshservice, but no official Context7/API-docs source exists for product-behavior research of this kind |
+| Architecture | HIGH | Every claim traceable to a specific file/line read in this exact codebase during the research pass, not generic ITAM literature |
+| Pitfalls | HIGH | Majority of findings are primary-source reads of this exact codebase (`tenant_context.py`, `database.py`, `compliance_remediation_sla_service.py`, etc.); two generic-domain findings (MongoDB atomic-op pattern, depreciation salvage-floor) are explicitly marked LOW confidence within PITFALLS.md |
 
-**Overall confidence:** HIGH for the build plan; MEDIUM on two external decisions (VPN dataset, map bundle sizing).
+**Overall confidence:** HIGH
 
 ### Gaps to Address
-- **VPN/proxy dataset choice** — resolve in Phase 46 discussion (paid vs free; offline-bundle viability).
-- **Location-history retention** — deliberate legal/audit decision, not inherited from the 30-day metrics convention.
-- **Geo-fence enforcement point** — block vs alert-only — decide in Phase 47 discussion.
-- **Uptime data density** — confirm heartbeat cadence/cap supports desired chart ranges or needs a rollup collection (Phase 48).
+
+- Checkout-ledger retention/archival policy at scale is flagged as an open question in ARCHITECTURE.md, not resolved — the append-only ledger grows unboundedly by design, and the codebase has no existing precedent for archiving `evidence_audit_log`-style collections either. Should be flagged during Phase 2 planning, not blocking for this milestone.
+- Custom fields/fieldsets architecture (Snipe-IT's fieldset-per-model pattern) is named as a should-have but not detailed in ARCHITECTURE.md beyond "mirror `tickets_models.py`'s unstructured `custom_fields: dict` precedent for MVP" — worth a lightweight design decision during whichever phase picks this up, since PITFALLS.md flags unstructured custom fields as acceptable only if a `custom_field_definitions` collection is planned before reporting/filtering needs arise.
+- Whether Cluster D (licenses/consumables) should actually be parallelized with Cluster B (procurement/finance) rather than sequenced after, as ARCHITECTURE.md suggests it's architecturally independent — a scheduling/resourcing decision for the roadmapper, not a research gap per se.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Codebase: `geoip_service.py`, `agent_heartbeat_endpoints.py`, `agent_registry_endpoints.py`, `agent_metrics_endpoints.py`, `app_background_tasks.py`, `app_startup.py`, `compliance_remediation_sla_service.py`, `ueba_service.py`, `itdr_service.py`, `insider_threat_service.py`, `AgentList.tsx`, `AgentsDashboard.tsx`, `GeographicAttackMap.tsx`, `migrations/002_scale_indexes.py`.
+- `backend/requirements.txt`, `backend/venv` `pip show` output — confirmed dependency versions
+- `backend/asset_endpoints.py`, `backend/models.py`, `backend/database.py`, `backend/tenant_context.py`, `backend/tenant_middleware.py` — direct code reads establishing tenant-isolation and existing asset-model constraints
+- `backend/compliance_remediation_sla_service.py`, `backend/app_startup.py`, `backend/app_background_tasks.py` — proven cross-tenant scheduler pattern to replicate
+- `backend/mfa_service.py`, `backend/compliance_reporting_pdf.py`, `backend/evidence_coc.py` — proven reuse patterns for QR generation, PDF export, and append-only audit ledgers
+- `backend/agent_heartbeat_endpoints.py`, `backend/agent_registry_endpoints.py`, `backend/seed_vulns_for_super.py` — asset ID generation and heartbeat-upsert behavior
+- `App.tsx`, `components/Sidebar.tsx`, `backend/rbac_utils.py` — Phase 47/48 admin-gated nav precedent
+- `.planning/PROJECT.md` — milestone scope and explicit constraints (reuse `assets`, no RFID, no GL integration, offline-first)
+- PyPI JSON API (`python-barcode` 0.16.1, `requires_python >=3.9`)
 
 ### Secondary (MEDIUM confidence)
-- npm/PyPI registries (versions, 2026-07-29); MapLibre / react-simple-maps docs (offline viability); MaxMind GeoIP2 Anonymous IP product docs; MongoDB time-series docs; CrowdStrike/Elastic geofencing & fleet-observability patterns.
+- Snipe-IT documentation (Barcodes, Managing Assets, Custom Fields, Asset Labels, Importing Licenses, Depreciation Types) — product-behavior reference for table-stakes convergence
+- GLPI/Freshservice feature comparisons (SoftwareSuggest) — used only for the discovery-vs-manual-catalog convergence point
+- grokability/snipe-it GitHub issues/discussions (#15679, #18890, #11342, #5140, #7348) — corroborating product-behavior detail (status typing, depreciation math, accessory quantity limitation)
+
+### Tertiary (LOW confidence)
+- Generic MongoDB atomic-operation race-condition prevention pattern (web search) — well-established pattern, not verified against this codebase's future implementation
+- Generic straight-line depreciation salvage-value-floor edge case (web search) — standard accounting behavior, not yet verified against this codebase's implementation
 
 ---
-*Research completed: 2026-07-29*
+*Research completed: 2026-08-04*
 *Ready for roadmap: yes*
