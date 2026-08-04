@@ -7,10 +7,10 @@
 
 ### Catalog & Organization (ITAM-CAT)
 
-- [ ] **ITAM-CAT-01**: Admin can manage Manufacturer / Model / Category / Location catalog entities (CRUD), referenced by ID from assets.
+- [x] **ITAM-CAT-01**: Admin can manage Manufacturer / Model / Category / Location catalog entities (CRUD), referenced by ID from assets.
 - [ ] **ITAM-CAT-02**: Admin can create and manage a manual (non-agent) asset, with a unique per-tenant asset tag, coexisting with agent-discovered assets via a source discriminator.
-- [ ] **ITAM-CAT-03**: Admin can manage Suppliers as a distinct catalog entity.
-- [ ] **ITAM-CAT-04**: Admin can define custom fields grouped into fieldsets, attached at the model level.
+- [x] **ITAM-CAT-03**: Admin can manage Suppliers as a distinct catalog entity.
+- [x] **ITAM-CAT-04**: Admin can define custom fields grouped into fieldsets, attached at the model level.
 - [ ] **ITAM-CAT-05**: User can generate a printable QR + 1D barcode label (PDF label sheet) for an asset, fully offline (no external service or network call).
 
 ### Lifecycle & Check-in/out (ITAM-LIFE)
@@ -67,10 +67,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ITAM-CAT-01 | Phase 56 | Pending |
+| ITAM-CAT-01 | Phase 56 | Complete |
 | ITAM-CAT-02 | Phase 56 | Pending |
-| ITAM-CAT-03 | Phase 56 | Pending |
-| ITAM-CAT-04 | Phase 56 | Pending |
+| ITAM-CAT-03 | Phase 56 | Complete |
+| ITAM-CAT-04 | Phase 56 | Complete |
 | ITAM-CAT-05 | Phase 58 | Pending |
 | ITAM-LIFE-01 | Phase 56 | Pending |
 | ITAM-LIFE-02 | Phase 57 | Pending |
@@ -86,11 +86,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-UI-01 | Phase 61 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 17 total
 - Mapped to phases: 17/17 ✓
 - Unmapped: 0
 
 **Phase map:**
+
 - Phase 56 — Catalog & Foundation (ITAM-CAT-01/02/03/04, ITAM-LIFE-01)
 - Phase 57 — Lifecycle & Check-In/Out (ITAM-LIFE-02/03/04/05)
 - Phase 58 — Asset Tags & Offline Labels (ITAM-CAT-05)

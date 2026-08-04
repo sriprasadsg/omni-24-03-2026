@@ -795,7 +795,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 56 | Catalog & Foundation | Not started |
+| 56 | Catalog & Foundation | In Progress|
 | 57 | Lifecycle & Check-In/Out | Not started |
 | 58 | Asset Tags & Offline Labels | Not started |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
@@ -813,6 +813,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 **Requirements:** ITAM-CAT-01 (Manufacturer/Model/Category/Location catalog CRUD), ITAM-CAT-02 (manual asset creation with unique per-tenant asset tag + source discriminator), ITAM-CAT-03 (Suppliers catalog entity), ITAM-CAT-04 (custom fields grouped into fieldsets, attached at the model level), ITAM-LIFE-01 (lifecycleStatus field, distinct from agent connectivity status)
 
 **Success Criteria:**
+
 1. Admin can create, edit, and delete Manufacturer, Model, Category, Location, and Supplier entries, each referenced by ID from assets.
 2. Admin can create a manual (non-agent) asset with a unique per-tenant asset tag; it appears in the asset list alongside agent-discovered assets, distinguishable by source.
 3. Admin can define custom fields grouped into fieldsets at the model level, and those fields appear on assets using that model.
@@ -820,10 +821,10 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Nothing (first phase of v4.0; reuses and extends the existing `assets` model)
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 - [x] 56-01-PLAN.md — Tracer slice: Manufacturer catalog CRUD + `POST /api/assets` manual creation + `assetSource`/`lifecycleStatus` fields + atomic per-tenant asset-tag counter [Wave 1]
-- [ ] 56-02-PLAN.md — Remaining catalog kinds: Category/Location/Supplier CRUD + asset Model (references Manufacturer+Category) + custom fields/fieldsets [Wave 2]
+- [x] 56-02-PLAN.md — Remaining catalog kinds: Category/Location/Supplier CRUD + asset Model (references Manufacturer+Category) + custom fields/fieldsets [Wave 2]
 
 **Status:** 56-01 executed 2026-08-04 (commits `1218c37`, `e1d377f`, `329a698`) — 13/13 tests pass, full backend suite 1564 passed / 34 skipped / 6 pre-existing unrelated fails, no regressions. See `56-01-SUMMARY.md`. 56-02 planned, not yet executed.
 
@@ -838,6 +839,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 **Requirements:** ITAM-LIFE-02 (check out to a user or location, gated on deployable status), ITAM-LIFE-03 (check in, returns to stock and clears assignment), ITAM-LIFE-04 (append-only assignment history/audit trail), ITAM-LIFE-05 (mark physically audited + overdue-audit report)
 
 **Success Criteria:**
+
 1. User can check out a deployable-status asset to a user or a location; checkout is rejected for assets not in a deployable-typed status.
 2. User can check in an asset, returning it to stock/available and clearing its current assignment.
 3. Every check-out/check-in is recorded in an append-only assignment history visible per asset (who, where, when).
@@ -858,6 +860,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 **Requirements:** ITAM-CAT-05 (printable QR + 1D barcode label / PDF label sheet, fully offline)
 
 **Success Criteria:**
+
 1. User can generate a QR code and a 1D barcode encoding an asset's tag.
 2. User can export a printable PDF label sheet for one or more assets.
 3. Label generation succeeds with outbound network access blocked (no external service or network call).
@@ -877,6 +880,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 **Requirements:** ITAM-FIN-01 (purchase cost, purchase date, PO number, supplier), ITAM-FIN-02 (warranty tracking + expiry alerts via existing notification/webhook infra), ITAM-FIN-03 (straight-line depreciation, model-level, computed at read time)
 
 **Success Criteria:**
+
 1. Admin can record and view purchase cost, purchase date, PO number, and supplier on an asset.
 2. Admin sees each asset's warranty status/expiry and receives an alert as the warranty approaches or passes expiry, delivered through the existing notification/webhook infrastructure.
 3. Admin can view an asset's current book value, computed at read time from a straight-line depreciation schedule assigned at the model level (no persisted mutable value, no external GL integration).
@@ -896,6 +900,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 **Requirements:** ITAM-LIC-01 (software licenses: seat counts, assign/reclaim to user or asset, expiry tracking), ITAM-LIC-02 (accessories/consumables with quantity-aware checkout, quantity > 1 supported), ITAM-LIC-03 (components attached to a parent asset)
 
 **Success Criteria:**
+
 1. Admin can create a software license with a seat count, assign a seat to a user or asset, reclaim it, and see remaining/expired seats.
 2. Admin can create an accessory/consumable and check it out in a quantity greater than one in a single transaction, with available quantity correctly decremented.
 3. Admin can attach a component (RAM/HDD/GPU-style item) to a parent asset and see it listed on that asset's record.
@@ -915,6 +920,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 **Requirements:** ITAM-UI-01 (admin-gated nav entry — new AppView + App.tsx route + Sidebar entry + dedicated `manage:itam` permission)
 
 **Success Criteria:**
+
 1. An admin user sees an "ITAM" entry in the Sidebar, gated by a new `manage:itam` permission and invisible to non-admin/non-permitted users.
 2. Selecting the ITAM nav entry opens a dedicated console (new AppView) with sections for Catalog, Check-Out/In, Procurement & Finance, and Licenses & Consumables.
 3. From the console, a user can complete at least one full round trip per cluster — e.g. create a catalog asset, check it out, view its warranty/finance tab, and assign a license — without leaving the ITAM console.

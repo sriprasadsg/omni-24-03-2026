@@ -4,17 +4,17 @@ milestone: v4.0
 milestone_name: ITAM
 current_phase: 56
 current_phase_name: Catalog & Foundation
-status: planning
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-04T07:34:51.136Z"
+last_updated: "2026-08-04T08:33:56.974Z"
 last_activity: 2026-08-04
-last_activity_desc: v4.0 ROADMAP.md + STATE.md written, REQUIREMENTS.md traceability updated (17/17 mapped, no orphans)
+last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 17
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Building v4.0 ITAM — ROADMAP.md defined (6 phases, 56-61), ready for `/gsd-plan-phase 56`
+**Current focus:** Phase 56 — Catalog & Foundation
 
 ## Current Phase
 
@@ -334,6 +334,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 55-05: get_virustotal_client() is a plain factory (no singleton) to avoid stale VIRUSTOTAL_API_KEY state across process/tests
 - [Phase ?]: 55-05: Task 1/Task 2 implementation boundary collapsed — all four scan_* methods + enrich_file_hashes implemented in Task 1's shared _lookup() rewrite; Task 2 became a test-only commit (see 55-05-SUMMARY.md Deviations)
 - [Phase ?]: IT-0001 zero-padded counter, six-value verbatim vocabulary, read-time default (RECOMMENDED). Asset tags will be IT-{seq:04d}, lifecycle status will be one of the six verbatim ROADMAP values, and pre-existing agent assets will read as 'deployable' via a read-time default.
+- [Phase ?]: 56-02: CATALOG_MODELS per-kind request-body registry lets one generic route validate five different Pydantic body shapes without five route functions
+- [Phase ?]: 56-02: fieldsets embedded on the asset Model document, validated by router-independent itam_catalog_service.py so 56-04's asset write path can import validation without importing a router
 
 ## Performance Metrics
 
@@ -424,11 +426,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 55 P02 | 8min | 1 tasks | 2 files |
 | Phase 55 P03 | 35min | 3 tasks | 2 files |
 | Phase 55 P05 | 6min | 2 tasks | 3 files |
+| Phase 56 P02 | 40min | 2 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed Task 2 foundation implementation
+- **Stopped at:** Completed 56-02-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -454,7 +457,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-04T07:34:51.108Z
+**Last session:** 2026-08-04T08:33:56.947Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -471,10 +474,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 56 (Catalog & Foundation) — 1/2 plans executed
-Plan: 56-02 (remaining catalog kinds: Category/Location/Supplier/Model + custom fields) — planned, not yet executed
-Status: 56-01 (tracer slice) executed and verified 2026-08-04 — 13/13 tests pass, full backend suite 1564 passed / 34 skipped / 6 pre-existing unrelated fails, no regressions. See 56-01-SUMMARY.md.
-Last activity: 2026-08-04 — /gsd-plan-phase 56 spawned gsd-planner, which (beyond its normal plan-only scope) also implemented and committed 56-01's tracer slice before hitting a session limit; the committed test suite was not green (5/8 failing, all test-infrastructure bugs, no application-code bugs). Diagnosed and fixed (commits e1d377f, 329a698), plus closed a real must_haves coverage gap (4 of 11 untested truths — delete-protection, duplicate-tag, cross-tenant isolation, concurrency — added 5 tests). 56-02-PLAN.md exists (planned) but has not been executed.
+Phase: 56 (Catalog & Foundation) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-08-04 — Phase 56 execution started
 
 ## Deferred Items
 
