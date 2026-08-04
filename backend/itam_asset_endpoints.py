@@ -135,7 +135,10 @@ async def create_manual_asset(
     try:
         # db.assets is a TenantIsolatedCollection
         await db.assets.insert_one(document)
-        await invalidate_cache("assets:*")
+        # cache_service.invalidate_cache is a synchronous def returning None — awaiting
+        # it raises TypeError, which the broad except below converts into a false 500
+        # for every real caller (Phase-57 discovered defect; fixed here).
+        invalidate_cache("assets:*")
         document.pop("_id", None)
         return document
     except DuplicateKeyError:

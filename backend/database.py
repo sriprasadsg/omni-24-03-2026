@@ -289,6 +289,13 @@ async def connect_to_mongo():
         # must be retained long-term and must not be auto-purged.
         await mongodb.db.evidence_audit_log.create_index([("evidenceId", 1), ("tenantId", 1)])
         await mongodb.db.evidence_audit_log.create_index([("tenantId", 1), ("timestamp", -1)])
+        # assignment_history: ITAM Phase 57 append-only lifecycle ledger (ITAM-LIFE-04) —
+        # same reasoning as evidence_audit_log directly above: no expiry index, since a
+        # possession trail must never be auto-purged.
+        await mongodb.db.assignment_history.create_index([("tenantId", 1), ("assetId", 1)])
+        await mongodb.db.assignment_history.create_index([("tenantId", 1), ("ts", -1)])
+        # assets.lastAuditedAt: supports the 57-03 overdue-audit report query.
+        await mongodb.db.assets.create_index([("tenantId", 1), ("lastAuditedAt", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("status", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("created_at", -1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("priority", 1)])

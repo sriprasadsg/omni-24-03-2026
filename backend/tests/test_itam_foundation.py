@@ -127,7 +127,10 @@ def itam_app(mock_db, patch_get_database_globally, monkeypatch):
     # their already-bound local references — patch each module's own imported name.
     monkeypatch.setattr(itam_catalog_endpoints, "verify_permission", AsyncMock(return_value=True))
     monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=True))
-    monkeypatch.setattr(itam_asset_endpoints, "invalidate_cache", AsyncMock())
+    # cache_service.invalidate_cache is a synchronous def (Phase 57 Task 3 removed the
+    # erroneous `await` at the real call site) — a plain MagicMock matches that shape;
+    # an AsyncMock here would leave an unawaited-coroutine warning on every call.
+    monkeypatch.setattr(itam_asset_endpoints, "invalidate_cache", MagicMock())
 
     app, _ = make_test_app(
         itam_catalog_endpoints.router,

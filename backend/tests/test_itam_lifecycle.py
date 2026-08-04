@@ -64,9 +64,14 @@ class MockTenantIsolatedDatabase:
 
 @pytest.fixture
 def mock_db():
-    """Mock database carrying every collection the lifecycle router touches."""
+    """Mock database carrying every collection the lifecycle router touches, plus the
+    catalog collections Task 3's real-cache-invalidation test drives through
+    itam_asset_endpoints.create_manual_asset (counters/manufacturers/asset_models)."""
     db = MagicMock()
-    for name in ("assets", "users", "locations", "assignment_history"):
+    for name in (
+        "assets", "users", "locations", "assignment_history",
+        "counters", "manufacturers", "asset_models",
+    ):
         setattr(db, name, _make_col())
     # find_one_and_update is not part of _make_col()'s default surface — the
     # lifecycle router's guarded transition needs it explicitly present.
@@ -533,3 +538,72 @@ class TestCheckoutExpansion:
             r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
 
         assert r.status_code == 500, r.text
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — Phase-57 indexes and the cache-invalidation defect repair.
+# ---------------------------------------------------------------------------
+class TestCacheInvalidationRepair:
+
+    @pytest.fixture
+    def asset_app(self, mock_db, monkeypatch):
+        """App mounting itam_asset_endpoints.router with invalidate_cache left bound
+        to the REAL synchronous cache_service helper (not monkeypatched) — exercises
+        the real call path end-to-end rather than only under a test double. The cache
+        backend itself gracefully degrades to fakeredis/disabled with no live store,
+        so nothing else needs patching."""
+        import itam_asset_endpoints
+
+        def get_mock_tenant_db():
+            return MockTenantIsolatedDatabase(mock_db, "tenant-a")
+
+        monkeypatch.setattr(itam_asset_endpoints, "get_database", get_mock_tenant_db)
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=True))
+
+        app, _ = make_test_app(itam_asset_endpoints.router)
+        return app
+
+    @pytest.mark.asyncio
+    async def test_manual_asset_creation_survives_real_cache_invalidation(self, mock_db, asset_app):
+        """This test fails before the await-removal fix (500) and passes after — the
+        whole point of writing it here rather than only trusting the AsyncMock double
+        test_itam_foundation.py's fixture set uses."""
+        counter_state = {"seq": 0}
+
+        async def _counter_find_one_and_update(f, u, *args, **kwargs):
+            counter_state["seq"] += 1
+            return {"seq": counter_state["seq"], **f}
+
+        mock_db.counters.find_one_and_update = AsyncMock(side_effect=_counter_find_one_and_update)
+        mock_db.assets.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        asset_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=asset_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets", json={"name": "Cache Repair Laptop"})
+
+        assert r.status_code == 201, r.text
+
+    @pytest.mark.asyncio
+    async def test_checkout_invalidates_asset_cache_without_await(self, mock_db, lifecycle_app, patch_get_database_globally):
+        import itam_lifecycle_endpoints
+
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=_deployed_asset_after_checkout())
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 200, r.text
+        itam_lifecycle_endpoints.invalidate_cache.assert_called_once_with("assets:*")
+        # A plain (synchronous) MagicMock proves the lifecycle path never awaits it —
+        # an AsyncMock would still "pass" here even if the code wrongly awaited it.
+        assert not isinstance(itam_lifecycle_endpoints.invalidate_cache, AsyncMock)
