@@ -11,6 +11,7 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database, TenantIsolatedDatabase
 from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_TAG_PREFIX
+from itam_catalog_service import collect_field_defs, validate_custom_field_values
 from cache_service import invalidate_cache
 from rbac_utils import verify_permission
 
@@ -86,7 +87,20 @@ async def create_manual_asset(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"manufacturerId '{payload.manufacturerId}' not found."
             )
-    # Extend with other catalog references (modelId, categoryId, etc.) in future tasks
+    if payload.modelId:
+        model_doc = await db.asset_models.find_one({"id": payload.modelId})
+        if not model_doc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"modelId '{payload.modelId}' not found."
+            )
+        problems = validate_custom_field_values(collect_field_defs(model_doc), payload.customFields)
+        if problems:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "customFields do not match the model's fieldset definitions.", "problems": problems}
+            )
+    # Extend with other catalog references (categoryId, etc.) in future tasks
 
     asset_tag = payload.assetTag
     if not asset_tag:

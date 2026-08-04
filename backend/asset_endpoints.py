@@ -8,6 +8,7 @@ import datetime
 import re
 from cache_service import cached, invalidate_cache
 from pagination_utils import paginate_mongo_query, PaginationParams
+from itam_models import DEFAULT_LIFECYCLE_STATUS
 
 router = APIRouter(prefix="/api/assets", tags=["Assets"])
 
@@ -92,7 +93,13 @@ async def get_assets(
         sort={"lastScanned": -1},
         projection={"_id": 0}
     )
-    
+
+    # Read-time default: pre-existing agent-discovered assets predate the ITAM
+    # lifecycleStatus field (Phase 56) and never had it written. Default here
+    # rather than backfilling every document.
+    for item in result.get("items", []):
+        item.setdefault("lifecycleStatus", DEFAULT_LIFECYCLE_STATUS.value)
+
     return result
 
 @router.get("/search")
@@ -164,6 +171,10 @@ async def get_asset_details(
     asset = await db.assets.find_one(query, {"_id": 0})
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
+
+    # Read-time default: pre-existing agent-discovered assets predate the ITAM
+    # lifecycleStatus field (Phase 56) and never had it written.
+    asset.setdefault("lifecycleStatus", DEFAULT_LIFECYCLE_STATUS.value)
 
     # ── Enrich from agent meta so detail view shows real hardware fields ──
     hostname = asset.get("hostname")
