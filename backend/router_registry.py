@@ -379,15 +379,4 @@ def register_all_routers(app: FastAPI) -> None:
             continue
         seen.add(module_name)
         _load(app, module_name, "router", **kwargs)
-# ITAM Catalog Routers
-from backend import itam_catalog_endpoints
-from backend import itam_asset_endpoints
-
-def register_itam_routers(app):
-    # Register ITAM catalog routers. They share the '/api/assets' prefix with
-    # the existing asset_endpoints.py, so they must be registered after it
-    # to ensure the single-segment GET /{asset_id} route from asset_endpoints
-    # keeps first-match priority.
-    app.include_router(itam_asset_endpoints.router)
-    app.include_router(itam_catalog_endpoints.router)
 
