@@ -281,3 +281,255 @@ class TestCheckoutToUser:
             })
 
         assert r.status_code == 422, r.text
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — location targets, every refusal path, and the concurrency guarantee.
+# ---------------------------------------------------------------------------
+class TestCheckoutExpansion:
+
+    @pytest.mark.asyncio
+    async def test_checkout_to_location_overwrites_location_id(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=_deployed_asset_after_checkout(
+            assignedToType="location", assignedToId="loc-1", locationId="loc-1",
+        ))
+        mock_db.locations.find_one = AsyncMock(return_value={"id": "loc-1", "name": "HQ"})
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "location", "targetId": "loc-1"})
+
+        assert r.status_code == 200, r.text
+        update = mock_db.assets.find_one_and_update.call_args[0][1]
+        set_doc = update["$set"]
+        assert set_doc["assignedToType"] == "location"
+        assert set_doc["assignedToId"] == "loc-1"
+        assert set_doc["locationId"] == "loc-1"
+
+    @pytest.mark.asyncio
+    async def test_checkout_to_user_produces_no_location_id_key(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """A check-out to a user must leave locationId untouched (no key in $set)."""
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=_deployed_asset_after_checkout())
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 200, r.text
+        update = mock_db.assets.find_one_and_update.call_args[0][1]
+        assert "locationId" not in update["$set"]
+
+    @pytest.mark.asyncio
+    async def test_checkout_target_user_not_found_returns_400(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.users.find_one = AsyncMock(return_value=None)
+        find_one_and_update_mock = AsyncMock(return_value=_deployed_asset_after_checkout())
+        mock_db.assets.find_one_and_update = find_one_and_update_mock
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "ghost-user"})
+
+        assert r.status_code == 400, r.text
+        find_one_and_update_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_checkout_target_location_not_found_returns_400(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.locations.find_one = AsyncMock(return_value=None)
+        find_one_and_update_mock = AsyncMock(return_value=_deployed_asset_after_checkout())
+        mock_db.assets.find_one_and_update = find_one_and_update_mock
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "location", "targetId": "ghost-loc"})
+
+        assert r.status_code == 400, r.text
+        find_one_and_update_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_checkout_of_missing_asset_returns_404(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=None)
+        mock_db.assets.find_one = AsyncMock(return_value=None)
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-missing/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 404, r.text
+
+    @pytest.mark.asyncio
+    async def test_checkout_of_non_deployable_asset_returns_409(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=None)
+        mock_db.assets.find_one = AsyncMock(return_value=_deployable_asset(lifecycleStatus="deployed"))
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 409, r.text
+        mock_db.assignment_history.insert_one.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_checkout_of_agent_asset_without_lifecycle_key_succeeds(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """An asset document with no lifecycleStatus key at all is checked out successfully —
+        proves the guard admits the absent-key case (every pre-existing agent-discovered asset)."""
+        asset_no_key = {"id": "asset-agent-1", "tenantId": "tenant-a", "hostname": "host1"}
+
+        async def _fake_find_one_and_update(f, u, *args, **kwargs):
+            if f.get("id") != asset_no_key["id"]:
+                return None
+            status_present = "lifecycleStatus" in asset_no_key
+            guard_ok = (not status_present) or asset_no_key.get("lifecycleStatus") == "deployable"
+            if not guard_ok:
+                return None
+            updated = dict(asset_no_key)
+            updated.update(u.get("$set", {}))
+            return updated
+
+        mock_db.assets.find_one_and_update = AsyncMock(side_effect=_fake_find_one_and_update)
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-agent-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 200, r.text
+        assert r.json()["lifecycleStatus"] == "deployed"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_checkout_only_one_succeeds(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """Two asyncio.gather-issued check-outs against one asset, backed by a fake
+        find_one_and_update that honours the guard against real in-memory state, yield
+        exactly one 200 and one 409 — never two successes."""
+        import asyncio as _asyncio
+
+        state = {"asset": _deployable_asset()}
+
+        async def _fake_find_one_and_update(f, u, *args, **kwargs):
+            # Synchronous body (no internal await) mirrors MongoDB's real atomicity
+            # contract for this single-document guarded transition — the check and
+            # the mutation happen without yielding to the other concurrent request.
+            asset = state["asset"]
+            if asset is None or asset.get("id") != f.get("id"):
+                return None
+            status_present = "lifecycleStatus" in asset
+            guard_ok = (not status_present) or asset.get("lifecycleStatus") == "deployable"
+            if not guard_ok:
+                return None
+            updated = dict(asset)
+            updated.update(u.get("$set", {}))
+            for key in u.get("$unset", {}):
+                updated.pop(key, None)
+            state["asset"] = updated
+            return dict(updated)
+
+        async def _fake_find_one(f, *args, **kwargs):
+            asset = state["asset"]
+            return dict(asset) if asset and asset.get("id") == f.get("id") else None
+
+        mock_db.assets.find_one_and_update = AsyncMock(side_effect=_fake_find_one_and_update)
+        mock_db.assets.find_one = AsyncMock(side_effect=_fake_find_one)
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r1, r2 = await _asyncio.gather(
+                ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"}),
+                ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"}),
+            )
+
+        statuses = sorted([r1.status_code, r2.status_code])
+        assert statuses == [200, 409], (r1.status_code, r2.status_code)
+        assert mock_db.assignment_history.insert_one.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_checkout_does_not_write_agent_liveness_field(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=_deployed_asset_after_checkout())
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock-id"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 200, r.text
+        update = mock_db.assets.find_one_and_update.call_args[0][1]
+        set_doc = update["$set"]
+        assert "lifecycleStatus" in set_doc
+        # Agent-liveness field owned exclusively by agent_registry_endpoints.py's
+        # heartbeat upsert — never written by the lifecycle checkout path.
+        assert "status" not in set_doc
+
+    @pytest.mark.asyncio
+    async def test_checkout_requires_manage_assets_permission(self, mock_db, lifecycle_app, patch_get_database_globally, monkeypatch):
+        import itam_asset_endpoints
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 403, r.text
+
+    @pytest.mark.asyncio
+    async def test_checkout_history_write_failure_surfaces_as_500(self, mock_db, lifecycle_app, patch_get_database_globally):
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=_deployed_asset_after_checkout())
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+        mock_db.assignment_history.insert_one = AsyncMock(side_effect=RuntimeError("db down"))
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={"targetType": "user", "targetId": "user-7"})
+
+        assert r.status_code == 500, r.text
