@@ -87,6 +87,12 @@ this-session regressions): `tests/test_graphql.py` (strawberry/pydantic version 
 - **Recommendation:** A future housekeeping pass should reconcile `REQUIREMENTS.md` and `STATE.md`
   frontmatter against the real phase history (phases 46-55+ per `55-advanced-threat-detection/`'s
   own RESEARCH/CONTEXT docs) before starting the v4.0 cycle those files currently describe.
+- **RESOLVED 2026-08-04:** `REQUIREMENTS.md` restored AUT-03/INT-04/COMM-01 under a new
+  "v3.4 Requirements (completed — historical)" section, marked `[x]`. `STATE.md` frontmatter
+  corrected same session (`current_phase: 55`, `status: complete`). Flagged a related landmine
+  while fixing this: the v4.0 doc's own Traceability table maps `SCALE-01`/`SCALE-02` to
+  "Phase 55" — colliding with this already-completed phase; noted inline in REQUIREMENTS.md,
+  not renumbered (out of scope here, v4.0 planning hasn't started).
 
 ## 55-05 (gap closure)
 
@@ -106,3 +112,9 @@ this-session regressions): `tests/test_graphql.py` (strawberry/pydantic version 
   a live server). Reconciling or deleting it is unrelated pre-existing drift.
 - **Recommendation:** Leave as-is (pre-existing unrelated drift); a future cleanup pass may delete
   it or repoint it at the real `/api/threat-intel/*` routes.
+- **RESOLVED 2026-08-04:** Deleted (`git rm backend/test_virustotal.py`). Confirmed zero references
+  anywhere in the repo first (`grep -rl test_virustotal`); it was a `__main__`-only manual script,
+  not collected by pytest, targeting a route pair (`/api/threat-intelligence/config`, `/scan`) that
+  never existed alongside the real `/api/threat-intel/*` prefix — repointing it would have required
+  fabricating auth-token plumbing the real authenticated route needs, so deletion (the other
+  documented option) was the correct minimal fix over inventing new script scope.
