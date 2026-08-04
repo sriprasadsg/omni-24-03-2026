@@ -208,6 +208,21 @@ class TestAuditMark:
         assert r.status_code == 422, r.text
 
     @pytest.mark.asyncio
+    async def test_audit_mark_rejects_non_iso8601_audited_at(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """WR-02 regression: a caller-supplied auditedAt that datetime.fromisoformat
+        can't parse must be refused at the API boundary (422), not silently corrupt
+        the overdue report's date-math or its raw-string $lt query comparison."""
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/audit", json={"auditedAt": "08/04/2026"})
+
+        assert r.status_code == 422, r.text
+
+    @pytest.mark.asyncio
     async def test_audit_mark_requires_manage_assets_permission(self, mock_db, lifecycle_app, patch_get_database_globally, monkeypatch):
         import itam_asset_endpoints
         monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))

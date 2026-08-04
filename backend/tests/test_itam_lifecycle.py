@@ -148,6 +148,25 @@ class TestCheckoutToUser:
         assert inserted_doc["expectedReturnDate"] == "2026-09-01"
 
     @pytest.mark.asyncio
+    async def test_checkout_rejects_non_iso8601_expected_return_date(self, mock_db, lifecycle_app, patch_get_database_globally):
+        """WR-02 regression: a caller-supplied expectedReturnDate that
+        datetime.fromisoformat can't parse must be refused at the API boundary."""
+        mock_db.users.find_one = AsyncMock(return_value={"id": "user-7"})
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=lifecycle_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/checkout", json={
+                "targetType": "user", "targetId": "user-7", "expectedReturnDate": "next Tuesday",
+            })
+
+        assert r.status_code == 422, r.text
+        mock_db.assets.find_one_and_update.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_checkout_rejects_unknown_field(self, mock_db, lifecycle_app, patch_get_database_globally):
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")

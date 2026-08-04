@@ -5,10 +5,11 @@ This module defines the data contracts for catalog entities and manual assets,
 intended to be shared across ITAM-related backend services and endpoints.
 """
 import uuid
+from datetime import datetime
 from enum import Enum
 from typing import Dict, Any, List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 # Asset Tag and Lifecycle Status Decisions (from Phase 56, Task 1 Option A)
 # These decisions are foundational and impact later phases (57-61).
@@ -159,6 +160,21 @@ class AssetModelUpdate(CatalogEntityUpdate):
     model_config = ConfigDict(extra="forbid")
 
 
+def _validate_iso8601_date(v: Optional[str]) -> Optional[str]:
+    """WR-02 boundary check: rejects a caller-supplied date string that
+    datetime.fromisoformat can't parse (after the same 'Z' -> '+00:00'
+    normalization itam_lifecycle_endpoints.py's _overdue_row applies), so a
+    malformed value never reaches the overdue report's date-math or its raw
+    lexicographic-string $lt query comparison."""
+    if v is None:
+        return v
+    try:
+        datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"must be an ISO-8601 date/datetime string, got {v!r}")
+    return v
+
+
 # Lifecycle Check-Out (Phase 57-01, ITAM-LIFE-02). targetType/targetId are a polymorphic
 # pair (PD-01): a user or a location, never two separate optional id fields.
 class CheckoutRequest(BaseModel):
@@ -169,6 +185,8 @@ class CheckoutRequest(BaseModel):
     expectedReturnDate: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    _validate_expected_return_date = field_validator("expectedReturnDate")(_validate_iso8601_date)
 
 
 # Lifecycle Check-In (Phase 57-02, ITAM-LIFE-03). Check-in takes no target — the
@@ -188,3 +206,5 @@ class AuditMarkRequest(BaseModel):
     note: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    _validate_audited_at = field_validator("auditedAt")(_validate_iso8601_date)
