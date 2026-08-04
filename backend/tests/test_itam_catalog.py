@@ -1,6 +1,7 @@
 """Catalog expansion tests — Phase 56 Plan 02.
 
-Covers CRUD/tenant/delete-guard coverage for Category, Location, and Supplier. Reuses the
+Covers CRUD/tenant/delete-guard coverage for Category, Location, and Supplier, plus
+reference-validation and fieldset-validation coverage for asset Models. Reuses the
 hand-rolled MockTenantIsolatedCollection/Database fake-db convention established in
 test_itam_foundation.py (56-01) rather than inventing a second style — see that file's
 fixture comments for why proxy methods are real `async def` functions and why patches target
@@ -67,7 +68,7 @@ class MockTenantIsolatedDatabase:
         return self.__getattr__(name)
 
 
-CATALOG_COLLECTIONS = ("assets", "manufacturers", "asset_categories", "locations", "suppliers", "counters")
+CATALOG_COLLECTIONS = ("assets", "manufacturers", "asset_categories", "locations", "suppliers", "asset_models", "counters")
 
 
 @pytest.fixture
@@ -296,7 +297,7 @@ class TestCategoryLocationSupplier:
             assert r2.status_code == 204, r2.text
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("kind", ["manufacturers", "categories", "locations", "suppliers"])
+    @pytest.mark.parametrize("kind", ["manufacturers", "categories", "locations", "suppliers", "models"])
     async def test_every_registered_kind_is_tenant_scoped(self, kind, mock_db, itam_app, patch_get_database_globally):
         import itam_catalog_endpoints
 
@@ -322,3 +323,200 @@ class TestCategoryLocationSupplier:
 
         assert len(seen_filters) >= 1
         assert all(f.get("tenantId") == "tenant-a" for f in seen_filters)
+
+
+class TestAssetModel:
+    """Task 2: asset Models with validated catalog references and model-level fieldsets."""
+
+    @pytest.mark.asyncio
+    async def test_create_asset_model_with_valid_references(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        manuf_store = _wire_crud_store(mock_db.manufacturers)
+        cat_store = _wire_crud_store(mock_db.asset_categories)
+        manuf_store.append({"id": "manufacturer-abc", "name": "Acme", "tenantId": "tenant-a"})
+        cat_store.append({"id": "category-xyz", "name": "Laptops", "tenantId": "tenant-a"})
+
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={
+                "name": "ThinkPad X1",
+                "manufacturerId": "manufacturer-abc",
+                "categoryId": "category-xyz",
+            })
+            assert r.status_code == 201, r.text
+            data = r.json()
+            assert data["manufacturerId"] == "manufacturer-abc"
+            assert data["categoryId"] == "category-xyz"
+
+    @pytest.mark.asyncio
+    async def test_asset_model_rejects_unknown_manufacturer(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={
+                "name": "Bad Model",
+                "manufacturerId": "does-not-exist",
+            })
+            assert r.status_code == 400, r.text
+            assert "manufacturerid" in r.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_asset_model_rejects_unknown_category(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        manuf_store = _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+        manuf_store.append({"id": "manufacturer-abc", "name": "Acme", "tenantId": "tenant-a"})
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={
+                "name": "Bad Model",
+                "manufacturerId": "manufacturer-abc",
+                "categoryId": "does-not-exist",
+            })
+            assert r.status_code == 400, r.text
+            assert "categoryid" in r.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_asset_model_accepts_fieldsets(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        fieldsets = [
+            {"name": "Hardware", "fields": [
+                {"key": "ramGb", "label": "RAM (GB)", "type": "number"},
+                {"key": "hasTouchscreen", "label": "Touchscreen", "type": "boolean"},
+            ]},
+            {"name": "Warranty", "fields": [
+                {"key": "warrantyTier", "label": "Warranty Tier", "type": "select", "options": ["basic", "premium"]},
+            ]},
+        ]
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={
+                "name": "Fieldset Model",
+                "fieldsets": fieldsets,
+            })
+            assert r.status_code == 201, r.text
+            data = r.json()
+            assert len(data["fieldsets"]) == 2
+            assert data["fieldsets"][0]["fields"][0]["key"] == "ramGb"
+            assert data["fieldsets"][1]["fields"][0]["type"] == "select"
+            assert data["fieldsets"][1]["fields"][0]["options"] == ["basic", "premium"]
+
+    @pytest.mark.asyncio
+    async def test_duplicate_field_key_across_fieldsets_rejected(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        fieldsets = [
+            {"name": "A", "fields": [{"key": "dup", "label": "Dup1", "type": "text"}]},
+            {"name": "B", "fields": [{"key": "dup", "label": "Dup2", "type": "text"}]},
+        ]
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={"name": "Dup Model", "fieldsets": fieldsets})
+            assert r.status_code == 400, r.text
+
+    @pytest.mark.asyncio
+    async def test_select_field_without_options_rejected(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        fieldsets = [{"name": "A", "fields": [{"key": "colorChoice", "label": "Color", "type": "select"}]}]
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={"name": "Select Model", "fieldsets": fieldsets})
+            assert r.status_code == 400, r.text
+
+    @pytest.mark.asyncio
+    async def test_field_key_must_be_identifier_shaped(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        fieldsets = [{"name": "A", "fields": [{"key": "bad key.name", "label": "Bad", "type": "text"}]}]
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={"name": "Bad Key Model", "fieldsets": fieldsets})
+            assert r.status_code == 400, r.text
+
+    def test_validate_custom_field_values_flags_unknown_and_missing(self):
+        """Tests the shared value checker directly, not only through a route — this is the
+        function 56-04's asset write path consumes."""
+        from itam_catalog_service import validate_custom_field_values
+
+        field_defs = {
+            "ramGb": {"key": "ramGb", "label": "RAM", "type": "number", "required": True},
+            "warrantyTier": {
+                "key": "warrantyTier", "label": "Warranty", "type": "select",
+                "options": ["basic", "premium"], "required": False,
+            },
+        }
+
+        problems_unknown = validate_custom_field_values(field_defs, {"unknownKey": "x", "ramGb": 16})
+        assert any("unknownKey" in p for p in problems_unknown)
+
+        problems_missing = validate_custom_field_values(field_defs, {})
+        assert any("ramGb" in p for p in problems_missing)
+
+        problems_valid = validate_custom_field_values(field_defs, {"ramGb": 16, "warrantyTier": "premium"})
+        assert problems_valid == []
+
+    @pytest.mark.asyncio
+    async def test_editing_model_fieldsets_does_not_touch_existing_assets(self, mock_db, itam_app, patch_get_database_globally):
+        _wire_crud_store(mock_db.asset_models)
+        _wire_crud_store(mock_db.manufacturers)
+        _wire_crud_store(mock_db.asset_categories)
+
+        assets_write_called = {"insert": False, "update": False}
+
+        async def _fail_insert(*a, **kw):
+            assets_write_called["insert"] = True
+            return MagicMock()
+
+        async def _fail_update(*a, **kw):
+            assets_write_called["update"] = True
+            return MagicMock()
+
+        mock_db.assets.insert_one = AsyncMock(side_effect=_fail_insert)
+        mock_db.assets.find_one_and_update = AsyncMock(side_effect=_fail_update)
+        mock_db.assets.update_one = AsyncMock(side_effect=_fail_update)
+
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/models", json={
+                "name": "Editable Model",
+                "fieldsets": [{"name": "A", "fields": [{"key": "ramGb", "label": "RAM", "type": "number"}]}],
+            })
+            assert r.status_code == 201, r.text
+            mid = r.json()["id"]
+
+            r2 = await ac.patch(f"/api/itam/catalog/models/{mid}", json={
+                "fieldsets": [{"name": "B", "fields": [{"key": "cpu", "label": "CPU", "type": "text"}]}],
+            })
+            assert r2.status_code == 200, r2.text
+            assert r2.json()["fieldsets"][0]["name"] == "B"
+
+        assert assets_write_called["insert"] is False
+        assert assets_write_called["update"] is False

@@ -11,7 +11,10 @@ from pymongo import ReturnDocument
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database, TenantIsolatedDatabase
+from itam_catalog_service import validate_fieldsets
 from itam_models import (
+    AssetModelCreate,
+    AssetModelUpdate,
     CatalogEntityCreate,
     CatalogEntityUpdate,
     SupplierCreate,
@@ -28,6 +31,7 @@ CATALOG_KINDS: Dict[str, str] = {
     "categories": "asset_categories",
     "locations": "locations",
     "suppliers": "suppliers",
+    "models": "asset_models",
 }
 
 CATALOG_REFERENCE_FIELDS: Dict[str, str] = {
@@ -35,6 +39,7 @@ CATALOG_REFERENCE_FIELDS: Dict[str, str] = {
     "categories": "categoryId",
     "locations": "locationId",
     "suppliers": "supplierId",
+    "models": "modelId",
 }
 
 # Per-kind request-body shapes. A kind absent from this registry falls back to the base
@@ -43,6 +48,7 @@ CATALOG_REFERENCE_FIELDS: Dict[str, str] = {
 # signature (Dict[str, Any]) and validated explicitly against the resolved model below.
 CATALOG_MODELS: Dict[str, Tuple[type, type]] = {
     "suppliers": (SupplierCreate, SupplierUpdate),
+    "models": (AssetModelCreate, AssetModelUpdate),
 }
 
 
@@ -79,6 +85,34 @@ def _resolve_kind(kind: str) -> str:
     return collection_name
 
 
+async def _validate_asset_model_references(document: Dict[str, Any], db: TenantIsolatedDatabase) -> None:
+    """
+    Per-kind post-validation hook for the 'models' kind: confirm a supplied manufacturerId
+    exists in the manufacturers collection and a supplied categoryId exists in the
+    asset_categories collection, raising 400 naming the field that failed, then validate the
+    model's fieldsets and translate a structural violation into 400. Reference existence is
+    checked at write time only — this codebase enforces no Mongo-level foreign keys and none
+    is introduced here.
+    """
+    manufacturer_id = document.get("manufacturerId")
+    if manufacturer_id and not await db.manufacturers.find_one({"id": manufacturer_id}):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"manufacturerId '{manufacturer_id}' not found."
+        )
+
+    category_id = document.get("categoryId")
+    if category_id and not await db.asset_categories.find_one({"id": category_id}):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"categoryId '{category_id}' not found."
+        )
+
+    try:
+        validate_fieldsets(document.get("fieldsets") or [])
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
 @router.post("/{kind}", status_code=status.HTTP_201_CREATED, response_model=Dict[str, Any])
 async def create_catalog_entity(
     kind: str,
@@ -109,6 +143,9 @@ async def create_catalog_entity(
         "createdAt": now,
         "updatedAt": now,
     })
+
+    if kind == "models":
+        await _validate_asset_model_references(document, db)
 
     try:
         await collection.insert_one(document)
@@ -183,6 +220,9 @@ async def update_catalog_entity(
 
     now = datetime.now(timezone.utc).isoformat(timespec='milliseconds') + 'Z'
     update_data["updatedAt"] = now
+
+    if kind == "models":
+        await _validate_asset_model_references(update_data, db)
 
     result = await collection.find_one_and_update(
         {"id": entity_id},

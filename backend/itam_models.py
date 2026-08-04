@@ -6,7 +6,7 @@ intended to be shared across ITAM-related backend services and endpoints.
 """
 import uuid
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
@@ -112,5 +112,48 @@ class SupplierUpdate(CatalogEntityUpdate):
     contactPhone: Optional[str] = None
     website: Optional[str] = None
     address: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Asset Model fieldset definitions (ITAM-CAT-04, definition half). A fieldset lives only on a
+# Model — 56-04 consumes these definitions when validating customFields values on an asset.
+class CustomFieldDef(BaseModel):
+    """A single typed custom-field definition within a fieldset."""
+    key: str
+    label: str
+    type: Literal["text", "number", "date", "boolean", "select"]
+    required: bool = False
+    options: Optional[List[str]] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class FieldsetDef(BaseModel):
+    """A named group of custom-field definitions attached to an asset Model."""
+    name: str
+    fields: List[CustomFieldDef]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AssetModelCreate(CatalogEntityCreate):
+    """Request contract for creating an asset Model — references a Manufacturer and a
+    Category by id (validated at write time in itam_catalog_endpoints.py) and carries the
+    model-level fieldset definitions."""
+    modelNumber: Optional[str] = None
+    manufacturerId: Optional[str] = None
+    categoryId: Optional[str] = None
+    fieldsets: List[FieldsetDef] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AssetModelUpdate(CatalogEntityUpdate):
+    """Request contract for partially updating an asset Model."""
+    modelNumber: Optional[str] = None
+    manufacturerId: Optional[str] = None
+    categoryId: Optional[str] = None
+    fieldsets: Optional[List[FieldsetDef]] = None
 
     model_config = ConfigDict(extra="forbid")
