@@ -1,9 +1,11 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Tuple
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import Any, Dict, List, Tuple
+
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from motor.motor_asyncio import AsyncIOMotorCollection
+from pydantic import ValidationError
 from pymongo import ReturnDocument
 
 from auth_types import TokenData
@@ -12,7 +14,8 @@ from database import get_database, TenantIsolatedDatabase
 from itam_models import (
     CatalogEntityCreate,
     CatalogEntityUpdate,
-    LIFECYCLE_STATUSES
+    SupplierCreate,
+    SupplierUpdate,
 )
 from rbac_utils import verify_permission
 
@@ -22,13 +25,34 @@ router = APIRouter(prefix="/api/itam/catalog", tags=["ITAM Catalog"])
 
 CATALOG_KINDS: Dict[str, str] = {
     "manufacturers": "manufacturers",
-    # Add other catalog kinds here as they are implemented in future phases
+    "categories": "asset_categories",
+    "locations": "locations",
+    "suppliers": "suppliers",
 }
 
 CATALOG_REFERENCE_FIELDS: Dict[str, str] = {
     "manufacturers": "manufacturerId",
-    # Add other reference fields here as they are implemented
+    "categories": "categoryId",
+    "locations": "locationId",
+    "suppliers": "supplierId",
 }
+
+# Per-kind request-body shapes. A kind absent from this registry falls back to the base
+# CatalogEntityCreate/CatalogEntityUpdate pair. A single generic route cannot express five
+# different Pydantic body types in its signature, so the body is typed loosely at the
+# signature (Dict[str, Any]) and validated explicitly against the resolved model below.
+CATALOG_MODELS: Dict[str, Tuple[type, type]] = {
+    "suppliers": (SupplierCreate, SupplierUpdate),
+}
+
+
+def _resolve_models(kind: str) -> Tuple[type, type]:
+    return CATALOG_MODELS.get(kind, (CatalogEntityCreate, CatalogEntityUpdate))
+
+
+def _validation_error_to_http(exc: ValidationError) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors())
+
 
 async def _require_itam_admin(current_user: TokenData = Depends(get_current_user)):
     """
@@ -54,16 +78,23 @@ def _resolve_kind(kind: str) -> str:
         )
     return collection_name
 
+
 @router.post("/{kind}", status_code=status.HTTP_201_CREATED, response_model=Dict[str, Any])
 async def create_catalog_entity(
     kind: str,
-    payload: CatalogEntityCreate,
+    payload: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """
-    Creates a new ITAM catalog entity (e.g., manufacturer, model).
+    Creates a new ITAM catalog entity (e.g., manufacturer, category, location, supplier, model).
     """
     collection_name = _resolve_kind(kind)
+    create_model, _ = _resolve_models(kind)
+    try:
+        validated = create_model(**payload)
+    except ValidationError as exc:
+        raise _validation_error_to_http(exc)
+
     db = get_database()
     collection: AsyncIOMotorCollection = db[collection_name]
 
@@ -71,7 +102,7 @@ async def create_catalog_entity(
     entity_id_prefix = kind[:-1] if kind.endswith('s') else kind # manufacturers -> manufacturer
     new_id = f"{entity_id_prefix}-{uuid.uuid4().hex[:8]}"
 
-    document = payload.model_dump(exclude_none=True)
+    document = validated.model_dump(exclude_none=True)
     document.update({
         "id": new_id,
         "tenantId": current_user.tenant_id,
@@ -83,6 +114,8 @@ async def create_catalog_entity(
         await collection.insert_one(document)
         document.pop("_id", None) # Remove MongoDB's internal _id
         return document
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create catalog entity {kind}/{new_id}: {e}")
         raise HTTPException(
@@ -128,17 +161,23 @@ async def get_catalog_entity_by_id(
 async def update_catalog_entity(
     kind: str,
     entity_id: str,
-    payload: CatalogEntityUpdate,
+    payload: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """
     Updates an existing ITAM catalog entity.
     """
     collection_name = _resolve_kind(kind)
+    _, update_model = _resolve_models(kind)
+    try:
+        validated = update_model(**payload)
+    except ValidationError as exc:
+        raise _validation_error_to_http(exc)
+
     db = get_database()
     collection: AsyncIOMotorCollection = db[collection_name]
 
-    update_data = payload.model_dump(exclude_none=True)
+    update_data = validated.model_dump(exclude_none=True)
     if not update_data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
 
@@ -168,7 +207,11 @@ async def delete_catalog_entity(
     collection_name = _resolve_kind(kind)
     db = get_database()
 
-    reference_field = CATALOG_REFERENCE_FIELDS.get(collection_name)
+    # Keyed by the URL 'kind' segment (CATALOG_REFERENCE_FIELDS' own keyspace), not by
+    # collection_name — for manufacturers the two strings happen to be identical, which
+    # masked this lookup being wrong for every other kind (categories/locations/suppliers/
+    # models, whose collection name differs from the URL segment).
+    reference_field = CATALOG_REFERENCE_FIELDS.get(kind)
     if reference_field:
         assets_collection: AsyncIOMotorCollection = db.assets
         asset_count = await assets_collection.count_documents({reference_field: entity_id})

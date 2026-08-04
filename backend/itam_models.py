@@ -8,7 +8,7 @@ import uuid
 from enum import Enum
 from typing import Dict, Any, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 # Asset Tag and Lifecycle Status Decisions (from Phase 56, Task 1 Option A)
 # These decisions are foundational and impact later phases (57-61).
@@ -88,5 +88,29 @@ class ManualAssetCreate(BaseModel):
     notes: Optional[str] = None
     lifecycleStatus: LifecycleStatus = DEFAULT_LIFECYCLE_STATUS
     customFields: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Suppliers — a distinct catalog entity per ITAM-CAT-03, not a bare name: carries its own
+# contact shape on top of the generic CatalogEntityCreate/Update base.
+class SupplierCreate(CatalogEntityCreate):
+    """Request contract for creating a Supplier catalog entity."""
+    contactName: Optional[str] = None
+    contactEmail: Optional[EmailStr] = None
+    contactPhone: Optional[str] = None
+    website: Optional[str] = None
+    address: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class SupplierUpdate(CatalogEntityUpdate):
+    """Request contract for partially updating a Supplier catalog entity."""
+    contactName: Optional[str] = None
+    contactEmail: Optional[EmailStr] = None
+    contactPhone: Optional[str] = None
+    website: Optional[str] = None
+    address: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
