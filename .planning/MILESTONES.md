@@ -1,5 +1,24 @@
 # Milestones
 
+## v3.4 Native Security Scanning & Autonomous Remediation Agent (Shipped: 2026-08-04)
+
+**Phases completed:** 6 phases (50–55), 25 plans
+
+**Key accomplishments:**
+
+- Native offline scan engine (Phase 50): file scanning against a bundled hash-signature + aho-corasick literal-match set (yara-x rejected at spike — bloat/cross-compile risk, full YARA support deferred to backlog 999.4), URL/IP/domain/hash reputation via signed bundled threat-intel feeds, ed25519-verified signed-bundle update mechanism reused by phases 51/52 — no live lookup at scan time (NSCAN-01/02/03).
+- Agent-side vulnerability detection engine (Phase 51): signed CVE feed matching (replaces hardcoded patterns), Linux dpkg/rpm package enumeration, SSH/port misconfiguration + exposed-secret detection, prioritized findings piped into the real `vulnerabilities` store (VULN-01/02/03).
+- File Integrity Monitoring (Phase 52): event-driven `notify`-crate watcher (inotify/ReadDirectoryChangesW), rich before/after-hash + process/user change events, ed25519-signed baseline snapshots with restart drift detection (FIM-01/02/03).
+- Autonomous remediation engine (Phase 53): deterministic YAML playbook system (6 vendored playbooks, no LLM in the execution path), finding→playbook→execute→verify→complete pipeline, approval gate for destructive actions, rollback on verify-fail, per-agent concurrency cap, immutable append-only audit trail (AUTO-01/02/03/04).
+- Operator console + API (Phase 54): tabbed `NativeSecurityConsole.tsx` (Findings / Remediation Queue with approve-deny / Playbooks / Audit), nav-wired under `manage:active_response`, backed by `security_ops_endpoints.py` exposing every agent security function (INT-01/02/03).
+- Threat intel correlation + predictive containment + SIEM integration (Phase 55): `SiemEngine.correlate_native_findings()` feeds native findings into the existing rule-evaluation loop; UEBA `shadow_ai` anomalies trigger approval-gated `kill_process` containment; outbound OCSF webhook push at correlation/anomaly/remediation points; real VirusTotal v3 client replacing the dead capability class that had silently broken the `/api/threat-intel/correlate-native` route (INT-04, AUT-03, COMM-01) — the last open verification gap (55-VERIFICATION.md gap #1) confirmed resolved at this milestone close.
+- select_playbook() gains a deterministic `finding_type == "anomaly"` branch mapping shadow_ai_detected + a real agent_id onto the existing kill_process playbook, with every other anomaly honestly falling through to no_playbook — zero new action surface, zero LLM.
+- UEBA's `report_shadow_ai` endpoint becomes the FIRST production caller of Phase 53's `remediate()` engine — a shadow_ai_detected event with a real agent_id fires a fail-closed, deduped, fire-and-forget, approval-gated `kill_process` containment dispatch; every other anomaly type stays `no_playbook`.
+- Outbound OCSF (class_uid=2004) push from correlation/anomaly/remediation pipelines to subscribed SIEM webhooks, fire-and-forget, via the existing SSRF-safe HMAC-signed webhook_service — reusing `notification_manager`'s dispatch pattern and `ocsf_endpoints.py`'s payload shape.
+- Rewrote the abandoned `backend/virustotal_client.py` (undefined-`BaseCapability` NameError) into a real synchronous VirusTotal API v3 client behind `get_virustotal_client()`, closing 55-VERIFICATION.md gap #1 and making `POST /api/threat-intel/correlate-native` reachable (200) for the first time.
+
+---
+
 ## v3.3 Agent Geo & Fleet Observability (Shipped: 2026-07-30)
 
 **Phases completed:** 4 phases (46–49), 23 plans

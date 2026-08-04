@@ -10,7 +10,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ## Current State
 
-**Latest: v3.3 Agent Geo & Fleet Observability shipped 2026-07-30** (4 phases 46–49, 23 plans, 11/11 requirements, audit passed). Immutable per-agent location-history audit trail + ASN/VPN enrichment (46); agent-scoped geo detectors — impossible-travel, alert-only geo-fence, heuristic VPN badge (47); fleet observability — metrics/uptime charts + offline/version-drift view (48); air-gapped fleet geo map — bundled-SVG, clustering, tenant/status filters, drill-down, cross-tenant `/api/fleet/geo` (49). **Next: v3.4 Native Security Scanning & Autonomous Remediation** (phases 50–54, requirements drafted in `REQUIREMENTS.md`); **v4.0 ITAM** context held in `MILESTONE-CONTEXT.md`.
+**Latest: v3.4 Native Security Scanning & Autonomous Remediation Agent shipped 2026-08-04** (6 phases 50–55, 25 plans, 19/19 requirements). Native offline scan engine — file/URL/IP/hash verdicts against signed bundled feeds, no live lookup (50); agent-side vulnerability detection — signed CVE feed matching, misconfig + secret detection (51); File Integrity Monitoring — event-driven watcher, signed baseline + restart drift detection (52); autonomous remediation — deterministic YAML playbooks, approval gate, rollback, immutable audit trail (53); operator console + API surfacing the whole stack (54); threat-intel correlation, UEBA-triggered predictive containment, outbound SIEM/OCSF webhook (55). See `.planning/milestones/v3.4-ROADMAP.md` / `v3.4-REQUIREMENTS.md`. **Next: v4.0 ITAM** (asset-lifecycle management — see `MILESTONE-CONTEXT.md`).
 
 <details><summary>Earlier milestones (v1.0 → v3.2)</summary>
 
@@ -48,28 +48,21 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - ✓ **Manual evidence uploads** — auditors attach files to controls; magic-byte MIME validation; owner/admin delete RBAC (Phase 2)
 - ✓ **Audit-ready export** — per-tenant PDF/Excel with tenant name, export date, auto/manual evidence columns (Phase 3)
 - ✓ **Remediation workflow** — task CRUD, AI suggest, re-scan dispatch, real-time WebSocket updates (Phase 4)
+- ✓ **Native offline file/URL/IP/hash scanning** — signed bundled feeds, ed25519-verified update mechanism, no live lookup (v3.4 Phase 50, NSCAN-01/02/03)
+- ✓ **Agent-side vulnerability detection** — signed CVE feed matching, misconfig + exposed-secret checks, prioritized findings (v3.4 Phase 51, VULN-01/02/03)
+- ✓ **File Integrity Monitoring** — event-driven native-OS watcher, signed baseline + restart drift detection (v3.4 Phase 52, FIM-01/02/03)
+- ✓ **Autonomous remediation engine** — YAML playbooks, approval gate, rollback on verify-fail, concurrency cap, immutable audit trail (v3.4 Phase 53, AUTO-01/02/03/04)
+- ✓ **Native security operator console + API** — findings/remediation-queue/playbooks/audit tabs, full agent-security API surface (v3.4 Phase 54, INT-01/02/03)
+- ✓ **Threat-intel correlation + predictive containment + SIEM webhook** — `SiemEngine.correlate_native_findings()`, UEBA shadow_ai auto-containment, outbound OCSF push, real VirusTotal v3 client (v3.4 Phase 55, INT-04/AUT-03/COMM-01)
 
 ### Out of Scope
 
 - New compliance frameworks beyond those already seeded — 30+ existing frameworks cover stated scope; adding more is a future milestone
 - Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone was about evidence and compliance
 - Billing and subscription management — separate concern not related to compliance portal completeness
-
-## Current Milestone: Native Security Scanning & Autonomous Remediation Agent
-
-**Status:** Defining requirements | **Started:** 2026-07-30
-
-**Goal:** Build native security capabilities into the OmniAgent — file/URL/IP/hash scanning (like VirusTotal), vulnerability detection on endpoints (like Wazuh's FIM/config-assessment/vuln-detection), and autonomous remediation. No external SIEM dependencies — all security features built as first-class agent modules.
-
-**Target features:**
-- **Native File Scanner** — scan files for malware signatures, YARA rules, heuristic detection. Built into agent, no external API dependency.
-- **Native URL/IP/Hash Scanner** — reputation checks, threat-intel lookup against bundled feeds, heuristic classification.
-- **Vulnerability Detection Engine** — agent-side scanning for CVEs, misconfigurations, weak cipher/port detection. Like Wazuh's vulnerability detector but native.
-- **File Integrity Monitoring (FIM)** — track file changes, detect unauthorized modifications, alert on critical-path changes.
-- **Autonomous Remediation** — agent receives detection → selects remediation action → executes fix → verifies → reports. Human-override always available.
-- **Remediation Playbook System** — predefined remediation actions per vulnerability class, extensible by operators.
-
-**Phase plan:** TBD — continues numbering from Phase 45 (v3.3 starts at Phase 46)
+- Live VirusTotal lookup at native scan time — offline-first design; signed bundled feeds only (v3.4). The VirusTotal v3 client added in Phase 55 serves the separate threat-intel correlation surface, not the NSCAN scan path.
+- Third-party SIEM agents — native agent capability supersedes them for v3.4's scope; outbound OCSF webhook (COMM-01) is the integration point instead
+- Full YARA-rule engine — yara-x rejected at the Phase 50 spike (pulls in wasmtime/cranelift JIT, cross-compile risk); hash-signature + aho-corasick literal matching shipped instead, full YARA support deferred to backlog item 999.4
 
 ---
 
@@ -85,6 +78,8 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 **Test baseline:** 378 passed, 0 failed, 1 skipped across 11 test files. 92 cross-test isolation failures from `importlib.reload()` contamination and Python 3.12 asyncio event-loop lifecycle fixed in post-milestone cleanup.
 
+**Codebase state (v3.4, 2026-08-04):** Native security stack now lives alongside the compliance portal: agent-side scan/vuln/FIM modules in `agent-install/omni-agent-rs` (the shipped Rust agent tree — see the two-agent-tree caveat, `agent-rust/` is the older/download-endpoint tree), backend ingestion + correlation in `backend/security_ops_endpoints.py`, `backend/siem_engine.py`, `backend/remediation_playbook_service.py`, `backend/autonomous_remediation_service.py`, `backend/soc_integration_service.py`, `backend/virustotal_client.py`. Frontend operator console: `components/NativeSecurityConsole.tsx` + `components/nativeSecurity/*` tabs, nav-gated on `manage:active_response`. Full backend suite: 1547 passed / 35 skipped / 3 pre-existing unrelated fails (`test_agentic_ai` tool_choice kwarg, `test_e2e_integration` golden path, `test_rust_heartbeat_parity` agent_type field) as of the v3.4 close session.
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
@@ -98,12 +93,23 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 | broadcast_remediation_update list() snapshot copy | Prevents set-mutation-during-iteration; matches broadcast_mitre_heatmap pattern | Done |
 | Provider-allowlist widening (Phase 25, CHK-01) touches all 4 duplicated gate locations in lockstep, not just the named execution gate | Leaving account registration narrower than execution would leave the multi-account UI flow still broken | Done — `cloud_checks_service.py`, `cloud_checks_endpoints.py`, `cloud_account_endpoints.py`, `mcp_server_endpoints.py` all widened together |
 | CloudFormation container-scan "simulated" data is labeled, not fail-closed (Phase 25, CHK-03) | Labeled simulated data is more useful to the user than an empty/error result when Trivy isn't installed; matches the existing `finops_service` simulated-spend precedent | Done — explicit `simulated` field + SIMULATED badge at 3 dashboard sites, verified via live browser run, not just code inspection |
+| Native scanning uses signed bundled feeds, never live VirusTotal/NVD lookups at scan time (v3.4 Phase 50/51) | Offline-first platform value — air-gapped deployments must scan without external network access | Done — ed25519-signed SQLite bundle + delta updates |
+| yara-x rejected in favor of hash-signature DB + aho-corasick literal matching (v3.4 Phase 50) | yara-x pulls in wasmtime/cranelift JIT — bloat and cross-compile risk for the shipped Windows/Linux agent binary | Done — full YARA-rule support deferred to backlog 999.4 |
+| Autonomous remediation is backend-orchestrated (extends `autonomous_remediation_service`, dispatches via existing `agent_instructions` queue), not a new agent-local engine (v3.4 Phase 53) | Reuses the existing engine's dry-run/severity-ceiling/dedup rather than duplicating safety logic in two places | Done — deterministic YAML playbooks, no LLM in the execution path |
+| UEBA `shadow_ai` anomaly containment honors the identical approval gate as manual remediation, no confidence/severity bypass (v3.4 Phase 55, D-04) | A predictive/automated trigger must never have weaker safety guarantees than a human-initiated one | Done — dedicated regression test proves no bypass |
 
 **Note (2026-07-06, resolved 2026-07-20):** This file's Requirements/Milestone sections had drifted since v1.1 and weren't kept current through v2.0/v2.1/v3.0/v3.1 — a pre-existing maintenance gap. Corrected at the v3.2 milestone kickoff (2026-07-20): Current Milestone and v2 Backlog Candidates rewritten against verified codebase state (one backlog item, scheduled-report auto-email, turned out to already be shipped in Phase 10). The Validated/Out of Scope requirement lists below still predate v2.0+ and remain a known gap — full catch-up still deferred to a proper `/gsd-complete-milestone` pass.
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
 1. Full review of all sections
@@ -112,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-29 — v3.2 milestone shipped (Phases 40-45, 10/10 requirements; see .planning/milestones/v3.2-ROADMAP.md)*
+*Last updated: 2026-08-04 — v3.4 milestone shipped (Phases 50-55, 19/19 requirements; see .planning/milestones/v3.4-ROADMAP.md)*

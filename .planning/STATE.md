@@ -1,30 +1,30 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.4
-milestone_name: — Native Security Scanning & Autonomous Remediation Agent
-current_phase: 55
-current_phase_name: Advanced Threat Detection & Response
+milestone_name: Native Security Scanning & Autonomous Remediation Agent
 status: complete
-stopped_at: "v3.4 milestone (phases 50-55) fully verified complete 2026-08-04. Phase 54 (Integration & Operator UI) re-verified this session: ROADMAP.md had all 4 plans unchecked / status 'Planned' despite the code being committed in ea12a13 (security_ops_endpoints.py, NativeSecurityConsole.tsx + tabs, App.tsx/Sidebar.tsx nav, manage:active_response permission) — confirmed via git log, grep for nav wiring, and a live test run: test_native_security_ops_endpoints.py 6/6 pass, full backend suite 1547 passed / 35 skipped / 3 pre-existing unrelated fails (test_agentic_ai tool_choice kwarg, test_e2e_integration golden path, test_rust_heartbeat_parity agent_type field — same 3 as prior sessions' baseline). ROADMAP.md updated to Complete. Phase 52 (52-04 agent_loop wiring) and Phase 53 (playbook engine) also spot-checked and confirmed present/wired (lib.rs:57-69 FIM watcher+drift+drain; remediation guard/playbook/audit tests 37/37 pass) — ROADMAP.md corrected for both (52: 3/4→4/4 plans, Planned→Complete; 53: Planned→Complete). Phase 55 was already marked Complete/verified 2026-08-04 prior to this session. All 6 v3.4 phases (50-55) now consistently marked Complete in both ROADMAP.md and STATE.md. Next: v3.5 milestone not yet defined."
-last_updated: "2026-08-04T00:00:00.000Z"
+stopped_at: "v3.4 milestone (phases 50-55, 25 plans, 19/19 requirements) archived and closed 2026-08-04. Pre-close artifact audit ran: Phase 55's INT-04 verification gap (55-VERIFICATION.md gap #1 — threat_intel_endpoints.py failing to import via a dead virustotal_client.py) was found already fixed in code by commit 766e3ca (plan 55-05) but the verification doc was stale — updated to status: passed, re-confirmed live (app boots, router mounts, no import failure). GSD's init.manager flagged phases 50/51/52/54 as not formally phase_complete (Phase 50/51 status text said 'Executed' not 'Complete'; phases 50/52/54 have missing per-plan SUMMARY.md files, Phase 54 has zero) despite all plans checked off and real passing-test evidence in ROADMAP.md/STATE.md — user chose override-and-proceed (bookkeeping gap, not functional gap). REQUIREMENTS.md's auto-generated v3.4 archive initially captured the wrong content (a stale, unrelated v4.0 SCALE/SEC/UX/SIEM draft that had overwritten REQUIREMENTS.md on 2026-07-31) — manually reconstructed the correct v3.4-REQUIREMENTS.md from the 19 per-phase requirement IDs in the ROADMAP.md phase sections. ROADMAP.md collapsed (Phase 50-55 detail moved to milestones/v3.4-ROADMAP.md, matching the v3.2/v3.3 pattern). PROJECT.md full evolution review done (Validated requirements, Key Decisions, Context, Out of Scope updated). RETROSPECTIVE.md created (first use of this workflow step in the project). Next: v4.0 milestone not yet defined — MILESTONE-CONTEXT.md holds a ready ITAM (asset-lifecycle) scope from 2026-07-30; a separate, unrelated v4.0 SCALE/SEC/UX/SIEM draft exists but has no roadmap and was judged stale. User chose ITAM."
+last_updated: "2026-08-04T01:10:14.206Z"
 last_activity: 2026-08-04
-last_activity_desc: Phase 54 re-verified complete (stale ROADMAP status corrected); v3.4 milestone (50-55) all phases confirmed done
+last_activity_desc: v3.4 milestone archived and closed; RETROSPECTIVE.md started; awaiting v4.0 definition
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 25
   completed_plans: 25
   percent: 100
+current_phase: 55
+current_phase_name: Advanced Threat Detection & Response
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-20)
+See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 54 — Integration & Operator UI
+**Current focus:** Planning next milestone (v4.0)
 
 ## Current Phase
 
@@ -460,12 +460,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 55 (Advanced Threat Detection & Response) — COMPLETE
-Plan: 5 of 5
-Status: v3.4 milestone complete (phases 50-55, 25/25 plans)
-Last activity: 2026-08-04 — Phase 54 re-verified complete against real code/tests; ROADMAP.md corrected (was stale at "Planned")
-
-Note: this section was previously stuck at Phase 54/Plan 1 ("Executing", 2026-08-03) despite phase 54's code being committed (ea12a13) and phase 55 already fully executed — same class of staleness flagged below for the pre-Phase-48 drift. Corrected 2026-08-04 by direct git log + test verification, not by trusting either ROADMAP.md or this file's own prior claim.
+Phase: Milestone v3.4 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-04 — Milestone v3.4 completed and archived
 
 ## Deferred Items
 
@@ -493,6 +491,31 @@ Items acknowledged and deferred at v3.2 milestone close on 2026-07-29 (16 total,
 | verification | Phase 06 (06-VERIFICATION.md) | human_needed (pre-v3.2, v1.1) |
 | verification | Phase 32 (32-02-VERIFICATION.md) | gaps_found (pre-v3.2, v3.0) |
 
+Items acknowledged and deferred at v3.4 milestone close on 2026-08-04 (20 total, project-wide scan — all predate v3.4 except two new entries added by v3.3 phases). One item from the prior list is resolved and dropped: Phase 55's `55-VERIFICATION.md` (INT-04 gap) was `gaps_found` at initial verification but the underlying bug (`virustotal_client.py` missing `get_virustotal_client()` factory) was independently fixed in commit `766e3ca` (feat(55-05)) — re-confirmed live at this close (`import app` mounts `threat_intel_endpoints` with no failure) and the verification doc updated to `status: passed`. The `[55-03] REQUIREMENTS.md AUT-03 traceability gap` item above is also resolved — `.planning/REQUIREMENTS.md`'s "v3.4 Requirements (completed — historical)" section (added in commit `7bd1819`) now carries AUT-03/INT-04/COMM-01 with phase/plan references.
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 02 (02-UAT.md) | testing, 7 pending scenarios (pre-v3.4, v1.1) |
+| uat | Phase 06 (06-UAT.md) | partial (pre-v3.4, v1.1) |
+| uat | Phase 15 (15-UAT.md) | testing, 12 pending scenarios (pre-v3.4, v2.0) |
+| uat | Phase 27 (27-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 28 (28-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 29 (29-UAT-SUMMARY.md) | blocked (pre-v3.4, v3.0) |
+| uat | Phase 29 (29-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 30 (30-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 32 (32-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 33 (33-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 34 (34-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 35 (35-UAT.md) | unknown (pre-v3.4, v3.0) |
+| uat | Phase 39 (39-UAT.md) | partial (pre-v3.4, v3.1) |
+| uat | Phase 40 (40-UAT.md) | partial, 0 pending — 1 test blocked_by physical-device (pre-v3.4, v3.2) |
+| uat | Phase 48 (48-UAT.md) | testing, 2 pending scenarios (v3.3) |
+| uat | Phase 49 (49-UAT.md) | passed, 0 pending — flagged by audit tool despite passed status (v3.3) |
+| uat | Phase 50 (50-UAT.md) | passed, 0 pending — flagged by audit tool despite passed status (v3.4) |
+| verification | Phase 06 (06-VERIFICATION.md) | human_needed (pre-v3.4, v1.1) |
+| verification | Phase 32 (32-02-VERIFICATION.md) | gaps_found (pre-v3.4, v3.0) |
+| verification | Phase 48 (48-VERIFICATION.md) | human_needed (v3.3) |
+
 ## Operator Next Steps
 
-- v3.3 roadmap defined (Phases 46-49, 11/11 requirements mapped). Start planning the first phase with /gsd-plan-phase 46
+- Start the next milestone with /gsd-new-milestone
