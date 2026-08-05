@@ -6,14 +6,14 @@ current_phase: 59
 current_phase_name: procurement-finance-warranty-depreciation
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-05T12:37:04.450Z"
+last_updated: "2026-08-05T12:48:58.289Z"
 last_activity: 2026-08-05
 last_activity_desc: Phase 59 execution started
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 17
-  completed_plans: 10
+  completed_plans: 11
   percent: 50
 ---
 
@@ -355,6 +355,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: _validate_iso8601_date relocated above ManualAssetCreate (single definition) so purchase-field validators bind correctly at class-definition time
 - [Phase ?]: Depreciation policy fields (usefulLifeYears/salvageValueCents) added as typed siblings on AssetModelCreate/Update, kept out of the fieldsets custom-field mechanism
 - [Phase ?]: PD-02 (Model needs both policy fields) enforced in get_asset_book_value endpoint, not as a model-level validator
+- [Phase ?]: 59-02: itam.warranty_expiring added to both VALID_EVENTS and RuleCreate.event_type Literal, kept as two separate definitions per plan scope
 
 ## Performance Metrics
 
@@ -454,11 +455,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 58 P03 | 15min | 2 tasks | 4 files |
 | Phase 58 P04 | ~8min | 3 tasks | 6 files |
 | Phase 59 P01 | 55min | 3 tasks | 7 files |
+| Phase 59 P02 | 15min | 2 tasks | 3 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 59-01-PLAN.md
+- **Stopped at:** Completed 59-02-PLAN.md (notification event vocabulary extension for warranty alerts, ITAM-FIN-02)
 - **Resume file:** None
 
 ## Configuration
@@ -484,7 +486,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-05T12:37:04.418Z
+**Last session:** 2026-08-05T12:48:58.254Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -502,7 +504,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 59 (procurement-finance-warranty-depreciation) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-08-05 — Phase 59 execution started
 

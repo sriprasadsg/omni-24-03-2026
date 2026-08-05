@@ -914,10 +914,10 @@ Plans:
 
 **Depends on:** Phase 56 (Model entity for model-level depreciation policy)
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 - [x] 59-01-PLAN.md
-- [ ] 59-02-PLAN.md
+- [x] 59-02-PLAN.md
 - [ ] 59-03-PLAN.md
 - [ ] 59-04-PLAN.md
 

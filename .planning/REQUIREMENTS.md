@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-LIFE-04 | Phase 57 | Complete |
 | ITAM-LIFE-05 | Phase 57 | Complete |
 | ITAM-FIN-01 | Phase 59 | Complete |
-| ITAM-FIN-02 | Phase 59 | Pending |
+| ITAM-FIN-02 | Phase 59 | In Progress (59-02 done; 59-03/59-04 pending) |
 | ITAM-FIN-03 | Phase 59 | Complete |
 | ITAM-LIC-01 | Phase 60 | Pending |
 | ITAM-LIC-02 | Phase 60 | Pending |
