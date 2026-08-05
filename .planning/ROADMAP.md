@@ -798,7 +798,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 | 56 | Catalog & Foundation | Complete    |
 | 57 | Lifecycle & Check-In/Out | Complete    |
 | 58 | Asset Tags & Offline Labels | Complete    |
-| 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
+| 59 | Procurement & Finance (Warranty & Depreciation) | In Progress|
 | 60 | Licenses & Consumables | Not started |
 | 61 | Frontend ITAM Console | Not started |
 
@@ -914,7 +914,12 @@ Plans:
 
 **Depends on:** Phase 56 (Model entity for model-level depreciation policy)
 
-**Plans:** TBD
+**Plans:** 1/4 plans executed
+
+- [x] 59-01-PLAN.md
+- [ ] 59-02-PLAN.md
+- [ ] 59-03-PLAN.md
+- [ ] 59-04-PLAN.md
 
 ---
 

@@ -23,9 +23,9 @@
 
 ### Procurement & Finance (ITAM-FIN)
 
-- [ ] **ITAM-FIN-01**: Asset carries purchase cost, purchase date, PO number, and supplier.
+- [x] **ITAM-FIN-01**: Asset carries purchase cost, purchase date, PO number, and supplier.
 - [ ] **ITAM-FIN-02**: Asset warranty is tracked (purchase date + warranty period) with expiry alerts, routed through the existing notification/webhook infrastructure.
-- [ ] **ITAM-FIN-03**: Asset book value is computed via a straight-line depreciation schedule assigned at the model level, computed at read time (no external accounting/GL integration).
+- [x] **ITAM-FIN-03**: Asset book value is computed via a straight-line depreciation schedule assigned at the model level, computed at read time (no external accounting/GL integration).
 
 ### Licenses & Consumables (ITAM-LIC)
 
@@ -77,9 +77,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-LIFE-03 | Phase 57 | Complete |
 | ITAM-LIFE-04 | Phase 57 | Complete |
 | ITAM-LIFE-05 | Phase 57 | Complete |
-| ITAM-FIN-01 | Phase 59 | Pending |
+| ITAM-FIN-01 | Phase 59 | Complete |
 | ITAM-FIN-02 | Phase 59 | Pending |
-| ITAM-FIN-03 | Phase 59 | Pending |
+| ITAM-FIN-03 | Phase 59 | Complete |
 | ITAM-LIC-01 | Phase 60 | Pending |
 | ITAM-LIC-02 | Phase 60 | Pending |
 | ITAM-LIC-03 | Phase 60 | Pending |

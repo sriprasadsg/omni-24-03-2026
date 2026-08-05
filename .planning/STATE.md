@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: ITAM
-current_phase: 58
-current_phase_name: asset-tags-offline-labels
-status: verifying
+current_phase: 59
+current_phase_name: procurement-finance-warranty-depreciation
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-05T08:36:46.936Z"
+last_updated: "2026-08-05T12:37:04.450Z"
 last_activity: 2026-08-05
-last_activity_desc: Phase 58 execution started
+last_activity_desc: Phase 59 execution started
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 13
-  completed_plans: 9
+  total_plans: 17
+  completed_plans: 10
   percent: 50
 ---
 
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 58 — asset-tags-offline-labels
+**Current focus:** Phase 59 — procurement-finance-warranty-depreciation
 
 ## Current Phase
 
@@ -352,6 +352,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 58-03: block_all_sockets patches socket.socket/create_connection/getaddrinfo on the stdlib socket module itself (not a consumer's bound name), proven real via a negative-control test
 - [Phase ?]: 58-04: COL_PITCH set equal to LABEL_W (2.625in edge-to-edge) instead of the plan's literal 2.75in Avery gutter pitch — the reconciled 0.3125in margin only holds without a horizontal gutter; kept LEFT_MARGIN as specified and fixed the inconsistent constant (Rule 1).
 - [Phase ?]: 58-04: POST /api/assets/labels/sheet refuses (400) rather than trims an over-cap assetIds list, departing deliberately from asset_endpoints.py's bulk_delete_assets_route ids[:500] truncation convention.
+- [Phase ?]: _validate_iso8601_date relocated above ManualAssetCreate (single definition) so purchase-field validators bind correctly at class-definition time
+- [Phase ?]: Depreciation policy fields (usefulLifeYears/salvageValueCents) added as typed siblings on AssetModelCreate/Update, kept out of the fieldsets custom-field mechanism
+- [Phase ?]: PD-02 (Model needs both policy fields) enforced in get_asset_book_value endpoint, not as a model-level validator
 
 ## Performance Metrics
 
@@ -450,12 +453,13 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 58 P02 | 12min | 2 tasks | 1 files |
 | Phase 58 P03 | 15min | 2 tasks | 4 files |
 | Phase 58 P04 | ~8min | 3 tasks | 6 files |
+| Phase 59 P01 | 55min | 3 tasks | 7 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Phase 59 research running, Phase 60 context gathered
-- **Resume file:** .planning/phases/60-licenses-consumables/60-CONTEXT.md
+- **Stopped at:** Completed 59-01-PLAN.md
+- **Resume file:** None
 
 ## Configuration
 
@@ -480,7 +484,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-05T08:36:46.903Z
+**Last session:** 2026-08-05T12:37:04.418Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -497,10 +501,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 58 (asset-tags-offline-labels) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-08-05 — Phase 58 execution started
+Phase: 59 (procurement-finance-warranty-depreciation) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-08-05 — Phase 59 execution started
 
 ## Deferred Items
 
