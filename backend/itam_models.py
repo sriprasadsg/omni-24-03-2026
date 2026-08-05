@@ -52,6 +52,29 @@ DEFAULT_LIFECYCLE_STATUS = LifecycleStatus.DEPLOYABLE
 ASSET_SOURCE_AGENT = "agent"
 ASSET_SOURCE_MANUAL = "manual"
 
+
+def _validate_iso8601_date(v: Optional[str]) -> Optional[str]:
+    """WR-02 boundary check: rejects a caller-supplied date string that
+    datetime.fromisoformat can't parse (after the same 'Z' -> '+00:00'
+    normalization itam_lifecycle_endpoints.py's _overdue_row applies), so a
+    malformed value never reaches the overdue report's date-math or its raw
+    lexicographic-string $lt query comparison.
+
+    Relocated here (Phase 59, Plan 59-01) from just above CheckoutRequest so
+    that ManualAssetCreate and AssetPurchaseUpdate — both defined above where
+    CheckoutRequest used to be the first binder — can also bind it via
+    field_validator. Python evaluates a class body at definition time, so the
+    function must be defined before any class that binds it. Exactly one
+    definition of this function exists in this file."""
+    if v is None:
+        return v
+    try:
+        datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"must be an ISO-8601 date/datetime string, got {v!r}")
+    return v
+
+
 # Generic Catalog Entities
 class CatalogEntityCreate(BaseModel):
     """
@@ -89,8 +112,39 @@ class ManualAssetCreate(BaseModel):
     notes: Optional[str] = None
     lifecycleStatus: LifecycleStatus = DEFAULT_LIFECYCLE_STATUS
     customFields: Dict[str, Any] = Field(default_factory=dict)
+    # ITAM-FIN-01/02 (Phase 59): purchase/warranty fields. All optional —
+    # agent-discovered assets have no admin-controlled creation step, and
+    # financial data is routinely entered long after physical receipt.
+    purchaseCostCents: Optional[int] = Field(None, ge=0)
+    purchaseDate: Optional[str] = None
+    poNumber: Optional[str] = Field(None, max_length=100)
+    warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
 
     model_config = ConfigDict(extra="forbid")
+
+    _validate_purchase_date = field_validator("purchaseDate")(_validate_iso8601_date)
+
+
+class AssetPurchaseUpdate(BaseModel):
+    """Request contract for PATCH /api/assets/{asset_id}/purchase.
+
+    This is the primary way an agent-discovered asset — which has no
+    ITAM-admin-controlled creation step — gets its financial record
+    populated; it also corrects a manual asset's record after creation.
+
+    Changing purchaseDate or warrantyMonths through this contract resets
+    the asset's warrantyAlertSentAt marker, so a renewed or corrected
+    warranty becomes alertable again (Plan 59-04's sweep idempotency
+    contract)."""
+    purchaseCostCents: Optional[int] = Field(None, ge=0)
+    purchaseDate: Optional[str] = None
+    poNumber: Optional[str] = Field(None, max_length=100)
+    supplierId: Optional[str] = None
+    warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
+
+    model_config = ConfigDict(extra="forbid")
+
+    _validate_purchase_date = field_validator("purchaseDate")(_validate_iso8601_date)
 
 
 # Suppliers — a distinct catalog entity per ITAM-CAT-03, not a bare name: carries its own
@@ -146,6 +200,14 @@ class AssetModelCreate(CatalogEntityCreate):
     manufacturerId: Optional[str] = None
     categoryId: Optional[str] = None
     fieldsets: List[FieldsetDef] = Field(default_factory=list)
+    # ITAM-FIN-03 (Phase 59, D-04): straight-line depreciation policy, kept as
+    # first-class typed fields — deliberately NOT participants in fieldsets,
+    # which is a tenant-authorable custom-field registry, not a home for a
+    # platform-defined financial policy. A Model carries a usable policy only
+    # when BOTH fields are present (PD-02) — the endpoint enforces that, not
+    # this model.
+    usefulLifeYears: Optional[int] = Field(None, gt=0, le=100)
+    salvageValueCents: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -156,23 +218,10 @@ class AssetModelUpdate(CatalogEntityUpdate):
     manufacturerId: Optional[str] = None
     categoryId: Optional[str] = None
     fieldsets: Optional[List[FieldsetDef]] = None
+    usefulLifeYears: Optional[int] = Field(None, gt=0, le=100)
+    salvageValueCents: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
-
-
-def _validate_iso8601_date(v: Optional[str]) -> Optional[str]:
-    """WR-02 boundary check: rejects a caller-supplied date string that
-    datetime.fromisoformat can't parse (after the same 'Z' -> '+00:00'
-    normalization itam_lifecycle_endpoints.py's _overdue_row applies), so a
-    malformed value never reaches the overdue report's date-math or its raw
-    lexicographic-string $lt query comparison."""
-    if v is None:
-        return v
-    try:
-        datetime.fromisoformat(v.replace("Z", "+00:00"))
-    except ValueError:
-        raise ValueError(f"must be an ISO-8601 date/datetime string, got {v!r}")
-    return v
 
 
 # Lifecycle Check-Out (Phase 57-01, ITAM-LIFE-02). targetType/targetId are a polymorphic
