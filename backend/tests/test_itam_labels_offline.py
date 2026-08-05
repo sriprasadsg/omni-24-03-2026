@@ -1,12 +1,13 @@
-"""ITAM Labels offline-generation proof — Phase 58 Plan 03, Task 2.
+"""ITAM Labels offline-generation proof — Phase 58 Plans 03 and 04.
 
-This is the executable form of ROADMAP success criterion 3 for the two
-generators built so far (Plan 04 adds the third and last, the label-sheet
-PDF generator, to this same file). It exists because a transitive
-dependency could reach the network even though the top-level
-itam_label_service.py module does not import an HTTP client — so the proof
-has to be behavioral, over the whole call graph, not a source inspection
-(58-RESEARCH.md Common Pitfalls Pitfall 1).
+This is the executable form of ROADMAP success criterion 3, now covering
+all three generators: generate_qr_png, generate_barcode_png, and
+generate_label_sheet_pdf. It exists because a transitive dependency could
+reach the network even though the top-level itam_label_service.py module
+does not import an HTTP client — so the proof has to be behavioral, over
+the whole call graph, not a source inspection (58-RESEARCH.md Common
+Pitfalls Pitfall 1). With this file's Plan 04 addition, ROADMAP success
+criterion 3 is fully discharged, not partially covered.
 """
 import socket
 import sys
@@ -45,9 +46,8 @@ def block_all_sockets(monkeypatch):
 
 
 class TestOfflineGeneration:
-    """Both generators are proven to complete with every socket entry point
-    raising. Plan 04 extends this file with the label-sheet generator, the
-    third and last generator in this phase.
+    """All three generators are proven to complete with every socket entry
+    point raising.
 
     Selectable via -k offline_network_blocked.
     """
@@ -61,6 +61,20 @@ class TestOfflineGeneration:
         block_all_sockets(monkeypatch)
         png = itam_label_service.generate_barcode_png("IT-0001")
         assert png.startswith(b"\x89PNG\r\n\x1a\n")
+
+    def test_offline_network_blocked_label_sheet_pdf_generation_succeeds(self, monkeypatch):
+        """31 assets so the page-break path, reportlab's font machinery, and
+        both image generators (QR + barcode) are all exercised inside the
+        blocked window — the first call that exercises reportlab, Pillow's
+        PNG encoder, python-barcode's bundled font handling, and the qrcode
+        renderer together in one offline-proven pass."""
+        block_all_sockets(monkeypatch)
+        assets = [
+            {"id": f"asset-{i}", "assetTag": f"IT-{i:04d}", "name": f"Laptop {i}", "model": "T14"}
+            for i in range(31)
+        ]
+        pdf = itam_label_service.generate_label_sheet_pdf(assets)
+        assert pdf.startswith(b"%PDF-")
 
     def test_offline_network_blocked_negative_control_socket_really_blocked(self, monkeypatch):
         """Negative control: proves the block is real. Without this, a test
