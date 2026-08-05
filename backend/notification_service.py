@@ -465,7 +465,13 @@ def _has_unsafe_webhook_url(data: dict) -> bool:
 def _now() -> str: return datetime.now(timezone.utc).isoformat()
 def _id(prefix: str) -> str: return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
-VALID_EVENTS = {"finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"}
+VALID_EVENTS = {
+    "finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring",
+    # Added by Phase 59 (ITAM Procurement & Finance) for warranty-expiry alerts.
+    # Dotted form deliberately namespaces the ITAM domain's events away from the
+    # flat GRC vocabulary above — not a typo among the five undotted legacy names.
+    "itam.warranty_expiring",
+}
 VALID_CHANNEL_TYPES = {"slack", "email", "webhook"}
 
 # Result caps for list/lookup queries. These silently truncate past the cap —
