@@ -34,6 +34,8 @@ from typing import Any, Dict, List, Optional
 
 from notification_service import get_notification_service, send_notification
 
+from notification_service import get_notification_service, send_notification
+
 from compliance_remediation_sla_service import _ADMIN_ROLES
 
 logger = logging.getLogger(__name__)

@@ -274,3 +274,38 @@ class LabelSheetRequest(BaseModel):
     assetIds: List[str]
 
     model_config = ConfigDict(extra="forbid")
+
+
+# ITAM-LIC-01: Software License models (Phase 60).
+class LicenseCreate(CatalogEntityCreate):
+    """Request contract for creating a software license."""
+    manufacturerId: Optional[str] = None
+    seatCount: int = Field(..., gt=0)
+    expiryDate: Optional[str] = None
+    isReassignable: bool = True
+
+    model_config = ConfigDict(extra="forbid")
+
+    _validate_expiry_date = field_validator("expiryDate")(_validate_iso8601_date)
+
+
+class LicenseUpdate(CatalogEntityUpdate):
+    """Request contract for partially updating a software license."""
+    manufacturerId: Optional[str] = None
+    seatCount: Optional[int] = Field(None, gt=0)
+    expiryDate: Optional[str] = None
+    isReassignable: Optional[bool] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    _validate_expiry_date = field_validator("expiryDate")(_validate_iso8601_date)
+
+
+class LicenseSeatAssignmentRequest(BaseModel):
+    """Request contract for assigning a license seat to a user or asset (ITAM-LIC-01).
+    Polymorphic target pattern (targetType/targetId) mirroring CheckoutRequest (PD-01)."""
+    targetType: Literal["user", "asset"]
+    targetId: str
+    note: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
