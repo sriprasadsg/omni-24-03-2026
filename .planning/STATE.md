@@ -6,14 +6,14 @@ current_phase: 58
 current_phase_name: asset-tags-offline-labels
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-05T07:56:24.349Z"
+last_updated: "2026-08-05T08:05:39.160Z"
 last_activity: 2026-08-05
 last_activity_desc: Phase 58 execution started
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 13
-  completed_plans: 7
+  completed_plans: 8
   percent: 33
 ---
 
@@ -346,6 +346,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 58-01: generate_qr_png raises typed LabelEncodingError instead of mfa_service's silent except-Exception-return-empty-string, since a blank PNG served as success would be printed and stuck on hardware
 - [Phase ?]: 58-01: QR payload is the bare assetTag string per D-02, byte-pinned against an independently built reference qrcode render
 - [Phase ?]: 58-02: python-barcode pinned exactly to 0.16.1 (not >=) — SUS legitimacy verdict requires exact-version review gate on every future release
+- [Phase ?]: 58-03: generate_barcode_png catches barcode.errors.BarcodeError (not bare Exception), re-raises as LabelEncodingError, mirroring generate_qr_png's fail-loud contract
+- [Phase ?]: 58-03: block_all_sockets patches socket.socket/create_connection/getaddrinfo on the stdlib socket module itself (not a consumer's bound name), proven real via a negative-control test
 
 ## Performance Metrics
 
@@ -442,11 +444,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 57 P03 | ~20min | 2 tasks | 4 files |
 | Phase 58 P01 | ~5min | 2 tasks | 5 files |
 | Phase 58 P02 | 12min | 2 tasks | 1 files |
+| Phase 58 P03 | 15min | 2 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 58-02-PLAN.md
+- **Stopped at:** Completed 58-03-PLAN.md
 - **Resume file:** None
 
 ## Configuration
@@ -472,7 +475,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-05T07:56:24.319Z
+**Last session:** 2026-08-05T08:05:39.130Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -490,7 +493,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 58 (asset-tags-offline-labels) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-08-05 — Phase 58 execution started
 
