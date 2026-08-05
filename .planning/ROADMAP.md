@@ -878,13 +878,13 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (stable asset tag field)
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 58-01-PLAN.md — Tracer: offline QR label endpoint end-to-end (service + route + router registration + test scaffold)
-- [ ] 58-02-PLAN.md — python-barcode legitimacy checkpoint and pinned install (SUS gate)
+- [x] 58-02-PLAN.md — python-barcode legitimacy checkpoint and pinned install (SUS gate)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
