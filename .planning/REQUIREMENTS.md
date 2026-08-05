@@ -11,7 +11,7 @@
 - [ ] **ITAM-CAT-02**: Admin can create and manage a manual (non-agent) asset, with a unique per-tenant asset tag, coexisting with agent-discovered assets via a source discriminator.
 - [x] **ITAM-CAT-03**: Admin can manage Suppliers as a distinct catalog entity.
 - [x] **ITAM-CAT-04**: Admin can define custom fields grouped into fieldsets, attached at the model level.
-- [ ] **ITAM-CAT-05**: User can generate a printable QR + 1D barcode label (PDF label sheet) for an asset, fully offline (no external service or network call).
+- [x] **ITAM-CAT-05**: User can generate a printable QR + 1D barcode label (PDF label sheet) for an asset, fully offline (no external service or network call).
 
 ### Lifecycle & Check-in/out (ITAM-LIFE)
 
@@ -71,7 +71,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-CAT-02 | Phase 56 | Pending |
 | ITAM-CAT-03 | Phase 56 | Complete |
 | ITAM-CAT-04 | Phase 56 | Complete |
-| ITAM-CAT-05 | Phase 58 | Pending |
+| ITAM-CAT-05 | Phase 58 | Complete |
 | ITAM-LIFE-01 | Phase 56 | Pending |
 | ITAM-LIFE-02 | Phase 57 | Complete |
 | ITAM-LIFE-03 | Phase 57 | Complete |

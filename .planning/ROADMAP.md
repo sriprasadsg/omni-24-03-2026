@@ -797,7 +797,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 |-------|------|--------|
 | 56 | Catalog & Foundation | Complete    |
 | 57 | Lifecycle & Check-In/Out | Complete    |
-| 58 | Asset Tags & Offline Labels | Not started |
+| 58 | Asset Tags & Offline Labels | In Progress|
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
 | 60 | Licenses & Consumables | Not started |
 | 61 | Frontend ITAM Console | Not started |
@@ -878,12 +878,12 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (stable asset tag field)
 
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 58-01-PLAN.md — Tracer: offline QR label endpoint end-to-end (service + route + router registration + test scaffold)
+- [x] 58-01-PLAN.md — Tracer: offline QR label endpoint end-to-end (service + route + router registration + test scaffold)
 - [ ] 58-02-PLAN.md — python-barcode legitimacy checkpoint and pinned install (SUS gate)
 
 **Wave 2** *(blocked on Wave 1 completion)*

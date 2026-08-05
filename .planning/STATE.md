@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: ITAM
 current_phase: 58
-current_phase_name: Asset Tags & Offline Labels
+current_phase_name: asset-tags-offline-labels
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-04T19:21:11.368Z"
+last_updated: "2026-08-05T07:49:57.367Z"
 last_activity: 2026-08-05
-last_activity_desc: Phase 57 complete, transitioned to Phase 58
+last_activity_desc: Phase 58 execution started
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 5
+  total_plans: 13
+  completed_plans: 6
   percent: 33
 ---
 
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 57 — lifecycle-check-in-out
+**Current focus:** Phase 58 — asset-tags-offline-labels
 
 ## Current Phase
 
@@ -343,6 +343,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 57-02: check-in gated on lifecycleStatus==deployed exactly (no missing-key admission); clears 5 assignment fields, retains locationId (D-02)
 - [Phase ?]: 57-02: history route resolves asset first (tenant-isolation boundary) then delegates to list_history; empty history is 200+[], unknown/cross-tenant both 404
 - [Phase ?]: 57-03: audit-mark filter carries no lifecycle guard (orthogonal to availability); attribution split into auditedAt (asserted) vs lastAuditRecordedAt (filed, always server clock); overdue report uses an explicit three-branch $or with ageBasis unknown/createdAt/lastAuditedAt rather than dropping or fabricating ages for assets with no dates
+- [Phase ?]: 58-01: generate_qr_png raises typed LabelEncodingError instead of mfa_service's silent except-Exception-return-empty-string, since a blank PNG served as success would be printed and stuck on hardware
+- [Phase ?]: 58-01: QR payload is the bare assetTag string per D-02, byte-pinned against an independently built reference qrcode render
 
 ## Performance Metrics
 
@@ -437,12 +439,13 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 57 P01 | 19min | 3 tasks | 9 files |
 | Phase 57 P02 | 30min | 2 tasks | 5 files |
 | Phase 57 P03 | ~20min | 2 tasks | 4 files |
+| Phase 58 P01 | ~5min | 2 tasks | 5 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Phase 58 context gathered
-- **Resume file:** .planning/phases/58-asset-tags-offline-labels/58-CONTEXT.md
+- **Stopped at:** Completed 58-01-PLAN.md
+- **Resume file:** None
 
 ## Configuration
 
@@ -467,7 +470,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-04T18:45:17.491Z
+**Last session:** 2026-08-05T07:49:57.338Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -484,10 +487,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 58 — Asset Tags & Offline Labels
-Plan: Not started
+Phase: 58 (asset-tags-offline-labels) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-08-05 — Phase 57 complete, transitioned to Phase 58
+Last activity: 2026-08-05 — Phase 58 execution started
 
 ## Deferred Items
 
