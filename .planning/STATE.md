@@ -4,17 +4,17 @@ milestone: v4.0
 milestone_name: ITAM
 current_phase: 58
 current_phase_name: asset-tags-offline-labels
-status: executing
+status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-05T08:05:39.160Z"
+last_updated: "2026-08-05T08:26:41.999Z"
 last_activity: 2026-08-05
-last_activity_desc: Phase 58 execution started
+last_activity_desc: Phase 58 (Asset Tags & Offline Labels) complete — all 4 plans executed, ITAM-CAT-05 delivered
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 8
-  percent: 33
+  completed_plans: 9
+  percent: 50
 ---
 
 # Project State
@@ -81,6 +81,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-08-04 — v4.0 roadmap defined (Phases 56-61).** v3.4 shipped same day (Phases 50-55, 6 phases, 25 plans, 19/19 requirements — see MILESTONES.md). New milestone v4.0 ("ITAM — IT Asset Management Lifecycle") requirements defined same session: 17 v1 requirements across ITAM-CAT (catalog & organization), ITAM-LIFE (lifecycle & check-in/out), ITAM-FIN (procurement & finance), ITAM-LIC (licenses & consumables), ITAM-UI (operator console). Research (`.planning/research/SUMMARY.md`) confirmed the central architectural decision up front: extend the existing `assets` collection with an `assetSource` discriminator and additive fields — every cross-cutting feature (vuln findings, remediation playbooks, criticality gating, compliance evidence, global search) already assumes one `assets` collection is the CMDB, so a parallel `itam_assets` collection would fork the source of truth. Research also flagged the recurring background-scheduler tenant-isolation bug class (warranty/depreciation sweeps must use the raw `_mdb.db` + explicit per-tenant `set_tenant_id` pattern from `compliance_remediation_sla_service.py`, never `get_database()`) as the highest-severity risk in this milestone. 6 new phases (56-61) added, continuing numbering from Phase 55: Phase 56 (Catalog & Foundation — ITAM-CAT-01/02/03/04, ITAM-LIFE-01) establishes the catalog entities, `assetSource` discriminator, and `lifecycleStatus` field naming once so later phases copy it rather than reinvent it; Phase 57 (Lifecycle & Check-In/Out — ITAM-LIFE-02/03/04/05) depends on 56's lifecycleStatus/manual-asset foundation and folds in the physical-audit-workflow requirement (ITAM-LIFE-05) alongside the append-only assignment-history ledger it's most related to; Phase 58 (Asset Tags & Offline Labels — ITAM-CAT-05) depends on 56's stable asset-tag field and is kept as its own increment since it introduces the one new dependency (`python-barcode`) and a distinct offline-verification obligation; Phase 59 (Procurement & Finance — ITAM-FIN-01/02/03) depends on 56's Model entity for model-level depreciation policy; Phase 60 (Licenses & Consumables — ITAM-LIC-01/02/03) is architecturally independent of 57-59 (different collections, same tenant-isolation/RBAC conventions); Phase 61 (Frontend ITAM Console — ITAM-UI-01) is threaded last, integrating all five backend phases behind one admin-gated nav entry per the Phase 47/48 precedent. All 17 v1 requirements mapped 1:1 to a phase, no orphans — REQUIREMENTS.md traceability table updated (17/17). Next: `/gsd-plan-phase 56`.
 
+**Session 2026-08-05 — Phase 58 (Asset Tags & Offline Labels) complete, all 4 plans executed.** 58-04 (final plan) delivered the phase's headline artifact: `POST /api/assets/labels/sheet` renders a printable Avery-5160 PDF (3x10 grid, QR + barcode + tag/name/model text per label per D-01/D-03) for a caller-ordered, duplicate-honouring asset-id list, refusing every partial request outright (empty list, over-cap list, unresolved ids, untagged assets) rather than silently trimming or dropping it. Rule 1 auto-fix during Task 1: `COL_PITCH` corrected to equal `LABEL_W` (2.625in edge-to-edge columns) instead of the plan's literal 2.75in Avery gutter pitch — that pitch, paired with the plan's own arithmetically-reconciled 0.3125in `LEFT_MARGIN`, pushed the third column past the printable US Letter width, violating the plan's own cell-containment truth. Task 3 completed the phase's offline proof (ROADMAP success criterion 3) across all three generators (QR, barcode, PDF sheet) with every socket entry point blocked. All 3 ROADMAP success criteria for Phase 58 now met end-to-end; requirement ITAM-CAT-05 fully delivered by the backend (Phase 61 is the sole remaining consumer). One manual-only verification remains outstanding (Avery 5160 physical print-alignment check — logged in `58-04-SUMMARY.md`). Full backend suite: 1699 passed / 35 skipped / 3 pre-existing unrelated failures (`test_agentic_ai`, `test_e2e_integration`, `test_rust_heartbeat_parity`), no regressions. Commits: `22b72b2` (Task 1: grid arithmetic + PDF generator), `b26ffd8` (Task 2: route), `2c11ddf` (Task 3: offline proof). Next: `/gsd-plan-phase 59`.
+
 ## Phases
 
 | Phase | Name | Status |
@@ -136,7 +138,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 49 | Fleet Geo Map | Not started (v3.3) |
 | 56 | Catalog & Foundation | In progress (v4.0) — 1/2 plans executed 2026-08-04 |
 | 57 | Lifecycle & Check-In/Out | Not started (v4.0) |
-| 58 | Asset Tags & Offline Labels | Not started (v4.0) |
+| 58 | Asset Tags & Offline Labels | Complete (v4.0) — 4/4 plans executed 2026-08-05, all 3 ROADMAP success criteria met, ITAM-CAT-05 fully delivered |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started (v4.0) |
 | 60 | Licenses & Consumables | Not started (v4.0) |
 | 61 | Frontend ITAM Console | Not started (v4.0) |
@@ -348,6 +350,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 58-02: python-barcode pinned exactly to 0.16.1 (not >=) — SUS legitimacy verdict requires exact-version review gate on every future release
 - [Phase ?]: 58-03: generate_barcode_png catches barcode.errors.BarcodeError (not bare Exception), re-raises as LabelEncodingError, mirroring generate_qr_png's fail-loud contract
 - [Phase ?]: 58-03: block_all_sockets patches socket.socket/create_connection/getaddrinfo on the stdlib socket module itself (not a consumer's bound name), proven real via a negative-control test
+- [Phase ?]: 58-04: COL_PITCH set equal to LABEL_W (2.625in edge-to-edge) instead of the plan's literal 2.75in Avery gutter pitch — the reconciled 0.3125in margin only holds without a horizontal gutter; kept LEFT_MARGIN as specified and fixed the inconsistent constant (Rule 1).
+- [Phase ?]: 58-04: POST /api/assets/labels/sheet refuses (400) rather than trims an over-cap assetIds list, departing deliberately from asset_endpoints.py's bulk_delete_assets_route ids[:500] truncation convention.
 
 ## Performance Metrics
 
@@ -445,11 +449,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 58 P01 | ~5min | 2 tasks | 5 files |
 | Phase 58 P02 | 12min | 2 tasks | 1 files |
 | Phase 58 P03 | 15min | 2 tasks | 4 files |
+| Phase 58 P04 | ~8min | 3 tasks | 6 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 58-03-PLAN.md
+- **Stopped at:** Completed 58-04-PLAN.md — Phase 58 (Asset Tags & Offline Labels) fully complete, all 4 plans executed
 - **Resume file:** None
 
 ## Configuration
@@ -475,7 +480,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-05T08:05:39.130Z
+**Last session:** 2026-08-05T08:26:41.967Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -494,7 +499,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Phase: 58 (asset-tags-offline-labels) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-05 — Phase 58 execution started
 
 ## Deferred Items

@@ -797,7 +797,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 |-------|------|--------|
 | 56 | Catalog & Foundation | Complete    |
 | 57 | Lifecycle & Check-In/Out | Complete    |
-| 58 | Asset Tags & Offline Labels | In Progress|
+| 58 | Asset Tags & Offline Labels | Complete    |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started |
 | 60 | Licenses & Consumables | Not started |
 | 61 | Frontend ITAM Console | Not started |
@@ -878,7 +878,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 
 **Depends on:** Phase 56 (stable asset tag field)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -892,7 +892,9 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 58-04-PLAN.md — Avery-5160 PDF label sheet, no-silent-drop bulk contract, offline proof completed
+- [x] 58-04-PLAN.md — Avery-5160 PDF label sheet, no-silent-drop bulk contract, offline proof completed
+
+**Status:** Complete 2026-08-05 — all 4 plans executed, all 3 ROADMAP success criteria met (QR+barcode generation, Avery-5160 PDF label sheet export, offline guarantee proven behaviorally for all three generators with sockets blocked). Requirement ITAM-CAT-05 fully delivered by the backend; full suite 1699 passed / 35 skipped / 3 pre-existing unrelated failures, no regressions. One outstanding manual-only verification (Avery 5160 physical print-alignment check) logged in `58-04-SUMMARY.md`. See `58-04-SUMMARY.md`.
 
 ---
 
