@@ -200,7 +200,9 @@ export type AppView =
   | 'stagedDeployments'
   | 'fleetObservability'
   | 'fleetGeoMap'
-  | 'nativeSecurity';
+  | 'nativeSecurity'
+  | 'itam'; // Added for IT Asset Management Console
+
 
 
 export type Permission =
