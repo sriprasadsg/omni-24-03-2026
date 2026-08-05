@@ -2,9 +2,9 @@
 
 Shares the /api/assets prefix with backend/asset_endpoints.py,
 backend/itam_asset_endpoints.py, and backend/itam_lifecycle_endpoints.py.
-Routes on this router: GET /{asset_id}/label/qr (this plan), and
-GET /{asset_id}/label/barcode + POST /labels/sheet (later plans in this
-phase). All are multi-segment, so none can be shadowed by or shadow
+Routes on this router: GET /{asset_id}/label/qr (present), GET
+/{asset_id}/label/barcode (present), and POST /labels/sheet (later plan in
+this phase). All are multi-segment, so none can be shadowed by or shadow
 asset_endpoints.py's single-segment GET /{asset_id} under any registration
 order.
 
@@ -21,7 +21,7 @@ from fastapi.responses import StreamingResponse
 from auth_types import TokenData
 from database import get_database
 from itam_asset_endpoints import _require_itam_admin
-from itam_label_service import LabelEncodingError, generate_qr_png
+from itam_label_service import LabelEncodingError, generate_barcode_png, generate_qr_png
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +57,12 @@ async def _load_asset_for_label(db, asset_id: str) -> dict:
     return asset
 
 
-@router.get("/{asset_id}/label/qr")
-async def get_asset_qr_label(
-    asset_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
-):
-    """Return a PNG QR code encoding one asset's bare assetTag (D-02)."""
+async def _resolve_tag_for_label(current_user: TokenData, asset_id: str) -> str:
+    """Shared prelude for every label route: tenant guard, asset load, tag
+    extraction. Factored out so the QR and barcode routes (and any future
+    label route) cannot drift apart in their failure behavior — one 403,
+    one 404, and one missing-assetTag 400 shape for all of them.
+    """
     tenant_id = current_user.tenant_id
     if not tenant_id:
         raise HTTPException(
@@ -80,6 +80,16 @@ async def get_asset_qr_label(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Asset has no assetTag value to encode.",
         )
+    return asset_tag
+
+
+@router.get("/{asset_id}/label/qr")
+async def get_asset_qr_label(
+    asset_id: str,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """Return a PNG QR code encoding one asset's bare assetTag (D-02)."""
+    asset_tag = await _resolve_tag_for_label(current_user, asset_id)
 
     try:
         png = generate_qr_png(asset_tag)
@@ -90,6 +100,30 @@ async def get_asset_qr_label(
         )
 
     filename = f"asset-label-{_safe_filename_part(asset_tag)}-qr.png"
+    return StreamingResponse(
+        io.BytesIO(png),
+        media_type="image/png",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/{asset_id}/label/barcode")
+async def get_asset_barcode_label(
+    asset_id: str,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """Return a PNG Code128 barcode encoding one asset's bare assetTag (D-02)."""
+    asset_tag = await _resolve_tag_for_label(current_user, asset_id)
+
+    try:
+        png = generate_barcode_png(asset_tag)
+    except LabelEncodingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"assetTag could not be encoded: {exc}",
+        )
+
+    filename = f"asset-label-{_safe_filename_part(asset_tag)}-barcode.png"
     return StreamingResponse(
         io.BytesIO(png),
         media_type="image/png",
