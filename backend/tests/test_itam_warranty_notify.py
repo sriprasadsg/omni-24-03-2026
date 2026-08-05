@@ -9,9 +9,16 @@ Covers:
     notification_endpoints.RuleCreate.event_type's Literal) without disturbing
     the five pre-existing GRC event types or the closed-vocabulary rejection
     of an unknown event type (59-02 Task 1).
-  - rule_routed / raw_db_contract: the rule/channel-routed and raw-handle
-    delivery contracts Plan 59-04's sweep must satisfy — added in 59-02
-    Task 2.
+  - rule_routed: notification_service.send_notification, given a handle
+    exposing `_db`, resolves a tenant's itam.warranty_expiring rule to its
+    channel and dispatches — the rule-routed delivery path Plan 59-04's sweep
+    will call for tenants who have configured a notification rule (59-02
+    Task 2).
+  - raw_db_contract: the calling contract RESEARCH Pitfall 1 found waiting for
+    a naive raw-db background sweep — send_notification requires a `_db`-
+    exposing handle and raises AttributeError without one, while
+    get_notification_service(...).send_alert(...) never unwraps `db` and
+    works against a raw handle directly (59-02 Task 2).
 """
 import asyncio
 import os
@@ -100,3 +107,141 @@ class TestWarrantyEventVocabulary:
     def test_event_vocabulary_rule_create_pydantic_rejects_unknown_event_type(self):
         with pytest.raises(pydantic.ValidationError):
             RuleCreate(event_type="something.else")
+
+
+# ===========================================================================
+# TestRuleRoutedDelivery — 59-02 Task 2 (rule/channel-routed delivery path)
+# ===========================================================================
+class _RulesRoutedStubDb:
+    """Plain-class db stub (not a bare MagicMock) whose collection attributes
+    expose `find(...)` returning an object with an AsyncMock `to_list`. Used
+    behind `_Handle` below — the same `_db`-exposing shape Plan 59-04 will
+    hand `send_notification`."""
+
+    def __init__(self, rules=None, channels=None):
+        self.notification_rules = MagicMock()
+        rules_result = MagicMock()
+        rules_result.to_list = AsyncMock(return_value=list(rules or []))
+        self.notification_rules.find = MagicMock(return_value=rules_result)
+
+        self.notification_channels = MagicMock()
+        channels_result = MagicMock()
+        channels_result.to_list = AsyncMock(return_value=list(channels or []))
+        self.notification_channels.find = MagicMock(return_value=channels_result)
+
+        self.notifications = MagicMock()
+        self.notifications.insert_one = AsyncMock()
+
+
+class _Handle:
+    """Minimal adapter exposing the stub db as `_db`."""
+
+    def __init__(self, db):
+        self._db = db
+
+
+def _rule(event_type=_NEW_EVENT_TYPE, tenant_id="tenant-a", severity_filter=None, channel_ids=("chan-1",)):
+    return {
+        "id": "rule-1",
+        "tenantId": tenant_id,
+        "event_type": event_type,
+        "channel_ids": list(channel_ids),
+        "severity_filter": list(severity_filter) if severity_filter else [],
+    }
+
+
+def _email_channel(channel_id="chan-1", tenant_id="tenant-a"):
+    return {"id": channel_id, "tenantId": tenant_id, "type": "email", "config": {"email": "admin@acme.com"}}
+
+
+class TestRuleRoutedDelivery:
+    def test_rule_routed_matches_and_dispatches_single_email_channel(self):
+        stub = _RulesRoutedStubDb(rules=[_rule()], channels=[_email_channel()])
+        handle = _Handle(stub)
+        result = asyncio.run(notification_service.send_notification(
+            handle, "tenant-a", _NEW_EVENT_TYPE, {"severity": "warning", "message": "Asset ABC warranty expiring"}
+        ))
+        assert result["matched_rules"] == 1
+        assert result["sent"] == 1
+        assert result["results"][0]["status"] == "sent"
+
+    def test_rule_routed_filter_scoped_by_tenant_and_event_type(self):
+        stub = _RulesRoutedStubDb(rules=[_rule()], channels=[_email_channel()])
+        handle = _Handle(stub)
+        asyncio.run(notification_service.send_notification(
+            handle, "tenant-a", _NEW_EVENT_TYPE, {"severity": "warning"}
+        ))
+        used_filter = stub.notification_rules.find.call_args[0][0]
+        assert used_filter.get("tenantId") == "tenant-a"
+        assert used_filter.get("event_type") == _NEW_EVENT_TYPE
+
+    def test_rule_routed_severity_filter_excludes_non_matching_severity(self):
+        stub = _RulesRoutedStubDb(rules=[_rule(severity_filter=["critical"])], channels=[_email_channel()])
+        handle = _Handle(stub)
+        result = asyncio.run(notification_service.send_notification(
+            handle, "tenant-a", _NEW_EVENT_TYPE, {"severity": "info"}
+        ))
+        assert result["matched_rules"] == 0
+        assert result["sent"] == 0
+
+    def test_rule_routed_severity_filter_includes_matching_severity(self):
+        stub = _RulesRoutedStubDb(rules=[_rule(severity_filter=["warning"])], channels=[_email_channel()])
+        handle = _Handle(stub)
+        result = asyncio.run(notification_service.send_notification(
+            handle, "tenant-a", _NEW_EVENT_TYPE, {"severity": "warning"}
+        ))
+        assert result["matched_rules"] == 1
+        assert result["sent"] == 1
+
+    def test_rule_routed_no_severity_filter_matches_any_severity(self):
+        stub = _RulesRoutedStubDb(rules=[_rule(severity_filter=[])], channels=[_email_channel()])
+        handle = _Handle(stub)
+        result = asyncio.run(notification_service.send_notification(
+            handle, "tenant-a", _NEW_EVENT_TYPE, {"severity": "critical"}
+        ))
+        assert result["matched_rules"] == 1
+        assert result["sent"] == 1
+
+
+# ===========================================================================
+# TestRawDbCallingContract — 59-02 Task 2 (regression guard for RESEARCH
+# Pitfall 1 — the most load-bearing class in this plan)
+# ===========================================================================
+class _RawDbNoAdapter:
+    """Raw-database-shaped stub: explicitly declared collection attributes,
+    NO `_db` attribute and NO `__getattr__` fallback, so `hasattr(stub, "_db")`
+    is genuinely False. A MagicMock/AsyncMock fixture would auto-create `_db`
+    on attribute access and make this whole class pass vacuously while the
+    real bug (RESEARCH Pitfall 1 — a raw-db warranty sweep crashing on
+    `db._db.notification_rules...`) remained hidden."""
+
+    def __init__(self):
+        self.notifications = MagicMock()
+        self.notifications.insert_one = AsyncMock()
+        self.notification_rules = MagicMock()
+        self.notification_channels = MagicMock()
+
+
+class TestRawDbCallingContract:
+    def test_raw_db_contract_send_notification_raises_attributeerror(self):
+        raw = _RawDbNoAdapter()
+        assert not hasattr(raw, "_db")
+        with pytest.raises(AttributeError):
+            asyncio.run(notification_service.send_notification(
+                raw, "tenant-a", _NEW_EVENT_TYPE, {"severity": "warning"}
+            ))
+
+    def test_raw_db_contract_send_alert_works_without_db_unwrap(self):
+        raw = _RawDbNoAdapter()
+        svc = notification_service.get_notification_service(raw)
+        result = asyncio.run(svc.send_alert(
+            title="Asset warranty expiring",
+            message="Asset ABC warranty expiring on 2026-09-01.",
+            severity="warning",
+            recipients=["admin@acme.com"],
+            tenant_id="tenant-a",
+            channels=[],
+            metadata={"event": _NEW_EVENT_TYPE},
+        ))
+        raw.notifications.insert_one.assert_awaited_once()
+        assert result["channels"] == {}, f"channels=[] must dispatch on no external channel, got {result['channels']}"
