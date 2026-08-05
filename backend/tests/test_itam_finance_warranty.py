@@ -251,3 +251,142 @@ class TestWarrantyAlertWindow:
         assert not hasattr(raw_db, "_db")
         result = await get_warranty_alert_window(raw_db, "tenant-a")
         assert result == 15
+
+
+class TestWarrantyRouteEndToEnd:
+    """Task 2 — drives GET /api/assets/{asset_id}/warranty over a real ASGI
+    transport, asserting the route is provably a pass-through onto
+    compute_warranty_status/get_warranty_alert_window. -k warranty_route"""
+
+    def _client(self, finance_app):
+        current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        finance_app.dependency_overrides[real_get_current_user] = lambda: current_user
+        return AsyncClient(transport=ASGITransport(app=finance_app), base_url="http://testserver")
+
+    @pytest.mark.asyncio
+    async def test_warranty_route_returns_all_nine_response_keys(self, mock_db, finance_app):
+        mock_db.assets.find_one = AsyncMock(return_value=finance_asset(
+            purchaseDate="2023-01-15T00:00:00+00:00", warrantyMonths=36, warrantyAlertSentAt=None,
+        ))
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        expected_keys = {
+            "assetId", "purchaseDate", "warrantyMonths", "warrantyExpiresAt",
+            "warrantyStatus", "daysToExpiry", "alertWindowDays",
+            "warrantyAlertSentAt", "computedAt",
+        }
+        assert expected_keys.issubset(body.keys())
+
+    @pytest.mark.asyncio
+    async def test_warranty_route_status_matches_direct_compute_call(self, mock_db, finance_app):
+        purchase_date = "2023-01-15T00:00:00+00:00"
+        mock_db.assets.find_one = AsyncMock(return_value=finance_asset(
+            purchaseDate=purchase_date, warrantyMonths=36, warrantyAlertSentAt=None,
+        ))
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        body = r.json()
+
+        direct = compute_warranty_status(purchase_date, 36, datetime.now(timezone.utc), 30)
+        assert body["warrantyStatus"] == direct["warrantyStatus"]
+        assert body["warrantyExpiresAt"] == direct["warrantyExpiresAt"]
+
+    @pytest.mark.asyncio
+    async def test_warranty_route_uses_configured_per_tenant_window(self, mock_db, finance_app):
+        # Purchased 34 months ago from a 36-month warranty -> ~60 days to expiry:
+        # expiring under a 90-day tenant window, active under the 30-day default.
+        # Built explicitly (no extra date-library dependency, per RESEARCH's
+        # Don't-Hand-Roll table — stdlib arithmetic only).
+        now = datetime.now(timezone.utc)
+        year = now.year
+        month = now.month - 34
+        while month <= 0:
+            month += 12
+            year -= 1
+        purchase_dt = now.replace(year=year, month=month, day=1)
+        purchase_date = purchase_dt.isoformat()
+
+        mock_db.assets.find_one = AsyncMock(return_value=finance_asset(
+            purchaseDate=purchase_date, warrantyMonths=36, warrantyAlertSentAt=None,
+        ))
+        mock_db.system_settings.find_one = AsyncMock(return_value={"windowDays": 90})
+        async with self._client(finance_app) as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        body = r.json()
+        assert body["alertWindowDays"] == 90
+        assert body["warrantyStatus"] == WARRANTY_STATUS_EXPIRING
+
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r2 = await ac.get("/api/assets/asset-1/warranty")
+        body2 = r2.json()
+        assert body2["alertWindowDays"] == 30
+        assert body2["warrantyStatus"] == WARRANTY_STATUS_ACTIVE
+
+    @pytest.mark.asyncio
+    async def test_warranty_route_no_warranty_months_returns_200_status_none(self, mock_db, finance_app):
+        mock_db.assets.find_one = AsyncMock(return_value=finance_asset(purchaseDate="2023-01-15", warrantyMonths=None))
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        assert r.status_code == 200, r.text
+        assert r.json()["warrantyStatus"] == WARRANTY_STATUS_NONE
+        assert r.json()["warrantyExpiresAt"] is None
+
+    @pytest.mark.asyncio
+    async def test_warranty_route_unparseable_purchase_date_returns_200_status_none(self, mock_db, finance_app):
+        mock_db.assets.find_one = AsyncMock(return_value=finance_asset(purchaseDate="not-a-date", warrantyMonths=36))
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        assert r.status_code == 200, r.text
+        assert r.json()["warrantyStatus"] == WARRANTY_STATUS_NONE
+
+    @pytest.mark.asyncio
+    async def test_warranty_route_awaits_no_write_method_on_assets(self, mock_db, finance_app):
+        mock_db.assets.find_one = AsyncMock(return_value=finance_asset(purchaseDate="2023-01-15", warrantyMonths=36))
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        assert r.status_code == 200, r.text
+        assert mock_db.assets.update_one.await_count == 0
+        # find_one_and_update is a plain (non-Async) MagicMock on this
+        # fixture (_make_col() doesn't preconfigure it, matching
+        # test_itam_finance.py's own documented convention) — .call_count is
+        # the correct assertion here, not .await_count.
+        assert mock_db.assets.find_one_and_update.call_count == 0
+        assert mock_db.assets.insert_one.await_count == 0
+        assert mock_db.assets.delete_one.await_count == 0
+
+
+class TestWarrantyRouteAccess:
+    """Task 2 — 403 without manage:assets; cross-tenant asset id is
+    indistinguishable from an unknown one. -k warranty_access"""
+
+    @pytest.mark.asyncio
+    async def test_warranty_access_rbac_denied_returns_403(self, mock_db, finance_app, monkeypatch):
+        import itam_asset_endpoints
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
+        current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        finance_app.dependency_overrides[real_get_current_user] = lambda: current_user
+        async with AsyncClient(transport=ASGITransport(app=finance_app), base_url="http://testserver") as ac:
+            r = await ac.get("/api/assets/asset-1/warranty")
+        assert r.status_code == 403, r.text
+
+    @pytest.mark.asyncio
+    async def test_warranty_access_cross_tenant_404_matches_unknown_id_404(self, mock_db, finance_app, patch_finance_get_database):
+        stored = [finance_asset()]
+        mock_db.assets.find_one = AsyncMock(side_effect=lambda f, *a, **kw:
+            next((d for d in stored if d.get("tenantId") == f.get("tenantId") and d.get("id") == f.get("id")), None))
+        patch_finance_get_database("tenant-b")
+        current_user = make_token_data(tenant_id="tenant-b", role="admin", username="admin@example.com")
+        finance_app.dependency_overrides[real_get_current_user] = lambda: current_user
+        async with AsyncClient(transport=ASGITransport(app=finance_app), base_url="http://testserver") as ac:
+            cross_tenant_resp = await ac.get("/api/assets/asset-1/warranty")
+            unknown_id_resp = await ac.get("/api/assets/does-not-exist/warranty")
+        assert cross_tenant_resp.status_code == unknown_id_resp.status_code == 404
+        assert cross_tenant_resp.text == unknown_id_resp.text

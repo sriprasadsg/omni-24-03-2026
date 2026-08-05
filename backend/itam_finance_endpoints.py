@@ -3,8 +3,8 @@ book-value read for IT assets. Mounted at /api/assets alongside
 asset_endpoints.py, itam_asset_endpoints.py, itam_lifecycle_endpoints.py and
 itam_label_endpoints.py.
 
-Routes: PATCH /{asset_id}/purchase and GET /{asset_id}/book-value (this
-plan); GET /{asset_id}/warranty (Plan 59-03). All are multi-segment, so none
+Routes: PATCH /{asset_id}/purchase and GET /{asset_id}/book-value (Plan
+59-01); GET /{asset_id}/warranty (this plan). All are multi-segment, so none
 can shadow or be shadowed by asset_endpoints.py's single-segment
 GET /{asset_id} under any registration order.
 
@@ -30,6 +30,8 @@ from itam_finance_service import (
     REASON_NO_DEPRECIATION_POLICY,
     REASON_NO_PURCHASE_RECORD,
     compute_book_value,
+    compute_warranty_status,
+    get_warranty_alert_window,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,4 +161,49 @@ async def get_asset_book_value(
         **result,
         "usefulLifeYears": model_doc["usefulLifeYears"],
         "salvageValueCents": model_doc["salvageValueCents"],
+    }
+
+
+@router.get("/{asset_id}/warranty", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])
+async def get_asset_warranty(
+    asset_id: str,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """Reports an asset's warranty expiry, status, remaining days, and the
+    tenant's configured alert window (ITAM-FIN-02). Read-only — performs no
+    write of any kind. Classifies nothing itself: compute_warranty_status
+    and get_warranty_alert_window are the single definition of warranty
+    status and window this route and Plan 59-04's background sweep both
+    call, so an operator's on-screen status and the alert they receive can
+    never disagree (PD-04).
+
+    warrantyAlertSentAt is echoed as-is so an admin can tell "no alert has
+    fired for this asset yet" apart from "the alert already went out" — it
+    is the marker Plan 59-04's sweep writes.
+    """
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant ID not found for the current user.",
+        )
+
+    db = get_database()
+    asset = await _load_asset(db, asset_id)
+    window = await get_warranty_alert_window(db, tenant_id)
+    status_result = compute_warranty_status(
+        asset.get("purchaseDate"),
+        asset.get("warrantyMonths"),
+        datetime.now(timezone.utc),
+        window,
+    )
+
+    return {
+        "assetId": asset_id,
+        "purchaseDate": asset.get("purchaseDate"),
+        "warrantyMonths": asset.get("warrantyMonths"),
+        "alertWindowDays": window,
+        "warrantyAlertSentAt": asset.get("warrantyAlertSentAt"),
+        "computedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        **status_result,
     }
