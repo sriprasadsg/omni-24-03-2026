@@ -76,9 +76,13 @@ class NotificationService:
                 metadata["webhook_url"], title, message, severity, metadata
             )
 
-        # Log notification
+        # tenantId (camelCase): the field notification_endpoints.py's readers
+        # filter on. A wrapped db auto-injects it; a raw handle (e.g. a
+        # background sweep) doesn't, so it's set explicitly here. tenant_id
+        # (snake_case) stays for reporting_endpoints.py's existing query.
         await self.db.notifications.insert_one({
             **results,
+            "tenantId": tenant_id,
             "tenant_id": tenant_id,
             "metadata": metadata
         })

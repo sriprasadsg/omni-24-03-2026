@@ -56,6 +56,11 @@ class TestSweepRawDbNoCrash:
         assert count == 1
         # Real send_alert inserted a notification
         assert len(db._captured_notifications) >= 1
+        # The sweep's db is raw (no TenantIsolatedCollection to auto-inject
+        # tenantId), so send_alert must set it explicitly — otherwise the
+        # alert is invisible to every tenantId-filtered reader in
+        # notification_endpoints.py (list/mark-read/delete).
+        assert db._captured_notifications[0]["tenantId"] == "tenant-a"
         assert db._docs["assets"]["asset-1"].get("warrantyAlertSentAt") is not None
 
     def test_raw_db_no_crash_rule_routed_does_not_raise_for_tenant_with_no_rules(self):
@@ -218,6 +223,47 @@ class TestSweepResilienceAndTenantScope:
         assert count == 1
         # Marker still written despite both failures
         assert db._docs["assets"]["asset-1"].get("warrantyAlertSentAt") is not None
+
+    @patch.object(svc, "get_notification_service")
+    @patch.object(svc, "send_notification")
+    def test_sweep_resilience_marker_write_raise_does_not_abort_pass(self, mock_send, mock_get_ns):
+        """A marker-write failure (e.g. a transient DB error) must be isolated
+        exactly like the two delivery attempts before it — not propagate past
+        the async-for loop and silently drop every remaining asset in the
+        pass. Two assets are seeded; only the first asset's update_one call
+        raises, so the second asset must still be reached, alerted and
+        counted."""
+        mock_ns = MagicMock()
+        mock_ns.send_alert = AsyncMock()
+        mock_get_ns.return_value = mock_ns
+        mock_send.return_value = {"matched_rules": 0, "sent": 0}
+
+        db = _RawSweepDb(
+            assets=[
+                _asset(id="asset-a", tenantId="tenant-a",
+                       purchaseDate="2020-01-01T00:00:00Z", warrantyMonths=1),
+                _asset(id="asset-b", tenantId="tenant-a",
+                       purchaseDate="2020-01-01T00:00:00Z", warrantyMonths=1),
+            ],
+            users=[_user()],
+        )
+        real_update_one = db.assets.update_one
+
+        async def flaky_update_one(filter_spec, update):
+            if filter_spec.get("id") == "asset-a":
+                raise RuntimeError("transient db error")
+            return await real_update_one(filter_spec, update)
+
+        db.assets.update_one = flaky_update_one
+
+        count = _run(svc.run_warranty_alert_pass(db))
+        assert count == 2, "both assets must be handled — the loop must not abort on the first asset's marker-write failure"
+        assert mock_ns.send_alert.await_count == 2, "delivery must still be attempted for the second asset"
+        # asset-a's own marker write raised, so it was never actually set —
+        # it will be retried (and re-alerted) on the next pass, which is the
+        # documented degrade-gracefully behavior, not a second crash.
+        assert db._docs["assets"]["asset-a"].get("warrantyAlertSentAt") is None
+        assert db._docs["assets"]["asset-b"].get("warrantyAlertSentAt") is not None
 
     @patch.object(svc, "get_notification_service")
     @patch.object(svc, "send_notification")

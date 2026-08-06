@@ -49,22 +49,29 @@ class TestWarrantySweepCore:
         mock_get_ns.return_value = mock_ns
         mock_send.return_value = {"matched_rules": 0, "sent": 0}
 
-        # Mock current time to 2026-08-01
+        # Mock current time to 2026-08-15
         with patch("itam_finance_service.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 8, 1, tzinfo=timezone.utc)
+            mock_dt.now.return_value = datetime(2026, 8, 15, tzinfo=timezone.utc)
             mock_dt.fromisoformat = datetime.fromisoformat
 
-            # Purchase 2026-01-01, 8 months warranty → expires 2026-09-01
-            # On 2026-08-01, it is 31 days to expiry. Alert window is 30.
-            # Close enough to approach the window.
-            # Let's use 7 months warranty → expires 2026-08-01 (EXPIRED)
+            # Purchase 2026-01-01, 8 months warranty → expires 2026-09-01.
+            # On 2026-08-15 that is 17 days out — inside the default 30-day
+            # alert window and not yet past expiry, so this is genuinely the
+            # EXPIRING branch (not EXPIRED, which test_sweep_core_expired_
+            # asset_alerted below already covers independently of "now").
             db = _RawSweepDb(
-                assets=[_asset(purchaseDate="2026-01-01T00:00:00Z", warrantyMonths=7)],
+                assets=[_asset(purchaseDate="2026-01-01T00:00:00Z", warrantyMonths=8)],
                 users=[_user()],
             )
             count = _run(svc.run_warranty_alert_pass(db))
             assert count == 1, "expiring asset must be alerted"
             assert mock_ns.send_alert.await_count >= 1
+            # Prove the EXPIRING branch specifically fired, not EXPIRED —
+            # the sweep's own status check treats them alike (both alert),
+            # so count==1 alone can't distinguish the two at the integration
+            # level.
+            _, alert_kwargs = mock_ns.send_alert.call_args
+            assert alert_kwargs["metadata"]["warrantyStatus"] == svc.WARRANTY_STATUS_EXPIRING
             # Marker written
             assert db._docs["assets"]["asset-1"].get("warrantyAlertSentAt") is not None
 

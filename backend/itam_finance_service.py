@@ -391,10 +391,20 @@ async def run_warranty_alert_pass(db) -> int:
                     "Warranty rule-routed alert failed for asset %s: %s", asset.get("id"), exc
                 )
 
-            await db.assets.update_one(
-                {"id": asset["id"], "tenantId": tenant_id},
-                {"$set": {"warrantyAlertSentAt": datetime.now(timezone.utc).isoformat()}},
-            )
+            # Isolated like the two delivery attempts above: a malformed
+            # document (e.g. missing id) must not raise past this point and
+            # abort the async-for loop for the whole pass — every
+            # not-yet-processed asset in this cycle would otherwise be
+            # silently skipped until the next hourly run.
+            try:
+                await db.assets.update_one(
+                    {"id": asset.get("id"), "tenantId": tenant_id},
+                    {"$set": {"warrantyAlertSentAt": datetime.now(timezone.utc).isoformat()}},
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Warranty alert marker write failed for asset %s: %s", asset.get("id"), exc
+                )
             count += 1
     except Exception as exc:
         logger.error("Warranty alert pass failed: %s", exc)

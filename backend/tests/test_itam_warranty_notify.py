@@ -245,3 +245,10 @@ class TestRawDbCallingContract:
         ))
         raw.notifications.insert_one.assert_awaited_once()
         assert result["channels"] == {}, f"channels=[] must dispatch on no external channel, got {result['channels']}"
+        inserted_doc = raw.notifications.insert_one.call_args.args[0]
+        assert inserted_doc["tenantId"] == "tenant-a", (
+            "send_alert must set tenantId explicitly — a raw/unwrapped db has no "
+            "TenantIsolatedCollection.insert_one to auto-inject it, so a document "
+            "missing this field is invisible to every tenantId-filtered reader in "
+            "notification_endpoints.py (list/mark-read/delete)"
+        )
