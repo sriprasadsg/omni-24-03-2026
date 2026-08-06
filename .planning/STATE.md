@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: — ITAM
-current_phase: 61
-current_phase_name: frontend-itam-console
+current_phase: 60
+current_phase_name: licenses-consumables
 status: planning
-stopped_at: "Phase 61 planning started"
-last_updated: "2026-08-06T15:00:00.000Z"
+stopped_at: Phase 59 complete — Phase 60 backend implementation audit needed (broken test_itam_license.py)
+last_updated: "2026-08-06T15:30:00.000Z"
 last_activity: 2026-08-06
-last_activity_desc: Phase 61 planning started
+last_activity_desc: Phase 59 complete (all 4 plans, ITAM-FIN-01/02/03 delivered)
 progress:
-  total_phases: 61
-  completed_phases: 60
-  total_plans: 20
-  completed_plans: 19
-  percent: 95
+  total_phases: 6
+  completed_phases: 4
+  total_plans: 16
+  completed_plans: 13
+  percent: 67
 ---
 
 # Project State
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 59 — procurement-finance-warranty-depreciation
+**Current focus:** Phase 60 — licenses-consumables
 
 ## Current Phase
 
@@ -82,6 +82,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 **Session 2026-08-04 — v4.0 roadmap defined (Phases 56-61).** v3.4 shipped same day (Phases 50-55, 6 phases, 25 plans, 19/19 requirements — see MILESTONES.md). New milestone v4.0 ("ITAM — IT Asset Management Lifecycle") requirements defined same session: 17 v1 requirements across ITAM-CAT (catalog & organization), ITAM-LIFE (lifecycle & check-in/out), ITAM-FIN (procurement & finance), ITAM-LIC (licenses & consumables), ITAM-UI (operator console). Research (`.planning/research/SUMMARY.md`) confirmed the central architectural decision up front: extend the existing `assets` collection with an `assetSource` discriminator and additive fields — every cross-cutting feature (vuln findings, remediation playbooks, criticality gating, compliance evidence, global search) already assumes one `assets` collection is the CMDB, so a parallel `itam_assets` collection would fork the source of truth. Research also flagged the recurring background-scheduler tenant-isolation bug class (warranty/depreciation sweeps must use the raw `_mdb.db` + explicit per-tenant `set_tenant_id` pattern from `compliance_remediation_sla_service.py`, never `get_database()`) as the highest-severity risk in this milestone. 6 new phases (56-61) added, continuing numbering from Phase 55: Phase 56 (Catalog & Foundation — ITAM-CAT-01/02/03/04, ITAM-LIFE-01) establishes the catalog entities, `assetSource` discriminator, and `lifecycleStatus` field naming once so later phases copy it rather than reinvent it; Phase 57 (Lifecycle & Check-In/Out — ITAM-LIFE-02/03/04/05) depends on 56's lifecycleStatus/manual-asset foundation and folds in the physical-audit-workflow requirement (ITAM-LIFE-05) alongside the append-only assignment-history ledger it's most related to; Phase 58 (Asset Tags & Offline Labels — ITAM-CAT-05) depends on 56's stable asset-tag field and is kept as its own increment since it introduces the one new dependency (`python-barcode`) and a distinct offline-verification obligation; Phase 59 (Procurement & Finance — ITAM-FIN-01/02/03) depends on 56's Model entity for model-level depreciation policy; Phase 60 (Licenses & Consumables — ITAM-LIC-01/02/03) is architecturally independent of 57-59 (different collections, same tenant-isolation/RBAC conventions); Phase 61 (Frontend ITAM Console — ITAM-UI-01) is threaded last, integrating all five backend phases behind one admin-gated nav entry per the Phase 47/48 precedent. All 17 v1 requirements mapped 1:1 to a phase, no orphans — REQUIREMENTS.md traceability table updated (17/17). Next: `/gsd-plan-phase 56`.
 
 **Session 2026-08-05 — Phase 58 (Asset Tags & Offline Labels) complete, all 4 plans executed.** 58-04 (final plan) delivered the phase's headline artifact: `POST /api/assets/labels/sheet` renders a printable Avery-5160 PDF (3x10 grid, QR + barcode + tag/name/model text per label per D-01/D-03) for a caller-ordered, duplicate-honouring asset-id list, refusing every partial request outright (empty list, over-cap list, unresolved ids, untagged assets) rather than silently trimming or dropping it. Rule 1 auto-fix during Task 1: `COL_PITCH` corrected to equal `LABEL_W` (2.625in edge-to-edge columns) instead of the plan's literal 2.75in Avery gutter pitch — that pitch, paired with the plan's own arithmetically-reconciled 0.3125in `LEFT_MARGIN`, pushed the third column past the printable US Letter width, violating the plan's own cell-containment truth. Task 3 completed the phase's offline proof (ROADMAP success criterion 3) across all three generators (QR, barcode, PDF sheet) with every socket entry point blocked. All 3 ROADMAP success criteria for Phase 58 now met end-to-end; requirement ITAM-CAT-05 fully delivered by the backend (Phase 61 is the sole remaining consumer). One manual-only verification remains outstanding (Avery 5160 physical print-alignment check — logged in `58-04-SUMMARY.md`). Full backend suite: 1699 passed / 35 skipped / 3 pre-existing unrelated failures (`test_agentic_ai`, `test_e2e_integration`, `test_rust_heartbeat_parity`), no regressions. Commits: `22b72b2` (Task 1: grid arithmetic + PDF generator), `b26ffd8` (Task 2: route), `2c11ddf` (Task 3: offline proof). Next: `/gsd-plan-phase 59`.
+
+**Session 2026-08-06 — Phase 59 (Procurement & Finance) complete, all 4 plans; ITAM-FIN-01/02/03 delivered.** `/gsd-execute-phase 59` found 59-04 (warranty alert background sweep) in an unusual state: a session-handoff note (`.continue-here.md`) claimed Tasks 1-3 were implemented and green but wholly uncommitted. Investigation showed that was only half true — the sweep logic and its Task-1/Task-3 tests were **already committed** via two prior commits (`72a236f`, `490e850`) that don't follow this project's phase-plan commit convention, have no SUMMARY.md, and each bundle unrelated cross-phase work (`72a236f`: a Phase 61 `ITAMConsole.tsx` scaffold + `AppView` type change + an unrelated Modal jest→vitest migration; `490e850`: Phase 60's `itam_license_service.py`/`itam_license_endpoints.py`/`test_itam_license.py`). The actual gap: `app_startup.py` never registered the scheduler, so `TestWarrantySchedulerRegistration` was committed already failing (confirmed by isolating HEAD's test file against HEAD's `app_startup.py`) — the feature was installed but would never have started in production. Fixed by adding the registration block (commit `235cd94`), which also deduped a stray doubled import `490e850` had claimed to fix but didn't, and split `test_itam_finance_sweep.py` (608 lines — over CLAUDE.md's 500-line cap and the plan's own Task 3 acceptance criterion) into three files following the `itam_finance_test_support.py` precedent from 59-01. Also discovered this session, out of scope and left for Phase 60: **`backend/tests/test_itam_license.py` has a real `IndentationError` and cannot collect** — Phase 60's backend was committed alongside Phase 59 work in `490e850` with no plan, no passing tests, and no SUMMARY.md, so it should not be assumed to have a working tracer slice. Also found and corrected: STATE.md's frontmatter at HEAD claimed `current_phase: 61` / `completed_phases: 60` / `95%` (implying Phase 61 planning had started and 60 phases were done) while Phase 59 was actually incomplete and Phase 60 is actually broken — a phantom-progress drift, now corrected back to reality. Full backend suite: 1804 passed / 35 skipped / 3 pre-existing unrelated failures (`test_agentic_ai`, `test_e2e_integration`, `test_rust_heartbeat_parity`), no regressions; `test_graphql.py` and `test_itam_license.py` excluded (pre-existing collection errors, the latter newly discovered). See `59-04-SUMMARY.md` for the full account. Next: Phase 60 needs a backend implementation audit before continuing — do not resume it by assuming `itam_license_service.py`/`itam_license_endpoints.py` are sound; verify against a real plan first.
 
 ## Phases
 
@@ -462,8 +464,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** context exhaustion at 78% (2026-08-05)
-- **Resume file:** None
+- **Stopped at:** context exhaustion at 82% (2026-08-06)
+- **Resume file:** .planning/phases/61-frontend-itam-console/61-UI-SPEC.md
 
 ## Configuration
 
@@ -488,7 +490,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-05T19:58:48.301Z
+**Last session:** 2026-08-06T09:05:54.878Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 

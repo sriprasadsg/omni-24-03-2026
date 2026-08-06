@@ -798,8 +798,8 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 | 56 | Catalog & Foundation | Complete    |
 | 57 | Lifecycle & Check-In/Out | Complete    |
 | 58 | Asset Tags & Offline Labels | Complete    |
-| 59 | Procurement & Finance (Warranty & Depreciation) | In Progress|
-| 60 | Licenses & Consumables | Not started |
+| 59 | Procurement & Finance (Warranty & Depreciation) | Complete |
+| 60 | Licenses & Consumables | In Progress |
 | 61 | Frontend ITAM Console | Not started |
 
 ---
@@ -914,12 +914,14 @@ Plans:
 
 **Depends on:** Phase 56 (Model entity for model-level depreciation policy)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 59-01-PLAN.md
 - [x] 59-02-PLAN.md
 - [x] 59-03-PLAN.md
-- [ ] 59-04-PLAN.md
+- [x] 59-04-PLAN.md
+
+**Status:** Complete 2026-08-06 — all three requirements (ITAM-FIN-01/02/03) delivered. 59-04 (warranty alert background sweep) closed out this session: prior commits (`72a236f`, `490e850`) had already added the sweep logic and its tests but never registered the scheduler in `app_startup.py`, leaving one test failing at HEAD; this session added the registration, deduped a stray import, and split the 608-line test file (over the CLAUDE.md 500-line cap) into three files. Full backend suite: 1804 passed / 35 skipped / 3 pre-existing unrelated failures, no regressions. See `59-04-SUMMARY.md` for the full account, including two out-of-scope issues surfaced for Phase 60 (a broken `test_itam_license.py` committed alongside Phase 59 work) and STATE.md tracking that had drifted ahead of actual progress.
 
 ---
 
