@@ -220,6 +220,8 @@ class IncidentAnalyzer:
         source: str = "generic",
         _retries: int = 3,
         provider: Optional[AIProvider] = None,
+        temperature: Optional[float] = None,
+        max_tokens: int = 1024,
     ) -> str:
         """Public generic generation method with guardrails and exponential-backoff retry."""
         import asyncio as _asyncio
@@ -238,7 +240,7 @@ class IncidentAnalyzer:
             for attempt in range(_retries):
                 try:
                     async with ai_breaker:
-                        response = await provider.generate(prompt)
+                        response = await provider.generate(prompt, temperature=temperature, max_tokens=max_tokens)
                     break
                 except CircuitBreakerOpen as cb_err:
                     last_err = cb_err

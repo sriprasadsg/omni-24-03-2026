@@ -102,14 +102,14 @@ def patch_get_database_globally(mock_db, monkeypatch):
         return MockTenantIsolatedDatabase(mock_db, _current_tenant_id)
 
     def _patch_all():
-monkeypatch.setattr(itam_license_endpoints, "get_database", get_mock_tenant_db)
+        monkeypatch.setattr(itam_license_endpoints, "get_database", get_mock_tenant_db)
 
     _patch_all()
 
     def set_current_tenant_id(tenant_id):
         nonlocal _current_tenant_id
         _current_tenant_id = tenant_id
-            _patch_all()
+        _patch_all()
 
     return set_current_tenant_id
 
@@ -126,10 +126,10 @@ def license_app(mock_db, patch_get_database_globally, monkeypatch):
 
 # Helper function for ISO date strings
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds") + "Z"
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 def _future_iso(days: int = 30) -> str:
-    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat(timespec="milliseconds") + "Z"
+    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class TestLicenseManagement:
@@ -314,7 +314,7 @@ class TestLicenseAssignment:
             r = await ac.delete("/api/itam/licenses/assignments/la-123?note=User%20left")
 
         assert r.status_code == 204
-        mock_db.license_assignments.delete_one.assert_called_once_with({"id": "la-123"})
+        mock_db.license_assignments.delete_one.assert_called_once_with({"id": "la-123", "tenantId": "tenant-a"})
         mock_db.assignment_history.insert_one.assert_called_once()
         args, kwargs = mock_db.assignment_history.insert_one.call_args
         assert args[0]["action"] == "license_reclaim"
