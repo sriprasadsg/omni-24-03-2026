@@ -798,7 +798,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 | 56 | Catalog & Foundation | Complete    |
 | 57 | Lifecycle & Check-In/Out | Complete    |
 | 58 | Asset Tags & Offline Labels | Complete    |
-| 59 | Procurement & Finance (Warranty & Depreciation) | Complete |
+| 59 | Procurement & Finance (Warranty & Depreciation) | Complete    |
 | 60 | Licenses & Consumables | In Progress |
 | 61 | Frontend ITAM Console | Not started |
 
