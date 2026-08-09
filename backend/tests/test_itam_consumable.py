@@ -188,3 +188,94 @@ class TestConsumableManagement:
         assert len(data) == 2
         assert data[0]["name"] == "Pen"
         assert data[1]["name"] == "Paper"
+
+
+class TestConsumableCheckoutQuantity:
+    """ITAM-LIC-02: quantity-aware checkout, quantity > 1 in one transaction,
+    available quantity correctly decremented; over-request rejected outright
+    (no partial/silent-drop fulfillment)."""
+
+    @pytest.mark.asyncio
+    async def test_checkout_decrements_available_quantity(self, mock_db, consumable_app):
+        mock_db.itam_consumables.find_one_and_update = AsyncMock(return_value={
+            "_id": "con-1", "name": "HDMI Cable", "initialQuantity": 100, "unitType": "unit",
+            "availableQuantity": 88, "tenantId": "tenant-a", "checkoutRecords": [],
+        })
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=consumable_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            payload = {"quantity": 12, "assignedTo": "user-7", "assignedToType": "user"}
+            r = await ac.post("/api/itam/consumables/con-1/checkout", json=payload)
+
+        assert r.status_code == 200, r.text
+        assert r.json()["availableQuantity"] == 88
+        args, kwargs = mock_db.itam_consumables.find_one_and_update.call_args
+        assert args[0]["availableQuantity"] == {"$gte": 12}
+        assert args[1]["$inc"]["availableQuantity"] == -12
+
+    @pytest.mark.asyncio
+    async def test_checkout_rejects_whole_request_when_over_available(self, mock_db, consumable_app):
+        # Guard-in-filter match fails (nothing to decrement past availableQuantity) —
+        # find_one_and_update returns None, distinguished from a genuine 404 by a
+        # follow-up find_one showing the consumable does exist.
+        mock_db.itam_consumables.find_one_and_update = AsyncMock(return_value=None)
+        mock_db.itam_consumables.find_one = AsyncMock(return_value={
+            "_id": "con-1", "name": "HDMI Cable", "initialQuantity": 100, "unitType": "unit",
+            "availableQuantity": 5, "tenantId": "tenant-a", "checkoutRecords": [],
+        })
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=consumable_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            payload = {"quantity": 6, "assignedTo": "user-7", "assignedToType": "user"}
+            r = await ac.post("/api/itam/consumables/con-1/checkout", json=payload)
+
+        assert r.status_code == 400, r.text
+        assert "Insufficient quantity" in r.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_checkout_not_found(self, mock_db, consumable_app):
+        mock_db.itam_consumables.find_one_and_update = AsyncMock(return_value=None)
+        mock_db.itam_consumables.find_one = AsyncMock(return_value=None)
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=consumable_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            payload = {"quantity": 1, "assignedTo": "user-7", "assignedToType": "user"}
+            r = await ac.post("/api/itam/consumables/con-nope/checkout", json=payload)
+
+        assert r.status_code == 404, r.text
+
+    @pytest.mark.asyncio
+    async def test_checkin_increments_available_quantity(self, mock_db, consumable_app):
+        mock_db.itam_consumables.find_one_and_update = AsyncMock(return_value={
+            "_id": "con-1", "name": "HDMI Cable", "initialQuantity": 100, "unitType": "unit",
+            "availableQuantity": 100, "tenantId": "tenant-a", "checkoutRecords": [],
+        })
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=consumable_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/consumables/con-1/checkin?quantity=12")
+
+        assert r.status_code == 200, r.text
+        assert r.json()["availableQuantity"] == 100
+        args, kwargs = mock_db.itam_consumables.find_one_and_update.call_args
+        assert args[1]["$inc"]["availableQuantity"] == 12
+
+    @pytest.mark.asyncio
+    async def test_checkin_rejects_non_positive_quantity(self, mock_db, consumable_app):
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=consumable_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/consumables/con-1/checkin?quantity=0")
+
+        assert r.status_code == 400, r.text
+        mock_db.itam_consumables.find_one_and_update.assert_not_called()
