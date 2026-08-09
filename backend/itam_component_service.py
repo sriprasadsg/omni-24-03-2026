@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
+from pymongo import ReturnDocument
 
 from database import get_database
 from errors import APIError, NotFoundError
@@ -86,6 +87,7 @@ class ComponentService:
         doc = await self.db.components.find_one_and_update(
             {"id": component_id, "tenantId": tenant_id},
             {"$set": update},
+            return_document=ReturnDocument.AFTER,
         )
         if not doc:
             return None
@@ -116,6 +118,7 @@ class ComponentService:
         updated = await self.db.components.find_one_and_update(
             {"id": component_id, "tenantId": tenant_id},
             {"$set": {"parentAssetId": asset_id, "updatedAt": now}},
+            return_document=ReturnDocument.AFTER,
         )
         updated.pop("_id", None)
         return Component(**updated)
@@ -136,6 +139,7 @@ class ComponentService:
         updated = await self.db.components.find_one_and_update(
             {"id": component_id, "tenantId": tenant_id},
             {"$unset": {"parentAssetId": ""}, "$set": {"updatedAt": now}},
+            return_document=ReturnDocument.AFTER,
         )
         updated.pop("_id", None)
         return Component(**updated)
