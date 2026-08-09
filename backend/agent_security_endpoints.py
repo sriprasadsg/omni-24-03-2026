@@ -11,7 +11,9 @@ import logging
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_security_endpoints")
 
-# Cap on agent-supplied arrays fanned out into per-item DB writes
+# Cap array iteration to bound per-request work. Hoisted to module scope so every
+# endpoint shares one limit (previously defined in only one handler, leaving the
+# others referencing an undefined name).
 _MAX_ARRAY = 500
 
 

@@ -179,7 +179,6 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
     if updates.full_name is not None:
         update_data["full_name"] = updates.full_name
     if updates.role is not None:
-        _SUPER_ADMIN_ROLES = {"super_admin", "superadmin", "Super Admin", "platform-admin"}
         _ELEVATED_ROLES = {"admin", "Tenant Admin"} | _SUPER_ADMIN_ROLES
         _VALID_ROLES = {"user", "viewer"} | _ELEVATED_ROLES
         if updates.role not in _VALID_ROLES:

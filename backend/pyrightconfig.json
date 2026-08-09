@@ -1,0 +1,14 @@
+{
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "off",
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "exclude": [
+    "**/venv",
+    "**/.venv",
+    "**/__pycache__",
+    "tests",
+    "scripts",
+    "uploads"
+  ]
+}

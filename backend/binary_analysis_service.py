@@ -271,13 +271,10 @@ class BinaryAnalysisService:
 
         except Exception as e:
             result["error"] = str(e)
-        finally:
-            # Cleanup
-            import shutil
-            try:
-                shutil.rmtree(tmpdir, ignore_errors=True)
-            except Exception as e:
-                logger.debug("Temp dir cleanup failed: %s", e)
+
+        # No cleanup needed: dynamic execution is disabled, so this path never
+        # creates a temp directory (the old finally referenced an undefined
+        # `tmpdir`, which would raise NameError on any exception above).
 
         return result
 
