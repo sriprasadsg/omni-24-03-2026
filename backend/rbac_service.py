@@ -10,6 +10,9 @@ class RBACService:
         self.default_roles = {
             "super_admin": ["*"], # All permissions
             "admin": [
+                "manage:assets", # Added for ITAM Phase 56-01
+                "view:itam", # Added for ITAM Phase 61-01
+                "manage:itam", # Added for ITAM Phase 61-01
                 "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
                 "view:agents", "view:agent_capabilities", "view:software_deployment", "view:agent_logs", "remediate:agents",
                 "view:assets", "view:patching", "manage:patches", "view:security",
@@ -25,6 +28,9 @@ class RBACService:
                 "view:mdr", "view:xdr"
             ],
             "Tenant Admin": [
+                "manage:assets", # Added for ITAM Phase 56-01
+                "view:itam", # Added for ITAM Phase 61-01
+                "manage:itam", # Added for ITAM Phase 61-01
                 "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
                 "view:agents", "view:agent_capabilities", "view:software_deployment", "view:agent_logs", "remediate:agents",
                 "view:assets", "view:patching", "manage:patches", "view:security",

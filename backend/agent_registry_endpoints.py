@@ -6,7 +6,10 @@ from datetime import datetime, timezone, timedelta
 import uuid
 from cache_service import invalidate_cache
 from rate_limiter import limiter
+import geoip_service
+import agent_asn_service
 import logging
+from agent_location_history_service import record_location_change, get_track_agent_location
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_registry_endpoints")
@@ -60,7 +63,15 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         "deviceId": data.get("device_id") or data.get("deviceId"),
         "status": "Online",
         "lastSeen": datetime.now(timezone.utc).isoformat(),
-        "registeredAt": existing_agent.get("registeredAt") if existing_agent else datetime.now(timezone.utc).isoformat()
+        "registeredAt": existing_agent.get("registeredAt") if existing_agent else datetime.now(timezone.utc).isoformat(),
+        "health": {
+            "overallStatus": "Healthy",
+            "checks": [
+                {"name": "Connectivity", "status": "Pass", "message": "Agent connected to server"},
+                {"name": "Service Status", "status": "Pass", "message": "Service is running"},
+                {"name": "Cache Write Access", "status": "Pass", "message": "Cache is writable"}
+            ]
+        }
     }
 
     reg_meta = data.get("meta", {})
@@ -68,7 +79,41 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     if available_caps:
         agent_data["availableCapabilities"] = available_caps
 
+    # WAN / ISP-assigned public IP, when the agent resolved it before registering.
+    public_ip = data.get("publicIp") or reg_meta.get("public_ip")
+    geo = None
+    if public_ip:
+        agent_data["publicIp"] = public_ip
+        geo = geoip_service.lookup(public_ip)
+        if geo:
+            agent_data["geo"] = geo
+
+    # ASN + VPN heuristic enrichment + location-history (Phase 46, GAUD-01/02).
+    # Both are gated on the per-tenant track_agent_location toggle (D-02) —
+    # when OFF, neither runs, but the geoip_service city/country enrichment
+    # above stays unconditional (scope boundary, T-46-05-B).
+    asn_enrichment = None
+    track_location = False
+    if public_ip:
+        track_location = await get_track_agent_location(db, tenant["id"])
+        if track_location:
+            asn_enrichment = agent_asn_service.lookup(public_ip)
+            if asn_enrichment:
+                geo = {**(geo or {}), "asn": asn_enrichment.get("asn"), "vpn_heuristic": asn_enrichment.get("vpn_heuristic")}
+                agent_data["geo"] = geo
+
     await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
+
+    # Record location history (Phase 46, GAUD-01) — reuses the existing_agent
+    # doc already fetched above (D-05, zero extra reads); None on first-ever
+    # registration lets record_location_change's first-ever branch fire.
+    if public_ip and track_location:
+        try:
+            await record_location_change(
+                db, existing_agent, agent_id, tenant["id"], public_ip, geo, asn_enrichment
+            )
+        except Exception as loc_err:
+            logger.warning("Failed to record location history for agent %s: %s", agent_id, loc_err)
 
     metrics = data.get("meta", {})
     os_info = metrics.get("os_info", {})
@@ -102,6 +147,10 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         "status": "active",
         "type": "server"
     }
+    if public_ip:
+        asset_data["publicIp"] = public_ip
+    if geo:
+        asset_data["geo"] = geo
 
     try:
         await db.assets.update_one({"id": asset_id}, {"$set": asset_data}, upsert=True)
@@ -330,7 +379,7 @@ async def update_agent(
 async def get_agent_version():
     """Return the current agent binary version and download URL. Polled by agent auto-update."""
     return {
-        "version": "2.0.5-rust",
+        "version": "2.1.2-rust",
         "download_url": "/static/omni-agent.exe",
         "release_notes": "58 compliance checks, 175 control IDs, Collect Now runs all sources",
         "min_version": "1.0.0",

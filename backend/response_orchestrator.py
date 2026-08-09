@@ -33,7 +33,7 @@ class ResponseOrchestrator:
 
     async def evaluate_alert(
         self, alert: Dict[str, Any], agent_id: str, dry_run: bool = False,
-        tenant_id: str = "",
+        tenant_id: str = "", auto_remediation_mode: bool = False,
     ) -> List[Dict]:
         """
         Evaluate an alert against enabled policies scoped to this tenant.
@@ -44,9 +44,28 @@ class ResponseOrchestrator:
             logger.error("evaluate_alert called without tenant_id — refusing to run cross-tenant")
             return []
         db = get_database()
-        policies = await db.response_policies.find(
-            {"enabled": True, "tenantId": tenant_id}, {"_id": 0}
-        ).to_list(length=100)
+
+        policy_query: Dict[str, Any] = {"enabled": True, "tenantId": tenant_id}
+        if auto_remediation_mode:
+            policy_query["auto_execute"] = True
+
+        policies = await db.response_policies.find(policy_query, {"_id": 0}).to_list(length=100)
+
+        # Filter policies by max_auto_severity if in auto_remediation_mode
+        if auto_remediation_mode:
+            from autonomous_remediation_service import SEVERITY_ORDER
+
+            # Get severity of the current alert
+            alert_severity_level = SEVERITY_ORDER.get(alert.get("severity", "critical").lower(), 4)
+
+            filtered_policies = []
+            for policy in policies:
+                max_policy_severity = policy.get("max_auto_severity", "medium").lower()
+                policy_ceiling_level = SEVERITY_ORDER.get(max_policy_severity, 2)
+
+                if alert_severity_level <= policy_ceiling_level:
+                    filtered_policies.append(policy)
+            policies = filtered_policies
         dispatched = []
 
         for policy in policies:
@@ -277,6 +296,8 @@ BUILTIN_POLICIES = [
             {"action": "kill_process", "params": {"reason": "Auto-policy: credential dumper detected"}},
         ],
         "notify_on_trigger": True,
+        "auto_execute": True,
+        "max_auto_severity": "medium", # Only allow auto-execution for findings <= medium severity
         "created_at": datetime.now(timezone.utc).isoformat(),
         "builtin": True,
     },
@@ -290,6 +311,7 @@ BUILTIN_POLICIES = [
         ],
         "actions": [],   # Alert-only — no automated action by default
         "notify_on_trigger": True,
+        "auto_execute": False, # Do not auto-execute this policy
         "created_at": datetime.now(timezone.utc).isoformat(),
         "builtin": True,
     },
@@ -306,6 +328,8 @@ BUILTIN_POLICIES = [
             {"action": "quarantine_file", "params": {"reason": "Auto-policy: executable in suspicious path"}},
         ],
         "notify_on_trigger": True,
+        "auto_execute": True,
+        "max_auto_severity": "low", # Only allow auto-execution for findings <= low severity
         "created_at": datetime.now(timezone.utc).isoformat(),
         "builtin": True,
     },

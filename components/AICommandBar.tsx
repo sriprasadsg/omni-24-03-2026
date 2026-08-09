@@ -30,7 +30,8 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({ isOpen, onClose, onE
         if (isOpen) {
             setQuery('');
             setError(null);
-            setTimeout(() => inputRef.current?.focus(), 100);
+            const id = requestAnimationFrame(() => inputRef.current?.focus());
+            return () => cancelAnimationFrame(id);
         }
     }, [isOpen]);
 
@@ -63,13 +64,14 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({ isOpen, onClose, onE
     
     const handleSuggestionClick = (prompt: string) => {
         setQuery(prompt);
-        // Focus and submit
-        inputRef.current?.focus();
-        // We need a slight delay for the state to update before submitting
-        setTimeout(() => {
-            const form = inputRef.current?.closest('form');
-            form?.requestSubmit();
-        }, 0);
+        // Focus and submit using requestAnimationFrame for reliable timing
+        requestAnimationFrame(() => {
+            inputRef.current?.focus();
+            requestAnimationFrame(() => {
+                const form = inputRef.current?.closest('form');
+                form?.requestSubmit();
+            });
+        });
     };
 
     if (!isOpen) return null;
@@ -89,7 +91,8 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({ isOpen, onClose, onE
                             value={query}
                             onChange={handleQueryChange}
                             placeholder="Type a command or ask a question..."
-                            className="w-full bg-transparent p-4 pl-12 text-lg text-gray-800 dark:text-gray-100 focus:outline-none"
+                            aria-label="Command input"
+                            className="w-full bg-transparent p-4 pl-12 text-lg text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-inset"
                         />
                         {isLoading && (
                             <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -108,10 +111,10 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({ isOpen, onClose, onE
                              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 px-2 mb-2">SUGGESTIONS</p>
                              <div className="space-y-1">
                                 {suggestedPrompts.map(prompt => (
-                                    <button 
+                                    <button
                                         key={prompt}
                                         onClick={() => handleSuggestionClick(prompt)}
-                                        className="w-full text-left flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                                        className="w-full text-left flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-600/50 active:scale-[0.99] transition-all duration-100"
                                     >
                                         <span className="text-sm text-gray-600 dark:text-gray-300">{prompt}</span>
                                         <ArrowRightIcon size={16} className="text-gray-400" />

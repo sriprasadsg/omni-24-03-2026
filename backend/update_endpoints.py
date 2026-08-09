@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 import logging
 from fastapi.responses import FileResponse, JSONResponse
 import os
@@ -32,7 +32,7 @@ SPYGLASS_UNIFIED = os.path.join(SPYGLASS_DIR, "unified-collection.ps1")
 AGENT_COLLECT_PS1 = os.path.join(PROJECT_ROOT, "agent", "installer", "Collect-Evidence.ps1")
 
 
-def _run_build(task_id: str):
+def _run_build(task_id: str, capabilities: list[str] = None):
     """Build the EXE/MSI installer with spyglass evidence capture (runs on thread pool)."""
     import sys
     import shutil
@@ -137,19 +137,27 @@ def _run_build(task_id: str):
         logger.exception("[Build] Build failed: %s", e)
 
 @router.get("/latest")
-async def get_latest_version(platform: str = "windows"):
+async def get_latest_version(request: Request, platform: str = "windows"):
     """
     Get the latest available agent version info.
     """
     # In a real app, this would query a DB or read a manifest.
     # For MVP, we check the backend/static folder naming convention:
     # omni-agent-{version}-{platform}.exe
-    
+
     # Ensure dir exists
     if not os.path.exists(BINARY_STORAGE_PATH):
         os.makedirs(BINARY_STORAGE_PATH, exist_ok=True)
-        
-    base_url = "http://localhost:5000" # Dynamic in prod
+
+    # Derive the download host from the agent's own request rather than a
+    # hardcoded "localhost" — a remote agent polling from another machine must
+    # get a URL that resolves back to THIS backend, not to its own loopback.
+    # Honor X-Forwarded-* when behind a reverse proxy.
+    fwd_proto = request.headers.get("x-forwarded-proto")
+    fwd_host = request.headers.get("x-forwarded-host")
+    scheme = fwd_proto or request.url.scheme
+    host = fwd_host or request.headers.get("host") or request.url.netloc
+    base_url = f"{scheme}://{host}".rstrip("/")
     
     # Check for agent.py updates (Script based)
     agent_script_path = os.path.join("..", "agent", "agent.py")
@@ -245,16 +253,17 @@ def _sha256_of(path: str) -> str:
 
 
 @router.get("/download/{filename}")
-async def download_agent_binary(filename: str):
+async def download_agent_binary(filename: str, capabilities: str = None):
     # Allow downloading specific named files like 'omni-agent.exe' if they exist
     # or map 'omni-agent.exe' to the latest version
     target_path, filename = _resolve_servable_path(filename)
 
     if not os.path.exists(target_path):
         # Auto-trigger build if file doesn't exist and it's the installer
-        if filename in ("OmniAgent-Setup.exe", "OmniAgent-2.0.0.msi"):
+        if filename in ("OmniAgent-Setup.exe",):
             task_id = str(uuid.uuid4())
-            _executor.submit(_run_build, task_id)
+            parsed_capabilities = capabilities.split(',') if capabilities else None
+            _executor.submit(_run_build, task_id, parsed_capabilities)
             raise HTTPException(
                 status_code=202,
                 detail={
@@ -285,13 +294,13 @@ async def get_agent_checksum(filename: str):
 
 
 @router.post("/build")
-async def trigger_build():
+async def trigger_build(capabilities: list[str] = None):
     """
     Trigger an async installer build with Spyglass evidence collection.
     Returns a task_id for polling build status.
     """
     task_id = str(uuid.uuid4())
-    _executor.submit(_run_build, task_id)
+    _executor.submit(_run_build, task_id, capabilities)
     return {
         "task_id": task_id,
         "status": "building",

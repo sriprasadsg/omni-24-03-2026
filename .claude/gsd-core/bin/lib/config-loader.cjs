@@ -18,7 +18,7 @@
  *   - ./planning-workspace.cjs (planningDir, planningRoot)
  *   - ./shell-command-projection.cjs (execGit, platformWriteSync, platformReadSync)
  *   - ./core-utils.cjs       (detectSubRepos)
- *   - ./model-catalog.cjs    (KNOWN_RUNTIMES, KNOWN_PROVIDERS)
+ *   - ./model-catalog.cjs    (KNOWN_RUNTIMES, KNOWN_PROVIDERS, ADAPTIVE_TIER_VALUES)
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -45,6 +45,10 @@ const federatedConfigModule = require("./federated-config.cjs");
 const { mergeFederatedConfig } = federatedConfigModule;
 // The capability-registry.cjs is generated and lives in the same gsd-core/bin/lib/ output dir.
 // Both config-loader.cjs and capability-registry.cjs land in gsd-core/bin/lib/ at build time.
+// This is the FROZEN first-party registry — used as the test-seam default and the
+// fallback. Overlay (installed third-party) config-key federation is cwd-dependent
+// and composed PER loadConfig CALL by _federatedConfigSchema(cwd) below (ADR-1244 D2),
+// never eagerly at module load.
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
 const _capabilityRegistryReal = require('./capability-registry.cjs');
 // Module-level registry reference. Defaults to the real generated registry.
@@ -100,6 +104,7 @@ const CONFIG_DEFAULTS = {
     verifier: _getNestedConfigDefault('workflow', 'verifier'),
     nyquist_validation: _getNestedConfigDefault('workflow', 'nyquist_validation'),
     ai_integration_phase: _getNestedConfigDefault('workflow', 'ai_integration_phase'),
+    api_coverage_gate: _getNestedConfigDefault('workflow', 'api_coverage_gate'),
     parallelization: _getConfigDefault('parallelization'),
     brave_search: _getConfigDefault('brave_search'),
     firecrawl: _getConfigDefault('firecrawl'),
@@ -131,6 +136,12 @@ function _deepMergeConfig(base, overlay) {
         return overlay;
     const result = { ...base };
     for (const key of Object.keys(overlay)) {
+        // Prototype-pollution guard — mirrors the four sibling guards in this file
+        // (lines ~315/319/331/341/549). Without it a workstream/root config.json with
+        // {"__proto__": {...}} pollutes this merged object's prototype chain and can
+        // spoof unset config flags. (Per-object pollution, not global Object.prototype.)
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype')
+            continue;
         if (overlay[key] !== null && typeof overlay[key] === 'object' && !Array.isArray(overlay[key])) {
             result[key] = _deepMergeConfig((base[key] ?? {}), overlay[key]);
         }
@@ -147,17 +158,25 @@ const _warnedUnknownConfigKeys = new Set();
 // ─── Git utilities ────────────────────────────────────────────────────────────
 const _gitIgnoredCache = new Map();
 function isGitIgnored(cwd, targetPath) {
-    const key = cwd + '::' + targetPath;
+    // #2206: strip trailing slashes — `git check-ignore` has a quirk where a
+    // CRLF .gitignore with blank lines falsely reports a trailing-slash path
+    // (e.g. `.planning/`) as ignored. Normalizing here protects every call site.
+    const normalized = targetPath.replace(/\/+$/, '');
+    const key = cwd + '::' + normalized;
     if (_gitIgnoredCache.has(key))
         return _gitIgnoredCache.get(key);
     // --no-index checks .gitignore rules regardless of whether the file is tracked.
-    const result = (0, shell_command_projection_cjs_1.execGit)(['check-ignore', '-q', '--no-index', '--', targetPath], { cwd });
+    const result = (0, shell_command_projection_cjs_1.execGit)(['check-ignore', '-q', '--no-index', '--', normalized], { cwd });
     const ignored = result.exitCode === 0;
     _gitIgnoredCache.set(key, ignored);
     return ignored;
 }
 // ─── Model alias resolution ───────────────────────────────────────────────────
-const RUNTIME_OVERRIDE_TIERS = new Set(['opus', 'sonnet', 'haiku']);
+// Catalog-derived (model-catalog.cts) so this vocabulary can never drift from
+// VALID_TIERS in verify.cts — see #2070 "Generative Fix Divergence". Excludes
+// 'inherit' (unlike VALID_TIERS): runtime overrides always resolve to a
+// concrete tier, never the adaptive sentinel.
+const RUNTIME_OVERRIDE_TIERS = model_catalog_cjs_1.ADAPTIVE_TIER_VALUES;
 const _warnedConfigKeys = new Set();
 function _warnUnknownProfileOverrides(parsed, configLabel) {
     if (!parsed || typeof parsed !== 'object')
@@ -324,8 +343,32 @@ function _applyFederatedValues(obj, values, validKeys) {
  * When validKeys is non-empty, applies values into a shallow clone to avoid
  * mutating shared CONFIG_DEFAULTS/module constants.
  */
-function _applyFederatedOverlay(baseConfig, userConfig) {
-    const _fedRegistrySchema = _capabilityRegistry.configSchema;
+// Resolve the federated capability config-schema for a project (ADR-1244 D2).
+// A test override (via _setFederatedRegistryForTests) wins; otherwise, when a
+// project cwd is available, compose the installed overlay for THAT project —
+// LAZILY (never at module load, so a bare require never scans the filesystem and
+// the result is never cached for the wrong cwd) — falling back to the frozen
+// first-party schema when there is no cwd or the loader is unavailable.
+function _federatedConfigSchema(cwd) {
+    if (_capabilityRegistry !== _capabilityRegistryReal) {
+        return _capabilityRegistry.configSchema; // explicit test override
+    }
+    if (typeof cwd === 'string' && cwd) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+            const loaderMod = require('./capability-loader.cjs');
+            // #1459 IC-04: thread the consent home explicitly so a consented project cap's federated config
+            // key resolves at the SAME user-owned home that gated its activation (never the wrong home).
+            const schema = loaderMod.loadRegistry({ includeInstalled: true, cwd, gsdHome: process.env['GSD_HOME'] }).configSchema;
+            if (schema && typeof schema === 'object')
+                return schema;
+        }
+        catch { /* fall back to first-party */ }
+    }
+    return _capabilityRegistryReal.configSchema;
+}
+function _applyFederatedOverlay(baseConfig, userConfig, cwd) {
+    const _fedRegistrySchema = _federatedConfigSchema(cwd);
     if (!_fedRegistrySchema || typeof _fedRegistrySchema !== 'object')
         return baseConfig;
     const _fedOverlay = mergeFederatedConfig({
@@ -341,26 +384,39 @@ function _applyFederatedOverlay(baseConfig, userConfig) {
     _applyFederatedValues(cloned, _fedOverlay.values, _fedOverlay.validKeys);
     return cloned;
 }
-function loadConfig(cwd, options = {}) {
+/**
+ * loadConfigResolved — provenance-aware config loading (#1415, ADR-1411 P2).
+ *
+ * Identical to loadConfig in every observable way except it returns
+ * { config, source, degraded } instead of just the config object.
+ * loadConfig now delegates to this function (byte-identical back-compat).
+ *
+ * Branch → source/degraded mapping:
+ *   A1: ws set + ws config.json found → source:'workstream', degraded:false
+ *   A2: ws null + config.json found   → source:'root',       degraded:false
+ *   B:  catch + .planning/ + rootParsed set (ws fallback) → source:'root', degraded:true
+ *   C:  catch + .planning/ + rootParsed null (federated defaults) → source:'builtin-defaults', degraded:false
+ *   D:  catch + no .planning/ + ~/.gsd/defaults.json readable → source:'global-defaults', degraded:false
+ *   E:  catch + no .planning/ + no global → source:'builtin-defaults', degraded:false
+ */
+function loadConfigResolved(cwd, options = {}) {
+    // NOTE: loadConfigResolved resolves from cwd AS-IS (no walk-up).
+    // Callers that need ancestor-anchoring (e.g. cmdAgentSkills) must do so
+    // themselves via findProjectRoot() before calling this function.
+    // This preserves back-compat for the ~30 other loadConfig callers (#1415).
     const activeWorkstream = Object.prototype.hasOwnProperty.call(options, 'workstream')
         ? options['workstream']
         : (options['workstreamContext'] && Object.prototype.hasOwnProperty.call(options['workstreamContext'], 'ws'))
             ? options['workstreamContext']['ws']
             : (process.env['GSD_WORKSTREAM'] || null);
-    // When GSD_WORKSTREAM is set, load root config first so workstream config
-    // can inherit from it. This prevents users from duplicating model_overrides,
-    // workflow.*, etc. across every workstream config (#2714).
     const ws = typeof activeWorkstream === 'string' ? activeWorkstream : (activeWorkstream === null ? null : null);
-    // #315 — per-call lazy memo: all three detection sites inside this loadConfig
-    // call operate on the same cwd and the subrepo set cannot change mid-call, so
-    // a single scan is sufficient. The memo is scoped to THIS call (not module-level)
-    // so separate loadConfig invocations each get a fresh scan.
+    // wsRequested: true when caller explicitly requested a non-empty workstream.
+    // Used for source labeling (Fix 4) and early absent-dir intercept (Fix 2).
+    const wsRequested = ws != null && ws !== '';
     let cachedSubRepos;
     const getDetectedSubRepos = () => {
         if (cachedSubRepos === undefined)
             cachedSubRepos = detectSubRepos(cwd);
-        // Return a copy: original detectSubRepos returned a fresh array per call,
-        // so each site must keep an independent array (avoid cross-site aliasing).
         return cachedSubRepos.slice();
     };
     let rootParsed = null;
@@ -371,10 +427,8 @@ function loadConfig(cwd, options = {}) {
             if (raw === null)
                 throw new Error('missing');
             rootParsed = JSON.parse(raw);
-            // Cycle 4: delegate all legacy-key normalization to the Configuration Module.
             const { parsed: rootNormalized, normalizations: rootNorms } = (0, configuration_cjs_1.normalizeLegacyKeys)(rootParsed);
             if (rootNorms.length > 0) {
-                // Resolve filesystem-dependent normalizations (multiRepo → planning.sub_repos)
                 for (const norm of rootNorms) {
                     if (norm.requiresFilesystem && !rootNormalized.planning?.['sub_repos']) {
                         const detected = getDetectedSubRepos();
@@ -406,22 +460,14 @@ function loadConfig(cwd, options = {}) {
         const raw = (0, shell_command_projection_cjs_1.platformReadSync)(configPath);
         if (raw === null)
             throw new Error('missing');
-        // `fileData` is the parsed content of the config.json file on disk — used
-        // for migrations and writes so we never persist merged values back to disk.
         const fileData = JSON.parse(raw);
-        // Cycle 4: Single normalizeLegacyKeys call replaces all four inline migration
-        // blocks (depth→granularity, multiRepo→planning.sub_repos, sub_repos→planning.sub_repos,
-        // branching_strategy→git.branching_strategy). The Module is pure (no I/O); disk
-        // writeback is handled below with the existing platformWriteSync pattern.
         let configDirty = false;
         {
             const { parsed: normalized, normalizations } = (0, configuration_cjs_1.normalizeLegacyKeys)(fileData);
             if (normalizations.length > 0) {
-                // Merge normalized values back into fileData (mutation-in-place for legacy code below)
                 Object.keys(fileData).forEach(k => delete fileData[k]);
                 Object.assign(fileData, normalized);
                 configDirty = true;
-                // Resolve filesystem-dependent normalizations (multiRepo → planning.sub_repos).
                 for (const norm of normalizations) {
                     if (norm.requiresFilesystem && !fileData.planning?.['sub_repos']) {
                         const detected = getDetectedSubRepos();
@@ -435,7 +481,6 @@ function loadConfig(cwd, options = {}) {
                 }
             }
         }
-        // Keep planning.sub_repos in sync with actual filesystem
         const currentSubRepos = fileData.planning?.['sub_repos'] || [];
         if (Array.isArray(currentSubRepos) && currentSubRepos.length > 0) {
             const detected = getDetectedSubRepos();
@@ -449,36 +494,24 @@ function loadConfig(cwd, options = {}) {
                 }
             }
         }
-        // Persist sub_repos changes (migration or sync) — write only the on-disk
-        // file contents, never the merged result, to avoid polluting workstream configs.
         if (configDirty) {
             try {
                 (0, shell_command_projection_cjs_1.platformWriteSync)(configPath, JSON.stringify(fileData, null, 2));
             }
             catch { /* ignore */ }
         }
-        // Now apply root→workstream inheritance. `parsed` is the effective config
-        // used for value extraction below; fileData is kept for disk writes only.
         const parsed = rootParsed
             ? (_deepMergeConfig(rootParsed, fileData) ?? fileData)
             : fileData;
-        // Warn about unrecognized top-level keys so users don't silently lose config.
         const KNOWN_TOP_LEVEL = new Set([
-            // Extract top-level key names from dot-notation paths (e.g., 'workflow.research' → 'workflow')
             ...[...VALID_CONFIG_KEYS].map((k) => k.split('.')[0]),
-            // Dynamic-pattern top-level containers (e.g. review, model_profile_overrides)
             ...DYNAMIC_KEY_PATTERNS.map(p => p.topLevel),
-            // Internal keys loadConfig reads but config-set doesn't expose
             'model_overrides', 'context_window', 'resolve_model_ids', 'claude_md_path', 'effort', 'fast_mode',
-            // Deprecated keys (still accepted for migration, not in config-set)
             'depth', 'multiRepo', 'branching_strategy', 'research',
         ]);
-        // FIX 3: Compute federated overlay BEFORE the unknown-key warning, so that
-        // federated top-level keys are added to KNOWN_TOP_LEVEL before the check runs.
-        // This is hoisted out of the try-catch below so validKeys are available here.
         let _preWarningFedValidKeys = [];
         try {
-            const _fedRegistrySchemaEarly = _capabilityRegistry.configSchema;
+            const _fedRegistrySchemaEarly = _federatedConfigSchema(cwd);
             if (_fedRegistrySchemaEarly && typeof _fedRegistrySchemaEarly === 'object') {
                 const _earlyOverlay = mergeFederatedConfig({
                     configSchema: _fedRegistrySchemaEarly,
@@ -495,7 +528,7 @@ function loadConfig(cwd, options = {}) {
             }
         }
         catch {
-            // Defensive: if registry access fails here, proceed without pre-warning keys
+            // Defensive
         }
         const unknownKeys = Object.keys(parsed).filter(k => !KNOWN_TOP_LEVEL.has(k));
         if (unknownKeys.length > 0) {
@@ -505,7 +538,6 @@ function loadConfig(cwd, options = {}) {
                 process.stderr.write(`gsd-tools: warning: unknown config key(s) in .planning/config.json: ${unknownKeys.join(', ')} — these will be ignored\n`);
             }
         }
-        // #2517 — Validate runtime/tier values
         _warnUnknownProfileOverrides(parsed, '.planning/config.json');
         const get = (key, nested) => {
             if (parsed[key] !== undefined)
@@ -530,11 +562,8 @@ function loadConfig(cwd, options = {}) {
             model_profile: get('model_profile') ?? defaults.model_profile,
             commit_docs: (() => {
                 const explicit = get('commit_docs', { section: 'planning', field: 'commit_docs' });
-                // If explicitly set in config, respect the user's choice
                 if (explicit !== undefined)
                     return explicit;
-                // Auto-detection: when no explicit value and .planning/ is gitignored,
-                // default to false instead of true
                 if (isGitIgnored(cwd, '.planning/'))
                     return false;
                 return defaults.commit_docs;
@@ -565,22 +594,14 @@ function loadConfig(cwd, options = {}) {
             project_code: get('project_code') ?? defaults.project_code,
             subagent_timeout: get('subagent_timeout', { section: 'workflow', field: 'subagent_timeout' }) ?? defaults.subagent_timeout,
             model_overrides: (parsed['model_overrides']) || null,
-            // #3023 — per-phase-type model map.
             models: (parsed['models']) || null,
-            // #68 — top-level granularity
             granularity: parsed['granularity'] !== undefined ? parsed['granularity'] : null,
-            // #68 — per-phase-type granularity map.
             granularities: (parsed['granularities']) || null,
-            // #68 — planning sub-object
             planning: (parsed['planning']) || null,
-            // #3024 — dynamic routing block.
             dynamic_routing: (parsed['dynamic_routing']) || null,
-            // #2517 — runtime-aware profiles.
             runtime: (parsed['runtime']) || null,
             model_profile_overrides: (parsed['model_profile_overrides']) || null,
-            // #49 — provider-neutral model policy presets.
             model_policy: (parsed['model_policy']) || null,
-            // #443 — effort/fast_mode
             effort: (parsed['effort']) || null,
             fast_mode: (parsed['fast_mode']) || null,
             agent_skills: (parsed['agent_skills']) || {},
@@ -590,57 +611,53 @@ function loadConfig(cwd, options = {}) {
             claude_md_path: get('claude_md_path') || null,
             claude_md_assembly: (parsed['claude_md_assembly']) || null,
         };
-        // ─── ADR-857 phase 3b: federated config overlay ───────────────────────────
-        // FIX 2: Use the pre-computed _preWarningFedValidKeys (from the FIX 3 block above)
-        // plus a fresh overlay call to get values. The KNOWN_TOP_LEVEL was already updated.
-        // TODAY: every UI key is still in the central config-schema, so isCentralKey()
-        // returns true for all of them → validKeys is empty → _baseConfig is returned UNCHANGED
-        // (true no-op: no clone, no reorder, byte-identical output).
-        // This becomes a live channel once a key is atomically removed from the central schema.
+        // ADR-857 phase 3b: federated config overlay
         try {
             if (_preWarningFedValidKeys.length > 0) {
-                // There are actual federated values — re-use the already-computed overlay
-                // (we run mergeFederatedConfig again here to get the values map; the validKeys
-                //  are guaranteed identical since it's the same inputs).
-                const _fedRegistrySchema = _capabilityRegistry.configSchema;
+                const _fedRegistrySchema = _federatedConfigSchema(cwd);
                 if (_fedRegistrySchema && typeof _fedRegistrySchema === 'object') {
                     const _fedOverlay = mergeFederatedConfig({
                         configSchema: _fedRegistrySchema,
                         isCentralKey: (key) => _isCentralConfigKeyFn(key),
                         userConfig: parsed,
                     });
-                    // Apply dotted-path values (e.g. "workflow.ui_phase" → _baseConfig.workflow.ui_phase)
-                    // WITHOUT clobbering existing keys. N-level nesting supported.
                     _applyFederatedValues(_baseConfig, _fedOverlay.values, _fedOverlay.validKeys);
                 }
             }
-            // Pending-migration warnings are suppressed at load time to avoid noisy output on
-            // every loadConfig call. They are surfaced at registry-generation time (--check/--write).
         }
         catch {
-            // Defensive: if the federated overlay throws for any reason, return the base config unchanged.
-            // This keeps loadConfig's no-throw contract intact regardless of capability registry state.
+            // Defensive: keep no-throw contract
         }
-        return _baseConfig;
+        // A1 vs A2: disambiguate by whether a real workstream was requested.
+        // Fix 4: empty-string ws ('') resolves the root path → source:'root'.
+        const source = wsRequested ? 'workstream' : 'root';
+        return { config: _baseConfig, source, degraded: false };
     }
     catch {
-        // Fall back to ~/.gsd/defaults.json only for truly pre-project contexts (#1683)
+        // Fix 2: Early intercept — workstream requested but ws config.json absent (or dir absent)
+        // AND root config was loaded. Covers BOTH "dir exists, no config.json" AND "dir absent".
+        // This delivers the #1366 acceptance criterion: nonexistent GSD_WORKSTREAM yields root, degraded.
+        if (wsRequested && rootParsed) {
+            const fb = loadConfigResolved(cwd, { workstream: null });
+            return { config: fb.config, source: 'root', degraded: true };
+        }
+        // Branch B, C, D, E
         if (node_fs_1.default.existsSync(planningDir(cwd, ws))) {
             if (rootParsed) {
-                // Workstream has no config.json: re-parse using root config as the sole source.
-                // (FIX 2: overlay is applied recursively in the re-entrant loadConfig call)
-                return loadConfig(cwd, { workstream: null });
+                // Branch B: workstream requested but ws config.json absent; root config present.
+                // (Only reached when wsRequested is false — e.g. ws='' with .planning/workstreams//config.json)
+                const fb = loadConfigResolved(cwd, { workstream: null });
+                return { config: fb.config, source: 'root', degraded: true };
             }
-            // FIX 2: Apply the federated overlay on the no-config path.
-            // Migrated Capability keys are surfaced from the generated registry even
-            // when the project has no config.json, so schema defaults still apply.
+            // Branch C: .planning/ exists but no config.json and no root config — federated/builtin defaults
             try {
-                return _applyFederatedOverlay(defaults, {});
+                return { config: _applyFederatedOverlay(defaults, {}, cwd), source: 'builtin-defaults', degraded: false };
             }
             catch {
-                return defaults;
+                return { config: defaults, source: 'builtin-defaults', degraded: false };
             }
         }
+        // Branch D or E: no .planning/
         try {
             const home = process.env['GSD_HOME'] || node_os_1.default.homedir();
             const globalDefaultsPath = node_path_1.default.join(home, '.gsd', 'defaults.json');
@@ -674,30 +691,44 @@ function loadConfig(cwd, options = {}) {
                 fast_mode: (globalDefaults['fast_mode']) || null,
                 agent_skills: (globalDefaults['agent_skills']) || {},
                 response_language: (globalDefaults['response_language']) || null,
+                // #2069: forward model_policy / model_profile_overrides / runtime so the global-defaults
+                // path is at parity with the project-config path (which forwards these three from
+                // parsed['…'] at the top of this function). Without these entries, ~/.gsd/defaults.json
+                // silently drops them — model_policy/provider/budget etc. are honored when set in a
+                // project but ignored when set globally.
+                runtime: (globalDefaults['runtime']) || null,
+                model_profile_overrides: (globalDefaults['model_profile_overrides']) || null,
+                model_policy: (globalDefaults['model_policy']) || null,
             };
-            // FIX 2: Apply federated overlay on global-defaults path.
-            // With the current registry this is a true no-op (returns _globalBaseCfg unchanged).
+            // Branch D: global-defaults
             try {
-                return _applyFederatedOverlay(_globalBaseCfg, globalDefaults);
+                return { config: _applyFederatedOverlay(_globalBaseCfg, globalDefaults, cwd), source: 'global-defaults', degraded: false };
             }
             catch {
-                return _globalBaseCfg;
+                return { config: _globalBaseCfg, source: 'global-defaults', degraded: false };
             }
         }
         catch {
-            // FIX 2: Apply federated overlay on the final fallback path.
-            // With the current registry this is a true no-op (returns `defaults` unchanged).
+            // Branch E: no global defaults
             try {
-                return _applyFederatedOverlay(defaults, {});
+                return { config: _applyFederatedOverlay(defaults, {}, cwd), source: 'builtin-defaults', degraded: false };
             }
             catch {
-                return defaults;
+                return { config: defaults, source: 'builtin-defaults', degraded: false };
             }
         }
     }
 }
+/**
+ * loadConfig — backwards-compatible config loading, now a thin wrapper over loadConfigResolved.
+ * Returns the config object only; for provenance metadata use loadConfigResolved.
+ */
+function loadConfig(cwd, options = {}) {
+    return loadConfigResolved(cwd, options).config;
+}
 module.exports = {
     loadConfig,
+    loadConfigResolved,
     isGitIgnored,
     CONFIG_DEFAULTS,
     _getConfigDefault,

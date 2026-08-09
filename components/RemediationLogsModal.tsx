@@ -1,6 +1,7 @@
 import React from 'react';
 import { Agent } from '../types';
-import { XIcon, HistoryIcon, CheckIcon, XCircleIcon } from './icons';
+import { HistoryIcon, CheckIcon, XCircleIcon } from './icons';
+import { Modal } from './Modal';
 
 interface RemediationLogsModalProps {
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface RemediationLogsModalProps {
 }
 
 export const RemediationLogsModal: React.FC<RemediationLogsModalProps> = ({ isOpen, onClose, agent }) => {
-  if (!isOpen || !agent) return null;
+  if (!agent) return null;
 
   // Simulate a log for each attempt
   const getSimulatedLogForAttempt = (timestamp: string, index: number) => {
@@ -33,23 +34,29 @@ export const RemediationLogsModal: React.FC<RemediationLogsModalProps> = ({ isOp
 
   const attemptLogs = (agent.remediationAttempts || []).map((attempt, index) => getSimulatedLogForAttempt(attempt.timestamp, index)).reverse();
 
+  const footer = (
+    <button type="button" onClick={onClose}
+      className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+    >
+      Close
+    </button>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex-shrink-0 flex justify-between items-start mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-              <HistoryIcon className="mr-3 text-primary-500" />
-              Remediation History
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{agent.hostname}</p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-            <XIcon size={20} />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<HistoryIcon className="text-primary-500" />}
+      title={
+        <div>
+          <span className="text-xl font-bold text-gray-900 dark:text-white">Remediation History</span>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{agent.hostname}</p>
         </div>
-        
-        <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+      }
+      size="2xl"
+      footer={footer}
+    >
+        <div className="space-y-4">
           {attemptLogs.length > 0 ? (
             attemptLogs.map((attemptLog, index) => (
               <div key={index} className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -76,15 +83,6 @@ export const RemediationLogsModal: React.FC<RemediationLogsModalProps> = ({ isOp
             <p className="text-sm text-center text-gray-500 dark:text-gray-400 py-8">No remediation attempts have been recorded for this agent.</p>
           )}
         </div>
-        
-        <div className="flex-shrink-0 mt-6 flex justify-end items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

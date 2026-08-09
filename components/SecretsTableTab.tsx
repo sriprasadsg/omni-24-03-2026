@@ -1,5 +1,5 @@
 import React from 'react';
-import { EyeIcon, RefreshCwIcon, TrashIcon } from './icons';
+import { EyeIcon, RefreshCwIcon, TrashIcon, KeyIcon, DatabaseIcon, LockIcon, FileTextIcon, MonitorIcon, TicketIcon, WebhookIcon, AlertTriangleIcon } from './icons';
 
 export interface Secret {
     id: string;
@@ -29,14 +29,14 @@ function getStatusColor(status: string) {
 
 function getTypeIcon(type: string) {
     switch (type) {
-        case 'api_key': return '🔑';
-        case 'database_password': return '🗄️';
-        case 'encryption_key': return '🔐';
-        case 'certificate': return '📜';
-        case 'ssh_key': return '🖥️';
-        case 'oauth_token': return '🎫';
-        case 'webhook_secret': return '🪝';
-        default: return '🔒';
+        case 'api_key': return <KeyIcon size={20} />;
+        case 'database_password': return <DatabaseIcon size={20} />;
+        case 'encryption_key': return <LockIcon size={20} />;
+        case 'certificate': return <FileTextIcon size={20} />;
+        case 'ssh_key': return <MonitorIcon size={20} />;
+        case 'oauth_token': return <TicketIcon size={20} />;
+        case 'webhook_secret': return <WebhookIcon size={20} />;
+        default: return <AlertTriangleIcon size={20} />;
     }
 }
 
@@ -87,7 +87,7 @@ export function SecretsTableTab({ secrets, isRotationDue, onView, onRotate, onRe
                                 {secret.next_rotation ? (
                                     <span className={`text-sm ${isRotationDue(secret) ? 'text-red-600 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
                                         {new Date(secret.next_rotation).toLocaleDateString()}
-                                        {isRotationDue(secret) && ' ⚠️'}
+                                        {isRotationDue(secret) && <AlertTriangleIcon size={16} className="inline ml-1" />}
                                     </span>
                                 ) : (
                                     <span className="text-sm text-gray-500">Manual</span>

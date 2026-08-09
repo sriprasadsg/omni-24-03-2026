@@ -41,12 +41,17 @@ export function ABTestingDashboard() {
     const fetchExperiments = async () => {
         try {
             const res = await apiService.get('/api/experiments/');
-            setExperiments(res);
-            if (!selectedExpId && res.length > 0) {
-                setSelectedExpId(res[0].id);
+            if (res && Array.isArray(res)) {
+                setExperiments(res);
+                if (!selectedExpId && res.length > 0) {
+                    setSelectedExpId(res[0].id);
+                }
+            } else {
+                setExperiments([]);
             }
         } catch (error) {
             console.error("Failed to fetch experiments:", error);
+            setExperiments([]);
         }
     };
 
@@ -62,7 +67,7 @@ export function ABTestingDashboard() {
     const checkAssignment = async (expId: string, userId: string) => {
         try {
             const res = await apiService.get(`/api/experiments/${expId}/variant?user_id=${userId}`);
-            setAssignedVariant(res.variant);
+            setAssignedVariant(res?.variant ?? null);
         } catch (error) {
             console.error("Failed to check assignment:", error);
         }
@@ -143,7 +148,7 @@ export function ABTestingDashboard() {
 
                 {/* Results & Simulator */}
                 <div className="col-span-2 space-y-4">
-                    {results ? (
+                    {results && results.data ? (
                         <>
                             {/* Simulator Box */}
                             <Card className="glass-card border-slate-700/50 bg-slate-900/50">

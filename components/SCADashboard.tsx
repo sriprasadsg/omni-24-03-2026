@@ -61,7 +61,7 @@ const MOCK_STATS: Stats = {
   compliance_score: 71.5, agents_scanned: 4,
 };
 
-const token = () => localStorage.getItem('token') ?? '';
+const token = () => sessionStorage.getItem('token') ?? '';
 const h = () => ({ Authorization: `Bearer ${token()}` });
 
 export default function SCADashboard() {

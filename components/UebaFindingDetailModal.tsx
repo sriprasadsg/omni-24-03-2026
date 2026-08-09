@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { UebaFinding, AuditLog, User } from '../types';
-import { XIcon, UsersIcon, AlertTriangleIcon, ClockIcon, UserIcon } from './icons';
+import { AlertTriangleIcon } from './icons';
+import { Modal } from './Modal';
 
 interface UebaFindingDetailModalProps {
   isOpen: boolean;
@@ -13,26 +14,33 @@ interface UebaFindingDetailModalProps {
 
 export const UebaFindingDetailModal: React.FC<UebaFindingDetailModalProps> = ({ isOpen, onClose, finding, relatedLogs, user }) => {
   const { timeZone } = useTimeZone();
-  if (!isOpen || !finding) return null;
+  if (!finding) return null;
 
   const riskColor = finding.riskScore > 75 ? 'text-red-500' : finding.riskScore > 50 ? 'text-orange-500' : 'text-amber-500';
 
+  const footer = (
+    <button type="button" onClick={onClose}
+      className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+    >
+      Close
+    </button>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex-shrink-0 flex justify-between items-start mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-              <AlertTriangleIcon className={`mr-3 ${riskColor}`} />
-              Anomalous Activity Detected
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{finding.id}</p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-            <XIcon size={20} />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<AlertTriangleIcon className={riskColor} />}
+      title={
+        <div>
+          <span className="text-xl font-bold text-gray-900 dark:text-white">Anomalous Activity Detected</span>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{finding.id}</p>
         </div>
-        <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+      }
+      size="2xl"
+      footer={footer}
+    >
+        <div className="space-y-4">
           <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               <div>
@@ -77,14 +85,6 @@ export const UebaFindingDetailModal: React.FC<UebaFindingDetailModalProps> = ({ 
           </div>
 
         </div>
-        <div className="flex-shrink-0 mt-6 flex justify-end items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

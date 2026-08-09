@@ -142,7 +142,7 @@ Write-Step "Registering Windows Service"
 $binPath = "`"$TargetExe`""
 
 & sc.exe create $ServiceName `
-    binPath= $binPath `
+    "binPath=$binPath" `
     start=   auto `
     obj=     LocalSystem `
     DisplayName= "Enterprise Omni Agent" | Out-Null

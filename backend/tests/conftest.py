@@ -7,6 +7,17 @@ from unittest.mock import MagicMock, AsyncMock
 # Ensure backend/ is importable regardless of which directory pytest is invoked from
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Process-global sentinel recording whether AI_ROUTER_URL was set in the REAL
+# shell environment when pytest started. Several Phase 39 eval test modules
+# transitively import `database.py`, whose module-level `load_dotenv()` leaks
+# backend/.env values (including a possibly-stale AI_ROUTER_URL) into
+# os.environ mid-collection — the live 9router smoke test's skip guard reads
+# this sentinel instead so a gateway-less sandbox still skips deterministically.
+# Stored in os.environ (not a module attribute) because pytest and test code
+# can import this conftest under different module names; setdefault keeps the
+# first (pre-dotenv) capture.
+os.environ.setdefault("_AI_ROUTER_URL_PRE_DOTENV", os.environ.get("AI_ROUTER_URL", ""))
+
 
 # ---------------------------------------------------------------------------
 # JWT / Auth helpers (standalone functions — usable outside fixtures)

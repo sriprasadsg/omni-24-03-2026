@@ -119,6 +119,21 @@ class SocketService {
         this.socket.on('support_typing', (data) => {
             this.emit('support_typing', data);
         });
+
+        // WebRTC call signaling — bridge server events to local listeners so
+        // the call UI can subscribe via socketService.on('webrtc_offer', ...)
+        ['webrtc_offer', 'webrtc_answer', 'webrtc_ice', 'webrtc_call_reject',
+         'webrtc_call_end', 'webrtc_unavailable'].forEach((ev) => {
+            this.socket!.on(ev, (data) => this.emit(ev, data));
+        });
+    }
+
+    /**
+     * Send a WebRTC signaling message to the server for relay to `payload.to`.
+     * event: 'webrtc_offer' | 'webrtc_answer' | 'webrtc_ice' | 'webrtc_call_reject' | 'webrtc_call_end'
+     */
+    sendCallSignal(event: string, payload: any) {
+        this.socket?.emit(event, payload);
     }
 
     sendSupportMessage(convoId: string, content: string) {

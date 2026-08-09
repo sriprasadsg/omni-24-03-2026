@@ -10,6 +10,14 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ## Current State
 
+**Latest: v3.4 Native Security Scanning & Autonomous Remediation Agent shipped 2026-08-04** (6 phases 50–55, 25 plans, 19/19 requirements). Native offline scan engine — file/URL/IP/hash verdicts against signed bundled feeds, no live lookup (50); agent-side vulnerability detection — signed CVE feed matching, misconfig + secret detection (51); File Integrity Monitoring — event-driven watcher, signed baseline + restart drift detection (52); autonomous remediation — deterministic YAML playbooks, approval gate, rollback, immutable audit trail (53); operator console + API surfacing the whole stack (54); threat-intel correlation, UEBA-triggered predictive containment, outbound SIEM/OCSF webhook (55). See `.planning/milestones/v3.4-ROADMAP.md` / `v3.4-REQUIREMENTS.md`. **Now building: v4.0 ITAM** (asset-lifecycle management, started 2026-08-04 — see Current Milestone below).
+
+**Phase 59 (Procurement & Finance — Warranty & Depreciation) complete 2026-08-06** — 4 plans, ITAM-FIN-01/02/03 all done. `itam_finance_service.py`: purchase cost/date/PO/supplier on `PATCH /purchase`, straight-line book value at read time (`GET /book-value`), warranty status + per-tenant alert window (`GET /warranty`), and a background `run_warranty_alert_pass` sweep delivering expiry alerts via both the in-app feed and tenant-configured notification rules, registered at startup with the raw db handle alongside the platform's other raw-database schedulers. Code review found and fixed a real critical bug: the sweep's raw-handle delivery path wrote notifications with no `tenantId` field, making every warranty alert invisible to the tenant it was meant to notify — fixed in `notification_service.py`. Two prior commits (`72a236f`, `490e850`) had added most of this phase's code outside the normal plan/task/commit/SUMMARY process and bundled in unrelated Phase 60/61 work; this session closed the resulting gaps rather than re-executing from scratch. Full backend suite: 1805 passed / 35 skipped / 3 pre-existing unrelated fails. **Flagged for Phase 60: `backend/tests/test_itam_license.py` fails collection (`IndentationError`) — its backend (`itam_license_service.py`/`itam_license_endpoints.py`) was committed alongside Phase 59 work with no plan and no passing tests; do not assume it works.**
+
+**Phase 57 (Lifecycle & Check-In/Out) complete 2026-08-05** — 3 plans, ITAM-LIFE-02/03/04/05 all done. New `backend/itam_lifecycle_endpoints.py` + `backend/itam_lifecycle_service.py`: atomic deployable-gated checkout to a user or location, checkin returns to stock, append-only `assignment_history` collection (separate collection, mirrors the existing `remediation_audit_service.py` insert-only pattern), physical-audit mark + query-time overdue-audit report (fixed 12-month interval). Code review found and fixed 1 critical bug (malformed `createdAt` timestamp silently broke the overdue-report's date math for manually-created assets) plus 5 warnings (no-rollback on history-write failure, unvalidated date strings, disposed assets not excluded from overdue report, stale comment, duplicate router registrations). Full backend suite: 1645 passed / 35 skipped / 3 pre-existing unrelated fails.
+
+<details><summary>Earlier milestones (v1.0 → v3.2)</summary>
+
 **v1.0 shipped 2026-06-18 — all 4 new capabilities live:**
 
 - Rust agent evidence parity — heartbeats feed `compliance_evidence_processor` identically to the Python agent; `agent_type: rust` preserved in evidence records
@@ -24,6 +32,8 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Compliance status override — `PATCH /api/assets/{id}/compliance/status` with tenant isolation, immutable `status_history` (changedBy/changedAt/previous_status), and `manual_override` flag
 - Frontend wired — "Mark Compliant / Mark Non-Compliant" buttons in `AssetComplianceList` call backend endpoint; success refreshes data, failure shows toast error
 - WCAG AA badge fix — evidence source badges use `text-xs` (previously non-standard `text-[10px]`)
+
+</details>
 
 ## Requirements
 
@@ -42,40 +52,44 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - ✓ **Manual evidence uploads** — auditors attach files to controls; magic-byte MIME validation; owner/admin delete RBAC (Phase 2)
 - ✓ **Audit-ready export** — per-tenant PDF/Excel with tenant name, export date, auto/manual evidence columns (Phase 3)
 - ✓ **Remediation workflow** — task CRUD, AI suggest, re-scan dispatch, real-time WebSocket updates (Phase 4)
+- ✓ **Native offline file/URL/IP/hash scanning** — signed bundled feeds, ed25519-verified update mechanism, no live lookup (v3.4 Phase 50, NSCAN-01/02/03)
+- ✓ **Agent-side vulnerability detection** — signed CVE feed matching, misconfig + exposed-secret checks, prioritized findings (v3.4 Phase 51, VULN-01/02/03)
+- ✓ **File Integrity Monitoring** — event-driven native-OS watcher, signed baseline + restart drift detection (v3.4 Phase 52, FIM-01/02/03)
+- ✓ **Autonomous remediation engine** — YAML playbooks, approval gate, rollback on verify-fail, concurrency cap, immutable audit trail (v3.4 Phase 53, AUTO-01/02/03/04)
+- ✓ **Native security operator console + API** — findings/remediation-queue/playbooks/audit tabs, full agent-security API surface (v3.4 Phase 54, INT-01/02/03)
+- ✓ **Threat-intel correlation + predictive containment + SIEM webhook** — `SiemEngine.correlate_native_findings()`, UEBA shadow_ai auto-containment, outbound OCSF push, real VirusTotal v3 client (v3.4 Phase 55, INT-04/AUT-03/COMM-01)
+- ✓ **ITAM check-out/check-in lifecycle** — deployable-gated checkout to a user or location, checkin returns to stock and clears assignment, append-only `assignment_history` audit trail, physical-audit mark + overdue-audit report (v4.0 Phase 57, ITAM-LIFE-02/03/04/05)
 
 ### Out of Scope
 
 - New compliance frameworks beyond those already seeded — 30+ existing frameworks cover stated scope; adding more is a future milestone
 - Endpoint agent distribution/deployment tooling — agent install workflow already exists; this milestone was about evidence and compliance
 - Billing and subscription management — separate concern not related to compliance portal completeness
+- Live VirusTotal lookup at native scan time — offline-first design; signed bundled feeds only (v3.4). The VirusTotal v3 client added in Phase 55 serves the separate threat-intel correlation surface, not the NSCAN scan path.
+- Third-party SIEM agents — native agent capability supersedes them for v3.4's scope; outbound OCSF webhook (COMM-01) is the integration point instead
+- Full YARA-rule engine — yara-x rejected at the Phase 50 spike (pulls in wasmtime/cranelift JIT, cross-compile risk); hash-signature + aho-corasick literal matching shipped instead, full YARA support deferred to backlog item 999.4
 
-## Current Milestone: v1.1 — Evidence Quality & Compliance Scoring
+## Current Milestone: v4.0 ITAM
 
-**Status:** In Progress (Phase 6 complete, Phase 7 next) | **Started:** 2026-06-20
+**Goal:** Add a full Snipe-IT-parity IT Asset Management lifecycle on top of the existing security/observability CMDB: manage physical/virtual assets through procurement → assignment → maintenance → retirement, with people checking gear in and out, licenses/consumables, and financial/warranty tracking — turning the security-monitoring "asset inventory" into a true ITAM system.
 
-**Goal:** Make the compliance evidence lifecycle trustworthy end-to-end — from first upload through audit export — by wiring the broken status buttons, adding staleness detection, bulk upload, an immutable audit trail, and a tenant-level compliance score operators can trust.
+**Target features (all 4 clusters in scope):**
+- **Cluster A — Lifecycle + check-in/out:** assign assets to users/locations, check-out/check-in flows, status lifecycle labels (deployable/deployed/archived/retired/disposed/broken), assignment history/audit trail.
+- **Cluster B — Procurement + finance:** purchase cost/date/PO number/supplier, warranty tracking + expiry alerts, depreciation schedules (straight-line at minimum).
+- **Cluster C — Catalog + org:** manufacturers, asset models, categories, suppliers, locations, custom fields, asset tags + QR/barcode label generation.
+- **Cluster D — Licenses + consumables:** software license seats (assign/reclaim/expiry), accessories/consumables/components with check-out + quantities.
 
-**Target features (13 requirements, 4 phases):**
-- STATUS-01/02: Wire Mark Compliant / Mark Non-Compliant buttons to backend (`PATCH /api/assets/{id}/compliance/status`)
-- STALE-01/02: Flag automated evidence older than configurable threshold (default 7 days) as stale
-- COC-01/02: Immutable chain-of-custody log per evidence record (create/update/delete events)
-- BULK-01/02/03: Bulk evidence upload via zip file + JSON manifest mapping files to control IDs
-- SCORE-01/02/03: Tenant compliance score (severity-weighted %) with per-framework breakdown on dashboard
-- UI-01: Source badge `text-[10px]` → `text-xs` WCAG AA fix (carry-forward from v1.0 audit F-08)
+**Key constraints:** reuse the existing `assets` model / `asset_endpoints.py` where sensible — don't fork it; support manual (non-agent) assets since Snipe-IT-style assets are hand-catalogued, unlike the current agent-auto-discovered inventory; tenant isolation on every new collection/endpoint; offline-first/air-gapped (label/QR generation with no external services); admin-gated nav pages following the Phase 47/48 pattern (new AppView + App.tsx + Sidebar entry + permission gate).
 
-**Phase plan:** Phases 6–9 (continues v1.0 phase numbering)
+**Out of scope:** deep accounting/GL integration beyond basic depreciation; multi-currency finance; physical RFID hardware integration (QR/barcode generation only, no scanner drivers); migrating existing security-CMDB semantics (ITAM is additive).
+
+**Phase plan:** TBD — continues numbering from Phase 55 (v4.0 starts at Phase 56)
 
 ---
 
 ## v2 Backlog Candidates
 
-Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Remaining candidates:
-
-- AUDIT-V2-01: Scheduled report generation (auto-email)
-- REM-V2-01: External ticketing system integration (Jira/ServiceNow webhook)
-- REM-V2-02: SLA tracking for overdue remediation tasks
-- Comment threads on controls
-- 10-provider CSPM posture scans (OCI, IBM, Alibaba, DigitalOcean, Cloudflare, Huawei, VMware now supported)
+(none currently — the prior list was mostly stale: scheduled-report auto-email was already shipped in Phase 10, and ticketing/SLA/comment-threads/CSPM-providers were promoted into the v3.2 milestone above after verification against the actual codebase, 2026-07-20)
 
 ## Context
 
@@ -84,6 +98,8 @@ Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Rema
 **Multi-tenant:** Each tenant has isolated data. Compliance posture, evidence, reports, and remediation tasks are scoped per tenant. Five cross-tenant isolation boundaries verified in integration tests (report download, report list, task CRUD, evidence upload, first-heartbeat tenant assignment).
 
 **Test baseline:** 378 passed, 0 failed, 1 skipped across 11 test files. 92 cross-test isolation failures from `importlib.reload()` contamination and Python 3.12 asyncio event-loop lifecycle fixed in post-milestone cleanup.
+
+**Codebase state (v3.4, 2026-08-04):** Native security stack now lives alongside the compliance portal: agent-side scan/vuln/FIM modules in `agent-install/omni-agent-rs` (the shipped Rust agent tree — see the two-agent-tree caveat, `agent-rust/` is the older/download-endpoint tree), backend ingestion + correlation in `backend/security_ops_endpoints.py`, `backend/siem_engine.py`, `backend/remediation_playbook_service.py`, `backend/autonomous_remediation_service.py`, `backend/soc_integration_service.py`, `backend/virustotal_client.py`. Frontend operator console: `components/NativeSecurityConsole.tsx` + `components/nativeSecurity/*` tabs, nav-gated on `manage:active_response`. Full backend suite: 1547 passed / 35 skipped / 3 pre-existing unrelated fails (`test_agentic_ai` tool_choice kwarg, `test_e2e_integration` golden path, `test_rust_heartbeat_parity` agent_type field) as of the v3.4 close session.
 
 ## Key Decisions
 
@@ -98,12 +114,25 @@ Previously labeled "Next Milestone Goals" — replaced by v1.1 scope above. Rema
 | broadcast_remediation_update list() snapshot copy | Prevents set-mutation-during-iteration; matches broadcast_mitre_heatmap pattern | Done |
 | Provider-allowlist widening (Phase 25, CHK-01) touches all 4 duplicated gate locations in lockstep, not just the named execution gate | Leaving account registration narrower than execution would leave the multi-account UI flow still broken | Done — `cloud_checks_service.py`, `cloud_checks_endpoints.py`, `cloud_account_endpoints.py`, `mcp_server_endpoints.py` all widened together |
 | CloudFormation container-scan "simulated" data is labeled, not fail-closed (Phase 25, CHK-03) | Labeled simulated data is more useful to the user than an empty/error result when Trivy isn't installed; matches the existing `finops_service` simulated-spend precedent | Done — explicit `simulated` field + SIMULATED badge at 3 dashboard sites, verified via live browser run, not just code inspection |
+| Native scanning uses signed bundled feeds, never live VirusTotal/NVD lookups at scan time (v3.4 Phase 50/51) | Offline-first platform value — air-gapped deployments must scan without external network access | Done — ed25519-signed SQLite bundle + delta updates |
+| yara-x rejected in favor of hash-signature DB + aho-corasick literal matching (v3.4 Phase 50) | yara-x pulls in wasmtime/cranelift JIT — bloat and cross-compile risk for the shipped Windows/Linux agent binary | Done — full YARA-rule support deferred to backlog 999.4 |
+| Autonomous remediation is backend-orchestrated (extends `autonomous_remediation_service`, dispatches via existing `agent_instructions` queue), not a new agent-local engine (v3.4 Phase 53) | Reuses the existing engine's dry-run/severity-ceiling/dedup rather than duplicating safety logic in two places | Done — deterministic YAML playbooks, no LLM in the execution path |
+| UEBA `shadow_ai` anomaly containment honors the identical approval gate as manual remediation, no confidence/severity bypass (v3.4 Phase 55, D-04) | A predictive/automated trigger must never have weaker safety guarantees than a human-initiated one | Done — dedicated regression test proves no bypass |
+| Checkout-to-location overwrites the asset's existing `locationId` rather than adding a separate `assignedLocationId` (v4.0 Phase 57, D-02) | `locationId` means "where the asset currently is" — one field, not a home/current split | Done — costly-rated (not one-way): prior value stays recoverable from the append-only `assignment_history` ledger the same task authors |
+| Overdue-audit interval fixed at 12 months, not per-tenant/per-model configurable (v4.0 Phase 57, D-03) | v1 scope discipline — a config value can be made configurable later without a migration | Done |
 
-**Note (2026-07-06):** This file's Requirements/Milestone sections above still reflect the v1.1 era and were not kept current through v2.0/v2.1/v3.0 — a pre-existing maintenance gap, not something to silently paper over. A full catch-up pass is out of scope for a single phase's transition; flagged here for a future `/gsd-complete-milestone` pass.
+**Note (2026-07-06, resolved 2026-07-20):** This file's Requirements/Milestone sections had drifted since v1.1 and weren't kept current through v2.0/v2.1/v3.0/v3.1 — a pre-existing maintenance gap. Corrected at the v3.2 milestone kickoff (2026-07-20): Current Milestone and v2 Backlog Candidates rewritten against verified codebase state (one backlog item, scheduled-report auto-email, turned out to already be shipped in Phase 10). The Validated/Out of Scope requirement lists below still predate v2.0+ and remain a known gap — full catch-up still deferred to a proper `/gsd-complete-milestone` pass.
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
 1. Full review of all sections
@@ -112,4 +141,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after Phase 25 (cloud-checks-execution-gaps)*
+*Last updated: 2026-08-06 — Phase 59 (Procurement & Finance — Warranty & Depreciation) complete*

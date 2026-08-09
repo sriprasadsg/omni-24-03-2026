@@ -1010,19 +1010,31 @@ function cmdGenerateClaudeMd(cwd, options, raw) {
     // repo-root `CLAUDE.md`, so generated GSD content does not land next to — or
     // pollute — a hand-crafted repo-root CLAUDE.md. An explicit `claude_md_path`
     // config value or `--output` still wins.
-    let configClaudeMdPath = './.claude/CLAUDE.md';
+    let configClaudeMdPath = '.claude/CLAUDE.md';
     try {
         const config = loadConfig(cwd);
         if (config['claude_md_path'])
             configClaudeMdPath = config['claude_md_path'];
         if (config['claude_md_assembly'])
             assemblyConfig = config['claude_md_assembly'];
-        // #3163: When runtime is codex, override the output target to AGENTS.md
-        // regardless of claude_md_path, so Codex projects never write to CLAUDE.md.
-        // GSD_RUNTIME env var takes precedence over config.runtime, mirroring detectRuntime().
+        // #1529: When no explicit --output is provided, derive the instruction
+        // file from the runtime via the shared `getProjectInstructionFile` policy
+        // (single source of truth in runtime-name-policy.cjs, shared with the
+        // new-project.md bash workflow via `gsd-tools query
+        // project-instruction-file`). Previously this was a codex-only override
+        // (#3163) that left AGENTS-native runtimes (opencode/kilo/kimi) emitting
+        // CLAUDE.md; copilot now resolves to .github/copilot-instructions.md, and
+        // antigravity to GEMINI.md. GSD_RUNTIME env var takes precedence
+        // over config.runtime, mirroring detectRuntime().
+        //
+        // Non-claude runtimes always win over a stale `claude_md_path` (the #3163
+        // rationale: a Codex/AGENTS-native project must never write to CLAUDE.md
+        // even if a prior Claude setup left a `claude_md_path` behind). For the
+        // claude runtime, `claude_md_path` config is honored — it IS the
+        // Claude-specific output setting (per #1098 and the #3163 non-codex test).
         const effectiveRuntime = (0, runtime_name_policy_cjs_1.resolveRuntimeNameFromCandidates)(process.env['GSD_RUNTIME'], config['runtime']);
-        if (!options.output && effectiveRuntime === 'codex') {
-            configClaudeMdPath = './AGENTS.md';
+        if (!options.output && effectiveRuntime && effectiveRuntime !== 'claude') {
+            configClaudeMdPath = (0, runtime_name_policy_cjs_1.getProjectInstructionFile)(effectiveRuntime);
         }
     }
     catch { /* use default */ }

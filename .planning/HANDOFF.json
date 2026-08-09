@@ -1,48 +1,40 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-13T18:57:54+05:30",
-  "phase": "38",
-  "phase_name": "Interactive AI Security Assistant",
-  "phase_dir": ".planning/phases/38-interactive-ai-security-assistant",
-  "plan": 3,
-  "task": 5,
-  "total_tasks": 5,
-  "status": "complete",
+  "timestamp": "2026-08-07T13:57:25.870Z",
+  "phase": "60",
+  "phase_name": "Licenses & Consumables",
+  "phase_dir": ".planning/phases/60-licenses-consumables",
+  "plan": 1,
+  "task": 3,
+  "total_tasks": 3,
+  "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Plan 38-01: Backend Chat API and RAG Integration", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 2, "name": "Plan 38-02: Frontend Chat UI implementation", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 3, "name": "Plan 38-02: Sidebar and App.tsx integration", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 4, "name": "Plan 38-03: Integration Tests (test file created)", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 5, "name": "Plans 36, 37, 38 execution", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 6, "name": "Plan 38-03: Run tests — fixed app.py import chain, ai_assistant_endpoints NameError, None-singleton call; rewrote test_ai_assistant.py (5/5 pass)", "status": "done", "commit": "c06d5369"},
-    {"id": 7, "name": "Plan 37-03: Rewrote test_mcp_server.py against real FastMCP server (12/12 pass; old file imported nonexistent 'main' and tested removed REST routes)", "status": "done", "commit": "c06d5369"}
+    {"id": 1, "name": "Implement software license management with seat count, assignment, reclamation, and expiry tracking", "status": "done", "commit": "HEAD (490e850)"},
+    {"id": 2, "name": "Implement consumable management with quantity-aware checkout and inventory decrement", "status": "done", "commit": "HEAD (uncommitted)"},
+    {"id": 3, "name": "Implement component attachment to parent assets with listing on asset records", "status": "in_progress", "progress": "Service/endpoints implemented; test mocks need fix"}
   ],
   "remaining_tasks": [
-    {"id": 8, "name": "Phase 33: Workflow Automation Connectors — 4 plans ready, not executed", "status": "not_started"},
-    {"id": 9, "name": "Phase 34: Passkey/WebAuthn — planned, not executed (test_passkey_auth.py errors)", "status": "not_started"},
-    {"id": 10, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"},
-    {"id": 11, "name": "Clear remaining test debt: 7 failures + 5 errors (phase 28 governance, 34 passkey, 35 graphql, plus e2e-integration/powershell/rust-parity/smoke singles). Phase 30 (21) and 32 (8) cleared in 7c4727a9.", "status": "in_progress"},
-    {"id": 12, "name": "UAT backlog: phases 28 (4 items), 29 (6), 30 (6), 32 (1 must-have human_needed)", "status": "not_started"},
-    {"id": 13, "name": "Install openfga_sdk so test_rebac.py can run (Phase 36 caveat; breaks full-suite collection — use --ignore until fixed)", "status": "not_started"}
+    {"id": 4, "name": "Fix test_itam_component.py test failures (ASGITransport typo, mock update_one, assertions)", "status": "not_started"},
+    {"id": 5, "name": "Run full Phase 60 test suite and verify all pass", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "Phase 35 GraphQL API blocked by strawberry-graphql/pydantic dependency incompatibility in externally managed environment", "type": "technical", "workaround": "System admin must resolve dependency incompatibility. app.py no longer breaks without it (fixed in c06d5369) — GraphQL routes are simply absent."},
-    {"description": "openfga_sdk not installed — test_rebac.py fails at collection and interrupts full-suite runs", "type": "technical", "workaround": "Run suite with --ignore=backend/tests/test_rebac.py until the package is installed"}
+    {"description": "test_itam_component.py has 5 failures: ASGITransport typo, MagicMock await issues, MockTenantIsolatedCollection missing update_one method, assertion mismatch", "type": "technical", "workaround": "Fix test mocks and typo in test file"}
   ],
   "async_jobs": [],
-  "human_actions_pending": [
-    {"action": "Resolve strawberry-graphql/pydantic dependency incompatibility for Phase 35", "context": "ImportError: cannot import name 'is_new_type' from 'pydantic._internal._typing_extra'. Environment is externally managed, pip install blocked.", "blocking": true},
-    {"action": "Install openfga_sdk in backend/venv for Phase 36 ReBAC tests", "context": "requirements.txt lists openfga>=0.6.0 but it is not installed; test_rebac.py cannot collect.", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Used OpenFGA for ReBAC in Phase 36", "rationale": "Superior Python client maturity, active development, flexible deployment", "phase": "36"},
-    {"decision": "Implemented MCP server with FastMCP for Phase 37", "rationale": "Official Python SDK provides spec-compliant stdio/SSE transports", "phase": "37"},
-    {"decision": "AI Assistant uses RAG + live MongoDB findings for grounded responses", "rationale": "Combines knowledge base with real-time compliance/risk data", "phase": "38"},
-    {"decision": "Removed app.py's trailing unconditional graphql_endpoints import instead of guarding it", "rationale": "router_registry already registers it as optional with logged, non-fatal failure; the trailing lines also called include_router on socketio.ASGIApp which has no such method", "phase": "38"},
-    {"decision": "ai_assistant_endpoints calls chat() function directly instead of an ai_assistant_service singleton", "rationale": "The singleton was a module-level None that nothing initialized — every request would have raised AttributeError", "phase": "38"},
-    {"decision": "test_mcp_server.py tests the FastMCP instance (mcp.list_tools/call_tool), not HTTP routes", "rationale": "Phase 37 removed the REST-shaped /api/mcp surface; the protocol layer is the real contract. call_tool returns (content, structured) tuple on mcp 1.28 for typed tools.", "phase": "37"}
+    {"decision": "Phase 60 backend files existed in 490e850 but had syntax errors; fixed indentation and imports", "rationale": "Files existed but were broken", "phase": "60"},
+    {"decision": "Created backend/dependencies.py for PyObjectId type used in component endpoints", "rationale": "Missing import causing ModuleNotFoundError", "phase": "60"},
+    {"decision": "Fixed Depends(get_current_user(required_roles=...)) -> Depends(get_current_user) pattern", "rationale": "get_current_user does not accept required_roles arg", "phase": "60"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Execute Phase 33 (plans ready) or Phase 34, or clear the remaining test debt in phases 28/34/35.",
-  "context_notes": "Phases 36-38 complete (c06d5369). Phase 30/32 test debt cleared 2026-07-13 (7c4727a9): 884 passed, 22 skipped; remaining 7 failures + 5 errors are phases 28/34/35 + e2e-integration/powershell/rust-parity/smoke singles. IMPORTANT: 30-01's tenant-scoped RAG had never actually been implemented despite SUMMARY/UAT claiming it passed — implemented in 7c4727a9 with a real-ChromaDB isolation test; treat other unverified phase summaries with suspicion. Run tests with backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py from repo root. Junk file c.txt at repo root (from Phase 32) and misplaced .planning/phases/27-UAT.md still to clean up."
+  "uncommitted_files": [
+    "backend/itam_consumable_service.py",
+    "backend/itam_component_service.py",
+    "backend/itam_component_endpoints.py",
+    "backend/dependencies.py",
+    "backend/tests/test_itam_component.py",
+    "backend/itam_models.py"
+  ],
+  "next_action": "Fix test_itam_component.py: (1) ASGITransport typo, (2) add update_one/update_many to MockTenantIsolatedCollection, (3) fix MagicMock await issues, (4) fix assertion message match",
+  "context_notes": "Phase 60 has 3 tasks per 60-01-PLAN.md. Task 1 (license) and Task 2 (consumable) backend files existed from 490e850 but had bugs. Task 3 (component) service/endpoints were empty. All three now implemented but component tests need mock fixes. License tests pass (9/9). Consumable tests likely pass (import errors fixed). Component tests: 5/7 fail."
 }

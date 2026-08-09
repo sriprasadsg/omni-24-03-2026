@@ -157,15 +157,16 @@ async def test_run_cloud_check_invalid_provider():
     assert "provider must be" in exc.value.detail
 
 
-async def test_run_cloud_check_rejects_ingest_only_providers():
-    # oci/alibaba/cloudflare are ingest-only — run_cloud_check must reject them
-    # rather than advertise them and then fail downstream (F-03).
+async def test_run_cloud_check_delegates_for_oci_alibaba_cloudflare():
+    # oci/alibaba/cloudflare are now runnable providers (Phase 41 CSPM expansion) —
+    # run_cloud_check must delegate to cloud_checks_service like every other provider.
     for provider in ("oci", "alibaba", "cloudflare"):
-        with _tenant_patch():
-            with pytest.raises(HTTPException) as exc:
-                await srv.run_cloud_check(provider, "12345")
-        assert exc.value.status_code == 400
-        assert provider not in exc.value.detail
+        checks = AsyncMock()
+        checks.run_checks = AsyncMock(return_value={"status": "completed", "ran": 9})
+        with patch("mcp_server.cloud_checks_service", checks), _tenant_patch():
+            result = await srv.run_cloud_check(provider, "12345")
+        assert result["status"] == "completed"
+        checks.run_checks.assert_awaited_once_with("12345", provider, "test-tenant")
 
 
 async def test_run_cloud_check_account_not_found():

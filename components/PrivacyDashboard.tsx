@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authFetch } from '../services/apiService';
+import { authFetch, getAgentLocationTracking, setAgentLocationTracking } from '../services/apiService';
 import { showToast } from '../utils/toast';
 
 interface DSR {
@@ -67,8 +67,34 @@ export default function PrivacyDashboard() {
     notification_required: true,
   });
   const [saving, setSaving] = useState(false);
+  const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(true);
+  const [locationTrackingBusy, setLocationTrackingBusy] = useState(false);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); loadLocationTrackingSetting(); }, []);
+
+  async function loadLocationTrackingSetting() {
+    try {
+      const { enabled } = await getAgentLocationTracking();
+      setLocationTrackingEnabled(enabled);
+    } catch (e) { console.error(e); }
+  }
+
+  async function toggleLocationTracking() {
+    const next = !locationTrackingEnabled;
+    setLocationTrackingBusy(true);
+    try {
+      const { enabled } = await setAgentLocationTracking(next);
+      setLocationTrackingEnabled(enabled);
+      showToast(
+        enabled ? 'Agent location tracking enabled' : 'Agent location tracking disabled',
+        'success'
+      );
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to update agent location tracking setting', 'error');
+    } finally {
+      setLocationTrackingBusy(false);
+    }
+  }
 
   async function loadAll() {
     try {
@@ -170,6 +196,32 @@ export default function PrivacyDashboard() {
           </div>
         </div>
       )}
+
+      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-[240px]">
+            <h2 className="font-medium text-sm">Agent Location Tracking</h2>
+            <p className="text-gray-400 text-xs mt-1">
+              When enabled, each agent's public (WAN) IP and resolved city/country are recorded to an
+              immutable location-history audit trail for security and observability, and used for
+              ASN/VPN heuristic enrichment. This is employee-device network location data, retained for
+              365 days. Disable this here for works-council or GDPR reasons — when off, no new
+              location-history rows are written and ASN/VPN enrichment is skipped for this tenant.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={locationTrackingEnabled}
+            aria-label={locationTrackingEnabled ? 'Disable agent location tracking' : 'Enable agent location tracking'}
+            disabled={locationTrackingBusy}
+            onClick={toggleLocationTracking}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${locationTrackingEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${locationTrackingEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
 
       <div className="flex gap-2 mb-4 border-b border-gray-700 pb-2">
         {([['dsr', 'Data Subject Requests'], ['breaches', 'Breach Register'], ['activities', 'Processing Activities']] as [Tab, string][]).map(([t, label]) => (

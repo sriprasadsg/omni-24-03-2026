@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 import yaml
 
 from agent_installer_builders import (
-    build_exe, build_msi, build_windows_zip, cleanup_temp_dir,
+    build_exe, build_windows_zip, cleanup_temp_dir,
 )
 from agent_rust_builder import build_rust_exe
 
@@ -193,79 +193,9 @@ async def download_agent(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-# ── MSI download endpoint ─────────────────────────────────────────────────────
-
-@router.get("/download/{tenant_id}/msi")
-async def download_agent_msi(
-    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
-    api_url: Optional[str] = Query(None),
-    download_token: Optional[str] = Query(None),
-    current_user=Depends(get_optional_user),
-):
-    """Build and return a Windows MSI installer (requires wixl / msitools on server)."""
-    if download_token:
-        role, ut = await _auth_from_token(tenant_id, download_token)
-    else:
-        role = getattr(current_user, "role", "")
-        ut = getattr(current_user, "tenant_id", None)
-    _check_auth(tenant_id, role, ut)
-
-    resolved_url = await _resolve_url(request, api_url)
-    tenant_name, reg_key = await _get_tenant(tenant_id)
-    base_dir = Path(__file__).parent.parent
-
-    if shutil.which("wixl"):
-        return await build_msi(tenant_id, tenant_name, reg_key, resolved_url,
-                                background_tasks, base_dir)
-    # wixl not available — use NSIS EXE installer as fallback (still a proper installer)
-    if shutil.which("makensis"):
-        logger.info("wixl not found; using NSIS EXE for MSI endpoint for tenant %s", tenant_id)
-        return await build_exe(tenant_id, tenant_name, reg_key, resolved_url,
-                               background_tasks, base_dir)
-    logger.warning("Neither wixl nor makensis found; falling back to Windows ZIP for tenant %s", tenant_id)
-    return await build_windows_zip(tenant_id, tenant_name, reg_key, resolved_url,
-                                   background_tasks, base_dir)
-
-
-# ── Rust EXE download endpoint ────────────────────────────────────────────────
-
-@router.get("/download/{tenant_id}/rust-exe")
-async def download_rust_agent(
-    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
-    api_url: Optional[str] = Query(None),
-    download_token: Optional[str] = Query(None),
-    token: Optional[str] = Query(None),            # alias — same as download_token
-    current_user=Depends(get_optional_user),
-):
-    """Build and return the Rust Windows EXE installer (~3–5 MB, no Python required)."""
-    tok = download_token or token
-    if tok:
-        role, ut = await _auth_from_token(tenant_id, tok)
-    else:
-        role = getattr(current_user, "role", "")
-        ut = getattr(current_user, "tenant_id", None)
-    _check_auth(tenant_id, role, ut)
-
-    resolved_url = await _resolve_url(request, api_url)
-    tenant_name, reg_key = await _get_tenant(tenant_id)
-    base_dir = Path(__file__).parent.parent
-
-    try:
-        from database import get_database as _gdb
-        await _gdb().audit_logs.insert_one({
-            "action": "agent.downloaded", "actor": role, "target": tenant_id,
-            "tenant_id": ut or tenant_id, "platform": "windows-rust",
-            "ip": request.client.host if request.client else "unknown",
-            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-        })
-    except Exception as exc:
-        logger.debug("Audit log write failed: %s", exc)
-
-    return await build_rust_exe(tenant_id, tenant_name, reg_key, resolved_url, background_tasks, base_dir)
-
-
 # ── Rust raw binary download (in-place update, preserves config.yaml) ────────
 
+@router.get("/download/{tenant_id}/rust-exe") # Frontend wants rust-exe
 @router.get("/download/{tenant_id}/rust-binary")
 async def download_rust_binary(
     tenant_id: str, request: Request, background_tasks: BackgroundTasks,
@@ -307,6 +237,42 @@ async def download_rust_binary(
         media_type="application/octet-stream",
         headers={"Content-Disposition": 'attachment; filename="omni-agent.exe"'},
     )
+
+
+# ── MSI installer endpoint — serves EXE as fallback ──────────────────────────────────────
+
+@router.get("/download/{tenant_id}/msi")
+async def download_msi_installer(
+    tenant_id: str, request: Request, background_tasks: BackgroundTasks,
+    download_token: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
+    current_user=Depends(get_optional_user),
+):
+    """Download installer. Serves pre-built MSI if available, otherwise the EXE installer."""
+    tok = download_token or token
+    if tok:
+        role, ut = await _auth_from_token(tenant_id, tok)
+    else:
+        role = getattr(current_user, "role", "")
+        ut = getattr(current_user, "tenant_id", None)
+    _check_auth(tenant_id, role, ut)
+
+    # Check if a pre-built MSI exists
+    base_dir = Path(__file__).parent.parent
+    msi_path = base_dir / "backend" / "static" / "OmniAgent-Setup.msi"
+    if msi_path.exists():
+        content = msi_path.read_bytes()
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": 'attachment; filename="OmniAgent-Setup.msi"'},
+        )
+
+    # Fallback: serve the Rust EXE installer (handles upgrade-in-place)
+    resolved_url = await _resolve_url(request, None)
+    tenant_name, reg_key = await _get_tenant(tenant_id)
+    return await build_rust_exe(tenant_id, tenant_name, reg_key, resolved_url,
+                                background_tasks, base_dir)
 
 
 # ── Agent command dispatch ─────────────────────────────────────────────────────
@@ -421,8 +387,8 @@ async def get_install_instructions(
         "instructions": {
             "linux": f"curl -sSL {dl} -o agent.zip && unzip agent.zip && cd agent && pip install -r requirements.txt && python agent.py",
             "windows": f"Invoke-WebRequest -Uri '{dl}?platform=windows' -OutFile OmniAgent-Setup.exe; .\\OmniAgent-Setup.exe",
-            "windows_msi": f"Invoke-WebRequest -Uri '{dl}/msi' -OutFile OmniAgent-Setup.msi; msiexec /i OmniAgent-Setup.msi /qn",
             "docker": f"docker run -d --name omni-agent -e PLATFORM_URL={platform_url} -e REGISTRATION_KEY={reg_key} ghcr.io/omni-agent/agent:latest",
+            "kubernetes": f"helm install omni-agent ./backend/static/charts/omni-agent \\\n  --set registrationKey={reg_key} \\\n  --set clusterName=my-prod-cluster",
         },
         "requirements": ["Python 3.10+", "pip install -r requirements.txt"],
     }

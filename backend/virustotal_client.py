@@ -1,217 +1,142 @@
-"""
-VirusTotal Integration Module
+"""VirusTotal API v3 client.
 
-Provides threat intelligence lookup capabilities using VirusTotal API v3.
-Supports scanning: IP addresses, domains, URLs, and file hashes.
-"""
+Real, synchronous outbound calls to https://www.virustotal.com/api/v3/*
+using httpx (already a project dependency — no new packages). Every
+scan_* method is SYNCHRONOUS by design: the four real callers
+(threat_intel_endpoints.py, threat_endpoints.py, soar_engine.py,
+agent_security_endpoints.py) invoke these via asyncio.to_thread /
+run_in_executor so a slow/rate-limited VirusTotal call never blocks the
+event loop (T-55-05).
 
-import requests
+API-key-absent = graceful degrade: construction never fails, and every
+lookup returns {"error": ...} with NO fabricated verdict (T-55-04). The
+dead VirusTotalScanCapability(BaseCapability) class that made this module
+unimportable (NameError at import time, silently swallowing the whole
+/api/threat-intel router — INT-04, 55-VERIFICATION.md gap #1) has been
+removed as part of this rewrite (55-05).
+"""
+import base64
 import os
-from typing import Dict, Any, Optional
-from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
+
+import httpx
+
+_BASE_URL = "https://www.virustotal.com/api/v3"
+_TIMEOUT = 10.0
+
 
 class VirusTotalClient:
-    """VirusTotal API v3 Client"""
-    
+    """Synchronous VirusTotal API v3 client."""
+
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv('VIRUSTOTAL_API_KEY', '')
-        self.base_url = 'https://www.virustotal.com/api/v3'
-        self.headers = {
-            'x-apikey': self.api_key,
-            'Accept': 'application/json'
-        }
-    
-    def is_configured(self) -> bool:
-        """Check if VirusTotal API key is configured"""
-        return bool(self.api_key and self.api_key != '')
-    
-    def scan_ip(self, ip_address: str) -> Dict[str, Any]:
+        self._api_key = api_key if api_key is not None else os.getenv("VIRUSTOTAL_API_KEY", "")
+
+    def _lookup(self, path: str) -> Dict[str, Any]:
+        """GET a fixed VirusTotal v3 path and map the response into the
+        shared caller contract.
+
+        Never raises. `path` is always built by the caller from the FIXED
+        `_BASE_URL` host constant plus a URL-encoded artifact segment —
+        the artifact itself never becomes the host/scheme (T-55-02).
+        Key-absent and error paths return {"error": ...} with NO "verdict"
+        key — callers must never mistake a degraded/failed lookup for a
+        real Harmless/Clean result (T-55-04).
         """
-        Scan an IP address
-        
-        Args:
-            ip_address: IPv4 or IPv6 address
-            
-        Returns:
-            Dict with scan results
-        """
-        if not self.is_configured():
-            return self._mock_result(ip_address, 'ip')
-        
+        if not self._api_key:
+            return {"error": "VirusTotal API key not configured"}
+
+        headers = {"x-apikey": self._api_key, "Accept": "application/json"}
+        url = f"{_BASE_URL}/{path}"
         try:
-            url = f"{self.base_url}/ip_addresses/{ip_address}"
-            response = requests.get(url, headers=self.headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._parse_result(data, ip_address, 'ip')
-            elif response.status_code == 404:
-                return self._not_found_result(ip_address, 'ip')
-            else:
-                return self._error_result(f"API returned {response.status_code}")
-                
-        except Exception as e:
-            return self._error_result(str(e))
-    
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                resp = client.get(url, headers=headers)
+            if resp.status_code != 200:
+                return {"error": f"VirusTotal API returned status {resp.status_code}"}
+            attributes = resp.json().get("data", {}).get("attributes", {}) or {}
+        except Exception as exc:
+            return {"error": f"VirusTotal request failed: {exc}"}
+
+        stats = attributes.get("last_analysis_stats", {}) or {}
+        malicious = int(stats.get("malicious", 0) or 0)
+        suspicious = int(stats.get("suspicious", 0) or 0)
+        harmless = int(stats.get("harmless", 0) or 0)
+        undetected = int(stats.get("undetected", 0) or 0)
+        timeout_n = int(stats.get("timeout", 0) or 0)
+
+        if malicious > 0:
+            verdict = "Malicious"
+        elif suspicious > 0:
+            verdict = "Suspicious"
+        elif harmless > 0:
+            verdict = "Harmless"
+        else:
+            verdict = "Unknown"
+
+        total = malicious + suspicious + harmless + undetected + timeout_n
+        detection_ratio = f"{malicious + suspicious}/{total}" if total else "0/0"
+
+        return {
+            "verdict": verdict,
+            "detectionRatio": detection_ratio,
+            "malicious": malicious,
+            "suspicious": suspicious,
+            "harmless": harmless,
+            "undetected": undetected,
+            "scanDate": attributes.get("last_analysis_date"),
+            "reputation": attributes.get("reputation", 0),
+            "details": attributes,
+        }
+
+    def scan_ip(self, ip: str) -> Dict[str, Any]:
+        """Look up an IP address's VirusTotal reputation."""
+        return self._lookup(f"ip_addresses/{quote(ip, safe='')}")
+
     def scan_domain(self, domain: str) -> Dict[str, Any]:
-        """Scan a domain name"""
-        if not self.is_configured():
-            return self._mock_result(domain, 'domain')
-        
-        try:
-            url = f"{self.base_url}/domains/{domain}"
-            response = requests.get(url, headers=self.headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._parse_result(data, domain, 'domain')
-            elif response.status_code == 404:
-                return self._not_found_result(domain, 'domain')
-            else:
-                return self._error_result(f"API returned {response.status_code}")
-                
-        except Exception as e:
-            return self._error_result(str(e))
-    
+        """Look up a domain's VirusTotal reputation."""
+        return self._lookup(f"domains/{quote(domain, safe='')}")
+
     def scan_url(self, url: str) -> Dict[str, Any]:
-        """Scan a URL"""
-        if not self.is_configured():
-            return self._mock_result(url, 'url')
-        
-        try:
-            import base64
-            # URL needs to be base64 encoded (without padding)
-            url_id = base64.urlsafe_b64encode(url.encode()).decode().strip('=')
-            api_url = f"{self.base_url}/urls/{url_id}"
-            response = requests.get(api_url, headers=self.headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._parse_result(data, url, 'url')
-            elif response.status_code == 404:
-                # URL not in database, submit for scanning
-                return self._submit_url(url)
-            else:
-                return self._error_result(f"API returned {response.status_code}")
-                
-        except Exception as e:
-            return self._error_result(str(e))
-    
+        """Look up a URL's VirusTotal reputation.
+
+        VT v3 identifies URLs by the urlsafe-base64 encoding of the URL
+        string with '=' padding stripped.
+        """
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+        return self._lookup(f"urls/{url_id}")
+
     def scan_file_hash(self, file_hash: str) -> Dict[str, Any]:
-        """Scan a file hash (MD5, SHA1, or SHA256)"""
-        if not self.is_configured():
-            return self._mock_result(file_hash, 'hash')
-        
-        try:
-            url = f"{self.base_url}/files/{file_hash}"
-            response = requests.get(url, headers=self.headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._parse_result(data, file_hash, 'hash')
-            elif response.status_code == 404:
-                return self._not_found_result(file_hash, 'hash')
-            else:
-                return self._error_result(f"API returned {response.status_code}")
-                
-        except Exception as e:
-            return self._error_result(str(e))
-    
-    def _submit_url(self, url: str) -> Dict[str, Any]:
-        """Submit a URL for scanning"""
-        try:
-            api_url = f"{self.base_url}/urls"
-            data = {'url': url}
-            response = requests.post(api_url, headers=self.headers, data=data, timeout=10)
-            
-            if response.status_code == 200:
-                return {
-                    'artifact': url,
-                    'type': 'url',
-                    'verdict': 'Pending',
-                    'detectionRatio': '0/0',
-                    'scanDate': datetime.now(timezone.utc).isoformat(),
-                    'message': 'URL submitted for scanning. Check back in a few minutes.'
-                }
-            else:
-                return self._error_result(f"Submission failed: {response.status_code}")
-        except Exception as e:
-            return self._error_result(str(e))
-    
-    def _parse_result(self, data: Dict, artifact: str, artifact_type: str) -> Dict[str, Any]:
-        """Parse VirusTotal API response"""
-        try:
-            attributes = data.get('data', {}).get('attributes', {})
-            stats = attributes.get('last_analysis_stats', {})
-            
-            malicious = stats.get('malicious', 0)
-            suspicious = stats.get('suspicious', 0)
-            harmless = stats.get('harmless', 0)
-            undetected = stats.get('undetected', 0)
-            
-            total = malicious + suspicious + harmless + undetected
-            detections = malicious + suspicious
-            
-            # Determine verdict
-            if malicious > 0:
-                verdict = 'Malicious'
-            elif suspicious > 0:
-                verdict = 'Suspicious'
-            else:
-                verdict = 'Harmless'
-            
-            return {
-                'artifact': artifact,
-                'type': artifact_type,
-                'verdict': verdict,
-                'detectionRatio': f"{detections}/{total}",
-                'malicious': malicious,
-                'suspicious': suspicious,
-                'harmless': harmless,
-                'undetected': undetected,
-                'scanDate': attributes.get('last_analysis_date', datetime.now(timezone.utc).timestamp()),
-                'reputation': attributes.get('reputation', 0),
-                'details': attributes
-            }
-        except Exception as e:
-            return self._error_result(f"Parse error: {str(e)}")
-    
-    def _not_found_result(self, artifact: str, artifact_type: str) -> Dict[str, Any]:
-        """Result for artifact not found in VT database"""
-        return {
-            'artifact': artifact,
-            'type': artifact_type,
-            'verdict': 'Unknown',
-            'detectionRatio': '0/0',
-            'scanDate': datetime.now(timezone.utc).isoformat(),
-            'message': 'Artifact not found in VirusTotal database'
-        }
-    
-    def _error_result(self, error: str) -> Dict[str, Any]:
-        """Result for API errors"""
-        return {
-            'error': error,
-            'verdict': 'Error',
-            'scanDate': datetime.now(timezone.utc).isoformat()
-        }
-    
-    def _mock_result(self, artifact: str, artifact_type: str) -> Dict[str, Any]:
-        """Error result returned when the API key is not configured."""
-        return {
-            'artifact': artifact,
-            'type': artifact_type,
-            'verdict': 'Unconfigured',
-            'error': 'VirusTotal API key not configured. Set the VIRUSTOTAL_API_KEY environment variable.',
-            'scanDate': datetime.now(timezone.utc).isoformat(),
-        }
+        """Look up a file hash's (md5/sha1/sha256) VirusTotal reputation."""
+        return self._lookup(f"files/{quote(file_hash, safe='')}")
 
-
-# Singleton instance
-_vt_client: Optional[VirusTotalClient] = None
 
 def get_virustotal_client() -> VirusTotalClient:
-    """Get or create VirusTotal client singleton"""
-    global _vt_client
-    if _vt_client is None:
-        _vt_client = VirusTotalClient()
-    return _vt_client
+    """Module-level factory. Never requires a key to construct — the
+    key-absent graceful-degrade path lives inside VirusTotalClient itself."""
+    return VirusTotalClient()
+
+
+def enrich_file_hashes(hashes: List[str]) -> Dict[str, Any]:
+    """Bulk hash-lookup helper.
+
+    Consumed by agent_security_endpoints.py (FIM/YARA ingestion) via
+    asyncio.to_thread. Returns {lowercased-hash: result} for every hash
+    whose lookup succeeded (no "error" key) — hashes that are empty or
+    whose lookup errored are omitted entirely so callers' `if verdict:`
+    checks degrade cleanly rather than treating an error dict as a verdict.
+    An empty/falsy input returns {}.
+    """
+    if not hashes:
+        return {}
+    client = get_virustotal_client()
+    results: Dict[str, Any] = {}
+    for raw_hash in hashes:
+        if not raw_hash:
+            continue
+        key = raw_hash.strip().lower()
+        if not key:
+            continue
+        result = client.scan_file_hash(raw_hash)
+        if result and "error" not in result:
+            results[key] = result
+    return results

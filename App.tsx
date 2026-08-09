@@ -11,6 +11,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
 import { AIAssistantChat } from './components/AIAssistantChat';
+import { SkeletonDashboard } from './components/ui/skeleton';
 
 // ── Always-visible UI (eager) ─────────────────────────────────────────────────
 import { AddNewTenantModal } from './components/AddNewTenantModal';
@@ -19,6 +20,7 @@ import { ManageTenantModal } from './components/ManageTenantModal';
 import { RegisterAgentModal } from './components/RegisterAgentModal';
 import { ChatFab } from './components/ChatFab';
 import SupportChatToast, { SupportToastData } from './components/SupportChatToast';
+import SupportChatWindow from './components/SupportChatWindow';
 import { ChatAssistant } from './components/ChatAssistant';
 import { AICommandBar, Command } from './components/AICommandBar';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
@@ -85,6 +87,7 @@ const FutureOpsDashboard = lazy(() => import('./components/UnifiedFutureOpsDashb
 const RiskRegister = lazy(() => import('./components/RiskRegister'));
 import { InteractiveVoiceBot } from './components/InteractiveVoiceBot';
 import { CharacterTourBot } from './components/CharacterTourBot';
+import { CallOverlay } from './components/CallOverlay';
 const VendorManagement = lazy(() => import('./components/VendorManagement'));
 const TrustCenter = lazy(() => import('./components/TrustCenter'));
 const GovernanceDocumentsDashboard = lazy(() => import('./components/GovernanceDocumentsDashboard').then(m => ({ default: m.GovernanceDocumentsDashboard })));
@@ -160,6 +163,11 @@ const FIMDashboard = lazy(() => import('./components/FIMDashboard'));
 const ActiveResponseDashboard = lazy(() => import('./components/ActiveResponseDashboard'));
 const IncidentWarRoomDashboard = lazy(() => import('./components/IncidentWarRoomDashboard'));
 const PrivacyDashboard = lazy(() => import('./components/PrivacyDashboard'));
+const SecuritySettingsDashboard = lazy(() => import('./components/SecuritySettingsDashboard').then(m => ({ default: m.SecuritySettingsDashboard })));
+const FleetObservabilityDashboard = lazy(() => import('./components/FleetObservabilityDashboard').then(m => ({ default: m.FleetObservabilityDashboard })));
+const FleetGeoMap = lazy(() => import('./components/FleetGeoMap').then(m => ({ default: m.FleetGeoMap })));
+const NativeSecurityConsole = lazy(() => import('./components/NativeSecurityConsole').then(m => ({ default: m.NativeSecurityConsole })));
+const ITAMConsole = lazy(() => import('./components/itam/ITAMConsole'));
 const ScheduledReportsDashboard = lazy(() => import('./components/ScheduledReportsDashboard'));
 const SecretsManagementDashboard = lazy(() => import('./components/SecretsManagementDashboard').then(m => ({ default: m.SecretsManagementDashboard })));
 const CustomFrameworkBuilder = lazy(() => import('./components/CustomFrameworkBuilder'));
@@ -361,6 +369,9 @@ const viewPermissionMap: Record<AppView, Permission> = {
   activeResponse: 'view:active_response',
   incidentWarRoom: 'investigate:security',
   privacy: 'view:compliance',
+  geoSecurity: 'manage:settings',
+  fleetObservability: 'manage:agents',
+  fleetGeoMap: 'manage:agents',
   scheduledReports: 'view:reporting',
   secretsManagement: 'manage:settings',
   customFrameworks: 'view:compliance',
@@ -425,6 +436,8 @@ const viewPermissionMap: Record<AppView, Permission> = {
   deploymentApprovals: 'view:patching',
   cloudChecksScanner: 'view:cloud_security',
   stagedDeployments: 'view:software_deployment',
+  nativeSecurity: 'manage:active_response',
+  itam: 'manage:itam',
 };
 
 
@@ -462,6 +475,9 @@ const App: React.FC = () => {
   // Ref so WebSocket handlers can read the latest view without being re-registered on every navigation
   const currentViewRef = useRef<AppView>('dashboard');
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+  // Kept in a ref so the support-message socket handler (stable closure) can
+  // tell whether the floating support window is already open.
+  const isSupportChatOpenRef = useRef(false);
 
   // Refresh metrics every 30 s while the dashboard is visible
   useEffect(() => {
@@ -472,7 +488,7 @@ const App: React.FC = () => {
     };
     const timer = setInterval(tick, 30_000);
     return () => clearInterval(timer);
-  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
   // Refresh recent alerts every 60 s while the dashboard is visible
   // Note: fetchAlerts() without tenantId uses server-side tenant from the JWT
@@ -484,11 +500,17 @@ const App: React.FC = () => {
     };
     const timer = setInterval(tick, 60_000);
     return () => clearInterval(timer);
-  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
   // ── Support chat in-app toast queue & unread count ────────────────────────
   const [supportToasts, setSupportToasts] = useState<SupportToastData[]>([]);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+  // Conversation to auto-open when the user lands on the Support tab (deep-link
+  // from a toast / OS notification / admin-initiated chat).
+  const [pendingSupportConvo, setPendingSupportConvo] = useState<string | null>(null);
+  // Floating, docked support-chat window (opened from a toast / notification).
+  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
+  useEffect(() => { isSupportChatOpenRef.current = isSupportChatOpen; }, [isSupportChatOpen]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [viewingTenantId, setViewingTenantId] = useState<string | null>(null);
@@ -1021,10 +1043,27 @@ const App: React.FC = () => {
   // ── Support chat: in-app toast + sound + OS notification + unread count ────
   useEffect(() => {
     if (!currentUser) return;
+    const myId = (currentUser as any)?.email ?? (currentUser as any)?.username ?? '';
     const handler = (data: any) => {
-      if (data.event !== 'new_message') return;
+      // A new inbound message OR a freshly-opened conversation (e.g. an admin
+      // starting a direct chat with this user) should both surface a notification.
+      const isNewConvo = data.event === 'new_conversation';
+      if (data.event !== 'new_message' && !isNewConvo) return;
 
-      const isOnSupportChat = !document.hidden && ['supportChat', 'chat'].includes(currentViewRef.current);
+      // For new_conversation the whole convo object is spread onto `data`
+      // (id/subject/messages/initiator_*); for new_message it's convo_id + message.
+      const convoId = isNewConvo ? (data.id ?? '') : (data.convo_id ?? '');
+      const msg = isNewConvo ? (data.messages?.[data.messages.length - 1] ?? null) : (data.message ?? null);
+
+      // Don't notify the person who just acted (initiator/sender receives the
+      // broadcast too — they're already looking at the conversation).
+      const senderId = msg?.sender_id ?? data.initiator_id ?? '';
+      if (senderId && senderId === myId) return;
+
+      const isOnSupportChat = !document.hidden && (
+        isSupportChatOpenRef.current ||
+        ['supportChat', 'chat'].includes(currentViewRef.current)
+      );
 
       // 1. Notification sound (always play unless already on support chat page)
       if (!isOnSupportChat) {
@@ -1039,11 +1078,11 @@ const App: React.FC = () => {
       // 3. In-app toast (visible from any page while tab is open)
       if (!isOnSupportChat) {
         const toast: SupportToastData = {
-          id: `${data.convo_id}-${data.message?.id ?? Date.now()}`,
-          senderRole: data.message?.sender_role ?? 'user',
-          senderName: data.message?.sender_id ?? '',
-          preview: String(data.message?.content ?? '').slice(0, 160),
-          convoId: data.convo_id ?? '',
+          id: `${convoId}-${msg?.id ?? Date.now()}`,
+          senderRole: msg?.sender_role ?? data.initiator_role ?? 'user',
+          senderName: msg?.sender_id ?? data.initiator_name ?? '',
+          preview: String(msg?.content ?? data.subject ?? '').slice(0, 160),
+          convoId,
           at: Date.now(),
         };
         setSupportToasts(prev => [...prev.slice(-4), toast]); // max 5 stacked
@@ -1051,16 +1090,18 @@ const App: React.FC = () => {
 
       // 4. OS-level push notification (works when tab is hidden/minimised)
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-        const sender = (data.message?.sender_role ?? 'Someone').replace(/_/g, ' ');
-        const preview = String(data.message?.content ?? '').slice(0, 120);
-        const notif = new Notification(`New support message from ${sender}`, {
+        const sender = (msg?.sender_role ?? data.initiator_role ?? 'Someone').replace(/_/g, ' ');
+        const preview = String(msg?.content ?? data.subject ?? '').slice(0, 120);
+        const title = isNewConvo ? `New chat from ${sender}` : `New support message from ${sender}`;
+        const notif = new Notification(title, {
           body: preview || 'You have a new support message.',
           icon: '/favicon.ico',
-          tag: `support-${data.convo_id}`,
+          tag: `support-${convoId}`,
         });
         notif.onclick = () => {
           window.focus();
-          setCurrentView('chat');
+          setPendingSupportConvo(convoId);
+          setIsSupportChatOpen(true);
           notif.close();
         };
       }
@@ -1730,7 +1771,7 @@ const App: React.FC = () => {
       case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} /></ErrorBoundary>;
       case 'auditLog': return <ErrorBoundary name="AuditLogDashboard"><AuditLogDashboard logs={tenantData.auditLogs} /></ErrorBoundary>;
       case 'settings': return <ErrorBoundary name="SettingsDashboard"><SettingsDashboard integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => { const exists = prev.some(r => r.id === saved.id); return exists ? prev.map(r => r.id === saved.id ? saved : r) : [...prev, saved]; }))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} /></ErrorBoundary>;
-      case 'bundleManagement': return <ErrorBoundary name="BundleManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Bundle Management...</div>}><BundleManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'bundleManagement': return <ErrorBoundary name="BundleManagementDashboard"><Suspense fallback={<SkeletonDashboard />}><BundleManagementDashboard /></Suspense></ErrorBoundary>;
       case 'tenantManagement': return <ErrorBoundary name="TenantManagementDashboard"><TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} /></ErrorBoundary>;
       case 'siem': return <ErrorBoundary name="ThreatDashboard"><ThreatDashboard /></ErrorBoundary>;
       case 'siemRules': return <ErrorBoundary name="SiemRulesDashboard"><SiemRulesDashboard /></ErrorBoundary>;
@@ -1798,33 +1839,33 @@ const App: React.FC = () => {
         return <ErrorBoundary name="FutureOpsDashboard"><FutureOpsDashboard /></ErrorBoundary>;
       case 'futureTech':
         return <ErrorBoundary name="FutureTechDashboard"><FutureTechDashboard /></ErrorBoundary>;
-      case 'swarm': return <ErrorBoundary name="SwarmDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Swarm...</div>}><SwarmDashboard /></Suspense></ErrorBoundary>;
-      case 'digitalTwin': return <ErrorBoundary name="SimulationDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Digital Twin...</div>}><SimulationDashboard /></Suspense></ErrorBoundary>;
+      case 'swarm': return <ErrorBoundary name="SwarmDashboard"><Suspense fallback={<SkeletonDashboard />}><SwarmDashboard /></Suspense></ErrorBoundary>;
+      case 'digitalTwin': return <ErrorBoundary name="SimulationDashboard"><Suspense fallback={<SkeletonDashboard />}><SimulationDashboard /></Suspense></ErrorBoundary>;
       case 'riskRegister': return <ErrorBoundary name="RiskRegister"><RiskRegister /></ErrorBoundary>;
       case 'vendorManagement': return <ErrorBoundary name="VendorManagement"><VendorManagement /></ErrorBoundary>;
       case 'trustCenter': return <ErrorBoundary name="TrustCenter"><TrustCenter /></ErrorBoundary>;
       case 'trustPage': return <ErrorBoundary name="TrustPage"><TrustPage /></ErrorBoundary>;
       case 'secureFileShare': return <ErrorBoundary name="SecureFileShare"><SecureFileShare /></ErrorBoundary>;
       case 'securityTraining': return <ErrorBoundary name="SecurityTraining"><SecurityTraining /></ErrorBoundary>;
-      case 'complianceOracle': return <ErrorBoundary name="ComplianceOracleDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ComplianceOracleDashboard /></Suspense></ErrorBoundary>;
-      case 'cissporacle': return <ErrorBoundary name="CISSPOracle"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><CISSPOracle /></Suspense></ErrorBoundary>;
-      case 'complianceFrameworks': return <ErrorBoundary name="ComplianceFrameworksDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Compliance Frameworks...</div>}><ComplianceFrameworksDashboard /></Suspense></ErrorBoundary>;
-      case 'jobs': return <ErrorBoundary name="JobsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Jobs...</div>}><JobsDashboard /></Suspense></ErrorBoundary>;
-      case 'llmops': return <ErrorBoundary name="LLMOpsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading LLMOps...</div>}><LLMOpsDashboard /></Suspense></ErrorBoundary>;
-      case 'softwareDeployment': return <ErrorBoundary name="SoftwareDeployment"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SoftwareDeployment /></Suspense></ErrorBoundary>;
-      case 'securitySimulation': return <ErrorBoundary name="SecuritySimulation"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SecuritySimulation /></Suspense></ErrorBoundary>;
+      case 'complianceOracle': return <ErrorBoundary name="ComplianceOracleDashboard"><Suspense fallback={<SkeletonDashboard />}><ComplianceOracleDashboard /></Suspense></ErrorBoundary>;
+      case 'cissporacle': return <ErrorBoundary name="CISSPOracle"><Suspense fallback={<SkeletonDashboard />}><CISSPOracle /></Suspense></ErrorBoundary>;
+      case 'complianceFrameworks': return <ErrorBoundary name="ComplianceFrameworksDashboard"><Suspense fallback={<SkeletonDashboard />}><ComplianceFrameworksDashboard /></Suspense></ErrorBoundary>;
+      case 'jobs': return <ErrorBoundary name="JobsDashboard"><Suspense fallback={<SkeletonDashboard />}><JobsDashboard /></Suspense></ErrorBoundary>;
+      case 'llmops': return <ErrorBoundary name="LLMOpsDashboard"><Suspense fallback={<SkeletonDashboard />}><LLMOpsDashboard /></Suspense></ErrorBoundary>;
+      case 'softwareDeployment': return <ErrorBoundary name="SoftwareDeployment"><Suspense fallback={<SkeletonDashboard />}><SoftwareDeployment /></Suspense></ErrorBoundary>;
+      case 'securitySimulation': return <ErrorBoundary name="SecuritySimulation"><Suspense fallback={<SkeletonDashboard />}><SecuritySimulation /></Suspense></ErrorBoundary>;
       case 'dast': return <ErrorBoundary name="DASTDashboard"><DASTDashboard /></ErrorBoundary>;
       case 'serviceMesh': return <ErrorBoundary name="ServiceMeshDashboard"><ServiceMeshDashboard /></ErrorBoundary>;
       case 'persistence':
-      case 'persistenceDetection': return <ErrorBoundary name="PersistenceDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><PersistenceDashboard /></Suspense></ErrorBoundary>;
-      case 'approvalWorkflows': return <ErrorBoundary name="MultiStepApprovalDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MultiStepApprovalDashboard /></Suspense></ErrorBoundary>;
+      case 'persistenceDetection': return <ErrorBoundary name="PersistenceDashboard"><Suspense fallback={<SkeletonDashboard />}><PersistenceDashboard /></Suspense></ErrorBoundary>;
+      case 'approvalWorkflows': return <ErrorBoundary name="MultiStepApprovalDashboard"><Suspense fallback={<SkeletonDashboard />}><MultiStepApprovalDashboard /></Suspense></ErrorBoundary>;
       case 'advancedBi':
       case 'biDashboard': return <ErrorBoundary name="AdvancedBiDashboard"><AdvancedBiDashboard tenantId={activeTenantId || undefined} /></ErrorBoundary>;
-      case 'systemHealth': return <ErrorBoundary name="SystemHealthDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading System Health...</div>}><SystemHealthDashboard /></Suspense></ErrorBoundary>;
+      case 'systemHealth': return <ErrorBoundary name="SystemHealthDashboard"><Suspense fallback={<SkeletonDashboard />}><SystemHealthDashboard /></Suspense></ErrorBoundary>;
       case 'apiStatus': return <ErrorBoundary name="ApiStatusDashboard"><ApiStatusDashboard /></ErrorBoundary>;
-      case 'predictiveHealth': return <ErrorBoundary name="PredictiveHealthDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Predictive Health...</div>}><PredictiveHealthDashboard /></Suspense></ErrorBoundary>;
-      case 'goalSystem': return <ErrorBoundary name="GoalSystemDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Goal System...</div>}><GoalSystemDashboard /></Suspense></ErrorBoundary>;
-      case 'integrationsHub': return <ErrorBoundary name="IntegrationsHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Integrations Hub...</div>}><IntegrationsHub /></Suspense></ErrorBoundary>;
+      case 'predictiveHealth': return <ErrorBoundary name="PredictiveHealthDashboard"><Suspense fallback={<SkeletonDashboard />}><PredictiveHealthDashboard /></Suspense></ErrorBoundary>;
+      case 'goalSystem': return <ErrorBoundary name="GoalSystemDashboard"><Suspense fallback={<SkeletonDashboard />}><GoalSystemDashboard /></Suspense></ErrorBoundary>;
+      case 'integrationsHub': return <ErrorBoundary name="IntegrationsHub"><Suspense fallback={<SkeletonDashboard />}><IntegrationsHub /></Suspense></ErrorBoundary>;
       case 'securityAudit': return <ErrorBoundary name="SecurityAuditDashboard"><SecurityAuditDashboard /></ErrorBoundary>;
       case 'dataWarehouse': return <ErrorBoundary name="DataWarehouseDashboard"><DataWarehouseDashboard /></ErrorBoundary>;
       case 'streaming': return <ErrorBoundary name="StreamingDashboard"><StreamingDashboard /></ErrorBoundary>;
@@ -1836,47 +1877,52 @@ const App: React.FC = () => {
       case 'xai': return <ErrorBoundary name="XAIDashboard"><XAIDashboard /></ErrorBoundary>;
       case 'abTesting': return <ErrorBoundary name="ABTestingDashboard"><ABTestingDashboard /></ErrorBoundary>;
       case 'edr': return <ErrorBoundary name="EDRDashboard"><EDRDashboard token={sessionStorage.getItem('token') || undefined} /></ErrorBoundary>;
-      case 'yaraRules': return <ErrorBoundary name="YaraRuleEditor"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading YARA Rule Editor...</div>}><YaraRuleEditor /></Suspense></ErrorBoundary>;
-      case 'alertManagement': return <ErrorBoundary name="AlertManagementDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Alert Management...</div>}><AlertManagementDashboard /></Suspense></ErrorBoundary>;
-      case 'complianceEvidence': return <ErrorBoundary name="ComplianceEvidenceStatusDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Evidence Status...</div>}><ComplianceEvidenceStatusDashboard agents={tenantData.agents} /></Suspense></ErrorBoundary>;
-      case 'remediationWorkflow': return <ErrorBoundary name="RemediationDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Remediation...</div>}><RemediationDashboard /></Suspense></ErrorBoundary>;
+      case 'yaraRules': return <ErrorBoundary name="YaraRuleEditor"><Suspense fallback={<SkeletonDashboard />}><YaraRuleEditor /></Suspense></ErrorBoundary>;
+      case 'alertManagement': return <ErrorBoundary name="AlertManagementDashboard"><Suspense fallback={<SkeletonDashboard />}><AlertManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'complianceEvidence': return <ErrorBoundary name="ComplianceEvidenceStatusDashboard"><Suspense fallback={<SkeletonDashboard />}><ComplianceEvidenceStatusDashboard agents={tenantData.agents} /></Suspense></ErrorBoundary>;
+      case 'remediationWorkflow': return <ErrorBoundary name="RemediationDashboard"><Suspense fallback={<SkeletonDashboard />}><RemediationDashboard /></Suspense></ErrorBoundary>;
       case 'mdr': return <ErrorBoundary name="MDRDashboard"><MDRDashboard /></ErrorBoundary>;
       case 'xdr': return <ErrorBoundary name="XDRDashboard"><XDRDashboard /></ErrorBoundary>;
-      case 'mitreAttack': return <ErrorBoundary name="MitreAttackHeatmap"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading MITRE ATT&CK...</div>}><MitreAttackHeatmap /></Suspense></ErrorBoundary>;
-      case 'dlp': return <ErrorBoundary name="DLPDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading DLP...</div>}><DLPDashboard /></Suspense></ErrorBoundary>;
-      case 'ticketing': return <ErrorBoundary name="TicketingIntegration"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Ticketing...</div>}><TicketingIntegration /></Suspense></ErrorBoundary>;
-      case 'internalTickets': return <ErrorBoundary name="InternalTicketsDashboard"><Suspense fallback={<div style={{ color: '#94a3b8', padding: 40 }}>Loading Tickets...</div>}><InternalTicketsDashboard currentUserEmail={currentUser?.email ?? ''} /></Suspense></ErrorBoundary>;
+      case 'mitreAttack': return <ErrorBoundary name="MitreAttackHeatmap"><Suspense fallback={<SkeletonDashboard />}><MitreAttackHeatmap /></Suspense></ErrorBoundary>;
+      case 'dlp': return <ErrorBoundary name="DLPDashboard"><Suspense fallback={<SkeletonDashboard />}><DLPDashboard /></Suspense></ErrorBoundary>;
+      case 'ticketing': return <ErrorBoundary name="TicketingIntegration"><Suspense fallback={<SkeletonDashboard />}><TicketingIntegration /></Suspense></ErrorBoundary>;
+      case 'internalTickets': return <ErrorBoundary name="InternalTicketsDashboard"><Suspense fallback={<SkeletonDashboard />}><InternalTicketsDashboard currentUserEmail={currentUser?.email ?? ''} /></Suspense></ErrorBoundary>;
       case 'ueba': return <ErrorBoundary name="UEBADashboard"><UEBADashboard /></ErrorBoundary>;
       case 'vulnerabilities': return <ErrorBoundary name="VulnerabilityManagement2"><VulnerabilityManagement /></ErrorBoundary>;
       case 'apm': return <ErrorBoundary name="APMDashboard"><APMDashboard tenantId={activeTenantId || ''} /></ErrorBoundary>;
       case 'agentApproval': return <ErrorBoundary name="AgentApprovalDashboard"><AgentApprovalDashboard /></ErrorBoundary>;
       case 'cloudIntegrations': return <ErrorBoundary name="CloudIntegrationsDashboard"><CloudIntegrationsDashboard /></ErrorBoundary>;
       case 'jitAccess': return <ErrorBoundary name="JITAccessDashboard"><JITAccessDashboard /></ErrorBoundary>;
-      case 'windowsAutopilot': return <ErrorBoundary name="AutopilotDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Autopilot...</div>}><AutopilotDashboard /></Suspense></ErrorBoundary>;
-      case 'conditionalAccess': return <ErrorBoundary name="ConditionalAccessDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ConditionalAccessDashboard /></Suspense></ErrorBoundary>;
-      case 'mobileDeviceManagement': return <ErrorBoundary name="MobileDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MobileDashboard /></Suspense></ErrorBoundary>;
-      case 'branchSites': return <ErrorBoundary name="BranchSitesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><BranchSitesDashboard /></Suspense></ErrorBoundary>;
-      case 'appCatalog': return <ErrorBoundary name="AppCatalogDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AppCatalogDashboard /></Suspense></ErrorBoundary>;
-      case 'assetIntelligence': return <ErrorBoundary name="AssetIntelligenceDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AssetIntelligenceDashboard /></Suspense></ErrorBoundary>;
-      case 'mobileAppManagement': return <ErrorBoundary name="MAMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MAMDashboard /></Suspense></ErrorBoundary>;
-      case 'androidEnterprise': return <ErrorBoundary name="AndroidEnterpriseDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AndroidEnterpriseDashboard /></Suspense></ErrorBoundary>;
-      case 'deviceConfigProfiles': return <ErrorBoundary name="DeviceConfigProfilesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><DeviceConfigProfilesDashboard /></Suspense></ErrorBoundary>;
-      case 'firmwareDriverUpdates': return <ErrorBoundary name="FirmwareDriverDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><FirmwareDriverDashboard /></Suspense></ErrorBoundary>;
-      case 'advancedHunting': return <ErrorBoundary name="AdvancedHuntingDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AdvancedHuntingDashboard /></Suspense></ErrorBoundary>;
-      case 'detectionRules': return <ErrorBoundary name="DetectionRulesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><DetectionRulesDashboard /></Suspense></ErrorBoundary>;
-      case 'connectorsHub': return <ErrorBoundary name="ConnectorsHubDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ConnectorsHubDashboard /></Suspense></ErrorBoundary>;
-      case 'securityCopilot': return <ErrorBoundary name="SecurityCopilotDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SecurityCopilotDashboard /></Suspense></ErrorBoundary>;
-      case 'msspMonitoring': return <ErrorBoundary name="MSSPDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><MSSPDashboard /></Suspense></ErrorBoundary>;
-      case 'attackTimeline': return <ErrorBoundary name="AttackTimelineDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AttackTimelineDashboard /></Suspense></ErrorBoundary>;
-      case 'geographicMap': return <ErrorBoundary name="GeographicAttackMap"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><GeographicAttackMap /></Suspense></ErrorBoundary>;
-      case 'retentionPolicies': return <ErrorBoundary name="RetentionPoliciesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><RetentionPoliciesDashboard /></Suspense></ErrorBoundary>;
-      case 'scaAssessment': return <ErrorBoundary name="SCADashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><SCADashboard /></Suspense></ErrorBoundary>;
-      case 'agentGroups': return <ErrorBoundary name="AgentGroupsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><AgentGroupsDashboard /></Suspense></ErrorBoundary>;
-      case 'configDrift': return <ErrorBoundary name="ConfigDriftDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ConfigDriftDashboard /></Suspense></ErrorBoundary>;
-      case 'fimMonitoring': return <ErrorBoundary name="FIMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><FIMDashboard /></Suspense></ErrorBoundary>;
-      case 'activeResponse': return <ErrorBoundary name="ActiveResponseDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}><ActiveResponseDashboard /></Suspense></ErrorBoundary>;
+      case 'windowsAutopilot': return <ErrorBoundary name="AutopilotDashboard"><Suspense fallback={<SkeletonDashboard />}><AutopilotDashboard /></Suspense></ErrorBoundary>;
+      case 'conditionalAccess': return <ErrorBoundary name="ConditionalAccessDashboard"><Suspense fallback={<SkeletonDashboard />}><ConditionalAccessDashboard /></Suspense></ErrorBoundary>;
+      case 'mobileDeviceManagement': return <ErrorBoundary name="MobileDashboard"><Suspense fallback={<SkeletonDashboard />}><MobileDashboard /></Suspense></ErrorBoundary>;
+      case 'branchSites': return <ErrorBoundary name="BranchSitesDashboard"><Suspense fallback={<SkeletonDashboard />}><BranchSitesDashboard /></Suspense></ErrorBoundary>;
+      case 'appCatalog': return <ErrorBoundary name="AppCatalogDashboard"><Suspense fallback={<SkeletonDashboard />}><AppCatalogDashboard /></Suspense></ErrorBoundary>;
+      case 'assetIntelligence': return <ErrorBoundary name="AssetIntelligenceDashboard"><Suspense fallback={<SkeletonDashboard />}><AssetIntelligenceDashboard /></Suspense></ErrorBoundary>;
+      case 'mobileAppManagement': return <ErrorBoundary name="MAMDashboard"><Suspense fallback={<SkeletonDashboard />}><MAMDashboard /></Suspense></ErrorBoundary>;
+      case 'androidEnterprise': return <ErrorBoundary name="AndroidEnterpriseDashboard"><Suspense fallback={<SkeletonDashboard />}><AndroidEnterpriseDashboard /></Suspense></ErrorBoundary>;
+      case 'deviceConfigProfiles': return <ErrorBoundary name="DeviceConfigProfilesDashboard"><Suspense fallback={<SkeletonDashboard />}><DeviceConfigProfilesDashboard /></Suspense></ErrorBoundary>;
+      case 'firmwareDriverUpdates': return <ErrorBoundary name="FirmwareDriverDashboard"><Suspense fallback={<SkeletonDashboard />}><FirmwareDriverDashboard /></Suspense></ErrorBoundary>;
+      case 'advancedHunting': return <ErrorBoundary name="AdvancedHuntingDashboard"><Suspense fallback={<SkeletonDashboard />}><AdvancedHuntingDashboard /></Suspense></ErrorBoundary>;
+      case 'detectionRules': return <ErrorBoundary name="DetectionRulesDashboard"><Suspense fallback={<SkeletonDashboard />}><DetectionRulesDashboard /></Suspense></ErrorBoundary>;
+      case 'connectorsHub': return <ErrorBoundary name="ConnectorsHubDashboard"><Suspense fallback={<SkeletonDashboard />}><ConnectorsHubDashboard /></Suspense></ErrorBoundary>;
+      case 'securityCopilot': return <ErrorBoundary name="SecurityCopilotDashboard"><Suspense fallback={<SkeletonDashboard />}><SecurityCopilotDashboard /></Suspense></ErrorBoundary>;
+      case 'msspMonitoring': return <ErrorBoundary name="MSSPDashboard"><Suspense fallback={<SkeletonDashboard />}><MSSPDashboard /></Suspense></ErrorBoundary>;
+      case 'attackTimeline': return <ErrorBoundary name="AttackTimelineDashboard"><Suspense fallback={<SkeletonDashboard />}><AttackTimelineDashboard /></Suspense></ErrorBoundary>;
+      case 'geographicMap': return <ErrorBoundary name="GeographicAttackMap"><Suspense fallback={<SkeletonDashboard />}><GeographicAttackMap /></Suspense></ErrorBoundary>;
+      case 'retentionPolicies': return <ErrorBoundary name="RetentionPoliciesDashboard"><Suspense fallback={<SkeletonDashboard />}><RetentionPoliciesDashboard /></Suspense></ErrorBoundary>;
+      case 'scaAssessment': return <ErrorBoundary name="SCADashboard"><Suspense fallback={<SkeletonDashboard />}><SCADashboard /></Suspense></ErrorBoundary>;
+      case 'agentGroups': return <ErrorBoundary name="AgentGroupsDashboard"><Suspense fallback={<SkeletonDashboard />}><AgentGroupsDashboard /></Suspense></ErrorBoundary>;
+      case 'configDrift': return <ErrorBoundary name="ConfigDriftDashboard"><Suspense fallback={<SkeletonDashboard />}><ConfigDriftDashboard /></Suspense></ErrorBoundary>;
+      case 'fimMonitoring': return <ErrorBoundary name="FIMDashboard"><Suspense fallback={<SkeletonDashboard />}><FIMDashboard /></Suspense></ErrorBoundary>;
+      case 'activeResponse': return <ErrorBoundary name="ActiveResponseDashboard"><Suspense fallback={<SkeletonDashboard />}><ActiveResponseDashboard /></Suspense></ErrorBoundary>;
       case 'incidentWarRoom': return <ErrorBoundary name="IncidentWarRoomDashboard"><IncidentWarRoomDashboard /></ErrorBoundary>;
       case 'privacy': return <ErrorBoundary name="PrivacyDashboard"><PrivacyDashboard /></ErrorBoundary>;
+      case 'geoSecurity': return <ErrorBoundary name="SecuritySettingsDashboard"><SecuritySettingsDashboard /></ErrorBoundary>;
+      case 'fleetObservability': return <ErrorBoundary name="FleetObservabilityDashboard"><FleetObservabilityDashboard /></ErrorBoundary>;
+      case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
+      case 'nativeSecurity': return <ErrorBoundary name="NativeSecurityConsole"><NativeSecurityConsole /></ErrorBoundary>;
+      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole /></ErrorBoundary>;
       case 'privacyLegal': return <ErrorBoundary name="PrivacyLegalDashboard"><PrivacyLegalDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
       case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
@@ -1895,27 +1941,27 @@ const App: React.FC = () => {
       case 'insiderThreat': return <ErrorBoundary name="InsiderThreatDashboard"><InsiderThreatDashboard /></ErrorBoundary>;
       case 'emailSecurity': return <ErrorBoundary name="EmailSecurityDashboard"><EmailSecurityDashboard /></ErrorBoundary>;
       case 'supplyChain': return <ErrorBoundary name="SupplyChainDashboard"><SupplyChainDashboard /></ErrorBoundary>;
-      case 'fim': return <ErrorBoundary name="FimAlertsDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading FIM...</div>}><FimAlertsDashboard /></Suspense></ErrorBoundary>;
-      case 'runtimeSecurity': return <ErrorBoundary name="RuntimeSecurityDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Runtime Security...</div>}><RuntimeSecurityDashboard /></Suspense></ErrorBoundary>;
-      case 'sast': return <ErrorBoundary name="SASTDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading SAST...</div>}><SASTDashboardLazy /></Suspense></ErrorBoundary>;
-      case 'remoteAccess': return <ErrorBoundary name="RemoteAccessDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Remote Access...</div>}><RemoteAccessDashboard /></Suspense></ErrorBoundary>;
-      case 'agentChat': return <ErrorBoundary name="ChatHubEndpoint"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab="endpoint" /></Suspense></ErrorBoundary>;
-      case 'aiRemediation': return <ErrorBoundary name="AIRemediationDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading AI Remediation...</div>}><AIRemediationDashboard /></Suspense></ErrorBoundary>;
-      case 'rollback': return <ErrorBoundary name="RollbackDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Rollback...</div>}><RollbackDashboard /></Suspense></ErrorBoundary>;
-      case 'pipelineSecurity': return <ErrorBoundary name="PipelineSecurityDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Pipeline Security...</div>}><PipelineSecurityDashboard /></Suspense></ErrorBoundary>;
-      case 'iacSecurity': return <ErrorBoundary name="IaCSecurityDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading IaC Security...</div>}><IaCSecurityDashboard /></Suspense></ErrorBoundary>;
-      case 'containerScan': return <ErrorBoundary name="ContainerScanDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Container Scan...</div>}><ContainerScanDashboard /></Suspense></ErrorBoundary>;
-      case 'pam': return <ErrorBoundary name="PAMDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading PAM...</div>}><PAMDashboard /></Suspense></ErrorBoundary>;
-      case 'baaManagement': return <ErrorBoundary name="BAAManagement"><Suspense fallback={<div className="p-8 text-slate-400">Loading BAA Management...</div>}><BAAManagement /></Suspense></ErrorBoundary>;
+      case 'fim': return <ErrorBoundary name="FimAlertsDashboard"><Suspense fallback={<SkeletonDashboard />}><FimAlertsDashboard /></Suspense></ErrorBoundary>;
+      case 'runtimeSecurity': return <ErrorBoundary name="RuntimeSecurityDashboard"><Suspense fallback={<SkeletonDashboard />}><RuntimeSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'sast': return <ErrorBoundary name="SASTDashboard"><Suspense fallback={<SkeletonDashboard />}><SASTDashboardLazy /></Suspense></ErrorBoundary>;
+      case 'remoteAccess': return <ErrorBoundary name="RemoteAccessDashboard"><Suspense fallback={<SkeletonDashboard />}><RemoteAccessDashboard /></Suspense></ErrorBoundary>;
+      case 'agentChat': return <ErrorBoundary name="ChatHubEndpoint"><Suspense fallback={<SkeletonDashboard />}><ChatHub initialTab="endpoint" /></Suspense></ErrorBoundary>;
+      case 'aiRemediation': return <ErrorBoundary name="AIRemediationDashboard"><Suspense fallback={<SkeletonDashboard />}><AIRemediationDashboard /></Suspense></ErrorBoundary>;
+      case 'rollback': return <ErrorBoundary name="RollbackDashboard"><Suspense fallback={<SkeletonDashboard />}><RollbackDashboard /></Suspense></ErrorBoundary>;
+      case 'pipelineSecurity': return <ErrorBoundary name="PipelineSecurityDashboard"><Suspense fallback={<SkeletonDashboard />}><PipelineSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'iacSecurity': return <ErrorBoundary name="IaCSecurityDashboard"><Suspense fallback={<SkeletonDashboard />}><IaCSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'containerScan': return <ErrorBoundary name="ContainerScanDashboard"><Suspense fallback={<SkeletonDashboard />}><ContainerScanDashboard /></Suspense></ErrorBoundary>;
+      case 'pam': return <ErrorBoundary name="PAMDashboard"><Suspense fallback={<SkeletonDashboard />}><PAMDashboard /></Suspense></ErrorBoundary>;
+      case 'baaManagement': return <ErrorBoundary name="BAAManagement"><Suspense fallback={<SkeletonDashboard />}><BAAManagement /></Suspense></ErrorBoundary>;
       case 'codeReviewGraph': return <ErrorBoundary name="CodeReviewGraphDashboard"><CodeReviewGraphDashboard /></ErrorBoundary>;
-      case 'supportChat': return <ErrorBoundary name="ChatHubSupport"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub initialTab="support" /></Suspense></ErrorBoundary>;
-      case 'chat': return <ErrorBoundary name="ChatHub"><Suspense fallback={<div className="p-8 text-slate-400">Loading Chat...</div>}><ChatHub /></Suspense></ErrorBoundary>;
-      case 'certificates': return <ErrorBoundary name="CertificatesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Certificates...</div>}><CertificatesDashboard /></Suspense></ErrorBoundary>;
-      case 'aiAnomaly': return <ErrorBoundary name="AIAnomalyDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading AI Anomaly Detection...</div>}><AIAnomalyDashboard /></Suspense></ErrorBoundary>;
-      case 'problemManagement': return <ErrorBoundary name="ProblemManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Problem Management...</div>}><ProblemManagementDashboard /></Suspense></ErrorBoundary>;
-      case 'changeManagement': return <ErrorBoundary name="ChangeManagementDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Change Management...</div>}><ChangeManagementDashboard /></Suspense></ErrorBoundary>;
-      case 'ticketWebhooks': return <ErrorBoundary name="TicketWebhooksDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Ticket Webhooks...</div>}><TicketWebhooksDashboard /></Suspense></ErrorBoundary>;
-      case 'notificationPrefs': return <ErrorBoundary name="NotificationPreferencesDashboard"><Suspense fallback={<div className="p-8 text-slate-400">Loading Notification Preferences...</div>}><NotificationPreferencesDashboard /></Suspense></ErrorBoundary>;
+      case 'supportChat': return <ErrorBoundary name="ChatHubSupport"><Suspense fallback={<SkeletonDashboard />}><ChatHub initialTab="support" initialSupportConvoId={pendingSupportConvo} onSupportConvoConsumed={() => setPendingSupportConvo(null)} /></Suspense></ErrorBoundary>;
+      case 'chat': return <ErrorBoundary name="ChatHub"><Suspense fallback={<SkeletonDashboard />}><ChatHub initialTab={pendingSupportConvo ? 'support' : 'endpoint'} initialSupportConvoId={pendingSupportConvo} onSupportConvoConsumed={() => setPendingSupportConvo(null)} /></Suspense></ErrorBoundary>;
+      case 'certificates': return <ErrorBoundary name="CertificatesDashboard"><Suspense fallback={<SkeletonDashboard />}><CertificatesDashboard /></Suspense></ErrorBoundary>;
+      case 'aiAnomaly': return <ErrorBoundary name="AIAnomalyDashboard"><Suspense fallback={<SkeletonDashboard />}><AIAnomalyDashboard /></Suspense></ErrorBoundary>;
+      case 'problemManagement': return <ErrorBoundary name="ProblemManagementDashboard"><Suspense fallback={<SkeletonDashboard />}><ProblemManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'changeManagement': return <ErrorBoundary name="ChangeManagementDashboard"><Suspense fallback={<SkeletonDashboard />}><ChangeManagementDashboard /></Suspense></ErrorBoundary>;
+      case 'ticketWebhooks': return <ErrorBoundary name="TicketWebhooksDashboard"><Suspense fallback={<SkeletonDashboard />}><TicketWebhooksDashboard /></Suspense></ErrorBoundary>;
+      case 'notificationPrefs': return <ErrorBoundary name="NotificationPreferencesDashboard"><Suspense fallback={<SkeletonDashboard />}><NotificationPreferencesDashboard /></Suspense></ErrorBoundary>;
       case 'aiAssistantChat': return <ErrorBoundary name="AIAssistantChat"><AIAssistantChat /></ErrorBoundary>;
       default: return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
 
@@ -1967,7 +2013,7 @@ const App: React.FC = () => {
                 />
                 <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6'}`}>
                   <ErrorBoundary name="MainContent">
-                    <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}>
+                    <Suspense fallback={<SkeletonDashboard />}>
                       {renderView()}
                     </Suspense>
                   </ErrorBoundary>
@@ -1999,15 +2045,31 @@ const App: React.FC = () => {
           </ErrorBoundary>
           <ChatFab onClick={() => setIsChatOpen(true)} />
 
+          {/* Global audio/video call overlay (incoming ring + in-call window) */}
+          {currentUser && (
+            <ErrorBoundary name="CallOverlay">
+              <CallOverlay />
+            </ErrorBoundary>
+          )}
+
           {/* Support chat in-app toast notifications */}
           <SupportChatToast
             toasts={supportToasts}
             onDismiss={id => setSupportToasts(prev => prev.filter(t => t.id !== id))}
             onOpen={convoId => {
-              setCurrentView('chat');
+              if (convoId) setPendingSupportConvo(convoId);
+              setIsSupportChatOpen(true);
               setSupportToasts(prev => prev.filter(t => t.convoId !== convoId));
               setSupportUnreadCount(0);
             }}
+          />
+
+          {/* Floating, docked interactive support chat window */}
+          <SupportChatWindow
+            isOpen={isSupportChatOpen}
+            initialConvoId={pendingSupportConvo}
+            onConvoConsumed={() => setPendingSupportConvo(null)}
+            onClose={() => setIsSupportChatOpen(false)}
           />
 
           {/* Sidebar Items are in Sidebar.tsx */}

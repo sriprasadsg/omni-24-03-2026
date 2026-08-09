@@ -228,9 +228,13 @@ class HADRService(HADRServiceBackupMixin):
 _hadr_service: Optional[HADRService] = None
 
 
-def get_hadr_service(db: AsyncIOMotorDatabase) -> HADRService:
-    """Get or create the HA/DR service singleton."""
+def get_hadr_service(db: AsyncIOMotorDatabase) -> Optional[HADRService]:
+    """Get or create the HA/DR service singleton. Returns None if initialization fails."""
     global _hadr_service
     if _hadr_service is None:
-        _hadr_service = HADRService(db)
+        try:
+            _hadr_service = HADRService(db)
+        except Exception as e:
+            logging.getLogger(__name__).error("Failed to initialize HADRService: %s", e)
+            _hadr_service = None # Ensure it's explicitly None on failure
     return _hadr_service

@@ -1,5 +1,6 @@
 import React from 'react';
-import { ExternalLinkIcon, AlertTriangleIcon, ShieldAlertIcon, TrendingUpIcon } from './icons';
+import { ExternalLinkIcon, ShieldAlertIcon, TrendingUpIcon } from './icons';
+import { Modal } from './Modal';
 
 interface CVEDetail {
     cve_id: string;
@@ -26,8 +27,6 @@ export const EnrichedPatchModal: React.FC<EnrichedPatchModalProps> = ({
     patch,
     cveDetails
 }) => {
-    if (!isOpen) return null;
-
     const cvssScore = patch.cvss_score || patch.cve_details?.[0]?.cvss_v3_score;
     const epssScore = patch.epss_score || patch.epss_details?.[0]?.epss_score;
     const priorityScore = patch.priority_score;
@@ -39,45 +38,44 @@ export const EnrichedPatchModal: React.FC<EnrichedPatchModalProps> = ({
         return 'text-blue-600 dark:text-blue-400';
     };
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                {/* Header */}
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6 flex justify-between items-start">
-                    <div className="flex-1">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                            {patch.name}
-                        </h2>
-                        <div className="flex items-center gap-4 flex-wrap">
-                            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${patch.severity === 'Critical' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' :
-                                    patch.severity === 'High' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' :
-                                        patch.severity === 'Medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' :
-                                            'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-                                }`}>
-                                {patch.severity}
-                            </span>
-                            {priorityScore && (
-                                <div className="flex items-center gap-2">
-                                    <TrendingUpIcon size={16} className="text-primary-500" />
-                                    <span className="text-sm font-medium">
-                                        Priority: <span className="text-primary-600 dark:text-primary-400 font-bold">{priorityScore.toFixed(1)}/100</span>
-                                    </span>
-                                </div>
-                            )}
-                        </div>
+    const title = (
+        <div className="flex-1">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                {patch.name}
+            </h2>
+            <div className="flex items-center gap-4 flex-wrap">
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${patch.severity === 'Critical' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' :
+                        patch.severity === 'High' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' :
+                            patch.severity === 'Medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' :
+                                'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                    }`}>
+                    {patch.severity}
+                </span>
+                {priorityScore && (
+                    <div className="flex items-center gap-2">
+                        <TrendingUpIcon size={16} className="text-primary-500" />
+                        <span className="text-sm font-medium">
+                            Priority: <span className="text-primary-600 dark:text-primary-400 font-bold">{priorityScore.toFixed(1)}/100</span>
+                        </span>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+                )}
+            </div>
+        </div>
+    );
 
+    const footer = (
+        <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+            Close
+        </button>
+    );
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={title} size="4xl" footer={footer}>
                 {/* Content */}
-                <div className="p-6 space-y-6">
+                <div className="space-y-6">
                     {/* Scoring Section */}
                     {(cvssScore || epssScore) && (
                         <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
@@ -186,17 +184,6 @@ export const EnrichedPatchModal: React.FC<EnrichedPatchModalProps> = ({
                         </div>
                     )}
                 </div>
-
-                {/* Footer */}
-                <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end gap-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };

@@ -46,7 +46,16 @@ async def get_agent_instructions(
         )
 
     return [
-        {"task_id": i.get("id") or str(i.get("_id", "")), "instruction": i.get("instruction") or i.get("type"), "payload": i.get("payload")}
+        {
+            "task_id": i.get("id") or str(i.get("_id", "")),
+            "instruction": i.get("instruction") or i.get("type"),
+            "payload": i.get("payload"),
+            # Some producers set "parameters" (SOAR/active-response/remediation),
+            # others set "payload" — relay both under both keys so either the
+            # legacy ("payload") or newer ("parameters") dispatch arms resolve
+            # their arguments regardless of which key the producer used.
+            "parameters": i.get("parameters") if i.get("parameters") is not None else i.get("payload"),
+        }
         for i in instructions
     ]
 
@@ -208,6 +217,48 @@ async def trigger_agent_update(
         "created_by": getattr(current_user, "email", "unknown"),
     })
     return {"success": True, "instruction_id": instr_id, "message": "Update instruction dispatched"}
+
+
+@router.get("/{agent_id}/instructions/history")
+async def get_agent_instruction_history(
+    agent_id: str,
+    limit: int = 50,
+    current_user: Any = Depends(get_current_user),
+):
+    """Instruction history for an agent (dashboard view). Tenant-scoped via the agent record."""
+    db = get_database()
+    caller_role = getattr(current_user, "role", None)
+    q: dict = {"id": agent_id}
+    if caller_role not in _TASK_SUPER_ROLES:
+        tid = getattr(current_user, "tenant_id", None)
+        if not tid:
+            raise HTTPException(status_code=403, detail="Tenant context required")
+        q["tenantId"] = tid
+    agent = await db.agents.find_one(q)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    limit = max(1, min(limit, 200))
+    docs = await (
+        db.agent_instructions
+        .find({"agent_id": agent_id})
+        .sort("created_at", -1)
+        .to_list(length=limit)
+    )
+    return [
+        {
+            "id": d.get("id") or str(d.get("_id", "")),
+            "instruction": d.get("instruction") or d.get("type", ""),
+            "status": d.get("status", "unknown"),
+            "created_at": d.get("created_at"),
+            "created_by": d.get("created_by", ""),
+            "sent_at": d.get("sent_at"),
+            "updated_at": d.get("updated_at"),
+            "error": (d.get("result") or {}).get("error") if isinstance(d.get("result"), dict) else None,
+            "message": (d.get("result") or {}).get("message") if isinstance(d.get("result"), dict) else None,
+        }
+        for d in docs
+    ]
 
 
 @router.post("/{agent_id}/discovery/scan")

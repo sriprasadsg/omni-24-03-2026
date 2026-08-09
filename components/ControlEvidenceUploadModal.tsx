@@ -1,7 +1,8 @@
 import React from 'react';
-import { ShieldCheckIcon, AlertTriangleIcon, UploadIcon, XIcon } from './icons';
+import { ShieldCheckIcon, AlertTriangleIcon, UploadIcon } from './icons';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Modal } from './Modal';
 
 const DEPARTMENTS = ['HR', 'Finance', 'Management', 'Legal', 'IT', 'Operations', 'Audit', 'Risk', 'Other'];
 
@@ -72,17 +73,44 @@ export const ControlEvidenceUploadModal = ({
 
     const style = validation ? (VERDICT_STYLES[validation.verdict] || VERDICT_STYLES.SKIPPED) : null;
 
+    const footer = (
+        <div className="flex justify-between items-center gap-3 w-full">
+            <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                <ShieldCheckIcon size={12} />
+                AI validates document relevance after upload
+            </p>
+            <div className="flex gap-3">
+                <button type="button" onClick={onClose}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 rounded-md">
+                    {validation ? 'Close' : 'Cancel'}
+                </button>
+                {!validation && (
+                    <button type="submit" form="control-evidence-form" disabled={!file || uploading}
+                        className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-md flex items-center gap-2">
+                        {uploading ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        ) : <UploadIcon size={14} />}
+                        {uploading ? 'Uploading & validating...' : 'Upload Evidence'}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Upload Evidence</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Control: <span className="font-mono font-semibold">{controlId}</span></p>
-                    </div>
-                    <button onClick={onClose}><XIcon size={20} className="text-gray-500" /></button>
+        <Modal
+            isOpen={true}
+            onClose={onClose}
+            title={
+                <div>
+                    <span className="text-lg font-bold text-gray-900 dark:text-white">Upload Evidence</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Control: <span className="font-mono font-semibold">{controlId}</span></p>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-4">
+            }
+            size="lg"
+            footer={footer}
+        >
+                <form id="control-evidence-form" onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department / Owner</label>
                         <select value={department} onChange={e => setDepartment(e.target.value)}
@@ -152,30 +180,7 @@ export const ControlEvidenceUploadModal = ({
                             </div>
                         </div>
                     )}
-
-                    <div className="flex justify-between items-center gap-3">
-                        <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-                            <ShieldCheckIcon size={12} />
-                            AI validates document relevance after upload
-                        </p>
-                        <div className="flex gap-3">
-                            <button type="button" onClick={onClose}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 rounded-md">
-                                {validation ? 'Close' : 'Cancel'}
-                            </button>
-                            {!validation && (
-                                <button type="submit" disabled={!file || uploading}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-md flex items-center gap-2">
-                                    {uploading ? (
-                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    ) : <UploadIcon size={14} />}
-                                    {uploading ? 'Uploading & validating...' : 'Upload Evidence'}
-                                </button>
-                            )}
-                        </div>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </Modal>
     );
 };

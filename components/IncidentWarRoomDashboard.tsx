@@ -69,7 +69,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
         const id = selected.id;
         const timer = setInterval(() => { loadIncident(id); }, 5000);
         return () => clearInterval(timer);
-    }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [selected?.id]);
 
     async function loadAll() {
         try {

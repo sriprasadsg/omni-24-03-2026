@@ -121,8 +121,8 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     }
 
     const [isDownloadingZip,  setIsDownloadingZip]  = React.useState(false);
-    const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
     const [isDownloadingRust, setIsDownloadingRust] = React.useState(false);
+    const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
 
     const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
 
@@ -158,11 +158,12 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
             const downloadToken = await _getDownloadToken();
             if (!downloadToken) return;
             const backendUrl = encodeURIComponent(serverUrl);
-            window.location.href = `/api/agent/download/${effectiveTenantId}/rust-exe?download_token=${downloadToken}&api_url=${backendUrl}`;
-            // First download compiles Rust (~30 s); subsequent calls reuse cached binary (~5 s)
-            setTimeout(() => setIsDownloadingRust(false), 120_000);
+            // Redirect to NSIS-wrapped installer (includes setup_svc.ps1 for service registration)
+            window.location.href = `/api/agent/download/${effectiveTenantId}?download_token=${downloadToken}&api_url=${backendUrl}&platform=windows`;
+            const resetDelay = 360_000; // NSIS build can take ~2-5 min
+            setTimeout(() => setIsDownloadingRust(false), resetDelay);
         } catch {
-            showToast('An error occurred while downloading the Rust installer.', 'error');
+            showToast('An error occurred while downloading the Windows installer.', 'error');
             setIsDownloadingRust(false);
         }
     };
@@ -322,55 +323,32 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                         )}
 
                                         {/* Download buttons — Windows gets EXE zip + MSI, others get Python zip */}
-                                        {isFreeTierDownloadable && activeTab === 'windows' && !isWindows ? (
+                                        {isFreeTierDownloadable && activeTab === 'windows' ? (
                                             <div className="mt-4 flex flex-col gap-3">
-                                                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-200 dark:border-gray-700">
-                                                    <DownloadIcon size={20} className="text-gray-400 flex-shrink-0" />
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Windows Installers</p>
-                                                        <p className="text-xs text-gray-400 dark:text-gray-500">Available on Windows only — use the PowerShell command above to install on target machines</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : isFreeTierDownloadable && activeTab === 'windows' ? (
-                                            <div className="mt-4 flex flex-col gap-3">
+                                                {/* Rust EXE — lightweight, no Python required */}
                                                 <button
-                                                    onClick={() => handleDownloadAgentZip('windows')}
-                                                    disabled={isDownloadingZip}
-                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                                                    onClick={handleDownloadRustExe}
+                                                    disabled={isDownloadingRust}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
                                                 >
                                                     <DownloadIcon size={16} />
-                                                    {isDownloadingZip ? 'Building installer... (may take a few minutes on first run)' : '⬇ Download Windows Installer (.exe)'}
+                                                    {isDownloadingRust ? 'Compiling Rust agent...' : '⬇ Download Windows Installer (.exe)'}
                                                 </button>
-                                                <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-                                                    Self-extracting NSIS installer — double-click to run the setup wizard. Installs OmniAgent as a Windows Service visible in <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">services.msc</code> and starts it automatically.
+                                                <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">
+                                                    Lightweight Rust-compiled agent — <strong>~3 MB</strong>, no Python runtime required. Installs as a Windows Service in <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">services.msc</code>.
                                                 </p>
+                                                {/* MSI Installer */}
                                                 <button
                                                     onClick={handleDownloadMsi}
                                                     disabled={isDownloadingMsi}
-                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
                                                 >
                                                     <DownloadIcon size={16} />
-                                                    {isDownloadingMsi ? 'Building MSI installer...' : '⬇ Download MSI Installer (.msi)'}
+                                                    {isDownloadingMsi ? 'Compiling MSI installer...' : '⬇ Download Windows MSI Installer'}
                                                 </button>
-                                                <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-                                                    Windows Installer (.msi) package — runs via standard Add/Remove Programs UI. Also registers OmniAgent as a Windows Service.
+                                                <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">
+                                                    Standard Windows Installer (.msi) with Add/Remove Programs integration.
                                                 </p>
-
-                                                {/* Rust EXE — lightweight, no Python required */}
-                                                <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-1">
-                                                    <button
-                                                        onClick={handleDownloadRustExe}
-                                                        disabled={isDownloadingRust}
-                                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
-                                                    >
-                                                        <DownloadIcon size={16} />
-                                                        {isDownloadingRust ? 'Compiling Rust agent...' : '⬇ Download Rust Installer (.exe)'}
-                                                    </button>
-                                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">
-                                                        Lightweight Rust-compiled agent — <strong>~3 MB</strong>, no Python runtime required. Installs as a Windows Service in <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">services.msc</code>.
-                                                    </p>
-                                                </div>
                                             </div>
                                         ) : isFreeTierDownloadable ? (
                                             <div className="mt-4">

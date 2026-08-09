@@ -1,11 +1,53 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { chatWithAssistant } from '../services/apiService';
 
+import { TypingIndicator } from './ui/TypingIndicator';
+import { ContextCard } from './ui/ContextCard';
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   sources?: any[];
+  isStreaming?: boolean;
 }
+
+const StreamingText: React.FC<{ text: string; isStreaming: boolean }> = ({ text, isStreaming }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    const handler = (event: MediaQueryListEvent) => setPrefersReducedMotion(event.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!isStreaming || prefersReducedMotion) {
+      setDisplayedText(text);
+      return;
+    }
+
+    let i = 0;
+    const intervalId = setInterval(() => {
+      setDisplayedText(text.slice(0, i));
+      i++;
+      if (i > text.length) {
+        clearInterval(intervalId);
+      }
+    }, 15); // Adjust typing speed here
+
+    return () => clearInterval(intervalId);
+  }, [text, isStreaming, prefersReducedMotion]);
+
+  return (
+    <>
+      {displayedText}
+      {isStreaming && <span className="ml-0.5 animate-pulse">▎</span>}
+    </>
+  );
+};
 
 export const AIAssistantChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -31,7 +73,7 @@ export const AIAssistantChat: React.FC = () => {
     setStreamingContent('');
 
     // Append empty assistant bubble to fill in via streaming
-    setMessages(prev => [...prev, { role: 'assistant', content: '', sources: [] }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', sources: [], isStreaming: true }]);
 
     cancelRef.current = chatWithAssistant(
       q,
@@ -48,6 +90,7 @@ export const AIAssistantChat: React.FC = () => {
               role: 'assistant',
               content: (last.content || '') + (streamingContent || ''),
               sources,
+              isStreaming: false,
             };
           }
           return next;
@@ -60,7 +103,7 @@ export const AIAssistantChat: React.FC = () => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last && last.role === 'assistant') {
-            next[next.length - 1] = { role: 'assistant', content: `Error: ${err}` };
+            next[next.length - 1] = { role: 'assistant', content: `Error: ${err}`, isStreaming: false };
           }
           return next;
         });
@@ -85,15 +128,31 @@ export const AIAssistantChat: React.FC = () => {
           </div>
         )}
         {messages.map((msg, i) => {
-          const streamed = loading && i === messages.length - 1 && msg.role === 'assistant' ? streamingContent : '';
-          const display = msg.role === 'assistant' ? (msg.content + streamed) : msg.content;
+          const streamed = loading && i === messages.length - 1 && msg.role === 'assistant';
+          const displayContent = msg.role === 'assistant' ? msg.content : msg.content;
+          const isStructured = msg.sources && msg.sources.some(s => s.metadata?.type);
           return (
             <div
               key={i}
               className={`max-w-3xl rounded-lg p-3 ${msg.role === 'user' ? 'ml-auto bg-blue-600' : 'mr-auto bg-slate-700'}`}
             >
-              <div className="whitespace-pre-wrap">{display}</div>
-              {msg.sources && msg.sources.length > 0 && (
+              {isStructured && msg.role === 'assistant' ? (
+                <ContextCard
+                  type="finding"
+                  title="AI Analysis"
+                  description={displayContent}
+                  metadata={{ sources: msg.sources?.length, timestamp: new Date().toISOString() }}
+                />
+              ) : (
+                <div className="whitespace-pre-wrap">
+                  {msg.role === 'assistant' ? (
+                    streamed && !displayContent ? <TypingIndicator /> : <StreamingText text={displayContent} isStreaming={streamed} />
+                  ) : (
+                    displayContent
+                  )}
+                </div>
+              )}
+              {!isStructured && msg.sources && msg.sources.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-slate-600 text-xs">
                   <div className="font-semibold text-slate-300">Sources:</div>
                   {msg.sources.map((s, j) => (

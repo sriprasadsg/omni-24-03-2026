@@ -16,15 +16,34 @@
  * the prior hand-written .cjs; only types are added.
  */
 const configuration_cjs_1 = require("./configuration.cjs");
+// Frozen first-party capability config-schema — the fallback when no project cwd
+// is available (cwd-agnostic call sites).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const capabilityRegistry = require('./capability-registry.cjs');
-function isCapabilityConfigKey(keyPath) {
+// Resolve the capability config-schema for a project (ADR-1244 D2). When a cwd is
+// supplied, compose installed overlay capabilities for THAT project — LAZILY (never
+// at module load: a bare require of this module never scans the filesystem) —
+// falling back to the frozen first-party schema. Without a cwd, first-party only.
+function _capabilityConfigSchema(cwd) {
+    if (typeof cwd === 'string' && cwd) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+            const loaderMod = require('./capability-loader.cjs');
+            // #1459 IC-04: thread the consent home explicitly so a consented project cap's config key
+            // federates at the SAME user-owned home that gated its activation.
+            const schema = loaderMod.loadRegistry({ includeInstalled: true, cwd, gsdHome: process.env['GSD_HOME'] }).configSchema;
+            if (schema && typeof schema === 'object')
+                return schema;
+        }
+        catch { /* fall back to first-party */ }
+    }
+    const fp = capabilityRegistry.configSchema;
+    return fp && typeof fp === 'object' ? fp : {};
+}
+function isCapabilityConfigKey(keyPath, cwd) {
     if (typeof keyPath !== 'string')
         return false;
-    const schema = capabilityRegistry.configSchema;
-    if (!schema || typeof schema !== 'object')
-        return false;
-    return Object.prototype.hasOwnProperty.call(schema, keyPath);
+    return Object.prototype.hasOwnProperty.call(_capabilityConfigSchema(cwd), keyPath);
 }
 /**
  * Returns true for keys owned by the central schema adapter rather than a
@@ -43,10 +62,10 @@ function isCentralConfigKey(keyPath) {
  * Returns true if keyPath is a valid central, runtime-state, dynamic, or
  * federated Capability config key.
  */
-function isValidConfigKey(keyPath) {
+function isValidConfigKey(keyPath, cwd) {
     if (isCentralConfigKey(keyPath))
         return true;
-    return isCapabilityConfigKey(keyPath);
+    return isCapabilityConfigKey(keyPath, cwd);
 }
 module.exports = {
     VALID_CONFIG_KEYS: configuration_cjs_1.VALID_CONFIG_KEYS,
@@ -55,4 +74,5 @@ module.exports = {
     isCapabilityConfigKey,
     isCentralConfigKey,
     isValidConfigKey,
+    getCapabilityConfigSchema: _capabilityConfigSchema,
 };

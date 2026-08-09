@@ -45,6 +45,9 @@ class Permission(str, Enum):
     # AI / LLM
     VIEW_AI = "view:ai"
     MANAGE_AI = "manage:ai"
+    # ITAM
+    VIEW_ITAM = "view:itam"
+    MANAGE_ITAM = "manage:itam"
 
 # Helper function to avoid RBACService class instantiation loops
 async def verify_permission(user: TokenData, required_permission: str) -> bool:
@@ -71,6 +74,9 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
         "platform-admin": ["*"],
         # Tenant-scoped admin
         "admin": [
+            "manage:assets", # Added for ITAM Phase 56-01
+            "view:itam", # Added for ITAM Phase 61-01
+            "manage:itam", # Added for ITAM Phase 61-01
             "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
             "view:agents", "view:agent_capabilities", "view:software_deployment",
             "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
@@ -87,6 +93,9 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:secrets", "manage:agents", "view:approvals", "view:remote_access",
         ],
         "Tenant Admin": [
+            "manage:assets", # Added for ITAM Phase 56-01
+            "view:itam", # Added for ITAM Phase 61-01
+            "manage:itam", # Added for ITAM Phase 61-01
             "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
             "view:agents", "view:agent_capabilities", "view:software_deployment",
             "view:agent_logs", "remediate:agents", "view:assets", "view:patching",

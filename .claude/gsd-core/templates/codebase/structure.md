@@ -216,7 +216,7 @@ gsd-core/
 
 **New Workflow:**
 - Implementation: `gsd-core/workflows/{name}.md`
-- Usage: Reference from command with `@$HOME/.claude/gsd-core/workflows/{name}.md`
+- Usage: Reference from command with `@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/workflows/{name}.md`
 
 **New Reference Document:**
 - Implementation: `gsd-core/references/{name}.md`
@@ -229,12 +229,12 @@ gsd-core/
 ## Special Directories
 
 **gsd-core/**
-- Purpose: Resources installed to $HOME/.claude/
+- Purpose: Resources installed to /home/user/enterprise-omni-agent-ai-platform/.claude/
 - Source: Copied by bin/install.js during installation
 - Committed: Yes (source of truth)
 
 **commands/**
-- Purpose: Slash commands installed to $HOME/.claude/commands/
+- Purpose: Slash commands installed to /home/user/enterprise-omni-agent-ai-platform/.claude/commands/
 - Source: Copied by bin/install.js during installation
 - Committed: Yes (source of truth)
 

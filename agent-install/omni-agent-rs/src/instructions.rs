@@ -82,6 +82,50 @@ async fn execute_instruction(
                 .await;
             serde_json::json!({"status": "success", "result": scan})
         }
+        "scan_file" | "scan_url" | "scan_hash" | "scan_ip" => {
+            let kind = &action[5..]; // file|url|hash|ip
+            let param_key = if kind == "file" { "path" } else { "target" };
+            let target = item
+                .get("parameters")
+                .and_then(|p| p.get(param_key))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            if target.is_empty() {
+                serde_json::json!({"status": "error", "error": format!("missing {param_key}")})
+            } else {
+                // Refresh the verified feed + run the (blocking) scan off the async runtime.
+                let api = cfg.api_base_url.clone();
+                let tok = cfg.agent_token.clone();
+                let kind_owned = kind.to_string();
+                let target_scan = target.clone();
+                let verdict = tokio::task::spawn_blocking(move || {
+                    let _ = crate::capabilities::feed_bundle::update(&api, &tok); // best-effort
+                    match kind_owned.as_str() {
+                        "file" => crate::capabilities::security_scan::scan_file(&target_scan),
+                        "url" => crate::capabilities::security_scan::scan_url(&target_scan),
+                        "hash" => crate::capabilities::security_scan::scan_hash(&target_scan),
+                        _ => crate::capabilities::security_scan::scan_ip(&target_scan),
+                    }
+                })
+                .await
+                .unwrap_or_else(|e| serde_json::json!({"verdict": "error", "error": format!("scan task: {e}")}));
+
+                // POST the verdict (enriched with type + target) to the ingestion endpoint.
+                let mut body = verdict.clone();
+                if let Some(obj) = body.as_object_mut() {
+                    obj.insert("type".to_string(), serde_json::json!(kind));
+                    obj.insert("target".to_string(), serde_json::json!(target));
+                }
+                let url = format!(
+                    "{}/api/agents/{}/security/scan-result",
+                    cfg.api_base_url.trim_end_matches('/'),
+                    hostname_str()
+                );
+                let _ = client.post(&url).bearer_auth(&cfg.agent_token).json(&body).send().await;
+                verdict
+            }
+        }
         "install_software" => {
             let pkg = item
                 .get("parameters")
@@ -142,8 +186,43 @@ async fn execute_instruction(
                     cfg.api_base_url.trim_end_matches('/'),
                     filename
                 );
-                match install_custom_software(&dl_url, &filename, client, &cfg.agent_token).await {
+                match install_custom_software(&dl_url, &filename, None, client, &cfg.agent_token).await {
                     Ok(msg) => serde_json::json!({"status": "success", "message": msg}),
+                    Err(e) => serde_json::json!({"status": "error", "error": e}),
+                }
+            }
+        }
+
+        // Software deployment from the dashboard: instruction is "install_software: <file>"
+        // (or "upgrade_software: <file>") and payload carries {download_url, package,
+        // install_args}. download_url may be an external vendor URL (python.org, vscode…)
+        // or a platform-relative "/api/software/download/…" path. Prefix-matched because
+        // the filename is appended to the instruction string.
+        a if a.starts_with("install_software:") || a.starts_with("upgrade_software:") => {
+            let payload = item.get("payload").cloned().unwrap_or(Value::Null);
+            let dl_url = payload.get("download_url").and_then(|v| v.as_str()).unwrap_or("");
+            let install_args = payload.get("install_args").and_then(|v| v.as_str());
+            let filename = payload
+                .get("package")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| raw_action.splitn(2, ':').nth(1).map(|s| s.trim()).unwrap_or("installer").to_string());
+
+            if !dl_url.is_empty() {
+                let full_url = if dl_url.starts_with("http://") || dl_url.starts_with("https://") {
+                    dl_url.to_string()
+                } else {
+                    format!("{}{}", cfg.api_base_url.trim_end_matches('/'), dl_url)
+                };
+                match install_custom_software(&full_url, &filename, install_args, client, &cfg.agent_token).await {
+                    Ok(msg) => serde_json::json!({"status": "success", "message": msg}),
+                    Err(e) => serde_json::json!({"status": "error", "error": e}),
+                }
+            } else {
+                // No download URL — treat the trailing token as a winget package id.
+                match crate::capabilities::software_management::install_package(&filename, a.starts_with("upgrade")) {
+                    Ok(out) => serde_json::json!({"status": "success", "output": out}),
                     Err(e) => serde_json::json!({"status": "error", "error": e}),
                 }
             }
@@ -165,8 +244,22 @@ async fn execute_instruction(
                     return;
                 }
             };
-            crate::capabilities::remote_access::start_reverse_shell(session_id, url);
-            serde_json::json!({"status": "success", "message": "Reverse shell session started"})
+            // A "start_remote_session" instruction carries the session kind in
+            // payload.type: the dashboard's Live Desktop requests "desktop"/"vnc",
+            // the remote terminal requests "shell" (default). Both use the same
+            // tunnel URL — the agent just streams JPEG frames instead of shell I/O.
+            let session_kind = payload
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("shell")
+                .to_lowercase();
+            if session_kind == "desktop" || session_kind == "vnc" {
+                crate::capabilities::remote_access::start_desktop_stream(session_id, url);
+                serde_json::json!({"status": "success", "message": "Desktop stream started"})
+            } else {
+                crate::capabilities::remote_access::start_reverse_shell(session_id, url);
+                serde_json::json!({"status": "success", "message": "Reverse shell session started"})
+            }
         }
         // "Start Desktop Stream <session_id> <ws_url>" OR instruction="start_desktop_stream" + payload
         a if a.contains("start desktop stream") || a == "start_desktop_stream" => {
@@ -288,25 +381,37 @@ async fn execute_instruction(
             let preview: String = content.chars().take(120).collect();
             log::info!("Chat [{session_id}] from {sender}: {preview}");
 
-            // If the interactive window is open it polls new admin messages on its
-            // own — do not also fire a msg.exe popup. Only fall back to the one-way
-            // notice when no window is running for this session.
+            // If the interactive window is already open it polls new admin messages
+            // on its own. Otherwise open a real two-way chat window with this message
+            // as the opener, so admin↔endpoint is a genuine interactive session — not
+            // a one-way msg.exe popup. Fall back to the one-way notice only when no
+            // interactive session can be opened (no logged-on user / non-Windows).
             if crate::chat_ui::is_active(session_id) {
                 log::debug!("Interactive window active for {session_id}; UI will poll this message");
-            } else if let Err(e) = crate::chat_display::show_message(sender, content) {
-                log::warn!("Chat on-screen display failed: {e}");
-                if !session_id.is_empty() {
-                    let url = format!(
-                        "{}/api/agent-chat/sessions/{}/user-message",
-                        cfg.api_base_url.trim_end_matches('/'),
-                        session_id
-                    );
-                    let _ = client
-                        .post(&url)
-                        .bearer_auth(&cfg.agent_token)
-                        .json(&serde_json::json!({"content": format!("⚠ Could not display on endpoint: {e}")}))
-                        .send()
-                        .await;
+            } else if let Err(e) = crate::chat_ui::launch_interactive(
+                session_id,
+                "Support Chat",
+                content,
+                sender,
+                cfg.api_base_url.trim_end_matches('/'),
+                &cfg.agent_token,
+            ) {
+                log::warn!("Interactive chat launch failed ({e}); using one-way display");
+                if let Err(de) = crate::chat_display::show_message(sender, content) {
+                    log::warn!("Chat on-screen display failed: {de}");
+                    if !session_id.is_empty() {
+                        let url = format!(
+                            "{}/api/agent-chat/sessions/{}/user-message",
+                            cfg.api_base_url.trim_end_matches('/'),
+                            session_id
+                        );
+                        let _ = client
+                            .post(&url)
+                            .bearer_auth(&cfg.agent_token)
+                            .json(&serde_json::json!({"content": format!("⚠ Could not display on endpoint: {de}")}))
+                            .send()
+                            .await;
+                    }
                 }
             }
             serde_json::json!({"status": "success", "received": true})
@@ -321,10 +426,58 @@ async fn execute_instruction(
                 Err(e) => serde_json::json!({"status": "error", "error": e}),
             }
         }
-
+        "kill_process" => {
+            let target = item.get("parameters").and_then(|p| p.get("target")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::kill_process(target).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Process kill initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "restore_file" => {
+            let path = item.get("parameters").and_then(|p| p.get("path")).and_then(|v| v.as_str()).unwrap_or("");
+            let backup = item.get("parameters").and_then(|p| p.get("backup_path")).and_then(|v| v.as_str());
+            match crate::capabilities::remediation_actions::restore_file(path, backup).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "File restore initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "block_ip" => {
+            let ip = item.get("parameters").and_then(|p| p.get("ip_address")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::block_ip(ip).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "IP block initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "unblock_ip" => {
+            let ip = item.get("parameters").and_then(|p| p.get("ip_address")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::unblock_ip(ip).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "IP unblock initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "disable_service" => {
+            let service = item.get("parameters").and_then(|p| p.get("service_name")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::disable_service(service).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Service disable initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "enable_service" => {
+            let service = item.get("parameters").and_then(|p| p.get("service_name")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::enable_service(service).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Service enable initiated"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
         _ => {
-            log::debug!("Unknown instruction action: {action}");
-            return;
+            // Report instead of silently returning: an unhandled instruction must
+            // surface as an error in the dashboard, not sit "sent" forever looking
+            // like the agent hung.
+            log::warn!("Unknown instruction action: {action}");
+            serde_json::json!({
+                "status": "error",
+                "error": format!("Agent does not support instruction '{}'", raw_action)
+            })
         }
     };
 
@@ -360,9 +513,14 @@ async fn execute_instruction(
 async fn install_custom_software(
     url: &str,
     filename: &str,
+    install_args: Option<&str>,
     client: &reqwest::Client,
     token: &str,
 ) -> Result<String, String> {
+    // Bearer auth is only meaningful for the platform's own repo; sending it to an
+    // arbitrary external vendor URL (python.org, microsoft.com) is harmless (ignored)
+    // but we only attach it for same-origin api_base_url downloads is overkill — the
+    // header is ignored by third parties, so keep one code path.
     let resp = client
         .get(url)
         .bearer_auth(token)
@@ -384,17 +542,30 @@ async fn install_custom_software(
         .unwrap_or("")
         .to_lowercase();
 
+    // Split caller-supplied silent-install args on whitespace; fall back to sane
+    // per-type defaults when the deployment didn't specify any.
+    let custom_args: Option<Vec<String>> = install_args
+        .map(|s| s.split_whitespace().map(|w| w.to_string()).collect::<Vec<_>>())
+        .filter(|v| !v.is_empty());
+
     let status = match ext.as_str() {
-        "exe" => tokio::process::Command::new(&temp_path)
-            .args(["/S", "/quiet", "/norestart"])
-            .status()
-            .await
-            .map_err(|e| e.to_string()),
-        "msi" => tokio::process::Command::new("msiexec")
-            .args(["/i", temp_path.to_str().unwrap_or(""), "/quiet", "/norestart"])
-            .status()
-            .await
-            .map_err(|e| e.to_string()),
+        "exe" => {
+            let mut cmd = tokio::process::Command::new(&temp_path);
+            match &custom_args {
+                Some(a) => { cmd.args(a); }
+                None => { cmd.args(["/S", "/quiet", "/norestart"]); }
+            }
+            cmd.status().await.map_err(|e| e.to_string())
+        }
+        "msi" => {
+            let mut cmd = tokio::process::Command::new("msiexec");
+            cmd.args(["/i", temp_path.to_str().unwrap_or("")]);
+            match &custom_args {
+                Some(a) => { cmd.args(a); }
+                None => { cmd.args(["/quiet", "/norestart"]); }
+            }
+            cmd.status().await.map_err(|e| e.to_string())
+        }
         _ => {
             let _ = std::fs::remove_file(&temp_path);
             return Err(format!("Unsupported file extension: {}", ext));

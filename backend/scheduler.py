@@ -162,10 +162,9 @@ async def process_scheduled_deployments():
     Check for scheduled deployments and execute them
     Runs every minute via scheduler
     """
+    from tenant_context import set_tenant_id, reset_tenant_id
+    _tenant_ctx_token = set_tenant_id("platform-admin")
     try:
-        from tenant_context import set_tenant_id
-        set_tenant_id("platform-admin")
-        
         db = get_database()
         now = datetime.now(timezone.utc)
         
@@ -238,6 +237,8 @@ async def process_scheduled_deployments():
         
     except Exception as e:
         logger.error("[Scheduler] Error processing scheduled deployments: %s", e)
+    finally:
+        reset_tenant_id(_tenant_ctx_token)
 
 
 async def process_pentest_schedules():

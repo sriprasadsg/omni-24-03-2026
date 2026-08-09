@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon } from './icons';
+import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon, GlobeIcon, HardDriveIcon } from './icons';
 import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, UserCheck, ClipboardCheck, Cookie, RadioTower, BarChart2, Radar } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
@@ -413,6 +413,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'retentionPolicies', label: 'Retention Tiers', icon: <DatabaseIcon size={20} />, permission: 'view:retention_policies' },
                 { view: 'msspMonitoring', label: 'MSSP Monitoring', icon: <BuildingIcon size={20} />, permission: 'view:mssp' },
                 { view: 'knowledgeBase', label: 'Knowledge Base (RAG)', icon: <BookKeyIcon size={20} />, permission: 'view:dashboard' },
+                { view: 'geoSecurity', label: 'Geo Security', icon: <ShieldLockIcon size={20} />, permission: 'manage:settings' },
+                { view: 'fleetObservability', label: 'Fleet Observability', icon: <ActivityIcon size={20} />, permission: 'manage:agents' },
+                { view: 'fleetGeoMap', label: 'Fleet Geo Map', icon: <GlobeIcon size={20} />, permission: 'manage:agents' },
+                { view: 'nativeSecurity', label: 'Native Security', icon: <ShieldZapIcon size={20} />, permission: 'manage:active_response' },
+                { view: 'itam', label: 'ITAM', icon: <HardDriveIcon size={20} />, permission: 'manage:itam' },
                 { view: 'systemHealth', label: 'System Health', icon: <ActivityIcon size={20} />, permission: 'manage:settings' },
                 { view: 'apiStatus', label: 'API Status', icon: <RadioTower size={20} />, permission: 'manage:settings' },
                 { view: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, permission: 'manage:settings' },

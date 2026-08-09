@@ -117,6 +117,7 @@ export type AppView =
   | 'jitAccess'
   | 'incidentWarRoom'
   | 'privacy'
+  | 'geoSecurity'
   | 'scheduledReports'
   | 'secretsManagement'
   | 'hadr'
@@ -196,7 +197,12 @@ export type AppView =
   | 'soar'
   | 'deploymentApprovals'
   | 'cloudChecksScanner'
-  | 'stagedDeployments';
+  | 'stagedDeployments'
+  | 'fleetObservability'
+  | 'fleetGeoMap'
+  | 'nativeSecurity'
+  | 'itam'; // Added for IT Asset Management Console
+
 
 
 export type Permission =
@@ -307,6 +313,7 @@ export type Permission =
   | 'view:config_drift' | 'manage:config_drift'
   | 'view:fim' | 'manage:fim'
   | 'view:active_response' | 'manage:active_response'
+  | 'view:itam' | 'manage:itam'
   | 'admin:*';
 
 
@@ -680,11 +687,30 @@ export interface Agent {
   status: AgentStatus;
   version: string;
   ipAddress: string;
+  /** WAN / ISP-assigned public IP resolved by the agent. */
+  publicIp?: string;
+  /** GeoIP location derived from the public IP (server-side, MaxMind GeoLite2). */
+  geo?: GeoLocation;
   lastSeen: string;
   remediationAttempts?: { timestamp: string }[];
   capabilities?: AgentCapability[];
   meta?: Record<string, unknown>;
   health: AgentHealth;
+}
+
+export interface GeoLocation {
+  country?: string;
+  country_code?: string;
+  city?: string;
+  region?: string;
+  latitude?: number;
+  longitude?: number;
+  /** Heuristic-only flag (GSEC-01) — never an authoritative "detected" classification. */
+  vpn_heuristic?: boolean;
+  asn?: {
+    number?: number | string;
+    org?: string;
+  };
 }
 
 export interface AgenticStep {
@@ -750,6 +776,120 @@ export interface Asset {
   agentVersion?: string;
   agentId?: string;
   agentCapabilities?: AgentCapability[];
+
+  // ITAM (Phases 56-60) — additive fields on the same assets collection,
+  // present on manual assets and progressively backfilled on agent-discovered
+  // ones. All optional: pre-existing agent-discovered assets predate these.
+  assetTag?: string;
+  assetSource?: 'agent' | 'manual';
+  lifecycleStatus?: ItamLifecycleStatus;
+  manufacturerId?: string;
+  categoryId?: string;
+  locationId?: string;
+  supplierId?: string;
+  modelId?: string;
+  purchaseCostCents?: number;
+  purchaseDate?: string;
+  poNumber?: string;
+  warrantyMonths?: number;
+  assignedToType?: 'user' | 'location';
+  assignedToId?: string;
+  components?: string[];
+  notes?: string;
+}
+
+export type ItamLifecycleStatus = 'deployable' | 'deployed' | 'archived' | 'retired' | 'disposed' | 'broken';
+
+export type ItamCatalogKind = 'manufacturers' | 'categories' | 'locations' | 'suppliers' | 'models';
+
+export interface ItamCatalogEntity {
+  id: string;
+  tenantId: string;
+  name: string;
+  notes?: string;
+  // Model-only fields (kind === 'models')
+  usefulLifeYears?: number;
+  salvageValueCents?: number;
+  [key: string]: unknown;
+}
+
+export interface ItamLicense {
+  id: string;
+  tenantId: string;
+  name: string;
+  seatCount: number;
+  expiryDate?: string;
+  isReassignable?: boolean;
+  notes?: string;
+  manufacturerId?: string;
+  seatsAssigned?: number;
+  seatsAvailable?: number;
+  isExpired?: boolean;
+  daysUntilExpiry?: number | null;
+}
+
+export interface ItamLicenseAssignment {
+  id: string;
+  licenseId: string;
+  targetType: 'user' | 'asset';
+  targetId: string;
+  assignedAt: string;
+  assignedBy: string;
+  note?: string;
+}
+
+export interface ItamConsumable {
+  id: string;
+  tenantId: string;
+  name: string;
+  initialQuantity: number;
+  availableQuantity: number;
+  unitType: string;
+  notes?: string;
+}
+
+export interface ItamComponent {
+  id: string;
+  tenantId: string;
+  name: string;
+  type?: string;
+  serialNumber?: string;
+  manufacturerId?: string;
+  modelId?: string;
+  parentAssetId?: string | null;
+}
+
+export interface ItamAssignmentHistoryEntry {
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  note?: string;
+  actorUsername?: string;
+  ts: string;
+}
+
+export interface ItamBookValue {
+  assetId: string;
+  modelId?: string | null;
+  purchaseCostCents?: number | null;
+  purchaseDate?: string | null;
+  bookValueCents: number | null;
+  reason?: string;
+  yearsElapsed?: number;
+  annualDepreciationCents?: number;
+  usefulLifeYears?: number;
+  salvageValueCents?: number;
+}
+
+export interface ItamWarrantyStatus {
+  assetId: string;
+  purchaseDate?: string | null;
+  warrantyMonths?: number | null;
+  alertWindowDays: number;
+  warrantyAlertSentAt?: string | null;
+  warrantyStatus: 'none' | 'active' | 'expiring' | 'expired' | string;
+  warrantyExpiresAt: string | null;
+  daysToExpiry: number | null;
 }
 
 export type PatchSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
@@ -1701,6 +1841,10 @@ export interface RemediationTask {
     created_at: string;
     updated_at: string;
     tenantId: string;
+    ticket_provider?: 'jira' | 'servicenow';
+    ticket_ref?: string;
+    ticket_url?: string;
+    sla_status?: 'ok' | 'at_risk' | 'breached' | 'none';
 }
 
 export interface FrameworkScore {
@@ -1719,4 +1863,81 @@ export interface ComplianceScorePayload {
     frameworks: FrameworkScore[];
     computed_at: string;
     tenant_id: string;
+}
+
+export interface SecurityFinding {
+  source: 'scan' | 'vulnerability' | 'fim';
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+  hostname?: string;
+  target?: string;
+  verdict_or_detail?: string;
+  ts: string;
+}
+
+export type RemediationStatus =
+  | 'pending_approval' | 'dispatching' | 'dispatched'
+  | 'resolved' | 'failed' | 'unverified' | 'deferred' | 'denied' | 'dry_run' | 'no_playbook';
+
+export interface RemediationQueueItem {
+  id: string;
+  tenantId: string;
+  agentId?: string;
+  findingId: string;
+  findingType: string;
+  findingSeverity: string;
+  findingResourceId?: string;
+  playbookName: string;
+  status: RemediationStatus;
+  createdAt: string;
+}
+
+export interface RemediationAuditEntry {
+  remediation_id: string;
+  tenantId: string;
+  ts: string;
+  // selected | pending_approval | dispatched | verified | rollback_dispatched
+  // | escalated | override_approved | override_denied | dry_run | deferred
+  // | dispatch_incomplete | dispatch_failed
+  stage: string;
+  agentId?: string;
+  finding?: { id: string; type: string; severity: string };
+  playbook?: string;
+  approver?: string;
+  reason?: string;
+  steps_dispatched?: { action: string; task_id?: string; status: string }[];
+  rollback_steps?: { action: string; task_id?: string; status: string }[];
+  verification_result?: string;
+}
+
+export interface FimStatus {
+  agent_id: string;
+  hostname?: string;
+  events_count: number;
+}
+
+export interface SecuritySummary {
+  totalFindings: number;
+  criticalFindings: number;
+  openRemediations: number;
+  agentsWithFim: number;
+  fimDriftDetected: boolean;
+}
+
+export interface RemediationPlaybookStep {
+  action: string;
+  params: Record<string, any>;
+  destructive: boolean;
+}
+
+export interface RemediationPlaybook {
+  id: string;
+  name: string;
+  finding_class: string;
+  match?: Record<string, any>;
+  steps: RemediationPlaybookStep[];
+  rollback: { action: string; params: Record<string, any> }[];
+  source?: 'vendored' | 'operator';
+  tenantId?: string;
+  createdAt?: string;
+  createdBy?: string;
 }

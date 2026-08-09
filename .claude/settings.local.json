@@ -49,11 +49,291 @@
       "Bash(curl *)",
       "Skill(run)",
       "Bash(backend/venv/bin/python *)",
-      "Bash(../backend/venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 5000)"
+      "Bash(../backend/venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 5000)",
+      "Bash(venv/bin/python -m pytest tests/test_passkey_auth.py -x -q)",
+      "Bash(ls .planning/)",
+      "Bash(tail -60 .planning/STATE.md)",
+      "Bash(venv/bin/python -c ' *)",
+      "Bash(xxd)",
+      "Bash(grep -rn \"platform=windows\\\\|/rust-exe\\\\|download/\\\\${\" components/ src/ frontend/)",
+      "Bash(venv/bin/python -m pytest tests/ -q -k \"installer or download\")",
+      "Bash(venv/bin/python -m pytest tests/ -q -k \"installer or download or agent_update\")",
+      "Bash(objdump -p /home/user/enterprise-omni-agent-ai-platform/agent-install/omni-agent-rs/target/release/omni-agent.exe)",
+      "Bash(objdump -p /home/user/enterprise-omni-agent-ai-platform/backend/static/omni-agent.exe)",
+      "Agent",
+      "Bash(rustup target *)",
+      "Bash(command -v cargo)",
+      "Bash(git -C /home/user/enterprise-omni-agent-ai-platform show 1439b2e1 --stat)",
+      "Bash(mongosh --quiet omni_platform --eval 'db.tenants.find\\({}, {id:1, name:1, registrationKey:1, _id:0}\\).toArray\\(\\)')",
+      "Bash(mongo --quiet omni_platform --eval 'db.tenants.find\\({}, {id:1, name:1, _id:0}\\).toArray\\(\\)')",
+      "Bash(mongosh *)",
+      "Bash(kill 405293)",
+      "Bash(nohup ./venv/bin/python agent.py)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(grep -iv \"^\\\\s*$\")",
+      "Bash(kill 423772)",
+      "Bash(ls -la /home/user/enterprise-omni-agent-ai-platform/agent/buffer.db*)",
+      "Bash(rm -f /home/user/enterprise-omni-agent-ai-platform/agent/buffer.db /home/user/enterprise-omni-agent-ai-platform/agent/buffer.db-wal /home/user/enterprise-omni-agent-ai-platform/agent/buffer.db-shm)",
+      "Bash(git -C /home/user/enterprise-omni-agent-ai-platform show a0fcbcb1 --stat)",
+      "Bash(git -C /home/user/enterprise-omni-agent-ai-platform show a0fcb81 --stat)",
+      "Bash(npm test *)",
+      "Skill(gsd-ai-integration-phase)",
+      "Bash(mkdir -p .planning/phases/39-langchain-ai-integration)",
+      "Bash(cp .claude/gsd-core/templates/AI-SPEC.md .planning/phases/39-langchain-ai-integration/39-AI-SPEC.md)",
+      "Bash(timeout 60 venv/bin/python -c \"from main import app; print\\('IMPORT OK'\\)\")",
+      "Bash(timeout 120 venv/bin/python -c \"from app import app; print\\('IMPORT OK'\\)\")",
+      "Bash(nohup venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 5000)",
+      "Bash(systemctl status *)",
+      "Bash(journalctl -u mongod -n 5 --no-pager)",
+      "Bash(mongod --version)",
+      "Bash(apt-cache policy *)",
+      "Bash(GLIBC_TUNABLES=glibc.pthread.rseq=0 timeout 20 mongod --config /etc/mongod.conf --fork)",
+      "Bash(GLIBC_TUNABLES=glibc.pthread.rseq=0 setarch x86_64 --uname-2.6 timeout 25 mongod --config /etc/mongod.conf --fork)",
+      "Bash(systemctl start *)",
+      "Bash(systemctl is-active *)",
+      "Bash(journalctl -u mongod -n 8 --no-pager)",
+      "Read(//tmp/**)",
+      "Read(//etc/**)",
+      "Bash(chown -R mongodb:mongodb /var/lib/mongodb /var/log/mongodb)",
+      "Bash(awk '{print $2, $8, $10}')",
+      "Bash(grep -oE '\"ts\": \"[^\"]+\", \"level\": \"ERROR\", \"logger\": \"[^\"]+\", \"msg\": \"[^\"]{0,80}')",
+      "Bash(cargo --version)",
+      "Bash(rustc --version)",
+      "Bash(timeout 90 cargo update --dry-run)",
+      "Bash(cp Cargo.lock Cargo.lock.bak)",
+      "Bash(timeout 120 cargo update)",
+      "Bash(timeout 300 cargo check)",
+      "Bash(rm -f Cargo.lock.bak)",
+      "Bash(git -C /home/user/enterprise-omni-agent-ai-platform diff --stat agent-install/omni-agent-rs/Cargo.lock)",
+      "Bash(npx *)",
+      "Bash(grep -r \"#\\\\\\(\\\\?[0-9a-fA-F]\\\\{3,6\\\\}\\\\\\)\\\\\\(\\\\?[0-9a-fA-F]\\\\{3,6\\\\}\\\\\\)?\" --include=\"*.tsx\" --include=\"*.jsx\" .)",
+      "mcp__ide__executeCode",
+      "Bash(npm start *)",
+      "Bash(chmod 600 /home/user/enterprise-omni-agent-ai-platform/certs/server.key)",
+      "Bash(VITE_HTTPS=false npx vite *)",
+      "Bash(read_file agent/service_manager.py)",
+      "Bash(read_file start_services.ps1)",
+      "Bash(cargo build *)",
+      "Skill(gsd-autonomous)",
+      "Bash(awk '{print $9}')",
+      "Bash(bc)",
+      "Bash(npx gsd-core *)",
+      "Read(.planning/*)",
+      "Edit(.planning/*)",
+      "Read(STATE.md)",
+      "Edit(STATE.md)",
+      "Bash(cargo check *)",
+      "Bash(cargo test *)",
+      "Read(//home/user/.claude/**)",
+      "Read(//home/user/.claude/skills/gsd-execute-phase/**)",
+      "Bash(node *)",
+      "Bash(gsd_run query *)",
+      "Bash(pytest --version)",
+      "Skill(gsd-new-milestone)",
+      "Bash(pytest)",
+      "Bash(./venv/bin/pip install *)",
+      "Bash(./venv/bin/pytest *)",
+      "Bash(./venv/bin/python *)",
+      "Bash(export SUPER_ADMIN_PASSWORD=\"test_password\")",
+      "Bash(/usr/bin/python3 -m pytest backend/tests/test_remediation_playbook.py -q)",
+      "Bash(PYTHONPATH=/home/user/enterprise-omni-agent-ai-platform/backend /usr/bin/python3 -m pytest backend/tests/test_remediation_playbook.py -q)",
+      "Bash(PYTHONPATH=/home/user/enterprise-omni-agent-ai-platform/backend python3 -m pytest backend/tests/test_remediation_playbook.py -q)",
+      "Bash(git *)",
+      "Bash(venv/bin/python -m pytest -q --tb=short)",
+      "Bash(venv/bin/python -m pytest tests/test_soc_integration.py -q --tb=short)",
+      "Bash(/home/user/.claude/gsd-core/bin/gsd-tools.cjs query *)",
+      "Bash(sudo npm run build)",
+      "Bash(sudo npm test)",
+      "Bash(export SUPER_ADMIN_PASSWORD=test_password)",
+      "Bash(awk '{print $1}')",
+      "Bash(./.claude/gsd-core/bin/ensure-runtime-build.cjs)",
+      "Bash(venv/bin/python -m pytest tests/test_native_security_ops_endpoints.py -q)",
+      "Bash(venv/bin/python -m pytest -q)",
+      "Bash(venv/bin/python -m pytest -q --ignore=tests/test_ai_service_config.py --ignore=tests/test_network_endpoint.py --ignore=tests/test_sbom_api.py --ignore=tests/test_graphql.py)",
+      "Bash(venv/bin/python -m pytest -q tests/ --ignore=tests/test_graphql.py)",
+      "Bash(venv/bin/python -m pytest tests/test_fim_events_rich.py -q)",
+      "Bash(venv/bin/python -m pytest tests/test_remediation_guards.py tests/test_remediation_playbook.py tests/test_autonomous_remediation_loop.py -q)",
+      "Bash(grep -v \"^./backend/test_virustotal.py$\")",
+      "Bash(venv/bin/python -c \"import app_startup\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in sorted\\(deps.items\\(\\)\\)]\")",
+      "Bash(perl *)",
+      "Bash(@validator)",
+      "Bash(@field_validator)",
+      "Bash(sudo chown user:user /home/user/enterprise-omni-agent-ai-platform/.planning/phases/57-lifecycle-check-in-out/57-VALIDATION.md)",
+      "Bash(npm outdated *)",
+      "Bash(npm update *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.secrets)"
     ]
   },
   "enabledMcpjsonServers": [
     "claude-flow",
     "flow-nexus"
-  ]
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-check-update.js\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"/home/user/.claude/hooks/gsd-session-state.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-context-monitor.js\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-read-injection-scanner.js\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"/home/user/.claude/hooks/gsd-phase-boundary.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-graphify-update.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-prompt-guard.js\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-read-guard.js\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-workflow-guard.js\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"/home/user/.claude/hooks/gsd-validate-commit.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-worktree-path-guard.js",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-context-monitor.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-context-monitor.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-context-monitor.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "FileChanged": [
+      {
+        "matcher": "config.json",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-config-reload.js\"",
+            "timeout": 8
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-statusline.js\""
+  }
 }

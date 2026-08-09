@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Loader, CheckCircle, AlertCircle } from 'lucide-react';
+import { CreditCard, Loader, CheckCircle, AlertCircle } from 'lucide-react';
 import * as api from '../services/apiService';
 import { API_BASE } from '../services/apiService';
+import { Modal } from './Modal';
 
 interface PaymentMethodModalProps {
     isOpen: boolean;
@@ -107,23 +108,13 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 relative">
-                <button
-                    onClick={onClose}
-                    disabled={confirming}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                    <X className="w-5 h-5" />
-                </button>
-
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                    {mode === 'add_method' ? 'Add Payment Method' : `Upgrade to ${planName}`}
-                </h2>
-
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={mode === 'add_method' ? 'Add Payment Method' : `Upgrade to ${planName}`}
+            size="md"
+        >
                 {mode === 'upgrade' && price != null && (
                     <div className="mb-6 text-gray-600 dark:text-gray-400">
                         <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -217,7 +208,6 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                         </button>
                     </>
                 )}
-            </div>
-        </div>
+        </Modal>
     );
 };

@@ -225,7 +225,7 @@ MONGODB_URL=mongodb://localhost:27017
 MONGODB_DB_NAME=omni_platform
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)
-CORS_ORIGINS=http://\$(hostname -I | awk '{print \$1}'):3000,http://\$(hostname -I | awk '{print \$1}'):80,http://\$(hostname -I | awk '{print \$1}'),http://localhost:3000,http://127.0.0.1:3000
+CORS_ORIGINS=https://\$(hostname -I | awk '{print \$1}'),http://\$(hostname -I | awk '{print \$1}'):3000,http://\$(hostname -I | awk '{print \$1}'):80,http://\$(hostname -I | awk '{print \$1}'),https://localhost,http://localhost:3000,http://127.0.0.1:3000
 SUPER_ADMIN_PASSWORD=$GENERATED_ADMIN_PASS
 SYSLOG_UDP_PORT=5140
 
@@ -261,7 +261,7 @@ PAYMENT_GATEWAY_MODE=sandbox
 # === Phase 4: Google OAuth2 SSO & MFA ===
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://${SYSTEM_IP}:5000/api/sso/google/callback
+GOOGLE_REDIRECT_URI=https://${SYSTEM_IP}/api/sso/google/callback
 MFA_ISSUER=OmniAgentPlatform
 
 # === Phase 8: Voice Bot (Google Cloud) ===
@@ -275,8 +275,10 @@ GOOGLE_APPLICATION_CREDENTIALS=
 TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments
 
 # === Platform Public URL (agent install instructions + SSO redirect) ===
+# PLATFORM_URL is agent-facing (agents can't verify the self-signed cert) — keep HTTP.
 PLATFORM_URL=http://${SYSTEM_IP}:5000
-SSO_REDIRECT_URI=http://${SYSTEM_IP}:5000/api/sso/google/callback
+# SSO redirect is browser-facing — use the HTTPS front door.
+SSO_REDIRECT_URI=https://${SYSTEM_IP}/api/sso/google/callback
 
 # === Security: Backup Encryption (Fernet/AES-128) ===
 # Leave blank to auto-generate on first run; store the generated key safely
@@ -420,12 +422,14 @@ deactivate
 print_info "Step 8/11: Setting up frontend..."
 cd "$PROJECT_DIR"
 
-# Write .env.local before build — sets Socket.IO server URL for production
+# Leave VITE_API_BASE_URL blank — frontend + Socket.IO use the page origin
+# (https://$SYSTEM_IP via Nginx TLS). A hardcoded http://IP:5000 would be
+# mixed-content and blocked by the browser on the HTTPS front door.
 cat > .env.local <<EOF
-VITE_API_BASE_URL=http://$SYSTEM_IP:5000
+VITE_API_BASE_URL=
 EOF
 chown $ACTUAL_USER:$ACTUAL_USER .env.local
-print_success "Frontend .env.local written with VITE_API_BASE_URL=http://$SYSTEM_IP:5000"
+print_success "Frontend .env.local written (VITE_API_BASE_URL blank — same-origin HTTPS)"
 
 if [ -f "package.json" ]; then
     sudo -u $ACTUAL_USER rm -f .env.local.bak
@@ -548,11 +552,35 @@ sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" "$PROJECT_DIR/backend/static/omni
 cd "$PROJECT_DIR"
 
 # Step 9: Nginx Configuration
-print_info "Step 9/11: Configuring Nginx Reverse Proxy..."
+print_info "Step 9/11: Configuring Nginx Reverse Proxy (self-hosted HTTPS)..."
+
+# Self-signed cert for this server (SAN includes the IP so LAN browsers accept it)
+NGINX_CERT_DIR=/etc/nginx/ssl
+mkdir -p "$NGINX_CERT_DIR"
+if [ ! -f "$NGINX_CERT_DIR/omni.crt" ] || [ ! -f "$NGINX_CERT_DIR/omni.key" ]; then
+    openssl req -x509 -newkey rsa:2048 -nodes \
+        -keyout "$NGINX_CERT_DIR/omni.key" -out "$NGINX_CERT_DIR/omni.crt" -days 825 \
+        -subj "/C=US/ST=Local/L=Local/O=OmniAgent/CN=$DOMAIN_NAME" \
+        -addext "subjectAltName=IP:$SYSTEM_IP,IP:127.0.0.1,DNS:localhost,DNS:$DOMAIN_NAME" >/dev/null 2>&1 \
+        && print_success "TLS cert generated at $NGINX_CERT_DIR" \
+        || print_warning "openssl failed — HTTPS server block will not start"
+fi
+
 cat > /etc/nginx/sites-available/omni-platform <<EOF
+# Redirect all plain HTTP to HTTPS
 server {
     listen 80;
     server_name $DOMAIN_NAME;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name $DOMAIN_NAME;
+
+    ssl_certificate     $NGINX_CERT_DIR/omni.crt;
+    ssl_certificate_key $NGINX_CERT_DIR/omni.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     # Frontend (Serve Static Files + SPA Fallback)
     location / {
@@ -752,7 +780,7 @@ echo "════════════════════════�
 echo "              Deployment Complete!"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
-print_success "Access the platform at: http://$(hostname -I | awk '{print $1}')"
+print_success "Access the platform at: https://$(hostname -I | awk '{print $1}')  (self-signed cert — accept the browser warning)"
 echo ""
 print_warning "Next Steps:"
 echo "1. Edit .env: $PROJECT_DIR/backend/.env"

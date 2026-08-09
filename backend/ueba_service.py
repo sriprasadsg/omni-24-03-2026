@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
+import asyncio
 import logging
 from database import get_database
 from authentication_service import get_current_user
@@ -68,6 +69,14 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
     }
     await db.security_alerts.insert_one(alert)
 
+    # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
+    # Fire-and-forget; never raises into the UEBA pipeline.
+    try:
+        from soc_integration_service import push_ocsf_event
+        asyncio.create_task(push_ocsf_event("ueba.anomaly", alert))
+    except Exception as e:
+        logger.debug("UEBA OCSF push failed (non-fatal): %s", e)
+
     # Publish to streaming broker so the Streaming Dashboard receives live events
     try:
         from streaming_service import broker as _broker
@@ -100,6 +109,18 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
         await db.blockchain_audit.insert_one(block_data)
     except Exception as e:
         logger.debug("Blockchain audit block write failed (non-fatal): %s", e)
+
+
+# Public alias — five existing heartbeat call sites (shadow_ai, ueba_anomaly,
+# fim_violation, pii_detected, runtime_security in agent_heartbeat_endpoints.py
+# / agent_heartbeat_alerts_service.py) already do
+# `from ueba_service import persist_security_alert` wrapped in
+# `try/except ImportError: pass`. That name never existed until now, so all
+# five silently no-op'd (47-RESEARCH.md Pitfall 1). Do NOT rename
+# `_persist_alert` — its 4 internal call sites (above, and in analyze_login/
+# report_shadow_ai/analyze_data_access) reference the private name directly.
+# This is the ONLY alert-persistence path; never add a second one.
+persist_security_alert = _persist_alert
 
 
 def _parse_dt(val: str) -> datetime:
@@ -298,6 +319,85 @@ async def analyze_data_access(db, event: DataAccessEvent) -> Dict[str, Any]:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
+# ── AUT-03: predictive containment trigger ─────────────────────────────────────
+#
+# First production call site of the Phase 53 autonomous_remediation_service.
+# remediate() engine (RESEARCH Pitfall 1). Per the checkpoint:decision in
+# Plan 55-03 (option-a): only the shadow_ai_detected anomaly rule — the one
+# UEBA signal that carries a real agent_id — is eligible for automated,
+# approval-gated containment (kill_process, via 55-02's select_playbook()
+# anomaly branch). Every other anomaly rule / a missing agent_id or tenant
+# fails closed here (T-55-09) and is still recorded/correlated/SIEM-pushed by
+# the existing alert path above — it simply never reaches remediate().
+
+
+def _dispatch_anomaly_containment_if_eligible(
+    background_tasks: BackgroundTasks,
+    tenant_id: Optional[str],
+    agent_id: Optional[str],
+    resource_id: Optional[str],
+    anomaly_rule: str,
+    risk_score: int = 100,
+) -> bool:
+    """Fail-closed eligibility gate + fire-and-forget scheduler.
+
+    Returns False (no dispatch) unless `anomaly_rule == "shadow_ai_detected"`
+    AND a truthy `agent_id` AND a resolved `tenant_id` are all present.
+    Otherwise schedules `_dispatch_anomaly_remediation` via
+    `background_tasks.add_task` — NEVER awaited inline (T-55-08, RESEARCH
+    anti-pattern: _dispatch_and_verify can block up to ~120s) — and returns
+    True.
+    """
+    if anomaly_rule != "shadow_ai_detected" or not agent_id or not tenant_id:
+        return False
+    background_tasks.add_task(
+        _dispatch_anomaly_remediation, tenant_id, agent_id, resource_id, anomaly_rule, risk_score,
+    )
+    return True
+
+
+async def _dispatch_anomaly_remediation(
+    tenant_id: str,
+    agent_id: str,
+    resource_id: Optional[str],
+    anomaly_rule: str,
+    risk_score: int,
+) -> None:
+    """Runs inside `background_tasks` (never inline). Dedupes BEFORE
+    dispatch (Pitfall 2 / T-55-07 — is_duplicate_task must be called before
+    remediate() so a repeated anomaly does not trigger repeated destructive
+    dispatch), then builds a RemediationFinding(finding_type="anomaly") and
+    calls the existing Phase 53 `remediate()` engine unchanged — the
+    identical approval-gate/dry-run/DB-lease/audit path as every other
+    finding_type (D-02/D-04). No second dispatch engine is introduced."""
+    from response_orchestrator import ResponseOrchestrator
+    from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
+
+    orchestrator = ResponseOrchestrator()
+    is_dup = await orchestrator.is_duplicate_task(
+        agent_id=agent_id,
+        action="remediate_anomaly",
+        dedup_window_minutes=5,
+        tenant_id=tenant_id,
+        alert_type="anomaly",
+    )
+    if is_dup:
+        logger.info("UEBA anomaly containment skipped — duplicate task for agent %s", agent_id)
+        return
+
+    severity = "critical" if risk_score >= 80 else "high" if risk_score >= 60 else "medium"
+    finding = RemediationFinding(
+        finding_id=f"UEBA-{agent_id}-{anomaly_rule}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        finding_type="anomaly",
+        severity=severity,
+        tenant_id=tenant_id,
+        agent_id=agent_id,
+        resource_id=resource_id,
+        details={"anomaly_rule": anomaly_rule, "risk_score": risk_score},
+    )
+    await AutonomousRemediationService().remediate(finding)
+
+
 @router.post("/shadow-ai")
 async def report_shadow_ai(event: ShadowAIEvent, background_tasks: BackgroundTasks, db=Depends(get_database)):
     """Ingest Shadow AI detection events from agents."""
@@ -309,6 +409,24 @@ async def report_shadow_ai(event: ShadowAIEvent, background_tasks: BackgroundTas
         f"Process '{event.process}' on agent {event.agent_id} connected to {event.remote_host}.",
         event.dict(),
     )
+
+    # AUT-03: first production trigger of the Phase 53 remediate() engine.
+    # Every ShadowAIEvent here already carries a real agent_id (required
+    # field) and is definitionally shadow_ai_detected — resolve its tenant
+    # from the agents collection (the same lookup used elsewhere in the
+    # codebase, e.g. agent_approval_endpoints.py) and let the eligibility
+    # gate above decide.
+    agent_doc = await db.agents.find_one({"id": event.agent_id}, {"tenantId": 1})
+    tenant_id = (agent_doc or {}).get("tenantId")
+    _dispatch_anomaly_containment_if_eligible(
+        background_tasks,
+        tenant_id=tenant_id,
+        agent_id=event.agent_id,
+        resource_id=event.remote_host or event.process,
+        anomaly_rule="shadow_ai_detected",
+        risk_score=100,
+    )
+
     return {"status": "recorded"}
 
 

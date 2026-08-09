@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
 import { CloudAccount, CloudProvider } from '../types';
-import { XIcon, InfoIcon } from './icons';
+import { InfoIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { Modal } from './Modal';
 
 interface AddCloudAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Omit<CloudAccount, 'id' | 'tenantId' | 'status'>) => void;
+  onSave: (data: Omit<CloudAccount, 'id' | 'tenantId' | 'status'> & { credentials?: Record<string, string> }) => void;
 }
 
 interface ProviderMeta {
@@ -38,8 +39,51 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
   const [accountId, setAccountId] = useState('');
   const [accessKey, setAccessKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
+  const [ociTenancyOcid, setOciTenancyOcid] = useState('');
+  const [ociUserOcid, setOciUserOcid] = useState('');
+  const [ociFingerprint, setOciFingerprint] = useState('');
+  const [ociPrivateKey, setOciPrivateKey] = useState('');
+  const [ociRegion, setOciRegion] = useState('');
+  const [ociCompartmentId, setOciCompartmentId] = useState('');
+  const [regionId, setRegionId] = useState('');
+  const [cfApiToken, setCfApiToken] = useState('');
+  const [cfAccountId, setCfAccountId] = useState('');
 
   const meta = PROVIDER_META[provider];
+
+  const resetCredentialFields = () => {
+    setAccessKey(''); setSecretKey('');
+    setOciTenancyOcid(''); setOciUserOcid(''); setOciFingerprint(''); setOciPrivateKey('');
+    setOciRegion(''); setOciCompartmentId('');
+    setRegionId(''); setCfApiToken(''); setCfAccountId('');
+  };
+
+  const buildCredentials = (): Record<string, string> => {
+    if (provider === 'OCI') {
+      return {
+        oci_tenancy_ocid: ociTenancyOcid,
+        oci_user_ocid: ociUserOcid,
+        oci_fingerprint: ociFingerprint,
+        oci_private_key: ociPrivateKey,
+        oci_region: ociRegion,
+        oci_compartment_id: ociCompartmentId,
+      };
+    }
+    if (provider === 'Alibaba') {
+      return {
+        access_key_id: accessKey,
+        access_key_secret: secretKey,
+        region_id: regionId,
+      };
+    }
+    if (provider === 'Cloudflare') {
+      return {
+        cf_api_token: cfApiToken,
+        cf_account_id: cfAccountId,
+      };
+    }
+    return { accessKey, secretKey };
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,22 +91,21 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
       showToast('Please fill all required fields.', 'error');
       return;
     }
-    onSave({ provider, name, accountId });
-    setName(''); setAccountId(''); setAccessKey(''); setSecretKey('');
+    const credentials = buildCredentials();
+    onSave({ provider, name, accountId, credentials });
+    setName(''); setAccountId(''); resetCredentialFields();
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md dark:border-gray-600 dark:text-gray-300">Cancel</button>
+      <button type="submit" form="add-cloud-account-form" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Add and Connect</button>
+    </>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Add Cloud Account</h2>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-            <XIcon size={20} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Cloud Account" size="lg" footer={footer}>
+        <form id="add-cloud-account-form" onSubmit={handleSubmit} className="space-y-4">
           <style>{`.input-style { padding: 0.5rem 0.75rem; background-color: white; border: 1px solid #d1d5db; border-radius: 0.375rem; } .dark .input-style { background-color: #374151; border-color: #4b5563; color: white; }`}</style>
 
           <div>
@@ -95,22 +138,39 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
 
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Credentials (optional)</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key / Client ID" className="w-full input-style" />
-              <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Secret Key / Client Secret" className="w-full input-style" />
-            </div>
+            {provider === 'OCI' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input value={ociTenancyOcid} onChange={e => setOciTenancyOcid(e.target.value)} placeholder="Tenancy OCID" className="w-full input-style" />
+                <input value={ociUserOcid} onChange={e => setOciUserOcid(e.target.value)} placeholder="User OCID" className="w-full input-style" />
+                <input value={ociFingerprint} onChange={e => setOciFingerprint(e.target.value)} placeholder="Key Fingerprint" className="w-full input-style" />
+                <input value={ociRegion} onChange={e => setOciRegion(e.target.value)} placeholder="Region (e.g. us-ashburn-1)" className="w-full input-style" />
+                <input value={ociCompartmentId} onChange={e => setOciCompartmentId(e.target.value)} placeholder="Compartment OCID" className="w-full input-style sm:col-span-2" />
+                <textarea value={ociPrivateKey} onChange={e => setOciPrivateKey(e.target.value)} placeholder="Private Key (PEM)" rows={3}
+                  className="w-full input-style sm:col-span-2 font-mono text-xs" />
+              </div>
+            ) : provider === 'Alibaba' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key ID" className="w-full input-style" />
+                <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Access Key Secret" className="w-full input-style" />
+                <input value={regionId} onChange={e => setRegionId(e.target.value)} placeholder="Region ID (e.g. cn-hangzhou)" className="w-full input-style sm:col-span-2" />
+              </div>
+            ) : provider === 'Cloudflare' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input type="password" value={cfApiToken} onChange={e => setCfApiToken(e.target.value)} placeholder="API Token" className="w-full input-style" />
+                <input value={cfAccountId} onChange={e => setCfAccountId(e.target.value)} placeholder="Cloudflare Account ID" className="w-full input-style" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key / Client ID" className="w-full input-style" />
+                <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Secret Key / Client Secret" className="w-full input-style" />
+              </div>
+            )}
             <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg flex items-start text-xs text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
               <InfoIcon size={16} className="mr-2 mt-0.5 flex-shrink-0 text-blue-500" />
               <p>Credentials are stored encrypted. For best security, use a read-only role or service account with minimal permissions.</p>
             </div>
           </div>
-
-          <div className="mt-6 flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md dark:border-gray-600 dark:text-gray-300">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Add and Connect</button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };

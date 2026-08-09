@@ -20,7 +20,7 @@ Write-Host ""
 
 # Display access URLs
 Write-Host "Services will be accessible at:" -ForegroundColor Yellow
-Write-Host "  Frontend:  http://$IP:3000" -ForegroundColor White
+Write-Host "  Frontend:  https://$IP" -ForegroundColor White
 Write-Host "  Backend:   http://$IP:5000" -ForegroundColor White
 Write-Host "  API Docs:  http://$IP:5000/docs" -ForegroundColor White
 Write-Host ""
@@ -116,7 +116,7 @@ $frontendScript = @"
     cd '$PWD'
     Write-Host '================================================' -ForegroundColor Blue
     Write-Host 'Frontend Server' -ForegroundColor Blue
-    Write-Host 'Access at: http://$IP:3000' -ForegroundColor Blue
+    Write-Host 'Access at: https://$IP' -ForegroundColor Blue
     Write-Host '================================================' -ForegroundColor Blue
     Write-Host ''
     npm run dev
@@ -132,7 +132,7 @@ Write-Host "Services Started!" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Access the platform from any device:" -ForegroundColor Yellow
-Write-Host "  http://$IP:3000" -ForegroundColor White -NoNewline
+Write-Host "  https://$IP" -ForegroundColor White -NoNewline
 Write-Host " (Frontend)" -ForegroundColor Gray
 Write-Host "  http://$IP:5000" -ForegroundColor White -NoNewline
 Write-Host " (Backend API)" -ForegroundColor Gray
@@ -148,5 +148,5 @@ Write-Host ""
 Write-Host "Monitoring services... (Press Ctrl+C to stop)" -ForegroundColor Yellow
 while ($true) {
     Start-Sleep -Seconds 30
-    Write-Host "$(Get-Date -Format 'HH:mm:ss') - Services running at http://$IP:3000" -ForegroundColor Gray
+    Write-Host "$(Get-Date -Format 'HH:mm:ss') - Services running at https://$IP" -ForegroundColor Gray
 }

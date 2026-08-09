@@ -23,6 +23,7 @@ from typing import Literal
 from authentication_service import get_current_user
 from database import get_database
 import compliance_remediation_service as svc
+import ticketing_bridge
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,10 @@ class TaskUpdate(BaseModel):
     due_date: Optional[str] = None
     resolution_notes: Optional[str] = None
     description: Optional[str] = None
+
+
+class CreateTicketRequest(BaseModel):
+    provider: Literal["jira", "servicenow"]
 
 
 # ---------------------------------------------------------------------------
@@ -169,3 +174,29 @@ async def suggest_remediation(
         logger.warning("Failed to persist ai_suggestion: %s", exc)
 
     return {"suggestion": text}
+
+
+@router.post("/tasks/{task_id}/create-ticket")
+async def create_ticket(
+    task_id: str,
+    body: CreateTicketRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """REM-01: Manually create a Jira/ServiceNow ticket for a remediation task
+    (tenant-scoped). ticket_provider/ticket_ref/ticket_url are written by the
+    bridge only — never client-writable via TaskUpdate."""
+    tf = _tenant_filter(current_user)
+    db = get_database()
+
+    task = await svc.get_task(db, task_id, tf)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    tenant_id = tf.get("tenantId") or task.get("tenantId", "")
+    result = await ticketing_bridge.create_ticket_for_remediation_task(
+        db, task, tenant_id, provider_override=body.provider
+    )
+    if not result:
+        raise HTTPException(status_code=502, detail="Ticket creation failed")
+
+    return result

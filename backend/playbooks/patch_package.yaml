@@ -1,0 +1,12 @@
+name: patch_package
+finding_class: vuln
+match:
+  requires_cve: true
+steps:
+  - action: patch_package
+    params:
+      packageId: "{{finding.details.package}}"
+    destructive: false
+# Irreversible (a package upgrade is not automatically downgradable) — a
+# failed verify escalates to a human rather than guessing a rollback.
+rollback: []

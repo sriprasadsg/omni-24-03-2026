@@ -12,7 +12,7 @@ Run a ≤6-question interview, score frameworks, return a ranked recommendation 
 </role>
 
 <required_reading>
-Read `$HOME/.claude/gsd-core/references/ai-frameworks.md` before asking questions. This is your decision matrix.
+Read `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/ai-frameworks.md` before asking questions. This is your decision matrix.
 </required_reading>
 
 <project_context>

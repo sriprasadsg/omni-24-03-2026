@@ -19,6 +19,7 @@ interface CheckResult extends CloudCheck {
   detail: string;
   accountId: string;
   checked_at: string;
+  simulated?: boolean;
 }
 
 interface Summary {
@@ -42,9 +43,9 @@ const SEV_COLORS: Record<string, string> = {
   informational: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
 };
 
-const PROVIDER_ICONS: Record<string, string> = { aws: '☁️', azure: '🔵', gcp: '🟢' };
+const PROVIDER_ICONS: Record<string, string> = { aws: '☁️', azure: '🔵', gcp: '🟢', oci: '🔴', alibaba: '🟠', cloudflare: '🧡' };
 
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 export default function CloudChecksScanner() {
   const [checks, setChecks] = useState<CloudCheck[]>([]);
@@ -136,7 +137,7 @@ export default function CloudChecksScanner() {
             <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{summary.passPct}%</p>
             <p className="text-xs text-gray-400 mt-1">{summary.pass} / {summary.total} checks</p>
           </div>
-          {['aws', 'azure', 'gcp'].map(prov => {
+          {['aws', 'azure', 'gcp', 'oci', 'alibaba', 'cloudflare'].map(prov => {
             const data = summary.byProvider?.[prov];
             if (!data) return null;
             const total = (data.pass || 0) + (data.fail || 0);
@@ -172,7 +173,7 @@ export default function CloudChecksScanner() {
         </div>
         <select value={filterProvider} onChange={e => setFilterProvider(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg">
           <option value="">All Providers</option>
-          {['aws', 'azure', 'gcp'].map(p => <option key={p}>{p}</option>)}
+          {['aws', 'azure', 'gcp', 'oci', 'alibaba', 'cloudflare'].map(p => <option key={p}>{p}</option>)}
         </select>
         <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg">
           <option value="">All Severities</option>
@@ -218,7 +219,14 @@ export default function CloudChecksScanner() {
                         : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 dark:text-white">{r.checkName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{r.checkName}</p>
+                        {r.simulated && (
+                          <span className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 shrink-0">
+                            <AlertTriangle className="w-3 h-3 shrink-0" /> SIMULATED
+                          </span>
+                        )}
+                      </div>
                       {r.result === 'FAIL' && r.detail && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{r.detail}</p>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">

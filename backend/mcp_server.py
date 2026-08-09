@@ -56,9 +56,8 @@ async def get_control_status(control_id: str) -> Dict[str, Any]:
 async def run_cloud_check(provider: str, account_id: str) -> Dict[str, Any]:
     """Run a cloud security check against a provider account.
 
-    Only providers with runnable posture checks are accepted. OCI/Alibaba/Cloudflare
-    are ingest-only (findings pulled via their *_ingest modules), so they are not
-    valid here — the accepted set is the single source of truth in cloud_checks_service.
+    Only providers with runnable posture checks are accepted — the accepted set is
+    the single source of truth in cloud_checks_service.RUNNABLE_PROVIDERS.
     """
     from cloud_checks_service import RUNNABLE_PROVIDERS
     if provider not in RUNNABLE_PROVIDERS:

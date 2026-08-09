@@ -16,7 +16,7 @@ fn ps_json(s: &str) -> Value {
 
 pub async fn collect_processes() -> Value {
     let mut sys = System::new();
-    sys.refresh_processes();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let procs: Vec<Value> = sys.processes().values().take(250).map(|p| json!({
         "pid":       p.pid().as_u32(),
         "name":      p.name(),
@@ -454,53 +454,84 @@ pub async fn run_pii_scan(dirs: &[String]) -> Value {
 
 pub async fn kill_process(pid: Option<u32>, name: Option<String>) -> Value {
     let cmd = match (pid, name.as_deref()) {
-        (Some(p), _) => format!("Stop-Process -Id {} -Force -EA SilentlyContinue; Write-Output 'Killed PID {}'", p, p),
+        (Some(p), _) => format!(
+            "Stop-Process -Id {p} -Force -EA SilentlyContinue; \
+             if (Get-Process -Id {p} -EA SilentlyContinue) {{ throw 'PID {p} still running after kill' }}; \
+             Write-Output 'Killed PID {p}'",
+            p = p
+        ),
         (_, Some(n)) => {
             let safe = n.replace('"', "").replace('\'', "");
-            format!("Stop-Process -Name '{}' -Force -EA SilentlyContinue; Write-Output 'Killed {}'", safe, safe)
+            format!(
+                "Stop-Process -Name '{n}' -Force -EA SilentlyContinue; \
+                 if (Get-Process -Name '{n}' -EA SilentlyContinue) {{ throw 'Process {n} still running after kill' }}; \
+                 Write-Output 'Killed {n}'",
+                n = safe
+            )
         }
         _ => return json!({"success": false, "message": "pid or name required"}),
     };
-    let out = crate::http::run_ps(&cmd).await;
-    json!({"success": true, "message": out})
+    match crate::http::run_ps_checked(&cmd).await {
+        Ok(out) => json!({"success": true, "message": out}),
+        Err(e)  => json!({"success": false, "message": e}),
+    }
 }
 
 pub async fn block_ip(ip: &str) -> Value {
     let safe = ip.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == ':' || *c == '/').collect::<String>();
     let cmd = format!(
-        "New-NetFirewallRule -DisplayName 'OmniBlock_{0}' -Direction Outbound -RemoteAddress '{0}' -Action Block -EA SilentlyContinue | Out-Null; New-NetFirewallRule -DisplayName 'OmniBlock_{0}_In' -Direction Inbound -RemoteAddress '{0}' -Action Block -EA SilentlyContinue | Out-Null; 'Blocked {0}'",
-        safe
+        "New-NetFirewallRule -DisplayName 'OmniBlock_{ip}' -Direction Outbound -RemoteAddress '{ip}' -Action Block -EA SilentlyContinue | Out-Null; \
+         New-NetFirewallRule -DisplayName 'OmniBlock_{ip}_In' -Direction Inbound -RemoteAddress '{ip}' -Action Block -EA SilentlyContinue | Out-Null; \
+         if ((-not (Get-NetFirewallRule -DisplayName 'OmniBlock_{ip}' -EA SilentlyContinue)) -or (-not (Get-NetFirewallRule -DisplayName 'OmniBlock_{ip}_In' -EA SilentlyContinue))) {{ throw 'firewall rule creation failed (insufficient privilege?)' }}; \
+         'Blocked {ip}'",
+        ip = safe
     );
-    let out = crate::http::run_ps(&cmd).await;
-    json!({"success": true, "message": format!("IP {} blocked", ip), "output": out})
+    match crate::http::run_ps_checked(&cmd).await {
+        Ok(out) => json!({"success": true, "message": format!("IP {} blocked", ip), "output": out}),
+        Err(e)  => json!({"success": false, "message": format!("Failed to block IP {}", ip), "output": e}),
+    }
 }
 
 pub async fn isolate_network(platform_ip: &str) -> Value {
     let safe = platform_ip.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == ':').collect::<String>();
-    let cmd = format!(r"
-New-NetFirewallRule -DisplayName 'OmniIsolate_BlockOut' -Direction Outbound -Action Block -Priority 200 -EA SilentlyContinue | Out-Null
-New-NetFirewallRule -DisplayName 'OmniIsolate_BlockIn'  -Direction Inbound  -Action Block -Priority 200 -EA SilentlyContinue | Out-Null
-New-NetFirewallRule -DisplayName 'OmniIsolate_AllowOut' -Direction Outbound -RemoteAddress '{0}' -Action Allow -Priority 100 -EA SilentlyContinue | Out-Null
-New-NetFirewallRule -DisplayName 'OmniIsolate_AllowIn'  -Direction Inbound  -RemoteAddress '{0}' -Action Allow -Priority 100 -EA SilentlyContinue | Out-Null
-'Host isolated — only {0} allowed'", safe);
-    let out = crate::http::run_ps(&cmd).await;
-    json!({"success": true, "message": "Network isolated", "allowed_ip": safe, "output": out})
+    let cmd = format!(
+        "New-NetFirewallRule -DisplayName 'OmniIsolate_BlockOut' -Direction Outbound -Action Block -Priority 200 -EA SilentlyContinue | Out-Null; \
+         New-NetFirewallRule -DisplayName 'OmniIsolate_BlockIn' -Direction Inbound -Action Block -Priority 200 -EA SilentlyContinue | Out-Null; \
+         New-NetFirewallRule -DisplayName 'OmniIsolate_AllowOut' -Direction Outbound -RemoteAddress '{ip}' -Action Allow -Priority 100 -EA SilentlyContinue | Out-Null; \
+         New-NetFirewallRule -DisplayName 'OmniIsolate_AllowIn' -Direction Inbound -RemoteAddress '{ip}' -Action Allow -Priority 100 -EA SilentlyContinue | Out-Null; \
+         foreach ($r in @('OmniIsolate_BlockOut','OmniIsolate_BlockIn','OmniIsolate_AllowOut','OmniIsolate_AllowIn')) {{ if (-not (Get-NetFirewallRule -DisplayName $r -EA SilentlyContinue)) {{ throw \"isolation rule $r missing (insufficient privilege?)\" }} }}; \
+         'Host isolated — only {ip} allowed'",
+        ip = safe
+    );
+    match crate::http::run_ps_checked(&cmd).await {
+        Ok(out) => json!({"success": true, "message": "Network isolated", "allowed_ip": safe, "output": out}),
+        Err(e)  => json!({"success": false, "message": "Network isolation failed", "allowed_ip": safe, "output": e}),
+    }
 }
 
 pub async fn restore_network() -> Value {
-    let cmd = r"Get-NetFirewallRule | Where-Object {$_.DisplayName -like 'OmniIsolate_*' -or $_.DisplayName -like 'OmniBlock_*'} | Remove-NetFirewallRule -EA SilentlyContinue; 'Firewall rules cleared'";
-    let out = crate::http::run_ps(cmd).await;
-    json!({"success": true, "message": "Network isolation and blocks removed", "output": out})
+    let cmd = "Get-NetFirewallRule | Where-Object {$_.DisplayName -like 'OmniIsolate_*' -or $_.DisplayName -like 'OmniBlock_*'} | Remove-NetFirewallRule -EA SilentlyContinue; if (Get-NetFirewallRule | Where-Object {$_.DisplayName -like 'OmniIsolate_*' -or $_.DisplayName -like 'OmniBlock_*'}) { throw 'some isolation/block rules remain after removal' }; 'Firewall rules cleared'";
+    match crate::http::run_ps_checked(cmd).await {
+        Ok(out) => json!({"success": true, "message": "Network isolation and blocks removed", "output": out}),
+        Err(e)  => json!({"success": false, "message": "Failed to remove network isolation", "output": e}),
+    }
 }
 
 pub async fn quarantine_file(path: &str) -> Value {
     let safe = path.replace('"', "").replace('\'', "");
     let cmd = format!(
-        "New-Item -ItemType Directory -Force -Path 'C:\\ProgramData\\OmniAgent\\Quarantine' | Out-Null; Move-Item -Path '{}' -Destination 'C:\\ProgramData\\OmniAgent\\Quarantine' -Force -EA SilentlyContinue; 'Quarantined'",
-        safe
+        "New-Item -ItemType Directory -Force -Path 'C:\\ProgramData\\OmniAgent\\Quarantine' | Out-Null; \
+         Move-Item -LiteralPath '{p}' -Destination 'C:\\ProgramData\\OmniAgent\\Quarantine' -Force -EA SilentlyContinue; \
+         if (Test-Path -LiteralPath '{p}') {{ throw 'source file still present — quarantine failed' }}; \
+         $leaf = Split-Path -Leaf '{p}'; \
+         if (-not (Test-Path -LiteralPath (Join-Path 'C:\\ProgramData\\OmniAgent\\Quarantine' $leaf))) {{ throw 'file not found in quarantine after move' }}; \
+         'Quarantined'",
+        p = safe
     );
-    let out = crate::http::run_ps(&cmd).await;
-    json!({"success": true, "message": format!("Quarantined: {}", path), "output": out})
+    match crate::http::run_ps_checked(&cmd).await {
+        Ok(out) => json!({"success": true, "message": format!("Quarantined: {}", path), "output": out}),
+        Err(e)  => json!({"success": false, "message": format!("Failed to quarantine: {}", path), "output": e}),
+    }
 }
 
 // ── Proactive threat hunt ──────────────────────────────────────────────────────

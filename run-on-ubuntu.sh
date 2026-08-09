@@ -134,7 +134,7 @@ MONGODB_URL=mongodb://localhost:27017
 MONGODB_DB_NAME=omni_platform
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)
-CORS_ORIGINS=http://$SYSTEM_IP:3000,http://$SYSTEM_IP:80,http://$SYSTEM_IP,http://localhost:3000,http://127.0.0.1:3000
+CORS_ORIGINS=https://$SYSTEM_IP,http://$SYSTEM_IP:3000,http://$SYSTEM_IP:80,http://$SYSTEM_IP,https://localhost,http://localhost:3000,http://127.0.0.1:3000
 SUPER_ADMIN_PASSWORD=$GENERATED_ADMIN_PASS
 SYSLOG_UDP_PORT=5140
 
@@ -170,7 +170,7 @@ PAYMENT_GATEWAY_MODE=sandbox
 # === Phase 4: Google OAuth2 SSO & MFA ===
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://$SYSTEM_IP:5000/api/sso/google/callback
+GOOGLE_REDIRECT_URI=https://$SYSTEM_IP/api/sso/google/callback
 MFA_ISSUER=OmniAgentPlatform
 
 # === Phase 8: Voice Bot (Google Cloud) ===
@@ -183,9 +183,12 @@ GOOGLE_APPLICATION_CREDENTIALS=
 # Directory for ticket file attachments (auto-created on server start)
 TICKET_ATTACHMENT_DIR=/var/lib/omni-platform/ticket_attachments
 
-# === Platform Public URL (used by agent install instructions + SSO redirect) ===
+# === Platform Public URL ===
+# PLATFORM_URL is agent-facing (agents talk HTTP direct to the backend and can't
+# verify the self-signed cert) — keep it HTTP on :5000.
 PLATFORM_URL=http://$SYSTEM_IP:5000
-SSO_REDIRECT_URI=http://$SYSTEM_IP:5000/api/sso/google/callback
+# SSO redirect is browser-facing — must be the HTTPS front door.
+SSO_REDIRECT_URI=https://$SYSTEM_IP/api/sso/google/callback
 
 # === Scale / Horizontal Deployment (optional) ===
 # Set REDIS_URL to enable: Redis-backed Socket.IO pub/sub (multi-instance WebSocket),
@@ -254,12 +257,14 @@ deactivate
 print_info "Step 4: Setting up Frontend..."
 cd "$PROJECT_DIR"
 
-# Write Vite .env.local with real IP for Socket.IO service
+# Leave VITE_API_BASE_URL blank so the frontend and Socket.IO use the page's own
+# origin (https://$SYSTEM_IP via Nginx). A hardcoded http://IP:5000 would be
+# mixed-content and get blocked by the browser on the HTTPS front door.
 cat > .env.local <<EOF
-VITE_API_BASE_URL=http://$SYSTEM_IP:5000
+VITE_API_BASE_URL=
 EOF
 chown $ACTUAL_USER:$ACTUAL_USER .env.local
-print_success "Frontend .env.local written with VITE_API_BASE_URL=http://$SYSTEM_IP:5000"
+print_success "Frontend .env.local written (VITE_API_BASE_URL blank — same-origin HTTPS)"
 
 sudo -u $ACTUAL_USER npm install
 sudo -u $ACTUAL_USER npm run build
@@ -297,12 +302,36 @@ sed -i "s/REPLACE_WITH_SERVER_IP/$SYSTEM_IP/g" "$PROJECT_DIR/backend/static/omni
 
 cd "$PROJECT_DIR"
 
-# Step 6: Configure Nginx — proxies frontend and all /api/* to backend
-print_info "Step 6: Configuring Nginx..."
+# Step 6: Configure Nginx — TLS front door, proxies frontend and all /api/* to backend
+print_info "Step 6: Configuring Nginx (self-hosted HTTPS)..."
+
+# Self-signed cert for this server's IP (SAN so browsers accept it on the LAN)
+NGINX_CERT_DIR=/etc/nginx/ssl
+mkdir -p "$NGINX_CERT_DIR"
+if [ ! -f "$NGINX_CERT_DIR/omni.crt" ] || [ ! -f "$NGINX_CERT_DIR/omni.key" ]; then
+    openssl req -x509 -newkey rsa:2048 -nodes \
+        -keyout "$NGINX_CERT_DIR/omni.key" -out "$NGINX_CERT_DIR/omni.crt" -days 825 \
+        -subj "/C=US/ST=Local/L=Local/O=OmniAgent/CN=$SYSTEM_IP" \
+        -addext "subjectAltName=IP:$SYSTEM_IP,IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1 \
+        && print_success "TLS cert generated at $NGINX_CERT_DIR" \
+        || print_warning "openssl failed — HTTPS server block will not start"
+fi
+
 cat > /etc/nginx/sites-available/omni-platform <<EOF
+# Redirect all plain HTTP to HTTPS
 server {
     listen 80;
     server_name _;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     $NGINX_CERT_DIR/omni.crt;
+    ssl_certificate_key $NGINX_CERT_DIR/omni.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     # Frontend (Vite dev preview)
     location / {
@@ -593,7 +622,8 @@ systemctl start omni-backend omni-frontend omni-worker
 
 # Step 8: Firewall
 print_info "Step 8: Configuring Firewall..."
-ufw allow 80/tcp
+ufw allow 80/tcp     # HTTP (redirects to HTTPS)
+ufw allow 443/tcp    # HTTPS front door
 ufw allow 3000/tcp
 ufw allow 5000/tcp
 ufw allow 5140/udp   # Syslog UDP receiver
@@ -639,8 +669,9 @@ echo ""
 echo "==========================================================="
 echo "  Deployment Complete! System IP: $SYSTEM_IP"
 echo ""
-echo "  Frontend:    http://$SYSTEM_IP"
-echo "  Backend API: http://$SYSTEM_IP:5000/api"
+echo "  Frontend:    https://$SYSTEM_IP   (self-signed cert — accept the browser warning)"
+echo "  Backend API: https://$SYSTEM_IP/api   (proxied via Nginx TLS)"
+echo "  Backend (direct, HTTP): http://$SYSTEM_IP:5000   (agents connect here)"
 echo ""
 echo " [x] 2030 GOVERNANCE & TRUST"
 echo "     - Risk Register (Enabled)"

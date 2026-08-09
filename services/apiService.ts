@@ -9,7 +9,10 @@ import {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload
+    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload,
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
+    ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
+    ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus,
 } from '../types';
 
 export type {
@@ -22,7 +25,8 @@ export type {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    ComplianceScorePayload
+    ComplianceScorePayload,
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook
 };
 // Helper to ensure severity strings are consistent (e.g., "critical" -> "Critical")
 const normalizeSeverity = (severity: any): any => {
@@ -1597,6 +1601,68 @@ export const fetchAssetMetrics = async (assetId: string, range: '1h' | '24h' | '
     }
 };
 
+export interface AgentMetricsHistoryPoint {
+    timestamp: string;
+    cpu_percent: number;
+    memory_percent: number;
+    disk_percent: number;
+    [key: string]: any;
+}
+
+export interface AgentMetricsHistoryResponse {
+    agent_id: string;
+    hours: number;
+    metrics: AgentMetricsHistoryPoint[];
+    summary: Record<string, number>;
+}
+
+// FOBS-01: agent-scoped metrics history (D-02 — hours is ≤48h only: 1/6/24/48).
+// Mirrors fetchAssetMetrics's auth/error shape but returns the full payload
+// (metrics + summary), not just the metrics array, since AgentMetricsTab needs both.
+export const fetchAgentMetricsHistory = async (
+    agentId: string,
+    hours: 1 | 6 | 24 | 48
+): Promise<AgentMetricsHistoryResponse> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/metrics/history?hours=${hours}`);
+        if (!res.ok) throw new Error("Failed to fetch agent metrics history");
+        return await res.json();
+    } catch (e) {
+        console.warn("Backend offline or error, returning empty agent metrics history");
+        return { agent_id: agentId, hours, metrics: [], summary: {} };
+    }
+};
+
+export interface AgentUptimeTimelineBucket {
+    start: string;
+    up: boolean;
+}
+
+export interface AgentUptimeResponse {
+    agent_id: string;
+    hours: number;
+    uptime_percent: number;
+    expected_buckets: number;
+    received_buckets: number;
+    timeline: AgentUptimeTimelineBucket[];
+}
+
+// FOBS-02: agent-scoped heartbeat-presence uptime % + bucketed timeline
+// (D-02 — hours is ≤48h only: 1/6/24/48; server clamps regardless — T-48-11).
+export const fetchAgentUptime = async (
+    agentId: string,
+    hours: 1 | 6 | 24 | 48
+): Promise<AgentUptimeResponse> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/uptime?hours=${hours}`);
+        if (!res.ok) throw new Error("Failed to fetch agent uptime");
+        return await res.json();
+    } catch (e) {
+        console.warn("Backend offline or error, returning empty agent uptime");
+        return { agent_id: agentId, hours, uptime_percent: 0, expected_buckets: 0, received_buckets: 0, timeline: [] };
+    }
+};
+
 export const triggerFrameworkScan = async (frameworkId: string) => {
     try {
         const response = await authFetch(`${API_BASE}/compliance-automation/collect-evidence`, {
@@ -2093,45 +2159,6 @@ export const updateTenantFeatures = async (tenantId: string, features: Permissio
     }
 };
 
-// Wrapper object to satisfy imports in new dashboards (DataWarehouse, Streaming, etc.)
-export const apiService = {
-    get: async (endpoint: string) => {
-        const res = await authFetch(endpoint);
-        if (!res.ok) throw new Error(`GET ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    post: async (endpoint: string, body: any) => {
-        const res = await authFetch(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error(`POST ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    put: async (endpoint: string, body: any) => {
-        const res = await authFetch(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error(`PUT ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    patch: async (endpoint: string, body: any) => {
-        const res = await authFetch(endpoint, {
-            method: 'PATCH',
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error(`PATCH ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    delete: async (endpoint: string) => {
-        const res = await authFetch(endpoint, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`DELETE ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    }
-};
-
-
 export const getTenantBranding = async (tenantId: string) => {
     try {
         const res = await authFetch(`${API_BASE}/tenants/${tenantId}/branding`);
@@ -2187,7 +2214,6 @@ export const registerAgent = async (data: any) => {
 
     return { newAgent: result.agent, newAsset: result.asset };
 };
-
 
 // --- Tenant Voice Bot Settings ---
 export const updateTenantVoiceBotSettings = async (tenantId: string, settings: VoiceBotSettings): Promise<Tenant> => {
@@ -2649,9 +2675,9 @@ export const addCloudAccount = async (data: any, tenantId: string) => {
             method: 'POST',
             body: JSON.stringify({
                 provider: (data.provider || 'aws').toLowerCase(),
-                name: data.name,
+                account_name: data.name,
                 account_id: data.accountId,
-                credentials: data.credentials || {},
+                credentials_ref: JSON.stringify(data.credentials || {}),
             }),
         });
         if (res.ok) {
@@ -4532,6 +4558,28 @@ export const suggestRemediation = async (taskId: string): Promise<{ suggestion: 
     return res.json();
 };
 
+export const createTicketForRemediationTask = async (
+    taskId: string,
+    provider: 'jira' | 'servicenow',
+): Promise<{ ticket_provider: string; ticket_ref: string; ticket_url: string }> => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks/${taskId}/create-ticket`, {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+    });
+    if (!res.ok) throw new Error(`Failed to create ticket: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const getTicketingConfig = async (): Promise<{ jira_url?: string; snow_instance?: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/ticketing/config`);
+        if (!res.ok) return {};
+        return await res.json();
+    } catch {
+        return {};
+    }
+};
+
 export const fetchStalenessThreshold = async (): Promise<{ thresholdDays: number }> => {
     try {
         const res = await authFetch(`${API_BASE}/settings/evidence-staleness`);
@@ -4569,6 +4617,126 @@ export const fetchControlAuditLog = async (controlId: string): Promise<{ entries
     } catch {
         return { entries: [] };
     }
+};
+
+export const fetchRemediationEscalations = async (taskId: string): Promise<{ task_id: string; entries: { escalation_level: number; created_at: string; notified: string[] }[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/remediation-tasks/${taskId}/escalations`);
+        if (!res.ok) return { task_id: taskId, entries: [] };
+        return await res.json();
+    } catch {
+        return { task_id: taskId, entries: [] };
+    }
+};
+
+// Single row of GET /api/agents/{agent_id}/location-history (GAUD-02).
+// Note: dwell_seconds is a read-time value computed by the backend — the
+// AgentLocationHistory panel deliberately ignores it and recomputes dwell
+// client-side (46-UI-SPEC.md Behavior Contract; RESEARCH.md Pitfall 2).
+export interface LocationHistoryEntry {
+    publicIp?: string;
+    geo?: {
+        city?: string;
+        region?: string;
+        country?: string;
+        country_code?: string;
+    };
+    vpn_heuristic?: boolean;
+    timestamp: string;
+    dwell_seconds?: number;
+}
+
+export const fetchAgentLocationHistory = async (agentId: string): Promise<{ agent_id: string; entries: LocationHistoryEntry[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/location-history`);
+        if (!res.ok) return { agent_id: agentId, entries: [] };
+        return await res.json();
+    } catch {
+        return { agent_id: agentId, entries: [] };
+    }
+};
+
+export const getAgentLocationTracking = async (): Promise<{ enabled: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`);
+        if (!res.ok) return { enabled: true };
+        return await res.json();
+    } catch {
+        return { enabled: true };
+    }
+};
+
+export const setAgentLocationTracking = async (enabled: boolean): Promise<{ enabled: boolean }> => {
+    const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update agent location tracking setting');
+    }
+    return await res.json();
+};
+
+// Per-tenant Security settings — geo-security detectors config (GSEC-03, D-06).
+// Clone of getAgentLocationTracking/setAgentLocationTracking's shape/error
+// handling, targeting the distinct admin-gated /settings/geo-security surface
+// (backend/geo_security_endpoints.py, Plan 47-04) rather than folding into
+// the Phase 46 privacy toggle.
+export interface GeoSecuritySettings {
+    impossible_travel_enabled: boolean;
+    geo_fence_enabled: boolean;
+    allowed_country_codes: string[];
+}
+
+export const getGeoSecuritySettings = async (): Promise<GeoSecuritySettings> => {
+    const defaults: GeoSecuritySettings = {
+        impossible_travel_enabled: true,
+        geo_fence_enabled: false,
+        allowed_country_codes: [],
+    };
+    try {
+        const res = await authFetch(`${API_BASE}/settings/geo-security`);
+        if (!res.ok) return defaults;
+        return await res.json();
+    } catch {
+        return defaults;
+    }
+};
+
+export const setGeoSecuritySettings = async (settings: Partial<GeoSecuritySettings>): Promise<GeoSecuritySettings> => {
+    const res = await authFetch(`${API_BASE}/settings/geo-security`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update geo-security settings');
+    }
+    return await res.json();
+};
+
+// ── Control Comments (Phase 42-03) ────────────────────────────────────────────
+export const fetchControlComments = async (controlId: string): Promise<any[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/control-comments?control_id=${controlId}`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+};
+
+export const postControlComment = async (controlId: string, text: string): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/control-comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ control_id: controlId, text }),
+    });
+    if (!res.ok) throw new Error('Failed to post comment');
+    return await res.json();
 };
 
 // ── Vendor Subprocessors (Phase 26-02) ───────────────────────────────────────────
@@ -4805,4 +4973,473 @@ export const submitAnswerDraft = async (draftId: string): Promise<AnswerDraftDoc
         throw new Error(typeof d.detail === 'string' ? d.detail : 'Submit failed');
     }
     return await res.json();
+};
+
+// ── Fleet Observability (Phase 48 Plan 05, FOBS-03) ──────────────────────────
+// Renderer over the 48-03 aggregate endpoint — no client-side offline/version
+// recomputation (D-03). Backed by GET /api/fleet/observability.
+export interface FleetObservabilityAgent {
+    id: string;
+    hostname: string;
+    status: string;
+    version: string | null;
+    tenantId: string | null;
+}
+
+export interface FleetObservability {
+    latest_version: string;
+    offline_agents: FleetObservabilityAgent[];
+    offline_count: number;
+    version_drift: FleetObservabilityAgent[];
+    drift_count: number;
+}
+
+export const fetchFleetObservability = async (): Promise<FleetObservability> => {
+    const res = await authFetch(`${API_BASE}/fleet/observability`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load fleet observability data');
+    }
+    return await res.json();
+};
+
+// Fleet Geo Map (GMAP-01/02/03) — client renders markers/clusters over this
+// cross-tenant projection; server does RBAC + tenant scoping. GET /api/fleet/geo.
+export interface FleetGeoAgent {
+    id: string;
+    hostname: string;
+    status: string;
+    tenantId: string;
+    lanIp?: string | null;
+    publicIp?: string | null;
+    geo: {
+        city?: string | null;
+        country?: string | null;
+        country_code?: string | null;
+        latitude: number;
+        longitude: number;
+    } | null;
+}
+
+export interface FleetGeoResponse {
+    agents: FleetGeoAgent[];
+    total: number;
+    located_count: number;
+    unlocated_count: number;
+    tenants: string[];
+}
+
+export const fetchFleetGeo = async (): Promise<FleetGeoResponse> => {
+    const res = await authFetch(`${API_BASE}/fleet/geo`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load fleet geo data');
+    }
+    return await res.json();
+};
+
+// ── Security Ops Endpoints ──────────────────────────────────────────────────
+export const fetchFindings = async (params: { limit?: number; offset?: number }): Promise<SecurityFinding[]> => {
+    try {
+        const query = new URLSearchParams();
+        if (params.limit) query.append('limit', String(params.limit));
+        if (params.offset) query.append('offset', String(params.offset));
+        const res = await authFetch(`${API_BASE}/security-ops/findings?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch aggregated findings");
+        const data = await res.json();
+        return data.findings || [];
+    } catch (e) {
+        console.error("Error fetching aggregated findings:", e);
+        return [];
+    }
+};
+
+export const fetchRemediationQueue = async (): Promise<RemediationQueueItem[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/remediation-queue`);
+        if (!res.ok) throw new Error("Failed to fetch remediation queue");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation queue:", e);
+        return [];
+    }
+};
+
+export const triggerScan = async (agentId: string, type: 'file' | 'vuln' | 'fim', target?: string): Promise<{ queued: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/trigger-scan`, {
+            method: 'POST',
+            body: JSON.stringify({ agent_id: agentId, type, target })
+        });
+        if (!res.ok) throw new Error("Failed to trigger scan");
+        return await res.json();
+    } catch (e) {
+        console.error("Error triggering scan:", e);
+        throw e;
+    }
+};
+
+export const fetchFimStatus = async (): Promise<FimStatus[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/fim-status`);
+        if (!res.ok) throw new Error("Failed to fetch FIM status");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching FIM status:", e);
+        return [];
+    }
+};
+
+export const fetchSecuritySummary = async (): Promise<SecuritySummary> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/summary`);
+        if (!res.ok) throw new Error("Failed to fetch security summary");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching security summary:", e);
+        return { totalFindings: 0, criticalFindings: 0, openRemediations: 0, agentsWithFim: 0, fimDriftDetected: false };
+    }
+};
+
+// ── Remediation Audit & Actions (Phase 53-04) ──────────────────────────────
+export const fetchRemediationAudit = async (params: { limit?: number; offset?: number }): Promise<RemediationAuditEntry[]> => {
+    try {
+        const query = new URLSearchParams();
+        if (params.limit) query.append('limit', String(params.limit));
+        if (params.offset) query.append('offset', String(params.offset));
+        const res = await authFetch(`${API_BASE}/remediation/audit?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch remediation audit log");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation audit:", e);
+        return [];
+    }
+};
+
+export const approveRemediation = async (id: string): Promise<RemediationQueueItem> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation/${id}/approve`, { method: 'POST' });
+        if (!res.ok) throw new Error("Failed to approve remediation");
+        return await res.json();
+    } catch (e) {
+        console.error("Error approving remediation:", e);
+        throw e;
+    }
+};
+
+export const denyRemediation = async (id: string, reason: string): Promise<RemediationQueueItem> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation/${id}/deny`, {
+            method: 'POST',
+            body: JSON.stringify({ reason })
+        });
+        if (!res.ok) throw new Error("Failed to deny remediation");
+        return await res.json();
+    } catch (e) {
+        console.error("Error denying remediation:", e);
+        throw e;
+    }
+};
+
+// ── Remediation Playbook CRUD (Phase 53-01) ────────────────────────────────
+export const fetchRemediationPlaybooks = async (): Promise<RemediationPlaybook[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks`);
+        if (!res.ok) throw new Error("Failed to fetch remediation playbooks");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation playbooks:", e);
+        return [];
+    }
+};
+
+export const createRemediationPlaybook = async (playbook: Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>): Promise<RemediationPlaybook> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks`, {
+            method: 'POST',
+            body: JSON.stringify(playbook)
+        });
+        if (!res.ok) throw new Error("Failed to create remediation playbook");
+        return await res.json();
+    } catch (e) {
+        console.error("Error creating remediation playbook:", e);
+        throw e;
+    }
+};
+
+export const updateRemediationPlaybook = async (id: string, playbook: Partial<Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>>): Promise<RemediationPlaybook> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(playbook)
+        });
+        if (!res.ok) throw new Error("Failed to update remediation playbook");
+        return await res.json();
+    } catch (e) {
+        console.error("Error updating remediation playbook:", e);
+        throw e;
+    }
+};
+
+export const deleteRemediationPlaybook = async (id: string): Promise<void> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error("Failed to delete remediation playbook");
+    } catch (e) {
+        console.error("Error deleting remediation playbook:", e);
+        throw e;
+    }
+};
+
+// Wrapper object to satisfy imports in new dashboards (DataWarehouse, Streaming, etc.)
+// --- ITAM (Phase 61 console) ---
+
+async function itamThrow(res: Response, fallback: string): Promise<never> {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ? (typeof body.detail === 'string' ? body.detail : fallback) : fallback);
+}
+
+export const fetchCatalogEntities = async (kind: ItamCatalogKind): Promise<ItamCatalogEntity[]> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}`);
+    if (!res.ok) return itamThrow(res, `Failed to load ${kind}`);
+    return res.json();
+};
+
+export const createCatalogEntity = async (kind: ItamCatalogKind, data: Record<string, unknown>): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, `Failed to create ${kind}`);
+    return res.json();
+};
+
+export const updateCatalogEntity = async (kind: ItamCatalogKind, id: string, data: Record<string, unknown>): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, `Failed to update ${kind}`);
+    return res.json();
+};
+
+export const deleteCatalogEntity = async (kind: ItamCatalogKind, id: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, `Failed to delete ${kind}`);
+};
+
+export const createManualAsset = async (data: Record<string, unknown>): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create asset');
+    return res.json();
+};
+
+export const fetchAssetComponentsList = async (assetId: string): Promise<ItamComponent[]> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/components`);
+    if (!res.ok) return itamThrow(res, 'Failed to load components');
+    return res.json();
+};
+
+export const checkoutAsset = async (assetId: string, payload: { targetType: 'user' | 'location'; targetId: string; note?: string; expectedReturnDate?: string }): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Checkout failed');
+    return res.json();
+};
+
+export const checkinAsset = async (assetId: string, note?: string): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/checkin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }),
+    });
+    if (!res.ok) return itamThrow(res, 'Check-in failed');
+    return res.json();
+};
+
+export const markAssetAudited = async (assetId: string, note?: string): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/audit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to record audit');
+    return res.json();
+};
+
+export const fetchAssetHistory = async (assetId: string): Promise<{ assetId: string; history: ItamAssignmentHistoryEntry[] }> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/history`);
+    if (!res.ok) return itamThrow(res, 'Failed to load history');
+    return res.json();
+};
+
+export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
+    const res = await authFetch(`${API_BASE}/assets/reports/overdue-audit`);
+    if (!res.ok) return itamThrow(res, 'Failed to load overdue-audit report');
+    return res.json();
+};
+
+export const updateAssetPurchase = async (assetId: string, data: Record<string, unknown>): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/purchase`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to save purchase record');
+    return res.json();
+};
+
+export const fetchAssetBookValue = async (assetId: string): Promise<ItamBookValue> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/book-value`);
+    if (!res.ok) return itamThrow(res, 'Failed to load book value');
+    return res.json();
+};
+
+export const fetchAssetWarranty = async (assetId: string): Promise<ItamWarrantyStatus> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/warranty`);
+    if (!res.ok) return itamThrow(res, 'Failed to load warranty status');
+    return res.json();
+};
+
+export const fetchLicenses = async (): Promise<ItamLicense[]> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses`);
+    if (!res.ok) return itamThrow(res, 'Failed to load licenses');
+    return res.json();
+};
+
+export const createLicense = async (data: Record<string, unknown>): Promise<ItamLicense> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create license');
+    return res.json();
+};
+
+export const updateLicense = async (id: string, data: Record<string, unknown>): Promise<ItamLicense> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to update license');
+    return res.json();
+};
+
+export const assignLicenseSeat = async (id: string, payload: { targetType: 'user' | 'asset'; targetId: string; note?: string }): Promise<ItamLicenseAssignment> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}/assign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to assign seat');
+    return res.json();
+};
+
+export const reclaimLicenseSeat = async (assignmentId: string, note?: string): Promise<void> => {
+    const qs = note ? `?note=${encodeURIComponent(note)}` : '';
+    const res = await authFetch(`${API_BASE}/itam/licenses/assignments/${assignmentId}${qs}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, 'Failed to reclaim seat');
+};
+
+export const fetchLicenseAssignments = async (id: string): Promise<ItamLicenseAssignment[]> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}/assignments`);
+    if (!res.ok) return itamThrow(res, 'Failed to load seat assignments');
+    return res.json();
+};
+
+export const fetchConsumables = async (): Promise<ItamConsumable[]> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables`);
+    if (!res.ok) return itamThrow(res, 'Failed to load consumables');
+    return res.json();
+};
+
+export const createConsumable = async (data: Record<string, unknown>): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create consumable');
+    return res.json();
+};
+
+export const checkoutConsumable = async (id: string, payload: { quantity: number; assignedTo: string; assignedToType: 'user' | 'asset' | 'location'; notes?: string }): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables/${id}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Checkout failed');
+    return res.json();
+};
+
+export const checkinConsumable = async (id: string, quantity: number): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables/${id}/checkin?quantity=${quantity}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Check-in failed');
+    return res.json();
+};
+
+export const fetchComponents = async (): Promise<ItamComponent[]> => {
+    const res = await authFetch(`${API_BASE}/itam/components`);
+    if (!res.ok) return itamThrow(res, 'Failed to load components');
+    return res.json();
+};
+
+export const createComponent = async (data: Record<string, unknown>): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create component');
+    return res.json();
+};
+
+export const attachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components/${id}/attach/${assetId}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to attach component');
+    return res.json();
+};
+
+export const detachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components/${id}/detach/${assetId}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to detach component');
+    return res.json();
+};
+
+export const apiService = {
+    get: async (endpoint: string) => {
+        const res = await authFetch(endpoint);
+        if (!res.ok) throw new Error(`GET ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    post: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`POST ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    put: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`PUT ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    patch: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'PATCH',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`PATCH ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    delete: async (endpoint: string) => {
+        const res = await authFetch(endpoint, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`DELETE ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    // Security Ops Endpoints
+    fetchFindings,
+    fetchRemediationQueue,
+    triggerScan,
+    fetchFimStatus,
+    fetchSecuritySummary,
+    // Remediation Audit & Actions
+    fetchRemediationAudit,
+    approveRemediation,
+    denyRemediation,
+    // Remediation Playbook CRUD
+    fetchRemediationPlaybooks,
+    createRemediationPlaybook,
+    updateRemediationPlaybook,
+    deleteRemediationPlaybook,
 };

@@ -6,17 +6,22 @@
 
 mod config;
 mod http;
+mod buffer;
+mod crypto;
+mod etw;
 mod caps;
 mod caps2;
 mod caps3;
 mod compliance_native;
 mod yara_scan;
+mod vt;
 mod cissp;
 mod ws;
 mod poll;
 mod shell;
 mod agentic;
 mod agent;
+mod remediation_actions;
 mod log;
 
 use std::sync::{Arc, atomic::AtomicBool};

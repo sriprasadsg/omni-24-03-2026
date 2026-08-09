@@ -42,7 +42,7 @@ class RagService:
             # Chroma handles embedding automatically by default
             self.collection.add(
                 documents=[content],
-                metadatas=[{"source": source, "ingested_at": timestamp, "tenantId": tenant_id or "global"}],
+                metadatas=[{"source": source, "ingested_at": timestamp, "tenantId": tenant_id}],
                 ids=[doc_id]
             )
             

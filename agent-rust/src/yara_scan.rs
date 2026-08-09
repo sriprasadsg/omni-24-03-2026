@@ -38,24 +38,34 @@ async fn ps(cmd: &str) -> String {
 }
 
 pub async fn run_yara_scan(extra_paths: &[&str]) -> Value {
-    // Scan running process names for in-memory indicators
-    let proc_text = ps("Get-Process | Select-Object -ExpandProperty Name").await;
     let mut hits: Vec<Value> = Vec::new();
 
+    // Scan running processes: name + executable path + SHA256 (tab-delimited per line).
+    // The SHA256 lets the backend enrich each hit against VirusTotal server-side.
+    let proc_script = "Get-Process -EA SilentlyContinue | Where-Object { $_.Path } | ForEach-Object { \
+        $h = try { (Get-FileHash -Algorithm SHA256 -LiteralPath $_.Path -EA Stop).Hash } catch { '' }; \
+        \"$($_.Name)`t$($_.Path)`t$h\" }";
+    let proc_text = ps(proc_script).await;
     for line in proc_text.lines() {
-        let proc = line.trim();
-        if proc.is_empty() { continue; }
+        let mut parts = line.splitn(3, '\t');
+        let name = parts.next().unwrap_or("").trim();
+        let path = parts.next().unwrap_or("").trim();
+        let sha  = parts.next().unwrap_or("").trim();
+        if name.is_empty() { continue; }
         for rule in RULES {
-            if rule.strings.iter().any(|s| proc.contains(s)) {
+            if rule.strings.iter().any(|s| name.contains(s) || path.contains(s)) {
                 hits.push(json!({
                     "rule": rule.name, "category": rule.category,
-                    "target": proc, "match_type": "process_name"
+                    "target": if path.is_empty() { name } else { path },
+                    "match_type": "process_name", "sha256": sha,
                 }));
             }
         }
     }
 
-    // File-content scan on common staging directories
+    // File-content scan on common staging directories.
+    // Each candidate file is emitted as `path<TAB>sha256<TAB>sanitized_content`
+    // so matches carry a concrete path + hash for downstream VirusTotal lookup.
     let default_dirs: &[&str] = &[r"C:\Temp", r"C:\Users\Public\Downloads", r"C:\Windows\Temp"];
     let dirs: Vec<&str> = if extra_paths.is_empty() {
         default_dirs.to_vec()
@@ -75,24 +85,26 @@ foreach ($d in @({dir_args})) {{
     Get-ChildItem -Path $d -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object {{ $_.Length -lt 2MB }} |
         ForEach-Object {{
-            $c = try {{ [System.IO.File]::ReadAllText($_.FullName) }} catch {{ '' }}
-            $out += "$($_.FullName): $c"
+            $c = try {{ ([System.IO.File]::ReadAllText($_.FullName) -replace '[\r\n\t]',' ') }} catch {{ '' }}
+            $h = try {{ (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName -EA Stop).Hash }} catch {{ '' }}
+            $out += "$($_.FullName)`t$h`t$c"
         }}
 }}
 $out -join "`n"
 "#);
 
     let file_text = ps(&script).await;
-    for rule in RULES {
-        if rule.strings.iter().any(|s| file_text.contains(s)) {
-            let already = hits.iter().any(|h| {
-                h.get("rule").and_then(|r| r.as_str()) == Some(rule.name) &&
-                h.get("match_type").and_then(|t| t.as_str()) != Some("process_name")
-            });
-            if !already {
+    for line in file_text.lines() {
+        let mut parts = line.splitn(3, '\t');
+        let path    = parts.next().unwrap_or("").trim();
+        let sha     = parts.next().unwrap_or("").trim();
+        let content = parts.next().unwrap_or("");
+        if path.is_empty() { continue; }
+        for rule in RULES {
+            if rule.strings.iter().any(|s| content.contains(s)) {
                 hits.push(json!({
                     "rule": rule.name, "category": rule.category,
-                    "target": "staged_files", "match_type": "file_content"
+                    "target": path, "match_type": "file_content", "sha256": sha,
                 }));
             }
         }

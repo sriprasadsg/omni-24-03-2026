@@ -23,6 +23,7 @@ cryptography>=46.0.0            # CVE-2026-34073/39892/26007 fixed in 46+; Ferne
 pyotp>=2.9.0                   # TOTP/HOTP for MFA (RFC 6238)
 qrcode[pil]>=7.4.2             # QR code generation for MFA enrollment
 Pillow>=12.2.0                  # CVE-2026-42308/09/10/11/40192/25990 fixed in 12.2.0; required by qrcode[pil]
+python-barcode==0.16.1          # Code128 1D barcode generation for ITAM asset-tag labels (ITAM-CAT-05); pinned exactly (not >=) — automated legitimacy seam graded SUS, human-approved 2026-08-05, a floating bound would let a later release skip review
 authlib>=1.3.0,<2.0.0          # OIDC / OAuth2 / SAML SSO flows
 defusedxml>=0.7.1,<1.0.0       # Safe XML/SAML parsing (prevents XXE)
 
@@ -62,13 +63,22 @@ pandas>=2.1.0,<3.0.0           # Data analysis and manipulation
 joblib>=1.3.0,<2.0.0           # Model persistence and parallel jobs
 chromadb>=0.5.0,<2.0.0         # Vector DB for RAG / knowledge base
 google-genai>=0.3.0,<2.0.0     # Gemini AI / Google GenAI SDK (new SDK)
-anthropic>=0.28.0,<2.0.0       # Anthropic Claude SDK
-arize-phoenix>=4.0.0,<5.0.0
+anthropic>=0.96.0,<1.0.0       # Anthropic Claude SDK (range required by langchain-anthropic 1.4.8)
 openinference-instrumentation-anthropic>=0.1.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.24.0,<2.0.0
 
+# ── LangChain / LangGraph Orchestration (Phase 39) ───────────────────────────
+langchain==1.3.14
+langchain-core==1.4.9
+langgraph==1.2.9
+langchain-openai==1.3.5
+langchain-anthropic==1.4.8
+langchain-ollama==1.1.0
+langgraph-checkpoint-sqlite==3.1.0
+openinference-instrumentation-langchain==0.1.67
+
 # ── ReBAC Client ──────────────────────────────────────────────────────────────
-openfga>=0.6.0,<1.0.0          # OpenFGA client for Zanzibar-style ReBAC
+openfga-sdk>=0.6.0,<1.0.0          # OpenFGA client for Zanzibar-style ReBAC
 
 # ── Payment Gateways ─────────────────────────────────────────────────────────
 stripe>=9.0.0,<12.0.0          # Stripe payment processing
@@ -111,14 +121,21 @@ google-cloud-securitycenter>=1.23.0   # GCP Security Command Center ingest
 azure-monitor-query>=1.2.0            # Microsoft Sentinel log query via Log Analytics
 oci>=2.181.1
 aliyun-python-sdk-core-v3>=2.13.33
+alibabacloud_config20200907>=4.2.3
+alibabacloud_sas20181203>=9.3.3
+alibabacloud_tea_openapi>=0.4.5
+alibabacloud_credentials>=1.0.10
 cloudflare>=5.4.0
 msal>=1.37.0
 
 # ── GraphQL ──────────────────────────────────────────────────────────────────
-strawberry-graphql[fastapi]
+strawberry-graphql[fastapi]>=0.323.2  # <0.323.2 breaks on pydantic>=2.13 (is_new_type import)
 
 # ── WebAuthn / Passkeys ──────────────────────────────────────────────────────
-webauthn>=3.0.0,<4.0.0
+webauthn>=2.5.0,<3.0.0    # 3.x requires cryptography>=49, conflicts with alibabacloud-tea-openapi (<49); 2.5.x uses same public API
+
+# ── GeoIP (agent public-IP geolocation) ──────────────────────────────────────
+maxminddb>=2.5.0    # Pure-Python reader for a MaxMind GeoLite2-City .mmdb (DB file supplied out-of-band; lookups degrade gracefully when absent)
 
 # ── Code Review Graph ─────────────────────────────────────────────────────────
 mcp

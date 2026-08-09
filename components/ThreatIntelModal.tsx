@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { ThreatIntelResult } from '../types';
-import { XIcon, ShieldSearchIcon, CheckIcon, AlertTriangleIcon, ExternalLinkIcon } from './icons';
+import { ShieldSearchIcon, CheckIcon, AlertTriangleIcon, ExternalLinkIcon } from './icons';
+import { Modal } from './Modal';
 
 interface ThreatIntelModalProps {
   isOpen: boolean;
@@ -52,36 +53,33 @@ const ResultDisplay: React.FC<{ result: ThreatIntelResult }> = ({ result }) => {
 }
 
 export const ThreatIntelModal: React.FC<ThreatIntelModalProps> = ({ isOpen, onClose, result }) => {
-  if (!isOpen || !result) return null;
+  if (!result) return null;
+
+  const footer = (
+    <button type="button" onClick={onClose}
+      className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none"
+    >
+      Close
+    </button>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 m-4" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center">
-            <ShieldSearchIcon size={24} className="mr-3 text-primary-500" />
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Threat Intelligence Scan</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{result.artifact}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
-            <XIcon size={20} />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<ShieldSearchIcon size={24} className="text-primary-500" />}
+      title={
+        <div>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Threat Intelligence Scan</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{result.artifact}</p>
         </div>
-
-        <div className="min-h-[200px] flex items-center justify-center">
-          <ResultDisplay result={result} />
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none"
-          >
-            Close
-          </button>
-        </div>
+      }
+      size="md"
+      footer={footer}
+    >
+      <div className="min-h-[200px] flex items-center justify-center">
+        <ResultDisplay result={result} />
       </div>
-    </div>
+    </Modal>
   );
 };
