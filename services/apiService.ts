@@ -10,7 +10,9 @@ import {
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
     Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload,
-    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
+    ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
+    ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus,
 } from '../types';
 
 export type {
@@ -5190,6 +5192,206 @@ export const deleteRemediationPlaybook = async (id: string): Promise<void> => {
 };
 
 // Wrapper object to satisfy imports in new dashboards (DataWarehouse, Streaming, etc.)
+// --- ITAM (Phase 61 console) ---
+
+async function itamThrow(res: Response, fallback: string): Promise<never> {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ? (typeof body.detail === 'string' ? body.detail : fallback) : fallback);
+}
+
+export const fetchCatalogEntities = async (kind: ItamCatalogKind): Promise<ItamCatalogEntity[]> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}`);
+    if (!res.ok) return itamThrow(res, `Failed to load ${kind}`);
+    return res.json();
+};
+
+export const createCatalogEntity = async (kind: ItamCatalogKind, data: Record<string, unknown>): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, `Failed to create ${kind}`);
+    return res.json();
+};
+
+export const updateCatalogEntity = async (kind: ItamCatalogKind, id: string, data: Record<string, unknown>): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, `Failed to update ${kind}`);
+    return res.json();
+};
+
+export const deleteCatalogEntity = async (kind: ItamCatalogKind, id: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, `Failed to delete ${kind}`);
+};
+
+export const createManualAsset = async (data: Record<string, unknown>): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create asset');
+    return res.json();
+};
+
+export const fetchAssetComponentsList = async (assetId: string): Promise<ItamComponent[]> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/components`);
+    if (!res.ok) return itamThrow(res, 'Failed to load components');
+    return res.json();
+};
+
+export const checkoutAsset = async (assetId: string, payload: { targetType: 'user' | 'location'; targetId: string; note?: string; expectedReturnDate?: string }): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Checkout failed');
+    return res.json();
+};
+
+export const checkinAsset = async (assetId: string, note?: string): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/checkin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }),
+    });
+    if (!res.ok) return itamThrow(res, 'Check-in failed');
+    return res.json();
+};
+
+export const markAssetAudited = async (assetId: string, note?: string): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/audit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to record audit');
+    return res.json();
+};
+
+export const fetchAssetHistory = async (assetId: string): Promise<{ assetId: string; history: ItamAssignmentHistoryEntry[] }> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/history`);
+    if (!res.ok) return itamThrow(res, 'Failed to load history');
+    return res.json();
+};
+
+export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
+    const res = await authFetch(`${API_BASE}/assets/reports/overdue-audit`);
+    if (!res.ok) return itamThrow(res, 'Failed to load overdue-audit report');
+    return res.json();
+};
+
+export const updateAssetPurchase = async (assetId: string, data: Record<string, unknown>): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/purchase`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to save purchase record');
+    return res.json();
+};
+
+export const fetchAssetBookValue = async (assetId: string): Promise<ItamBookValue> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/book-value`);
+    if (!res.ok) return itamThrow(res, 'Failed to load book value');
+    return res.json();
+};
+
+export const fetchAssetWarranty = async (assetId: string): Promise<ItamWarrantyStatus> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/warranty`);
+    if (!res.ok) return itamThrow(res, 'Failed to load warranty status');
+    return res.json();
+};
+
+export const fetchLicenses = async (): Promise<ItamLicense[]> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses`);
+    if (!res.ok) return itamThrow(res, 'Failed to load licenses');
+    return res.json();
+};
+
+export const createLicense = async (data: Record<string, unknown>): Promise<ItamLicense> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create license');
+    return res.json();
+};
+
+export const updateLicense = async (id: string, data: Record<string, unknown>): Promise<ItamLicense> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to update license');
+    return res.json();
+};
+
+export const assignLicenseSeat = async (id: string, payload: { targetType: 'user' | 'asset'; targetId: string; note?: string }): Promise<ItamLicenseAssignment> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}/assign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to assign seat');
+    return res.json();
+};
+
+export const reclaimLicenseSeat = async (assignmentId: string, note?: string): Promise<void> => {
+    const qs = note ? `?note=${encodeURIComponent(note)}` : '';
+    const res = await authFetch(`${API_BASE}/itam/licenses/assignments/${assignmentId}${qs}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, 'Failed to reclaim seat');
+};
+
+export const fetchLicenseAssignments = async (id: string): Promise<ItamLicenseAssignment[]> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}/assignments`);
+    if (!res.ok) return itamThrow(res, 'Failed to load seat assignments');
+    return res.json();
+};
+
+export const fetchConsumables = async (): Promise<ItamConsumable[]> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables`);
+    if (!res.ok) return itamThrow(res, 'Failed to load consumables');
+    return res.json();
+};
+
+export const createConsumable = async (data: Record<string, unknown>): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create consumable');
+    return res.json();
+};
+
+export const checkoutConsumable = async (id: string, payload: { quantity: number; assignedTo: string; assignedToType: 'user' | 'asset' | 'location'; notes?: string }): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables/${id}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Checkout failed');
+    return res.json();
+};
+
+export const checkinConsumable = async (id: string, quantity: number): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables/${id}/checkin?quantity=${quantity}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Check-in failed');
+    return res.json();
+};
+
+export const fetchComponents = async (): Promise<ItamComponent[]> => {
+    const res = await authFetch(`${API_BASE}/itam/components`);
+    if (!res.ok) return itamThrow(res, 'Failed to load components');
+    return res.json();
+};
+
+export const createComponent = async (data: Record<string, unknown>): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create component');
+    return res.json();
+};
+
+export const attachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components/${id}/attach/${assetId}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to attach component');
+    return res.json();
+};
+
+export const detachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components/${id}/detach/${assetId}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to detach component');
+    return res.json();
+};
+
 export const apiService = {
     get: async (endpoint: string) => {
         const res = await authFetch(endpoint);

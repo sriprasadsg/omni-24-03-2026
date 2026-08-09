@@ -313,6 +313,7 @@ export type Permission =
   | 'view:config_drift' | 'manage:config_drift'
   | 'view:fim' | 'manage:fim'
   | 'view:active_response' | 'manage:active_response'
+  | 'view:itam' | 'manage:itam'
   | 'admin:*';
 
 
@@ -775,6 +776,120 @@ export interface Asset {
   agentVersion?: string;
   agentId?: string;
   agentCapabilities?: AgentCapability[];
+
+  // ITAM (Phases 56-60) — additive fields on the same assets collection,
+  // present on manual assets and progressively backfilled on agent-discovered
+  // ones. All optional: pre-existing agent-discovered assets predate these.
+  assetTag?: string;
+  assetSource?: 'agent' | 'manual';
+  lifecycleStatus?: ItamLifecycleStatus;
+  manufacturerId?: string;
+  categoryId?: string;
+  locationId?: string;
+  supplierId?: string;
+  modelId?: string;
+  purchaseCostCents?: number;
+  purchaseDate?: string;
+  poNumber?: string;
+  warrantyMonths?: number;
+  assignedToType?: 'user' | 'location';
+  assignedToId?: string;
+  components?: string[];
+  notes?: string;
+}
+
+export type ItamLifecycleStatus = 'deployable' | 'deployed' | 'archived' | 'retired' | 'disposed' | 'broken';
+
+export type ItamCatalogKind = 'manufacturers' | 'categories' | 'locations' | 'suppliers' | 'models';
+
+export interface ItamCatalogEntity {
+  id: string;
+  tenantId: string;
+  name: string;
+  notes?: string;
+  // Model-only fields (kind === 'models')
+  usefulLifeYears?: number;
+  salvageValueCents?: number;
+  [key: string]: unknown;
+}
+
+export interface ItamLicense {
+  id: string;
+  tenantId: string;
+  name: string;
+  seatCount: number;
+  expiryDate?: string;
+  isReassignable?: boolean;
+  notes?: string;
+  manufacturerId?: string;
+  seatsAssigned?: number;
+  seatsAvailable?: number;
+  isExpired?: boolean;
+  daysUntilExpiry?: number | null;
+}
+
+export interface ItamLicenseAssignment {
+  id: string;
+  licenseId: string;
+  targetType: 'user' | 'asset';
+  targetId: string;
+  assignedAt: string;
+  assignedBy: string;
+  note?: string;
+}
+
+export interface ItamConsumable {
+  id: string;
+  tenantId: string;
+  name: string;
+  initialQuantity: number;
+  availableQuantity: number;
+  unitType: string;
+  notes?: string;
+}
+
+export interface ItamComponent {
+  id: string;
+  tenantId: string;
+  name: string;
+  type?: string;
+  serialNumber?: string;
+  manufacturerId?: string;
+  modelId?: string;
+  parentAssetId?: string | null;
+}
+
+export interface ItamAssignmentHistoryEntry {
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  note?: string;
+  actorUsername?: string;
+  ts: string;
+}
+
+export interface ItamBookValue {
+  assetId: string;
+  modelId?: string | null;
+  purchaseCostCents?: number | null;
+  purchaseDate?: string | null;
+  bookValueCents: number | null;
+  reason?: string;
+  yearsElapsed?: number;
+  annualDepreciationCents?: number;
+  usefulLifeYears?: number;
+  salvageValueCents?: number;
+}
+
+export interface ItamWarrantyStatus {
+  assetId: string;
+  purchaseDate?: string | null;
+  warrantyMonths?: number | null;
+  alertWindowDays: number;
+  warrantyAlertSentAt?: string | null;
+  warrantyStatus: 'none' | 'active' | 'expiring' | 'expired' | string;
+  warrantyExpiresAt: string | null;
+  daysToExpiry: number | null;
 }
 
 export type PatchSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
