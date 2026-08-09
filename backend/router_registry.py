@@ -84,6 +84,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "itam_lifecycle_endpoints", "router")  # ITAM Phase 57 Lifecycle Router
     _load(app, "itam_license_endpoints",   "router")  # ITAM Phase 60 License Router
     _load(app, "itam_consumable_endpoints", "router")  # ITAM Phase 60 Consumable Router
+    _load(app, "itam_component_endpoints", "router")  # ITAM Phase 60 Component Router
     _load(app, "itam_label_endpoints",     "router")    # ITAM Phase 58 Label Router
     _load(app, "itam_finance_endpoints",   "router")    # ITAM Phase 59 Finance Router
     _load(app, "asset_endpoints",          "router")

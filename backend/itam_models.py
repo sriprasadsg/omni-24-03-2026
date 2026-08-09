@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Literal, Optional
 from bson import ObjectId  # Added for ObjectId reference in field_validator
 
 from pydantic import Field, ConfigDict, field_validator
-from backend.dependencies import PyObjectId
+from dependencies import PyObjectId
 import bson
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
@@ -461,3 +461,53 @@ class Component(ComponentCreate):
         if isinstance(v, ObjectId):
             return str(v)
         return v
+
+
+class CheckoutRequest(BaseModel):
+    """Request contract for POST /api/assets/{asset_id}/checkout."""
+    targetType: Literal["user", "location"]
+    targetId: str
+    note: Optional[str] = None
+    expectedReturnDate: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    _validate_expected_return_date = field_validator("expectedReturnDate")(_validate_iso8601_date)
+
+
+# Lifecycle Check-In (Phase 57-02, ITAM-LIFE-03). Check-in takes no target — the
+# target of a check-in is always stock.
+class CheckinRequest(BaseModel):
+    """Request contract for POST /api/assets/{asset_id}/checkin."""
+    note: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Physical Audit Mark (Phase 57-03, ITAM-LIFE-05). An omitted auditedAt means
+# "audited now" — the server clock is used as the asserted date.
+class AuditMarkRequest(BaseModel):
+    """Request contract for POST /api/assets/{asset_id}/audit."""
+    auditedAt: Optional[str] = None
+    note: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    _validate_audited_at = field_validator("auditedAt")(_validate_iso8601_date)
+
+
+# Label Sheet (Phase 58-04, ITAM-CAT-05). Bounds how much PDF-generation work
+# one request can trigger — enforced as an explicit 400 refusal in the
+# endpoint handler, not as a Pydantic length constraint, so an over-length
+# request gets a body explaining what was wrong rather than a bare 422.
+MAX_LABEL_SHEET_ASSETS = 500
+
+
+class LabelSheetRequest(BaseModel):
+    """Request contract for POST /api/assets/labels/sheet. Deliberately left
+    without Pydantic length constraints on assetIds — the emptiness check
+    and the MAX_LABEL_SHEET_ASSETS cap are both enforced in the handler so
+    both violations produce a 400 with an explanatory body instead of a 422."""
+    assetIds: List[str]
+
+    model_config = ConfigDict(extra="forbid")
