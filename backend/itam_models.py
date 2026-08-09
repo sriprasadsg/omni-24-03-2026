@@ -5,9 +5,14 @@ This module defines the data contracts for catalog entities and manual assets,
 intended to be shared across ITAM-related backend services and endpoints.
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, Any, List, Literal, Optional
+from bson import ObjectId  # Added for ObjectId reference in field_validator
+
+from pydantic import Field, ConfigDict, field_validator
+from backend.dependencies import PyObjectId
+import bson
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
@@ -200,89 +205,106 @@ class AssetModelCreate(CatalogEntityCreate):
     manufacturerId: Optional[str] = None
     categoryId: Optional[str] = None
     fieldsets: List[FieldsetDef] = Field(default_factory=list)
-    # ITAM-FIN-03 (Phase 59, D-04): straight-line depreciation policy, kept as
-    # first-class typed fields — deliberately NOT participants in fieldsets,
-    # which is a tenant-authorable custom-field registry, not a home for a
-    # platform-defined financial policy. A Model carries a usable policy only
-    # when BOTH fields are present (PD-02) — the endpoint enforces that, not
-    # this model.
-    usefulLifeYears: Optional[int] = Field(None, gt=0, le=100)
+    # ITAM-FIN-03: Model-level depreciation policy fields
+    usefulLifeYears: Optional[int] = Field(None, ge=0)
     salvageValueCents: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
 
 
 class AssetModelUpdate(CatalogEntityUpdate):
-    """Request contract for partially updating an asset Model."""
+    """Request contract for updating an asset Model."""
     modelNumber: Optional[str] = None
     manufacturerId: Optional[str] = None
     categoryId: Optional[str] = None
     fieldsets: Optional[List[FieldsetDef]] = None
-    usefulLifeYears: Optional[int] = Field(None, gt=0, le=100)
+    usefulLifeYears: Optional[int] = Field(None, ge=0)
     salvageValueCents: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
 
 
-# Lifecycle Check-Out (Phase 57-01, ITAM-LIFE-02). targetType/targetId are a polymorphic
-# pair (PD-01): a user or a location, never two separate optional id fields.
-class CheckoutRequest(BaseModel):
-    """Request contract for POST /api/assets/{asset_id}/checkout."""
-    targetType: Literal["user", "location"]
-    targetId: str
-    note: Optional[str] = None
-    expectedReturnDate: Optional[str] = None
+class AssetModel(AssetModelCreate):
+    """Asset Model entity. Extends ModelCreate."""
+    id: str = Field(default_factory=lambda: f"model-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
-    _validate_expected_return_date = field_validator("expectedReturnDate")(_validate_iso8601_date)
-
-
-# Lifecycle Check-In (Phase 57-02, ITAM-LIFE-03). Check-in takes no target — the
-# target of a check-in is always stock.
-class CheckinRequest(BaseModel):
-    """Request contract for POST /api/assets/{asset_id}/checkin."""
-    note: Optional[str] = None
-
-    model_config = ConfigDict(extra="forbid")
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
 
 
-# Physical Audit Mark (Phase 57-03, ITAM-LIFE-05). An omitted auditedAt means
-# "audited now" — the server clock is used as the asserted date.
-class AuditMarkRequest(BaseModel):
-    """Request contract for POST /api/assets/{asset_id}/audit."""
-    auditedAt: Optional[str] = None
-    note: Optional[str] = None
-
-    model_config = ConfigDict(extra="forbid")
-
-    _validate_audited_at = field_validator("auditedAt")(_validate_iso8601_date)
+# Category — a distinct catalog entity per ITAM-CAT-02: a simple name, no
+# special fields beyond the generic CatalogEntityCreate/Update base.
+class CategoryCreate(CatalogEntityCreate):
+    pass
 
 
-# Label Sheet (Phase 58-04, ITAM-CAT-05). Bounds how much PDF-generation work
-# one request can trigger — enforced as an explicit 400 refusal in the
-# endpoint handler, not as a Pydantic length constraint, so an over-length
-# request gets a body explaining what was wrong rather than a bare 422.
-MAX_LABEL_SHEET_ASSETS = 500
+class CategoryUpdate(CatalogEntityUpdate):
+    pass
 
 
-class LabelSheetRequest(BaseModel):
-    """Request contract for POST /api/assets/labels/sheet. Deliberately left
-    without Pydantic length constraints on assetIds — the emptiness check
-    and the MAX_LABEL_SHEET_ASSETS cap are both enforced in the handler so
-    both violations produce a 400 with an explanatory body instead of a 422."""
-    assetIds: List[str]
-
-    model_config = ConfigDict(extra="forbid")
-
-
-# ITAM-LIC-01: Software License models (Phase 60).
-class LicenseCreate(CatalogEntityCreate):
-    """Request contract for creating a software license."""
+# Manual Assets - overrides base Asset with ITAM-specific fields
+class Asset(BaseModel):
+    """Represents an ITAM asset."""
+    id: str = Field(default_factory=lambda: f"asset-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    name: str = Field(min_length=1, max_length=200)
+    assetTag: str
+    serialNumber: Optional[str] = None
+    type: Optional[str] = None  # e.g., 'laptop', 'monitor', 'server'
     manufacturerId: Optional[str] = None
-    seatCount: int = Field(..., gt=0)
+    modelId: Optional[str] = None
+    categoryId: Optional[str] = None
+    supplierId: Optional[str] = None
+    locationId: Optional[str] = None
+    notes: Optional[str] = None
+    customFields: Dict[str, Any] = Field(default_factory=dict)
+    lifecycleStatus: LifecycleStatus = DEFAULT_LIFECYCLE_STATUS
+    parentAssetId: Optional[str] = None # For component attachments
+    components: List[str] = Field(default_factory=list) # List of component IDs attached
+
+    # Financial details
+    purchaseCostCents: Optional[int] = Field(None, ge=0)
+    purchaseDate: Optional[str] = None
+    poNumber: Optional[str] = Field(None, max_length=100)
+    warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
+    warrantyAlertSentAt: Optional[str] = None # ITAM-FIN-02: idempotency marker for warranty sweeps
+
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
+
+    @field_validator("purchaseDate", mode="before")
+    def _validate_purchase_date_field(cls, v):
+        return _validate_iso8601_date(v)
+
+    @field_validator("warrantyAlertSentAt", mode="before")
+    def _validate_warranty_alert_sent_at_field(cls, v):
+        return _validate_iso8601_date(v)
+
+
+# ITAM-LIC-01: License models (Phase 60).
+class LicenseCreate(CatalogEntityCreate):
+    """Request contract for creating a new software license."""
+    seatCount: int = Field(ge=0)
     expiryDate: Optional[str] = None
     isReassignable: bool = True
+    manufacturerId: Optional[str] = None
+    productKey: Optional[str] = None # Encrypted in real deployments
 
     model_config = ConfigDict(extra="forbid")
 
@@ -290,22 +312,152 @@ class LicenseCreate(CatalogEntityCreate):
 
 
 class LicenseUpdate(CatalogEntityUpdate):
-    """Request contract for partially updating a software license."""
-    manufacturerId: Optional[str] = None
-    seatCount: Optional[int] = Field(None, gt=0)
+    """Request contract for updating an existing software license."""
+    seatCount: Optional[int] = Field(None, ge=0)
     expiryDate: Optional[str] = None
     isReassignable: Optional[bool] = None
+    manufacturerId: Optional[str] = None
+    productKey: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
 
     _validate_expiry_date = field_validator("expiryDate")(_validate_iso8601_date)
 
 
+class License(LicenseCreate):
+    """Represents a software license entity."""
+    id: str = Field(default_factory=lambda: f"lic-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
+
+
 class LicenseSeatAssignmentRequest(BaseModel):
-    """Request contract for assigning a license seat to a user or asset (ITAM-LIC-01).
-    Polymorphic target pattern (targetType/targetId) mirroring CheckoutRequest (PD-01)."""
+    """Request contract for assigning a license seat."""
     targetType: Literal["user", "asset"]
     targetId: str
     note: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+
+class LicenseSeatAssignment(BaseModel):
+    """Represents an assigned license seat."""
+    id: str = Field(default_factory=lambda: f"la-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    licenseId: str
+    targetType: Literal["user", "asset"]
+    targetId: str
+    assignedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    assignedBy: str # Username or system
+    note: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
+
+
+# ITAM-LIC-02: Consumable models (Phase 60).
+class ConsumableCreate(CatalogEntityCreate):
+    """Request contract for creating a new consumable."""
+    initialQuantity: int = Field(ge=0)
+    unitType: str = Field(min_length=1, max_length=50) # e.g., "unit", "pack", "meter"
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConsumableUpdate(CatalogEntityUpdate):
+    """Request contract for updating an existing consumable."""
+    initialQuantity: Optional[int] = Field(None, ge=0) # Can't update directly, managed by checkout/checkin
+    unitType: Optional[str] = Field(None, min_length=1, max_length=50)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConsumableCheckoutRequest(BaseModel):
+    """Request contract for checking out a consumable."""
+    quantity: int = Field(ge=1)
+    assignedTo: str
+    assignedToType: Literal["user", "asset", "location"]
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConsumableCheckoutRecord(BaseModel):
+    """Represents a single checkout record for a consumable."""
+    checkoutDate: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    quantity: int
+    assignedTo: str
+    assignedToType: Literal["user", "asset", "location", "system"]
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Consumable(ConsumableCreate):
+    """Represents a consumable entity."""
+    id: str = Field(default_factory=lambda: f"con-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    availableQuantity: int # Derived from initialQuantity and checkout/checkin
+    checkoutRecords: List[ConsumableCheckoutRecord] = Field(default_factory=list)
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
+
+
+# ITAM-LIC-03: Component models (Phase 60).
+class ComponentCreate(CatalogEntityCreate):
+    """Request contract for creating a new component."""
+    type: Optional[str] = None
+    serialNumber: Optional[str] = None
+    manufacturerId: Optional[str] = None
+    modelId: Optional[str] = None
+    assetIds: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ComponentUpdate(CatalogEntityUpdate):
+    """Request contract for updating an existing component."""
+    serialNumber: Optional[str] = None
+    manufacturerId: Optional[str] = None
+    modelId: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Component(ComponentCreate):
+    """Represents an ITAM component."""
+    id: str = Field(default_factory=lambda: f"comp-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    parentAssetId: Optional[str] = None # ID of the asset this component is attached to
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
