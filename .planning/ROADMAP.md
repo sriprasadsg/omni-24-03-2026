@@ -799,7 +799,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 | 57 | Lifecycle & Check-In/Out | Complete    |
 | 58 | Asset Tags & Offline Labels | Complete    |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Complete    |
-| 60 | Licenses & Consumables | In Progress |
+| 60 | Licenses & Consumables | Complete    |
 | 61 | Frontend ITAM Console | Not started |
 
 ---
@@ -941,7 +941,12 @@ Plans:
 
 **Depends on:** Phase 56 (tenant-isolation/RBAC scaffolding; architecturally independent of Phases 57-59)
 
-**Plans:** TBD
+**Plans:**
+- [x] 60-01-PLAN.md
+- [x] 60-02-PLAN.md
+- [x] 60-03-PLAN.md
+
+**Status:** Complete 2026-08-09 — all three requirements (ITAM-LIC-01/02/03) delivered. Implementation history is unusually fragmented (6 non-conventional commits 2026-08-06 through 2026-08-09, no SUMMARY.md existed until this session — see 60-01/02/03-SUMMARY.md for the full commit-by-commit account). This session's goal-backward verification against the 3 success criteria above found and fixed 3 real gaps: (1) license GET responses had no computed remaining/expired-seat visibility despite criterion 1's literal wording — added read-time `seatsAssigned`/`seatsAvailable`/`isExpired`/`daysUntilExpiry`; (2) `itam_component_service.py`'s `update_component`/`attach_component`/`detach_component` omitted `return_document=ReturnDocument.AFTER`, so on a real database every one of those calls returned the pre-update document; (3) no hydrated per-asset component listing existed for criterion 3 — only a bare id-array riding along on the generic asset GET — added `GET /api/assets/{asset_id}/components` per 60-RESEARCH.md's own (previously unimplemented) Pattern 3. Also closed a test-coverage gap: consumable checkout/checkin had zero tests despite being ITAM-LIC-02's entire substance. One residual risk documented and deliberately left open: license seat assignment's capacity guard is a read-then-write, not the atomic guard-in-filter pattern used elsewhere in this phase — see `60-VERIFICATION.md`. Full backend suite: 1831 passed / 35 skipped / 3 pre-existing unrelated failures, no regressions.
 
 ---
 

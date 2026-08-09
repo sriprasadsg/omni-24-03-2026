@@ -8,14 +8,14 @@
 ### Catalog & Organization (ITAM-CAT)
 
 - [x] **ITAM-CAT-01**: Admin can manage Manufacturer / Model / Category / Location catalog entities (CRUD), referenced by ID from assets.
-- [ ] **ITAM-CAT-02**: Admin can create and manage a manual (non-agent) asset, with a unique per-tenant asset tag, coexisting with agent-discovered assets via a source discriminator.
+- [x] **ITAM-CAT-02**: Admin can create and manage a manual (non-agent) asset, with a unique per-tenant asset tag, coexisting with agent-discovered assets via a source discriminator.
 - [x] **ITAM-CAT-03**: Admin can manage Suppliers as a distinct catalog entity.
 - [x] **ITAM-CAT-04**: Admin can define custom fields grouped into fieldsets, attached at the model level.
 - [x] **ITAM-CAT-05**: User can generate a printable QR + 1D barcode label (PDF label sheet) for an asset, fully offline (no external service or network call).
 
 ### Lifecycle & Check-in/out (ITAM-LIFE)
 
-- [ ] **ITAM-LIFE-01**: Asset carries a status lifecycle label (deployable/deployed/archived/retired/disposed/broken), distinct from the existing agent connectivity status field.
+- [x] **ITAM-LIFE-01**: Asset carries a status lifecycle label (deployable/deployed/archived/retired/disposed/broken), distinct from the existing agent connectivity status field.
 - [x] **ITAM-LIFE-02**: User can check out an asset to a user or a location; checkout is only allowed from a deployable-typed status.
 - [x] **ITAM-LIFE-03**: User can check in an asset, returning it to stock and clearing its assignment.
 - [x] **ITAM-LIFE-04**: Every check-out/check-in is recorded in an append-only assignment history / audit trail.
@@ -29,9 +29,9 @@
 
 ### Licenses & Consumables (ITAM-LIC)
 
-- [ ] **ITAM-LIC-01**: Admin can manage software licenses with seat counts, assign/reclaim seats to a user or asset, and track license expiry.
-- [ ] **ITAM-LIC-02**: Admin can manage accessories/consumables with quantity-aware checkout (supports quantity > 1 per transaction, not limited to 1).
-- [ ] **ITAM-LIC-03**: Admin can attach components (RAM/HDD/GPU-style sub-inventory) to a parent asset.
+- [x] **ITAM-LIC-01**: Admin can manage software licenses with seat counts, assign/reclaim seats to a user or asset, and track license expiry.
+- [x] **ITAM-LIC-02**: Admin can manage accessories/consumables with quantity-aware checkout (supports quantity > 1 per transaction, not limited to 1).
+- [x] **ITAM-LIC-03**: Admin can attach components (RAM/HDD/GPU-style sub-inventory) to a parent asset.
 
 ### Operator UI (ITAM-UI)
 
@@ -68,11 +68,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ITAM-CAT-01 | Phase 56 | Complete |
-| ITAM-CAT-02 | Phase 56 | Pending |
+| ITAM-CAT-02 | Phase 56 | Complete |
 | ITAM-CAT-03 | Phase 56 | Complete |
 | ITAM-CAT-04 | Phase 56 | Complete |
 | ITAM-CAT-05 | Phase 58 | Complete |
-| ITAM-LIFE-01 | Phase 56 | Pending |
+| ITAM-LIFE-01 | Phase 56 | Complete |
 | ITAM-LIFE-02 | Phase 57 | Complete |
 | ITAM-LIFE-03 | Phase 57 | Complete |
 | ITAM-LIFE-04 | Phase 57 | Complete |
@@ -80,9 +80,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-FIN-01 | Phase 59 | Complete |
 | ITAM-FIN-02 | Phase 59 | Complete |
 | ITAM-FIN-03 | Phase 59 | Complete |
-| ITAM-LIC-01 | Phase 60 | Pending |
-| ITAM-LIC-02 | Phase 60 | Pending |
-| ITAM-LIC-03 | Phase 60 | Pending |
+| ITAM-LIC-01 | Phase 60 | Complete |
+| ITAM-LIC-02 | Phase 60 | Complete |
+| ITAM-LIC-03 | Phase 60 | Complete |
 | ITAM-UI-01 | Phase 61 | Pending |
 
 **Coverage:**
