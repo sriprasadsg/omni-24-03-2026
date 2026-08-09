@@ -800,7 +800,7 @@ Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md)
 | 58 | Asset Tags & Offline Labels | Complete    |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Complete    |
 | 60 | Licenses & Consumables | Complete    |
-| 61 | Frontend ITAM Console | Not started |
+| 61 | Frontend ITAM Console | Complete    |
 
 ---
 
@@ -966,7 +966,10 @@ Plans:
 
 **Depends on:** Phases 56, 57, 58, 59, 60 (integrates every backend surface)
 
-**Plans:** TBD
+**Plans:**
+- [x] 61-01-PLAN.md
+
+**Status:** Complete 2026-08-09 — ITAM-UI-01 delivered. Replaced the 13-line ITAMConsole.tsx placeholder with a real 6-tab console (Catalog, Check-Out/In, Procurement & Finance, Licenses & Consumables, plus Compliance and Software Inventory integration tabs) cloning NativeSecurityConsole.tsx's shape per 61-RESEARCH.md. Fixed a real, pre-existing broken `TS2741` compile error (`viewPermissionMap` missing the `itam` key) and a missing `Permission` union entry for `manage:itam`/`view:itam`. Widened the Licenses & Consumables tab to cover all three ITAM-LIC-01/02/03 (licenses, consumables, components) rather than 61-UI-SPEC.md's now-stale "licenses-only" scoping, since Phase 60's consumables/component backends were verified complete the same session. `npm run build`/`npx tsc --noEmit` clean; 9 new tests, full frontend suite 172 passed / 1 pre-existing unrelated failure. See `61-VERIFICATION.md`. All 17 v1 requirements of the v4.0 ITAM milestone are now complete; one live-browser walkthrough remains as human verification.
 
 **UI hint:** yes
 

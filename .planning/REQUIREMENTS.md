@@ -35,7 +35,7 @@
 
 ### Operator UI (ITAM-UI)
 
-- [ ] **ITAM-UI-01**: The ITAM console is reachable via an admin-gated nav entry (new AppView + App.tsx route + Sidebar entry + dedicated `manage:itam` permission), following the Phase 47/48 pattern.
+- [x] **ITAM-UI-01**: The ITAM console is reachable via an admin-gated nav entry (new AppView + App.tsx route + Sidebar entry + dedicated `manage:itam` permission), following the Phase 47/48 pattern.
 
 ## v2 Requirements
 
@@ -83,7 +83,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-LIC-01 | Phase 60 | Complete |
 | ITAM-LIC-02 | Phase 60 | Complete |
 | ITAM-LIC-03 | Phase 60 | Complete |
-| ITAM-UI-01 | Phase 61 | Pending |
+| ITAM-UI-01 | Phase 61 | Complete |
 
 **Coverage:**
 

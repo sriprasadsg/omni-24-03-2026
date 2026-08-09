@@ -4,17 +4,17 @@ milestone: v4.0
 milestone_name: — ITAM
 current_phase: 61
 current_phase_name: Frontend ITAM Console
-status: planning
-stopped_at: Phase 60 complete (verified) — Phase 61 (Frontend ITAM Console) is next; note the phase directory was mid-rename at session start (61-frontend-itam-console -> 62-frontend-itam-console, uncommitted) and needs reconciling before planning
-last_updated: "2026-08-09T18:50:00.000Z"
+status: complete
+stopped_at: All 6 v4.0 ITAM phases complete (56-61) — all 17 v1 requirements delivered. One live-browser round-trip walkthrough remains as human verification (see 61-VERIFICATION.md); otherwise milestone is ready to close.
+last_updated: "2026-08-09T19:40:00.000Z"
 last_activity: 2026-08-09
-last_activity_desc: Phase 60 backend audit completed and closed out — 3 real gaps found and fixed via goal-backward verification, SUMMARY/VERIFICATION written
+last_activity_desc: Phase 61 (Frontend ITAM Console) executed and verified — 6-tab console built, wired into nav, ITAM-UI-01 delivered
 progress:
   total_phases: 6
-  completed_phases: 5
-  total_plans: 19
-  completed_plans: 16
-  percent: 83
+  completed_phases: 6
+  total_plans: 20
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State
@@ -87,6 +87,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 **Session 2026-08-09 — Phase 60 (Licenses & Consumables) backend audit completed and closed out; ITAM-LIC-01/02/03 delivered.** `test_itam_license.py`'s `IndentationError` (flagged in 59-04-SUMMARY.md) was already fixed by three intervening non-conventional commits (`9d38667`, `95ab0d7`, `a025953`) before this session started — `95ab0d7` in particular fixed a critical production-breaking bug (`itam_models.py`/`itam_component_endpoints.py`/`itam_consumable_endpoints.py` importing sibling modules as `backend.X` instead of `X`, which would have failed to import under uvicorn's real `cwd=backend/` launcher even though pytest's rootdir setup masked it). Starting point: all 18 pre-existing Phase 60 tests passing, one file (`itam_consumable_service.py`) uncommitted mid-fix. This session's goal-backward verification against ROADMAP's 3 success criteria (not just "do the files exist and do tests pass") found and fixed 3 further real gaps, none caught by the existing mocked tests: (1) license GET responses had no computed remaining/expired-seat visibility despite success criterion 1's literal "see remaining/expired seats" wording — added read-time `seatsAssigned`/`seatsAvailable`/`isExpired`/`daysUntilExpiry` per 60-RESEARCH.md's own (previously unimplemented) Pattern 4; (2) `itam_component_service.py`'s `update_component`/`attach_component`/`detach_component` omitted `return_document=ReturnDocument.AFTER`, so on a real database every one of those calls returned the pre-update document (mocked tests stub the return value directly, structurally unable to catch this class of bug); (3) no hydrated per-asset component listing existed for success criterion 3 — only a bare `components: [id,...]` array riding along on the generic, non-ITAM-aware asset GET route — added `GET /api/assets/{asset_id}/components` per 60-RESEARCH.md's own Pattern 3. Also closed a test-coverage gap unrelated to a specific bug: `test_itam_consumable.py` had zero coverage of checkout/checkin/quantity-guard behavior despite that being ITAM-LIC-02's entire substance (added 5 tests). One residual risk found and *deliberately left open*, documented in `60-VERIFICATION.md`: license seat assignment's capacity guard is a `count_documents`-then-`insert_one` read-then-write, not the atomic guard-in-filter pattern used everywhere else in this phase — a real race under concurrent assign requests, but low-severity (correctable over-assignment, not corruption), already flagged in-code by the original implementer, and a proper fix would need a schema change and a full test-mock rewrite disproportionate to a verification-pass scope. Wrote `60-01/02/03-SUMMARY.md` and `60-VERIFICATION.md` (none existed before this session); updated REQUIREMENTS.md (ITAM-LIC-01/02/03 to Complete, and separately corrected two other stale entries found in passing — ITAM-CAT-02 and ITAM-LIFE-01 were marked Pending despite being implemented since Phase 56) and ROADMAP.md. Full backend suite: 1831 passed / 35 skipped / 3 pre-existing unrelated failures (identical baseline), no regressions; `python -c "import app"` confirmed clean. **Phase 60 is now complete — all three requirements delivered and verified.** Next: Phase 61 (Frontend ITAM Console) — note `.planning/phases/61-frontend-itam-console/` was mid-rename to `62-frontend-itam-console/` uncommitted at session start (old dir deleted, new dir untracked, files still internally named `61-*`); reconcile the numbering before planning.
 
+**Session 2026-08-09 (later) — Phase 61 (Frontend ITAM Console) executed and verified; v4.0 ITAM milestone's 17th and final v1 requirement (ITAM-UI-01) delivered.** First reconciled the stray `61-frontend-itam-console` → `62-frontend-itam-console` rename flagged above: confirmed via file-by-file diff that all 5 files were byte-identical (a plain `mv`, not a real renumbering — ROADMAP.md/REQUIREMENTS.md both still call this "Phase 61"), restored the original path, and deleted an orphaned near-duplicate `61-itam-console/61-RESEARCH.md` left over from an earlier partial attempt. Read the real planning docs (61-CONTEXT.md, 61-RESEARCH.md, 61-UI-SPEC.md) rather than the thin 4-line 61-01-PLAN.md sketch, and built the fuller console those actually specify: replaced the 13-line `ITAMConsole.tsx` placeholder with a 6-tab console (Catalog, Check-Out/In, Procurement & Finance, Licenses & Consumables, Compliance, Software Inventory), cloning `NativeSecurityConsole.tsx`'s tabbed shape per 61-RESEARCH.md. Found and fixed a real, currently-broken TypeScript compile error along the way: `viewPermissionMap` in `App.tsx` was missing the `itam` key (`TS2741`) even though `AppView`'s union already had `'itam'` — 61-RESEARCH.md had flagged this exact gap on 2026-08-06 and it was still unfixed. Also found `'manage:itam'`/`'view:itam'` missing from the frontend `Permission` union despite the backend already granting both by default (added in a prior Phase 60 commit). Deliberately widened the Licenses & Consumables tab to cover all three ITAM-LIC-01/02/03 (licenses, consumables, components) rather than 61-UI-SPEC.md's "licenses-only" scoping note — that note was accurate when written (2026-08-06, before Phase 60's consumables/component backends existed) but false by this session, and showing users a now-inaccurate "not yet available" message would have been worse than updating scope to match verified reality. Built `services/apiService.ts`'s ~26 missing ITAM client functions and extended `types.ts`'s `Asset` interface (zero ITAM field awareness before this session) plus 8 new interfaces, cross-checked field names against the actual backend response shapes rather than guessed from Pydantic model names. 9 new tests; `npx tsc --noEmit` and `npm run build` both clean (`ITAMConsole` confirmed reachable as its own code-split chunk); full `src/__tests__` + `components/ui/__tests__` suite 172 passed / 1 pre-existing unrelated collection failure. Wrote `61-01-SUMMARY.md` and `61-VERIFICATION.md`; updated REQUIREMENTS.md/ROADMAP.md. **All 17 v1 requirements of the v4.0 ITAM milestone are now complete.** One item remains as human verification per 61-VERIFICATION.md: a live-browser walkthrough of the full create-asset → check-out → view-finance → assign-license round trip (each step is unit-tested individually against mocked API calls, but the end-to-end sequence in a running app was not observed this session).
+
 ## Phases
 
 | Phase | Name | Status |
@@ -145,7 +147,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 58 | Asset Tags & Offline Labels | Complete (v4.0) — 4/4 plans executed 2026-08-05, all 3 ROADMAP success criteria met, ITAM-CAT-05 fully delivered |
 | 59 | Procurement & Finance (Warranty & Depreciation) | Not started (v4.0) |
 | 60 | Licenses & Consumables | Complete (v4.0) — verified 2026-08-09, all 3 requirements (ITAM-LIC-01/02/03) delivered; see 60-VERIFICATION.md |
-| 61 | Frontend ITAM Console | Not started (v4.0) |
+| 61 | Frontend ITAM Console | Complete (v4.0) — verified 2026-08-09, ITAM-UI-01 delivered; see 61-VERIFICATION.md |
 
 ## Decisions
 
