@@ -14,7 +14,7 @@ import psutil
 from typing import Set
 
 from .base import BaseCapability
-from backend.virustotal_client import get_virustotal_client
+from . import threat_intel
 
 logger = logging.getLogger(__name__)
 
@@ -91,21 +91,20 @@ class VirusTotalScanCapability(BaseCapability):
                 continue
             scanned.add(ip)
 
-            vt_result = get_virustotal_client().lookup_ip(ip) if ip else {}
+            vt_result = threat_intel.lookup_ip(ip, self.config) if ip else {}
             suspicious_ips.append(vt_result)
 
         return suspicious_ips
 
     def _scan_process_hashes(self) -> Dict[str, Dict[str, Any]]:
         """Hash current executable and perform VT hash lookup."""
-        client = get_virustotal_client()
         hashes: Dict[str, Dict[str, Any]] = {}
 
         try:
             exe_path = self._get_current_exe_path()
             if exe_path:
                 sha256 = hashlib.sha256(open(exe_path, "rb").read()).hexdigest()
-                result = client.lookup_hash(sha256)
+                result = threat_intel.lookup_hash(sha256, self.config)
                 if "error" not in result:
                     hashes[sha256] = result
         except Exception as e:
@@ -115,7 +114,6 @@ class VirusTotalScanCapability(BaseCapability):
 
     def _scan_network_connections(self) -> Dict[str, List[Dict[str, str]]]:
         """Collect domains/URLs from process network connections and scan them."""
-        client = get_virustotal_client()
         found_domains: Set[str] = set()
         found_urls:   Set[str] = set()
 
@@ -144,8 +142,8 @@ class VirusTotalScanCapability(BaseCapability):
                 continue
 
         # Scan collected domains/URLs
-        domains_results = [client.lookup_domain(d) for d in found_domains if d]
-        urls_results    = [client.lookup_url(u)   for u in found_urls   if u]
+        domains_results = [threat_intel.lookup_domain(d, self.config) for d in found_domains if d]
+        urls_results    = [threat_intel.lookup_url(u, self.config)   for u in found_urls   if u]
 
         # Combine verdicts for counting malicious
         for vt_res in list(domains_results) + list(urls_results):
