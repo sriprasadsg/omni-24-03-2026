@@ -138,14 +138,14 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 43 | Remediation-to-Ticketing Bridge | Complete (v3.2) |
 | 44 | Remediation SLA & Escalation | Complete (v3.2) |
 | 45 | Close Gap RUST-01 — TLS Backend Explicit Decision | Complete (v3.2) |
-| 46 | Public-IP ASN/VPN Enrichment + Location-History Audit | Not started (v3.3) — roadmap defined 2026-07-29 |
-| 47 | Agent-Scoped Geo Security Detectors | Not started (v3.3) |
-| 48 | Fleet Observability & Uptime Rollups | Not started (v3.3) |
-| 49 | Fleet Geo Map | Not started (v3.3) |
-| 56 | Catalog & Foundation | In progress (v4.0) — 1/2 plans executed 2026-08-04 |
-| 57 | Lifecycle & Check-In/Out | Not started (v4.0) |
+| 46 | Public-IP ASN/VPN Enrichment + Location-History Audit | Complete (v3.3) — 7/7 plans executed, verified 2026-07-29 (human_needed on 2 manual-only checks: real GeoLite2-ASN.mmdb enrichment, live visual render); GAUD-01/02 delivered. See 46-VERIFICATION.md |
+| 47 | Agent-Scoped Geo Security Detectors | Complete (v3.3) — 6/6 plans executed; GSEC-01/02/03 delivered. See 47-VERIFICATION.md/47-UAT.md |
+| 48 | Fleet Observability & Uptime Rollups | Complete (v3.3) — 5/5 plans executed; FOBS-01/02/03 delivered. See 48-VERIFICATION.md |
+| 49 | Fleet Geo Map | Complete (v3.3) — 5/5 plans executed, verified 2026-07-30; GMAP-01/02/03 delivered. See 49-VERIFICATION.md |
+| 56 | Catalog & Foundation | Complete (v4.0) — verified 2026-08-04, 3 gaps found and fixed same session (dead router, missing custom-field validation, missing lifecycleStatus read-time default). See 56-VERIFICATION.md |
+| 57 | Lifecycle & Check-In/Out | Complete (v4.0) — verified 2026-08-04, all 17 must-haves across 3 plans confirmed against live code and tests. See 57-VERIFICATION.md |
 | 58 | Asset Tags & Offline Labels | Complete (v4.0) — 4/4 plans executed 2026-08-05, all 3 ROADMAP success criteria met, ITAM-CAT-05 fully delivered |
-| 59 | Procurement & Finance (Warranty & Depreciation) | Not started (v4.0) |
+| 59 | Procurement & Finance (Warranty & Depreciation) | Complete (v4.0) — verified 2026-08-06, all 3 requirements (ITAM-FIN-01/02/03) delivered. See 59-VERIFICATION.md |
 | 60 | Licenses & Consumables | Complete (v4.0) — verified 2026-08-09, all 3 requirements (ITAM-LIC-01/02/03) delivered; see 60-VERIFICATION.md |
 | 61 | Frontend ITAM Console | Complete (v4.0) — verified 2026-08-09, ITAM-UI-01 delivered; see 61-VERIFICATION.md |
 
