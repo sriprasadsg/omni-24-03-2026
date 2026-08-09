@@ -14,3 +14,11 @@ ignore = [
 ]
 
 exclude = ["venv/", ".venv/", "__pycache__/", "*.orig"]
+
+[lint.per-file-ignores]
+# F811 (redefinition) false-positives on pytest's fixture-name-as-parameter
+# convention — a test function parameter sharing a name with an imported
+# fixture is the correct, idiomatic way pytest injects it, not a bug. Scoped
+# to tests/ only: a real F811 redefinition in application code is still a
+# genuine bug worth catching.
+"tests/*" = ["F811"]
