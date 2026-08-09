@@ -297,7 +297,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
         setActiveId(initialConvoId);
         loadList();
         onConvoConsumed?.();
-    }, [initialConvoId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [initialConvoId]);
 
     // ── Load active conversation ──────────────────────────────────────────────
     useEffect(() => {

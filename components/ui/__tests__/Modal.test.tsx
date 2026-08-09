@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import Modal from '../Modal';
 
 describe('Modal', () => {

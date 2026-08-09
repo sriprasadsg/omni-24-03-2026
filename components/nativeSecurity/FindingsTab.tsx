@@ -29,6 +29,7 @@ export function FindingsTab() {
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [totalCount, setTotalCount] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const load = useCallback(async () => {
     setLoading(true);

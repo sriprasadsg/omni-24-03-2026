@@ -129,7 +129,16 @@ const SaaSIntegrationsDashboard: React.FC = () => {
     }
 
     const expectedOrigin = window.location.origin;
-    let pollClosed: ReturnType<typeof setInterval>;
+
+    // Cleanup listener if popup is closed without completing OAuth. Declared
+    // before onMessage so both can reference each other by closure — neither
+    // callback runs until after both are assigned.
+    const pollClosed: ReturnType<typeof setInterval> = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(pollClosed);
+        window.removeEventListener('message', onMessage);
+      }
+    }, 500);
 
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== expectedOrigin) return;
@@ -144,14 +153,6 @@ const SaaSIntegrationsDashboard: React.FC = () => {
     };
 
     window.addEventListener('message', onMessage);
-
-    // Cleanup listener if popup is closed without completing OAuth
-    pollClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(pollClosed);
-        window.removeEventListener('message', onMessage);
-      }
-    }, 500);
   }, [fetchConnections]);
 
   // ── Pull evidence ────────────────────────────────────────────────────────

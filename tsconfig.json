@@ -34,6 +34,10 @@
     "agent",
     "scripts",
     "version 1",
-    "code-review-graph-main"
+    "code-review-graph-main",
+    "servers",
+    "github-mcp-server",
+    ".claude",
+    "integrations"
   ]
 }
