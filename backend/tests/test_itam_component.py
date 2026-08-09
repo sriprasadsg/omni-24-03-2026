@@ -328,8 +328,8 @@ class TestAssetComponentsSubResource:
     async def test_list_asset_components(self, mock_db, component_app, patch_get_database_globally):
         mock_db.assets.find_one.return_value = {"id": "asset-123", "tenantId": "tenant-a"}
         mock_db.components.find.return_value.to_list.return_value = [
-            {"id": "comp-1", "name": "RAM 16GB", "componentType": "ram", "parentAssetId": "asset-123", "tenantId": "tenant-a"},
-            {"id": "comp-2", "name": "SSD 1TB", "componentType": "storage", "parentAssetId": "asset-123", "tenantId": "tenant-a"},
+            {"id": "comp-1", "name": "RAM 16GB", "type": "ram", "parentAssetId": "asset-123", "tenantId": "tenant-a"},
+            {"id": "comp-2", "name": "SSD 1TB", "type": "storage", "parentAssetId": "asset-123", "tenantId": "tenant-a"},
         ]
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
