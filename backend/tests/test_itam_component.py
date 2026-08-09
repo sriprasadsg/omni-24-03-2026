@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend"))
 
 from tests.conftest import make_test_app, make_token_data
 from authentication_service import get_current_user as real_get_current_user
-from backend.itam_component_endpoints import router # Import the router to build the app
+from backend.itam_component_endpoints import router, asset_components_router # Import the routers to build the app
 from backend.itam_component_service import ComponentNotFoundError, AssetNotFoundError, ComponentService # Import ComponentService here
 
 
@@ -144,7 +144,7 @@ def component_app(mock_db, patch_get_database_globally, monkeypatch):
     import itam_asset_endpoints
     monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=True))
 
-    app, _ = make_test_app(router)
+    app, _ = make_test_app(router, asset_components_router)
     return app
 
 
@@ -317,3 +317,43 @@ class TestComponentManagement:
         assert "Component comp-1 is not attached to asset asset-123" in r.json()["detail"]
         mock_db.assets.update_one.assert_not_called() # Changed from find_one_and_update
         mock_db.components.find_one_and_update.assert_not_called()
+
+
+class TestAssetComponentsSubResource:
+    """ROADMAP Phase 60 success criterion 3: a component attached to a parent
+    asset must be visible, hydrated, as a listing on that asset's record —
+    not just a bare id riding along on the generic asset GET response."""
+
+    @pytest.mark.asyncio
+    async def test_list_asset_components(self, mock_db, component_app, patch_get_database_globally):
+        mock_db.assets.find_one.return_value = {"id": "asset-123", "tenantId": "tenant-a"}
+        mock_db.components.find.return_value.to_list.return_value = [
+            {"id": "comp-1", "name": "RAM 16GB", "componentType": "ram", "parentAssetId": "asset-123", "tenantId": "tenant-a"},
+            {"id": "comp-2", "name": "SSD 1TB", "componentType": "storage", "parentAssetId": "asset-123", "tenantId": "tenant-a"},
+        ]
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a")
+        component_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=component_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/assets/asset-123/components")
+
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert len(data) == 2
+        assert data[0]["name"] == "RAM 16GB"
+        assert data[1]["name"] == "SSD 1TB"
+
+    @pytest.mark.asyncio
+    async def test_list_asset_components_asset_not_found(self, mock_db, component_app, patch_get_database_globally):
+        mock_db.assets.find_one.return_value = None
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a")
+        component_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=component_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/assets/asset-999/components")
+
+        assert r.status_code == 404, r.text

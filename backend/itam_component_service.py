@@ -123,6 +123,16 @@ class ComponentService:
         updated.pop("_id", None)
         return Component(**updated)
 
+    async def list_components_for_asset(self, asset_id: str, current_user=None) -> List[Component]:
+        tenant_id = self._tenant_id(current_user)
+        asset = await self.db.assets.find_one({"id": asset_id, "tenantId": tenant_id})
+        if not asset:
+            raise AssetNotFoundError(asset_id)
+        docs = await self.db.components.find({"parentAssetId": asset_id, "tenantId": tenant_id}).to_list(length=200)
+        for d in docs:
+            d.pop("_id", None)
+        return [Component(**d) for d in docs]
+
     async def detach_component(self, component_id: str, asset_id: str, current_user=None) -> Component:
         tenant_id = self._tenant_id(current_user)
         component = await self.db.components.find_one({"id": component_id, "tenantId": tenant_id})

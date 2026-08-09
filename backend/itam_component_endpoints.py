@@ -11,6 +11,28 @@ from itam_component_service import ComponentService, get_component_service
 
 router = APIRouter(prefix="/api/itam/components", tags=["ITAM Components"])
 
+# Asset-scoped sub-resource, mirroring itam_lifecycle_endpoints.py's
+# GET /api/assets/{asset_id}/history — the in-repo shape for "list a
+# sub-resource scoped by its parent's id in the URL path" (60-RESEARCH.md
+# Pattern 3). Without this, ROADMAP Phase 60 success criterion 3 ("see it
+# listed on that asset's record") has no real hydrated listing — only a
+# bare array of component-id strings riding along on the generic asset GET.
+asset_components_router = APIRouter(prefix="/api/assets", tags=["ITAM Components"])
+
+
+@asset_components_router.get(
+    "/{asset_id}/components",
+    response_model=List[Component],
+    response_model_by_alias=False,
+    summary="List components attached to a parent asset",
+)
+async def list_asset_components_endpoint(
+    asset_id: str,
+    component_service: ComponentService = Depends(get_component_service),
+    current_user=Depends(get_current_user),
+):
+    return await component_service.list_components_for_asset(asset_id, current_user=current_user)
+
 
 @router.post(
     "",
