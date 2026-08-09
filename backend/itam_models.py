@@ -206,7 +206,7 @@ class AssetModelCreate(CatalogEntityCreate):
     categoryId: Optional[str] = None
     fieldsets: List[FieldsetDef] = Field(default_factory=list)
     # ITAM-FIN-03: Model-level depreciation policy fields
-    usefulLifeYears: Optional[int] = Field(None, ge=0)
+    usefulLifeYears: Optional[int] = Field(None, gt=0)
     salvageValueCents: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
@@ -218,7 +218,7 @@ class AssetModelUpdate(CatalogEntityUpdate):
     manufacturerId: Optional[str] = None
     categoryId: Optional[str] = None
     fieldsets: Optional[List[FieldsetDef]] = None
-    usefulLifeYears: Optional[int] = Field(None, ge=0)
+    usefulLifeYears: Optional[int] = Field(None, gt=0)
     salvageValueCents: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")

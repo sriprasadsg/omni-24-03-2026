@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/itam/consumables", tags=["ITAM Consumables"])
 @router.post(
     "",
     response_model=Consumable,
+    response_model_by_alias=False,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new ITAM consumable",
 )
@@ -29,6 +30,7 @@ async def create_consumable_endpoint(
 @router.get(
     "",
     response_model=List[Consumable],
+    response_model_by_alias=False,
     summary="List all ITAM consumables",
 )
 async def list_consumables_endpoint(
@@ -43,6 +45,7 @@ async def list_consumables_endpoint(
 @router.get(
     "/{consumable_id}",
     response_model=Consumable,
+    response_model_by_alias=False,
     summary="Get a specific ITAM consumable by ID",
 )
 async def get_consumable_endpoint(
@@ -59,6 +62,7 @@ async def get_consumable_endpoint(
 @router.put(
     "/{consumable_id}",
     response_model=Consumable,
+    response_model_by_alias=False,
     summary="Update an ITAM consumable",
 )
 async def update_consumable_endpoint(
@@ -91,6 +95,7 @@ async def delete_consumable_endpoint(
 @router.post(
     "/{consumable_id}/checkout",
     response_model=Consumable,
+    response_model_by_alias=False,
     summary="Checkout ITAM consumable quantity",
 )
 async def checkout_consumable_endpoint(
@@ -105,6 +110,7 @@ async def checkout_consumable_endpoint(
 @router.post(
     "/{consumable_id}/checkin",
     response_model=Consumable,
+    response_model_by_alias=False,
     summary="Check-in ITAM consumable quantity",
 )
 async def checkin_consumable_endpoint(

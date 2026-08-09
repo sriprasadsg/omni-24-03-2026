@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/itam/components", tags=["ITAM Components"])
 @router.post(
     "",
     response_model=Component,
+    response_model_by_alias=False,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new ITAM component",
 )
@@ -29,6 +30,7 @@ async def create_component_endpoint(
 @router.get(
     "",
     response_model=List[Component],
+    response_model_by_alias=False,
     summary="List all ITAM components",
 )
 async def list_components_endpoint(
@@ -43,6 +45,7 @@ async def list_components_endpoint(
 @router.post(
     "/{component_id}/attach/{asset_id}",
     response_model=Component,
+    response_model_by_alias=False,
     summary="Attach a component to an asset",
 )
 async def attach_component_endpoint(
@@ -57,6 +60,7 @@ async def attach_component_endpoint(
 @router.post(
     "/{component_id}/detach/{asset_id}",
     response_model=Component,
+    response_model_by_alias=False,
     summary="Detach a component from an asset",
 )
 async def detach_component_endpoint(
