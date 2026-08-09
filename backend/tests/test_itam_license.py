@@ -179,6 +179,30 @@ class TestLicenseManagement:
         assert data[1]["name"] == "Office 365"
 
     @pytest.mark.asyncio
+    async def test_list_licenses_shows_remaining_and_expired_seats(self, mock_db, license_app, patch_get_database_globally):
+        mock_db.licenses.find.return_value.to_list.return_value = [
+            {"id": "lic-1", "name": "Windows 10", "seatCount": 10, "tenantId": "tenant-a", "expiryDate": _future_iso()},
+            {"id": "lic-2", "name": "Expired App", "seatCount": 3, "tenantId": "tenant-a", "expiryDate": _future_iso(days=-5)},
+        ]
+        mock_db.license_assignments.count_documents = AsyncMock(side_effect=[4, 3])
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=license_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/itam/licenses")
+
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data[0]["seatsAssigned"] == 4
+        assert data[0]["seatsAvailable"] == 6
+        assert data[0]["isExpired"] is False
+        assert data[1]["seatsAssigned"] == 3
+        assert data[1]["seatsAvailable"] == 0
+        assert data[1]["isExpired"] is True
+
+    @pytest.mark.asyncio
     async def test_get_license(self, mock_db, license_app, patch_get_database_globally):
         mock_db.licenses.find_one.return_value = {"id": "lic-1", "name": "Windows 10", "seatCount": 10, "tenantId": "tenant-a"}
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
