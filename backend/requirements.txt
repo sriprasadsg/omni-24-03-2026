@@ -130,7 +130,7 @@ cloudflare>=5.4.0
 msal>=1.37.0
 
 # ── GraphQL ──────────────────────────────────────────────────────────────────
-strawberry-graphql[fastapi]
+strawberry-graphql[fastapi]>=0.323.2  # <0.323.2 breaks on pydantic>=2.13 (is_new_type import)
 
 # ── WebAuthn / Passkeys ──────────────────────────────────────────────────────
 webauthn>=2.5.0,<3.0.0    # 3.x requires cryptography>=49, conflicts with alibabacloud-tea-openapi (<49); 2.5.x uses same public API
