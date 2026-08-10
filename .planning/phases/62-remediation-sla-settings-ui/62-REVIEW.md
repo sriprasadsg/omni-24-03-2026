@@ -1,94 +1,151 @@
 ---
 phase: 62-remediation-sla-settings-ui
-reviewed: 2026-08-10T00:00:00Z
+reviewed: 2026-08-11T00:00:00Z
 depth: standard
 files_reviewed: 4
 files_reviewed_list:
   - components/RemediationSlaSettings.tsx
+  - src/__tests__/RemediationSlaSettings.test.tsx
   - services/apiService.ts
   - components/SettingsDashboard.tsx
-  - src/__tests__/RemediationSlaSettings.test.tsx
 findings:
   critical: 0
-  warning: 3
-  info: 2
-  total: 5
+  warning: 6
+  info: 3
+  total: 9
 status: issues_found
 ---
 
 # Phase 62: Code Review Report
 
-**Reviewed:** 2026-08-10T00:00:00Z
+**Reviewed:** 2026-08-11T00:00:00Z
 **Depth:** standard
 **Files Reviewed:** 4
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the new Remediation SLA settings UI (`RemediationSlaSettings.tsx`), its two `apiService.ts` fetch/save wrappers, the `SettingsDashboard.tsx` tab wiring, and the accompanying test suite. The diff for this phase is small and closely modeled on the existing `EvidenceSettings.tsx` component. No critical bugs or security vulnerabilities were found in this component: the backend PATCH endpoint (`compliance_remediation_sla_endpoints.py`) independently enforces admin-only writes and range validation via Pydantic, and the frontend never leaks status codes or role details in its error toast (verified against `saveRemediationSlaWindow`'s generic `Error` and the component's bare `catch`).
+Reviewed the new Remediation SLA settings panel (`RemediationSlaSettings.tsx`), its two `apiService.ts` wrappers (`fetchRemediationSlaWindow` / `saveRemediationSlaWindow`), the `SettingsDashboard.tsx` tab wiring that mounts it, and the accompanying test suite. The component is a close structural clone of the existing `EvidenceSettings.tsx` panel (same state shape, same clamp logic, same soft-fail-on-GET / throw-on-PATCH asymmetry), which is documented in `62-PATTERNS.md` as an intentional "verbatim clone with locked copy substitutions." Backend authorization was spot-checked: `GET /api/settings/remediation-sla` is intentionally open to any authenticated user (non-sensitive read), and `PATCH /api/settings/remediation-sla` calls `_require_admin(current_user)` before writing, so there is no server-side authorization bypass. No hardcoded secrets, `eval`, `innerHTML`, or empty catch blocks were found in the reviewed files.
 
-The findings below are authorization/UX gaps and a controlled-input quirk that should be fixed, plus minor accessibility and test-quality notes. Note: `apiService.ts`'s diff for this phase also includes a large, unrelated block of ITAM catalog/license/consumable/component API wrappers (`fetchCatalogEntities` … `detachComponent`, lines ~5211-5411). These are out of scope for the "Remediation SLA Settings UI" phase description; I spot-checked them for obvious defects (all `itamThrow` failure paths are reachable/typed correctly, `attachComponent`/`detachComponent` don't `encodeURIComponent` their path params unlike most of the sibling ITAM functions in the same block, but they carry internally-generated IDs so this is low-risk) and did not find blocking issues, but flag that this file mixes two phases' worth of changes in one diff.
+No Critical-severity issues were found. The findings below are: a UX/authorization-signaling gap (frontend never distinguishes "you lack permission" from "network blip"), a real controlled-input bug that can corrupt manually-typed values, an accessibility gap, a missing input-validation boundary on the network response, and some quality/duplication notes.
 
 ## Warnings
 
-### WR-01: "Remediation" tab is visible and interactive for users who can never save it
+### WR-01: Save control has no capability check — non-admin users always get a generic, misleading failure toast
 
-**File:** `components/SettingsDashboard.tsx:292-294`, `components/RemediationSlaSettings.tsx:15-26`
-**Issue:** The new "Remediation" tab button is rendered unconditionally (no `canManageSettings`/`hasPermission` guard), same as the pre-existing `security`/`evidence` tabs it sits next to. The backend PATCH `/api/settings/remediation-sla` is admin-gated (`_require_admin` in `backend/compliance_remediation_sla_endpoints.py:31-34`, returns 403 for non-admin roles), but the frontend `Save SLA Window` button is only disabled by `!isValid || saving` — never by permission. A non-admin user can open the tab, edit the value, click Save, and will always get the generic toast `"Failed to save threshold — please try again"` (from the bare `catch` in `RemediationSlaSettings.tsx:21-22`), which is indistinguishable from a transient network failure. The user has no way to learn they simply lack permission, and repeated "try again" clicks will always fail.
-**Fix:** Either gate the tab/button behind `canManageSettings` (consistent with the `email`/`integrations`/`dataSources`/`alerts`/`maintenance` tabs that already do this), or have `RemediationSlaSettings` accept a `readOnly`/`canEdit` prop and render the input disabled with an explanatory message for non-admins, e.g.:
+**File:** `components/SettingsDashboard.tsx:292-294`, `components/SettingsDashboard.tsx:361-363`, `components/RemediationSlaSettings.tsx:15-26`
+**Issue:** The "Remediation" tab button (line 292-294) and its panel (line 361-363) render unconditionally — no `canManageSettings`/`hasPermission` guard, unlike the sibling `email`/`integrations`/`dataSources`/`alerts`/`maintenance` tabs which are wrapped in `{canManageSettings && (...)}`. The backend `PATCH /api/settings/remediation-sla` is admin-gated (`_require_admin` in `backend/compliance_remediation_sla_endpoints.py:118`, 403 for non-admins), but `RemediationSlaSettings`'s `Save SLA Window` button is only disabled by `!isValid || saving` (line 61) — never by permission. A non-admin user can freely edit the field and click Save; every attempt fails with the same generic toast (`'Failed to save threshold — please try again'`, line 22) that is also shown for genuine transient/network failures. The user has no way to learn they simply lack permission — "try again" will never succeed for them.
+**Fix:** Gate the Save action (or the whole tab) on `canManageSettings`, consistent with the sibling admin-only tabs:
 ```tsx
 {activeView === 'remediation' && (
     <RemediationSlaSettings canEdit={canManageSettings} />
 )}
 ```
-This is a pre-existing pattern copied from `EvidenceSettings.tsx` (same gap there), so fixing it here is a good opportunity to also flag/fix the sibling component.
+and disable/hide the input and button (or show a permission-specific message) when `canEdit` is false, so the error path is reserved for genuine failures. This same gap pre-exists in `EvidenceSettings.tsx` and is worth fixing there too, but is out of scope for this file list.
 
-### WR-02: Controlled number input clamps on every keystroke, corrupting multi-digit edits
+### WR-02: Controlled number input re-clamps on every keystroke — corrupts a value being retyped after clearing the field
 
 **File:** `components/RemediationSlaSettings.tsx:44-47`
-**Issue:**
 ```tsx
 value={windowDays}
 onChange={e =>
     setWindowDays(Math.min(365, Math.max(1, parseInt(e.target.value, 10) || 1)))
 }
 ```
-Because the input is fully controlled and re-clamps to `[1, 365]` (with `|| 1` for `NaN`) on every `onChange`, clearing the field mid-edit to type a new value forces the displayed value back to `1` before the next keystroke lands. E.g. a user editing `200` down to `50` by selecting-all and typing `5` then `0` will see the field snap to `1` the instant the field is empty, then the next digit is inserted into `"1"` rather than into an empty field, producing `"15"` or `"51"` instead of `50`. This is a real, user-facing input-fighting bug that unit tests don't catch because `fireEvent.change` sets `target.value` directly to a final string rather than emulating incremental typing.
-**Fix:** Track the raw string in local state and only clamp/coerce on blur or on save, e.g.:
+**Issue:** The input is fully controlled and coerces every keystroke's value through `parseInt(...) || 1` then clamps to `[1, 365]`. If a user clears the field first (e.g. clicks into it and presses Backspace repeatedly to remove `200` before typing a new value — a very common editing pattern), the intermediate empty string `""` produces `parseInt("", 10)` → `NaN` → `NaN || 1` → `1`, so `windowDays` is immediately forced to `1` and the input re-renders showing `"1"` instead of staying empty. The user's next keystroke (e.g. `5`) is then inserted into `"1"` by the browser's cursor position rather than into an empty field, producing `"15"` or `"51"` instead of the intended `"5"`, and further digits compound the corruption. `fireEvent.change` in the test suite sets `target.value` directly to a final string and therefore never exercises this incremental-typing path, so the existing tests do not catch it.
+**Fix:** Decouple the raw text the user is typing from the clamped numeric value — track a string in local state during editing and only clamp on blur/save, e.g.:
 ```tsx
-const [inputValue, setInputValue] = useState(String(windowDays));
-// onChange: setInputValue(e.target.value)  — no clamping here
-// onBlur: clamp inputValue into windowDays and re-sync inputValue
+const [raw, setRaw] = useState(String(windowDays));
+// onChange: setRaw(e.target.value)  (no coercion here — allow "" mid-edit)
+// onBlur: const n = clamp(parseInt(raw, 10)); setWindowDays(n); setRaw(String(n));
 ```
-or use `type="number"` with `onBlur`-only clamping while allowing free typing via `onChange` without forcing a resolved numeric value each keystroke.
 
-### WR-03: `<label>` not programmatically associated with the input (accessibility)
+### WR-03: `<label>` is not programmatically associated with the input (accessibility)
 
-**File:** `components/RemediationSlaSettings.tsx:33-49`
-**Issue:** The `<label>At-Risk Window</label>` has no `htmlFor`, and the `<input>` has no matching `id`. Screen readers and `getByLabelText`-style queries cannot associate the label with the control, so assistive-tech users hear "spin button" with no accessible name context from the visual label (only from DOM order, which is unreliable). This mirrors the same gap in `EvidenceSettings.tsx`.
+**File:** `components/RemediationSlaSettings.tsx:33-35, 40-49`
+**Issue:** `<label className="...">At-Risk Window</label>` has no `htmlFor`, and the following `<input type="number" ...>` has no matching `id`. They are siblings, not nested, so there is no implicit association either. Screen readers (and `getByLabelText`-style test queries) cannot derive an accessible name for the spin button from the visible label text — assistive-tech users only hear "spin button" with no context. The validation message at lines 52-56 is likewise not wired to the input via `aria-describedby`/`aria-invalid`, so a screen-reader user editing an out-of-range value gets no announcement of the error.
 **Fix:**
 ```tsx
 <label htmlFor="sla-window-days" className="...">At-Risk Window</label>
 ...
-<input id="sla-window-days" type="number" ... />
+<input
+    id="sla-window-days"
+    aria-invalid={!isValid}
+    aria-describedby={!isValid ? 'sla-window-days-error' : undefined}
+    ...
+/>
+...
+{!isValid && <p id="sla-window-days-error" ...>Must be between 1 and 365 days.</p>}
+```
+
+### WR-04: No runtime validation of the fetch/save network response shape
+
+**File:** `services/apiService.ts:4602-4619`
+**Issue:** `fetchRemediationSlaWindow` returns `await res.json()` typed as `Promise<{ windowDays: number }>` with no runtime check that the parsed JSON actually has a numeric `windowDays` field. If the backend ever returns a malformed or differently-shaped payload (e.g. `windowDays` as a string, or a different key), the type annotation only affects compile-time checking of *callers*, not the actual runtime value — `RemediationSlaSettings.tsx:10`'s `d.windowDays ?? 7` will happily pass through a non-numeric value into `useState<number>`, and every downstream comparison (`windowDays >= 1`) silently coerces rather than failing loudly. CLAUDE.md requires validating input "at system boundaries"; a network response is exactly such a boundary and currently has zero validation here.
+**Fix:** Validate the shape before trusting it, e.g.:
+```ts
+export const fetchRemediationSlaWindow = async (): Promise<{ windowDays: number }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/remediation-sla`);
+        if (!res.ok) return { windowDays: 7 };
+        const data = await res.json();
+        const windowDays = Number(data?.windowDays);
+        return { windowDays: Number.isFinite(windowDays) ? windowDays : 7 };
+    } catch {
+        return { windowDays: 7 };
+    }
+};
+```
+
+### WR-05: Silent fetch-failure fallback is indistinguishable from a genuine value of 7 — no error signal on load failure
+
+**File:** `components/RemediationSlaSettings.tsx:9-11`; `services/apiService.ts:4602-4610`
+**Issue:** `fetchRemediationSlaWindow` swallows all GET failures (network error or non-2xx) and resolves `{ windowDays: 7 }`. This is a documented, intentional design choice (`62-UI-SPEC.md`: "silently falls back to the default and lets the user proceed"), so it is not flagged as incorrect behavior per se — but the component gives the user zero indication that the displayed `7` might be a fallback rather than their tenant's actual configured window. If an admin opens the tab during a transient backend hiccup, sees `7`, and clicks "Save SLA Window" without realizing the real (possibly very different, e.g. `30`) configured value was never loaded, the tenant's real SLA window is silently overwritten with the default — a real config-drift/data-integrity risk, even though it requires an explicit Save click to materialize.
+**Fix:** At minimum, surface a distinguishable state when the GET fails (e.g. a toast or inline notice: "Could not load current SLA window — showing default"), so a save-without-noticing scenario can't silently clobber the real value:
+```tsx
+useEffect(() => {
+    api.fetchRemediationSlaWindow()
+        .then(d => setWindowDays(d.windowDays ?? 7))
+        .catch(() => showToast('Could not load current SLA window', 'error'));
+}, []);
+```
+(This also requires `fetchRemediationSlaWindow` to actually reject on failure instead of catching internally, which is a larger change — see WR-06.)
+
+### WR-06: `useEffect`'s fetch chain has no `.catch()` — correctness depends entirely on the callee's internal try/catch
+
+**File:** `components/RemediationSlaSettings.tsx:9-11`
+**Issue:** `api.fetchRemediationSlaWindow().then(d => setWindowDays(d.windowDays ?? 7))` has no `.catch()`. This works today only because `fetchRemediationSlaWindow` happens to catch all its own errors internally and always resolves. If that internal try/catch is ever removed, refactored, or the function is swapped for a variant that can reject (a real possibility if WR-05 is fixed by making the fetch reject on failure), this call site will produce an unhandled promise rejection with zero user-facing feedback and the input will stay stuck at the default `7` state initializer.
+**Fix:** Add a local `.catch()` regardless of what the callee does, so the component's correctness doesn't silently depend on an implementation detail two files away:
+```tsx
+useEffect(() => {
+    api.fetchRemediationSlaWindow()
+        .then(d => setWindowDays(d.windowDays ?? 7))
+        .catch(() => {});
+}, []);
 ```
 
 ## Info
 
-### IN-01: Redundant test does not exercise what its name claims
+### IN-01: `RemediationSlaSettings.tsx` is a near line-for-line duplicate of `EvidenceSettings.tsx`
+
+**File:** `components/RemediationSlaSettings.tsx` (whole file, 70 lines) vs `components/EvidenceSettings.tsx` (70 lines)
+**Issue:** The two components are identical except for the state variable name (`windowDays` vs `threshold`), copy strings, and the two API function names. This is confirmed as an intentional "clone" pattern per `62-PATTERNS.md`, but it means every future bug fix (e.g. WR-02's clamping bug, WR-03's a11y gap) has to be applied twice, and the two will silently drift apart over time.
+**Fix:** Extract a shared `NumericDayThresholdSetting` component/hook parameterized by label text, helper text, fetch/save functions, and button label, then have both `EvidenceSettings` and `RemediationSlaSettings` render it. Low priority given the phase's explicit design intent to clone rather than share.
+
+### IN-02: Magic numbers `1` / `365` / `7` duplicated across multiple call sites without shared constants
+
+**File:** `components/RemediationSlaSettings.tsx:6, 13, 42-43, 46`; `services/apiService.ts:4602, 4605, 4608`
+**Issue:** The bounds `1`/`365` and default `7` are repeated as inline literals in the initial `useState`, the `isValid` check, the JSX `min`/`max` props, the clamp expression, and twice in the apiService fallback — six occurrences for three values. They also need to stay in sync with the backend's `Field(ge=1, le=365)` constraint. There is no compiler/lint mechanism tying these together.
+**Fix:** Extract module-level constants (`SLA_WINDOW_MIN = 1`, `SLA_WINDOW_MAX = 365`, `SLA_WINDOW_DEFAULT = 7`) and reuse them at every call site.
+
+### IN-03: Test name overstates what is actually being verified
 
 **File:** `src/__tests__/RemediationSlaSettings.test.tsx:76-82`
-**Issue:** The test `'fetch: soft-fails to the default of 7 when the wrapper resolves its own fallback'` mocks `fetchRemediationSlaWindow` to `mockResolvedValue({ windowDays: 7 })` — an ordinary successful resolution, not a rejection or an error path. It is functionally identical to the `'fetch: settles the input to the resolved windowDays value'` test just above it (lines 68-74), differing only in the numeric value asserted (7 vs 14). Neither test actually simulates the apiService-level fallback behavior (`fetchRemediationSlaWindow`'s internal `catch { return { windowDays: 7 } }` in `services/apiService.ts:4602-4610`), since the real implementation is mocked out entirely at the module boundary. The test name overstates coverage of the "soft-fail" contract.
-**Fix:** Either remove this test as a duplicate, or actually exercise the fallback path by testing `apiService.fetchRemediationSlaWindow` directly (unmocked, with `authFetch` failing) in a separate apiService-focused test, or rename the test to reflect what it verifies (rendering the default value 7 on success).
-
-### IN-02: Magic numbers `1`/`365`/`7` duplicated across frontend and backend without a shared constant
-
-**File:** `components/RemediationSlaSettings.tsx:6,13,42-43,46`; `services/apiService.ts:4602-4619`
-**Issue:** The bounds `1` and `365` and the default `7` appear as inline literals in multiple places (initial `useState`, `isValid`, `min`/`max` JSX props, the clamp expression, and the apiService fallback). They also mirror the backend's `Field(ge=1, le=365)` in `compliance_remediation_sla_endpoints.py:38`. This is consistent with the sibling `EvidenceSettings.tsx` component's existing style, so it's not a regression, but any future change to the valid range requires updating 5+ call sites by hand with no compiler/lint safety net tying them together.
-**Fix:** Extract `const SLA_WINDOW_MIN = 1`, `SLA_WINDOW_MAX = 365`, `SLA_WINDOW_DEFAULT = 7` constants (module-level) for reuse across the clamp logic and JSX attributes; low priority given the existing duplicated pattern in the codebase.
+**Issue:** The test `'fetch: soft-fails to the default of 7 when the wrapper resolves its own fallback'` mocks `fetchRemediationSlaWindow` with `mockResolvedValue({ windowDays: 7 })` — an ordinary successful resolution, not a simulated failure. Because `apiService` is mocked at the module boundary (`vi.mock('../../services/apiService', ...)`), this test never actually exercises `fetchRemediationSlaWindow`'s real internal `try/catch` fallback (`services/apiService.ts:4602-4610`) that WR-05 depends on. It is effectively a duplicate of the `'fetch: settles the input to the resolved windowDays value'` test immediately above it, differing only in the asserted number (7 vs 14), and could give false confidence that the soft-fail path is covered.
+**Fix:** Either rename the test to reflect what it verifies (rendering on a successful fetch of `7`), or add a separate test that exercises `apiService.fetchRemediationSlaWindow` directly (unmocked, with the underlying `authFetch`/`fetch` failing) to genuinely cover the fallback contract.
 
 ---
 
-_Reviewed: 2026-08-10T00:00:00Z_
+_Reviewed: 2026-08-11T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
