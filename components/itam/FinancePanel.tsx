@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Asset, ItamBookValue, ItamWarrantyStatus } from '../../types';
+import { Asset, ItamBookValue, ItamWarrantyStatus, Tenant } from '../../types';
 import { fetchAssets, updateAssetPurchase, fetchAssetBookValue, fetchAssetWarranty } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 
@@ -10,7 +10,13 @@ const WARRANTY_COLOR: Record<string, string> = {
   none: 'text-gray-400 bg-gray-800 border-gray-700',
 };
 
-export function FinancePanel() {
+interface FinancePanelProps {
+  tenants?: Tenant[];
+  isSuperAdminView?: boolean;
+}
+
+export function FinancePanel({ tenants = [], isSuperAdminView = false }: FinancePanelProps) {
+  const tenantName = (tenantId?: string) => tenants.find((t) => t.id === tenantId)?.name || tenantId || '—';
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -78,7 +84,11 @@ export function FinancePanel() {
           disabled={loading}
         >
           <option value="">Select an asset…</option>
-          {assets.map((a) => <option key={a.id} value={a.id}>{a.hostname || a.assetTag || a.id}</option>)}
+          {assets.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.hostname || a.assetTag || a.id}{isSuperAdminView ? ` — ${tenantName(a.tenantId)}` : ''}
+            </option>
+          ))}
         </select>
       </div>
 

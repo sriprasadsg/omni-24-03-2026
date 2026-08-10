@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Asset } from '../../types';
+import { Asset, Tenant } from '../../types';
 import { fetchAssets } from '../../services/apiService';
 import { CatalogPanel } from './CatalogPanel';
 import { LifecyclePanel } from './LifecyclePanel';
@@ -19,10 +19,15 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'software', label: 'Software Inventory' },
 ];
 
+interface ITAMConsoleProps {
+  tenants?: Tenant[];
+  isSuperAdminView?: boolean;
+}
+
 // ITAM operator console (Phase 61, ITAM-UI-01): admin-gated single entry
 // point over Phases 56-60's five backend surfaces, cloning
 // NativeSecurityConsole.tsx's tabbed-AppView shape per 61-RESEARCH.md.
-export default function ITAMConsole() {
+export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: ITAMConsoleProps) {
   const [tab, setTab] = useState<Tab>('catalog');
   const [assets, setAssets] = useState<Asset[]>([]);
 
@@ -60,8 +65,8 @@ export default function ITAMConsole() {
 
       <main>
         {tab === 'catalog' && <CatalogPanel />}
-        {tab === 'lifecycle' && <LifecyclePanel />}
-        {tab === 'finance' && <FinancePanel />}
+        {tab === 'lifecycle' && <LifecyclePanel tenants={tenants} isSuperAdminView={isSuperAdminView} />}
+        {tab === 'finance' && <FinancePanel tenants={tenants} isSuperAdminView={isSuperAdminView} />}
         {tab === 'licenses' && <LicensesPanel />}
         {tab === 'compliance' && <CompliancePanel assets={assets} />}
         {tab === 'software' && <SoftwareInventoryPanel />}

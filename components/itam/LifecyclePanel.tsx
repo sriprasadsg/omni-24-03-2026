@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Modal from '../ui/Modal';
-import { Asset, ItamCatalogEntity, ItamLifecycleStatus } from '../../types';
+import { Asset, ItamCatalogEntity, ItamLifecycleStatus, Tenant } from '../../types';
 import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 
@@ -13,7 +13,13 @@ const STATUS_COLORS: Record<string, string> = {
   broken: 'text-red-400 bg-red-900/20 border-red-800',
 };
 
-export function LifecyclePanel() {
+interface LifecyclePanelProps {
+  tenants?: Tenant[];
+  isSuperAdminView?: boolean;
+}
+
+export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: LifecyclePanelProps) {
+  const tenantName = (tenantId?: string) => tenants.find((t) => t.id === tenantId)?.name || tenantId || '—';
   const [assets, setAssets] = useState<Asset[]>([]);
   const [manufacturers, setManufacturers] = useState<ItamCatalogEntity[]>([]);
   const [categories, setCategories] = useState<ItamCatalogEntity[]>([]);
@@ -144,6 +150,7 @@ export function LifecyclePanel() {
                 <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
                   <th className="py-2 pr-4">Tag</th>
                   <th className="py-2 pr-4">Name</th>
+                  {isSuperAdminView && <th className="py-2 pr-4">Tenant</th>}
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Assigned To</th>
                   <th className="py-2 pr-4" />
@@ -156,6 +163,7 @@ export function LifecyclePanel() {
                     <tr key={a.id} className="border-b border-gray-800">
                       <td className="py-2 pr-4 text-gray-400 font-mono text-xs">{a.assetTag || '—'}</td>
                       <td className="py-2 pr-4 text-white max-w-[200px] truncate" title={a.hostname}>{a.hostname || '—'}</td>
+                      {isSuperAdminView && <td className="py-2 pr-4 text-gray-400 max-w-[160px] truncate" title={tenantName(a.tenantId)}>{tenantName(a.tenantId)}</td>}
                       <td className="py-2 pr-4">
                         <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_COLORS[status] || STATUS_COLORS.deployable}`}>
                           {status}

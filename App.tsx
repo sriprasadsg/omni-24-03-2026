@@ -1922,7 +1922,7 @@ const App: React.FC = () => {
       case 'fleetObservability': return <ErrorBoundary name="FleetObservabilityDashboard"><FleetObservabilityDashboard /></ErrorBoundary>;
       case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
       case 'nativeSecurity': return <ErrorBoundary name="NativeSecurityConsole"><NativeSecurityConsole /></ErrorBoundary>;
-      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole /></ErrorBoundary>;
+      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' || currentUser.role === 'super_admin'} /></ErrorBoundary>;
       case 'privacyLegal': return <ErrorBoundary name="PrivacyLegalDashboard"><PrivacyLegalDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
       case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
