@@ -5,7 +5,8 @@ from typing import List
 
 from errors import APIError
 from dependencies import PyObjectId
-from authentication_service import get_current_user
+from auth_types import TokenData
+from itam_asset_endpoints import _require_itam_admin
 from itam_models import Consumable, ConsumableCreate, ConsumableUpdate, ConsumableCheckoutRequest
 from itam_consumable_service import ConsumableService, get_consumable_service
 
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/itam/consumables", tags=["ITAM Consumables"])
 async def create_consumable_endpoint(
     consumable_data: ConsumableCreate,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await consumable_service.create_consumable(consumable_data, current_user=current_user)
 
@@ -37,7 +38,7 @@ async def list_consumables_endpoint(
     skip: int = 0,
     limit: int = 100,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await consumable_service.get_consumables(skip=skip, limit=limit, current_user=current_user)
 
@@ -51,7 +52,7 @@ async def list_consumables_endpoint(
 async def get_consumable_endpoint(
     consumable_id: str,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     consumable = await consumable_service.get_consumable(consumable_id, current_user=current_user)
     if not consumable:
@@ -69,7 +70,7 @@ async def update_consumable_endpoint(
     consumable_id: str,
     consumable_data: ConsumableUpdate,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     consumable = await consumable_service.update_consumable(consumable_id, consumable_data, current_user=current_user)
     if not consumable:
@@ -85,7 +86,7 @@ async def update_consumable_endpoint(
 async def delete_consumable_endpoint(
     consumable_id: str,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     if not await consumable_service.delete_consumable(consumable_id, current_user=current_user):
         raise APIError(status_code=status.HTTP_404_NOT_FOUND, detail="Consumable not found")
@@ -102,7 +103,7 @@ async def checkout_consumable_endpoint(
     consumable_id: str,
     request: ConsumableCheckoutRequest,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await consumable_service.checkout_consumable(consumable_id, request, current_user=current_user)
 
@@ -117,6 +118,6 @@ async def checkin_consumable_endpoint(
     consumable_id: str,
     quantity: int,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await consumable_service.checkin_consumable(consumable_id, quantity, current_user=current_user)
