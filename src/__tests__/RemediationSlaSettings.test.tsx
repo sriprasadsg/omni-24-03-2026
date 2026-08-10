@@ -127,6 +127,19 @@ describe('RemediationSlaSettings', () => {
     expect(input.value).toBe('1');
   });
 
+  it('validat: clearing the field then typing a new digit does not corrupt the value', async () => {
+    fetchRemediationSlaWindow.mockResolvedValue({ windowDays: 200 });
+    render(<RemediationSlaSettings />);
+    const input = screen.getByRole('spinbutton') as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe('200'));
+
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input.value).toBe('');
+
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(input.value).toBe('5');
+  });
+
   it('validat: an out-of-range held value (server response outside 1-365) shows the validation message and disables Save', async () => {
     fetchRemediationSlaWindow.mockResolvedValue({ windowDays: 400 });
     render(<RemediationSlaSettings />);
