@@ -57,7 +57,7 @@ export const RemediationSlaSettings: React.FC = () => {
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
                 <p className="text-sm font-medium text-gray-900 dark:text-white mb-4">Remediation SLA</p>
                 <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="sla-window-days" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         At-Risk Window
                     </label>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -65,18 +65,21 @@ export const RemediationSlaSettings: React.FC = () => {
                     </p>
                     <div className="flex items-center">
                         <input
+                            id="sla-window-days"
                             type="number"
                             min={1}
                             max={365}
                             value={rawWindowDays}
                             onChange={handleWindowDaysChange}
                             onBlur={handleWindowDaysBlur}
+                            aria-invalid={!isValid}
+                            aria-describedby={!isValid ? 'sla-window-days-error' : undefined}
                             className="w-24 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
                         />
                         <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">days</span>
                     </div>
                     {!isValid && (
-                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                        <p id="sla-window-days-error" className="mt-1 text-xs text-red-600 dark:text-red-400">
                             Must be between 1 and 365 days.
                         </p>
                     )}
