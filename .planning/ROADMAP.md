@@ -818,9 +818,11 @@ Requirements: [milestones/v4.0-REQUIREMENTS.md](milestones/v4.0-REQUIREMENTS.md)
 
 **Depends on:** Phase 61 (last-shipped phase, purely sequential — no functional dependency)
 
-**Plans:** 0 plans
+**Plans:** 0/1 plans executed
 
 Plans:
+
+- [ ] 62-01-PLAN.md
 
 - [ ] TBD (run /gsd-plan-phase 62 to break down)
 
