@@ -73,7 +73,7 @@ describe('RemediationSlaSettings', () => {
     await waitFor(() => expect(input.value).toBe('14'));
   });
 
-  it('fetch: soft-fails to the default of 7 when the wrapper resolves its own fallback', async () => {
+  it('fetch: renders whatever windowDays the wrapper resolves with — 7 here is an ordinary resolved value, not a simulated failure (the wrapper is module-mocked, so its internal soft-fail catch in apiService.ts is not exercised by this test)', async () => {
     fetchRemediationSlaWindow.mockResolvedValue({ windowDays: 7 });
     render(<RemediationSlaSettings />);
 
