@@ -257,6 +257,7 @@ async def seed_database():
             "view:config_drift", "manage:config_drift",
             "view:fim", "manage:fim",
             "view:active_response", "manage:active_response",
+            "view:itam", "manage:itam",
             "admin:*",
         ]
         await db.roles.update_one(
@@ -315,6 +316,7 @@ async def seed_database():
             "view:config_drift", "manage:config_drift",
             "view:fim", "manage:fim",
             "view:active_response", "manage:active_response",
+            "view:itam", "manage:itam",
         ]
         await db.roles.update_one(
             {"name": "Tenant Admin"},
@@ -329,6 +331,18 @@ async def seed_database():
             upsert=True,
         )
         logger.info("Tenant Admin role created/updated")
+
+        # Backfill: tenants provisioned before ITAM (Phase 56-61) never had
+        # view:itam/manage:itam written into their enabledFeatures — the
+        # frontend intersects a user's role permissions against their
+        # tenant's enabledFeatures (App.tsx), so a role grant alone doesn't
+        # surface the ITAM console for pre-existing tenants without this.
+        itam_backfill = await db.tenants.update_many(
+            {"enabledFeatures": {"$nin": ["manage:itam"]}},
+            {"$addToSet": {"enabledFeatures": {"$each": ["view:itam", "manage:itam"]}}},
+        )
+        if itam_backfill.modified_count:
+            logger.info(f"Backfilled view:itam/manage:itam onto {itam_backfill.modified_count} existing tenant(s)")
 
         # ── Standard roles (seeded with tenantId="all" so they apply platform-wide) ──
         standard_roles = [

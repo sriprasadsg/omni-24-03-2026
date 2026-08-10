@@ -279,6 +279,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "view:logs", "view:reporting",
         "view:automation", "view:finops",
         "manage:settings",
+        "view:itam", "manage:itam",
     ]
 
     tenant_doc = {
@@ -312,7 +313,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         'view:threat_intel', 'view:vulnerabilities', 'view:persistence',
         'view:security_audit', 'view:mlops', 'view:llmops', 'view:automl',
         'manage:experiments', 'view:xai', 'view:governance', 'manage:playbooks',
-        'view:swarm'
+        'view:swarm', 'view:itam', 'manage:itam'
     ]
 
     user_id = f"user_{uuid.uuid4().hex[:12]}"

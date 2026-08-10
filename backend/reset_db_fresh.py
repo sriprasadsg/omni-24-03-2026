@@ -56,7 +56,7 @@ async def reset():
         'view:threat_intel', 'view:vulnerabilities', 'view:persistence',
         'view:security_audit', 'view:mlops', 'view:llmops', 'view:automl',
         'manage:experiments', 'view:xai', 'view:governance', 'manage:playbooks',
-        'view:swarm'
+        'view:swarm', 'view:itam', 'manage:itam'
     ]
 
     # 3. Create Exafluence Tenant
