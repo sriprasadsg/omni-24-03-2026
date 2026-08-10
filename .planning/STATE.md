@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: ITAM
-current_phase: 62
-status: completed
+current_phase: 63
+current_phase_name: close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-10T19:41:26.512Z"
-last_activity: 2026-08-10
-last_activity_desc: Phase 62 complete
+last_updated: "2026-08-10T20:28:42.225Z"
+last_activity: 2026-08-11
+last_activity_desc: Phase 63 execution started
 progress:
   total_phases: 51
   completed_phases: 45
-  total_plans: 137
-  completed_plans: 132
-current_phase_name: remediation-sla-settings-ui
+  total_plans: 139
+  completed_plans: 133
 ---
 
 # Project State
@@ -23,7 +23,7 @@ current_phase_name: remediation-sla-settings-ui
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 62 — remediation-sla-settings-ui
+**Current focus:** Phase 63 — close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui
 
 ## Current Phase
 
@@ -364,6 +364,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: Plan 59-03: compute_warranty_status/get_warranty_alert_window built as the single definition Plan 59-04's sweep will share with this plan's read route (PD-04/D-03)
 - [Phase ?]: Section-label typography deviates from EvidenceSettings.tsx clone (font-medium not font-semibold) to hold the 2-weight typography ceiling — locked by 62-UI-SPEC.md
 - [Phase ?]: No client-side role/permission conditional on the Remediation tab, input, or Save button (D-04) — backend admin-only PATCH gate is the sole authorization boundary
+- [Phase ?]: 63-01: itam_catalog_endpoints.py's pre-existing local _require_itam_admin redefinition (since Phase 56) left untouched, out of file scope; logged to deferred-items.md and WINDOWS.md for a future small follow-up plan.
 
 ## Performance Metrics
 
@@ -466,12 +467,13 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 59 P02 | 15min | 2 tasks | 3 files |
 | Phase 59 P03 | 30min | 2 tasks | 3 files |
 | Phase 62 P01 | 15min | 3 tasks | 5 files |
+| Phase 63 P01 | 25min | 3 tasks | 4 files |
 
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Phase 63 context gathered
-- **Resume file:** .planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-CONTEXT.md
+- **Stopped at:** Completed 63-01-PLAN.md
+- **Resume file:** None
 
 ## Configuration
 
@@ -496,7 +498,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-10T19:41:26.449Z
+**Last session:** 2026-08-10T20:28:42.164Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -514,10 +516,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 62
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-08-10 — Phase 62 complete
+Phase: 63 (close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-08-11 — Phase 63 execution started
 
 ## Deferred Items
 

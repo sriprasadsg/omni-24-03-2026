@@ -831,11 +831,11 @@ Plans:
 **Goal:** Both v4.0 milestone-audit BLOCKERs are closed — the consumables and components routers enforce the same `manage:assets` admin gate as every sibling ITAM router (non-admins receive 403 on all 12 routes across 3 router objects), and Phase 58's three offline label routes become reachable from the product through a Label action on each asset row in the ITAM Lifecycle table.
 **Requirements**: ITAM-LIC-02, ITAM-LIC-03, ITAM-UI-01, ITAM-CAT-05 (gap closure against `.planning/milestones/v4.0-MILESTONE-AUDIT.md`; Phase 63 is not formally mapped in REQUIREMENTS.md)
 **Depends on:** Phase 62
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
-- [ ] 63-01-PLAN.md — RBAC gate on the consumables and components routers, with 403-for-non-admin regression tests
+- [x] 63-01-PLAN.md — RBAC gate on the consumables and components routers, with 403-for-non-admin regression tests
 - [ ] 63-02-PLAN.md — Label row action in LifecyclePanel wiring the 3 offline label routes into apiService
 
 ---
