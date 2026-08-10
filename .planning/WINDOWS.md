@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 2
+open_count: 3
 waived_count: 0
 fixed_count: 0
-total_count: 2
-last_updated: 2026-08-03T23:21:17.234Z
+total_count: 3
+last_updated: 2026-08-10T20:26:59.128Z
 ---
 
 # Broken Windows Ledger
@@ -17,6 +17,7 @@ last_updated: 2026-08-03T23:21:17.234Z
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
 | 1 | 55 | deviation | backend/virustotal_client.py |  | Pre-existing broken import (NameError: BaseCapability undefined) discovered while sanity-checking threat_intel_endpoints.py in 55-01; out of plan file scope, logged to deferred-items.md | open |  | 2026-08-03T13:59:51.331Z |  |
 | 2 | 53 | deviation | .planning/phases/53-autonomous-remediation/53-03-PLAN.md | 1 | Atomic task commits failed due to unresolvable git state with modified submodules and untracked files. All changes for this plan were logically part of commit ea12a13. | open |  | 2026-08-03T23:21:17.234Z |  |
+| 3 | 63 | deviation | backend/itam_catalog_endpoints.py | 63 | Pre-existing local redefinition of _require_itam_admin (since Phase 56) instead of importing from itam_asset_endpoints — drift-risk (T-63-06), out of 63-01's file scope, functionally still 403s non-admins. | open |  | 2026-08-10T20:26:59.128Z |  |
 
 ````json
 [
@@ -42,6 +43,18 @@ last_updated: 2026-08-03T23:21:17.234Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-03T23:21:17.234Z",
+    "resolved_at": null
+  },
+  {
+    "id": 3,
+    "kind": "deviation",
+    "phase": "63",
+    "file": "backend/itam_catalog_endpoints.py",
+    "line": 63,
+    "description": "Pre-existing local redefinition of _require_itam_admin (since Phase 56) instead of importing from itam_asset_endpoints — drift-risk (T-63-06), out of 63-01's file scope, functionally still 403s non-admins.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T20:26:59.128Z",
     "resolved_at": null
   }
 ]
