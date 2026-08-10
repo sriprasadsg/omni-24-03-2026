@@ -8,11 +8,17 @@ export const RemediationSlaSettings: React.FC = () => {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        api.fetchRemediationSlaWindow().then(d => {
-            const next = d.windowDays ?? 7;
-            setWindowDays(next);
-            setRawWindowDays(String(next));
-        });
+        api.fetchRemediationSlaWindow()
+            .then(d => {
+                const next = d.windowDays ?? 7;
+                setWindowDays(next);
+                setRawWindowDays(String(next));
+            })
+            // Defensive: fetchRemediationSlaWindow currently never rejects
+            // (it soft-fails internally per the documented design in
+            // 62-UI-SPEC.md), but the component's correctness shouldn't
+            // silently depend on that implementation detail — see WR-06.
+            .catch(() => {});
     }, []);
 
     const isValid = windowDays >= 1 && windowDays <= 365;
