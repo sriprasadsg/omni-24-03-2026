@@ -357,3 +357,33 @@ class TestAssetComponentsSubResource:
             r = await ac.get("/api/assets/asset-999/components")
 
         assert r.status_code == 404, r.text
+
+
+class TestComponentRbac:
+    """ITAM-LIC-03, D-05: non-admin gets 403 on both router objects."""
+
+    @pytest.mark.asyncio
+    async def test_rbac_denied_create_returns_403(self, mock_db, component_app, monkeypatch):
+        import itam_asset_endpoints
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
+        current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        component_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=component_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/components", json={"name": "8GB DIMM", "type": "RAM"})
+
+        assert r.status_code == 403, r.text
+
+    @pytest.mark.asyncio
+    async def test_rbac_denied_list_asset_components_returns_403(self, mock_db, component_app, monkeypatch):
+        import itam_asset_endpoints
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
+        current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        component_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=component_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/assets/asset-1/components")
+
+        assert r.status_code == 403, r.text
