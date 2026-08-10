@@ -4606,8 +4606,9 @@ export const fetchRemediationSlaWindow = async (): Promise<{ windowDays: number 
         const res = await authFetch(`${API_BASE}/settings/remediation-sla`);
         if (!res.ok) return { windowDays: REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
         const data = await res.json();
-        const windowDays = Number(data?.windowDays);
-        return { windowDays: Number.isFinite(windowDays) ? windowDays : REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
+        const raw = Number(data?.windowDays);
+        const windowDays = Number.isFinite(raw) && raw > 0 ? raw : REMEDIATION_SLA_WINDOW_DEFAULT_DAYS;
+        return { windowDays };
     } catch {
         return { windowDays: REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
     }
