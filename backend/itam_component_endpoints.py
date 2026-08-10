@@ -5,7 +5,8 @@ from typing import List
 
 from errors import APIError
 from dependencies import PyObjectId
-from authentication_service import get_current_user
+from auth_types import TokenData
+from itam_asset_endpoints import _require_itam_admin
 from itam_models import Component, ComponentCreate, ComponentUpdate
 from itam_component_service import ComponentService, get_component_service
 
@@ -29,7 +30,7 @@ asset_components_router = APIRouter(prefix="/api/assets", tags=["ITAM Components
 async def list_asset_components_endpoint(
     asset_id: str,
     component_service: ComponentService = Depends(get_component_service),
-    current_user=Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await component_service.list_components_for_asset(asset_id, current_user=current_user)
 
@@ -44,7 +45,7 @@ async def list_asset_components_endpoint(
 async def create_component_endpoint(
     component_data: ComponentCreate,
     component_service: ComponentService = Depends(get_component_service),
-    current_user = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await component_service.create_component(component_data, current_user=current_user)
 
@@ -59,7 +60,7 @@ async def list_components_endpoint(
     skip: int = 0,
     limit: int = 100,
     component_service: ComponentService = Depends(get_component_service),
-    current_user = Depends(get_current_user)
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await component_service.get_components(skip=skip, limit=limit, current_user=current_user)
 
@@ -74,7 +75,7 @@ async def attach_component_endpoint(
     component_id: str,
     asset_id: str,
     component_service: ComponentService = Depends(get_component_service),
-    current_user = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await component_service.attach_component(component_id, asset_id, current_user=current_user)
 
@@ -89,6 +90,6 @@ async def detach_component_endpoint(
     component_id: str,
     asset_id: str,
     component_service: ComponentService = Depends(get_component_service),
-    current_user = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_itam_admin),
 ):
     return await component_service.detach_component(component_id, asset_id, current_user=current_user)
