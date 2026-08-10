@@ -41,7 +41,7 @@
 
 Standalone maintenance items promoted from `.planning/ROADMAP.md`'s Backlog section, tracked here because this is the current live requirements file — not because they belong to v4.0 ITAM. Each closes a gap in an earlier, already-shipped milestone.
 
-- [ ] **SLA-03**: The remediation SLA at-risk window (`GET/PATCH /api/settings/remediation-sla`, live since v3.2 Phase 44-03) is exposed in the Settings UI — extends SLA-01/SLA-02 (see `milestones/v3.2-REQUIREMENTS.md`). Phase 62.
+- [x] **SLA-03**: The remediation SLA at-risk window (`GET/PATCH /api/settings/remediation-sla`, live since v3.2 Phase 44-03) is exposed in the Settings UI — extends SLA-01/SLA-02 (see `milestones/v3.2-REQUIREMENTS.md`). Phase 62.
 
 ## v2 Requirements
 
