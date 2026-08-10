@@ -31,6 +31,8 @@ const TIER_STYLE: Record<Tier, { bg: string; text: string; border: string }> = {
   compliance: { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30' },
 };
 
+const UNKNOWN_TIER_STYLE = { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-500/30' };
+
 const TIER_DESC: Record<Tier, string> = {
   hot: 'Frequently accessed — fast retrieval, highest cost',
   warm: 'Occasionally accessed — moderate cost',
@@ -143,7 +145,7 @@ export default function RetentionPoliciesDashboard() {
                   </tr></thead>
                   <tbody>
                     {policies.map(p => {
-                      const s = TIER_STYLE[p.tier];
+                      const s = TIER_STYLE[p.tier] || UNKNOWN_TIER_STYLE;
                       return (
                         <tr key={p.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                           <td className="p-3 font-medium text-white">{p.name}</td>
