@@ -4,13 +4,40 @@ import { showToast } from '../utils/toast';
 
 export const RemediationSlaSettings: React.FC = () => {
     const [windowDays, setWindowDays] = useState<number>(7);
+    const [rawWindowDays, setRawWindowDays] = useState<string>('7');
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        api.fetchRemediationSlaWindow().then(d => setWindowDays(d.windowDays ?? 7));
+        api.fetchRemediationSlaWindow().then(d => {
+            const next = d.windowDays ?? 7;
+            setWindowDays(next);
+            setRawWindowDays(String(next));
+        });
     }, []);
 
     const isValid = windowDays >= 1 && windowDays <= 365;
+
+    const handleWindowDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        if (value === '') {
+            // Allow the field to sit empty mid-edit (e.g. Backspace-clearing
+            // before retyping) instead of snapping to 1, which previously
+            // corrupted the next keystroke — see WR-02.
+            setRawWindowDays('');
+            return;
+        }
+        const parsed = parseInt(value, 10);
+        if (Number.isNaN(parsed)) return;
+        const clamped = Math.min(365, Math.max(1, parsed));
+        setWindowDays(clamped);
+        setRawWindowDays(String(clamped));
+    };
+
+    const handleWindowDaysBlur = () => {
+        if (rawWindowDays === '') {
+            setRawWindowDays(String(windowDays));
+        }
+    };
 
     const handleSave = async () => {
         if (!isValid) return;
@@ -41,10 +68,9 @@ export const RemediationSlaSettings: React.FC = () => {
                             type="number"
                             min={1}
                             max={365}
-                            value={windowDays}
-                            onChange={e =>
-                                setWindowDays(Math.min(365, Math.max(1, parseInt(e.target.value, 10) || 1)))
-                            }
+                            value={rawWindowDays}
+                            onChange={handleWindowDaysChange}
+                            onBlur={handleWindowDaysBlur}
                             className="w-24 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
                         />
                         <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">days</span>
