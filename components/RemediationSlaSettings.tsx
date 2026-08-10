@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
 
+const SLA_WINDOW_MIN = 1;
+const SLA_WINDOW_MAX = 365;
+const SLA_WINDOW_DEFAULT = 7;
+
 export const RemediationSlaSettings: React.FC = () => {
-    const [windowDays, setWindowDays] = useState<number>(7);
-    const [rawWindowDays, setRawWindowDays] = useState<string>('7');
+    const [windowDays, setWindowDays] = useState<number>(SLA_WINDOW_DEFAULT);
+    const [rawWindowDays, setRawWindowDays] = useState<string>(String(SLA_WINDOW_DEFAULT));
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         api.fetchRemediationSlaWindow()
             .then(d => {
-                const next = d.windowDays ?? 7;
+                const next = d.windowDays ?? SLA_WINDOW_DEFAULT;
                 setWindowDays(next);
                 setRawWindowDays(String(next));
             })
@@ -21,7 +25,7 @@ export const RemediationSlaSettings: React.FC = () => {
             .catch(() => {});
     }, []);
 
-    const isValid = windowDays >= 1 && windowDays <= 365;
+    const isValid = windowDays >= SLA_WINDOW_MIN && windowDays <= SLA_WINDOW_MAX;
 
     const handleWindowDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -34,7 +38,7 @@ export const RemediationSlaSettings: React.FC = () => {
         }
         const parsed = parseInt(value, 10);
         if (Number.isNaN(parsed)) return;
-        const clamped = Math.min(365, Math.max(1, parsed));
+        const clamped = Math.min(SLA_WINDOW_MAX, Math.max(SLA_WINDOW_MIN, parsed));
         setWindowDays(clamped);
         setRawWindowDays(String(clamped));
     };
@@ -73,8 +77,8 @@ export const RemediationSlaSettings: React.FC = () => {
                         <input
                             id="sla-window-days"
                             type="number"
-                            min={1}
-                            max={365}
+                            min={SLA_WINDOW_MIN}
+                            max={SLA_WINDOW_MAX}
                             value={rawWindowDays}
                             onChange={handleWindowDaysChange}
                             onBlur={handleWindowDaysBlur}

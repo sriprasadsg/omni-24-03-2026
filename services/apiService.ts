@@ -4599,15 +4599,17 @@ export const saveStalenessThreshold = async (thresholdDays: number): Promise<voi
     if (!res.ok) throw new Error('Failed to save staleness threshold');
 };
 
+const REMEDIATION_SLA_WINDOW_DEFAULT_DAYS = 7;
+
 export const fetchRemediationSlaWindow = async (): Promise<{ windowDays: number }> => {
     try {
         const res = await authFetch(`${API_BASE}/settings/remediation-sla`);
-        if (!res.ok) return { windowDays: 7 };
+        if (!res.ok) return { windowDays: REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
         const data = await res.json();
         const windowDays = Number(data?.windowDays);
-        return { windowDays: Number.isFinite(windowDays) ? windowDays : 7 };
+        return { windowDays: Number.isFinite(windowDays) ? windowDays : REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
     } catch {
-        return { windowDays: 7 };
+        return { windowDays: REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
     }
 };
 
