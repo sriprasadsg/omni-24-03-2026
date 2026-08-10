@@ -48,7 +48,9 @@
     "security_block_on": "high",
     "_auto_chain_active": false,
     "use_worktrees": false,
-    "plan_review_convergence": true
+    "plan_review_convergence": true,
+    "test_command": "npx vitest run src/__tests__",
+    "build_command": "npm run build"
   },
   "ship": {
     "pr_body_sections": [
