@@ -14,7 +14,6 @@ from tests.conftest import make_test_app, make_token_data
 from authentication_service import get_current_user as real_get_current_user
 from backend.itam_consumable_endpoints import router
 from backend.itam_consumable_service import ConsumableNotFoundError, ConsumableService
-from backend.itam_asset_endpoints import verify_permission as itam_asset_verify_permission
 
 # Mock database and app fixtures (similar to itam_lifecycle_test_support)
 class MockTenantIsolatedCollection:
@@ -139,7 +138,7 @@ def patch_get_database_globally(mock_db, monkeypatch):
 
 @pytest.fixture
 def consumable_app(mock_db, patch_get_database_globally, monkeypatch):
-    import backend.itam_asset_endpoints as itam_asset_endpoints
+    import itam_asset_endpoints
     monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=True))
 
     app, _ = make_test_app(router)
@@ -279,3 +278,23 @@ class TestConsumableCheckoutQuantity:
 
         assert r.status_code == 400, r.text
         mock_db.itam_consumables.find_one_and_update.assert_not_called()
+
+
+class TestConsumableRbac:
+    """ITAM-LIC-02, D-05: non-admin gets 403 on every consumables route."""
+
+    @pytest.mark.asyncio
+    async def test_rbac_denied_create_returns_403(self, mock_db, consumable_app, monkeypatch):
+        import itam_asset_endpoints
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
+        current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=consumable_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post(
+                "/api/itam/consumables",
+                json={"name": "Cat6 Cable", "initialQuantity": 10, "unitType": "unit"},
+            )
+
+        assert r.status_code == 403, r.text
