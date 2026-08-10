@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v4.0
-milestone_name: — ITAM
-current_phase: 61
-current_phase_name: Frontend ITAM Console
-status: complete
-stopped_at: All 6 v4.0 ITAM phases complete (56-61) — all 17 v1 requirements delivered. One live-browser round-trip walkthrough remains as human verification (see 61-VERIFICATION.md); otherwise milestone is ready to close.
-last_updated: "2026-08-09T19:40:00.000Z"
-last_activity: 2026-08-09
-last_activity_desc: Phase 61 (Frontend ITAM Console) executed and verified — 6-tab console built, wired into nav, ITAM-UI-01 delivered
+milestone_name: ITAM
+status: Awaiting next milestone
+stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
+last_updated: "2026-08-10T07:55:45.191Z"
+last_activity: 2026-08-10
+last_activity_desc: Milestone v4.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
-  total_plans: 20
+  total_plans: 17
   completed_plans: 17
   percent: 100
+current_phase: 61
+current_phase_name: Frontend ITAM Console
 ---
 
 # Project State
@@ -511,10 +511,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 60 — Licenses & Consumables
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-06 — Phase 59 complete, transitioned to Phase 60
+Phase: Milestone v4.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-10 — Milestone v4.0 completed and archived
 
 ## Deferred Items
 
@@ -567,6 +567,32 @@ Items acknowledged and deferred at v3.4 milestone close on 2026-08-04 (20 total,
 | verification | Phase 32 (32-02-VERIFICATION.md) | gaps_found (pre-v3.4, v3.0) |
 | verification | Phase 48 (48-VERIFICATION.md) | human_needed (v3.3) |
 
+Items acknowledged and deferred at v4.0 milestone close on 2026-08-10 (19 total, project-wide scan — unchanged from the v3.4-close list; this is the 3rd consecutive acknowledgment of the same backlog, still none resolved). One entry dropped from the prior list: Phase 50 (50-UAT.md) no longer appears in the audit tool's output this run — resolved or superseded, not re-verified here. 8 of the 16 UAT entries (27/28/29×2/30/32/33/34/35) are parser false-positives: `status: unknown` only because those files lack a `status:` frontmatter field the audit tool expects — their body text already reads Pass/Passed/Complete. Not fixed this session (out of scope for a milestone-close acknowledgment pass); a future housekeeping task should add frontmatter status fields to stop these re-surfacing every close.
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 02 (02-UAT.md) | testing, 7 pending scenarios (pre-v4.0, v1.1) |
+| uat | Phase 06 (06-UAT.md) | partial (pre-v4.0, v1.1) |
+| uat | Phase 15 (15-UAT.md) | testing, 12 pending scenarios (pre-v4.0, v2.0) |
+| uat | Phase 27 (27-UAT.md) | unknown — parser false-positive, body says Pass (pre-v4.0, v3.0) |
+| uat | Phase 28 (28-UAT.md) | unknown — parser false-positive, body says Passed (pre-v4.0, v3.0) |
+| uat | Phase 29 (29-UAT-SUMMARY.md) | blocked (pre-v4.0, v3.0) |
+| uat | Phase 29 (29-UAT.md) | unknown — stale, predates 2026-07-14 re-execution (pre-v4.0, v3.0) |
+| uat | Phase 30 (30-UAT.md) | unknown — parser false-positive, body says Passed (pre-v4.0, v3.0) |
+| uat | Phase 32 (32-UAT.md) | unknown — 4 items "Pending" in body (manual verification never done) (pre-v4.0, v3.0) |
+| uat | Phase 33 (33-UAT.md) | unknown — parser false-positive, body says Pass (pre-v4.0, v3.0) |
+| uat | Phase 34 (34-UAT.md) | unknown — parser false-positive, body says Pass (real-browser passkey ceremony still human-pending) (pre-v4.0, v3.0) |
+| uat | Phase 35 (35-UAT.md) | unknown — parser false-positive, body says Pass (pre-v4.0, v3.0) |
+| uat | Phase 39 (39-UAT.md) | partial — 2 items permanently blocked on live AI gateway access (pre-v4.0, v3.1) |
+| uat | Phase 40 (40-UAT.md) | partial, 0 pending — 1 test blocked_by physical-device, unrunnable in sandbox (pre-v4.0, v3.2) |
+| uat | Phase 48 (48-UAT.md) | testing, 2 pending scenarios (pre-v4.0, v3.3) |
+| uat | Phase 49 (49-UAT.md) | passed, 0 pending — flagged by audit tool despite passed status (pre-v4.0, v3.3) |
+| verification | Phase 06 (06-VERIFICATION.md) | human_needed (pre-v4.0, v1.1) |
+| verification | Phase 32 (32-02-VERIFICATION.md) | gaps_found — contradicted by 32-VERIFICATION.md's later "4/4 verified 2026-07-14", not reconciled (pre-v4.0, v3.0) |
+| verification | Phase 48 (48-VERIFICATION.md) | human_needed (pre-v4.0, v3.3) |
+
+Known verification overrides: 19 (see above)
+
 ## Operator Next Steps
 
-- Plan the first v4.0 phase with /gsd-plan-phase 56
+- Start the next milestone with /gsd-new-milestone

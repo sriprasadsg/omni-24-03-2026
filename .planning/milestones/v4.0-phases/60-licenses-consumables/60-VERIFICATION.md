@@ -1,3 +1,12 @@
+---
+phase: 60-licenses-consumables
+verified: 2026-08-09T00:00:00Z
+status: passed
+score: 3/3 ROADMAP success criteria verified
+behavior_unverified: 0
+overrides_applied: 1
+---
+
 # Phase 60 Verification: Licenses & Consumables
 
 **Goal:** Track software licenses, consumables, and components as first-class ITAM sub-inventory — seats assigned/reclaimed against a real seat count, consumables checked out in quantity, and components attached to a parent asset.

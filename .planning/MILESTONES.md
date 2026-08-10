@@ -1,5 +1,31 @@
 # Milestones
 
+## v4.0 ITAM (IT Asset Management Lifecycle) (Shipped: 2026-08-10)
+
+**Phases completed:** 6 phases, 17 plans, 32 tasks
+
+**Key accomplishments:**
+
+- Prove the Phase 56 architecture end-to-end on one thin slice: an admin creates a Manufacturer through a new tenant-isolated catalog router, then hand-catalogues a manual asset that references it — landing in the existing `assets` collection with the new `assetSource` discriminator, `lifecycleStatus` field, and an atomically generated per-tenant asset tag.
+- All five ITAM catalog kinds live behind one generic router via a new CATALOG_MODELS per-kind body registry, plus a router-independent `itam_catalog_service.py` fieldset validator (duplicate keys, identifier-shaped keys, option-less selects) that 56-04's asset write path will import directly.
+- Atomic, tenant-isolated check-out endpoint (POST /api/assets/{asset_id}/checkout) with a new append-only assignment_history ledger, proving the entire Phase-57 router/collection/state-transition architecture end-to-end before 57-02/57-03/Phase-61 build on it.
+- Atomic check-in endpoint (POST /api/assets/{asset_id}/checkin) that closes the hand-off round trip 57-01 opened, plus the per-asset history read (GET /api/assets/{asset_id}/history) that makes the append-only assignment_history trail actually visible — with all three ITAM-LIFE-04 edge semantics (empty, identical timestamps, tie ordering) pinned by tests.
+- POST /api/assets/{asset_id}/audit (attributed audit mark, orthogonal to lifecycle/assignment) and GET /api/assets/reports/overdue-audit (three-branch honest-population report with explicit ageBasis/daysOverdue), closing out ITAM-LIFE-05 and Phase 57.
+- GET /api/assets/{asset_id}/label/qr streams a PNG QR code of an asset's bare assetTag, RBAC-gated and tenant-isolated, through a newly registered router built on a pure, DB-free generation service.
+- Cleared the SUS-flagged python-barcode legitimacy gate via recorded human sign-off, then pinned python-barcode==0.16.1 (exact version) into backend/requirements.txt and installed it into backend/venv, unblocking Plan 03's Code128 barcode generation.
+- Added generate_barcode_png (Code128, python-barcode==0.16.1) and GET /api/assets/{asset_id}/label/barcode alongside the existing QR route, sharing one _resolve_tag_for_label prelude, then proved both generators complete with socket.socket/create_connection/getaddrinfo patched to raise unconditionally, backed by a verified negative control.
+- POST /api/assets/labels/sheet renders a printable Avery-5160 PDF (3x10 grid, QR + barcode + tag/name/model text per label) for a caller-ordered, duplicate-honouring list of asset ids, refusing every partial request outright rather than silently trimming or dropping it — completing all three label generators' offline proof and closing out Phase 58.
+- PATCH /api/assets/{asset_id}/purchase writes an integer-cents purchase/warranty record with D-02 supplier validation; GET /api/assets/{asset_id}/book-value computes straight-line depreciation at read time, floored at salvage, with structured 200 responses (never a 500) for every missing/partial-policy state.
+- Extended the closed `itam.warranty_expiring` event-type vocabulary in both `notification_service.VALID_EVENTS` and `notification_endpoints.RuleCreate`'s `Literal`, plus a 14-test pinned contract for both warranty-alert delivery paths Plan 59-04's sweep will call.
+- Warranty expiry/status computed at read time from purchaseDate+warrantyMonths via one pure function (`compute_warranty_status`), classified against a per-tenant configurable alert window (`get_warranty_alert_window`), both exposed read-only through `GET /api/assets/{asset_id}/warranty` — the exact two functions Plan 59-04's background sweep will call, so an operator's on-screen status and their alert condition can never disagree.
+- Tenant-isolation-safe background sweep (`run_warranty_alert_pass`) that alerts on expiring/expired asset warranties via both the in-app notification feed and tenant-configured notification rules, registered at application startup with the raw database handle and guarded by a `warrantyAlertSentAt` idempotency marker — completing ITAM-FIN-02 and, with it, all three of Phase 59's requirements.
+- Software license catalog CRUD, seat assign/reclaim against a real seat count (polymorphic user/asset target), and read-time remaining/expired-seat visibility — ITAM-LIC-01 complete.
+- Accessory/consumable catalog CRUD plus an atomically-guarded checkout/checkin pair — quantity > 1 supported per transaction, over-request rejected outright, available quantity always correct under the guard-in-filter pattern. ITAM-LIC-02 complete.
+- Component catalog with nullable-parentAssetId attach/detach (record persists on detach, per D-05) and a hydrated asset-scoped listing route — closing the literal "see it listed on that asset's record" success criterion that a bare id-array response didn't satisfy. ITAM-LIC-03 complete.
+- Replaced the 13-line ITAMConsole.tsx placeholder with a real 6-tab admin-gated console covering every backend surface Phases 56-60 shipped — Catalog, Check-Out/In, Procurement & Finance, Licenses & Consumables (including consumables/components, not just licenses), plus Compliance and Software Inventory integration tabs. manage:itam gates the Sidebar entry and route; a pre-existing, currently-broken tsc error (viewPermissionMap missing the 'itam' key) is fixed as part of the same wiring. ITAM-UI-01 complete.
+
+---
+
 ## v3.4 Native Security Scanning & Autonomous Remediation Agent (Shipped: 2026-08-04)
 
 **Phases completed:** 6 phases (50–55), 25 plans
