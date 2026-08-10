@@ -90,12 +90,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-LIC-02 | Phase 60 | Complete |
 | ITAM-LIC-03 | Phase 60 | Complete |
 | ITAM-UI-01 | Phase 61 | Complete |
+| SLA-03 | Phase 62 | Complete |
 
 **Coverage:**
 
 - v1 requirements: 17 total
 - Mapped to phases: 17/17 ✓
 - Unmapped: 0
+- Gap closures (outside v1 count): SLA-03 — Phase 62, Complete
 
 **Phase map:**
 
@@ -105,6 +107,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Phase 59 — Procurement & Finance (Warranty & Depreciation) (ITAM-FIN-01/02/03)
 - Phase 60 — Licenses & Consumables (ITAM-LIC-01/02/03)
 - Phase 61 — Frontend ITAM Console (ITAM-UI-01)
+- Phase 62 — Remediation SLA Settings UI (SLA-03, gap closure)
 
 ---
 *Requirements defined: 2026-08-04*

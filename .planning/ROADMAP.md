@@ -818,7 +818,7 @@ Requirements: [milestones/v4.0-REQUIREMENTS.md](milestones/v4.0-REQUIREMENTS.md)
 
 **Depends on:** Phase 61 (last-shipped phase, purely sequential — no functional dependency)
 
-**Plans:** 1/1 plans executed
+**Plans:** 1/1 plans complete
 
 Plans:
 
