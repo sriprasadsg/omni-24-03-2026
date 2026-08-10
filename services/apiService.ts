@@ -4599,6 +4599,25 @@ export const saveStalenessThreshold = async (thresholdDays: number): Promise<voi
     if (!res.ok) throw new Error('Failed to save staleness threshold');
 };
 
+export const fetchRemediationSlaWindow = async (): Promise<{ windowDays: number }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/remediation-sla`);
+        if (!res.ok) return { windowDays: 7 };
+        return await res.json();
+    } catch {
+        return { windowDays: 7 };
+    }
+};
+
+export const saveRemediationSlaWindow = async (windowDays: number): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/settings/remediation-sla`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ windowDays }),
+    });
+    if (!res.ok) throw new Error('Failed to save remediation SLA window');
+};
+
 export const fetchEvidenceAuditLog = async (evidenceId: string): Promise<{ entries: any[] }> => {
     try {
         const res = await authFetch(`${API_BASE}/compliance/evidence/${evidenceId}/audit-log`);
