@@ -83,12 +83,15 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: 'jsdom',
       globals: true,
-      setupFiles: ['./src/__tests__/setup.ts'],
+      setupFiles: ['./src/__tests__/setup.ts', './servers/src/__tests__/setup.ts'],
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
+        '**/.claude/worktrees/**',
+        '**/.claude/plugins/**',
         'code-review-graph-main/**',
       ],
+      include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)', 'servers/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
     }
   };
 });
