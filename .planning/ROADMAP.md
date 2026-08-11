@@ -838,24 +838,35 @@ Plans:
 - [x] 63-01-PLAN.md — RBAC gate on the consumables and components routers, with 403-for-non-admin regression tests
 - [x] 63-02-PLAN.md — Label row action in LifecyclePanel wiring the 3 offline label routes into apiService
 
----
+### Phase 64: rotate_key autonomous-remediation action
 
-## Backlog
-
-### Phase 999.2: `rotate_key` remediation action (BACKLOG)
-
-**Goal:** [Deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Deferred because the original scope was under-specified + dangerous + hard to make reversible. Ship after the four reversible actions (kill/restore/block/disable) are proven.
-**Requirements:** extends AUTO-02
+**Goal:** [Promoted from backlog 999.2, deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Original scope was under-specified + dangerous + hard to make reversible — the four reversible actions (kill/restore/block/disable) are now proven in production, so this is ready to plan properly.
+**Requirements**: extends AUTO-02
+**Depends on:** Phase 63
 **Plans:** 0 plans
 
-### Phase 999.3: FIM process attribution via fanotify (BACKLOG)
+Plans:
 
-**Goal:** [Deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
-**Requirements:** completes FIM-02
+- [ ] TBD (run /gsd-plan-phase 64 to break down)
+
+### Phase 65: FIM process attribution via fanotify
+
+**Goal:** [Promoted from backlog 999.3, deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the current `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
+**Requirements**: completes FIM-02
+**Depends on:** Phase 64
 **Plans:** 0 plans
 
-### Phase 999.4: Full YARA-rule engine for native scan (BACKLOG)
+Plans:
 
-**Goal:** [Deferred from Phase 50 at execution] Add real YARA-rule evaluation to the agent's native file scanner. Phase 50 rejected `yara-x` because it pulls `wasmtime` + `cranelift` (a JIT engine — unacceptable bloat + cross-compile risk for the lean agent) and shipped a fallback (SHA256 hash-signature DB + `aho-corasick` literal-pattern matching over the feed's rule string literals). A future engine could revisit yara-x with a leaner backend, a WASM-free YARA interpreter, or a compiled-rule subset — only if it cross-compiles to `x86_64-pc-windows-gnu` cleanly and stays reasonably sized.
-**Requirements:** completes NSCAN-01 (full YARA rules)
+- [ ] TBD (run /gsd-plan-phase 65 to break down)
+
+### Phase 66: Full YARA-rule engine for native scan
+
+**Goal:** [Promoted from backlog 999.4, deferred from Phase 50 at execution] Add real YARA-rule evaluation to the agent's native file scanner. Phase 50 rejected `yara-x` because it pulls `wasmtime` + `cranelift` (a JIT engine — unacceptable bloat + cross-compile risk for the lean agent) and shipped a fallback (SHA256 hash-signature DB + `aho-corasick` literal-pattern matching over the feed's rule string literals) instead. This phase revisits a real engine — only if it cross-compiles to `x86_64-pc-windows-gnu` cleanly and stays reasonably sized (e.g. a leaner yara-x backend, a WASM-free YARA interpreter, or a compiled-rule subset).
+**Requirements**: completes NSCAN-01 (full YARA rules)
+**Depends on:** Phase 65
 **Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 66 to break down)
