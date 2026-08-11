@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import { Asset, ItamCatalogEntity, ItamLifecycleStatus, Tenant } from '../../types';
-import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities } from '../../services/apiService';
+import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities, fetchAssetQrLabel } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,6 +35,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
   const [checkinTarget, setCheckinTarget] = useState<Asset | null>(null);
   const [auditTarget, setAuditTarget] = useState<Asset | null>(null);
   const [actionNote, setActionNote] = useState('');
+  const [labelMenuAssetId, setLabelMenuAssetId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,6 +123,19 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
     }
   }
 
+  async function handleLabelDownload(assetId: string, kind: 'qr' | 'barcode' | 'sheet') {
+    setLabelMenuAssetId(null);
+    try {
+      switch (kind) {
+        case 'qr':
+          await fetchAssetQrLabel(assetId);
+          break;
+      }
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to generate label.', 'error');
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -153,6 +167,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
                   {isSuperAdminView && <th className="py-2 pr-4">Tenant</th>}
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Assigned To</th>
+                  <th className="py-2 pr-4">Logged-in User</th>
                   <th className="py-2 pr-4" />
                 </tr>
               </thead>
@@ -170,6 +185,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
                         </span>
                       </td>
                       <td className="py-2 pr-4 text-gray-400">{a.assignedToId ? `${a.assignedToType}: ${a.assignedToId}` : '—'}</td>
+                      <td className="py-2 pr-4 text-gray-400">{a.loggedInUser || '—'}</td>
                       <td className="py-2 pr-4 text-right whitespace-nowrap">
                         {a.assignedToId ? (
                           <button onClick={() => setCheckinTarget(a)} className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-3">Check In</button>
@@ -177,6 +193,21 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
                           <button onClick={() => setCheckoutTarget(a)} className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-3">Check Out</button>
                         )}
                         <button onClick={() => setAuditTarget(a)} className="text-gray-400 hover:text-gray-200 text-xs font-medium">Mark Audited</button>
+                        <div className="relative inline-block">
+                          <button
+                            onClick={() => setLabelMenuAssetId(labelMenuAssetId === a.id ? null : a.id)}
+                            className="text-gray-400 hover:text-gray-200 text-xs font-medium ml-3"
+                            aria-haspopup="true"
+                            aria-expanded={labelMenuAssetId === a.id}
+                          >
+                            Label
+                          </button>
+                          {labelMenuAssetId === a.id && (
+                            <div className="absolute right-0 mt-1 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
+                              <button onClick={() => handleLabelDownload(a.id, 'qr')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">QR Code</button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

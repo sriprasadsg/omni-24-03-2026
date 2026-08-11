@@ -5294,6 +5294,41 @@ export const fetchAssetHistory = async (assetId: string): Promise<{ assetId: str
     return res.json();
 };
 
+// Triggers a browser download from a blob-bearing Response, naming the file
+// from the backend's own Content-Disposition header (never invented
+// client-side) with fallbackFilename used only when the header is absent or
+// unparseable. Mirrors exportReport's filename-from-header regex combined
+// with downloadComplianceReport's simpler create-click-revoke teardown.
+async function triggerLabelDownload(res: Response, fallbackFilename: string): Promise<void> {
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+
+    let filename = fallbackFilename;
+    const disposition = res.headers.get('Content-Disposition');
+    if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+            filename = matches[1].replace(/['"]/g, '');
+        }
+    }
+
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+export const fetchAssetQrLabel = async (assetId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/${encodeURIComponent(assetId)}/label/qr`);
+    if (!res.ok) return itamThrow(res, 'Failed to generate QR label');
+    await triggerLabelDownload(res, `asset-label-${assetId}-qr.png`);
+};
+
 export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
     const res = await authFetch(`${API_BASE}/assets/reports/overdue-audit`);
     if (!res.ok) return itamThrow(res, 'Failed to load overdue-audit report');
