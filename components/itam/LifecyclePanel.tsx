@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import { Asset, ItamCatalogEntity, ItamLifecycleStatus, Tenant } from '../../types';
-import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities, fetchAssetQrLabel } from '../../services/apiService';
+import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities, fetchAssetQrLabel, fetchAssetBarcodeLabel, fetchAssetLabelSheet } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -36,6 +36,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
   const [auditTarget, setAuditTarget] = useState<Asset | null>(null);
   const [actionNote, setActionNote] = useState('');
   const [labelMenuAssetId, setLabelMenuAssetId] = useState<string | null>(null);
+  const labelMenuRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +60,17 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (labelMenuAssetId === null) return;
+    function handleOutsideClick(e: MouseEvent) {
+      if (labelMenuRef.current && !labelMenuRef.current.contains(e.target as Node)) {
+        setLabelMenuAssetId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [labelMenuAssetId]);
 
   async function handleAddAsset() {
     if (!newAsset.name.trim()) return;
@@ -130,6 +142,12 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
         case 'qr':
           await fetchAssetQrLabel(assetId);
           break;
+        case 'barcode':
+          await fetchAssetBarcodeLabel(assetId);
+          break;
+        case 'sheet':
+          await fetchAssetLabelSheet([assetId]);
+          break;
       }
     } catch (e: any) {
       showToast(e?.message || 'Failed to generate label.', 'error');
@@ -193,7 +211,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
                           <button onClick={() => setCheckoutTarget(a)} className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-3">Check Out</button>
                         )}
                         <button onClick={() => setAuditTarget(a)} className="text-gray-400 hover:text-gray-200 text-xs font-medium">Mark Audited</button>
-                        <div className="relative inline-block">
+                        <div ref={labelMenuAssetId === a.id ? labelMenuRef : undefined} className="relative inline-block">
                           <button
                             onClick={() => setLabelMenuAssetId(labelMenuAssetId === a.id ? null : a.id)}
                             className="text-gray-400 hover:text-gray-200 text-xs font-medium ml-3"
@@ -205,6 +223,8 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
                           {labelMenuAssetId === a.id && (
                             <div className="absolute right-0 mt-1 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
                               <button onClick={() => handleLabelDownload(a.id, 'qr')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">QR Code</button>
+                              <button onClick={() => handleLabelDownload(a.id, 'barcode')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">Barcode</button>
+                              <button onClick={() => handleLabelDownload(a.id, 'sheet')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">Label Sheet (this asset)</button>
                             </div>
                           )}
                         </div>

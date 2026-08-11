@@ -5329,6 +5329,20 @@ export const fetchAssetQrLabel = async (assetId: string): Promise<void> => {
     await triggerLabelDownload(res, `asset-label-${assetId}-qr.png`);
 };
 
+export const fetchAssetBarcodeLabel = async (assetId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/${encodeURIComponent(assetId)}/label/barcode`);
+    if (!res.ok) return itamThrow(res, 'Failed to generate barcode label');
+    await triggerLabelDownload(res, `asset-label-${assetId}-barcode.png`);
+};
+
+export const fetchAssetLabelSheet = async (assetIds: string[]): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/labels/sheet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetIds }),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to generate label sheet');
+    await triggerLabelDownload(res, 'asset-labels.pdf');
+};
+
 export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
     const res = await authFetch(`${API_BASE}/assets/reports/overdue-audit`);
     if (!res.ok) return itamThrow(res, 'Failed to load overdue-audit report');
