@@ -854,11 +854,11 @@ Plans:
 **Goal:** [Promoted from backlog 999.3, deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the current `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
 **Requirements**: completes FIM-02
 **Depends on:** Phase 64
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 65 to break down)
+- [ ] 65-01-PLAN.md — Core fanotify event capture and basic PID extraction
 
 ### Phase 66: Full YARA-rule engine for native scan
 
