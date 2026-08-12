@@ -23,6 +23,7 @@ const ITAM_RESOURCE_TYPES: string[] = [
   'itam_license_assignment',
   'itam_settings',
   'itam_import',
+  'itam_export',
 ];
 
 const PAGE_SIZE = 50;
