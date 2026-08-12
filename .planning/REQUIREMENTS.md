@@ -52,7 +52,7 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ITAM-USR-01 | Phase 64 | Complete |
-| ITAM-USR-02 | Phase 64 | Pending |
+| ITAM-USR-02 | Phase 64 | Complete |
 | ITAM-USR-03 | Phase 64 | Pending |
 | ITAM-USR-04 | Phase 64 | Pending |
 | ITAM-USR-05 | Phase 64 | Pending |
