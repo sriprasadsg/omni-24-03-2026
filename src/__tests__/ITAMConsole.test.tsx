@@ -39,7 +39,8 @@ vi.mock('../../services/apiService', () => ({
   uploadComplianceEvidence: vi.fn(),
   deleteComplianceEvidence: vi.fn(),
   ingestKnowledge: vi.fn(),
-  fetchAuditLogs: vi.fn().mockResolvedValue([]),
+  fetchItamAuditLogs: vi.fn().mockResolvedValue([]),
+  verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
   API_BASE: '/api',
 }));

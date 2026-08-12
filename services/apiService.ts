@@ -5484,8 +5484,14 @@ export const detachComponent = async (id: string, assetId: string): Promise<Itam
 };
 
 // Note: this route is /api/audit-logs, not under /api/itam/ — it is the
-// platform's existing shared audit ledger, not an ITAM-specific one.
-export const fetchAuditLogs = async (params?: { resourceType?: string; resourceId?: string; limit?: number; skip?: number }): Promise<AuditLogEntry[]> => {
+// platform's existing shared audit ledger, not an ITAM-specific one. Named
+// fetchItamAuditLogs (not fetchAuditLogs) because a same-named, differently-
+// shaped fetchAuditLogs() already exists above for the legacy AuditLog.tsx
+// "Time Machine" timeline — that one swallows errors and returns a bare
+// array with `actor`/`status` fields; this one is filterable, throws on a
+// non-ok response (so the panel can render a real error), and returns the
+// AuditLogEntry shape the backend ledger actually writes.
+export const fetchItamAuditLogs = async (params?: { resourceType?: string; resourceId?: string; limit?: number; skip?: number }): Promise<AuditLogEntry[]> => {
     const qs = new URLSearchParams();
     if (params?.resourceType) qs.set('resourceType', params.resourceType);
     if (params?.resourceId) qs.set('resourceId', params.resourceId);
@@ -5499,6 +5505,12 @@ export const fetchAuditLogs = async (params?: { resourceType?: string; resourceI
         }
         return itamThrow(res, 'Failed to load activity log');
     }
+    return res.json();
+};
+
+export const verifyAuditIntegrity = async (): Promise<{ valid: boolean; total_records?: number; broken_links?: unknown[]; status?: string }> => {
+    const res = await authFetch(`${API_BASE}/audit-logs/integrity-check`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to verify ledger integrity');
     return res.json();
 };
 
