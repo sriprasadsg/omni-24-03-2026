@@ -27,6 +27,7 @@ python-barcode==0.16.1          # Code128 1D barcode generation for ITAM asset-t
 authlib>=1.3.0,<2.0.0          # OIDC / OAuth2 / SAML SSO flows
 defusedxml>=0.7.1,<1.0.0       # Safe XML/SAML parsing (prevents XXE)
 ldap3==2.9.1                    # LDAP/AD integration (ITAM-USR-03); pinned exactly — human-approved via blocking checkpoint 2026-08-13, pure-Python (no libldap2-dev/libsasl2-dev headers needed)
+python3-saml==1.16.0             # SAML 2.0 SP: signature/audience/timestamp assertion validation (ITAM-USR-04); pinned exactly — human-approved via blocking checkpoint 2026-08-13 (SAML-Toolkits/python3-saml)
 
 # ── Database ─────────────────────────────────────────────────────────────────
 motor>=3.3.0,<4.0.0            # Async MongoDB driver (used throughout)
