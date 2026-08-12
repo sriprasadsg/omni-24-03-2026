@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
+open_count: 9
 waived_count: 0
 fixed_count: 1
-total_count: 7
-last_updated: 2026-08-12T20:16:22.137Z
+total_count: 10
+last_updated: 2026-08-12T20:41:16.997Z
 ---
 
 # Broken Windows Ledger
@@ -22,6 +22,9 @@ last_updated: 2026-08-12T20:16:22.137Z
 | 5 | 64 | deviation | services/apiService.ts |  | updateUser() payload drops the status field EditUserModal.tsx already sends, so the disable/enable-user UI flow is non-functional (backend PUT /api/users/{id} now supports status) | open |  | 2026-08-12T19:30:53.361Z |  |
 | 6 | 64 | deviation | backend/role_endpoints.py |  | Role-casing mismatch: /api/roles stub returns Admin/User/Viewer which resolve to zero permissions via rbac_utils.verify_permission's fallback path (Pitfall 3, likely 64-02 RBAC scope) | fixed |  | 2026-08-12T19:30:53.543Z | 2026-08-12T20:16:22.137Z |
 | 7 | 64 | deviation | backend/user_endpoints.py |  | Signup-created vs admin-created user docs use inconsistent field names (password/name vs hashed_password/full_name); both tolerated by read paths, not a functional bug | open |  | 2026-08-12T19:30:53.712Z |  |
+| 8 | 64 | unrun-verify | backend/ldap_endpoints.py |  | Manual end-to-end LDAP verification (POST /api/admin/ldap/test-connection and /api/admin/ldap/sync against a real LDAP/AD server) not run — no directory available in sandbox; only unit tests with a mocked LDAP server were run. | open |  | 2026-08-12T20:41:16.644Z |  |
+| 9 | 64 | deviation | backend/user_endpoints.py |  | Rule 2: wired T-64-12 (block local password change for source=ldap users) into user_endpoints.update_user and auth_password_reset_endpoints.confirm_password_reset — outside 64-03's declared files_modified, but required for the plan's own must-have truth. | open |  | 2026-08-12T20:41:16.832Z |  |
+| 10 | 64 | unrun-verify | backend/auth_password_reset_endpoints.py |  | New source=ldap password-reset block has no automated test — this file has zero pre-existing test coverage in the repo and adding a new test file was judged out of 64-03's scope; verified only by manual syntax/logic review. | open |  | 2026-08-12T20:41:16.997Z |  |
 
 ````json
 [
@@ -107,6 +110,42 @@ last_updated: 2026-08-12T20:16:22.137Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-12T19:30:53.712Z",
+    "resolved_at": null
+  },
+  {
+    "id": 8,
+    "kind": "unrun-verify",
+    "phase": "64",
+    "file": "backend/ldap_endpoints.py",
+    "line": null,
+    "description": "Manual end-to-end LDAP verification (POST /api/admin/ldap/test-connection and /api/admin/ldap/sync against a real LDAP/AD server) not run — no directory available in sandbox; only unit tests with a mocked LDAP server were run.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-12T20:41:16.644Z",
+    "resolved_at": null
+  },
+  {
+    "id": 9,
+    "kind": "deviation",
+    "phase": "64",
+    "file": "backend/user_endpoints.py",
+    "line": null,
+    "description": "Rule 2: wired T-64-12 (block local password change for source=ldap users) into user_endpoints.update_user and auth_password_reset_endpoints.confirm_password_reset — outside 64-03's declared files_modified, but required for the plan's own must-have truth.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-12T20:41:16.832Z",
+    "resolved_at": null
+  },
+  {
+    "id": 10,
+    "kind": "unrun-verify",
+    "phase": "64",
+    "file": "backend/auth_password_reset_endpoints.py",
+    "line": null,
+    "description": "New source=ldap password-reset block has no automated test — this file has zero pre-existing test coverage in the repo and adding a new test file was judged out of 64-03's scope; verified only by manual syntax/logic review.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-12T20:41:16.997Z",
     "resolved_at": null
   }
 ]
