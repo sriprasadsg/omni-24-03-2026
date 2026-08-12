@@ -76,7 +76,7 @@ export function CompliancePanel({ assets }: { assets: Asset[] }) {
           onChange={(e) => setSelectedControlId(e.target.value)}
         >
           {controls.map((c) => (
-            <option key={c.id} value={c.id}>{c.frameworkName} — {c.name}</option>
+            <option key={`${c.frameworkName}-${c.id}`} value={c.id}>{c.frameworkName} — {c.name}</option>
           ))}
         </select>
       </div>

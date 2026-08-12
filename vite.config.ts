@@ -39,27 +39,27 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         '/api': {
-          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
+          target: env.VITE_PROXY_TARGET || 'https://127.0.0.1:5000',
           changeOrigin: true,
           ws: true,       // proxy WebSocket upgrades for /api/tunnel/* and /api/ws/*
           rewrite: (path) => path.replace(/^\/api/, '/api'),
         },
         '/static': {
-          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
+          target: env.VITE_PROXY_TARGET || 'https://127.0.0.1:5000',
           changeOrigin: true,
         },
         '/socket.io': {
-          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
+          target: env.VITE_PROXY_TARGET || 'https://127.0.0.1:5000',
           ws: true,
           changeOrigin: true,
         },
         '/health': {
-          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
+          target: env.VITE_PROXY_TARGET || 'https://127.0.0.1:5000',
           changeOrigin: true,
         }
       }
     },
-    plugins: [react()],
+    plugins: [react({ jsxRuntime: 'automatic' })],
     optimizeDeps: {
       // Scan only the real app entry — by default Vite crawls every *.html
       // under the root, which picks up backend/venv (strawberry's

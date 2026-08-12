@@ -27,7 +27,7 @@ class SocketService {
 
         console.log(`[WebSocket] Connecting for tenant: ${tenantId} via ${API_BASE}`);
 
-        this.socket = io(API_BASE, {
+        this.socket = io(API_BASE.replace('http://', 'https://').replace('ws://', 'wss://'), {
             auth: {
                 tenant_id: tenantId,
                 token: token
