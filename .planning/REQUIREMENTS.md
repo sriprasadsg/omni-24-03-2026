@@ -40,3 +40,32 @@
 - **ITAM-SET-01**: Global Settings UI.
 - **ITAM-SET-02**: Branding/Theming (Logo, Colors).
 - **ITAM-SET-03**: Localization/Translation support.
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ITAM-USR-01 | Phase 64 | Pending |
+| ITAM-USR-02 | Phase 64 | Pending |
+| ITAM-USR-03 | Phase 64 | Pending |
+| ITAM-USR-04 | Phase 64 | Pending |
+| ITAM-USR-05 | Phase 64 | Pending |
+| ITAM-USR-06 | Phase 64 | Pending |
+| ITAM-DAT-01 | Phase 65 | Pending |
+| ITAM-DAT-02 | Phase 65 | Pending |
+| ITAM-DAT-03 | Phase 65 | Pending |
+| ITAM-REP-01 | Phase 67 | Pending |
+| ITAM-REP-02 | Phase 67 | Pending |
+| ITAM-REP-03 | Phase 67 | Pending |
+| ITAM-REP-04 | Phase 67 | Pending |
+| ITAM-PRO-01 | Phase 66 | Pending |
+| ITAM-PRO-02 | Phase 66 | Pending |
+| ITAM-PRO-03 | Phase 66 | Pending |
+| ITAM-PRO-04 | Phase 66 | Pending |
+| ITAM-PRO-05 | Phase 66 | Pending |
+| ITAM-API-01 | Phase 68 | Pending |
+| ITAM-API-02 | Phase 68 | Pending |
+| ITAM-API-03 | Phase 68 | Pending |
+| ITAM-SET-01 | Phase 65 | Pending |
+| ITAM-SET-02 | Phase 65 | Pending |
+| ITAM-SET-03 | Phase 65 | Pending |
