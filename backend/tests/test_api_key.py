@@ -19,6 +19,10 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import pytest
 from fastapi import HTTPException
+from httpx import AsyncClient, ASGITransport
+
+from tests.conftest import make_test_app, make_token_data
+from authentication_service import get_current_user as real_get_current_user
 
 
 def _run(coro):
@@ -258,3 +262,140 @@ class TestAPIKeyServiceLifecycle:
         from api_key_auth import APIKeyService
         svc = APIKeyService()
         assert _run(svc.authenticate("omni_pat_totally_bogus_key_value")) is None
+
+
+# ===========================================================================
+# Task 2: user-scoped and admin-scoped /api/api-keys endpoints
+# ===========================================================================
+
+def _make_endpoints_app(monkeypatch):
+    import api_key_endpoints
+    import itam_asset_endpoints
+
+    async def _fake_verify_permission(user, permission):
+        if permission != "manage:assets":
+            return False
+        return getattr(user, "role", "") in (
+            "itam_admin", "admin", "Admin", "Tenant Admin", "tenant_admin", "super_admin", "Super Admin",
+        )
+
+    monkeypatch.setattr(itam_asset_endpoints, "verify_permission", _fake_verify_permission)
+
+    app, _ = make_test_app(api_key_endpoints.router, api_key_endpoints.admin_router)
+    return app
+
+
+def _override_user(app, token):
+    app.dependency_overrides[real_get_current_user] = lambda: token
+
+
+async def _client(app):
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://testserver")
+
+
+class TestAPIKeyEndpoints:
+
+    @pytest.mark.asyncio
+    async def test_create_list_revoke_endpoint_flow(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        user = make_token_data(username="alice@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(app, user)
+
+        async with await _client(app) as ac:
+            r = await ac.post("/api/api-keys", json={"name": "CI", "scopes": ["view:itam"]})
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["key"].startswith("omni_pat_")
+            key_id = body["id"]
+
+            r2 = await ac.get("/api/api-keys")
+            assert r2.status_code == 200
+            listed = r2.json()
+            assert len(listed) == 1
+            assert "key" not in listed[0]
+            assert "keyHash" not in listed[0]
+
+            r3 = await ac.delete(f"/api/api-keys/{key_id}")
+            assert r3.status_code == 200
+            assert r3.json()["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_create_endpoint_rejects_unknown_scope(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        user = make_token_data(username="alice@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(app, user)
+
+        async with await _client(app) as ac:
+            r = await ac.post("/api/api-keys", json={"name": "Bad", "scopes": ["not:a_real_scope"]})
+        assert r.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_scopes_endpoint_lists_catalog(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        user = make_token_data(username="alice@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(app, user)
+
+        async with await _client(app) as ac:
+            r = await ac.get("/api/api-keys/scopes")
+        assert r.status_code == 200
+        scopes = {s["scope"] for s in r.json()}
+        assert "view:itam" in scopes
+
+    @pytest.mark.asyncio
+    async def test_revoke_missing_key_endpoint_returns_404(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        user = make_token_data(username="alice@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(app, user)
+
+        async with await _client(app) as ac:
+            r = await ac.delete("/api/api-keys/does-not-exist")
+        assert r.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_admin_list_endpoint_returns_keys_across_users(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        alice = make_token_data(username="alice@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        bob = make_token_data(username="bob@tenant-b.com", role="user", tenant_id="tenant-b")
+
+        async with await _client(app) as ac:
+            _override_user(app, alice)
+            await ac.post("/api/api-keys", json={"name": "Alice key"})
+
+            _override_user(app, bob)
+            await ac.post("/api/api-keys", json={"name": "Bob key"})
+
+            admin = make_token_data(username="admin@platform.com", role="admin", tenant_id="tenant-a")
+            _override_user(app, admin)
+            r = await ac.get("/api/admin/api-keys")
+
+        assert r.status_code == 200
+        owners = {k["owner"] for k in r.json()}
+        assert owners == {"alice@tenant-a.com", "bob@tenant-b.com"}
+
+    @pytest.mark.asyncio
+    async def test_admin_endpoint_denied_for_non_admin(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        user = make_token_data(username="alice@tenant-a.com", role="user", tenant_id="tenant-a")
+        _override_user(app, user)
+
+        async with await _client(app) as ac:
+            r = await ac.get("/api/admin/api-keys")
+        assert r.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_admin_revoke_endpoint(self, monkeypatch, fake_users_db):
+        app = _make_endpoints_app(monkeypatch)
+        alice = make_token_data(username="alice@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+
+        async with await _client(app) as ac:
+            _override_user(app, alice)
+            r = await ac.post("/api/api-keys", json={"name": "ToRevoke"})
+            key_id = r.json()["id"]
+
+            admin = make_token_data(username="admin@platform.com", role="admin", tenant_id="tenant-a")
+            _override_user(app, admin)
+            r2 = await ac.delete(f"/api/admin/api-keys/{key_id}")
+
+        assert r2.status_code == 200
+        assert r2.json()["success"] is True

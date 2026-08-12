@@ -93,6 +93,8 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "asset_endpoints",          "router")
 
     _load(app, "user_endpoints",           "router")
+    _load(app, "api_key_endpoints",        "router")        # ITAM Phase 64-05 API Token Router
+    _load(app, "api_key_endpoints",        "admin_router")  # ITAM Phase 64-05 API Token Admin Router
     _load(app, "tenant_endpoints",         "router")
     _load(app, "role_endpoints",           "router")
     _load(app, "authentication_endpoints",       "router")
