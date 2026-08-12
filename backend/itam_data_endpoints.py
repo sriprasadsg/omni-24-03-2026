@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from pydantic import ValidationError
+from pymongo.errors import DuplicateKeyError
 
 from auth_types import TokenData
 from cache_service import invalidate_cache
@@ -190,7 +191,15 @@ async def import_assets(
         if not dryRun:
             resolved_tag = asset_tag or await next_asset_tag(db, tenant_id)
             document = build_asset_document(validated, tenant_id, resolved_tag, now)
-            await db.assets.insert_one(document)
+            try:
+                await db.assets.insert_one(document)
+            except DuplicateKeyError:
+                skipped += 1
+                if len(errors) < MAX_IMPORT_ERRORS:
+                    errors.append(
+                        {"row": idx, "problems": [f"Asset with tag '{resolved_tag}' already exists in this tenant."]}
+                    )
+                continue
             await log_itam_action(
                 current_user,
                 action="itam_asset.create",
