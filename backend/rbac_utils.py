@@ -4,14 +4,20 @@ from fastapi import HTTPException, status, Depends
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
-
-# Single source of truth for elevated-admin role variants
-_SUPER_ADMIN_ROLES: frozenset[str] = frozenset({"super_admin", "Super Admin", "superadmin", "platform-admin"})
+from rbac_service import rbac_service as _rbac_service
 
 
 def is_super_admin(role: Optional[str]) -> bool:
-    """Return True if the given role string represents a super-admin."""
-    return role in _SUPER_ADMIN_ROLES
+    """Return True if the given role string represents a super-admin.
+
+    Routes through rbac_service._normalize_role() — the single normalization
+    source of truth (RESEARCH.md Pitfall 3 / ITAM-USR-02) — instead of a
+    second hardcoded literal set, so raw variants ("platform-admin",
+    "platform_admin", "SUPER_ADMIN", "Super Admin", ...) all resolve
+    consistently with auth_roles.SUPER_ROLES and rbac_service's own
+    has_permission/require_role/get_user_permissions dependency factories.
+    """
+    return _rbac_service._normalize_role(role) == "super_admin"
 
 
 class Permission(str, Enum):
@@ -156,13 +162,20 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
         ],
     }
 
-    effective_role = user.role or ""
-    # Normalize tenant_admin → Tenant Admin for lookup
-    if effective_role == "tenant_admin":
-        effective_role = "Tenant Admin"
-    # Normalize analyst variants
-    if effective_role == "Analyst":
-        effective_role = "analyst"
+    # Canonical DEFAULT_PERMISSIONS key for a normalized role — single
+    # normalization path (RESEARCH.md Pitfall 3 / WINDOWS.md #6). The dict
+    # above stores a couple of entries under a display name that differs
+    # from the normalized form (e.g. "Tenant Admin" rather than
+    # "tenant_admin"); redirect through those first, then fall back to the
+    # normalized form itself for any other raw-casing variant (e.g. the
+    # /api/roles stub's "Admin"/"User"/"Viewer" Title-Case names, which
+    # previously fell straight through to an empty permission list).
+    _CANONICAL_KEY_BY_NORMALIZED = {"tenant_admin": "Tenant Admin", "analyst": "analyst"}
+
+    normalized_role = _rbac_service._normalize_role(user.role or "")
+    effective_role = _CANONICAL_KEY_BY_NORMALIZED.get(normalized_role, user.role or "")
+    if effective_role not in DEFAULT_PERMISSIONS:
+        effective_role = normalized_role
 
     perms = DEFAULT_PERMISSIONS.get(effective_role, [])
     return "*" in perms or required_permission in perms
