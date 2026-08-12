@@ -39,6 +39,7 @@ vi.mock('../../services/apiService', () => ({
   uploadComplianceEvidence: vi.fn(),
   deleteComplianceEvidence: vi.fn(),
   ingestKnowledge: vi.fn(),
+  fetchAuditLogs: vi.fn().mockResolvedValue([]),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
   API_BASE: '/api',
 }));
@@ -48,7 +49,7 @@ vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 import ITAMConsole from '../../components/itam/ITAMConsole';
 
 describe('ITAMConsole', () => {
-  it('renders all 6 tabs and defaults to Catalog', async () => {
+  it('renders all 7 tabs and defaults to Catalog', async () => {
     render(<ITAMConsole />);
     expect(screen.getByText('Catalog')).toBeInTheDocument();
     expect(screen.getByText('Check-Out/In')).toBeInTheDocument();
@@ -56,7 +57,14 @@ describe('ITAMConsole', () => {
     expect(screen.getByText('Licenses & Consumables')).toBeInTheDocument();
     expect(screen.getByText('Compliance')).toBeInTheDocument();
     expect(screen.getByText('Software Inventory')).toBeInTheDocument();
+    expect(screen.getByText('Activity')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Manufacturers')).toBeInTheDocument());
+  });
+
+  it('switches to the Activity tab and shows the empty state', async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Activity'));
+    await waitFor(() => expect(screen.getByText('No activity recorded yet')).toBeInTheDocument());
   });
 
   it('switches to the Licenses & Consumables tab and shows its 3 sections', async () => {

@@ -14,6 +14,7 @@ from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCL
 from itam_catalog_service import collect_field_defs, validate_custom_field_values
 from cache_service import invalidate_cache
 from rbac_utils import verify_permission
+from itam_audit_service import log_itam_action
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,13 @@ async def create_manual_asset(
         # for every real caller (Phase-57 discovered defect; fixed here).
         invalidate_cache("assets:*")
         document.pop("_id", None)
+        await log_itam_action(
+            current_user,
+            action="itam_asset.create",
+            resource_type="itam_asset",
+            resource_id=asset_id,
+            details=f"Created manual asset {asset_tag}",
+        )
         return document
     except DuplicateKeyError:
         raise HTTPException(

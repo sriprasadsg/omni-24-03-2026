@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from audit_service import get_audit_service
 from auth_types import TokenData
 from tenant_context import get_tenant_id
@@ -17,14 +17,26 @@ _SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 async def get_audit_logs(
     limit: int = Query(100, le=1000),
     skip: int = Query(0, ge=0),
+    resourceType: Optional[str] = Query(None),
+    resourceId: Optional[str] = Query(None),
     current_user: TokenData = Depends(require_permission("view:audit_log"))
 ):
     """
     Fetch system audit logs for the timeline view.
+
+    resourceType / resourceId narrow the result to a single entity's history;
+    they are additional query terms and never replace the tenant scope.
     """
     tenant_id = get_tenant_id()
     is_super_admin = getattr(current_user, "role", "") in _SUPER_ROLES
-    return await get_audit_service().get_logs(tenant_id=tenant_id, is_super_admin=is_super_admin)
+    return await get_audit_service().get_logs(
+        tenant_id=tenant_id,
+        is_super_admin=is_super_admin,
+        resource_type=resourceType,
+        resource_id=resourceId,
+        limit=limit,
+        skip=skip,
+    )
 
 @router.post("/{log_id}/rollback")
 async def rollback_action(

@@ -75,11 +75,23 @@ class AuditService:
         logging.info(f"[AUDIT] {user_name} performed {action} on {resource_type} {resource_id} [Hash: {log_entry.get('hash', 'N/A')[:8]}...]")
         return log_entry
 
-    async def get_logs(self, tenant_id: str = None, is_super_admin: bool = False) -> List[Dict[str, Any]]:
+    async def get_logs(
+        self,
+        tenant_id: str = None,
+        is_super_admin: bool = False,
+        resource_type: Optional[str] = None,
+        resource_id: Optional[str] = None,
+        limit: int = 100,
+        skip: int = 0,
+    ) -> List[Dict[str, Any]]:
         """
         Retrieve logs filtered by tenant.
         Super-admins with is_super_admin=True may omit tenant_id to see all tenants.
         All other callers must supply a tenant_id; omitting it returns an empty list.
+
+        resource_type / resource_id narrow the query as additional equality terms —
+        they never replace the tenantId term, so a resource filter can never leak
+        another tenant's entries.
         """
         db = get_database()
         query: Dict[str, Any] = {}
@@ -90,8 +102,20 @@ class AuditService:
             logging.warning("[AUDIT] get_logs called without tenant_id by non-super-admin — returning empty list")
             return []
 
+        if resource_type:
+            query["resourceType"] = resource_type
+        if resource_id:
+            query["resourceId"] = resource_id
+
+        safe_limit = max(1, min(int(limit or 100), 1000))
+        safe_skip = max(0, int(skip or 0))
+
         # Return most recent first
-        logs = await db.audit_logs.find(query, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
+        logs = await db.audit_logs.find(query, {"_id": 0}) \
+            .sort("timestamp", -1) \
+            .skip(safe_skip) \
+            .limit(safe_limit) \
+            .to_list(length=safe_limit)
         return logs
 
     async def get_log_by_id(self, log_id: str) -> Optional[Dict[str, Any]]:

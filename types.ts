@@ -916,6 +916,20 @@ export interface ItamWarrantyStatus {
   daysToExpiry: number | null;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  userName: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  details: string;
+  previousState?: Record<string, unknown> | null;
+  hash?: string;
+  previousHash?: string;
+  tenantId?: string;
+}
+
 export type PatchSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
 export type PatchStatus = 'Pending' | 'Deployed' | 'Failed' | 'Superseded';
 export interface Patch {

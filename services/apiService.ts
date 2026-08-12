@@ -13,6 +13,7 @@ import {
     SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
     ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
+    AuditLogEntry,
 } from '../types';
 
 export type {
@@ -5479,6 +5480,25 @@ export const attachComponent = async (id: string, assetId: string): Promise<Itam
 export const detachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
     const res = await authFetch(`${API_BASE}/itam/components/${id}/detach/${assetId}`, { method: 'POST' });
     if (!res.ok) return itamThrow(res, 'Failed to detach component');
+    return res.json();
+};
+
+// Note: this route is /api/audit-logs, not under /api/itam/ — it is the
+// platform's existing shared audit ledger, not an ITAM-specific one.
+export const fetchAuditLogs = async (params?: { resourceType?: string; resourceId?: string; limit?: number; skip?: number }): Promise<AuditLogEntry[]> => {
+    const qs = new URLSearchParams();
+    if (params?.resourceType) qs.set('resourceType', params.resourceType);
+    if (params?.resourceId) qs.set('resourceId', params.resourceId);
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.skip != null) qs.set('skip', String(params.skip));
+    const query = qs.toString();
+    const res = await authFetch(`${API_BASE}/audit-logs${query ? `?${query}` : ''}`);
+    if (!res.ok) {
+        if (res.status === 403) {
+            throw new Error('Your account does not have permission to view the audit log.');
+        }
+        return itamThrow(res, 'Failed to load activity log');
+    }
     return res.json();
 };
 
