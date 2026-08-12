@@ -19,6 +19,7 @@ vi.mock('../../services/apiService', () => ({
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import { SettingsPanel } from '../../components/itam/SettingsPanel';
+import { DICTIONARIES } from '../../components/itam/itamI18n';
 
 const STORED_SETTINGS = {
   branding: { companyName: 'Acme Corp', logoUrl: 'https://example.com/logo.png', primaryColor: '#ff00aa' },
@@ -62,5 +63,27 @@ describe('SettingsPanel', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(
       'primaryColor must be a six-digit hex color (e.g. #0891b2).'
     ));
+  });
+
+  it('changing the language selector and saving calls saveItamSettings with the new locale', async () => {
+    saveItamSettings.mockResolvedValue({ ...STORED_SETTINGS, locale: 'es' });
+    render(<SettingsPanel />);
+    await waitFor(() => expect(screen.getByLabelText('Company name')).toHaveValue('Acme Corp'));
+
+    fireEvent.change(screen.getByLabelText('Interface language'), { target: { value: 'es' } });
+    fireEvent.click(screen.getByRole('button', { name: /save settings|guardar configuración/i }));
+
+    await waitFor(() => expect(saveItamSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ locale: 'es' })
+    ));
+  });
+
+  it('every key present in the en dictionary also exists in the es dictionary', () => {
+    const enKeys = Object.keys(DICTIONARIES.en);
+    const esKeys = Object.keys(DICTIONARIES.es);
+    for (const key of enKeys) {
+      expect(esKeys).toContain(key);
+    }
+    expect(esKeys.length).toBe(enKeys.length);
   });
 });

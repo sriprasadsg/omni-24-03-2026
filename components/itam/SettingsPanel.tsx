@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getItamSettings, saveItamSettings } from '../../services/apiService';
 import { ItamSettings } from '../../types';
 import { showToast } from '../../utils/toast';
+import { SUPPORTED_ITAM_LOCALES, useItamT } from './itamI18n';
 
 const DEFAULT_SETTINGS: ItamSettings = {
   branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' },
@@ -19,6 +20,7 @@ interface SettingsPanelProps {
 // calls getItamSettings/saveItamSettings and is deliberately a separate surface from that
 // platform-level component (D-01, 65-04-PLAN.md).
 export function SettingsPanel({ onSaved }: SettingsPanelProps) {
+  const t = useItamT();
   const [settings, setSettings] = useState<ItamSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,7 +63,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
         </p>
 
         {loading ? (
-          <p className="text-gray-400 text-sm">Loading…</p>
+          <p className="text-gray-400 text-sm">{t('settings.loading')}</p>
         ) : (
           <div className="space-y-4">
             <div>
@@ -119,6 +121,23 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
             </div>
 
             <div>
+              <label htmlFor="itam-settings-locale" className="block text-xs text-gray-500 mb-1">
+                {t('settings.interfaceLanguage')}
+              </label>
+              <select
+                id="itam-settings-locale"
+                aria-label="Interface language"
+                value={settings.locale}
+                onChange={(e) => setSettings({ ...settings, locale: e.target.value as ItamSettings['locale'] })}
+                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-full"
+              >
+                {SUPPORTED_ITAM_LOCALES.map((loc) => (
+                  <option key={loc.value} value={loc.value}>{loc.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <p className="block text-xs text-gray-500 mb-1">Live preview</p>
               <div className="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-lg p-3">
                 {settings.branding.logoUrl && /^(https:\/\/|http:\/\/|data:image\/)/.test(settings.branding.logoUrl) && (
@@ -142,7 +161,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
               disabled={saving}
               className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
             >
-              {saving ? 'Saving…' : 'Save settings'}
+              {saving ? t('settings.saving') : t('settings.save')}
             </button>
 
             {error && <p className="text-red-400 text-xs" role="alert">{error}</p>}

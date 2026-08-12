@@ -146,4 +146,25 @@ describe('ITAMConsole', () => {
     const settingsButton = screen.getByLabelText('Open ITAM console settings');
     expect(settingsButton.style.backgroundColor).not.toBe('not-a-color');
   });
+
+  it('mounting with a Spanish locale from getItamSettings renders the Spanish tab labels', async () => {
+    getItamSettings.mockResolvedValue({
+      branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' },
+      locale: 'es',
+    });
+    render(<ITAMConsole />);
+    await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
+    expect(screen.getByText('Cumplimiento')).toBeInTheDocument();
+    expect(screen.getByText('Configuración')).toBeInTheDocument();
+  });
+
+  it('an unknown locale value renders the English labels rather than blanks', async () => {
+    getItamSettings.mockResolvedValue({
+      branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' },
+      locale: 'fr' as any,
+    });
+    render(<ITAMConsole />);
+    await waitFor(() => expect(screen.getByText('Catalog')).toBeInTheDocument());
+    expect(screen.getByText('Compliance')).toBeInTheDocument();
+  });
 });
