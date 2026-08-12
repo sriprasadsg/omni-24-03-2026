@@ -492,3 +492,355 @@ class TestAuthenticateLdapFlowAuth:
             result = _run(authenticate_ldap("jdoe", "correct-password"))
         assert result["tenant_id"] == "tenant-a"
         assert result["role"] == "itam_admin"
+
+
+# ===========================================================================
+# ldap_endpoints.py — admin config/sync/mapping endpoints + login route
+# (endpoint, auth)
+# ===========================================================================
+
+from bson import ObjectId
+from httpx import AsyncClient, ASGITransport
+
+import ldap_endpoints
+import ldap_service
+from tests.conftest import make_token_data
+from authentication_service import get_current_user as real_get_current_user
+
+
+def _ep_match(doc, query):
+    for k, v in (query or {}).items():
+        if isinstance(v, dict) and "$in" in v:
+            if doc.get(k) not in v["$in"]:
+                return False
+        else:
+            if doc.get(k) != v:
+                return False
+    return True
+
+
+class _EPCursor:
+    def __init__(self, docs):
+        self._docs = list(docs)
+
+    def sort(self, *a, **k):
+        return self
+
+    async def to_list(self, length=None):
+        return self._docs[:length] if length else list(self._docs)
+
+
+class _EPCollection:
+    def __init__(self, docs=None):
+        self.docs = list(docs or [])
+
+    async def find_one(self, query=None, projection=None):
+        for d in self.docs:
+            if _ep_match(d, query or {}):
+                return dict(d)
+        return None
+
+    def find(self, query=None, projection=None):
+        return _EPCursor([dict(d) for d in self.docs if _ep_match(d, query or {})])
+
+    async def insert_one(self, doc):
+        doc = dict(doc)
+        doc.setdefault("_id", ObjectId())
+        self.docs.append(doc)
+        return type("R", (), {"inserted_id": doc["_id"]})()
+
+    async def update_one(self, query, update, upsert=False):
+        for d in self.docs:
+            if _ep_match(d, query):
+                d.update(update.get("$set", {}))
+                return type("R", (), {"matched_count": 1, "upserted_id": None})()
+        if upsert:
+            new_doc = dict(query)
+            new_doc.update(update.get("$set", {}))
+            new_doc.setdefault("_id", ObjectId())
+            self.docs.append(new_doc)
+            return type("R", (), {"matched_count": 0, "upserted_id": new_doc["_id"]})()
+        return type("R", (), {"matched_count": 0, "upserted_id": None})()
+
+    async def delete_one(self, query):
+        for i, d in enumerate(self.docs):
+            if _ep_match(d, query):
+                del self.docs[i]
+                return type("R", (), {"deleted_count": 1})()
+        return type("R", (), {"deleted_count": 0})()
+
+
+class _EPFakeDB:
+    def __init__(self):
+        self.ldap_configs = _EPCollection([])
+        self.ldap_group_mappings = _EPCollection([])
+        self.users = _EPCollection([])
+
+
+_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
+
+
+async def _fake_verify_permission(user, permission):
+    from rbac_utils import is_super_admin
+    if permission != "manage:assets":
+        return False
+    return is_super_admin(user.role) or user.role in _ADMIN_ROLES
+
+
+@pytest.fixture
+def ep_db():
+    return _EPFakeDB()
+
+
+@pytest.fixture
+def ep_app(ep_db, monkeypatch):
+    import itam_asset_endpoints
+
+    # Both modules call get_database() from their own namespace — patch both
+    # so every code path (endpoint handlers AND ldap_service internals like
+    # get_ldap_config/sync_user/resolve_role) sees the same fake DB.
+    monkeypatch.setattr(ldap_endpoints, "get_database", lambda: ep_db)
+    monkeypatch.setattr(ldap_service, "get_database", lambda: ep_db)
+    monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(side_effect=_fake_verify_permission))
+    monkeypatch.setattr(ldap_endpoints, "get_tenant_id", lambda: "tenant-a")
+
+    from fastapi import FastAPI
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from rate_limiter import limiter as shared_limiter
+
+    app = FastAPI()
+    app.state.limiter = shared_limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+    app.include_router(ldap_endpoints.router)
+    return app
+
+
+@pytest.fixture(autouse=True)
+def _reset_ldap_rate_limit():
+    from rate_limiter import limiter as shared_limiter
+    shared_limiter._storage.reset()
+    yield
+    shared_limiter._storage.reset()
+
+
+def _override_user(app, token):
+    app.dependency_overrides[real_get_current_user] = lambda: token
+
+
+async def _ep_client(app):
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://testserver")
+
+
+class TestLDAPConfigEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_save_and_read_config_masks_password(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        enc = MagicMock()
+        enc.encrypt.return_value = "enc(secret)"
+        monkeypatch.setattr("encryption_service.get_encryption_service", lambda: enc)
+
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/config", json={
+                "uri": "ldap://ad.example.com:389", "bind_dn": "cn=svc,dc=x",
+                "bind_password": "super-secret", "user_base_dn": "ou=users,dc=x",
+            })
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["success"] is True
+
+            resp2 = await client.get("/api/admin/ldap/config")
+            assert resp2.status_code == 200
+            body = resp2.json()
+            assert body["bind_password"] == "***masked***"
+            assert "bind_password_encrypted" not in body
+
+    @pytest.mark.asyncio
+    async def test_config_requires_admin(self, ep_app):
+        viewer = make_token_data(username="viewer@tenant-a.com", role="itam_viewer", tenant_id="tenant-a")
+        _override_user(ep_app, viewer)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/admin/ldap/config")
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_read_config_404_when_unset(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/admin/ldap/config")
+        assert resp.status_code == 404
+
+
+class TestLDAPTestConnectionEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_connection_success(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        monkeypatch.setenv("LDAP_URI", "ldap://x:389")
+        monkeypatch.setenv("LDAP_BIND_DN", "cn=svc,dc=x")
+        monkeypatch.setenv("LDAP_USER_BASE_DN", "ou=users,dc=x")
+
+        class _OkMgr:
+            def __init__(self, config):
+                pass
+
+            def service_connection(self):
+                cm = MagicMock()
+                cm.__enter__ = MagicMock(return_value=MagicMock())
+                cm.__exit__ = MagicMock(return_value=False)
+                return cm
+
+        monkeypatch.setattr(ldap_endpoints, "LDAPConnectionManager", _OkMgr)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/test-connection")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_connection_not_configured_returns_400(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        monkeypatch.delenv("LDAP_URI", raising=False)
+        monkeypatch.delenv("LDAP_BIND_DN", raising=False)
+        monkeypatch.delenv("LDAP_USER_BASE_DN", raising=False)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/test-connection")
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_connection_failure_returns_502(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        monkeypatch.setenv("LDAP_URI", "ldap://x:389")
+        monkeypatch.setenv("LDAP_BIND_DN", "cn=svc,dc=x")
+        monkeypatch.setenv("LDAP_USER_BASE_DN", "ou=users,dc=x")
+
+        class _FailingCtx:
+            def __enter__(self):
+                raise LDAPConnectionError("down")
+
+            def __exit__(self, *a):
+                return False
+
+        class _FailMgr:
+            def __init__(self, config):
+                pass
+
+            def service_connection(self):
+                return _FailingCtx()
+
+        monkeypatch.setattr(ldap_endpoints, "LDAPConnectionManager", _FailMgr)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/test-connection")
+        assert resp.status_code == 502
+
+
+class TestLDAPSyncEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_trigger_sync_returns_summary(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        monkeypatch.setenv("LDAP_URI", "ldap://x:389")
+        monkeypatch.setenv("LDAP_BIND_DN", "cn=svc,dc=x")
+        monkeypatch.setenv("LDAP_USER_BASE_DN", "ou=users,dc=x")
+
+        async def _fake_sync_all(self, tenant_id, group_mapper=None, default_role="itam_viewer"):
+            return {"total_found": 3, "synced": 3, "errors": []}
+
+        monkeypatch.setattr(ldap_service.LDAPUserSyncer, "sync_all", _fake_sync_all)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/sync")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["synced"] == 3
+
+    @pytest.mark.asyncio
+    async def test_trigger_sync_requires_admin(self, ep_app):
+        viewer = make_token_data(username="viewer@tenant-a.com", role="itam_viewer", tenant_id="tenant-a")
+        _override_user(ep_app, viewer)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/sync")
+        assert resp.status_code == 403
+
+
+class TestLDAPGroupMappingEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_create_list_delete_mapping(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/group-mapping", json={
+                "group_dn": "cn=itam-admins,ou=groups,dc=x", "role": "itam_admin", "priority": 1,
+            })
+            assert resp.status_code == 200, resp.text
+            mapping_id = resp.json()["_id"]
+
+            resp2 = await client.get("/api/admin/ldap/group-mapping")
+            assert resp2.status_code == 200
+            assert len(resp2.json()) == 1
+
+            resp3 = await client.delete(f"/api/admin/ldap/group-mapping/{mapping_id}")
+            assert resp3.status_code == 200
+            assert resp3.json()["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_create_mapping_rejects_invalid_role(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/group-mapping", json={
+                "group_dn": "cn=g,dc=x", "role": "not_a_role",
+            })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_delete_missing_mapping_returns_404(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.delete(f"/api/admin/ldap/group-mapping/{ObjectId()}")
+        assert resp.status_code == 404
+
+
+class TestLDAPLoginEndpointAuth:
+
+    @pytest.mark.asyncio
+    async def test_login_success(self, ep_app, monkeypatch):
+        async def _fake_authenticate_ldap(username, password, tenant_id=None):
+            return {"access_token": "tok", "refresh_token": "rtok", "token_type": "bearer",
+                    "success": True, "email": "jdoe@example.com", "role": "itam_viewer",
+                    "tenant_id": "tenant-a"}
+
+        monkeypatch.setattr(ldap_endpoints, "authenticate_ldap", _fake_authenticate_ldap)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/auth/ldap/login", json={"username": "jdoe", "password": "correct"})
+        assert resp.status_code == 200
+        assert resp.json()["access_token"] == "tok"
+
+    @pytest.mark.asyncio
+    async def test_login_bad_credentials_returns_401(self, ep_app, monkeypatch):
+        async def _fake_authenticate_ldap(username, password, tenant_id=None):
+            raise LDAPAuthError("invalid")
+
+        monkeypatch.setattr(ldap_endpoints, "authenticate_ldap", _fake_authenticate_ldap)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/auth/ldap/login", json={"username": "jdoe", "password": "wrong"})
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_login_not_configured_returns_503(self, ep_app, monkeypatch):
+        async def _fake_authenticate_ldap(username, password, tenant_id=None):
+            raise LDAPConfigError("not configured")
+
+        monkeypatch.setattr(ldap_endpoints, "authenticate_ldap", _fake_authenticate_ldap)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/auth/ldap/login", json={"username": "jdoe", "password": "x"})
+        assert resp.status_code == 503

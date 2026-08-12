@@ -94,6 +94,16 @@ async def confirm_password_reset(request: Request, response: Response, body: Pas
     if complexity_error:
         raise HTTPException(status_code=400, detail=complexity_error)
 
+    # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are blocked
+    # for LDAP-sourced users — LDAP is the source of truth for their
+    # credentials, so a self-service reset here would silently desync it.
+    target_user = await db._db.users.find_one({"email": entry["email"]}, {"source": 1})
+    if target_user and target_user.get("source") == "ldap":
+        raise HTTPException(
+            status_code=403,
+            detail="Password resets for LDAP-sourced accounts must be performed in the directory, not via this form",
+        )
+
     # Consume the token BEFORE updating the password so concurrent requests
     # cannot both pass validation and race to overwrite each other's new password.
     _reset_tokens.pop(body.token, None)

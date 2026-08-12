@@ -279,6 +279,14 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
             raise HTTPException(status_code=403, detail=f"Not authorized to assign role '{updates.role}'")
         update_data["role"] = updates.role
     if updates.password is not None:
+        # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are
+        # blocked for LDAP-sourced users — LDAP is the source of truth for
+        # their credentials.
+        if target_user.get("source") == "ldap":
+            raise HTTPException(
+                status_code=403,
+                detail="Password changes for LDAP-sourced users must be made in the directory, not via this API",
+            )
         update_data["hashed_password"] = get_password_hash(updates.password)
     if updates.status is not None:
         update_data["status"] = _normalize_status(updates.status)

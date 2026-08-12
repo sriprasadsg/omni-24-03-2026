@@ -102,6 +102,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "repo_endpoints",           "router")
     _load(app, "mfa_endpoints",            "router")
     _load(app, "sso_endpoints",            "router")
+    _load(app, "ldap_endpoints",           "router")  # ITAM Phase 64-03 LDAP/AD Router
 
     # ── Security Intelligence Connectors ─────────────────────────────────────
     _load(app, "security_intel_status_endpoints", "router")

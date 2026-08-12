@@ -366,6 +366,27 @@ class TestUpdateUser:
         assert stored["status"] == "Inactive"
 
     @pytest.mark.asyncio
+    async def test_update_user_blocks_password_change_for_ldap_sourced_user(self, app, fake_db):
+        """ITAM-USR-03 Pitfall 4 / T-64-12: LDAP is the source of truth for
+        an LDAP-sourced user's credentials — local password changes via
+        this admin endpoint must be rejected."""
+        user_id = ObjectId()
+        fake_db.users.docs.append({
+            "_id": user_id, "email": "ldapuser@tenant-a.com", "full_name": "LDAP User",
+            "role": "user", "tenantId": "tenant-a", "status": "Active", "source": "ldap",
+            "createdAt": "2026-01-01T00:00:00Z",
+        })
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(app, admin)
+
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{user_id}", json={"password": "NewStr0ng!Passw0rd"})
+        assert r.status_code == 403, r.text
+
+        stored = fake_db.users.docs[0]
+        assert "hashed_password" not in stored
+
+    @pytest.mark.asyncio
     async def test_update_user_cross_tenant_forbidden(self, app, fake_db):
         user_id = ObjectId()
         fake_db.users.docs.append({
