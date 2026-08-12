@@ -118,6 +118,25 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
               </div>
             </div>
 
+            <div>
+              <p className="block text-xs text-gray-500 mb-1">Live preview</p>
+              <div className="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-lg p-3">
+                {settings.branding.logoUrl && /^(https:\/\/|http:\/\/|data:image\/)/.test(settings.branding.logoUrl) && (
+                  <img
+                    src={settings.branding.logoUrl}
+                    alt={settings.branding.companyName || 'Logo preview'}
+                    className="h-10 w-10 object-contain rounded bg-gray-800"
+                  />
+                )}
+                <div
+                  data-testid="itam-settings-color-swatch"
+                  className="h-8 w-8 rounded border border-gray-600"
+                  style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(settings.branding.primaryColor) ? settings.branding.primaryColor : '#0891b2' }}
+                />
+                <span className="text-sm text-gray-300">{settings.branding.companyName || 'IT Asset Management Console'}</span>
+              </div>
+            </div>
+
             <button
               onClick={handleSave}
               disabled={saving}

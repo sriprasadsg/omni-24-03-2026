@@ -4,8 +4,10 @@
  *  2. Tab switching mounts the corresponding panel.
  *  3. Each panel renders without crashing given empty/loading API responses.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+const getItamSettings = vi.fn();
 
 vi.mock('../../services/apiService', () => ({
   fetchAssets: vi.fn().mockResolvedValue([]),
@@ -42,7 +44,7 @@ vi.mock('../../services/apiService', () => ({
   fetchItamAuditLogs: vi.fn().mockResolvedValue([]),
   verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
   exportItamAssetsCsv: vi.fn(),
-  getItamSettings: vi.fn().mockResolvedValue({ branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' }, locale: 'en' }),
+  getItamSettings: (...args: unknown[]) => getItamSettings(...args),
   saveItamSettings: vi.fn(),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
   API_BASE: '/api',
@@ -53,6 +55,11 @@ vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 import ITAMConsole from '../../components/itam/ITAMConsole';
 
 describe('ITAMConsole', () => {
+  beforeEach(() => {
+    getItamSettings.mockReset();
+    getItamSettings.mockResolvedValue({ branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' }, locale: 'en' });
+  });
+
   it('renders all 9 tabs and defaults to Catalog', async () => {
     render(<ITAMConsole />);
     expect(screen.getByText('Catalog')).toBeInTheDocument();
@@ -116,5 +123,27 @@ describe('ITAMConsole', () => {
     render(<ITAMConsole />);
     fireEvent.click(screen.getByText('Compliance'));
     await waitFor(() => expect(screen.getByText('No controls available.')).toBeInTheDocument());
+  });
+
+  it('renders a configured logo with the company name as its alt text', async () => {
+    getItamSettings.mockResolvedValue({
+      branding: { companyName: 'Acme Corp', logoUrl: 'https://example.com/logo.png', primaryColor: '#ff00aa' },
+      locale: 'en',
+    });
+    render(<ITAMConsole />);
+    await waitFor(() => expect(screen.getByAltText('Acme Corp')).toBeInTheDocument());
+    expect(screen.getByAltText('Acme Corp')).toHaveAttribute('src', 'https://example.com/logo.png');
+  });
+
+  it('a malformed colour value leaves the console rendering without throwing', async () => {
+    getItamSettings.mockResolvedValue({
+      branding: { companyName: '', logoUrl: '', primaryColor: 'not-a-color' },
+      locale: 'en',
+    });
+    render(<ITAMConsole />);
+    await waitFor(() => expect(screen.getByText('Catalog')).toBeInTheDocument());
+    // Falls back to the built-in default rather than propagating the malformed value.
+    const settingsButton = screen.getByLabelText('Open ITAM console settings');
+    expect(settingsButton.style.backgroundColor).not.toBe('not-a-color');
   });
 });
