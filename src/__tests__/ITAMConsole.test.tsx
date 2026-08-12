@@ -41,6 +41,7 @@ vi.mock('../../services/apiService', () => ({
   ingestKnowledge: vi.fn(),
   fetchItamAuditLogs: vi.fn().mockResolvedValue([]),
   verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
+  exportItamAssetsCsv: vi.fn(),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
   API_BASE: '/api',
 }));
@@ -50,7 +51,7 @@ vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 import ITAMConsole from '../../components/itam/ITAMConsole';
 
 describe('ITAMConsole', () => {
-  it('renders all 7 tabs and defaults to Catalog', async () => {
+  it('renders all 8 tabs and defaults to Catalog', async () => {
     render(<ITAMConsole />);
     expect(screen.getByText('Catalog')).toBeInTheDocument();
     expect(screen.getByText('Check-Out/In')).toBeInTheDocument();
@@ -59,7 +60,14 @@ describe('ITAMConsole', () => {
     expect(screen.getByText('Compliance')).toBeInTheDocument();
     expect(screen.getByText('Software Inventory')).toBeInTheDocument();
     expect(screen.getByText('Activity')).toBeInTheDocument();
+    expect(screen.getByText('Import / Export')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Manufacturers')).toBeInTheDocument());
+  });
+
+  it('switches to the Import / Export tab and shows the export button', async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Import / Export'));
+    await waitFor(() => expect(screen.getByText('Export assets CSV')).toBeInTheDocument());
   });
 
   it('switches to the Activity tab and shows the empty state', async () => {

@@ -45,6 +45,7 @@ ITAM_RESOURCE_TYPES: frozenset = frozenset({
     "itam_license_assignment",
     "itam_settings",
     "itam_import",
+    "itam_export",
 })
 
 _CATALOG_KIND_TO_RESOURCE_TYPE: Dict[str, str] = {

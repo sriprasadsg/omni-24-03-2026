@@ -916,6 +916,22 @@ export interface ItamWarrantyStatus {
   daysToExpiry: number | null;
 }
 
+// ITAM CSV import (Phase 65 Plan 03, ITAM-DAT-03). Shipped alongside the
+// export-only Task 1 tracer so the panel compiles once; the import call
+// site lands in Task 2/3.
+export interface ItamImportRowError {
+  row: number;
+  problems: string[];
+}
+
+export interface ItamImportResult {
+  created: number;
+  skipped: number;
+  dryRun: boolean;
+  errors: ItamImportRowError[];
+  errorsTruncated?: boolean;
+}
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;

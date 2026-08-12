@@ -5361,6 +5361,18 @@ export const fetchAssetLabelSheet = async (assetIds: string[]): Promise<void> =>
     await triggerLabelDownload(res, 'asset-labels.pdf');
 };
 
+// ITAM CSV export (Phase 65 Plan 03, ITAM-DAT-03). Clones
+// downloadComplianceReport's Blob-download shape via triggerLabelDownload,
+// which additionally takes the filename from the response's
+// Content-Disposition header when present (the export route always sets
+// one), falling back to 'itam-assets.csv' only when it is absent.
+export const exportItamAssetsCsv = async (modelId?: string): Promise<void> => {
+    const qs = modelId ? `?modelId=${encodeURIComponent(modelId)}` : '';
+    const res = await authFetch(`${API_BASE}/itam/data/export${qs}`);
+    if (!res.ok) return itamThrow(res, 'Failed to export assets');
+    await triggerLabelDownload(res, 'itam-assets.csv');
+};
+
 export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
     const res = await authFetch(`${API_BASE}/assets/reports/overdue-audit`);
     if (!res.ok) return itamThrow(res, 'Failed to load overdue-audit report');

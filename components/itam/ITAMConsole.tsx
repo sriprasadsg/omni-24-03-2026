@@ -8,8 +8,9 @@ import { LicensesPanel } from './LicensesPanel';
 import { CompliancePanel } from './CompliancePanel';
 import { SoftwareInventoryPanel } from './SoftwareInventoryPanel';
 import { ActivityLogPanel } from './ActivityLogPanel';
+import { BulkImportExportPanel } from './BulkImportExportPanel';
 
-type Tab = 'catalog' | 'lifecycle' | 'finance' | 'licenses' | 'compliance' | 'software' | 'activity';
+type Tab = 'catalog' | 'lifecycle' | 'finance' | 'licenses' | 'compliance' | 'software' | 'activity' | 'data';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'catalog', label: 'Catalog' },
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'compliance', label: 'Compliance' },
   { id: 'software', label: 'Software Inventory' },
   { id: 'activity', label: 'Activity' },
+  { id: 'data', label: 'Import / Export' },
 ];
 
 interface ITAMConsoleProps {
@@ -73,6 +75,7 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: 
         {tab === 'compliance' && <CompliancePanel assets={assets} />}
         {tab === 'software' && <SoftwareInventoryPanel />}
         {tab === 'activity' && <ActivityLogPanel />}
+        {tab === 'data' && <BulkImportExportPanel />}
       </main>
     </div>
   );
