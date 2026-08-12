@@ -1,6 +1,7 @@
 import logging
+import re
 from datetime import timezone
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query, Response
 from typing import List, Optional
 from pydantic import BaseModel
 from database import get_database
@@ -135,20 +136,53 @@ async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
 
 
 @router.get("", response_model=List[UserResponse])
-async def list_users(current_user: TokenData = Depends(_require_itam_admin)):
+async def list_users(
+    response: Response,
+    skip: int = 0,
+    limit: int = 100,
+    role: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    tenantId: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
     """
-    List all users. Super Admins see all users, others see only their tenant users.
+    List users with pagination and filtering. Super Admins may list/filter
+    across tenants; everyone else is always confined to their own tenant
+    regardless of any tenantId they pass.
+
+    The default (no query params) response stays a bare JSON array — matching
+    what it returned before pagination existed — because
+    services/apiService.ts fetchUsers() assigns the body straight into an
+    array-typed cache. Total match count (post-filter, pre-pagination) is
+    exposed via the X-Total-Count header instead of wrapping the body.
     """
     db = get_database()
+    caller_is_super_admin = is_super_admin(current_user.role)
 
-    if is_super_admin(current_user.role):
-        # Super Admin sees everything
-        users = await db.users.find({}, {"password": 0, "hashed_password": 0}).to_list(length=1000)
+    query: dict = {}
+    if caller_is_super_admin:
+        if tenantId:
+            query["tenantId"] = tenantId
     else:
-        # Regular users only see their own tenant
-        tenant_id = get_tenant_id()
-        users = await db.users.find({"tenantId": tenant_id}, {"password": 0, "hashed_password": 0}).to_list(length=100)
+        query["tenantId"] = get_tenant_id()
 
+    if role:
+        query["role"] = role
+    if status_filter:
+        query["status"] = _normalize_status(status_filter)
+    if search:
+        pattern = re.escape(search)
+        query["$or"] = [
+            {"email": {"$regex": pattern, "$options": "i"}},
+            {"full_name": {"$regex": pattern, "$options": "i"}},
+        ]
+
+    total = await db.users.count_documents(query)
+    users = await db.users.find(query, {"password": 0, "hashed_password": 0}) \
+        .skip(skip).limit(limit).to_list(length=limit or None)
+
+    response.headers["X-Total-Count"] = str(total)
     return [_to_response(u) for u in users]
 
 @router.post("", response_model=UserResponse, status_code=201)
