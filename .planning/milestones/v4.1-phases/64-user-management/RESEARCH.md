@@ -199,12 +199,64 @@ class TokenData:
 | A3 | `auth_roles.py` defines `SUPER_ROLES` in a way that conflicts with `rbac_service._normalize_role()`. | Common Pitfalls | If roles are consistently normalized, this pitfall is avoided. |
 | A4 | `python-ldap`, `ldap3`, `pysaml2`, `python3-saml` are not yet installed in the environment. | Standard Stack | If already installed, ITAM-USR-03/04 related tasks are simpler. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1.  **What is the exact scope of SAML support in `sso_service.py`?** The current code attempts a fallback regex parse, but explicitly mentions `python3-saml` setup. This needs clarification to define the scope of ITAM-USR-04.
-2.  **What frontend components exist for user management, 2FA, and SSO flows?** An audit of `App.tsx` and related UI components (e.g., login page, user profile page) is needed to understand integration points.
-3.  **What database indexing strategies are in place for user data?** Specifically for email, username, and tenantId, to ensure performance for lookups.
-4.  **Are there any existing `post-install` scripts for new libraries?** This is relevant for `python-ldap` which might have OS-level dependencies.
+> Resolved 2026-08-12 during phase-64 plan revision by direct codebase inspection. Each answer names the file(s) it was read from.
+
+### Q1. What is the exact scope of SAML support in `sso_service.py`? — RESOLVED
+
+**Finding: metadata-only, with no real assertion validation.** `backend/sso_service.py` lines 225-290 contain a block self-described as "SAML Flow (lightweight — no python3-saml dependency required)":
+
+- `get_saml_sp_metadata(base_url)` — returns a hardcoded f-string `EntityDescriptor` XML with a single HTTP-POST ACS at `{base_url}/api/sso/saml/acs`. Static; not driven by any SP config.
+- `process_saml_response(saml_response_b64, tenant_id)` — base64-decodes, then attempts `from onelogin.saml2.auth import OneLogin_Saml2_Auth` and, **even on successful import, immediately returns `{"success": False, "error": "python3-saml requires server-side setup"}`**. The only live path is the `ImportError` fallback: a `defusedxml` parse that scrapes NameID and attributes by namespace walk.
+- The config layer (lines 77-96) already models SAML as a first-class `provider_type` alongside `oidc`, with `saml_certificate`, and masks the certificate on read.
+
+**There is no signature verification, no audience/`NotOnOrAfter` validation, no `InResponseTo` correlation, and no replay protection.** The fallback path trusts any well-formed XML.
+
+**Scope consequence for ITAM-USR-04 (assumption A1 CONFIRMED):** plan 64-04's scope stands — full SP implementation is required. The existing code is a demo stub to be replaced, not a foundation to extend. Its two public function names are the only things worth preserving, as delegating wrappers (see 64-04 `<module_budget>`).
+
+**Stack correction:** `authlib>=1.3.0` and `defusedxml>=0.7.1` are **already in `backend/requirements.txt` and installed in `backend/venv`** (requirements.txt lines 27-28; authlib is even commented "OIDC / OAuth2 / SAML SSO flows"). This was missed in the Standard Stack table above, which lists only `pysaml2`/`python3-saml`. Assumption A4 is CONFIRMED for those two (`ldap3`, `pysaml2`, `python3-saml`, `onelogin` all fail to import in `backend/venv`) but the phase is **not** starting from zero on SAML tooling. 64-04's package-legitimacy checkpoint must therefore first ask whether the already-vendored `authlib` covers SP-side SAML before adding a new `[SUS]` dependency.
+
+### Q2. What frontend components exist for user management, 2FA, and SSO flows? — RESOLVED
+
+**Finding: substantial UI already exists.** Inventory from `components/` (all mounted via `App.tsx`, `src/router/routes.tsx`, or `components/SettingsDashboard.tsx`):
+
+| Area | Components | Backend wiring | Status |
+|------|-----------|----------------|--------|
+| User CRUD | `SettingsUsersTab.tsx` (130), `AddUserModal.tsx` (92), `EditUserModal.tsx` (83) | `apiService.fetchUsers/addUser/updateUser/deleteUser` → `GET/POST /users`, `PUT/DELETE /users/{id}` | **Wired.** `addUser` already posts `role` + `tenantId` |
+| RBAC | `SettingsRolesTab.tsx` (67), `RoleEditorModal.tsx` (229) | `fetchRoles()` → `GET /roles` reads; **`saveRole()` is an in-memory mock, no HTTP** | **Half-wired** — edits do not persist |
+| 2FA | `MFASetupWizard.tsx` (146), `MFAVerifyModal.tsx` (121), `UserProfilePage.tsx` (317) | `/api/mfa/setup`, `/verify-setup`, `/verify`, `/status`, `/disable` — all five exist in `backend/mfa_endpoints.py` | **Fully wired** |
+| API tokens | `SettingsApiKeysTab.tsx` (92), `GenerateApiKeyNameModal.tsx` | `apiService.generateApiKey/revokeApiKey` → **tenant-scoped** `/api/tenants/{tenantId}/api-keys` | **Wired**, but to a different route shape than 64-05's user-scoped `/api/api-keys` |
+| SSO | `LoginPage.tsx` (382) | `/api/sso/google/login`, `App.tsx` → `/api/sso/exchange` | **Google/OIDC only.** No SAML entry point |
+| LDAP | none | — | **Absent entirely** |
+
+**This settles the ROADMAP `UI hint: yes` for Phase 64: the dominant risk is not missing UI, it is backend contract drift breaking shipped UI.** Three concrete hazards were found and are now pinned in the plans:
+1. 64-06 originally proposed renaming the MFA routes to `/enroll` + `/verify-enroll`, which would have broken `MFASetupWizard.tsx`. Route names are now frozen in that plan.
+2. 64-01 Task 2 adds pagination to `GET /api/users`; `fetchUsers()` assigns the body straight into an array cache, so a wrapped `{items,total}` response would break the users table. The bare-array default is now a constraint plus a test.
+3. 64-05 adds user-scoped token routes; the shipped tab calls tenant-scoped ones, which must keep working.
+
+Each plan now carries a `<frontend_scope>` block recording its inventory, its constraints, and what is deferred (with rationale) to the Phase 65 console work that owns `services/apiService.ts`.
+
+### Q3. What database indexing strategies are in place for user data? — RESOLVED
+
+**Finding: adequate for this phase; one small addition needed only if login-by-username ships.** From `backend/database.py`:
+- `users.create_index("email", unique=True)` (line 253) — unique constraint plus the lookup index for the primary login path.
+- `users.create_index("tenantId")` (line 254) — covers the tenant-isolated listing that 64-01 Task 2 adds.
+- **No `username` index exists**, because email is the login identifier throughout (`auth_utils`, `mfa_service`, `authentication_service` all key on email); `TokenData.username` carries the email value.
+
+The codebase also has well-established precedents for everything Phase 64 needs to add:
+- **Compound tenant-scoped indexes:** `[("tenantId", 1), ("timestamp", -1)]` across ~10 collections (lines 269-287).
+- **TTL indexes:** `login_attempts` (24h), `password_reset_tokens` (1h), `revoked_tokens` (24h) at lines 332-336, and `sso_endpoints.py:58` uses `create_index("expires_at", expireAfterSeconds=0)` — **this is the exact pattern 64-06 must copy for the `mfa_sessions` TTL collection that replaces the in-memory dict (Pitfall 1).**
+
+**Scope decision:** no index work is planned beyond what each plan's own collection requires (`mfa_sessions` TTL in 64-06; the API-key prefix lookup in 64-05 should get an index on the key-prefix field). A `username` index is **scoped out** — no code path queries users by a non-email username.
+
+### Q4. Are there any existing post-install scripts for new libraries? — RESOLVED
+
+**Finding: none exist, and none are needed — avoid the library that would require one.** No post-install/setup/dependency-bootstrap script exists under `scripts/`, and `backend/requirements.txt` is plain pip with no build hooks.
+
+This is decisive for the `python-ldap` vs `ldap3` choice the Standard Stack left open: `python-ldap` ships C bindings requiring OS-level `libldap2-dev`/`libsasl2-dev` headers, which with no post-install script means a hand-managed system dependency on every deploy target.
+
+**Resolution: use `ldap3` (pure Python, no C extensions, no OS packages) for ITAM-USR-03.** `python-ldap` is **scoped out** for this phase. This matches the fallback already recorded in the Environment Availability table and keeps installation to a single pip line. Note that neither is currently installed in `backend/venv` (both fail to import), so 64-03 must still perform the install behind its legitimacy checkpoint.
 
 ## Environment Availability
 
