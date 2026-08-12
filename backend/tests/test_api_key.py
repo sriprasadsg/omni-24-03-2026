@@ -20,7 +20,9 @@ import bcrypt
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient, ASGITransport
+from unittest.mock import AsyncMock, MagicMock, patch
 
+from auth_types import TokenData
 from tests.conftest import make_test_app, make_token_data
 from authentication_service import get_current_user as real_get_current_user
 
@@ -399,3 +401,119 @@ class TestAPIKeyEndpoints:
 
         assert r2.status_code == 200
         assert r2.json()["success"] is True
+
+
+# ===========================================================================
+# Task 3: TokenData defaults + rbac_service scope-narrowing enforcement
+# ===========================================================================
+
+def _mock_db(role_doc=None):
+    db = MagicMock()
+    db.roles = MagicMock()
+    db.roles.find_one = AsyncMock(return_value=role_doc)
+    return db
+
+
+class TestTokenDataDefaults:
+    """Behavior test 1: TokenData() with no arguments has scopes=None and
+    auth_source='session'; existing positional/keyword call sites keep
+    working unchanged."""
+
+    def test_default_tokendata_has_no_scopes_and_session_auth_source(self):
+        td = TokenData()
+        assert td.scopes is None
+        assert td.auth_source == "session"
+
+    def test_positional_and_keyword_construction_still_works(self):
+        # Existing call sites (authentication_service.py) construct with only
+        # the original 4 fields — must keep working unchanged.
+        td1 = TokenData("alice", "admin", "tenant-a", True)
+        assert td1.scopes is None
+        assert td1.auth_source == "session"
+
+        td2 = TokenData(username="bob", role="user", tenant_id="t1", mfa_verified=False)
+        assert td2.scopes is None
+        assert td2.auth_source == "session"
+
+
+class TestScopeEnforcement:
+    """Behavior tests 2-8: rbac_service.has_permission()/require_role()
+    intersect role permissions with token scopes — role is the outer bound,
+    scopes only narrow, never widen."""
+
+    async def _call_has_permission(self, required_perm, user):
+        from rbac_service import RBACService
+        svc = RBACService()
+        dependency = svc.has_permission(required_perm)
+        with patch("rbac_service.get_database", return_value=_mock_db(role_doc=None)):
+            return await dependency(user=user)
+
+    async def _call_require_role(self, allowed_roles, user):
+        from rbac_service import RBACService
+        svc = RBACService()
+        dependency = svc.require_role(allowed_roles)
+        return await dependency(user=user)
+
+    def test_2_has_permission_admits_matching_scope_and_role(self):
+        user = TokenData(username="a@b.com", role="admin", tenant_id="t1",
+                          scopes=["view:itam"], auth_source="api_key")
+        result = _run(self._call_has_permission("view:itam", user))
+        assert result is user
+
+    def test_3_has_permission_denies_when_scope_narrower_than_role(self):
+        user = TokenData(username="a@b.com", role="admin", tenant_id="t1",
+                          scopes=["view:itam"], auth_source="api_key")
+        with pytest.raises(HTTPException) as exc_info:
+            _run(self._call_has_permission("manage:itam", user))
+        assert exc_info.value.status_code == 403
+
+    def test_4_has_permission_denies_when_role_lacks_permission_even_if_scope_grants_it(self):
+        user = TokenData(username="a@b.com", role="itam_viewer", tenant_id="t1",
+                          scopes=["manage:itam"], auth_source="api_key")
+        with pytest.raises(HTTPException) as exc_info:
+            _run(self._call_has_permission("manage:itam", user))
+        assert exc_info.value.status_code == 403
+
+    def test_5_super_admin_wildcard_narrowed_by_api_key_scopes_but_not_by_session(self):
+        api_key_user = TokenData(username="root@platform.com", role="super_admin", tenant_id=None,
+                                  scopes=["view:itam"], auth_source="api_key")
+        with pytest.raises(HTTPException) as exc_info:
+            _run(self._call_has_permission("manage:itam", api_key_user))
+        assert exc_info.value.status_code == 403
+
+        session_user = TokenData(username="root@platform.com", role="super_admin", tenant_id=None)
+        result = _run(self._call_has_permission("manage:itam", session_user))
+        assert result is session_user
+
+    def test_6_session_tokendata_scope_check_behaves_unchanged(self):
+        user = TokenData(username="a@b.com", role="admin", tenant_id="t1")
+        result = _run(self._call_has_permission("manage:itam", user))
+        assert result is user
+
+        denied_user = TokenData(username="a@b.com", role="viewer", tenant_id="t1")
+        with pytest.raises(HTTPException) as exc_info:
+            _run(self._call_has_permission("manage:itam", denied_user))
+        assert exc_info.value.status_code == 403
+
+    def test_7_require_role_enforces_admin_gating_scope_for_api_key(self):
+        missing_scope_user = TokenData(username="a@b.com", role="admin", tenant_id="t1",
+                                        scopes=["view:itam"], auth_source="api_key")
+        with pytest.raises(HTTPException) as exc_info:
+            _run(self._call_require_role(["admin"], missing_scope_user))
+        assert exc_info.value.status_code == 403
+
+        with_scope_user = TokenData(username="a@b.com", role="admin", tenant_id="t1",
+                                     scopes=["admin:itam"], auth_source="api_key")
+        result = _run(self._call_require_role(["admin"], with_scope_user))
+        assert result is with_scope_user
+
+        session_user = TokenData(username="a@b.com", role="admin", tenant_id="t1")
+        result2 = _run(self._call_require_role(["admin"], session_user))
+        assert result2 is session_user
+
+    def test_8_empty_scopes_list_denies_every_permission(self):
+        user = TokenData(username="a@b.com", role="admin", tenant_id="t1",
+                          scopes=[], auth_source="api_key")
+        with pytest.raises(HTTPException) as exc_info:
+            _run(self._call_has_permission("view:itam", user))
+        assert exc_info.value.status_code == 403

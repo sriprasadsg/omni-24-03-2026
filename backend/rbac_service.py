@@ -2,7 +2,21 @@ from fastapi import HTTPException, status, Depends
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
-from typing import List
+from typing import Dict, List
+
+# ITAM-USR-05 (Phase 64-05): roles whose require_role()-gated endpoints are
+# additionally narrowed to a specific scope when the caller authenticated via
+# an api_key TokenData (auth_source == "api_key"). Session/JWT-authenticated
+# requests (auth_source == "session", the default) are never subject to this
+# extra check — it exists purely to stop a scoped API token from riding an
+# admin role's require_role() bypass.
+_ROLE_ADMIN_GATING_SCOPE: Dict[str, str] = {
+    "admin": "admin:itam",
+    "tenant_admin": "admin:itam",
+    "super_admin": "admin:itam",
+    "itam_admin": "admin:itam",
+}
+
 
 class RBACService:
     def __init__(self):
@@ -160,18 +174,51 @@ class RBACService:
 
         return role_doc.get("permissions", [])
 
+    def _scopes_allow(self, user: TokenData, required_permission: str) -> bool:
+        """ITAM-USR-05 (Task 3): a token's scopes can only narrow what its
+        owning user's role already permits, never grant more. `user.scopes`
+        is None for session/JWT auth (unrestricted — role is the only bound);
+        a populated list narrows the request to exactly those scopes (or the
+        "*" wildcard). An empty list denies every permission.
+
+        `scopes` is read via getattr + an explicit `list` type check (not a
+        bare `user.scopes is None` check) because a large portion of the
+        existing test suite injects the current-user dependency as a bare
+        `unittest.mock.MagicMock()` rather than a real TokenData — attribute
+        access on those doubles auto-vivifies a truthy child Mock instead of
+        raising AttributeError or returning None, which would incorrectly
+        trip scope-narrowing for callers that never carry real scopes.
+        """
+        scopes = getattr(user, "scopes", None)
+        if not isinstance(scopes, list):
+            return True
+        return required_permission in scopes or "*" in scopes
+
     def has_permission(self, required_permission: str):
-        """Dependency factory to check for a specific permission"""
+        """Dependency factory to check for a specific permission.
+
+        Enforcement order (ITAM-USR-05 T-64-20 — role is the outer bound,
+        scopes only narrow):
+          1. Resolve role permissions via get_user_permissions(user). If the
+             required permission is absent (and no "*" wildcard), deny —
+             this is evaluated identically for session and api_key auth.
+          2. Only once the role check passes, apply the scope-narrowing
+             check. This ordering means a super_admin's "*" role wildcard
+             still gets narrowed by an api_key token's scopes.
+        """
         async def dependency(user: TokenData = Depends(get_current_user)):
             permissions = await self.get_user_permissions(user)
 
-            if "*" in permissions:
-                return user
-
-            if required_permission not in permissions:
+            if "*" not in permissions and required_permission not in permissions:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Missing required permission: {required_permission}"
+                )
+
+            if not self._scopes_allow(user, required_permission):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"API key scope does not permit: {required_permission}"
                 )
             return user
         return dependency
@@ -182,13 +229,30 @@ class RBACService:
         normalized_allowed = {self._normalize_role(r) for r in allowed_roles}
 
         async def dependency(user: TokenData = Depends(get_current_user)):
-            if self._normalize_role(user.role) == "super_admin":
-                return user
-            if self._normalize_role(user.role) not in normalized_allowed and user.role not in allowed_roles:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Role not allowed. Required one of: {allowed_roles}"
-                )
+            normalized_role = self._normalize_role(user.role)
+            if normalized_role != "super_admin":
+                if normalized_role not in normalized_allowed and user.role not in allowed_roles:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Role not allowed. Required one of: {allowed_roles}"
+                    )
+
+            # ITAM-USR-05 (Task 3): api_key-authenticated requests additionally
+            # need the role's gating scope — an admin-role key without
+            # "admin:itam" cannot exercise require_role()'s admin bypass.
+            # getattr (not direct attribute access) so user doubles lacking
+            # auth_source entirely (older test fakes) fall through as
+            # "session" rather than raising AttributeError.
+            if getattr(user, "auth_source", "session") == "api_key":
+                gating_scope = _ROLE_ADMIN_GATING_SCOPE.get(normalized_role)
+                if gating_scope:
+                    scopes = getattr(user, "scopes", None)
+                    scopes = scopes if isinstance(scopes, list) else []
+                    if gating_scope not in scopes and "*" not in scopes:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"API key scope does not permit this role: requires '{gating_scope}'"
+                        )
             return user
         return dependency
 
