@@ -29,8 +29,14 @@ async def get_audit_logs(
     """
     tenant_id = get_tenant_id()
     is_super_admin = getattr(current_user, "role", "") in _SUPER_ROLES
+    # The ambient tenant sentinel for tenant-less admins ("platform-admin",
+    # set by authentication_service.py) is not a real tenant id — forwarding
+    # it verbatim made get_logs's `if tenant_id:` branch always fire for
+    # super-admins too, filtering the ledger to a near-certainly-nonexistent
+    # tenantId == "platform-admin" instead of taking the all-tenants branch.
+    effective_tenant_id = None if tenant_id == "platform-admin" else tenant_id
     return await get_audit_service().get_logs(
-        tenant_id=tenant_id,
+        tenant_id=effective_tenant_id,
         is_super_admin=is_super_admin,
         resource_type=resourceType,
         resource_id=resourceId,
