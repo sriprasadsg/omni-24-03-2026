@@ -7,6 +7,7 @@ from errors import APIError
 from dependencies import PyObjectId
 from auth_types import TokenData
 from itam_asset_endpoints import _require_itam_admin
+from itam_audit_service import log_itam_action
 from itam_models import Component, ComponentCreate, ComponentUpdate
 from itam_component_service import ComponentService, get_component_service
 
@@ -47,7 +48,15 @@ async def create_component_endpoint(
     component_service: ComponentService = Depends(get_component_service),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    return await component_service.create_component(component_data, current_user=current_user)
+    component = await component_service.create_component(component_data, current_user=current_user)
+    await log_itam_action(
+        current_user,
+        action="itam_component.create",
+        resource_type="itam_component",
+        resource_id=component.id,
+        details=f"Created component {component.name}",
+    )
+    return component
 
 
 @router.get(
@@ -77,7 +86,15 @@ async def attach_component_endpoint(
     component_service: ComponentService = Depends(get_component_service),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    return await component_service.attach_component(component_id, asset_id, current_user=current_user)
+    component = await component_service.attach_component(component_id, asset_id, current_user=current_user)
+    await log_itam_action(
+        current_user,
+        action="itam_component.attach",
+        resource_type="itam_component",
+        resource_id=component_id,
+        details=f"Attached to asset {asset_id}",
+    )
+    return component
 
 
 @router.post(
@@ -92,4 +109,12 @@ async def detach_component_endpoint(
     component_service: ComponentService = Depends(get_component_service),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    return await component_service.detach_component(component_id, asset_id, current_user=current_user)
+    component = await component_service.detach_component(component_id, asset_id, current_user=current_user)
+    await log_itam_action(
+        current_user,
+        action="itam_component.detach",
+        resource_type="itam_component",
+        resource_id=component_id,
+        details=f"Detached from asset {asset_id}",
+    )
+    return component

@@ -96,7 +96,7 @@ class MockTenantIsolatedDatabase:
 AUDIT_TEST_COLLECTIONS = (
     "assets", "manufacturers", "asset_categories", "locations", "suppliers",
     "asset_models", "counters", "audit_logs", "licenses", "license_assignments",
-    "consumables", "components",
+    "consumables", "components", "assignment_history", "users",
 )
 
 
@@ -185,13 +185,28 @@ def patch_get_database_globally(mock_db, monkeypatch):
 
 @pytest.fixture
 def itam_app(mock_db, patch_get_database_globally, monkeypatch):
-    """Mounts the asset router (write path) and the audit router (read path)."""
+    """Mounts every instrumented ITAM router (write paths) plus the audit router
+    (read path). Task 1 exercises only the asset + audit routers; Task 2 adds
+    catalog/lifecycle/finance/license/consumable/component onto the same app."""
     import itam_asset_endpoints
+    import itam_catalog_endpoints
+    import itam_lifecycle_endpoints
+    import itam_finance_endpoints
+    import itam_license_endpoints
+    import itam_consumable_endpoints
+    import itam_component_endpoints
     import audit_endpoints
     import rbac_utils
 
+    # Every router except itam_catalog_endpoints reuses itam_asset_endpoints's
+    # _require_itam_admin (which itself calls verify_permission bound in
+    # itam_asset_endpoints's own module namespace) — a single patch there covers
+    # asset/lifecycle/finance/license/consumable/component. Catalog defines its
+    # own local _require_itam_admin/verify_permission pair and needs its own patch.
     monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=True))
+    monkeypatch.setattr(itam_catalog_endpoints, "verify_permission", AsyncMock(return_value=True))
     monkeypatch.setattr(itam_asset_endpoints, "invalidate_cache", MagicMock())
+    monkeypatch.setattr(itam_lifecycle_endpoints, "invalidate_cache", MagicMock())
     # audit_endpoints.py's route is gated by rbac_utils.require_permission("view:audit_log"),
     # whose inner dependency calls rbac_utils.verify_permission — bypass it the same way the
     # ITAM routers bypass their own verify_permission import, and pin get_tenant_id to the
@@ -200,7 +215,16 @@ def itam_app(mock_db, patch_get_database_globally, monkeypatch):
     monkeypatch.setattr(rbac_utils, "verify_permission", AsyncMock(return_value=True))
     monkeypatch.setattr(audit_endpoints, "get_tenant_id", lambda: "tenant-a")
 
-    app, _ = make_test_app(itam_asset_endpoints.router, audit_endpoints.router)
+    app, _ = make_test_app(
+        itam_asset_endpoints.router,
+        itam_catalog_endpoints.router,
+        itam_lifecycle_endpoints.router,
+        itam_finance_endpoints.router,
+        itam_license_endpoints.router,
+        itam_consumable_endpoints.router,
+        itam_component_endpoints.router,
+        audit_endpoints.router,
+    )
     return app
 
 
@@ -318,3 +342,186 @@ class TestAuditLogsFilterRoute:
         assert mock_db.audit_logs._last_query.get("tenantId") == "tenant-a"
         assert mock_db.audit_logs._last_query.get("resourceType") == "itam_asset"
         assert mock_db.audit_logs._last_query.get("resourceId") == "asset-1"
+
+
+class TestBackfillOneRoutePerFile:
+    """Task 2 (D-02): one representative write route per instrumented file, with
+    log_itam_action patched, asserting it was awaited once with the expected
+    resource_type and action. Every ITAM test suite keeps passing against its
+    own mock database without any fixture change — verified separately by the
+    full `-k itam` run in this task's <verify>."""
+
+    @pytest.mark.asyncio
+    async def test_create_catalog_entity_logs_audit_entry(self, mock_db, itam_app, patch_get_database_globally, monkeypatch):
+        import itam_catalog_endpoints
+
+        logged = AsyncMock()
+        monkeypatch.setattr(itam_catalog_endpoints, "log_itam_action", logged)
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Acme"})
+            assert r.status_code == 201, r.text
+
+        logged.assert_awaited_once()
+        _, kwargs = logged.call_args
+        assert kwargs["resource_type"] == "itam_catalog_manufacturer"
+        assert kwargs["action"] == "itam_catalog_manufacturer.create"
+
+    @pytest.mark.asyncio
+    async def test_mark_asset_audited_logs_audit_entry(self, mock_db, itam_app, patch_get_database_globally, monkeypatch):
+        import itam_lifecycle_endpoints
+
+        logged = AsyncMock()
+        monkeypatch.setattr(itam_lifecycle_endpoints, "log_itam_action", logged)
+        mock_db.assets.find_one_and_update = AsyncMock(return_value={
+            "id": "asset-1", "tenantId": "tenant-a", "name": "Laptop", "lifecycleStatus": "deployable",
+        })
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/assets/asset-1/audit", json={"note": "checked"})
+            assert r.status_code == 200, r.text
+
+        logged.assert_awaited_once()
+        _, kwargs = logged.call_args
+        assert kwargs["resource_type"] == "itam_asset"
+        assert kwargs["action"] == "itam_asset.audit"
+        assert kwargs["resource_id"] == "asset-1"
+
+    @pytest.mark.asyncio
+    async def test_update_asset_purchase_logs_audit_entry(self, mock_db, itam_app, patch_get_database_globally, monkeypatch):
+        import itam_finance_endpoints
+
+        logged = AsyncMock()
+        monkeypatch.setattr(itam_finance_endpoints, "log_itam_action", logged)
+        mock_db.assets.find_one_and_update = AsyncMock(return_value={
+            "id": "asset-1", "tenantId": "tenant-a", "purchaseCostCents": 50000,
+        })
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.patch("/api/assets/asset-1/purchase", json={"purchaseCostCents": 50000})
+            assert r.status_code == 200, r.text
+
+        logged.assert_awaited_once()
+        _, kwargs = logged.call_args
+        assert kwargs["resource_type"] == "itam_asset"
+        assert kwargs["action"] == "itam_asset.purchase_update"
+        assert kwargs["resource_id"] == "asset-1"
+
+    @pytest.mark.asyncio
+    async def test_create_license_logs_audit_entry(self, mock_db, itam_app, patch_get_database_globally, monkeypatch):
+        import itam_license_endpoints
+
+        logged = AsyncMock()
+        monkeypatch.setattr(itam_license_endpoints, "log_itam_action", logged)
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/licenses", json={"name": "Photoshop", "seatCount": 5})
+            assert r.status_code == 201, r.text
+
+        logged.assert_awaited_once()
+        _, kwargs = logged.call_args
+        assert kwargs["resource_type"] == "itam_license"
+        assert kwargs["action"] == "itam_license.create"
+
+    @pytest.mark.asyncio
+    async def test_create_consumable_logs_audit_entry(self, mock_db, itam_app, patch_get_database_globally, monkeypatch):
+        import itam_consumable_endpoints
+        from itam_models import Consumable
+
+        logged = AsyncMock()
+        monkeypatch.setattr(itam_consumable_endpoints, "log_itam_action", logged)
+
+        fake_consumable = Consumable(
+            id="con-1", tenantId="tenant-a", name="HDMI Cable", initialQuantity=10,
+            unitType="unit", availableQuantity=10,
+        )
+
+        class _FakeConsumableService:
+            async def create_consumable(self, consumable_data, current_user=None):
+                return fake_consumable
+
+        itam_app.dependency_overrides[itam_consumable_endpoints.get_consumable_service] = lambda: _FakeConsumableService()
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/consumables", json={"name": "HDMI Cable", "initialQuantity": 10, "unitType": "unit"})
+            assert r.status_code == 201, r.text
+
+        logged.assert_awaited_once()
+        _, kwargs = logged.call_args
+        assert kwargs["resource_type"] == "itam_consumable"
+        assert kwargs["action"] == "itam_consumable.create"
+        assert kwargs["resource_id"] == "con-1"
+
+    @pytest.mark.asyncio
+    async def test_create_component_logs_audit_entry(self, mock_db, itam_app, patch_get_database_globally, monkeypatch):
+        import itam_component_endpoints
+        from itam_models import Component
+
+        logged = AsyncMock()
+        monkeypatch.setattr(itam_component_endpoints, "log_itam_action", logged)
+
+        fake_component = Component(id="comp-1", tenantId="tenant-a", name="16GB RAM")
+
+        class _FakeComponentService:
+            async def create_component(self, component_data, current_user=None):
+                return fake_component
+
+        itam_app.dependency_overrides[itam_component_endpoints.get_component_service] = lambda: _FakeComponentService()
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/components", json={"name": "16GB RAM"})
+            assert r.status_code == 201, r.text
+
+        logged.assert_awaited_once()
+        _, kwargs = logged.call_args
+        assert kwargs["resource_type"] == "itam_component"
+        assert kwargs["action"] == "itam_component.create"
+        assert kwargs["resource_id"] == "comp-1"
+
+    @pytest.mark.asyncio
+    async def test_catalog_create_still_succeeds_when_audit_write_raises(
+        self, mock_db, itam_app, patch_get_database_globally, monkeypatch
+    ):
+        """The shared log_itam_action try/except protects every backfilled call
+        site the same way it protects Task 1's asset-create call site — proven
+        here once against a representative newly-instrumented route rather than
+        once per file, since the resilience mechanism itself is shared."""
+        import itam_audit_service
+
+        class _RaisingAuditService:
+            async def log_action_async(self, *args, **kwargs):
+                raise RuntimeError("ledger unavailable")
+
+        monkeypatch.setattr(itam_audit_service, "get_audit_service", lambda: _RaisingAuditService())
+
+        current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Globex"})
+            assert r.status_code == 201, r.text

@@ -8,6 +8,7 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
 from itam_asset_endpoints import _require_itam_admin
+from itam_audit_service import log_itam_action
 from itam_models import LicenseCreate, LicenseUpdate, LicenseSeatAssignmentRequest
 from itam_license_service import (
     assign_license_seat,
@@ -73,6 +74,13 @@ async def create_license(
 
     await db.licenses.insert_one(document)
     document.pop("_id", None)
+    await log_itam_action(
+        current_user,
+        action="itam_license.create",
+        resource_type="itam_license",
+        resource_id=license_id,
+        details=f"Created license {document.get('name', license_id)}",
+    )
     return document
 
 
@@ -130,6 +138,13 @@ async def update_license(
     )
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="License not found")
+    await log_itam_action(
+        current_user,
+        action="itam_license.update",
+        resource_type="itam_license",
+        resource_id=license_id,
+        details=f"Updated fields: {', '.join(sorted(update_data.keys()))}",
+    )
     return result
 
 
@@ -143,9 +158,17 @@ async def assign_license(
     db = get_database()
     tenant_id = current_user.tenant_id
 
-    return await assign_license_seat(
+    assignment = await assign_license_seat(
         db, tenant_id, license_id, payload.targetType, payload.targetId, payload.note, current_user.username
     )
+    await log_itam_action(
+        current_user,
+        action="itam_license.assign",
+        resource_type="itam_license_assignment",
+        resource_id=assignment.get("id"),
+        details=f"Assigned license {license_id} to {payload.targetType} {payload.targetId}",
+    )
+    return assignment
 
 
 @router.get("/{license_id}/assignments", response_model=List[Dict[str, Any]])
@@ -175,3 +198,10 @@ async def reclaim_license(
     tenant_id = current_user.tenant_id
 
     await reclaim_license_seat(db, tenant_id, assignment_id, note, current_user.username)
+    await log_itam_action(
+        current_user,
+        action="itam_license.reclaim",
+        resource_type="itam_license_assignment",
+        resource_id=assignment_id,
+        details=f"Reclaimed license seat assignment {assignment_id}",
+    )

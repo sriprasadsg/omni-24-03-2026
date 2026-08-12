@@ -25,6 +25,7 @@ from pymongo import ReturnDocument
 from auth_types import TokenData
 from database import get_database
 from itam_asset_endpoints import _require_itam_admin
+from itam_audit_service import log_itam_action
 from itam_models import AssetPurchaseUpdate
 from itam_finance_service import (
     REASON_NO_DEPRECIATION_POLICY,
@@ -100,6 +101,14 @@ async def update_asset_purchase(
     )
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    await log_itam_action(
+        current_user,
+        action="itam_asset.purchase_update",
+        resource_type="itam_asset",
+        resource_id=asset_id,
+        details=f"Updated fields: {', '.join(sorted(update_data.keys()))}",
+    )
     return result
 
 

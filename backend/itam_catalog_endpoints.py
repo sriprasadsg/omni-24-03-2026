@@ -21,6 +21,7 @@ from itam_models import (
     SupplierUpdate,
 )
 from rbac_utils import verify_permission
+from itam_audit_service import log_itam_action, catalog_resource_type
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,13 @@ async def create_catalog_entity(
     try:
         await collection.insert_one(document)
         document.pop("_id", None) # Remove MongoDB's internal _id
+        await log_itam_action(
+            current_user,
+            action=f"{catalog_resource_type(kind)}.create",
+            resource_type=catalog_resource_type(kind),
+            resource_id=new_id,
+            details=f"Created {kind} entity {document.get('name', new_id)}",
+        )
         return document
     except HTTPException:
         raise
@@ -284,6 +292,13 @@ async def update_catalog_entity(
     )
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{kind.capitalize()} with ID '{entity_id}' not found")
+    await log_itam_action(
+        current_user,
+        action=f"{catalog_resource_type(kind)}.update",
+        resource_type=catalog_resource_type(kind),
+        resource_id=entity_id,
+        details=f"Updated fields: {', '.join(sorted(update_data.keys()))}",
+    )
     return result
 
 @router.delete("/{kind}/{entity_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -318,3 +333,11 @@ async def delete_catalog_entity(
 
     if result.deleted_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{kind.capitalize()} with ID '{entity_id}' not found")
+
+    await log_itam_action(
+        current_user,
+        action=f"{catalog_resource_type(kind)}.delete",
+        resource_type=catalog_resource_type(kind),
+        resource_id=entity_id,
+        details=f"Deleted {kind} entity {entity_id}",
+    )

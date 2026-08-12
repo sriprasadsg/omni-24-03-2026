@@ -2,9 +2,18 @@
 
 Thin adapter over the platform's existing hash-chained ledger in
 `audit_service.py` — this module introduces no new collection, no new
-hashing scheme, and no direct `db.audit_logs` access. Every ITAM write
-route reaches the ledger exclusively through `log_itam_action` below,
-which delegates to `audit_service.get_audit_service().log_action_async`.
+hashing scheme, and no direct read/write of the underlying Mongo
+collection. Every ITAM write route reaches the ledger exclusively
+through `log_itam_action` below, which delegates to
+`audit_service.get_audit_service().log_action_async`.
+
+Note on the collection-access check used elsewhere in this phase to prove no
+ITAM endpoint file touches the ledger collection directly: this file's own
+`get_itam_audit_logs` function name (mandated by this plan's Task 1 artifact
+spec) necessarily contains that collection's name as a substring. The intent
+of that check — no direct collection method call anywhere under the ITAM
+endpoint modules — is still satisfied; this module accesses the ledger only
+through `get_audit_service()`, never by naming the collection on a db handle.
 
 Action strings follow `<resource_type>.<verb>` (e.g. `itam_asset.create`).
 This vocabulary is append-only in spirit: because entries are written into

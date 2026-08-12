@@ -7,6 +7,7 @@ from errors import APIError
 from dependencies import PyObjectId
 from auth_types import TokenData
 from itam_asset_endpoints import _require_itam_admin
+from itam_audit_service import log_itam_action
 from itam_models import Consumable, ConsumableCreate, ConsumableUpdate, ConsumableCheckoutRequest
 from itam_consumable_service import ConsumableService, get_consumable_service
 
@@ -25,7 +26,15 @@ async def create_consumable_endpoint(
     consumable_service: ConsumableService = Depends(get_consumable_service),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    return await consumable_service.create_consumable(consumable_data, current_user=current_user)
+    consumable = await consumable_service.create_consumable(consumable_data, current_user=current_user)
+    await log_itam_action(
+        current_user,
+        action="itam_consumable.create",
+        resource_type="itam_consumable",
+        resource_id=consumable.id,
+        details=f"Created consumable {consumable.name}",
+    )
+    return consumable
 
 
 @router.get(
@@ -75,6 +84,13 @@ async def update_consumable_endpoint(
     consumable = await consumable_service.update_consumable(consumable_id, consumable_data, current_user=current_user)
     if not consumable:
         raise APIError(status_code=status.HTTP_404_NOT_FOUND, detail="Consumable not found")
+    await log_itam_action(
+        current_user,
+        action="itam_consumable.update",
+        resource_type="itam_consumable",
+        resource_id=consumable_id,
+        details=f"Updated fields: {', '.join(sorted(consumable_data.model_dump(exclude_none=True).keys()))}",
+    )
     return consumable
 
 
@@ -90,6 +106,13 @@ async def delete_consumable_endpoint(
 ):
     if not await consumable_service.delete_consumable(consumable_id, current_user=current_user):
         raise APIError(status_code=status.HTTP_404_NOT_FOUND, detail="Consumable not found")
+    await log_itam_action(
+        current_user,
+        action="itam_consumable.delete",
+        resource_type="itam_consumable",
+        resource_id=consumable_id,
+        details=f"Deleted consumable {consumable_id}",
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -105,7 +128,15 @@ async def checkout_consumable_endpoint(
     consumable_service: ConsumableService = Depends(get_consumable_service),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    return await consumable_service.checkout_consumable(consumable_id, request, current_user=current_user)
+    consumable = await consumable_service.checkout_consumable(consumable_id, request, current_user=current_user)
+    await log_itam_action(
+        current_user,
+        action="itam_consumable.checkout",
+        resource_type="itam_consumable",
+        resource_id=consumable_id,
+        details=f"Checked out quantity {request.quantity} to {request.assignedToType} {request.assignedTo}",
+    )
+    return consumable
 
 
 @router.post(
@@ -120,4 +151,12 @@ async def checkin_consumable_endpoint(
     consumable_service: ConsumableService = Depends(get_consumable_service),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    return await consumable_service.checkin_consumable(consumable_id, quantity, current_user=current_user)
+    consumable = await consumable_service.checkin_consumable(consumable_id, quantity, current_user=current_user)
+    await log_itam_action(
+        current_user,
+        action="itam_consumable.checkin",
+        resource_type="itam_consumable",
+        resource_id=consumable_id,
+        details=f"Checked in quantity {quantity}",
+    )
+    return consumable

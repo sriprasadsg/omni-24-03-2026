@@ -18,6 +18,7 @@ from auth_types import TokenData
 from database import get_database
 from cache_service import invalidate_cache
 from itam_asset_endpoints import _require_itam_admin
+from itam_audit_service import log_itam_action
 from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, LifecycleStatus
 from itam_lifecycle_service import (
     list_history, write_history, _apply_known_delta, _revert_on_history_failure,
@@ -194,6 +195,14 @@ async def checkout_asset(
     # plain `def` returning None).
     invalidate_cache("assets:*")
 
+    await log_itam_action(
+        current_user,
+        action="itam_asset.checkout",
+        resource_type="itam_asset",
+        resource_id=asset_id,
+        details=f"Checked out to {payload.targetType} {payload.targetId}",
+    )
+
     updated.pop("_id", None)
     response_history = {**history_record, "id": history_id}
     return {**updated, "history": response_history}
@@ -296,6 +305,14 @@ async def checkin_asset(
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
     # plain `def` returning None).
     invalidate_cache("assets:*")
+
+    await log_itam_action(
+        current_user,
+        action="itam_asset.checkin",
+        resource_type="itam_asset",
+        resource_id=asset_id,
+        details="Checked in, returned to stock",
+    )
 
     updated.pop("_id", None)
     response_history = {**history_record, "id": history_id}
@@ -417,6 +434,14 @@ async def mark_asset_audited(
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
     # plain `def` returning None).
     invalidate_cache("assets:*")
+
+    await log_itam_action(
+        current_user,
+        action="itam_asset.audit",
+        resource_type="itam_asset",
+        resource_id=asset_id,
+        details=f"Marked audited on {audited_at}",
+    )
 
     updated.pop("_id", None)
     response_history = {**history_record, "id": history_id}
