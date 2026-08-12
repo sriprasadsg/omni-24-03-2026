@@ -72,6 +72,6 @@
 | ITAM-API-01 | Phase 68 | Pending |
 | ITAM-API-02 | Phase 68 | Pending |
 | ITAM-API-03 | Phase 68 | Pending |
-| ITAM-SET-01 | Phase 65 | Pending |
-| ITAM-SET-02 | Phase 65 | Pending |
-| ITAM-SET-03 | Phase 65 | Pending |
+| ITAM-SET-01 | Phase 65 | Complete |
+| ITAM-SET-02 | Phase 65 | Complete |
+| ITAM-SET-03 | Phase 65 | Complete |
