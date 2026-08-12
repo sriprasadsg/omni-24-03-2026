@@ -282,10 +282,14 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
         # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are
         # blocked for LDAP-sourced users — LDAP is the source of truth for
         # their credentials.
-        if target_user.get("source") == "ldap":
+        # ITAM-USR-04 Pitfall 4 / T-64-17: same block for SAML-sourced users —
+        # the IdP is the source of truth for their credentials, not this API.
+        target_source = target_user.get("source")
+        if target_source in ("ldap", "saml"):
             raise HTTPException(
                 status_code=403,
-                detail="Password changes for LDAP-sourced users must be made in the directory, not via this API",
+                detail=f"Password changes for {target_source.upper()}-sourced users must be made "
+                        f"in the {'directory' if target_source == 'ldap' else 'identity provider'}, not via this API",
             )
         update_data["hashed_password"] = get_password_hash(updates.password)
     if updates.status is not None:

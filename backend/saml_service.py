@@ -197,8 +197,11 @@ def _build_settings_dict(config: SAMLConfig) -> dict:
     }
 
 
-async def _build_request_data(request) -> dict:
-    """Build the request-data dict python3-saml needs from a FastAPI Request."""
+async def build_saml_request_data(request) -> dict:
+    """Build the request-data dict python3-saml needs from a FastAPI Request.
+    Public (no leading underscore) — sso_endpoints.py's ACS/login/SLO routes
+    call this to turn the incoming Request into the shape SAMLAuthenticator
+    and authenticate_saml() expect."""
     form: dict = {}
     if request.method == "POST":
         try:

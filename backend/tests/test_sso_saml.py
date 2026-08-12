@@ -436,3 +436,426 @@ class TestIsSamlSourcedUser:
         db.users.find_one = AsyncMock(return_value={"source": "local"})
         with patch("saml_service.get_database", return_value=db):
             assert _run(is_saml_sourced_user("user@example.com")) is False
+
+
+# ===========================================================================
+# sso_endpoints.py saml_router — admin config/attribute-mapping endpoints,
+# public metadata/login/acs/slo (endpoint, auth)
+# ===========================================================================
+
+from bson import ObjectId
+from httpx import AsyncClient, ASGITransport
+
+import sso_endpoints
+from tests.conftest import make_token_data
+from authentication_service import get_current_user as real_get_current_user
+
+
+def _ep_match(doc, query):
+    for k, v in (query or {}).items():
+        if isinstance(v, dict) and "$in" in v:
+            if doc.get(k) not in v["$in"]:
+                return False
+        else:
+            if doc.get(k) != v:
+                return False
+    return True
+
+
+class _EPCursor:
+    def __init__(self, docs):
+        self._docs = list(docs)
+
+    def sort(self, *a, **k):
+        return self
+
+    async def to_list(self, length=None):
+        return self._docs[:length] if length else list(self._docs)
+
+
+class _EPCollection:
+    def __init__(self, docs=None):
+        self.docs = list(docs or [])
+
+    async def find_one(self, query=None, projection=None):
+        for d in self.docs:
+            if _ep_match(d, query or {}):
+                return dict(d)
+        return None
+
+    def find(self, query=None, projection=None):
+        return _EPCursor([dict(d) for d in self.docs if _ep_match(d, query or {})])
+
+    async def insert_one(self, doc):
+        doc = dict(doc)
+        doc.setdefault("_id", ObjectId())
+        self.docs.append(doc)
+        return type("R", (), {"inserted_id": doc["_id"]})()
+
+    async def update_one(self, query, update, upsert=False):
+        for d in self.docs:
+            if _ep_match(d, query):
+                d.update(update.get("$set", {}))
+                return type("R", (), {"matched_count": 1, "upserted_id": None})()
+        if upsert:
+            new_doc = dict(query)
+            new_doc.update(update.get("$set", {}))
+            new_doc.setdefault("_id", ObjectId())
+            self.docs.append(new_doc)
+            return type("R", (), {"matched_count": 0, "upserted_id": new_doc["_id"]})()
+        return type("R", (), {"matched_count": 0, "upserted_id": None})()
+
+    async def find_one_and_delete(self, query):
+        for i, d in enumerate(self.docs):
+            if _ep_match(d, query):
+                return self.docs.pop(i)
+        return None
+
+    async def replace_one(self, query, replacement, upsert=False):
+        for i, d in enumerate(self.docs):
+            if _ep_match(d, query):
+                self.docs[i] = dict(replacement)
+                return type("R", (), {"matched_count": 1})()
+        if upsert:
+            self.docs.append(dict(replacement))
+        return type("R", (), {"matched_count": 0})()
+
+    async def delete_one(self, query):
+        for i, d in enumerate(self.docs):
+            if _ep_match(d, query):
+                del self.docs[i]
+                return type("R", (), {"deleted_count": 1})()
+        return type("R", (), {"deleted_count": 0})()
+
+    async def create_index(self, *a, **k):
+        return None
+
+
+class _EPRawDB:
+    def __init__(self):
+        self.saml_login_states = _EPCollection([])
+        self.saml_processed_assertions = _EPCollection([])
+        self.sso_state = _EPCollection([])  # used by sso_endpoints._store_sso_state (exchange-code flow)
+
+
+class _EPFakeDB:
+    def __init__(self):
+        self.saml_configs = _EPCollection([])
+        self.saml_group_mappings = _EPCollection([])
+        self.users = _EPCollection([])
+        self._db = _EPRawDB()
+
+
+_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
+
+
+async def _fake_verify_permission(user, permission):
+    from rbac_utils import is_super_admin
+    if permission != "manage:assets":
+        return False
+    return is_super_admin(user.role) or user.role in _ADMIN_ROLES
+
+
+@pytest.fixture
+def ep_db():
+    return _EPFakeDB()
+
+
+@pytest.fixture
+def ep_app(ep_db, monkeypatch):
+    import itam_asset_endpoints
+    import saml_service
+    import saml_mapping
+
+    # sso_endpoints/saml_service/saml_mapping each call get_database() from
+    # their own namespace — patch every one so the whole request path
+    # (endpoint handlers AND saml_service internals) sees the same fake DB.
+    monkeypatch.setattr(sso_endpoints, "get_database", lambda: ep_db)
+    monkeypatch.setattr(saml_service, "get_database", lambda: ep_db)
+    monkeypatch.setattr(saml_mapping, "get_database", lambda: ep_db)
+    monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(side_effect=_fake_verify_permission))
+    monkeypatch.setattr(sso_endpoints, "get_tenant_id", lambda: "tenant-a")
+
+    from fastapi import FastAPI
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from rate_limiter import limiter as shared_limiter
+
+    app = FastAPI()
+    app.state.limiter = shared_limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+    app.include_router(sso_endpoints.saml_router)
+    return app
+
+
+@pytest.fixture(autouse=True)
+def _reset_saml_rate_limit():
+    from rate_limiter import limiter as shared_limiter
+    shared_limiter._storage.reset()
+    yield
+    shared_limiter._storage.reset()
+
+
+def _override_user(app, token):
+    app.dependency_overrides[real_get_current_user] = lambda: token
+
+
+async def _ep_client(app):
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://testserver")
+
+
+class TestSAMLConfigEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_save_and_read_config_masks_private_key(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        enc = MagicMock()
+        enc.encrypt.return_value = "enc(key)"
+        monkeypatch.setattr("encryption_service.get_encryption_service", lambda: enc)
+
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/config", json={
+                "entity_id": "https://sp.example.com/metadata",
+                "acs_url": "https://sp.example.com/acs",
+                "idp_entity_id": "https://idp.example.com/metadata",
+                "idp_sso_url": "https://idp.example.com/sso",
+                "sp_private_key": "super-secret-key",
+            })
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["success"] is True
+
+            resp2 = await client.get("/api/admin/sso/saml/config")
+            assert resp2.status_code == 200
+            body = resp2.json()
+            assert body["sp_private_key"] == "***masked***"
+            assert "sp_private_key_encrypted" not in body
+
+    @pytest.mark.asyncio
+    async def test_config_requires_admin(self, ep_app):
+        viewer = make_token_data(username="viewer@tenant-a.com", role="itam_viewer", tenant_id="tenant-a")
+        _override_user(ep_app, viewer)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/admin/sso/saml/config")
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_read_config_404_when_unset(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/admin/sso/saml/config")
+        assert resp.status_code == 404
+
+
+class TestSAMLMetadataAndTestEndpoints:
+
+    @pytest.mark.asyncio
+    async def test_admin_metadata_returns_xml(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        monkeypatch.setenv("SAML_ENTITY_ID", "https://sp.example.com/metadata")
+        monkeypatch.setenv("SAML_ACS_URL", "https://sp.example.com/acs")
+        monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
+        monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/admin/sso/saml/metadata")
+        assert resp.status_code == 200
+        assert "EntityDescriptor" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_public_metadata_returns_xml_without_auth(self, ep_app, monkeypatch):
+        monkeypatch.setenv("SAML_ENTITY_ID", "https://sp.example.com/metadata")
+        monkeypatch.setenv("SAML_ACS_URL", "https://sp.example.com/acs")
+        monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
+        monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/auth/saml/metadata")
+        assert resp.status_code == 200
+        assert "EntityDescriptor" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_public_metadata_503_when_not_configured(self, ep_app, monkeypatch):
+        for var in ("SAML_ENTITY_ID", "SAML_ACS_URL", "SAML_IDP_ENTITY_ID", "SAML_IDP_SSO_URL"):
+            monkeypatch.delenv(var, raising=False)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/auth/saml/metadata")
+        assert resp.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_test_config_endpoint_requires_admin(self, ep_app):
+        viewer = make_token_data(username="viewer@tenant-a.com", role="itam_viewer", tenant_id="tenant-a")
+        _override_user(ep_app, viewer)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/test")
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_test_config_endpoint_success(self, ep_app, monkeypatch):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        monkeypatch.setenv("SAML_ENTITY_ID", "https://sp.example.com/metadata")
+        monkeypatch.setenv("SAML_ACS_URL", "https://sp.example.com/acs")
+        monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
+        monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/test")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+
+class TestSAMLAttributeMappingEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_create_list_delete_mapping(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/attribute-mapping", json={
+                "group_value": "ITAM-Admins", "role": "itam_admin", "priority": 1,
+            })
+            assert resp.status_code == 200, resp.text
+            mapping_id = resp.json()["_id"]
+
+            resp2 = await client.get("/api/admin/sso/saml/attribute-mapping")
+            assert resp2.status_code == 200
+            assert len(resp2.json()) == 1
+
+            resp3 = await client.delete(f"/api/admin/sso/saml/attribute-mapping/{mapping_id}")
+            assert resp3.status_code == 200
+            assert resp3.json()["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_create_mapping_rejects_invalid_role(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/attribute-mapping", json={
+                "group_value": "G", "role": "not_a_role",
+            })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_delete_missing_mapping_returns_404(self, ep_app):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.delete(f"/api/admin/sso/saml/attribute-mapping/{ObjectId()}")
+        assert resp.status_code == 404
+
+
+class TestSAMLLoginEndpointAuth:
+
+    @pytest.mark.asyncio
+    async def test_login_redirects_to_idp(self, ep_app, monkeypatch):
+        class _FakeAuthenticator:
+            def __init__(self, config):
+                pass
+
+            async def build_login_url(self, request_data):
+                return "https://idp.example.com/sso?SAMLRequest=xxx&RelayState=tok"
+
+        monkeypatch.setattr(sso_endpoints, "SAMLAuthenticator", _FakeAuthenticator)
+        monkeypatch.setenv("SAML_ENTITY_ID", "https://sp.example.com/metadata")
+        monkeypatch.setenv("SAML_ACS_URL", "https://sp.example.com/acs")
+        monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
+        monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/auth/saml/login", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert resp.headers["location"].startswith("https://idp.example.com/sso")
+
+    @pytest.mark.asyncio
+    async def test_login_not_configured_returns_503(self, ep_app, monkeypatch):
+        for var in ("SAML_ENTITY_ID", "SAML_ACS_URL", "SAML_IDP_ENTITY_ID", "SAML_IDP_SSO_URL"):
+            monkeypatch.delenv(var, raising=False)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/auth/saml/login", follow_redirects=False)
+        assert resp.status_code == 503
+
+
+class TestSAMLAcsEndpointAuth:
+
+    @pytest.mark.asyncio
+    async def test_acs_success_redirects_with_exchange_code(self, ep_app, monkeypatch):
+        async def _fake_authenticate_saml(request_data, tenant_id=None):
+            return {"access_token": "tok", "refresh_token": "rtok", "token_type": "bearer",
+                    "success": True, "email": "jdoe@example.com", "role": "itam_viewer",
+                    "tenant_id": "tenant-a"}
+
+        monkeypatch.setattr(sso_endpoints, "authenticate_saml", _fake_authenticate_saml)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/auth/saml/acs", data={"SAMLResponse": "b64"}, follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert "/sso-callback?code=" in resp.headers["location"]
+        assert "provider=saml" in resp.headers["location"]
+
+    @pytest.mark.asyncio
+    async def test_acs_validation_failure_redirects_to_login_error(self, ep_app, monkeypatch):
+        from saml_service import SAMLValidationError
+
+        async def _fake_authenticate_saml(request_data, tenant_id=None):
+            raise SAMLValidationError("bad signature")
+
+        monkeypatch.setattr(sso_endpoints, "authenticate_saml", _fake_authenticate_saml)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/auth/saml/acs", data={"SAMLResponse": "b64"}, follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert "error=saml_failed" in resp.headers["location"]
+
+    @pytest.mark.asyncio
+    async def test_acs_provision_failure_redirects_to_not_registered_error(self, ep_app, monkeypatch):
+        from saml_service import SAMLProvisionError
+
+        async def _fake_authenticate_saml(request_data, tenant_id=None):
+            raise SAMLProvisionError("no tenant")
+
+        monkeypatch.setattr(sso_endpoints, "authenticate_saml", _fake_authenticate_saml)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/auth/saml/acs", data={"SAMLResponse": "b64"}, follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert "error=saml_not_registered" in resp.headers["location"]
+
+
+class TestSAMLSloEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_slo_redirects_when_response_returned(self, ep_app, monkeypatch):
+        class _FakeAuthenticator:
+            def __init__(self, config):
+                pass
+
+            def process_slo(self, request_data):
+                return "https://idp.example.com/slo-complete"
+
+        monkeypatch.setattr(sso_endpoints, "SAMLAuthenticator", _FakeAuthenticator)
+        monkeypatch.setenv("SAML_ENTITY_ID", "https://sp.example.com/metadata")
+        monkeypatch.setenv("SAML_ACS_URL", "https://sp.example.com/acs")
+        monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
+        monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/auth/saml/slo", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert resp.headers["location"] == "https://idp.example.com/slo-complete"
+
+    @pytest.mark.asyncio
+    async def test_slo_returns_success_when_no_redirect_needed(self, ep_app, monkeypatch):
+        class _FakeAuthenticator:
+            def __init__(self, config):
+                pass
+
+            def process_slo(self, request_data):
+                return None
+
+        monkeypatch.setattr(sso_endpoints, "SAMLAuthenticator", _FakeAuthenticator)
+        monkeypatch.setenv("SAML_ENTITY_ID", "https://sp.example.com/metadata")
+        monkeypatch.setenv("SAML_ACS_URL", "https://sp.example.com/acs")
+        monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
+        monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
+        async with await _ep_client(ep_app) as client:
+            resp = await client.get("/api/auth/saml/slo")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True

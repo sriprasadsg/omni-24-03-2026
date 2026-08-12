@@ -97,11 +97,15 @@ async def confirm_password_reset(request: Request, response: Response, body: Pas
     # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are blocked
     # for LDAP-sourced users — LDAP is the source of truth for their
     # credentials, so a self-service reset here would silently desync it.
+    # ITAM-USR-04 Pitfall 4 / T-64-17: same block for SAML-sourced users —
+    # the identity provider is the source of truth for their credentials.
     target_user = await db._db.users.find_one({"email": entry["email"]}, {"source": 1})
-    if target_user and target_user.get("source") == "ldap":
+    target_source = target_user.get("source") if target_user else None
+    if target_source in ("ldap", "saml"):
         raise HTTPException(
             status_code=403,
-            detail="Password resets for LDAP-sourced accounts must be performed in the directory, not via this form",
+            detail=f"Password resets for {target_source.upper()}-sourced accounts must be performed "
+                    f"in the {'directory' if target_source == 'ldap' else 'identity provider'}, not via this form",
         )
 
     # Consume the token BEFORE updating the password so concurrent requests
