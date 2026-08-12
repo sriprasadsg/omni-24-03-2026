@@ -81,15 +81,57 @@ class RBACService:
                 "view:logs", "view:mdr", "view:xdr", "view:profile",
                 "view:agents", "view:assets",
             ],
+            # ITAM-specific roles (ITAM-USR-02) — scoped access to the ITAM
+            # console independent of the broader security-platform roles above.
+            "itam_admin": [
+                "manage:assets", "manage:licenses", "manage:users",
+                "view:itam", "manage:procurement", "manage:finance",
+            ],
+            "itam_user": [
+                "view:assets", "view:licenses", "view:itam", "request:assets",
+            ],
+            "itam_viewer": [
+                "view:assets", "view:licenses", "view:itam",
+            ],
         }
 
     @staticmethod
     def _normalize_role(name: str) -> str:
-        """Canonicalize role names to snake_case, e.g. 'Super Admin' / 'superadmin' → 'super_admin'."""
+        """Canonicalize role names to snake_case, e.g. 'Super Admin' / 'superadmin' → 'super_admin'.
+
+        Single source of truth for role normalization (RESEARCH.md Pitfall 3 /
+        ITAM-USR-02): "platform-admin" is treated as a super-admin role variant
+        everywhere else in the codebase (auth_roles.SUPER_ROLES, rbac_utils),
+        but previously normalized to the distinct key "platform_admin" here —
+        the "platform-admin gap" — instead of "super_admin". Folding it in here
+        means every caller that routes through this method (has_permission,
+        require_role, get_user_permissions, rbac_utils.is_super_admin) now
+        agrees on a single answer for platform-admin callers.
+        """
         normalized = (name or "").lower().strip().replace(" ", "_").replace("-", "_")
-        if normalized == "superadmin":
+        if normalized in ("superadmin", "platform_admin"):
             return "super_admin"
         return normalized
+
+    def get_permissions_for_role(self, role: str) -> List[str]:
+        """Static (non-DB) permission list for a role name — for frontend UI role-matrix rendering.
+
+        Looks up `default_roles` only (no DB call), trying the raw role string
+        first and falling back to its normalized form so Title-Case variants
+        (e.g. the /api/roles stub's "Admin"/"User"/"Viewer") resolve correctly.
+        For actual request-time enforcement use `has_permission`/`require_role`/
+        `get_user_permissions`, which also consult the `roles` collection.
+        """
+        normalized = self._normalize_role(role)
+        if normalized == "super_admin":
+            return ["*"]
+        return self.default_roles.get(role) or self.default_roles.get(normalized) or []
+
+    def can_assign_role(self, caller_role: str, target_role: str) -> bool:
+        """Only super-admins may assign the super-admin role to a user (ITAM-USR-02 T-64-04)."""
+        if self._normalize_role(target_role) == "super_admin":
+            return self._normalize_role(caller_role) == "super_admin"
+        return True
 
     async def get_user_permissions(self, user: TokenData) -> List[str]:
         """Fetch permissions for the current user based on their role"""
