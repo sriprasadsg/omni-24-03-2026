@@ -13,7 +13,7 @@ import {
     SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
     ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
-    AuditLogEntry,
+    AuditLogEntry, ItamImportResult,
 } from '../types';
 
 export type {
@@ -5371,6 +5371,26 @@ export const exportItamAssetsCsv = async (modelId?: string): Promise<void> => {
     const res = await authFetch(`${API_BASE}/itam/data/export${qs}`);
     if (!res.ok) return itamThrow(res, 'Failed to export assets');
     await triggerLabelDownload(res, 'itam-assets.csv');
+};
+
+// ITAM CSV import (Phase 65 Plan 03, ITAM-DAT-03, Task 3). A multipart body
+// must never carry an explicit Content-Type — authFetch only sets one when
+// the body is not a FormData instance, so the browser generates the
+// multipart boundary itself.
+export const importItamAssetsCsv = async (file: File, dryRun = false): Promise<ItamImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await authFetch(`${API_BASE}/itam/data/import?dryRun=${dryRun}`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) {
+        if (res.status === 413) {
+            throw new Error('File is too large to import.');
+        }
+        return itamThrow(res, 'Import failed');
+    }
+    return res.json();
 };
 
 export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
