@@ -58,7 +58,7 @@
 | ITAM-USR-05 | Phase 64 | Implemented |
 | ITAM-USR-06 | Phase 64 | Implemented |
 | ITAM-DAT-01 | Phase 65 | Complete |
-| ITAM-DAT-02 | Phase 65 | Pending |
+| ITAM-DAT-02 | Phase 65 | Complete |
 | ITAM-DAT-03 | Phase 65 | Pending |
 | ITAM-REP-01 | Phase 67 | Pending |
 | ITAM-REP-02 | Phase 67 | Pending |
