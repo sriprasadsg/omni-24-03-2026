@@ -65,6 +65,35 @@ async def next_asset_tag(db: TenantIsolatedDatabase, tenant_id: str, prefix: str
         )
     return f"{prefix}-{counter_doc['seq']:04d}"
 
+
+def build_asset_document(payload: ManualAssetCreate, tenant_id: str, asset_tag: str, now: str) -> Dict[str, Any]:
+    """
+    Assemble the persisted document shape for a manually-created ITAM asset.
+
+    Extracted (Phase 65 Plan 03) from what used to be inline in
+    create_manual_asset so there is exactly one definition of what an ITAM
+    asset document looks like. Both create_manual_asset below and the CSV
+    import path in itam_data_endpoints.py call this rather than each
+    building their own — the two write paths cannot drift apart on
+    document shape. Pure: no database I/O, no side effects.
+    """
+    document = payload.model_dump(exclude_none=True, exclude={
+        "assetTag", "lifecycleStatus",  # excluded to add them explicitly below
+    })
+    asset_id = f"asset-{uuid.uuid4().hex[:8]}"
+    document.update({
+        "id": asset_id,
+        "tenantId": tenant_id,
+        "assetSource": ASSET_SOURCE_MANUAL,
+        "assetTag": asset_tag,
+        "lifecycleStatus": payload.lifecycleStatus.value,  # ensure it's the string value
+        "createdAt": now,
+        "updatedAt": now,
+        "lastScanned": now,  # ensures manual assets appear in sorted lists
+    })
+    return document
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=Dict[str, Any])
 async def create_manual_asset(
     payload: ManualAssetCreate,
@@ -121,21 +150,8 @@ async def create_manual_asset(
             )
 
     now = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
-    asset_id = f"asset-{uuid.uuid4().hex[:8]}"
-
-    document = payload.model_dump(exclude_none=True, exclude={
-        "assetTag", "lifecycleStatus" # Exclude to add them explicitly
-    })
-    document.update({
-        "id": asset_id,
-        "tenantId": tenant_id,
-        "assetSource": ASSET_SOURCE_MANUAL,
-        "assetTag": asset_tag,
-        "lifecycleStatus": payload.lifecycleStatus.value, # Ensure it's the string value
-        "createdAt": now,
-        "updatedAt": now,
-        "lastScanned": now, # Ensures manual assets appear in sorted lists
-    })
+    document = build_asset_document(payload, tenant_id, asset_tag, now)
+    asset_id = document["id"]
 
     try:
         # db.assets is a TenantIsolatedCollection

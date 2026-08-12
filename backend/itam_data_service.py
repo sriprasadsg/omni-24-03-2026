@@ -14,7 +14,7 @@ or reordering existing ones is not.
 """
 import csv
 import io
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 # Base column order for an asset export. Defined once, exported, and reused
 # verbatim on the import side (Task 2) so the two directions cannot drift
@@ -41,6 +41,19 @@ ASSET_EXPORT_COLUMNS: List[str] = [
 ]
 
 CUSTOM_FIELD_COLUMN_PREFIX = "customFields."
+
+# Columns that are always server-owned and never importable — dropped from
+# an uploaded row's payload rather than forwarded (Task 2), mitigating
+# T-65-03-07 (an uploader supplying its own id/tenantId/assetSource/
+# createdAt).
+SERVER_OWNED_IMPORT_COLUMNS = frozenset({
+    "id", "createdAt", "updatedAt", "tenantId", "assetSource", "lastScanned", "warrantyAlertSentAt",
+})
+
+# T-65-03-02: the upload route reads in 64 KiB chunks and aborts as soon as
+# the accumulated size passes this cap — no unbounded `await file.read()`.
+MAX_IMPORT_BYTES = 5 * 1024 * 1024
+MAX_IMPORT_ROWS = 5000
 
 # Leading characters a spreadsheet application (Excel, Sheets, LibreOffice)
 # treats as the start of a formula or an escape sequence. T-65-03-01.
@@ -97,3 +110,66 @@ def generate_assets_csv(assets: List[dict], custom_field_keys: List[str]) -> str
     for asset in assets:
         writer.writerow(asset_to_row(asset, custom_field_keys))
     return output.getvalue()
+
+
+def parse_csv_rows(text: str) -> List[Dict[str, str]]:
+    """Parse CSV text into row dicts, in file order."""
+    reader = csv.DictReader(io.StringIO(text))
+    return [dict(row) for row in reader]
+
+
+def row_to_asset_payload(row: dict) -> Tuple[dict, List[str]]:
+    """Split one CSV row into a `ManualAssetCreate`-shaped payload.
+
+    Server-owned columns (`SERVER_OWNED_IMPORT_COLUMNS`) are dropped rather
+    than forwarded. `customFields.<key>` columns are collected into a
+    nested `customFields` dict. Any other column name is forwarded
+    verbatim — including one `ManualAssetCreate` does not declare — so the
+    caller's `ManualAssetCreate(**payload)` construction (whose model
+    forbids extra fields) is what rejects an unknown column; this function
+    invents no validation of its own for that case.
+
+    `purchaseCostCents` and `warrantyMonths` are coerced to `int`; a
+    non-integer value is reported as a problem rather than raising.
+
+    An empty-string cell is treated as "column left blank" and omitted from
+    the payload entirely, so an optional field left blank never becomes an
+    empty-string value.
+
+    Returns `(payload, problems)` — `problems` covers only integer-coercion
+    failures found here; unknown-column and other structural problems are
+    surfaced by the caller's `ManualAssetCreate(**payload)` construction.
+    """
+    problems: List[str] = []
+    payload: Dict[str, Any] = {}
+    custom_fields: Dict[str, Any] = {}
+
+    for raw_key, raw_value in row.items():
+        if raw_key is None:
+            continue
+        key = raw_key.strip()
+        value: Optional[str] = raw_value.strip() if isinstance(raw_value, str) else raw_value
+        if value is None or value == "":
+            continue  # blank cell -> field absent, not an empty string
+
+        if key in SERVER_OWNED_IMPORT_COLUMNS:
+            continue
+
+        if key.startswith(CUSTOM_FIELD_COLUMN_PREFIX):
+            field_key = key[len(CUSTOM_FIELD_COLUMN_PREFIX):]
+            custom_fields[field_key] = value
+            continue
+
+        if key in ("purchaseCostCents", "warrantyMonths"):
+            try:
+                payload[key] = int(value)
+            except (TypeError, ValueError):
+                problems.append(f"'{key}' must be an integer, got {value!r}.")
+            continue
+
+        payload[key] = value
+
+    if custom_fields:
+        payload["customFields"] = custom_fields
+
+    return payload, problems
