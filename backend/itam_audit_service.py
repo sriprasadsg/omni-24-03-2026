@@ -81,7 +81,11 @@ async def log_itam_action(
     """
     try:
         username = getattr(current_user, "username", None) or "unknown"
-        tenant_id = getattr(current_user, "tenant_id", None) or "default-tenant"
+        # "platform-admin" matches the ambient tenant-context sentinel used
+        # elsewhere (authentication_service.py, database.py) for tenant-less
+        # admins. A fabricated literal like "default-tenant" risks colliding
+        # with a real tenant of that name and misattributing audit entries.
+        tenant_id = getattr(current_user, "tenant_id", None) or "platform-admin"
         await get_audit_service().log_action_async(
             user_name=username,
             action=action,
