@@ -80,6 +80,11 @@ async def save_itam_settings(
     db = get_database()
     raw = db._db if hasattr(db, "_db") else db
     tenant_id = getattr(current_user, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="A tenant context is required to save ITAM settings.",
+        )
 
     await raw.system_settings.update_one(
         {"type": ITAM_SETTINGS_TYPE, "tenantId": tenant_id},
