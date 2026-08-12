@@ -87,19 +87,27 @@ async def export_assets(
 
     csv_text = generate_assets_csv(assets, custom_field_keys)
     filename = f"itam-assets-{datetime.now(timezone.utc).date().isoformat()}.csv"
+    truncated = len(assets) == MAX_EXPORT_ROWS
 
     await log_itam_action(
         current_user,
         action="itam_export.assets",
         resource_type="itam_export",
         resource_id="assets",
-        details=f"Exported {len(assets)} assets",
+        details=f"Exported {len(assets)} assets" + (" (truncated)" if truncated else ""),
     )
+
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    if truncated:
+        # No equivalent of the import path's errorsTruncated flag existed here —
+        # without this header a >MAX_EXPORT_ROWS export looks complete (valid
+        # header/rows, HTTP 200) but silently drops rows past the cap.
+        headers["X-Export-Truncated"] = "true"
 
     return Response(
         content=csv_text,
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=headers,
     )
 
 

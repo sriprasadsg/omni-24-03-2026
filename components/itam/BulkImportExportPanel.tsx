@@ -25,8 +25,15 @@ export function BulkImportExportPanel() {
     setExporting(true);
     setExportError(null);
     try {
-      await exportItamAssetsCsv(modelId.trim() || undefined);
-      showToast('Export started — your download should begin shortly.', 'success');
+      const result = await exportItamAssetsCsv(modelId.trim() || undefined);
+      if (result?.truncated) {
+        showToast(
+          'Export started, but your inventory exceeds the export row limit — the CSV is truncated and does not contain every asset.',
+          'warning'
+        );
+      } else {
+        showToast('Export started — your download should begin shortly.', 'success');
+      }
     } catch (e: any) {
       const message = e?.message || 'Export failed.';
       setExportError(message);

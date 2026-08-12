@@ -185,6 +185,7 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
             "X-RateLimit-Limit",
             "X-RateLimit-Remaining",
             "X-RateLimit-Reset",
+            "X-Export-Truncated",
         ],
     )
 

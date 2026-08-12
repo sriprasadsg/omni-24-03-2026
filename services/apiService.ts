@@ -5366,11 +5366,16 @@ export const fetchAssetLabelSheet = async (assetIds: string[]): Promise<void> =>
 // which additionally takes the filename from the response's
 // Content-Disposition header when present (the export route always sets
 // one), falling back to 'itam-assets.csv' only when it is absent.
-export const exportItamAssetsCsv = async (modelId?: string): Promise<void> => {
+// Returns whether the server signalled truncation via X-Export-Truncated
+// (set when the export hit the MAX_EXPORT_ROWS cap) so callers can warn
+// the admin instead of silently handing them an incomplete CSV.
+export const exportItamAssetsCsv = async (modelId?: string): Promise<{ truncated: boolean }> => {
     const qs = modelId ? `?modelId=${encodeURIComponent(modelId)}` : '';
     const res = await authFetch(`${API_BASE}/itam/data/export${qs}`);
     if (!res.ok) return itamThrow(res, 'Failed to export assets');
+    const truncated = res.headers.get('X-Export-Truncated') === 'true';
     await triggerLabelDownload(res, 'itam-assets.csv');
+    return { truncated };
 };
 
 // ITAM CSV import (Phase 65 Plan 03, ITAM-DAT-03, Task 3). A multipart body
