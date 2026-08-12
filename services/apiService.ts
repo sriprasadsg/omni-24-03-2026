@@ -5256,6 +5256,17 @@ export const fetchAssetModelFields = async (modelId: string): Promise<ItamModelF
     return res.json();
 };
 
+export const updateAssetModelFieldsets = async (modelId: string, fieldsets: ItamFieldsetDef[]): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/models/${modelId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fieldsets }),
+    });
+    // itamThrow re-raises body.detail only when it is a string; the catalog PATCH returns a
+    // plain string detail for fieldset violations, so the server's specific message reaches
+    // the caller unchanged.
+    if (!res.ok) return itamThrow(res, 'Failed to save custom fields');
+    return res.json();
+};
+
 export const createManualAsset = async (data: Record<string, unknown>): Promise<Asset> => {
     const res = await authFetch(`${API_BASE}/assets`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),

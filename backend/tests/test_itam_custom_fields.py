@@ -218,3 +218,93 @@ class TestGetAssetModelFields:
         async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
             r = await ac.get("/api/itam/catalog/models/does-not-exist/fields")
             assert r.status_code == 404, r.text
+
+
+class TestAuthorAssetModelFieldsets:
+    """Task 2: authoring custom-field definitions through the pre-existing
+    PATCH /api/itam/catalog/models/{id} route — the manager's save action drives this route,
+    so these assertions exercise it directly rather than a new backend endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_saving_a_new_field_succeeds_and_is_readable_after_reload(
+        self, mock_db, itam_app, patch_get_database_globally
+    ):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({"id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a", "fieldsets": []})
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.patch("/api/itam/catalog/models/model-1", json={
+                "fieldsets": [{"name": "Hardware", "fields": [
+                    {"key": "warranty_ref", "label": "Warranty Ref", "type": "text"},
+                ]}],
+            })
+            assert r.status_code == 200, r.text
+
+            r2 = await ac.get("/api/itam/catalog/models/model-1/fields")
+            assert r2.status_code == 200, r2.text
+            assert [f["key"] for f in r2.json()["fields"]] == ["warranty_ref"]
+
+    @pytest.mark.asyncio
+    async def test_duplicate_key_across_fieldsets_returns_400(self, mock_db, itam_app, patch_get_database_globally):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({"id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a", "fieldsets": []})
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.patch("/api/itam/catalog/models/model-1", json={
+                "fieldsets": [
+                    {"name": "A", "fields": [{"key": "dup", "label": "Dup1", "type": "text"}]},
+                    {"name": "B", "fields": [{"key": "dup", "label": "Dup2", "type": "text"}]},
+                ],
+            })
+            assert r.status_code == 400, r.text
+            assert "dup" in r.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_non_identifier_key_returns_400(self, mock_db, itam_app, patch_get_database_globally):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({"id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a", "fieldsets": []})
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.patch("/api/itam/catalog/models/model-1", json={
+                "fieldsets": [{"name": "A", "fields": [{"key": "2bad", "label": "Bad", "type": "text"}]}],
+            })
+            assert r.status_code == 400, r.text
+            assert "2bad" in r.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_select_field_with_empty_options_returns_400(self, mock_db, itam_app, patch_get_database_globally):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({"id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a", "fieldsets": []})
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.patch("/api/itam/catalog/models/model-1", json={
+                "fieldsets": [{"name": "A", "fields": [{"key": "colorChoice", "label": "Color", "type": "select"}]}],
+            })
+            assert r.status_code == 400, r.text
+            assert "colorChoice" in r.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_removing_the_last_field_clears_fieldsets(self, mock_db, itam_app, patch_get_database_globally):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({
+            "id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a",
+            "fieldsets": [{"name": "A", "fields": [{"key": "onlyField", "label": "Only", "type": "text"}]}],
+        })
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.patch("/api/itam/catalog/models/model-1", json={"fieldsets": []})
+            assert r.status_code == 200, r.text
+            assert r.json()["fieldsets"] == []
+
+            r2 = await ac.get("/api/itam/catalog/models/model-1/fields")
+            assert r2.json()["fields"] == []
