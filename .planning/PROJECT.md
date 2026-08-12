@@ -74,21 +74,31 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - Third-party SIEM agents — native agent capability supersedes them for v3.4's scope; outbound OCSF webhook (COMM-01) is the integration point instead
 - Full YARA-rule engine — yara-x rejected at the Phase 50 spike (pulls in wasmtime/cranelift JIT, cross-compile risk); hash-signature + aho-corasick literal matching shipped instead, full YARA support deferred to backlog item 999.4
 
-## Current Milestone: v4.0 ITAM
+## Current Milestone: v4.1 ITAM-Backlog
+
+**Goal:** Close the gaps between the current ITAM Console and Snipe-IT — extend the v4.0 ITAM lifecycle with Users + Auth, Custom Fields, Audit Trail, Reports/Dashboards, Alerts, Approval Workflows, API Integrations, and Settings. See `.planning/codebase/ITAM-VS-SNIPE.md` for the full gap analysis (~30-40% feature parity at v4.0 close).
+
+**Target features (6 categories in scope):**
+- **Category 1 — Users & Auth:** User CRUD, RBAC roles, LDAP/AD, SAML/SSO, API access tokens, 2FA.
+- **Category 2 — Core Data & Audit:** Custom fields engine on asset models, append-only audit trail/activity log for all entities, bulk CSV import/export.
+- **Category 3 — Reports & Dashboards:** Custom report builder, pre-built reports, PDF/CSV/Excel export, dashboard with KPIs/visualizations.
+- **Category 4 — Procurement & Workflow:** PO/cost/supplier tracking, warranty alerts, depreciation modeling, requestable-assets approval workflow, email/Slack notifications.
+- **Category 5 — API & Integrations:** Full CRUD REST API for all ITAM entities, webhook system, third-party integrations (Jira, ServiceNow).
+- **Category 6 — Settings & Customization:** Global settings UI, branding/theming, localization/translation.
+
+**Key constraints:** extends the v4.0 ITAM surfaces (assets model, itam_* services/endpoints, ITAMConsole.tsx tabs) — don't fork; tenant isolation on every new collection/endpoint; reuse existing notification/webhook infra for alerts; offline-first where applicable; admin-gated following the Phase 47/48/61 pattern.
+
+**Out of scope:** full GL/multi-currency accounting (unchanged from v4.0); RFID scanner drivers (unchanged); forking the `assets` collection (unchanged); migrating security-CMDB semantics (unchanged).
+
+**Phase plan:** TBD — continues numbering from Phase 63 (v4.1 starts at Phase 64)
+
+---
+
+## v4.0 ITAM (Previous Milestone — Shipped 2026-08-10)
 
 **Goal:** Add a full Snipe-IT-parity IT Asset Management lifecycle on top of the existing security/observability CMDB: manage physical/virtual assets through procurement → assignment → maintenance → retirement, with people checking gear in and out, licenses/consumables, and financial/warranty tracking — turning the security-monitoring "asset inventory" into a true ITAM system.
 
-**Target features (all 4 clusters in scope):**
-- **Cluster A — Lifecycle + check-in/out:** assign assets to users/locations, check-out/check-in flows, status lifecycle labels (deployable/deployed/archived/retired/disposed/broken), assignment history/audit trail.
-- **Cluster B — Procurement + finance:** purchase cost/date/PO number/supplier, warranty tracking + expiry alerts, depreciation schedules (straight-line at minimum).
-- **Cluster C — Catalog + org:** manufacturers, asset models, categories, suppliers, locations, custom fields, asset tags + QR/barcode label generation.
-- **Cluster D — Licenses + consumables:** software license seats (assign/reclaim/expiry), accessories/consumables/components with check-out + quantities.
-
-**Key constraints:** reuse the existing `assets` model / `asset_endpoints.py` where sensible — don't fork it; support manual (non-agent) assets since Snipe-IT-style assets are hand-catalogued, unlike the current agent-auto-discovered inventory; tenant isolation on every new collection/endpoint; offline-first/air-gapped (label/QR generation with no external services); admin-gated nav pages following the Phase 47/48 pattern (new AppView + App.tsx + Sidebar entry + permission gate).
-
-**Out of scope:** deep accounting/GL integration beyond basic depreciation; multi-currency finance; physical RFID hardware integration (QR/barcode generation only, no scanner drivers); migrating existing security-CMDB semantics (ITAM is additive).
-
-**Phase plan:** TBD — continues numbering from Phase 55 (v4.0 starts at Phase 56)
+**Status:** Complete — all 17 v1 requirements (ITAM-CAT/LIFE/FIN/LIC/UI) shipped and verified across 6 phases (56–61). Archived from active milestone. See `.planning/milestones/v4.0-ROADMAP.md`.
 
 ---
 
