@@ -121,4 +121,28 @@ describe('CustomFieldsManager', () => {
     // Draft is preserved — the existing field row is still on screen.
     expect(screen.getByLabelText('Key for field 0-0')).toHaveValue('ramGb');
   });
+
+  it('removing an in-use field surfaces a warning naming the key and its asset count', async () => {
+    fetchAssetModelFields.mockResolvedValue({
+      modelId: 'model-1',
+      modelName: 'ThinkPad X1',
+      fieldsets: [
+        { name: 'Hardware', fields: [{ key: 'ramGb', label: 'RAM (GB)', type: 'number' }] },
+      ],
+      fields: [
+        { fieldsetName: 'Hardware', key: 'ramGb', label: 'RAM (GB)', type: 'number', required: false, options: [] },
+      ],
+      usageCounts: { ramGb: 3 },
+    });
+
+    render(<CustomFieldsManager modelId="model-1" modelName="ThinkPad X1" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText('Hardware')).toBeInTheDocument());
+    expect(screen.getByText('in use by 3 assets')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Remove field 0-0'));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("'ramGb'"));
+    expect(screen.getByRole('alert')).toHaveTextContent('in use by 3 assets');
+  });
 });

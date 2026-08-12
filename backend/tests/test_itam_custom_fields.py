@@ -308,3 +308,62 @@ class TestAuthorAssetModelFieldsets:
 
             r2 = await ac.get("/api/itam/catalog/models/model-1/fields")
             assert r2.json()["fields"] == []
+
+
+class TestUsageCounts:
+    """Task 3: per-key asset usage counts on GET /models/{model_id}/fields."""
+
+    @pytest.mark.asyncio
+    async def test_usage_counts_sourced_from_count_documents(self, mock_db, itam_app, patch_get_database_globally):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({
+            "id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a",
+            "fieldsets": [{"name": "A", "fields": [{"key": "ramGb", "label": "RAM", "type": "number"}]}],
+        })
+        assets = [
+            {"id": "asset-1", "tenantId": "tenant-a", "modelId": "model-1", "customFields": {"ramGb": 16}},
+            {"id": "asset-2", "tenantId": "tenant-a", "modelId": "model-1", "customFields": {"ramGb": 32}},
+            {"id": "asset-3", "tenantId": "tenant-a", "modelId": "model-1", "customFields": {}},
+        ]
+
+        async def _count_by_custom_field(filter_doc):
+            """The generic _wire_crud_store matcher does exact-equality filtering, which
+            can't express Mongo dot-path + $exists queries. This stub understands the one
+            shape the fields route issues: {modelId, tenantId, "customFields.<key>": {"$exists": True}}."""
+            key = next(k.split(".", 1)[1] for k in filter_doc if k.startswith("customFields."))
+            return sum(
+                1 for a in assets
+                if a.get("modelId") == filter_doc.get("modelId")
+                and a.get("tenantId") == filter_doc.get("tenantId")
+                and key in (a.get("customFields") or {})
+            )
+
+        mock_db.assets.count_documents = AsyncMock(side_effect=_count_by_custom_field)
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/itam/catalog/models/model-1/fields")
+            assert r.status_code == 200, r.text
+            assert r.json()["usageCounts"] == {"ramGb": 2}
+
+    @pytest.mark.asyncio
+    async def test_fields_route_degrades_to_empty_counts_when_count_query_raises(
+        self, mock_db, itam_app, patch_get_database_globally
+    ):
+        model_store = _wire_crud_store(mock_db.asset_models)
+        model_store.append({
+            "id": "model-1", "name": "ThinkPad X1", "tenantId": "tenant-a",
+            "fieldsets": [{"name": "A", "fields": [{"key": "ramGb", "label": "RAM", "type": "number"}]}],
+        })
+        _wire_crud_store(mock_db.assets)
+        mock_db.assets.count_documents = AsyncMock(side_effect=RuntimeError("mongo timeout"))
+        _authed_client_kwargs(itam_app, patch_get_database_globally)
+
+        transport = ASGITransport(app=itam_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/itam/catalog/models/model-1/fields")
+            assert r.status_code == 200, r.text
+            data = r.json()
+            assert data["usageCounts"] == {}
+            assert [f["key"] for f in data["fields"]] == ["ramGb"]

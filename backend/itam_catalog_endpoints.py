@@ -11,7 +11,7 @@ from pymongo import ReturnDocument
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database, TenantIsolatedDatabase
-from itam_catalog_service import flatten_fieldsets, validate_fieldsets
+from itam_catalog_service import count_field_usage_keys, flatten_fieldsets, validate_fieldsets
 from itam_models import (
     AssetModelCreate,
     AssetModelUpdate,
@@ -33,6 +33,11 @@ CATALOG_KINDS: Dict[str, str] = {
     "suppliers": "suppliers",
     "models": "asset_models",
 }
+
+# Cap the per-key usage-count fan-out on GET /models/{model_id}/fields so a model with an
+# unreasonable number of declared field keys cannot turn one request into an unbounded burst
+# of count_documents calls (T-65-01-04).
+_MAX_USAGE_COUNT_KEYS = 50
 
 CATALOG_REFERENCE_FIELDS: Dict[str, str] = {
     "manufacturers": "manufacturerId",
@@ -194,13 +199,33 @@ async def get_asset_model_fields(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Model with ID '{model_id}' not found")
 
-    return {
+    usage_counts: Dict[str, int] = {}
+    usage_counts_truncated = False
+    try:
+        keys = count_field_usage_keys(doc)
+        if len(keys) > _MAX_USAGE_COUNT_KEYS:
+            usage_counts_truncated = True
+            keys = keys[:_MAX_USAGE_COUNT_KEYS]
+        for key in keys:
+            usage_counts[key] = await db.assets.count_documents({
+                "modelId": model_id,
+                f"customFields.{key}": {"$exists": True},
+            })
+    except Exception as e:
+        logger.error(f"Failed to compute custom-field usage counts for model {model_id}: {e}")
+        usage_counts = {}
+        usage_counts_truncated = False
+
+    response: Dict[str, Any] = {
         "modelId": model_id,
         "modelName": doc.get("name"),
         "fieldsets": doc.get("fieldsets") or [],
         "fields": flatten_fieldsets(doc),
-        "usageCounts": {},
+        "usageCounts": usage_counts,
     }
+    if usage_counts_truncated:
+        response["usageCountsTruncated"] = True
+    return response
 
 
 @router.get("/{kind}/{entity_id}", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])

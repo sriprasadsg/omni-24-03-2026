@@ -84,6 +84,15 @@ def collect_field_defs(model_doc: dict) -> Dict[str, dict]:
     return defs
 
 
+def count_field_usage_keys(model_doc: dict) -> List[str]:
+    """Return the distinct field keys declared on a model.
+
+    Single source of "what to count" for the fields route's per-key asset usage count, so
+    that counting logic lives once in the router and this module stays DB-I/O-free.
+    """
+    return list(collect_field_defs(model_doc).keys())
+
+
 def validate_custom_field_values(field_defs: Dict[str, dict], values: Dict[str, Any]) -> List[str]:
     """Check a customFields value mapping against a model's flattened field definitions.
 

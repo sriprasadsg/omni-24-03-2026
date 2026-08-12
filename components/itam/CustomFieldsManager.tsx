@@ -129,6 +129,17 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
 
   const usageCounts = data?.usageCounts || {};
 
+  // Warn (advisory only — never blocks Save) when a field key the model already declared,
+  // and that at least one asset currently carries a value for, is about to be removed or
+  // retyped by the in-progress draft. Existing values for those keys will no longer
+  // validate against the model once saved.
+  const currentTypeByKey: Record<string, FieldType> = {};
+  draft.forEach((fs) => fs.fields.forEach((f) => { currentTypeByKey[f.key] = f.type; }));
+  const affectedFields = (data?.fields || [])
+    .filter((f) => (usageCounts[f.key] || 0) > 0)
+    .filter((f) => !(f.key in currentTypeByKey) || currentTypeByKey[f.key] !== f.type)
+    .map((f) => ({ key: f.key, count: usageCounts[f.key] || 0 }));
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -257,6 +268,14 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
             >
               Add fieldset
             </button>
+          </div>
+        )}
+
+        {affectedFields.length > 0 && (
+          <div className="text-xs text-amber-400 bg-amber-950/40 border border-amber-800 rounded-lg px-3 py-2 mb-3" role="alert">
+            Caution: {affectedFields.map((f) => `'${f.key}' (in use by ${f.count} asset${f.count === 1 ? '' : 's'})`).join(', ')}{' '}
+            {affectedFields.length === 1 ? 'is' : 'are'} being removed or retyped. Existing asset values for{' '}
+            {affectedFields.length === 1 ? 'this key' : 'these keys'} will no longer validate against this model.
           </div>
         )}
 
