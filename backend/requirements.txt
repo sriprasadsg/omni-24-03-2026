@@ -26,6 +26,7 @@ Pillow>=12.2.0                  # CVE-2026-42308/09/10/11/40192/25990 fixed in 1
 python-barcode==0.16.1          # Code128 1D barcode generation for ITAM asset-tag labels (ITAM-CAT-05); pinned exactly (not >=) — automated legitimacy seam graded SUS, human-approved 2026-08-05, a floating bound would let a later release skip review
 authlib>=1.3.0,<2.0.0          # OIDC / OAuth2 / SAML SSO flows
 defusedxml>=0.7.1,<1.0.0       # Safe XML/SAML parsing (prevents XXE)
+ldap3==2.9.1                    # LDAP/AD integration (ITAM-USR-03); pinned exactly — human-approved via blocking checkpoint 2026-08-13, pure-Python (no libldap2-dev/libsasl2-dev headers needed)
 
 # ── Database ─────────────────────────────────────────────────────────────────
 motor>=3.3.0,<4.0.0            # Async MongoDB driver (used throughout)
