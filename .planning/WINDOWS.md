@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 9
+open_count: 11
 waived_count: 0
 fixed_count: 1
-total_count: 10
-last_updated: 2026-08-12T20:41:16.997Z
+total_count: 12
+last_updated: 2026-08-12T21:02:39.407Z
 ---
 
 # Broken Windows Ledger
@@ -25,6 +25,8 @@ last_updated: 2026-08-12T20:41:16.997Z
 | 8 | 64 | unrun-verify | backend/ldap_endpoints.py |  | Manual end-to-end LDAP verification (POST /api/admin/ldap/test-connection and /api/admin/ldap/sync against a real LDAP/AD server) not run — no directory available in sandbox; only unit tests with a mocked LDAP server were run. | open |  | 2026-08-12T20:41:16.644Z |  |
 | 9 | 64 | deviation | backend/user_endpoints.py |  | Rule 2: wired T-64-12 (block local password change for source=ldap users) into user_endpoints.update_user and auth_password_reset_endpoints.confirm_password_reset — outside 64-03's declared files_modified, but required for the plan's own must-have truth. | open |  | 2026-08-12T20:41:16.832Z |  |
 | 10 | 64 | unrun-verify | backend/auth_password_reset_endpoints.py |  | New source=ldap password-reset block has no automated test — this file has zero pre-existing test coverage in the repo and adding a new test file was judged out of 64-03's scope; verified only by manual syntax/logic review. | open |  | 2026-08-12T20:41:16.997Z |  |
+| 11 | 64 | unrun-verify | backend/saml_service.py |  | Manual end-to-end SAML verification (SP-initiated and IdP-initiated SSO against a real IdP) not performed — no SAML IdP available in this sandbox; only unit/endpoint tests with mocked OneLogin_Saml2_Auth were run (mirrors 64-03 LDAP's same accepted gap). | open |  | 2026-08-12T21:02:33.354Z |  |
+| 12 | 64 | deviation | backend/saml_service.py |  | SAML_IDP_METADATA_URL auto-configuration (fetch+parse IdP metadata XML via OneLogin_Saml2_IdPMetadataParser) not implemented — only manual idp_entity_id/idp_sso_url/idp_slo_url/idp_x509_cert config is supported. The env var is documented in the plan's user_setup but SAMLConfig.from_env() does not read/use it. | open |  | 2026-08-12T21:02:39.407Z |  |
 
 ````json
 [
@@ -146,6 +148,30 @@ last_updated: 2026-08-12T20:41:16.997Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-12T20:41:16.997Z",
+    "resolved_at": null
+  },
+  {
+    "id": 11,
+    "kind": "unrun-verify",
+    "phase": "64",
+    "file": "backend/saml_service.py",
+    "line": null,
+    "description": "Manual end-to-end SAML verification (SP-initiated and IdP-initiated SSO against a real IdP) not performed — no SAML IdP available in this sandbox; only unit/endpoint tests with mocked OneLogin_Saml2_Auth were run (mirrors 64-03 LDAP's same accepted gap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-12T21:02:33.354Z",
+    "resolved_at": null
+  },
+  {
+    "id": 12,
+    "kind": "deviation",
+    "phase": "64",
+    "file": "backend/saml_service.py",
+    "line": null,
+    "description": "SAML_IDP_METADATA_URL auto-configuration (fetch+parse IdP metadata XML via OneLogin_Saml2_IdPMetadataParser) not implemented — only manual idp_entity_id/idp_sso_url/idp_slo_url/idp_x509_cert config is supported. The env var is documented in the plan's user_setup but SAMLConfig.from_env() does not read/use it.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-12T21:02:39.407Z",
     "resolved_at": null
   }
 ]
