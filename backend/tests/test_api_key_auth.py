@@ -91,8 +91,13 @@ async def test_dependency_valid_key_returns_tenant_scoped_api_integration():
     key = "omni_sk_valid"
     key_hash = hashlib.sha256(key.encode()).hexdigest()
     tenants = _col(find_one=AsyncMock(return_value={"id": "t1", "apiKeys": [{"keyHash": key_hash}]}))
+    # ITAM-USR-05 (64-05): get_current_user_or_api_key now tries the new
+    # user-scoped token path (db.users) first; a legacy tenant-scoped key
+    # like this one has no matching user-scoped record, so db.users.find_one
+    # must resolve to None (not an unconfigured MagicMock) for the fallback
+    # to the tenant-scoped lookup below to run.
     mock_mongodb = MagicMock()
-    mock_mongodb.db = _db(tenants=tenants)
+    mock_mongodb.db = _db(tenants=tenants, users=_col())
 
     with patch.object(api_key_auth, "mongodb", mock_mongodb), \
          patch.object(api_key_auth, "set_tenant_id") as set_tid:
@@ -110,7 +115,7 @@ async def test_dependency_valid_key_returns_tenant_scoped_api_integration():
 async def test_dependency_wrong_key_401():
     tenants = _col(find_one=AsyncMock(return_value=None))
     mock_mongodb = MagicMock()
-    mock_mongodb.db = _db(tenants=tenants)
+    mock_mongodb.db = _db(tenants=tenants, users=_col())
 
     with patch.object(api_key_auth, "mongodb", mock_mongodb):
         with pytest.raises(HTTPException) as exc:
@@ -126,7 +131,7 @@ async def test_dependency_revoked_key_401():
         "id": "t1", "apiKeys": [{"keyHash": key_hash, "revoked": True}]
     }))
     mock_mongodb = MagicMock()
-    mock_mongodb.db = _db(tenants=tenants)
+    mock_mongodb.db = _db(tenants=tenants, users=_col())
 
     with patch.object(api_key_auth, "mongodb", mock_mongodb):
         with pytest.raises(HTTPException) as exc:
