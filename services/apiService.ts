@@ -12,7 +12,7 @@ import {
     Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload,
     SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
-    ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus,
+    ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
 } from '../types';
 
 export type {
@@ -5248,6 +5248,12 @@ export const updateCatalogEntity = async (kind: ItamCatalogKind, id: string, dat
 export const deleteCatalogEntity = async (kind: ItamCatalogKind, id: string): Promise<void> => {
     const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, { method: 'DELETE' });
     if (!res.ok) return itamThrow(res, `Failed to delete ${kind}`);
+};
+
+export const fetchAssetModelFields = async (modelId: string): Promise<ItamModelFields> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/models/${modelId}/fields`);
+    if (!res.ok) return itamThrow(res, `Failed to load custom fields`);
+    return res.json();
 };
 
 export const createManualAsset = async (data: Record<string, unknown>): Promise<Asset> => {

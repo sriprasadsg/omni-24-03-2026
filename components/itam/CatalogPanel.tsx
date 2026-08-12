@@ -3,6 +3,7 @@ import Modal from '../ui/Modal';
 import { ItamCatalogEntity, ItamCatalogKind } from '../../types';
 import { fetchCatalogEntities, createCatalogEntity, deleteCatalogEntity } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
+import { CustomFieldsManager } from './CustomFieldsManager';
 
 const KINDS: { id: ItamCatalogKind; label: string; singular: string }[] = [
   { id: 'manufacturers', label: 'Manufacturers', singular: 'Manufacturer' },
@@ -21,6 +22,7 @@ export function CatalogPanel() {
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ItamCatalogEntity | null>(null);
+  const [fieldsTarget, setFieldsTarget] = useState<ItamCatalogEntity | null>(null);
 
   const kindMeta = KINDS.find((k) => k.id === kind)!;
 
@@ -63,6 +65,16 @@ export function CatalogPanel() {
       showToast(e?.message || `Couldn't delete ${kindMeta.singular.toLowerCase()}.`, 'error');
       setDeleteTarget(null);
     }
+  }
+
+  if (fieldsTarget) {
+    return (
+      <CustomFieldsManager
+        modelId={fieldsTarget.id}
+        modelName={fieldsTarget.name}
+        onClose={() => setFieldsTarget(null)}
+      />
+    );
   }
 
   return (
@@ -114,6 +126,15 @@ export function CatalogPanel() {
                   <td className="py-2 pr-4 text-white font-medium">{e.name}</td>
                   <td className="py-2 pr-4 text-gray-400 max-w-[320px] truncate" title={e.notes}>{e.notes || '—'}</td>
                   <td className="py-2 pr-4 text-right">
+                    {kind === 'models' && (
+                      <button
+                        onClick={() => setFieldsTarget(e)}
+                        className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-4"
+                        aria-label={`Manage fields for ${e.name}`}
+                      >
+                        Manage Fields
+                      </button>
+                    )}
                     <button
                       onClick={() => setDeleteTarget(e)}
                       className="text-red-400 hover:text-red-300 text-xs font-medium"

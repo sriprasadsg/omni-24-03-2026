@@ -266,6 +266,7 @@ export type Permission =
   | 'view:sustainability'
   | 'view:zero_trust'
   | 'view:zero_trust'
+  | 'view:voice_bot'
   | 'view:jobs'
   | 'view:analytics'
   | 'view:governance'
@@ -776,6 +777,7 @@ export interface Asset {
   agentVersion?: string;
   agentId?: string;
   agentCapabilities?: AgentCapability[];
+  loggedInUser?: string;
 
   // ITAM (Phases 56-60) — additive fields on the same assets collection,
   // present on manual assets and progressively backfilled on agent-discovered
@@ -811,6 +813,28 @@ export interface ItamCatalogEntity {
   usefulLifeYears?: number;
   salvageValueCents?: number;
   [key: string]: unknown;
+}
+
+export interface ItamCustomFieldDef {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'date' | 'boolean' | 'select';
+  required?: boolean;
+  options?: string[];
+}
+
+export interface ItamFieldsetDef {
+  name: string;
+  fields: ItamCustomFieldDef[];
+}
+
+export interface ItamModelFields {
+  modelId: string;
+  modelName?: string;
+  fieldsets: ItamFieldsetDef[];
+  fields: (ItamCustomFieldDef & { fieldsetName: string })[];
+  usageCounts: Record<string, number>;
+  usageCountsTruncated?: boolean;
 }
 
 export interface ItamLicense {

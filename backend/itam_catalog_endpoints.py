@@ -11,7 +11,7 @@ from pymongo import ReturnDocument
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database, TenantIsolatedDatabase
-from itam_catalog_service import validate_fieldsets
+from itam_catalog_service import flatten_fieldsets, validate_fieldsets
 from itam_models import (
     AssetModelCreate,
     AssetModelUpdate,
@@ -175,6 +175,33 @@ async def list_catalog_entities(
 
     entities = await collection.find({}, {"_id": 0}).limit(limit).to_list(length=limit)
     return entities
+
+@router.get("/models/{model_id}/fields", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])
+async def get_asset_model_fields(
+    model_id: str,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """
+    Returns an asset Model's custom-field definitions flattened for display, plus a
+    per-key usage count of how many assets currently carry a value for each key.
+
+    Declared before the generic `GET /{kind}/{entity_id}` route so the literal `models`
+    path segment here is matched first and is not swallowed by that route's `{kind}`
+    parameter.
+    """
+    db = get_database()
+    doc = await db.asset_models.find_one({"id": model_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Model with ID '{model_id}' not found")
+
+    return {
+        "modelId": model_id,
+        "modelName": doc.get("name"),
+        "fieldsets": doc.get("fieldsets") or [],
+        "fields": flatten_fieldsets(doc),
+        "usageCounts": {},
+    }
+
 
 @router.get("/{kind}/{entity_id}", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])
 async def get_catalog_entity_by_id(

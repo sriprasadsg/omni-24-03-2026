@@ -50,6 +50,31 @@ def validate_fieldsets(fieldsets: List[dict]) -> None:
                     raise ValueError(f"Select field '{key}' must declare a non-empty options list.")
 
 
+def flatten_fieldsets(model_doc: dict) -> List[dict]:
+    """Flatten a model document's fieldsets into an ordered list of field entries.
+
+    Each entry is `{"fieldsetName", "key", "label", "type", "required", "options"}`,
+    walked in declaration order (fieldset order, then within-fieldset field order). A
+    field with no `label` falls back to its `key`. This is a read-side convenience over
+    the same `fieldsets` shape `validate_fieldsets` already enforces — it performs no
+    validation of its own.
+    """
+    flattened: List[dict] = []
+    for fieldset in model_doc.get("fieldsets") or []:
+        fieldset_name = fieldset.get("name")
+        for field in fieldset.get("fields") or []:
+            key = field.get("key")
+            flattened.append({
+                "fieldsetName": fieldset_name,
+                "key": key,
+                "label": field.get("label") or key,
+                "type": field.get("type"),
+                "required": bool(field.get("required")),
+                "options": field.get("options") or [],
+            })
+    return flattened
+
+
 def collect_field_defs(model_doc: dict) -> Dict[str, dict]:
     """Flatten every fieldset on a model document into a key -> definition mapping."""
     defs: Dict[str, dict] = {}
