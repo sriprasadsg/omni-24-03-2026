@@ -13,7 +13,7 @@ import {
     SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
     ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
-    AuditLogEntry, ItamImportResult,
+    AuditLogEntry, ItamImportResult, ItamSettings,
 } from '../types';
 
 export type {
@@ -5389,6 +5389,33 @@ export const importItamAssetsCsv = async (file: File, dryRun = false): Promise<I
             throw new Error('File is too large to import.');
         }
         return itamThrow(res, 'Import failed');
+    }
+    return res.json();
+};
+
+// ITAM console global settings (Phase 65 Plan 04, ITAM-SET-01/02/03). A NEW,
+// ITAM-console-scoped surface — deliberately separate from the platform-level
+// TenantBrandingSettings.tsx / /api/tenants/{id}/branding (D-01, 65-04-PLAN.md).
+export const getItamSettings = async (): Promise<ItamSettings> => {
+    const res = await authFetch(`${API_BASE}/itam/settings`);
+    if (!res.ok) return itamThrow(res, 'Failed to load ITAM settings');
+    return res.json();
+};
+
+export const saveItamSettings = async (settings: ItamSettings): Promise<ItamSettings> => {
+    const res = await authFetch(`${API_BASE}/itam/settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        // The save route's 400 body carries `detail.problems` (an array naming each
+        // rejected field) rather than a plain string detail, so itamThrow's generic
+        // string-detail-only re-raise would lose it — surface the joined problems instead.
+        const body = await res.json().catch(() => ({}));
+        const problems = body?.detail?.problems;
+        if (Array.isArray(problems) && problems.length > 0) {
+            throw new Error(problems.join('; '));
+        }
+        return itamThrow(res, 'Failed to save ITAM settings');
     }
     return res.json();
 };

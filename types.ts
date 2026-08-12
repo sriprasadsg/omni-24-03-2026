@@ -932,6 +932,22 @@ export interface ItamImportResult {
   errorsTruncated?: boolean;
 }
 
+// ITAM console global settings — branding/theming + localization (Phase 65 Plan 04,
+// ITAM-SET-01/02/03). A NEW, ITAM-console-scoped surface — deliberately separate from
+// the platform-level TenantBrandingSettings.tsx (D-01, 65-04-PLAN.md).
+export type ItamLocale = 'en' | 'es';
+
+export interface ItamBranding {
+  companyName: string;
+  logoUrl: string;
+  primaryColor: string;
+}
+
+export interface ItamSettings {
+  branding: ItamBranding;
+  locale: ItamLocale;
+}
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;

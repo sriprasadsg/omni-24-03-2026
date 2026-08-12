@@ -42,6 +42,8 @@ vi.mock('../../services/apiService', () => ({
   fetchItamAuditLogs: vi.fn().mockResolvedValue([]),
   verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
   exportItamAssetsCsv: vi.fn(),
+  getItamSettings: vi.fn().mockResolvedValue({ branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' }, locale: 'en' }),
+  saveItamSettings: vi.fn(),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
   API_BASE: '/api',
 }));
@@ -51,7 +53,7 @@ vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 import ITAMConsole from '../../components/itam/ITAMConsole';
 
 describe('ITAMConsole', () => {
-  it('renders all 8 tabs and defaults to Catalog', async () => {
+  it('renders all 9 tabs and defaults to Catalog', async () => {
     render(<ITAMConsole />);
     expect(screen.getByText('Catalog')).toBeInTheDocument();
     expect(screen.getByText('Check-Out/In')).toBeInTheDocument();
@@ -61,7 +63,15 @@ describe('ITAMConsole', () => {
     expect(screen.getByText('Software Inventory')).toBeInTheDocument();
     expect(screen.getByText('Activity')).toBeInTheDocument();
     expect(screen.getByText('Import / Export')).toBeInTheDocument();
+    expect(screen.getByText('Settings')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Manufacturers')).toBeInTheDocument());
+  });
+
+  it('switches to the Settings tab and shows the branding form', async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Settings'));
+    await waitFor(() => expect(screen.getByLabelText('Company name')).toBeInTheDocument());
+    expect(screen.getByLabelText('Logo URL')).toBeInTheDocument();
   });
 
   it('switches to the Import / Export tab and shows the export button', async () => {
