@@ -843,11 +843,13 @@ Plans:
 **Goal:** [Promoted from backlog 999.2, deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Original scope was under-specified + dangerous + hard to make reversible — the four reversible actions (kill/restore/block/disable) are now proven in production, so this is ready to plan properly.
 **Requirements**: extends AUTO-02
 **Depends on:** Phase 63
-**Plans:** 0 plans
+**Plans:** 1/3 plans complete
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 64 to break down)
+- [x] 64-01-PLAN.md — Backend HashiCorp Vault client, agent `rotate_key` instruction, and end-to-end tracer.
+- [ ] 64-02-PLAN.md — Rust weak-key detection (ssh_key_checks.rs + scanner integration)
+- [ ] 64-03-PLAN.md — Rust rotation mechanics (ssh_key_rotation.rs + dispatch arms + grounded re-verify)
 
 ### Phase 65: FIM process attribution via fanotify
 
