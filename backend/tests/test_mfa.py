@@ -43,6 +43,10 @@ def _db_mock(user=None, mfa_sessions_col=None):
     db.users = MagicMock()
     db.users.find_one = AsyncMock(return_value=user)
     db.users.update_one = AsyncMock()
+    # Default: the atomic find_one_and_update "succeeds" (returns the matched
+    # doc) whenever a user is present, mirroring real Mongo semantics for a
+    # matching filter — individual tests override this to simulate a race.
+    db.users.find_one_and_update = AsyncMock(return_value=user)
     raw = MagicMock()
     raw.mfa_sessions = mfa_sessions_col or _col()
     db._db = raw
@@ -158,10 +162,27 @@ class TestBackupCodes:
         with patch("mfa_service.get_database", return_value=db):
             ok = await mfa_service.use_backup_code("user@example.com", "11112222")
         assert ok is True
-        # The remaining hash list passed to update_one must no longer contain the used code
-        _, kwargs = db.users.update_one.call_args
-        set_doc = db.users.update_one.call_args.args[1]["$set"]
-        assert code_hash not in set_doc["mfa.backup_codes_hashed"]
+        # WR-01: consumption is atomic — a single find_one_and_update that both
+        # matches on the exact hash and $pulls it, not a read-then-replace-array.
+        db.users.find_one_and_update.assert_awaited_once()
+        filter_arg, update_arg = db.users.find_one_and_update.call_args.args[:2]
+        assert filter_arg == {"email": "user@example.com", "mfa.backup_codes_hashed": code_hash}
+        assert update_arg["$pull"] == {"mfa.backup_codes_hashed": code_hash}
+        db.users.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_use_backup_code_toctou_race_loses_atomic_update_returns_false(self):
+        """WR-01 regression guard: if a concurrent request already consumed the
+        code between the initial read and the atomic $pull (find_one_and_update
+        matches nothing and returns None), use_backup_code must report failure
+        rather than a false-positive success."""
+        code_hash = mfa_service._hash_backup_code("11112222")
+        user = _hashed_password_user(backup_codes_hashed=[code_hash])
+        db = _db_mock(user=user)
+        db.users.find_one_and_update = AsyncMock(return_value=None)
+        with patch("mfa_service.get_database", return_value=db):
+            ok = await mfa_service.use_backup_code("user@example.com", "11112222")
+        assert ok is False
 
     @pytest.mark.asyncio
     async def test_use_backup_code_wrong_code_fails(self):

@@ -121,6 +121,16 @@ async def use_backup_code(email: str, code: str) -> bool:
     """
     Verify and consume a backup code.
     Returns True if the code was valid and not yet used.
+
+    Consumption is made atomic via a single find_one_and_update that both
+    matches and $pulls the exact hash that verified (WR-01): the initial scan
+    to find which stored hash matches (bcrypt hashes are salted per-call, so
+    they can't be matched directly by a Mongo query) is still a non-atomic
+    read, but the actual consume-and-check-success step is now a single
+    atomic operation instead of read-then-replace-the-whole-array — closing
+    the window where two concurrent requests submitting the same still-valid
+    code could both read the same list, both find the match, and both return
+    True before either write landed.
     """
     db = get_database()
     user = await db.users.find_one({"email": email})
@@ -130,15 +140,14 @@ async def use_backup_code(email: str, code: str) -> bool:
     stored_hashes = user.get("mfa", {}).get("backup_codes_hashed", [])
     for code_hash in stored_hashes:
         if _verify_backup_code(code, code_hash):
-            new_hashes = [h for h in stored_hashes if h != code_hash]
-            await db.users.update_one(
-                {"email": email},
-                {"$set": {
-                    "mfa.backup_codes_hashed": new_hashes,
-                    "mfa.last_used_at": datetime.now(timezone.utc).isoformat(),
-                }}
+            result = await db.users.find_one_and_update(
+                {"email": email, "mfa.backup_codes_hashed": code_hash},
+                {
+                    "$pull": {"mfa.backup_codes_hashed": code_hash},
+                    "$set": {"mfa.last_used_at": datetime.now(timezone.utc).isoformat()},
+                },
             )
-            return True
+            return result is not None
     return False
 
 
