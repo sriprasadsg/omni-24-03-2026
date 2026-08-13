@@ -20,23 +20,23 @@ router = APIRouter(prefix="/api/mfa", tags=["MFA"])
 class MFASetupRequest(BaseModel):
     # Only required when MFA is already enabled on the account (re-enrollment) —
     # mirrors the password-confirmation gate on /disable and /backup-codes/regenerate.
-    password: Optional[str] = None
+    password: Optional[str] = Field(None, max_length=1024)
 
 class MFAVerifySetupRequest(BaseModel):
-    totp_code: str
+    totp_code: str = Field(..., max_length=16)
     # Same as above — only required for re-enrollment against an already-enabled account.
-    password: Optional[str] = None
+    password: Optional[str] = Field(None, max_length=1024)
 
 class MFAVerifyLoginRequest(BaseModel):
-    session_token: str
-    code: str
+    session_token: str = Field(..., max_length=64)
+    code: str = Field(..., max_length=16)
     use_backup_code: bool = False
 
 class MFADisableRequest(BaseModel):
-    password: str
+    password: str = Field(..., max_length=1024)
 
 class MFABackupCodesRegenerateRequest(BaseModel):
-    password: str
+    password: str = Field(..., max_length=1024)
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────

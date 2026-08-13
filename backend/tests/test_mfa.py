@@ -659,6 +659,26 @@ class TestMFAEndpoints:
                 resp = client.post("/api/mfa/setup", json={})
         assert resp.status_code == 200
 
+    def test_disable_endpoint_rejects_oversized_password(self):
+        """WR-06: MFA request models must bound user-controlled string length,
+        matching authentication_endpoints.LoginRequest's password max_length=1024
+        convention — an oversized password must not reach bcrypt.checkpw."""
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with TestClient(app) as client:
+            resp = client.post("/api/mfa/disable", json={"password": "x" * 1025})
+        assert resp.status_code == 422
+
+    def test_verify_login_rejects_oversized_code_and_session_token(self):
+        from fastapi.testclient import TestClient
+        app = self._app()
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/mfa/verify",
+                json={"session_token": "x" * 65, "code": "1" * 17, "use_backup_code": False},
+            )
+        assert resp.status_code == 422
+
     def test_disable_endpoint_requires_password_field(self):
         from fastapi.testclient import TestClient
         app = self._authed_app()
