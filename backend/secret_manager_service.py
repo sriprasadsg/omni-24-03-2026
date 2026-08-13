@@ -1,10 +1,10 @@
-import os
 import hvac
+from backend.config import VAULT_ADDR, VAULT_TOKEN
 
 class VaultService:
     def __init__(self):
-        self.url = os.environ.get('VAULT_ADDR', 'http://127.0.0.1:8200')
-        self.token = os.environ.get('VAULT_TOKEN')
+        self.url = VAULT_ADDR
+        self.token = VAULT_TOKEN
         self.client = hvac.Client(url=self.url, token=self.token)
 
     def read_secret(self, path: str):
