@@ -5,6 +5,7 @@ MFA Endpoints — /api/mfa/*
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from authentication_endpoints import _SENSITIVE_USER_FIELDS
 from database import get_database
 from rate_limiter import limiter
 from datetime import timedelta
@@ -113,7 +114,7 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
         data={"sub": email, "role": role, "tenant_id": tenant_id, "mfa_verified": True},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    user_data = {k: v for k, v in user.items() if k not in ("password", "_id", "mfa")}
+    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
     user_data["id"] = str(user.get("_id", ""))
 
     return {
