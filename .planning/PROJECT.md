@@ -90,7 +90,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 **Out of scope:** full GL/multi-currency accounting (unchanged from v4.0); RFID scanner drivers (unchanged); forking the `assets` collection (unchanged); migrating security-CMDB semantics (unchanged).
 
-**Phase plan:** TBD — continues numbering from Phase 63 (v4.1 starts at Phase 64)
+**Phase plan:** Phases 69-73 (renumbered 2026-08-13 from originally-planned 64-68 — those numbers collided with unrelated concurrent root-track phases; see `.planning/milestones/v4.1-ROADMAP.md`'s superseded banner). Phases 69/70 (User Management, Core Data/Audit/Customization) shipped; 71-73 (Procurement, Reporting, API) not yet planned.
 
 ---
 

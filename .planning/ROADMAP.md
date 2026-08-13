@@ -870,3 +870,102 @@ Plans:
 Plans:
 
 - [ ] TBD (run /gsd-plan-phase 66 to break down)
+
+### Phase 69: User Management
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 64 on 2026-08-13 — see that file's superseded banner. Renumbered 64→69 to resolve a phase-number collision: this repo independently claimed 64 for both this ITAM-Backlog work and the rotate_key remediation phase above.] Users can authenticate and manage accounts securely.
+**Requirements**: ITAM-USR-01, ITAM-USR-02, ITAM-USR-03, ITAM-USR-04, ITAM-USR-05, ITAM-USR-06
+**Depends on:** Phase 66 (last-shipped phase, purely sequential — no functional dependency; this phase originally had no dependency in the v4.1 ITAM-Backlog track)
+**Plans:** 6 plans (waves 1→2: 69-01 and 69-02 in wave 1; 69-03, 69-04, 69-05, 69-06 in parallel in wave 2)
+**Success Criteria:**
+  1. User can create, edit, delete user accounts.
+  2. User can be assigned RBAC roles.
+  3. User can authenticate via LDAP/AD and SAML/SSO.
+  4. User can manage API access tokens.
+  5. User can enable/disable 2FA.
+**UI hint:** yes — frontend for user CRUD, RBAC, 2FA, and API keys already exists; this phase is backend-only. LDAP/SAML admin UI deferred to Phase 70's console work.
+
+Plans:
+
+- [x] 69-01-PLAN.md — User CRUD with ITAM fields, tenant isolation, admin gating (ITAM-USR-01)
+- [x] 69-02-PLAN.md — RBAC extension with ITAM roles, fixed normalization, super-admin guard (ITAM-USR-02)
+- [x] 69-03-PLAN.md — LDAP/AD integration: config, auth, user sync, group-to-role mapping (ITAM-USR-03)
+- [x] 69-04-PLAN.md — SAML/SSO: metadata, ACS, SLO, assertion validation, provisioning (ITAM-USR-04)
+- [x] 69-05-PLAN.md — API token management: lifecycle, scopes, expiration, rate limits (ITAM-USR-05)
+- [x] 69-06-PLAN.md — 2FA: TOTP enroll/verify, backup codes, disable, fixed pitfalls (ITAM-USR-06) — plus 9 additional security-hardening commits from a post-execution code review (see `69-REVIEW.md`)
+
+Code complete, reviewed, and automated-verified (`69-VERIFICATION.md`: 27/27 must-haves). Human UAT open (`69-UAT.md`) — 3 items pending: LDAP real-directory auth, SAML real-IdP auth, MFA disable-form live click-through.
+
+### Phase 70: Core Data, Audit & Customization
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 65 on 2026-08-13 — see that file's superseded banner. Renumbered 65→70 for the same collision reason as Phase 69.] Admins can define custom data structures, track activities, and configure global UI settings.
+**Requirements**: ITAM-DAT-01, ITAM-DAT-02, ITAM-DAT-03, ITAM-SET-01, ITAM-SET-02, ITAM-SET-03
+**Depends on:** Phase 69
+**Plans:** 4 plans (waves 1→4, sequential — every plan touches services/apiService.ts and the ITAM console shell)
+**Success Criteria:**
+  1. User can add/edit custom fields to asset models.
+  2. User can view audit trail for any asset/entity.
+  3. User can bulk import/export assets via CSV.
+  4. User can update branding (logo, colors) in Global Settings.
+  5. User can change the interface language.
+**UI hint:** yes
+
+Plans:
+
+- [x] 70-01-PLAN.md — Custom Fields Manager: model fieldset read route, authoring UI, usage counts (ITAM-DAT-01)
+- [x] 70-02-PLAN.md — Audit trail: entity-filtered query + log_itam_action backfilled into all 20 write routes across 7 itam_*_endpoints.py files, Activity tab (ITAM-DAT-02)
+- [x] 70-03-PLAN.md — CSV import/export: formula-safe export, size-capped validated import with dry run, Import/Export tab (ITAM-DAT-03)
+- [x] 70-04-PLAN.md — ITAM-console Global Settings: branding applied to the console + hand-rolled locale switch, Settings tab (ITAM-SET-01/02/03)
+
+Code complete, reviewed (`70-REVIEW.md` + `70-REVIEW-FIX.md`), automated-verified (`70-VERIFICATION.md`). Human UAT open (`70-UAT.md`).
+
+### Phase 71: Procurement & Asset Workflow
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 66 on 2026-08-13 — renumbered 66→71 for the same collision reason as Phase 69/70.] Manage asset lifecycle from procurement to retirement with automated alerts and approval workflows.
+**Requirements**: ITAM-PRO-01, ITAM-PRO-02, ITAM-PRO-03, ITAM-PRO-04, ITAM-PRO-05
+**Depends on:** Phase 70
+**Plans:** TBD
+**Success Criteria:**
+  1. User can track purchase order details and supplier information.
+  2. User can track warranty expiry and receive automated alerts.
+  3. User can view straight-line depreciation.
+  4. User can request an asset and follow the approval workflow.
+  5. User receives email/Slack notifications for asset lifecycle events.
+**UI hint:** yes
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 71 to break down)
+
+### Phase 72: Reporting & Dashboards
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 67 on 2026-08-13 — renumbered 67→72.] Provide custom report building, pre-built reports, export functionality, and a KPI dashboard.
+**Requirements**: ITAM-REP-01, ITAM-REP-02, ITAM-REP-03, ITAM-REP-04
+**Depends on:** Phase 71
+**Plans:** TBD
+**Success Criteria:**
+  1. User can build and save custom reports.
+  2. User can view pre-built reports for asset/license data.
+  3. User can export reports in PDF, CSV, and Excel.
+  4. User can view the ITAM dashboard with key KPIs and visualizations.
+**UI hint:** yes
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 72 to break down)
+
+### Phase 73: API & Integrations
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 68 on 2026-08-13 — renumbered 68→73.] Extend ITAM capabilities via REST API and external system integrations.
+**Requirements**: ITAM-API-01, ITAM-API-02, ITAM-API-03
+**Depends on:** Phase 72
+**Plans:** TBD
+**Success Criteria:**
+  1. User can use REST API to perform ITAM operations.
+  2. User can configure webhooks to trigger events.
+  3. User can integrate with Jira and ServiceNow.
+**UI hint:** yes
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 73 to break down)
