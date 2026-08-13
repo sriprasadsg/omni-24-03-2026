@@ -110,6 +110,11 @@ def verify_totp_code(secret: str, code: str) -> bool:
     return totp.verify(code, valid_window=1)
 
 
+def _current_totp_step() -> int:
+    """The current 30s TOTP time-step, used for anti-replay tracking (WR-03)."""
+    return int(datetime.now(timezone.utc).timestamp()) // 30
+
+
 # ─── Backup Codes ─────────────────────────────────────────────────────────────
 
 def generate_backup_codes(count: int = 8) -> list[str]:
@@ -404,9 +409,21 @@ async def verify_mfa_token(session_token: str, code: str) -> dict:
 
     secret = _decrypt_secret(user["mfa"]["secret_encrypted"])
     if verify_totp_code(secret, code):
+        # Anti-replay (WR-03): reject a code whose current time-step has
+        # already been accepted before, closing the window where a
+        # captured/observed valid code (shoulder-surfing, malicious browser
+        # extension, MITM) could be replayed against a fresh session.
+        step = _current_totp_step()
+        last_used_step = user["mfa"].get("last_used_step")
+        if last_used_step is not None and step <= last_used_step:
+            return {"success": False, "error": "Invalid TOTP code"}
+
         await db.users.update_one(
             {"email": email},
-            {"$set": {"mfa.last_used_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": {
+                "mfa.last_used_at": datetime.now(timezone.utc).isoformat(),
+                "mfa.last_used_step": step,
+            }}
         )
         return {"success": True, "email": email}
 

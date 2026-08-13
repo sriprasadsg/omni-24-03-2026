@@ -343,6 +343,43 @@ class TestMFASessionsTTL:
             result = await mfa_service.verify_mfa_token("tok1", "123456")
         assert result["success"] is False
 
+    @pytest.mark.asyncio
+    async def test_verify_mfa_token_rejects_replay_of_same_time_step(self):
+        """WR-03: a valid code whose time-step was already accepted (e.g. a
+        captured/observed code replayed against a fresh session token) must
+        be rejected even though the TOTP library itself would still accept it."""
+        col = _col()
+        future = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=4)
+        col.find_one_and_delete = AsyncMock(
+            return_value={"_id": "tok1", "email": "user@example.com", "expires_at": future}
+        )
+        current_step = mfa_service._current_totp_step()
+        user = _hashed_password_user(last_used_step=current_step)
+        db = _db_mock(user=user, mfa_sessions_col=col)
+        with patch("mfa_service.get_database", return_value=db), \
+             patch("mfa_service.verify_totp_code", return_value=True):
+            result = await mfa_service.verify_mfa_token("tok1", "123456")
+        assert result["success"] is False
+        db.users.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_verify_mfa_token_success_records_last_used_step(self):
+        col = _col()
+        future = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=4)
+        col.find_one_and_delete = AsyncMock(
+            return_value={"_id": "tok1", "email": "user@example.com", "expires_at": future}
+        )
+        # Simulate a previously-accepted, now-stale step — a fresh code from a
+        # later time-step must still be accepted.
+        user = _hashed_password_user(last_used_step=mfa_service._current_totp_step() - 10)
+        db = _db_mock(user=user, mfa_sessions_col=col)
+        with patch("mfa_service.get_database", return_value=db), \
+             patch("mfa_service.verify_totp_code", return_value=True):
+            result = await mfa_service.verify_mfa_token("tok1", "123456")
+        assert result["success"] is True
+        set_doc = db.users.update_one.call_args.args[1]["$set"]
+        assert set_doc["mfa.last_used_step"] == mfa_service._current_totp_step()
+
 
 # ===========================================================================
 # Enrollment
