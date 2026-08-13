@@ -329,8 +329,16 @@ async def create_mfa_session(email: str) -> str:
     Create a short-lived session token (5 min) returned after password check
     when the account has MFA enabled. The frontend then submits this + TOTP
     to /mfa/verify to receive the full JWT.
+
+    WR-05: caps live sessions per account at 1 by deleting any existing,
+    not-yet-consumed sessions for this email before inserting the new one.
+    Without this, every successful password login inserted an independent
+    session document with no bound — T-64-27's disposition table claims a
+    "per-user session limit" mitigation that the code didn't actually
+    contain (the TTL auto-cleanup half was real, the cap was not).
     """
     col = await _mfa_sessions_col()
+    await col.delete_many({"email": email})
     token = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     await col.insert_one({

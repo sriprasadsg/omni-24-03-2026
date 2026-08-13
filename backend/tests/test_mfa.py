@@ -233,6 +233,20 @@ class TestMFASessionsTTL:
         assert not hasattr(mfa_service, "_mfa_sessions")
 
     @pytest.mark.asyncio
+    async def test_create_mfa_session_deletes_prior_sessions_for_same_account(self):
+        """WR-05: caps live sessions per account at 1 — any existing session(s)
+        for this email must be removed before the new one is inserted, so
+        repeated logins can't accumulate an unbounded number of live sessions."""
+        col = _col()
+        db = _db_mock(mfa_sessions_col=col)
+        with patch("mfa_service.get_database", return_value=db):
+            await mfa_service.create_mfa_session("user@example.com")
+        col.delete_many.assert_awaited_once_with({"email": "user@example.com"})
+        # The delete must happen before the insert (old session gone before new one lands)
+        method_names = [name for name, _args, _kwargs in col.method_calls]
+        assert method_names.index("delete_many") < method_names.index("insert_one")
+
+    @pytest.mark.asyncio
     async def test_create_mfa_session_ensures_ttl_index(self):
         col = _col()
         db = _db_mock(mfa_sessions_col=col)
