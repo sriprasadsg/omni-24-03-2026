@@ -249,6 +249,26 @@ class TestLoginEndpoint:
         assert body.get("mfa_session_token") == "mock-mfa-session-token"
         assert body.get("access_token") == ""
 
+    def test_login_mfa_session_db_failure_returns_503(self):
+        """WR-07: create_mfa_session is a real async Mongo call — a driver
+        connectivity/timeout error must surface as the intended 503, not an
+        unhandled 500 (the prior except-ImportError-only clause never caught
+        this failure mode)."""
+        from pymongo.errors import PyMongoError
+
+        user = _make_hashed_user()
+        user["mfa"] = {"enabled": True}
+        db = _make_db_mock(user=user)
+        app = _make_auth_app()
+
+        with patch("authentication_endpoints.get_database", return_value=db), \
+             patch("mfa_service.create_mfa_session", new_callable=AsyncMock,
+                   side_effect=PyMongoError("connection lost")):
+            with TestClient(app) as client:
+                resp = client.post("/api/auth/login", json={"email": "user@example.com", "password": "Password1!"})
+
+        assert resp.status_code == 503
+
     def test_login_returns_user_without_sensitive_fields(self):
         user = _make_hashed_user()
         db = _make_db_mock(user=user)

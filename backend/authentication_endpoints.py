@@ -29,6 +29,7 @@ from auth_utils import verify_password, hash_password, validate_password_complex
 from rate_limiter import limiter
 from pydantic import BaseModel, Field
 from datetime import timedelta, timezone
+from pymongo.errors import PyMongoError
 import uuid
 import datetime
 import jwt
@@ -167,6 +168,18 @@ async def login_for_access_token(request: Request, response: Response, login_req
                 "user": {},
             }
         except ImportError:
+            raise HTTPException(
+                status_code=503,
+                detail="MFA is required for this account but the MFA service is unavailable. Contact your administrator.",
+            )
+        except PyMongoError as e:
+            # WR-07: create_mfa_session is a real async Mongo insert_one (and,
+            # on first call, create_index) — a connectivity/timeout error from
+            # the driver is a failure mode that didn't exist under the prior
+            # synchronous in-memory implementation, and ImportError alone
+            # never caught it. Without this clause the driver error surfaced
+            # as an unhandled 500 instead of the intended 503.
+            logger.error("MFA session creation failed: %s", e)
             raise HTTPException(
                 status_code=503,
                 detail="MFA is required for this account but the MFA service is unavailable. Contact your administrator.",
