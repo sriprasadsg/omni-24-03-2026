@@ -157,7 +157,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
     if mfa.get("enabled"):
         try:
             import mfa_service
-            session_token = mfa_service.create_mfa_session(user["email"])
+            session_token = await mfa_service.create_mfa_session(user["email"])
             return {
                 "access_token": "",
                 "token_type": "mfa_required",

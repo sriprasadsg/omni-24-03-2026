@@ -221,7 +221,7 @@ class TestLoginEndpoint:
         app = _make_auth_app()
 
         with patch("authentication_endpoints.get_database", return_value=db), \
-             patch("mfa_service.create_mfa_session", return_value="mock-mfa-session-token"):
+             patch("mfa_service.create_mfa_session", new_callable=AsyncMock, return_value="mock-mfa-session-token"):
             with TestClient(app) as client:
                 resp = client.post("/api/auth/login", json={"email": "user@example.com", "password": "Password1!"})
 
@@ -311,9 +311,9 @@ class TestMFAVerifyLogin:
         app = _make_mfa_app()
 
         with patch("mfa_endpoints.get_database", return_value=db), \
-             patch("mfa_service.validate_mfa_session", return_value="user@example.com"), \
+             patch("mfa_service.validate_mfa_session", new_callable=AsyncMock, return_value="user@example.com"), \
              patch("mfa_service.use_backup_code", new_callable=AsyncMock, return_value=True), \
-             patch("mfa_service.consume_mfa_session"):
+             patch("mfa_service.consume_mfa_session", new_callable=AsyncMock):
             with TestClient(app) as client:
                 resp = client.post(
                     "/api/mfa/verify",
@@ -328,7 +328,7 @@ class TestMFAVerifyLogin:
         app = _make_mfa_app()
 
         with patch("mfa_endpoints.get_database", return_value=db), \
-             patch("mfa_service.validate_mfa_session", return_value=None):
+             patch("mfa_service.validate_mfa_session", new_callable=AsyncMock, return_value=None):
             with TestClient(app) as client:
                 resp = client.post(
                     "/api/mfa/verify",

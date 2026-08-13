@@ -90,13 +90,13 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
     };
 
     const handleDisableMfa = async () => {
-        if (disableCode.length !== 6) { setDisableError('Enter the 6-digit TOTP code'); return; }
+        if (!disableCode) { setDisableError('Enter your account password to confirm'); return; }
         setDisableLoading(true); setDisableError('');
         try {
             const r = await authFetch('/api/mfa/disable', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ totp_code: disableCode }),
+                body: JSON.stringify({ password: disableCode }),
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.detail || 'Failed to disable MFA');
@@ -273,19 +273,18 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
                 {/* Inline disable form */}
                 {showDisableMfa && (
                     <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg space-y-3">
-                        <p className="text-sm text-red-700 dark:text-red-300 font-medium">Enter your current TOTP code to confirm disabling 2FA:</p>
+                        <p className="text-sm text-red-700 dark:text-red-300 font-medium">Enter your account password to confirm disabling 2FA:</p>
                         <input
-                            type="text"
+                            type="password"
                             value={disableCode}
-                            onChange={e => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="6-digit code"
-                            maxLength={6}
-                            className="block w-40 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono tracking-widest text-center"
+                            onChange={e => setDisableCode(e.target.value)}
+                            placeholder="Password"
+                            className="block w-64 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm"
                         />
                         {disableError && <p className="text-xs text-red-500">{disableError}</p>}
                         <button
                             onClick={handleDisableMfa}
-                            disabled={disableLoading || disableCode.length !== 6}
+                            disabled={disableLoading || !disableCode}
                             className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
                         >
                             {disableLoading ? 'Disabling...' : 'Confirm Disable'}

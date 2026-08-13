@@ -75,6 +75,18 @@ def _reset_mfa_index_flag():
     mfa_service._mfa_index_created = False
 
 
+@pytest.fixture(autouse=True)
+def _reset_shared_rate_limiter():
+    """mfa_endpoints.router's @limiter.limit(...) decorators bind to the single
+    process-wide rate_limiter.limiter singleton at import time (not the
+    per-test Limiter() built in TestMFAEndpoints._app()) — same isolation
+    pattern as test_ldap_service.py's _reset_ldap_rate_limit."""
+    from rate_limiter import limiter as shared_limiter
+    shared_limiter._storage.reset()
+    yield
+    shared_limiter._storage.reset()
+
+
 # ===========================================================================
 # Encryption enforcement (Pitfall 2)
 # ===========================================================================
@@ -461,6 +473,107 @@ class TestGetMfaStatus:
         assert status["has_backup_codes"] is False
 
 
-# NOTE: Endpoint-level tests (TestMFAEndpoints — disable/regenerate/verify/status
-# routes) are added in Task 2's commit, once mfa_endpoints.py's password-based
-# disable and the new backup-codes/regenerate route exist.
+# ===========================================================================
+# Endpoint-level tests (mount only mfa_endpoints.router)
+# ===========================================================================
+
+class TestMFAEndpoints:
+
+    def _app(self):
+        from fastapi import FastAPI
+        import mfa_endpoints
+        from slowapi import Limiter, _rate_limit_exceeded_handler
+        from slowapi.util import get_remote_address
+        from slowapi.errors import RateLimitExceeded
+        from slowapi.middleware import SlowAPIMiddleware
+
+        mini = FastAPI()
+        test_limiter = Limiter(key_func=get_remote_address)
+        mini.state.limiter = test_limiter
+        mini.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        mini.add_middleware(SlowAPIMiddleware)
+        mini.include_router(mfa_endpoints.router)
+        return mini
+
+    def _authed_app(self):
+        from auth_types import TokenData
+        from authentication_service import get_current_user
+
+        app = self._app()
+        token_data = TokenData(username="user@example.com", role="Viewer", tenant_id="t1", mfa_verified=True)
+        app.dependency_overrides[get_current_user] = lambda: token_data
+        return app
+
+    def test_disable_endpoint_requires_password_field(self):
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with TestClient(app) as client:
+            resp = client.post("/api/mfa/disable", json={"totp_code": "123456"})
+        # Old field name is no longer accepted — password is required (422)
+        assert resp.status_code == 422
+
+    def test_disable_endpoint_success_with_password(self):
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with patch("mfa_service.disable_mfa", new_callable=AsyncMock, return_value={"success": True}):
+            with TestClient(app) as client:
+                resp = client.post("/api/mfa/disable", json={"password": "Correct1!"})
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_disable_endpoint_wrong_password_returns_400(self):
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with patch("mfa_service.disable_mfa", new_callable=AsyncMock,
+                   return_value={"success": False, "error": "Invalid password"}):
+            with TestClient(app) as client:
+                resp = client.post("/api/mfa/disable", json={"password": "wrong"})
+        assert resp.status_code == 400
+
+    def test_backup_codes_regenerate_endpoint(self):
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with patch("mfa_service.regenerate_backup_codes", new_callable=AsyncMock,
+                   return_value={"success": True, "backup_codes": ["1" * 8] * 8}):
+            with TestClient(app) as client:
+                resp = client.post("/api/mfa/backup-codes/regenerate", json={"password": "Correct1!"})
+        assert resp.status_code == 200
+        assert len(resp.json()["backup_codes"]) == 8
+
+    def test_verify_login_issues_jwt_with_mfa_verified_claim(self):
+        """Regression guard: the JWT issued after MFA verification must carry
+        mfa_verified=True so authentication_service.require_mfa() can pass."""
+        import jwt as _jwt
+        from fastapi.testclient import TestClient
+        from authentication_service import SECRET_KEY, ALGORITHM
+
+        user = _hashed_password_user()
+        db = _db_mock(user=user)
+        app = self._app()
+        with patch("mfa_endpoints.get_database", return_value=db), \
+             patch("mfa_service.verify_mfa_token", new_callable=AsyncMock,
+                   return_value={"success": True, "email": "user@example.com"}):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/mfa/verify",
+                    json={"session_token": "valid", "code": "123456", "use_backup_code": False},
+                )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["mfa_verified"] is True
+        payload = _jwt.decode(body["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
+        assert payload["mfa_verified"] is True
+
+    def test_status_endpoint_returns_extended_fields(self):
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with patch("mfa_service.get_mfa_status", new_callable=AsyncMock, return_value={
+            "enabled": True, "enrolled_at": "2026-08-01T00:00:00+00:00",
+            "backup_codes_remaining": 3, "has_backup_codes": True, "last_used": None,
+        }):
+            with TestClient(app) as client:
+                resp = client.get("/api/mfa/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["has_backup_codes"] is True
+        assert body["backup_codes_remaining"] == 3
