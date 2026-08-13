@@ -13,6 +13,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_rate_limiter():
+    """authentication_endpoints.router's and mfa_endpoints.router's
+    @limiter.limit(...) decorators bind to the single process-wide
+    rate_limiter.limiter singleton at import time (not the per-test
+    Limiter() built by _make_auth_app()/_make_mfa_app()) — without resetting
+    it between tests, calls accumulate across this whole test class and can
+    trip the limit for an unrelated later test. Same isolation pattern as
+    test_mfa.py's _reset_shared_rate_limiter / test_ldap_service.py's
+    _reset_ldap_rate_limit."""
+    from rate_limiter import limiter as shared_limiter
+    shared_limiter._storage.reset()
+    yield
+    shared_limiter._storage.reset()
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +321,62 @@ class TestMFAVerifyLogin:
                 )
 
         assert resp.status_code == 401
+
+    def test_verify_mfa_login_wrong_code_records_login_failure(self):
+        """WR-04: a wrong TOTP code must be folded into the shared login
+        lockout counter, keyed by the account email resolved from the
+        session — the same bookkeeping /api/auth/login uses for wrong
+        passwords — so repeated correct-password/wrong-TOTP round trips
+        eventually lock the account out via the next /api/auth/login call."""
+        db = _make_db_mock()
+        app = _make_mfa_app()
+
+        with patch("mfa_endpoints.get_database", return_value=db), \
+             patch("mfa_service.verify_mfa_token", new_callable=AsyncMock,
+                   return_value={"success": False, "error": "Invalid TOTP code", "email": "user@example.com"}):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/mfa/verify",
+                    json={"session_token": "bad-session", "code": "000000", "use_backup_code": False},
+                )
+
+        assert resp.status_code == 401
+        db._db.login_attempts.update_one.assert_awaited_once()
+        filter_arg = db._db.login_attempts.update_one.call_args.args[0]
+        assert filter_arg == {"identifier": "user@example.com"}
+
+    def test_verify_mfa_login_wrong_backup_code_records_login_failure(self):
+        db = _make_db_mock()
+        app = _make_mfa_app()
+
+        with patch("mfa_endpoints.get_database", return_value=db), \
+             patch("mfa_service.validate_mfa_session", new_callable=AsyncMock, return_value="user@example.com"), \
+             patch("mfa_service.use_backup_code", new_callable=AsyncMock, return_value=False):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/mfa/verify",
+                    json={"session_token": "valid-session", "code": "WRONGCODE", "use_backup_code": True},
+                )
+
+        assert resp.status_code == 401
+        db._db.login_attempts.update_one.assert_awaited_once()
+
+    def test_verify_mfa_login_success_clears_login_failures(self):
+        user = _make_hashed_user()
+        db = _make_db_mock(user=user)
+        app = _make_mfa_app()
+
+        with patch("mfa_endpoints.get_database", return_value=db), \
+             patch("mfa_service.verify_mfa_token", new_callable=AsyncMock,
+                   return_value={"success": True, "email": "user@example.com"}):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/mfa/verify",
+                    json={"session_token": "valid-session", "code": "123456", "use_backup_code": False},
+                )
+
+        assert resp.status_code == 200
+        db._db.login_attempts.delete_one.assert_awaited_once_with({"identifier": "user@example.com"})
 
     def test_verify_mfa_login_backup_code_success(self):
         user = _make_hashed_user()

@@ -49,6 +49,14 @@ def _db_mock(user=None, mfa_sessions_col=None):
     db.users.find_one_and_update = AsyncMock(return_value=user)
     raw = MagicMock()
     raw.mfa_sessions = mfa_sessions_col or _col()
+    # WR-04: verify_mfa_at_login folds MFA failures into the shared login
+    # lockout bookkeeping (_record_login_failure/_clear_login_failures),
+    # which reads/writes db._db.login_attempts — same surface as
+    # authentication_endpoints' own login flow.
+    raw.login_attempts = MagicMock()
+    raw.login_attempts.find_one = AsyncMock(return_value=None)
+    raw.login_attempts.update_one = AsyncMock()
+    raw.login_attempts.delete_one = AsyncMock()
     db._db = raw
     return db
 

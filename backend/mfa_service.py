@@ -390,7 +390,11 @@ async def verify_mfa_token(session_token: str, code: str) -> dict:
     token cannot be replayed or brute-forced across multiple TOTP guesses;
     a wrong code requires the user to restart login and obtain a fresh
     session token from /api/auth/login).
-    Returns { success, email } or { success: False, error }.
+    Returns { success, email } on success. On failure returns
+    { success: False, error, email } once the session has resolved to an
+    account (so callers can fold the failure into that account's login
+    lockout bookkeeping — WR-04), or { success: False, error } with no email
+    when the session itself never resolved (expired/invalid/unconfigured).
     """
     col = await _mfa_sessions_col()
     doc = await col.find_one_and_delete({"_id": session_token})
@@ -416,7 +420,7 @@ async def verify_mfa_token(session_token: str, code: str) -> dict:
         step = _current_totp_step()
         last_used_step = user["mfa"].get("last_used_step")
         if last_used_step is not None and step <= last_used_step:
-            return {"success": False, "error": "Invalid TOTP code"}
+            return {"success": False, "error": "Invalid TOTP code", "email": email}
 
         await db.users.update_one(
             {"email": email},
@@ -427,4 +431,4 @@ async def verify_mfa_token(session_token: str, code: str) -> dict:
         )
         return {"success": True, "email": email}
 
-    return {"success": False, "error": "Invalid TOTP code"}
+    return {"success": False, "error": "Invalid TOTP code", "email": email}

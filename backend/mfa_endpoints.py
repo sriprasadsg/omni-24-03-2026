@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from typing import Optional
 from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from authentication_endpoints import _SENSITIVE_USER_FIELDS
+from authentication_endpoints import _SENSITIVE_USER_FIELDS, _record_login_failure, _clear_login_failures
 from database import get_database
 from rate_limiter import limiter
 from datetime import timedelta
@@ -108,23 +108,40 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     Called during the second step of login (after password succeeds).
     Accepts the MFA session token from /auth/login plus a TOTP code (or backup code).
     Returns a full JWT access token on success.
+
+    WR-04: a wrong TOTP/backup code here is folded into the same
+    login-lockout bookkeeping (_record_login_failure/_check_login_lockout)
+    that /api/auth/login uses for wrong passwords. Without this, an attacker
+    who already knows the account password could grind the TOTP keyspace via
+    unlimited fresh login+verify round trips, since "wrong TOTP" never
+    incremented that counter. A locked-out account is rejected on its next
+    /api/auth/login call (where the lockout check already lives), which is
+    the only place a fresh mfa_session_token can be minted.
     """
+    db = get_database()
+
     if req.use_backup_code:
         email = await mfa_service.validate_mfa_session(req.session_token)
         if not email:
             raise HTTPException(status_code=401, detail="MFA session expired or invalid")
         ok = await mfa_service.use_backup_code(email, req.code)
         if not ok:
+            await _record_login_failure(db, email)
             raise HTTPException(status_code=401, detail="Invalid or already-used backup code")
         await mfa_service.consume_mfa_session(req.session_token)
     else:
         result = await mfa_service.verify_mfa_token(req.session_token, req.code)
         if not result["success"]:
+            if result.get("email"):
+                await _record_login_failure(db, result["email"])
             raise HTTPException(status_code=401, detail=result["error"])
         email = result["email"]
 
+    # A successful MFA step clears any accumulated failure count, mirroring
+    # the password-login endpoint's _clear_login_failures on success.
+    await _clear_login_failures(db, email)
+
     # Fetch user and issue full JWT
-    db = get_database()
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
