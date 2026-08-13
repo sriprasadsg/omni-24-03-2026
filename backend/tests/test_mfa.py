@@ -636,6 +636,32 @@ class TestMFAEndpoints:
         assert resp.status_code == 200
         assert len(resp.json()["backup_codes"]) == 8
 
+    def test_disable_endpoint_is_rate_limited(self):
+        """WR-02: /api/mfa/disable must throttle repeated attempts the same
+        way /api/mfa/verify already does (5/minute)."""
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with patch("mfa_service.disable_mfa", new_callable=AsyncMock,
+                   return_value={"success": False, "error": "Invalid password"}):
+            with TestClient(app) as client:
+                statuses = [client.post("/api/mfa/disable", json={"password": "wrong"}).status_code
+                            for _ in range(6)]
+        assert statuses[:5] == [400] * 5
+        assert statuses[5] == 429
+
+    def test_backup_codes_regenerate_endpoint_is_rate_limited(self):
+        """WR-02: /api/mfa/backup-codes/regenerate must throttle repeated
+        attempts the same way /api/mfa/verify already does (5/minute)."""
+        from fastapi.testclient import TestClient
+        app = self._authed_app()
+        with patch("mfa_service.regenerate_backup_codes", new_callable=AsyncMock,
+                   return_value={"success": False, "error": "Invalid password"}):
+            with TestClient(app) as client:
+                statuses = [client.post("/api/mfa/backup-codes/regenerate", json={"password": "wrong"}).status_code
+                            for _ in range(6)]
+        assert statuses[:5] == [400] * 5
+        assert statuses[5] == 429
+
     def test_verify_login_issues_jwt_with_mfa_verified_claim(self):
         """Regression guard: the JWT issued after MFA verification must carry
         mfa_verified=True so authentication_service.require_mfa() can pass."""

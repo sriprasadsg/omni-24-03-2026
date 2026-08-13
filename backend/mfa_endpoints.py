@@ -152,7 +152,8 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
 
 
 @router.post("/disable")
-async def disable_mfa(req: MFADisableRequest, current_user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def disable_mfa(request: Request, response: Response, req: MFADisableRequest, current_user=Depends(get_current_user)):
     """Disable MFA on the current user's account (requires password confirmation)."""
     result = await mfa_service.disable_mfa(current_user.username, req.password)
     if not result["success"]:
@@ -161,7 +162,8 @@ async def disable_mfa(req: MFADisableRequest, current_user=Depends(get_current_u
 
 
 @router.post("/backup-codes/regenerate")
-async def regenerate_backup_codes(req: MFABackupCodesRegenerateRequest, current_user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def regenerate_backup_codes(request: Request, response: Response, req: MFABackupCodesRegenerateRequest, current_user=Depends(get_current_user)):
     """Invalidate existing backup codes and issue a fresh set (requires password confirmation)."""
     result = await mfa_service.regenerate_backup_codes(current_user.username, req.password)
     if not result["success"]:
