@@ -370,6 +370,44 @@ class TestEnrollMfa:
             result = await mfa_service.enroll_mfa("ghost@example.com", "123456")
         assert result["success"] is False
 
+    @pytest.mark.asyncio
+    async def test_enroll_mfa_reenrollment_without_password_fails(self):
+        """CR-02: re-enrolling against an already-enabled account without a
+        password must not silently replace the active secret/backup codes."""
+        pending_encrypted = mfa_service._encrypt_secret("JBSWY3DPEHPK3PXP")
+        user = _hashed_password_user(password="Correct1!")
+        user["mfa"]["pending_secret"] = pending_encrypted
+        db = _db_mock(user=user)
+        with patch("mfa_service.get_database", return_value=db), \
+             patch("mfa_service.verify_totp_code", return_value=True):
+            result = await mfa_service.enroll_mfa("user@example.com", "123456")
+        assert result["success"] is False
+        db.users.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_enroll_mfa_reenrollment_wrong_password_fails(self):
+        pending_encrypted = mfa_service._encrypt_secret("JBSWY3DPEHPK3PXP")
+        user = _hashed_password_user(password="Correct1!")
+        user["mfa"]["pending_secret"] = pending_encrypted
+        db = _db_mock(user=user)
+        with patch("mfa_service.get_database", return_value=db), \
+             patch("mfa_service.verify_totp_code", return_value=True):
+            result = await mfa_service.enroll_mfa("user@example.com", "123456", "WrongPass1!")
+        assert result["success"] is False
+        db.users.update_one.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_enroll_mfa_reenrollment_success_with_correct_password(self):
+        pending_encrypted = mfa_service._encrypt_secret("JBSWY3DPEHPK3PXP")
+        user = _hashed_password_user(password="Correct1!")
+        user["mfa"]["pending_secret"] = pending_encrypted
+        db = _db_mock(user=user)
+        with patch("mfa_service.get_database", return_value=db), \
+             patch("mfa_service.verify_totp_code", return_value=True):
+            result = await mfa_service.enroll_mfa("user@example.com", "123456", "Correct1!")
+        assert result["success"] is True
+        assert len(result["backup_codes"]) == 8
+
 
 # ===========================================================================
 # Disable MFA — now password-confirmed, not TOTP (breaking security tightening)
@@ -503,6 +541,43 @@ class TestMFAEndpoints:
         token_data = TokenData(username="user@example.com", role="Viewer", tenant_id="t1", mfa_verified=True)
         app.dependency_overrides[get_current_user] = lambda: token_data
         return app
+
+    def test_setup_endpoint_reenrollment_requires_password(self):
+        """CR-02: POST /api/mfa/setup on an already-enabled account must
+        reject without a correct password rather than silently overwriting
+        mfa.pending_secret."""
+        from fastapi.testclient import TestClient
+        user = _hashed_password_user(password="Correct1!")
+        db = _db_mock(user=user)
+        app = self._authed_app()
+        with patch("mfa_endpoints.get_database", return_value=db):
+            with TestClient(app) as client:
+                resp = client.post("/api/mfa/setup", json={})
+        assert resp.status_code == 403
+        db.users.update_one.assert_not_awaited()
+
+    def test_setup_endpoint_reenrollment_succeeds_with_password(self):
+        from fastapi.testclient import TestClient
+        user = _hashed_password_user(password="Correct1!")
+        db = _db_mock(user=user)
+        app = self._authed_app()
+        with patch("mfa_endpoints.get_database", return_value=db):
+            with TestClient(app) as client:
+                resp = client.post("/api/mfa/setup", json={"password": "Correct1!"})
+        assert resp.status_code == 200
+        assert "secret" in resp.json()
+
+    def test_setup_endpoint_initial_enrollment_no_password_required(self):
+        """First-time setup (MFA not yet enabled) must not require a password."""
+        from fastapi.testclient import TestClient
+        user = _hashed_password_user()
+        user["mfa"]["enabled"] = False
+        db = _db_mock(user=user)
+        app = self._authed_app()
+        with patch("mfa_endpoints.get_database", return_value=db):
+            with TestClient(app) as client:
+                resp = client.post("/api/mfa/setup", json={})
+        assert resp.status_code == 200
 
     def test_disable_endpoint_requires_password_field(self):
         from fastapi.testclient import TestClient

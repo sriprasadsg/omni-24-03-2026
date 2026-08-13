@@ -144,15 +144,31 @@ async def use_backup_code(email: str, code: str) -> bool:
 
 # ─── MFA Enrollment ───────────────────────────────────────────────────────────
 
-async def enroll_mfa(email: str, totp_code: str) -> dict:
+async def enroll_mfa(email: str, totp_code: str, password: Optional[str] = None) -> dict:
     """
     Called after the user scans the QR code and enters their first TOTP code.
     Activates MFA on the account and returns 8 backup codes.
+
+    If MFA is already enabled on the account, this is a re-enrollment (e.g. a
+    lost/stolen authenticator) rather than initial setup, and requires the
+    same password confirmation as disable_mfa/regenerate_backup_codes
+    (T-64-26) — otherwise a stolen/XSS'd JWT alone could silently replace an
+    already-active TOTP secret and backup codes with attacker-controlled ones.
     """
     db = get_database()
     user = await db.users.find_one({"email": email})
     if not user:
         return {"success": False, "error": "User not found"}
+
+    if user.get("mfa", {}).get("enabled"):
+        stored_hash = user.get("password") or user.get("hashed_password")
+        if not stored_hash:
+            return {"success": False, "error": "Account has no password set"}
+        if not password:
+            return {"success": False, "error": "Password confirmation required to re-enroll MFA"}
+        from auth_utils import verify_password
+        if not verify_password(password, stored_hash):
+            return {"success": False, "error": "Invalid password"}
 
     pending = user.get("mfa", {}).get("pending_secret")
     if not pending:

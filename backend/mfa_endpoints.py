@@ -3,7 +3,8 @@ MFA Endpoints — /api/mfa/*
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
 from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from authentication_endpoints import _SENSITIVE_USER_FIELDS
 from database import get_database
@@ -16,8 +17,15 @@ router = APIRouter(prefix="/api/mfa", tags=["MFA"])
 
 # ─── Request / Response Models ────────────────────────────────────────────────
 
+class MFASetupRequest(BaseModel):
+    # Only required when MFA is already enabled on the account (re-enrollment) —
+    # mirrors the password-confirmation gate on /disable and /backup-codes/regenerate.
+    password: Optional[str] = None
+
 class MFAVerifySetupRequest(BaseModel):
     totp_code: str
+    # Same as above — only required for re-enrollment against an already-enabled account.
+    password: Optional[str] = None
 
 class MFAVerifyLoginRequest(BaseModel):
     session_token: str
@@ -34,15 +42,32 @@ class MFABackupCodesRegenerateRequest(BaseModel):
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/setup")
-async def setup_mfa(current_user=Depends(get_current_user)):
+async def setup_mfa(req: Optional[MFASetupRequest] = None, current_user=Depends(get_current_user)):
     """
     Generate a TOTP secret and return it alongside a QR code for enrollment.
     Does NOT enable MFA yet — call /mfa/verify-setup with the first code to activate.
+
+    If MFA is already enabled on the account, this is a re-enrollment and
+    requires password confirmation (T-64-26) — otherwise a stolen/XSS'd JWT
+    alone could regenerate a pending secret ahead of silently re-enrolling
+    via /verify-setup, bypassing the password gate this plan added to
+    /disable and /backup-codes/regenerate.
     """
     db = get_database()
     user = await db.users.find_one({"email": current_user.username})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if user.get("mfa", {}).get("enabled"):
+        stored_hash = user.get("password") or user.get("hashed_password")
+        password = req.password if req else None
+        if not stored_hash:
+            raise HTTPException(status_code=400, detail="Account has no password set")
+        if not password:
+            raise HTTPException(status_code=403, detail="Password confirmation required to re-enroll MFA")
+        from auth_utils import verify_password
+        if not verify_password(password, stored_hash):
+            raise HTTPException(status_code=403, detail="Invalid password")
 
     # Generate and persist pending secret (not active until confirmed)
     secret = mfa_service.generate_totp_secret()
@@ -70,7 +95,7 @@ async def verify_mfa_setup(req: MFAVerifySetupRequest, current_user=Depends(get_
     Confirm the first TOTP code from the authenticator app.
     Activates MFA on the account and returns 8 one-time backup codes.
     """
-    result = await mfa_service.enroll_mfa(current_user.username, req.totp_code)
+    result = await mfa_service.enroll_mfa(current_user.username, req.totp_code, req.password)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
