@@ -17,6 +17,7 @@ import io
 import base64
 import secrets
 import uuid
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from database import get_database
@@ -25,6 +26,8 @@ from database import get_database
 # unavailable, mfa_service must not silently degrade to a base64
 # plaintext-equivalent fallback (RESEARCH.md Pitfall 2 / threat T-64-24).
 from encryption_service import get_encryption_service
+
+logger = logging.getLogger(__name__)
 
 APP_NAME = "Enterprise Omni-Agent Platform"
 MFA_SESSION_TTL_SECONDS = 300  # 5 minutes for the intermediate MFA session token
@@ -100,7 +103,8 @@ def generate_qr_base64(uri: str) -> str:
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode()
-    except Exception:
+    except Exception as e:
+        logger.warning("QR code generation failed, falling back to raw URI: %s", e)
         return ""  # Frontend falls back to showing the raw URI
 
 

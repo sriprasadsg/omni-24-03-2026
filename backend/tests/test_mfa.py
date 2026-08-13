@@ -143,6 +143,27 @@ class TestEncryption:
 
 
 # ===========================================================================
+# QR code generation
+# ===========================================================================
+
+class TestGenerateQrBase64:
+
+    def test_success_returns_base64_string(self):
+        result = mfa_service.generate_qr_base64("otpauth://totp/test?secret=ABC")
+        assert isinstance(result, str)
+        assert result != ""
+
+    def test_failure_logs_warning_and_returns_empty_string(self):
+        """IN-02: a QR-rendering failure must not be silently swallowed —
+        support should be able to correlate a blank QR code with a log line."""
+        with patch("mfa_service.qrcode.QRCode", side_effect=RuntimeError("boom")), \
+             patch("mfa_service.logger") as mock_logger:
+            result = mfa_service.generate_qr_base64("otpauth://totp/test?secret=ABC")
+        assert result == ""
+        mock_logger.warning.assert_called_once()
+
+
+# ===========================================================================
 # Backup codes
 # ===========================================================================
 
