@@ -124,10 +124,15 @@ class ManualAssetCreate(BaseModel):
     purchaseDate: Optional[str] = None
     poNumber: Optional[str] = Field(None, max_length=100)
     warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
+    # New fields for warranty expiry date, salvage value, and useful life years
+    warranty_expiry_date: Optional[str] = None
+    salvage_value: Optional[float] = Field(None, ge=0)
+    useful_life_years: Optional[int] = Field(None, gt=0)
 
     model_config = ConfigDict(extra="forbid")
 
-    _validate_purchase_date = field_validator("purchaseDate")(_validate_iso8601_date)
+    _validate_purchase_date_ma = field_validator("purchaseDate")(_validate_iso8601_date)
+    _validate_warranty_expiry_date_ma = field_validator("warranty_expiry_date")(_validate_iso8601_date)
 
 
 class AssetPurchaseUpdate(BaseModel):
@@ -150,7 +155,8 @@ class AssetPurchaseUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    _validate_purchase_date = field_validator("purchaseDate")(_validate_iso8601_date)
+    _validate_purchase_date_ma = field_validator("purchaseDate")(_validate_iso8601_date)
+    _validate_warranty_expiry_date_ma = field_validator("warranty_expiry_date")(_validate_iso8601_date)
 
 
 # Suppliers — a distinct catalog entity per ITAM-CAT-03, not a bare name: carries its own
@@ -278,6 +284,9 @@ class Asset(BaseModel):
     purchase_order_id: Optional[str] = Field(None, max_length=100) # Links to PurchaseOrder.id
     warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
     warrantyAlertSentAt: Optional[str] = None # ITAM-FIN-02: idempotency marker for warranty sweeps
+    warranty_expiry_date: Optional[str] = None
+    salvage_value: Optional[float] = Field(None, ge=0)
+    useful_life_years: Optional[int] = Field(None, gt=0)
 
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -296,6 +305,10 @@ class Asset(BaseModel):
 
     @field_validator("warrantyAlertSentAt", mode="before")
     def _validate_warranty_alert_sent_at_field(cls, v):
+        return _validate_iso8601_date(v)
+
+    @field_validator("warranty_expiry_date", mode="before")
+    def _validate_warranty_expiry_date_field(cls, v):
         return _validate_iso8601_date(v)
 
 

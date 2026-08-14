@@ -10,7 +10,7 @@ from pymongo.errors import DuplicateKeyError
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database, TenantIsolatedDatabase
-from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_TAG_PREFIX
+from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_TAG_PREFIX, AssetPurchaseUpdate
 from itam_catalog_service import collect_field_defs, validate_custom_field_values
 from cache_service import invalidate_cache
 from rbac_utils import verify_permission
@@ -90,6 +90,10 @@ def build_asset_document(payload: ManualAssetCreate, tenant_id: str, asset_tag: 
         "createdAt": now,
         "updatedAt": now,
         "lastScanned": now,  # ensures manual assets appear in sorted lists
+        # Include new fields for Asset model
+        "warranty_expiry_date": payload.warranty_expiry_date,
+        "salvage_value": payload.salvage_value,
+        "useful_life_years": payload.useful_life_years,
     })
     return document
 
