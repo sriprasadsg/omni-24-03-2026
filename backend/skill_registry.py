@@ -61,6 +61,13 @@ SKILLS: List[Skill] = [
         category="operations",
     ),
     Skill(
+        "rotate-key",
+        "Dispatch an autonomous key rotation instruction",
+        "/rotate-key <key_id>",
+        params=[SkillParam("key_id", "e.g. my-api-key-123", required=True)],
+        category="operations",
+    ),
+    Skill(
         "threat-hunt",
         "Translate a natural-language query into a threat hunt",
         "/threat-hunt <query>",
