@@ -1,0 +1,15 @@
+[package]
+name = "fim_process_attribution"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fanotify-rs = "0.3.1"
+tempfile = "3.8"
+nix = "0.26" # Added for `nix::unistd::Uid::effective().is_root()`
+libc = "0.2"
+
+[[test]]
+name = "fim_fanotify_test"
+path = "tests/fim_fanotify_test.rs"
+doc = false
