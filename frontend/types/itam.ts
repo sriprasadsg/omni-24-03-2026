@@ -61,6 +61,9 @@ export interface Asset {
     purchase_order_id?: string;
     warrantyMonths?: number;
     warrantyAlertSentAt?: datetime;
+    warranty_expiry_date?: datetime;
+    salvage_value?: number;
+    useful_life_years?: number;
     createdAt: datetime;
     updatedAt: datetime;
 }

@@ -1,6 +1,6 @@
 // frontend/api/itamApiService.ts
 import axios from "axios";
-import { PurchaseOrder, PurchaseOrderCreate, PurchaseOrderUpdate } from "../types/itam";
+import { PurchaseOrder, PurchaseOrderCreate, PurchaseOrderUpdate, Asset } from "../types/itam";
 
 const API_BASE_URL = "/api/v1/itam/purchase-orders";
 
@@ -27,5 +27,10 @@ export const itamApiService = {
 
     async deletePurchaseOrder(id: string): Promise<void> {
         await axios.delete(`${API_BASE_URL}/${id}`);
+    },
+
+    async updateAssetPurchaseInfo(assetId: string, data: Partial<Asset>): Promise<Asset> {
+        const response = await axios.patch(`/api/assets/${assetId}/purchase`, data);
+        return response.data;
     }
 };
