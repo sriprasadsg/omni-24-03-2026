@@ -32,6 +32,9 @@ async def run_warranty_alert_pass(db) -> int:
         cursor = db.assets.find(query) # db.assets is a TenantIsolatedCollection if db is TenantIsolatedDatabase
 
         async for asset in cursor:
+            # Check for warrantyAlertSentAt inside the loop as well, as the query might not catch it if updated concurrently
+            if asset.get("warrantyAlertSentAt"):
+                continue
             tenant_id = asset.get("tenantId")
             if not tenant_id:
                 logger.warning(f"Asset {asset.get('id')} has no tenantId, skipping warranty check.")
