@@ -118,6 +118,100 @@ fn os_info() -> Value {
     })
 }
 
+// ── Logged-in (console) user ────────────────────────────────────────────────
+// The agent runs as a system service (LocalSystem on Windows, root on
+// Linux/macOS), so env vars like USERNAME/USER reflect the service account,
+// not whoever is actually sitting at the machine. Each platform below queries
+// the real interactive/console session instead. Single active user only
+// (first/console session) — multi-session (RDP + console simultaneously) is
+// out of scope for now.
+
+#[cfg(windows)]
+fn logged_in_user() -> Option<String> {
+    use winapi::shared::minwindef::{BOOL, DWORD};
+    use winapi::um::winbase::WTSGetActiveConsoleSessionId;
+    use winapi::um::winnt::HANDLE;
+
+    // winapi 0.3's wtsapi32 bindings only cover WTSQueryUserToken; declare the
+    // two functions this needs ourselves — same DLL is already linked in for
+    // WTSQueryUserToken (see chat_ui.rs), so no new link dependency.
+    #[allow(non_snake_case)]
+    #[link(name = "wtsapi32")]
+    extern "system" {
+        fn WTSQuerySessionInformationW(
+            hServer: HANDLE,
+            SessionId: DWORD,
+            WTSInfoClass: i32,
+            ppBuffer: *mut *mut u16,
+            pBytesReturned: *mut DWORD,
+        ) -> BOOL;
+        fn WTSFreeMemory(pMemory: *mut u16);
+    }
+
+    const WTS_USER_NAME: i32 = 5;
+
+    unsafe {
+        let session = WTSGetActiveConsoleSessionId();
+        if session == 0xFFFF_FFFF {
+            return None; // no interactive user logged on
+        }
+
+        let mut buffer: *mut u16 = std::ptr::null_mut();
+        let mut bytes: DWORD = 0;
+        let ok = WTSQuerySessionInformationW(
+            std::ptr::null_mut(), // WTS_CURRENT_SERVER_HANDLE
+            session,
+            WTS_USER_NAME,
+            &mut buffer,
+            &mut bytes,
+        );
+        if ok == 0 || buffer.is_null() {
+            return None;
+        }
+
+        let len = (0isize..).take_while(|&i| *buffer.offset(i) != 0).count();
+        let name = String::from_utf16_lossy(std::slice::from_raw_parts(buffer, len));
+        WTSFreeMemory(buffer);
+
+        if name.is_empty() { None } else { Some(name) }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn logged_in_user() -> Option<String> {
+    // `who` reads utmp system-wide — reflects real logged-in sessions
+    // regardless of the calling (root/service) process's own context.
+    let out = std::process::Command::new("who").output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().next())
+        .map(|s| s.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn logged_in_user() -> Option<String> {
+    // Owner of /dev/console is the interactively logged-in user, or "root"
+    // when nobody is logged in at the console.
+    let out = std::process::Command::new("stat")
+        .args(["-f%Su", "/dev/console"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if name.is_empty() || name == "root" { None } else { Some(name) }
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+fn logged_in_user() -> Option<String> {
+    None
+}
+
 pub fn collect_metrics(sys: &System) -> Value {
     let cpus = sys.cpus();
     let avg_cpu = if cpus.is_empty() {
@@ -233,6 +327,9 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
     meta["disk_total_gb"]     = json!(disk_total_gb);
     meta["disk_used_gb"]      = json!(disk_used_gb);
     meta["disk_free_gb"]      = json!(disk_free_gb);
+    if let Some(user) = logged_in_user() {
+        meta["logged_in_user"] = json!(user);
+    }
 
     // Merge each capability's collected data into meta
     for (id, data) in &cap_data {

@@ -24,6 +24,9 @@ pub mod ssh_key_checks;
 #[cfg(target_os = "linux")]
 pub mod fanotify_watcher;
 
+#[cfg(target_os = "linux")]
+pub mod process_mapper;
+
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use sysinfo::System;

@@ -8,7 +8,6 @@
 //! POST (52-04) to drain.
 
 use super::Capability;
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -19,6 +18,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use sysinfo::System;
 use crate::capabilities::fanotify_watcher::{FanotifyEventData, start_fanotify_watcher};
+#[cfg(target_os = "linux")]
+use crate::capabilities::process_mapper::resolve_process_tree;
 use tokio::sync::mpsc;
 
 pub struct FimCapability;
@@ -69,7 +70,8 @@ pub struct ProcessInfo {
 
 /// Maps fanotify event mask to our ChangeType.
 fn map_fanotify_mask_to_change_type(mask: u32) -> ChangeType {
-    use fanotify::low::{FAN_CREATE, FAN_DELETE, FAN_MODIFY, FAN_ATTRIB, FAN_MOVE, FAN_CLOSE_WRITE};
+    use naughtyfy::flags::{FAN_CREATE, FAN_DELETE, FAN_MODIFY, FAN_ATTRIB, FAN_MOVE, FAN_CLOSE_WRITE};
+    let mask = mask as u64;
     if (mask & FAN_CREATE) != 0 { ChangeType::Create }
     else if (mask & FAN_DELETE) != 0 { ChangeType::Delete }
     else if (mask & FAN_MODIFY) != 0 { ChangeType::Modify }
@@ -107,14 +109,14 @@ pub(crate) fn current_user() -> String {
     }
 }
 
-/// Best-effort process info for a given PID. For now, name and tree are None.
-fn process_info(pid: u32) -> ProcessInfo {
-    ProcessInfo {
-        pid: Some(pid),
-        name: None,
-        tree: None,
-    }
-}
+// Best-effort process info for a given PID. For now, name and tree are None.
+// fn process_info(pid: u32) -> ProcessInfo {
+//     ProcessInfo {
+//         pid: Some(pid),
+//         name: None,
+//         tree: None,
+//     }
+// }
 
 /// Compute SHA256 of a file, returning (hash, size, modified_rfc3339).
 fn hash_file(path: &Path) -> Result<(String, u64, String), Box<dyn std::error::Error>> {
@@ -220,6 +222,9 @@ fn handle_fanotify_event(event_data: FanotifyEventData, last_hashes: &Arc<Mutex<
         change_type,
         hash_before,
         hash_after,
+        #[cfg(target_os = "linux")]
+        process: resolve_process_tree(event_data.pid as i32),
+        #[cfg(not(target_os = "linux"))]
         process: process_info(event_data.pid as u32),
         user: current_user(),
         ts: chrono::Utc::now().to_rfc3339(),
@@ -241,7 +246,7 @@ fn handle_fanotify_event(event_data: FanotifyEventData, last_hashes: &Arc<Mutex<
 /// The watcher runs in a background thread; failures are logged and the function returns an error (no panic).
 pub fn start_watcher(
     paths: Vec<String>,
-    stop_rx: tokio::sync::watch::Receiver<bool>,
+    mut stop_rx: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut status = FIM_STATUS.lock().unwrap();
     if status.watching {
@@ -415,28 +420,14 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn event_kind_mapping() {
-        use notify::event::{ModifyKind, RemoveKind};
-
-        // Create
-        assert!(matches!(map_event_kind(&EventKind::Create(notify::event::CreateKind::Any)), ChangeType::Create));
-        assert!(matches!(map_event_kind(&EventKind::Create(notify::event::CreateKind::File)), ChangeType::Create));
-        assert!(matches!(map_event_kind(&EventKind::Create(notify::event::CreateKind::Folder)), ChangeType::Create));
-
-        // Modify — data
-        assert!(matches!(map_event_kind(&EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Any))), ChangeType::Modify));
-        assert!(matches!(map_event_kind(&EventKind::Modify(ModifyKind::Any)), ChangeType::Modify));
-
-        // Modify — metadata (permission)
-        assert!(matches!(map_event_kind(&EventKind::Modify(ModifyKind::Metadata(notify::event::MetadataKind::WriteTime))), ChangeType::Permission));
-
-        // Modify — name (rename)
-        assert!(matches!(map_event_kind(&EventKind::Modify(ModifyKind::Name(notify::event::RenameMode::Any))), ChangeType::Rename));
-
-        // Remove
-        assert!(matches!(map_event_kind(&EventKind::Remove(RemoveKind::Any)), ChangeType::Delete));
-        assert!(matches!(map_event_kind(&EventKind::Remove(RemoveKind::File)), ChangeType::Delete));
-        assert!(matches!(map_event_kind(&EventKind::Remove(RemoveKind::Folder)), ChangeType::Delete));
+    fn fanotify_mask_mapping() {
+        use naughtyfy::flags::{FAN_CREATE, FAN_DELETE, FAN_MODIFY, FAN_ATTRIB, FAN_MOVE, FAN_CLOSE_WRITE};
+        assert!(matches!(map_fanotify_mask_to_change_type(FAN_CREATE as u32), ChangeType::Create));
+        assert!(matches!(map_fanotify_mask_to_change_type(FAN_DELETE as u32), ChangeType::Delete));
+        assert!(matches!(map_fanotify_mask_to_change_type(FAN_MODIFY as u32), ChangeType::Modify));
+        assert!(matches!(map_fanotify_mask_to_change_type(FAN_CLOSE_WRITE as u32), ChangeType::Modify));
+        assert!(matches!(map_fanotify_mask_to_change_type(FAN_ATTRIB as u32), ChangeType::Permission));
+        assert!(matches!(map_fanotify_mask_to_change_type(FAN_MOVE as u32), ChangeType::Rename));
     }
 
     #[test]

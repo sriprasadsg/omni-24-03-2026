@@ -12,7 +12,7 @@ pub mod tray;
 pub mod service;
 
 use buffer::MessageBuffer;
-use capabilities::{CapabilityManager, fim, fim_baseline};
+use capabilities::CapabilityManager;
 use sysinfo::System;
 
 pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
