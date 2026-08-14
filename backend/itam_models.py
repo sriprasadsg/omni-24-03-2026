@@ -496,6 +496,47 @@ class AuditMarkRequest(BaseModel):
     _validate_audited_at = field_validator("auditedAt")(_validate_iso8601_date)
 
 
+# Procurement - Purchase Order Models (Phase 71)
+class PurchaseOrderItem(BaseModel):
+    name: str
+    quantity: int = Field(ge=1)
+    unit_price: float = Field(ge=0.0)
+
+class PurchaseOrderBase(BaseModel):
+    order_number: str = Field(min_length=1, max_length=100)
+    supplier_name: str = Field(min_length=1, max_length=200)
+    order_date: datetime
+    total_cost: float = Field(ge=0.0)
+    items: List[PurchaseOrderItem] = Field(min_items=1)
+    notes: Optional[str] = None
+
+class PurchaseOrderCreate(PurchaseOrderBase):
+    pass
+
+class PurchaseOrderUpdate(BaseModel):
+    order_number: Optional[str] = Field(None, min_length=1, max_length=100)
+    supplier_name: Optional[str] = Field(None, min_length=1, max_length=200)
+    order_date: Optional[datetime] = None
+    total_cost: Optional[float] = Field(None, ge=0.0)
+    items: Optional[List[PurchaseOrderItem]] = Field(None, min_items=1)
+    notes: Optional[str] = None
+
+class PurchaseOrder(PurchaseOrderBase):
+    id: str = Field(default_factory=lambda: f"po-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenantId: str
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str_po(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
+
+
+
 # Label Sheet (Phase 58-04, ITAM-CAT-05). Bounds how much PDF-generation work
 # one request can trigger — enforced as an explicit 400 refusal in the
 # endpoint handler, not as a Pydantic length constraint, so an over-length
