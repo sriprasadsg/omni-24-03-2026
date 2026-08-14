@@ -18,6 +18,7 @@ pub enum RemediationAction {
     DisableService(String),
     UnblockIp(String),
     EnableService(String),
+    RotateKey(String), // Added for Task 2
 }
 
 impl fmt::Display for RemediationAction {
@@ -35,6 +36,9 @@ impl fmt::Display for RemediationAction {
             RemediationAction::EnableService(service_name) => {
                 write!(f, "EnableService({})", service_name)
             }
+            RemediationAction::RotateKey(key_path) => {
+                write!(f, "RotateKey({})", key_path)
+            }
         }
     }
 }
@@ -50,6 +54,7 @@ pub async fn execute_remediation_action(
         RemediationAction::DisableService(service_name) => disable_service(service_name).await,
         RemediationAction::UnblockIp(ip_address) => unblock_ip(ip_address).await,
         RemediationAction::EnableService(service_name) => enable_service(service_name).await,
+        RemediationAction::RotateKey(key_path) => rotate_key(key_path).await, // Added for Task 2
     }
 }
 
@@ -82,6 +87,11 @@ async fn unblock_ip(ip_address: &str) -> Result<String, AgenticError> {
 async fn enable_service(service_name: &str) -> Result<String, AgenticError> {
     // Implement service enabling logic here
     Ok(format!("Successfully enabled service: {}", service_name))
+}
+
+async fn rotate_key(key_path: &str) -> Result<String, AgenticError> {
+    // Placeholder for actual key rotation logic
+    Ok(format!("Successfully initiated key rotation for: {}", key_path))
 }
 
 #[cfg(test)]
@@ -122,5 +132,11 @@ mod tests {
     async fn test_enable_service() {
         let result = enable_service("test_service").await.unwrap();
         assert_eq!(result, "Successfully enabled service: test_service");
+    }
+
+    #[tokio::test]
+    async fn test_rotate_key() {
+        let result = rotate_key("/path/to/test_key").await.unwrap();
+        assert_eq!(result, "Successfully initiated key rotation for: /path/to/test_key");
     }
 }
