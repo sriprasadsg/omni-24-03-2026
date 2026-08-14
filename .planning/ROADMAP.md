@@ -843,13 +843,13 @@ Plans:
 **Goal:** [Promoted from backlog 999.2, deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Original scope was under-specified + dangerous + hard to make reversible — the four reversible actions (kill/restore/block/disable) are now proven in production, so this is ready to plan properly.
 **Requirements**: extends AUTO-02
 **Depends on:** Phase 63
-**Plans:** 1/3 plans complete
+**Plans:** 3/3 plans complete
 
 Plans:
 
-- [x] 64-01-PLAN.md — Backend HashiCorp Vault client, agent `rotate_key` instruction, and end-to-end tracer.
-- [ ] 64-02-PLAN.md — Rust weak-key detection (ssh_key_checks.rs + scanner integration)
-- [ ] 64-03-PLAN.md — Rust rotation mechanics (ssh_key_rotation.rs + dispatch arms + grounded re-verify)
+    - [x] 64-01-PLAN.md — Backend HashiCorp Vault client, agent `rotate_key` instruction, and end-to-end tracer.
+- [x] 64-02-PLAN.md — Rust weak-key detection (ssh_key_checks.rs + scanner integration)
+- [x] 64-03-PLAN.md — Rust rotation mechanics (ssh_key_rotation.rs + dispatch arms + grounded re-verify)
 
 ### Phase 65: FIM process attribution via fanotify
 
@@ -867,12 +867,12 @@ Plans:
 **Requirements**: completes NSCAN-01 (full YARA rules)
 **Depends on:** Phase 65
 **Plans:** 2 plans
-- [ ] 66-01-PLAN.md — Integrate `yara` crate and verify Windows cross-compilation
-- [ ] 66-02-PLAN.md — Implement YARA engine module and integrate into `security_scan`
+- [x] 66-01-PLAN.md — Integrate `yara` crate and verify Windows cross-compilation
+- [x] 66-02-PLAN.md — Implement YARA engine module and integrate into `security_scan`
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 66 to break down)
+- [x] TBD (run /gsd-plan-phase 66 to break down)
 
 ### Phase 69: User Management
 
