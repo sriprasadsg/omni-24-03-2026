@@ -856,11 +856,11 @@ Plans:
 **Goal:** [Promoted from backlog 999.3, deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the current `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
 **Requirements**: completes FIM-02
 **Depends on:** Phase 64
-**Plans:** 1 plan
+**Plans:** 1/1 plans executed
 
 Plans:
 
-- [ ] 65-01-PLAN.md — Core fanotify event capture and basic PID extraction
+- [x] 65-01-PLAN.md — Core fanotify event capture and basic PID extraction
 
 ### Phase 66: Full YARA-rule engine for native scan
 
@@ -880,11 +880,13 @@ Plans:
 **Depends on:** Phase 66 (last-shipped phase, purely sequential — no functional dependency; this phase originally had no dependency in the v4.1 ITAM-Backlog track)
 **Plans:** 6 plans (waves 1→2: 69-01 and 69-02 in wave 1; 69-03, 69-04, 69-05, 69-06 in parallel in wave 2)
 **Success Criteria:**
+
   1. User can create, edit, delete user accounts.
   2. User can be assigned RBAC roles.
   3. User can authenticate via LDAP/AD and SAML/SSO.
   4. User can manage API access tokens.
   5. User can enable/disable 2FA.
+
 **UI hint:** yes — frontend for user CRUD, RBAC, 2FA, and API keys already exists; this phase is backend-only. LDAP/SAML admin UI deferred to Phase 70's console work.
 
 Plans:
@@ -905,11 +907,13 @@ Code complete, reviewed, and automated-verified (`69-VERIFICATION.md`: 27/27 mus
 **Depends on:** Phase 69
 **Plans:** 4 plans (waves 1→4, sequential — every plan touches services/apiService.ts and the ITAM console shell)
 **Success Criteria:**
+
   1. User can add/edit custom fields to asset models.
   2. User can view audit trail for any asset/entity.
   3. User can bulk import/export assets via CSV.
   4. User can update branding (logo, colors) in Global Settings.
   5. User can change the interface language.
+
 **UI hint:** yes
 
 Plans:
@@ -928,11 +932,13 @@ Code complete, reviewed (`70-REVIEW.md` + `70-REVIEW-FIX.md`), automated-verifie
 **Depends on:** Phase 70
 **Plans:** TBD
 **Success Criteria:**
+
   1. User can track purchase order details and supplier information.
   2. User can track warranty expiry and receive automated alerts.
   3. User can view straight-line depreciation.
   4. User can request an asset and follow the approval workflow.
   5. User receives email/Slack notifications for asset lifecycle events.
+
 **UI hint:** yes
 
 Plans:
@@ -946,10 +952,12 @@ Plans:
 **Depends on:** Phase 71
 **Plans:** TBD
 **Success Criteria:**
+
   1. User can build and save custom reports.
   2. User can view pre-built reports for asset/license data.
   3. User can export reports in PDF, CSV, and Excel.
   4. User can view the ITAM dashboard with key KPIs and visualizations.
+
 **UI hint:** yes
 
 Plans:
@@ -963,9 +971,11 @@ Plans:
 **Depends on:** Phase 72
 **Plans:** TBD
 **Success Criteria:**
+
   1. User can use REST API to perform ITAM operations.
   2. User can configure webhooks to trigger events.
   3. User can integrate with Jira and ServiceNow.
+
 **UI hint:** yes
 
 Plans:
