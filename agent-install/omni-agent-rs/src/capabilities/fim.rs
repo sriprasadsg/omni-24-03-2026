@@ -18,6 +18,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use sysinfo::System;
+use crate::capabilities::fanotify_watcher::{FanotifyEventData, start_fanotify_watcher};
+use tokio::sync::mpsc;
 
 pub struct FimCapability;
 
@@ -65,18 +67,16 @@ pub struct ProcessInfo {
     pub tree: Option<Vec<String>>,
 }
 
-/// Maps notify EventKind to our ChangeType.
-fn map_event_kind(kind: &EventKind) -> ChangeType {
-    match kind {
-        EventKind::Create(_) => ChangeType::Create,
-        EventKind::Modify(modify_kind) => match modify_kind {
-            notify::event::ModifyKind::Metadata(_) => ChangeType::Permission,
-            notify::event::ModifyKind::Name(_) => ChangeType::Rename,
-            _ => ChangeType::Modify,
-        },
-        EventKind::Remove(_) => ChangeType::Delete,
-        _ => ChangeType::Modify, // fallback
-    }
+/// Maps fanotify event mask to our ChangeType.
+fn map_fanotify_mask_to_change_type(mask: u32) -> ChangeType {
+    use fanotify::low::{FAN_CREATE, FAN_DELETE, FAN_MODIFY, FAN_ATTRIB, FAN_MOVE, FAN_CLOSE_WRITE};
+    if (mask & FAN_CREATE) != 0 { ChangeType::Create }
+    else if (mask & FAN_DELETE) != 0 { ChangeType::Delete }
+    else if (mask & FAN_MODIFY) != 0 { ChangeType::Modify }
+    else if (mask & FAN_CLOSE_WRITE) != 0 { ChangeType::Modify }
+    else if (mask & FAN_ATTRIB) != 0 { ChangeType::Permission }
+    else if (mask & FAN_MOVE) != 0 { ChangeType::Rename }
+    else { ChangeType::Modify } // Default fallback
 }
 
 /// Best-effort current process user (owner of the agent process).
@@ -107,11 +107,10 @@ pub(crate) fn current_user() -> String {
     }
 }
 
-/// Best-effort process info from OS context.
-/// notify events don't carry PID; we return what we can (currently "unknown" for PID/name/tree).
-fn process_info() -> ProcessInfo {
+/// Best-effort process info for a given PID. For now, name and tree are None.
+fn process_info(pid: u32) -> ProcessInfo {
     ProcessInfo {
-        pid: None,
+        pid: Some(pid),
         name: None,
         tree: None,
     }
@@ -190,56 +189,54 @@ fn enqueue_event(event: &FimEvent) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-/// Builds a FimEvent from a notify Event and enqueues it.
-fn handle_notify_event(event: Event, last_hashes: &Arc<Mutex<HashMap<String, String>>>) {
+/// Builds a FimEvent from FanotifyEventData and enqueues it.
+fn handle_fanotify_event(event_data: FanotifyEventData, last_hashes: &Arc<Mutex<HashMap<String, String>>>) {
     let mut status = FIM_STATUS.lock().unwrap();
 
-    for path in event.paths {
-        let path_str = path.to_string_lossy().to_string();
-        let change_type = map_event_kind(&event.kind);
+    let path_str = event_data.path.clone();
+    let change_type = map_fanotify_mask_to_change_type(event_data.event_mask);
 
-        // hash_after: compute if file exists (create/modify/rename), None for delete/permission
-        let hash_after = if matches!(change_type, ChangeType::Delete) || matches!(change_type, ChangeType::Permission) {
-            None
-        } else {
-            hash_file(&path).map(|(h, _, _)| h).ok()
-        };
+    // hash_after: compute if file exists (create/modify/rename), None for delete/permission
+    let hash_after = if matches!(change_type, ChangeType::Delete) || matches!(change_type, ChangeType::Permission) {
+        None
+    } else {
+        hash_file(Path::new(&path_str)).map(|(h, _, _)| h).ok()
+    };
 
-        // hash_before: look up from last-known map
-        let hash_before = {
-            let mut map = last_hashes.lock().unwrap();
-            let before = map.get(&path_str).cloned();
-            if let Some(ref h) = hash_after {
-                map.insert(path_str.clone(), h.clone());
-            } else if matches!(change_type, ChangeType::Delete) {
-                map.remove(&path_str);
-            }
-            before
-        };
-
-        let fim_event = FimEvent {
-            path: path_str.clone(),
-            change_type,
-            hash_before,
-            hash_after,
-            process: process_info(),
-            user: current_user(),
-            ts: chrono::Utc::now().to_rfc3339(),
-            source: "fim",
-        };
-
-        if let Err(e) = enqueue_event(&fim_event) {
-            log::error!("Failed to enqueue FIM event for {}: {}", path_str, e);
-            status.last_error = Some(format!("enqueue failed: {}", e));
-        } else {
-            status.queued += 1;
-            status.last_event_ts = Some(fim_event.ts.clone());
-            log::debug!("Enqueued FIM event: {} {:?}", path_str, fim_event.change_type);
+    // hash_before: look up from last-known map
+    let hash_before = {
+        let mut map = last_hashes.lock().unwrap();
+        let before = map.get(&path_str).cloned();
+        if let Some(ref h) = hash_after {
+            map.insert(path_str.clone(), h.clone());
+        } else if matches!(change_type, ChangeType::Delete) {
+            map.remove(&path_str);
         }
+        before
+    };
+
+    let fim_event = FimEvent {
+        path: path_str.clone(),
+        change_type,
+        hash_before,
+        hash_after,
+        process: process_info(event_data.pid as u32),
+        user: current_user(),
+        ts: chrono::Utc::now().to_rfc3339(),
+        source: "fim",
+    };
+
+    if let Err(e) = enqueue_event(&fim_event) {
+        log::error!("Failed to enqueue FIM event for {}: {}", path_str, e);
+        status.last_error = Some(format!("enqueue failed: {}", e));
+    } else {
+        status.queued += 1;
+        status.last_event_ts = Some(fim_event.ts.clone());
+        log::debug!("Enqueued FIM event: {} {:?}", path_str, fim_event.change_type);
     }
 }
 
-/// Public API: starts the notify watcher over the given paths.
+/// Public API: starts the fanotify watcher over the given paths.
 /// Returns a shutdown handle that can be used to stop the watcher.
 /// The watcher runs in a background thread; failures are logged and the function returns an error (no panic).
 pub fn start_watcher(
@@ -261,22 +258,16 @@ pub fn start_watcher(
         }
     }
 
-    // Build the notify watcher
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(
-        move |res: Result<Event, notify::Error>| {
-            if let Ok(event) = res {
-                let _ = tx.send(event);
-            }
-        },
-        notify::Config::default().with_poll_interval(Duration::from_millis(100)),
-    )?;
+    let (fanotify_event_tx, mut fanotify_event_rx) = mpsc::channel(100); // Channel for fanotify events
 
-    for p in &paths {
-        if let Err(e) = watcher.watch(Path::new(p), RecursiveMode::NonRecursive) {
-            log::warn!("Failed to watch path {}: {}", p, e);
+    // Spawn the fanotify watcher
+    let fanotify_paths = paths.clone();
+    let fanotify_stop_rx = stop_rx.clone();
+    tokio::spawn(async move {
+        if let Err(e) = start_fanotify_watcher(fanotify_paths, fanotify_stop_rx, fanotify_event_tx).await {
+            log::error!("Fanotify watcher failed: {}", e);
         }
-    }
+    });
 
     status.watching = true;
     status.watched_paths = paths.clone();
@@ -285,31 +276,26 @@ pub fn start_watcher(
     status.last_error = None;
     drop(status);
 
-    // Spawn the event loop
+    // Process events from the fanotify channel
     let last_hashes_clone = last_hashes.clone();
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
         loop {
-            // Check stop signal
-            if *stop_rx.borrow() {
-                log::info!("FIM watcher stop signal received");
-                break;
-            }
-
-            // Wait for events with timeout to allow stop check
-            match rx.recv_timeout(Duration::from_millis(500)) {
-                Ok(event) => {
-                    handle_notify_event(event, &last_hashes_clone);
+            tokio::select! {
+                Some(event_data) = fanotify_event_rx.recv() => {
+                    handle_fanotify_event(event_data, &last_hashes_clone);
                 }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    continue; // check stop signal again
+                _ = stop_rx.changed() => {
+                    if *stop_rx.borrow() {
+                        log::info!("FIM event processor stop signal received");
+                        break;
+                    }
                 }
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    log::warn!("FIM watcher channel disconnected");
-                    break;
+                else => {
+                    // Channel closed or no events for a while, prevent busy-waiting
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                 }
             }
         }
-        // Clean up
         let mut status = FIM_STATUS.lock().unwrap();
         status.watching = false;
     });
