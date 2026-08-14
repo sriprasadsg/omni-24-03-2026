@@ -58,6 +58,7 @@ export interface Asset {
     purchaseCostCents?: number;
     purchaseDate?: datetime;
     poNumber?: string;
+    purchase_order_id?: string;
     warrantyMonths?: number;
     warrantyAlertSentAt?: datetime;
     createdAt: datetime;

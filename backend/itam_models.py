@@ -144,6 +144,7 @@ class AssetPurchaseUpdate(BaseModel):
     purchaseCostCents: Optional[int] = Field(None, ge=0)
     purchaseDate: Optional[str] = None
     poNumber: Optional[str] = Field(None, max_length=100)
+    purchase_order_id: Optional[str] = Field(None, max_length=100) # Link to PurchaseOrder
     supplierId: Optional[str] = None
     warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
 
@@ -274,6 +275,7 @@ class Asset(BaseModel):
     purchaseCostCents: Optional[int] = Field(None, ge=0)
     purchaseDate: Optional[str] = None
     poNumber: Optional[str] = Field(None, max_length=100)
+    purchase_order_id: Optional[str] = Field(None, max_length=100) # Links to PurchaseOrder.id
     warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
     warrantyAlertSentAt: Optional[str] = None # ITAM-FIN-02: idempotency marker for warranty sweeps
 
