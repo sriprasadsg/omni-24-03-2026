@@ -10,7 +10,7 @@ from pymongo.errors import DuplicateKeyError
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database, TenantIsolatedDatabase
-from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_TAG_PREFIX, AssetPurchaseUpdate
+from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_TAG_PREFIX, AssetPurchaseUpdate, Asset
 from itam_catalog_service import collect_field_defs, validate_custom_field_values
 from cache_service import invalidate_cache
 from rbac_utils import verify_permission
@@ -183,4 +183,67 @@ async def create_manual_asset(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create manual asset."
+        )
+
+
+@router.patch("/{asset_id}/purchase", response_model=Asset)
+async def update_asset_purchase(
+    asset_id: str,
+    payload: AssetPurchaseUpdate,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """
+    Update an asset's purchase, warranty, and depreciation information.
+    """
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant ID not found for the current user."
+        )
+
+    db = get_database()
+
+    # Check if asset exists and belongs to tenant
+    existing_asset = await db.assets.find_one({"id": asset_id, "tenantId": tenant_id})
+    if not existing_asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asset not found."
+        )
+
+    update_data = payload.model_dump(exclude_none=True)
+
+    # If purchaseDate or warrantyMonths are updated, reset warrantyAlertSentAt
+    if "purchaseDate" in update_data or "warrantyMonths" in update_data:
+        update_data["warrantyAlertSentAt"] = None
+
+    update_data["updatedAt"] = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
+
+    try:
+        updated_asset = await db.assets.find_one_and_update(
+            {"id": asset_id, "tenantId": tenant_id},
+            {"$set": update_data},
+            return_document=ReturnDocument.AFTER
+        )
+        if not updated_asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Asset not found after update."
+            )
+
+        updated_asset.pop("_id", None)
+        await log_itam_action(
+            current_user,
+            action="itam_asset.update_purchase",
+            resource_type="itam_asset",
+            resource_id=asset_id,
+            details=f"Updated purchase info for asset {asset_id}",
+        )
+        return updated_asset
+    except Exception as e:
+        logger.error(f"Failed to update asset purchase info: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update asset purchase info."
         )
