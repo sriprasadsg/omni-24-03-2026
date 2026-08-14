@@ -863,11 +863,12 @@ Plans:
 - [x] 65-01-PLAN.md — Core fanotify event capture and basic PID extraction
 
 ### Phase 66: Full YARA-rule engine for native scan
-
-**Goal:** [Promoted from backlog 999.4, deferred from Phase 50 at execution] Add real YARA-rule evaluation to the agent's native file scanner. Phase 50 rejected `yara-x` because it pulls `wasmtime` + `cranelift` (a JIT engine — unacceptable bloat + cross-compile risk for the lean agent) and shipped a fallback (SHA256 hash-signature DB + `aho-corasick` literal-pattern matching over the feed's rule string literals) instead. This phase revisits a real engine — only if it cross-compiles to `x86_64-pc-windows-gnu` cleanly and stays reasonably sized (e.g. a leaner yara-x backend, a WASM-free YARA interpreter, or a compiled-rule subset).
+**Goal:** Add real YARA-rule evaluation to the agent's native file scanner, using the `yara` crate (C library bindings) for full spec compliance and Windows cross-compilation.
 **Requirements**: completes NSCAN-01 (full YARA rules)
 **Depends on:** Phase 65
-**Plans:** 0 plans
+**Plans:** 2 plans
+- [ ] 66-01-PLAN.md — Integrate `yara` crate and verify Windows cross-compilation
+- [ ] 66-02-PLAN.md — Implement YARA engine module and integrate into `security_scan`
 
 Plans:
 
