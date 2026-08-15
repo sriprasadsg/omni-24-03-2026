@@ -1,0 +1,8 @@
+<!-- converted from compliance_report_cmmc_l2_20260519134411.xlsx -->
+
+## Sheet: cmmc_l2 Report
+| Control ID | Name | Category | Status | Evidence Count | Collected Evidence | Last Reviewed |
+| --- | --- | --- | --- | --- | --- | --- |
+| cmmc-AC.L2-3.1.1 | Authorized Access Control | Access Control | Implemented | 0 | None |  |
+| cmmc-SI.L2-3.14.1 | Flaw Remediation | System Integrity | In Progress | 0 | None |  |
+| cmmc-SC.L2-3.13.11 | FIPS Validated Cryptography | System and Communications Protection | Not Implemented | 0 | None |  |

@@ -174,32 +174,31 @@ const AssetDetail: React.FC = () => {
                                 {depreciationData?.annualDepreciation ? `$${depreciationData.annualDepreciation.toFixed(2)}` : 'N/A'}
                             </dd>
                         </div>
-                       </div>
                         <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                             <dt className="text-sm font-medium text-gray-500">Type</dt>
-                            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{asset.type || 'N/A'</dd>
-                       </div>
+                            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{asset.type || 'N/A'}</dd>
+                        </div>
                         <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                             <dt className="text-sm font-medium text-gray-500">Lifecycle Status</dt>
-                            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{asset.lifecycleStatus</dd>
-                       </div>
+                            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{asset.lifecycleStatus || 'N/A'}</dd>
+                        </div>
                         <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                             <dt className="text-sm font-medium text-gray-500">Linked Purchase Order</dt>
                             <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                                 {linkedPurchaseOrder ? (
                                     <Link to={`/itam/purchase-orders/${linkedPurchaseOrder.id}`} className="text-blue-600 hover:underline">
                                         {linkedPurchaseOrder.order_number} ({linkedPurchaseOrder.supplier_name})
-                                   </Link>
+                                    </Link>
                                 ) : asset.purchase_order_id ? (
-                                    <span className="text-gray-400">Purchase Order ID: {asset.purchase_order_id} (details unavailable</span>
+                                    <span className="text-gray-400">Purchase Order ID: {asset.purchase_order_id} (details unavailable)</span>
                                 ) : (
                                     <span className="text-gray-400">Not linked</span>
                                 )}
-                           </dd>
-                       </div>
-                   </dl>
-               </div>
-           </div>
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
        </div>
     );
 };

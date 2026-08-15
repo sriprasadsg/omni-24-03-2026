@@ -85,6 +85,7 @@ async def ingest_findings(
             "type": f.get("type"),
             "remediation_hint": f.get("remediation_hint"),
             "playbook_ref": f.get("playbook_ref"),
+            "fingerprint": f.get("fingerprint"),
             "detail": detail,
             "description": detail or (cve_id or ""),
             "package": affected,

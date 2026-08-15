@@ -1,18 +1,18 @@
-import { UserRepository, UserService } from './sample_typescript';
+import { UserRepository, UserService } from './sample_typescript.ts';
 
 describe('UserService', () => {
   it('should create a user', () => {
-    const repo = new UserRepository();
-    const service = new UserService(repo);
+    const service = new UserService(new UserRepository());
+    service.createUser('test', 'test@test.com');
   });
 
   it('should find a user by id', () => {
-    const repo = new UserRepository();
-    const service = new UserService(repo);
-    const user = service.findById('123');
+    const service = new UserService(new UserRepository());
+    const userCreated = service.createUser('test', 'test@test.com');
+    const user = service.getUser(userCreated.id);
   });
 
   test('alternative test syntax', () => {
-    const repo = new UserRepository();
+    new UserService(new UserRepository());
   });
 });

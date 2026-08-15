@@ -933,7 +933,7 @@ Code complete, reviewed (`70-REVIEW.md` + `70-REVIEW-FIX.md`), automated-verifie
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 66 on 2026-08-13 — renumbered 66→71 for the same collision reason as Phase 69/70.] Manage asset lifecycle from procurement to retirement with automated alerts and approval workflows.
 **Requirements**: ITAM-PRO-01, ITAM-PRO-02, ITAM-PRO-03, ITAM-PRO-04, ITAM-PRO-05
 **Depends on:** Phase 70
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 **Success Criteria:**
 
   1. User can track purchase order details and supplier information.
@@ -947,7 +947,7 @@ Code complete, reviewed (`70-REVIEW.md` + `70-REVIEW-FIX.md`), automated-verifie
 Plans:
 
 - [x] 71-01-PLAN.md — Procurement Module Core & Purchase Order Tracking (ITAM-PRO-01)
-- [ ] 71-02-PLAN.md — Warranty Tracking & Depreciation Calculation (ITAM-PRO-02, ITAM-PRO-03)
+- [x] 71-02-PLAN.md — Warranty Tracking & Depreciation Calculation (ITAM-PRO-02, ITAM-PRO-03)
 - [ ] 71-03-PLAN.md — Asset Request & Approval Workflow with Notifications (ITAM-PRO-04, ITAM-PRO-05)
 
 ### Phase 72: Reporting & Dashboards

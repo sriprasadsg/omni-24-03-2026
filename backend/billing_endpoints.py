@@ -19,7 +19,7 @@ from tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
 
-_BILLING_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
+_BILLING_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
 
 
 def _tid(user) -> str:

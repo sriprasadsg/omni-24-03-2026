@@ -22,7 +22,7 @@ from pqc_service import pqc_engine
 
 router = APIRouter(prefix="/api/pqc", tags=["PQC"])
 
-_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin", "Tenant Admin"}
+_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
 
 class HandshakeRequest(BaseModel):

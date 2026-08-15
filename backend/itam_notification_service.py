@@ -67,6 +67,67 @@ class ItamNotificationService:
 
         return {"status": "alerts sent"}
 
+    async def send_asset_request_notification(
+        self,
+        tenant_id: str,
+        request_id: str,
+        item_description: str,
+        status: Any, # AssetRequestStatus Enum
+        requester_id: str,
+        recipients: List[str]
+    ) -> Dict[str, Any]:
+        title = f"Asset Request {status.value.capitalize()}: {item_description}"
+        message = (
+            f"Your asset request for '{item_description}' (ID: {request_id}) "
+            f"has been {status.value}. "
+            f"Requester: {requester_id}."
+        )
+        severity = "info"
+        if status.value == "rejected":
+            severity = "error"
+        elif status.value == "approved":
+            severity = "success"
+
+        metadata = {
+            "request_id": request_id,
+            "item_description": item_description,
+            "status": status.value,
+            "requester_id": requester_id,
+            "event_type": "itam.asset_request_status"
+        }
+
+        # Send via generic in-app notification service
+        try:
+            await self.generic_notification_service.send_alert(
+                title=title,
+                message=message,
+                severity=severity,
+                recipients=recipients,
+                tenant_id=tenant_id,
+                channels=[], # In-app only
+                metadata=metadata
+            )
+        except Exception as e:
+            logger.error(f"Failed to send in-app asset request notification for request {request_id}: {e}")
+
+        # Send via rule-routed notification service (e.g., Slack, email via rules)
+        try:
+            raw_handle = self.db._db if hasattr(self.db, "_db") else self.db
+            await send_notification(
+                _RawDbForNotificationRules(raw_handle),
+                tenant_id,
+                "itam.asset_request_status",
+                {
+                    "message": message,
+                    "severity": severity,
+                    **metadata
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send rule-routed asset request notification for request {request_id}: {e}")
+
+        return {"status": "notifications sent"}
+
 
 class _RawDbForNotificationRules:
     """Minimal adapter exposing the single `_db` attribute

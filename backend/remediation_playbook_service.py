@@ -30,6 +30,8 @@ ACTION_MAP: Dict[str, str] = {
     "unblock_ip": "unblock_ip",
     "disable_service": "disable_service",
     "enable_service": "enable_service",
+    "rotate_key": "rotate_key",
+    "rotate_key_rollback": "rotate_key_rollback",
 }
 
 _REQUIRED_PLAYBOOK_FIELDS = ("name", "finding_class", "steps")
@@ -96,6 +98,7 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
     finding_class mapping (grounded in the actual finding shapes):
       - fim  -> restore_file
       - nscan + scan type "ip" -> block_ip; otherwise -> kill_process
+      - vuln + playbook_ref rotate_key + fingerprint -> rotate_key
       - vuln + a resolvable CVE id -> patch_package; no CVE (misconfig) -> disable_service
       - anomaly + anomaly_rule "shadow_ai_detected" + a real agent_id -> kill_process
         (reuses the existing agent-dispatch playbook verbatim, AUT-03); every
@@ -119,6 +122,8 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
         return by_name.get("kill_process")
 
     if finding_type == "vuln":
+        if details.get("playbook_ref") == "rotate_key" and details.get("fingerprint"):
+            return by_name.get("rotate_key")
         cve_id = details.get("cveId") or details.get("cve_id")
         if cve_id:
             return by_name.get("patch_package")

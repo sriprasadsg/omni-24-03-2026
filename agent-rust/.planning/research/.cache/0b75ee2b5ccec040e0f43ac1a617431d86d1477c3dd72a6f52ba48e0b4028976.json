@@ -1,0 +1,1 @@
+{"content":"Rust YARA engines have significant binary size overhead due to included dependencies like wasmtime/cranelift.","source":"web","provider":"tavily","confidence":"LOW","fetched_at":"2026-08-14T13:15:12.938Z","ttl":86400000,"kind":"web"}

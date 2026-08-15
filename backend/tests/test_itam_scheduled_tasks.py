@@ -15,6 +15,8 @@ class MockDB:
     def __init__(self):
         self.assets = MagicMock()
         self.users = MagicMock()
+        self.system_settings = MagicMock()
+        self.system_settings.find_one = AsyncMock(return_value=None)
 
 @pytest.fixture
 def mock_db():

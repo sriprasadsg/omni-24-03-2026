@@ -21,15 +21,47 @@ class _Finding:
         self.agent_id = agent_id
 
 
-def test_load_default_playbooks_returns_at_least_five():
+def test_load_default_playbooks_returns_at_least_six():
     playbooks = load_default_playbooks()
-    assert len(playbooks) >= 5
+    assert len(playbooks) >= 6
     names = {p["name"] for p in playbooks}
-    assert {"patch_package", "kill_process", "restore_file", "block_ip", "disable_service"} <= names
+    assert {"patch_package", "kill_process", "restore_file", "block_ip", "disable_service", "rotate_key"} <= names
     for p in playbooks:
         assert "name" in p
         assert "finding_class" in p
         assert "steps" in p and len(p["steps"]) >= 1
+
+def test_select_playbook_for_rotate_key_with_fingerprint():
+    finding = _Finding("vuln", details={"playbook_ref": "rotate_key", "fingerprint": "SHA256:abc", "affected_path": "/some/path"})
+    playbook = select_playbook(finding)
+    assert playbook is not None
+    assert playbook["name"] == "rotate_key"
+
+def test_select_playbook_for_preexisting_secret_finding_without_fingerprint_is_unchanged():
+    # This simulates the existing vulnerability_scan.rs::secret_finding() output
+    # which has playbook_ref rotate_key but no fingerprint, and should route to disable_service
+    finding = _Finding("vuln", details={"type": "secret", "playbook_ref": "rotate_key", "affected_path": "/etc/environment", "detail": "Private key material"})
+    playbook = select_playbook(finding)
+    assert playbook is not None
+    assert playbook["name"] == "disable_service"
+
+def test_select_playbook_for_rotate_key_with_empty_fingerprint_is_unchanged():
+    finding = _Finding("vuln", details={"playbook_ref": "rotate_key", "fingerprint": "", "affected_path": "/some/path"})
+    playbook = select_playbook(finding)
+    assert playbook is not None
+    assert playbook["name"] == "disable_service"
+
+def test_select_playbook_for_vuln_with_cve_and_rotate_key_selects_rotate_key_first():
+    finding = _Finding("vuln", details={"cveId": "CVE-2023-1234", "playbook_ref": "rotate_key", "fingerprint": "SHA256:def"})
+    playbook = select_playbook(finding)
+    assert playbook is not None
+    assert playbook["name"] == "rotate_key"
+
+def test_destructive_flag_preserved():
+    playbooks = {p["name"]: p for p in load_default_playbooks()}
+    assert playbooks["kill_process"]["steps"][0]["destructive"] is True
+    assert playbooks["patch_package"]["steps"][0]["destructive"] is False
+    assert playbooks["rotate_key"]["steps"][0]["destructive"] is True
 
 
 def test_select_playbook_for_vuln_finding_with_cve():

@@ -1,30 +1,7 @@
-/*!
- * Enterprise OmniAgent — Rust edition (v2.0.0)
- * Full feature parity with Python agent via capability modules.
- * Native Windows Service via windows-service crate — no WinSW or .NET needed.
- */
-
-mod config;
-mod http;
-mod buffer;
-mod crypto;
-mod etw;
-mod caps;
-mod caps2;
-mod caps3;
-mod compliance_native;
-mod yara_scan;
-mod vt;
-mod cissp;
-mod ws;
-mod poll;
-mod shell;
-mod agentic;
-mod agent;
-mod remediation_actions;
-mod log;
-
+use omni_agent::*;
 use std::sync::{Arc, atomic::AtomicBool};
+use ctrlc;
+use tokio; // Add tokio for tokio::main macro
 
 #[allow(dead_code)]
 const SERVICE_NAME: &str = "OmniAgentRust";
@@ -33,7 +10,8 @@ const SERVICE_NAME: &str = "OmniAgentRust";
 
 #[cfg(windows)]
 mod win_svc {
-    use super::{agent, SERVICE_NAME};
+    use super::SERVICE_NAME;
+    use omni_agent::agent;
     use std::{ffi::OsString, sync::{Arc, OnceLock, atomic::{AtomicBool, Ordering}}, time::Duration};
     use windows_service::{
         define_windows_service, service_dispatcher,
@@ -46,71 +24,83 @@ mod win_svc {
     define_windows_service!(ffi_service_main, svc_main);
 
     fn svc_main(_args: Vec<OsString>) {
-        let running = RUNNING.get().cloned().unwrap_or_else(|| Arc::new(AtomicBool::new(true)));
-        let stop_flag = running.clone();
+        let running = Arc::new(AtomicBool::new(true));
+        let _ = RUNNING.set(running.clone());
 
-        let handler = move |ctrl| match ctrl {
-            ServiceControl::Stop | ServiceControl::Shutdown => {
-                stop_flag.store(false, Ordering::Relaxed);
-                ServiceControlHandlerResult::NoError
+        let event_handler = move |control_event| -> ServiceControlHandlerResult {
+            match control_event {
+                ServiceControl::Stop => {
+                    running.store(false, Ordering::SeqCst);
+                    ServiceControlHandlerResult::NoError
+                }
+                _ => ServiceControlHandlerResult::NotImplemented,
             }
-            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-            _ => ServiceControlHandlerResult::NotImplemented,
         };
 
-        let Ok(handle) = service_control_handler::register(SERVICE_NAME, handler) else { return };
-        let mk_status = |state: ServiceState, accepted: ServiceControlAccept| ServiceStatus {
-            service_type:       ServiceType::OWN_PROCESS,
-            current_state:      state,
-            controls_accepted:  accepted,
-            exit_code:          ServiceExitCode::Win32(0),
-            checkpoint:         0,
-            wait_hint:          Duration::default(),
-            process_id:         None,
-        };
+        let status_handle = service_control_handler::register(SERVICE_NAME, event_handler).unwrap();
+        status_handle.set_service_status(ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state: ServiceState::Running,
+            controls_accepted: ServiceControlAccept::STOP,
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        }).unwrap();
 
-        let _ = handle.set_service_status(mk_status(
-            ServiceState::Running,
-            ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
-        ));
-
-        tokio::runtime::Builder::new_multi_thread()
+        // RUN THE AGENT in a tokio runtime for services
+        let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-            .unwrap()
-            .block_on(agent::agent_loop(running));
+            .unwrap();
 
-        let _ = handle.set_service_status(mk_status(ServiceState::Stopped, ServiceControlAccept::empty()));
+        runtime.block_on(async {
+            agent::agent_loop(RUNNING.get().unwrap().clone()).await;
+        });
+
+        status_handle.set_service_status(ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state: ServiceState::Stopped,
+            controls_accepted: ServiceControlAccept::empty(),
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        }).unwrap();
     }
 
-    pub fn try_start(running: Arc<AtomicBool>) -> bool {
-        let _ = RUNNING.set(running);
-        service_dispatcher::start(SERVICE_NAME, ffi_service_main).is_ok()
+    pub fn start() {
+        service_dispatcher::start(SERVICE_NAME, ffi_service_main).unwrap();
     }
 }
 
-// ── Entry point ────────────────────────────────────────────────────────────────
-
-fn main() {
-    // Initialise file logger — writes to {exe_dir}/logs/omni-agent.log
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
-    log::init(&exe_dir);
-
-    let running = Arc::new(AtomicBool::new(true));
-
-    // Windows Service mode (started by SCM via services.msc or sc.exe)
+#[tokio::main]
+async fn main() {
     #[cfg(windows)]
-    if win_svc::try_start(running.clone()) {
-        return;
+    {
+        // On Windows, if started with --console or in a TTY, run interactively.
+        // Otherwise, assume it's the Service Control Manager.
+        let interactive = std::env::args().any(|arg| arg == "--console") || atty::is(atty::Stream::Stdout);
+        if interactive {
+             let running = Arc::new(AtomicBool::new(true));
+             let r = running.clone();
+             ctrlc::set_handler(move || { r.store(false, std::sync::atomic::Ordering::SeqCst); }).expect("Error setting Ctrl-C handler");
+             agent::agent_loop(running).await;
+        } else {
+             win_svc::start();
+        }
     }
 
-    // Console / direct-launch mode (double-click or --console)
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(agent::agent_loop(running));
+    #[cfg(not(windows))]
+    {
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        // Use a simple signal handler loop for Unix — no complex service wrapper needed.
+        ctrlc::set_handler(move || {
+            println!("Shutting down...");
+            r.store(false, std::sync::atomic::Ordering::SeqCst);
+        }).expect("Error setting Ctrl-C handler");
+
+        agent::agent_loop(running).await;
+    }
 }

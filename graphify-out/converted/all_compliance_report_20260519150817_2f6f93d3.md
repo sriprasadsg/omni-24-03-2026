@@ -1,0 +1,410 @@
+<!-- converted from all_compliance_report_20260519150817.xlsx -->
+
+## Sheet: Overview
+| All Compliance Frameworks — Overview |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- |
+| Generated: 2026-05-19 15:08:17 |  |  |  |  |  |  |
+| FRAMEWORK SUMMARY |  |  |  |  |  |  |
+| Framework | Total Controls | Assets Evaluated | Avg Score (%) | Compliant Assets | Non-Compliant Assets | Overall Status |
+| SOC 2 Type II | 27 | 2 | 80.6 | 1 | 0 | Compliant |
+| ISO/IEC 27001:2022 | 30 | 2 | 62 | 0 | 1 | Partially Compliant |
+| Payment Card Industry Data Security Standard | 22 | 2 | 68 | 0 | 0 | Partially Compliant |
+| NIST Cybersecurity Framework | 19 | 2 | 82.2 | 1 | 0 | Compliant |
+| ISO/IEC 42001:2023 | 12 | 2 | 0 | 0 | 2 | Non-Compliant |
+| HIPAA Security Rule | 21 | 1 | 0 | 0 | 1 | Non-Compliant |
+| General Data Protection Regulation | 17 | 1 | 66.7 | 0 | 0 | Partially Compliant |
+| FedRAMP Moderate | 6 | 0 | 0 | 0 | 0 | Non-Compliant |
+| California Consumer Privacy Act (CCPA/CPRA) | 4 | 0 | 0 | 0 | 0 | Non-Compliant |
+| HITRUST CSF v11 | 3 | 0 | 0 | 0 | 0 | Non-Compliant |
+| CMMC 2.0 Level 2 | 3 | 0 | 0 | 0 | 0 | Non-Compliant |
+| CSA STAR (CCM v4) | 3 | 0 | 0 | 0 | 0 | Non-Compliant |
+| COBIT 2019 | 2 | 0 | 0 | 0 | 0 | Non-Compliant |
+| DORA (EU) | 3 | 0 | 0 | 0 | 0 | Non-Compliant |
+| ISO 9001:2015 | 4 | 1 | 0 | 0 | 1 | Non-Compliant |
+| ISO 31000:2018 | 3 | 0 | 0 | 0 | 0 | Non-Compliant |
+| Digital Personal Data Protection Act (DPDP) | 8 | 1 | 26.7 | 0 | 1 | Non-Compliant |
+| NIST CSF 2.0 | 0 | 0 | 0 | 0 | 0 | Non-Compliant |
+| PCI DSS 4.0 | 0 | 0 | 0 | 0 | 0 | Non-Compliant |
+| NIST | 0 | 0 | 0 | 0 | 0 | Non-Compliant |
+| ISO27001 | 0 | 0 | 0 | 0 | 0 | Non-Compliant |
+| GDPR | 0 | 0 | 0 | 0 | 0 | Non-Compliant |
+## Sheet: SOC 2 Type II Assets
+| Asset Summary — SOC 2 Type II |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0020 | EILT0020 | 4 | 3 | 1 | 0 | 75 | Partially Compliant |
+| asset-EILT0197 | EILT0197 | 29 | 25 | 4 | 0 | 86.2 | Compliant |
+## Sheet: SOC 2 Type II Controls
+| Control Details — SOC 2 Type II |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| CC1.1 | COSO Principle 1: Integrity and Ethical Values | Control Environment | Implemented | — | — | — | 0 | None | — | 2023-10-01 |
+| CC1.2 | COSO Principle 2: Board of Directors Independence | Control Environment | Implemented | — | — | — | 0 | None | — | 2023-10-01 |
+| CC1.3 | COSO Principle 3: Management Structures | Control Environment | Implemented | — | — | — | 0 | None | — | 2023-10-01 |
+| CC2.1 | COSO Principle 6: Information Objectives | Communication and Information | Implemented | — | — | — | 0 | None | — | 2023-10-05 |
+| CC3.1 | COSO Principle 10: Risk Assessment | Risk Assessment | At Risk | — | — | — | 0 | None | — | 2023-10-07 |
+| CC4.1 | COSO Principle 16: Evaluation | Monitoring Activities | Implemented | — | — | — | 0 | None | — | 2023-10-10 |
+| CC5.1 | COSO Principle 13: Internal Control Deficiencies | Control Activities | Implemented | — | — | — | 0 | None | — | 2023-10-12 |
+| CC6.1 | Logical Access Security | Logical and Physical Access Controls | Implemented | asset-EILT0197 | EILT0197 | Compliant | 14 | System Check: Password Policy (Min Length), System Check: Guest Account Disabled, System Check: BitLocker Encryption, System Check: User Access Control, System Check: Maximum Password Age, System Check: Account Lockout Policy, System Check: Password Complexity, System Check: Password History, System Check: Minimum Password Age, System Check: Credential Guard, System Check: Controlled Folder Access, System Check: Idle Timeout (Screensaver), System Check: Local Administrator Auditing, System Check: Cryptographic Controls Extension Simulation | — | 2026-05-15 |
+| CC6.1 | Logical Access Security | Logical and Physical Access Controls | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Password Policy (Min Length) | Compliant | 2026-05-15 |
+| CC6.2 | User Registration | Logical and Physical Access Controls | Implemented | — | — | — | 0 | None | — | 2023-11-05 |
+| CC6.3 | Access Removal | Logical and Physical Access Controls | In Progress | — | — | — | 0 | None | — | 2023-11-10 |
+| CC6.4 | Physical Access | Logical and Physical Access Controls | Implemented | — | — | — | 0 | None | — | 2023-11-11 |
+| CC6.5 | Discontinued Credentials | Logical and Physical Access Controls | Implemented | — | — | — | 0 | None | — | 2023-11-12 |
+| CC6.6 | Boundary Protection | Logical and Physical Access Controls | In Progress | asset-EILT0197 | EILT0197 | Warning | 5 | System Check: Windows Firewall Profiles, System Check: RDP NLA Required, System Check: Risky Network Ports, System Check: Remote Desktop Service, System Check: USB Mass Storage Access | — | 2026-05-15 |
+| CC6.6 | Boundary Protection | Logical and Physical Access Controls | In Progress | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: Windows Firewall Profiles | Warning | 2026-05-15 |
+| CC6.7 | Transmission Protection | Logical and Physical Access Controls | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: TLS Security Config, System Check: LLMNR/NetBIOS Protection, System Check: Cryptographic Controls Extension Simulation | — | 2023-11-15 |
+| CC6.8 | Malicious Software | Logical and Physical Access Controls | Implemented | asset-EILT0197 | EILT0197 | Compliant | 2 | System Check: Windows Defender Antivirus, System Check: Prohibited Software | — | 2026-05-15 |
+| CC6.8 | Malicious Software | Logical and Physical Access Controls | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Windows Defender Antivirus | Compliant | 2026-05-15 |
+| CC7.1 | Configuration Management | System Operations | In Progress | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Secure Development & Coding Simulation | — | 2023-11-20 |
+| CC7.2 | Vulnerability Management | System Operations | Implemented | asset-EILT0197 | EILT0197 | Compliant | 6 | System Check: Secure Boot, System Check: SMBv1 Protocol Disabled, System Check: Device Guard/WDAC, System Check: Exploit Protection (DEP/ASLR), System Check: Attack Surface Reduction, System Check: Capacity Management Simulation | — | 2026-05-15 |
+| CC7.2 | Vulnerability Management | System Operations | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Capacity Management Simulation | Compliant | 2026-05-15 |
+| CC7.3 | Patch Management | System Operations | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Windows Update Service | — | 2023-11-25 |
+| CC7.4 | Incident Response | System Operations | Implemented | — | — | — | 0 | None | — | 2023-11-28 |
+| CC7.5 | Disaster Recovery Testing | System Operations | Not Implemented | — | — | — | 0 | None | — | 2023-11-30 |
+| CC8.1 | Change Management | Change Management | Implemented | asset-EILT0197 | EILT0197 | Compliant | 2 | System Check: Secure Development & Coding Simulation, System Check: Change Management Simulation | — | 2023-12-01 |
+| CC9.1 | Business Mitigation | Risk Mitigation | Implemented | — | — | — | 0 | None | — | 2023-12-05 |
+| CC9.2 | Vendor Management | Risk Mitigation | In Progress | asset-EILT0197 | EILT0197 | Compliant | 2 | System Check: Audit Logging Policy, System Check: PowerShell Script Block Logging | — | 2023-12-06 |
+| A1.1 | Availability Capacity Management | Availability | Implemented | — | — | — | 0 | None | — | 2023-12-08 |
+| A1.2 | Availability Data Backup | Availability | Implemented | — | — | — | 0 | None | — | 2023-12-09 |
+| C1.1 | Confidentiality Classification | Confidentiality | Implemented | — | — | — | 0 | None | — | 2023-12-10 |
+| C1.2 | Confidentiality Disposition | Confidentiality | Implemented | — | — | — | 0 | None | — | 2023-12-11 |
+## Sheet: ISO-IEC 27001-2022 Assets
+| Asset Summary — ISO/IEC 27001:2022 |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0020 | EILT0020 | 8 | 6 | 2 | 0 | 75 | Partially Compliant |
+| asset-EILT0197 | EILT0197 | 45 | 22 | 20 | 3 | 48.9 | Non-Compliant |
+## Sheet: ISO-IEC 27001-2022 Controls
+| Control Details — ISO/IEC 27001:2022 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| A.5.1 | Policies for Information Security | Organizational | Implemented | — | — | — | 0 | None | — | 2023-08-15 |
+| A.5.2 | Information Security Roles | Organizational | Implemented | — | — | — | 0 | None | — | 2023-08-16 |
+| A.5.3 | Segregation of Duties | Organizational | Implemented | — | — | — | 0 | None | — | 2023-08-17 |
+| A.5.4 | Management Responsibilities | Organizational | Implemented | — | — | — | 0 | None | — | 2023-08-18 |
+| A.5.7 | Threat Intelligence | Organizational | At Risk | — | — | — | 0 | None | — | 2023-08-20 |
+| A.5.15 | Access Control | Organizational | Implemented | asset-EILT0197 | EILT0197 | Compliant | 7 | System Check: Password Policy (Min Length), System Check: Guest Account Disabled, System Check: RDP NLA Required, System Check: User Access Control, System Check: Account Lockout Policy, System Check: Credential Guard, System Check: Local Administrator Auditing | — | 2026-05-15 |
+| A.5.15 | Access Control | Organizational | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Guest Account Disabled | Compliant | 2026-05-15 |
+| A.5.20 | Addressing Information Security within Supplier Relationships | Organizational | In Progress | — | — | — | 0 | None | — | 2023-08-28 |
+| A.5.24 | Information Security Incident Management Planning | Organizational | Implemented | — | — | — | 0 | None | — | 2023-08-30 |
+| A.6.1 | Screening | People | Implemented | — | — | — | 0 | None | — | 2023-09-01 |
+| A.6.3 | Information Security Awareness | People | Implemented | — | — | — | 0 | None | — | 2023-09-02 |
+| A.6.6 | Confidentiality or Non-Disclosure Agreements | People | Implemented | — | — | — | 0 | None | — | 2023-09-05 |
+| A.6.8 | Information Security Event Reporting | People | Implemented | — | — | — | 0 | None | — | 2023-09-06 |
+| A.7.1 | Physical Security Perimeters | Physical | Implemented | — | — | — | 0 | None | — | 2023-09-10 |
+| A.7.2 | Physical Entry Controls | Physical | Implemented | — | — | — | 0 | None | — | 2023-09-11 |
+| A.7.10 | Storage Media | Physical | Implemented | asset-EILT0197 | EILT0197 | Warning | 1 | System Check: USB Mass Storage Access | — | 2023-09-15 |
+| A.7.12 | Cabling Security | Physical | Not Implemented | — | — | — | 0 | None | — | 2023-09-18 |
+| A.8.1 | User Endpoint Devices | Technological | In Progress | asset-EILT0197 | EILT0197 | Warning | 8 | System Check: BitLocker Encryption, System Check: Secure Boot, System Check: Prohibited Software, System Check: Credential Guard, System Check: Device Guard/WDAC, System Check: Exploit Protection (DEP/ASLR), System Check: Attack Surface Reduction, System Check: Controlled Folder Access | — | 2026-05-15 |
+| A.8.1 | User Endpoint Devices | Technological | In Progress | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: BitLocker Encryption | Warning | 2026-05-15 |
+| A.8.2 | Privileged Access Rights | Technological | Implemented | asset-EILT0197 | EILT0197 | Compliant | 4 | System Check: Password Policy (Min Length), System Check: Guest Account Disabled, System Check: User Access Control, System Check: Local Administrator Auditing | — | 2026-05-15 |
+| A.8.2 | Privileged Access Rights | Technological | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Local Administrator Accounts | Compliant | 2026-05-15 |
+| A.8.3 | Information Access Restriction | Technological | Implemented | asset-EILT0197 | EILT0197 | Warning | 2 | System Check: Device Guard/WDAC, System Check: USB Mass Storage Access | — | 2023-11-10 |
+| A.8.7 | Protection against Malware | Technological | Implemented | asset-EILT0197 | EILT0197 | Warning | 2 | System Check: Windows Defender Antivirus, System Check: Attack Surface Reduction | — | 2026-05-15 |
+| A.8.7 | Protection against Malware | Technological | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Windows Defender Antivirus | Compliant | 2026-05-15 |
+| A.8.8 | Management of Technical Vulnerabilities | Technological | Implemented | asset-EILT0197 | EILT0197 | Warning | 3 | System Check: Windows Update Service, System Check: SMBv1 Protocol Disabled, System Check: Exploit Protection (DEP/ASLR) | — | 2026-05-15 |
+| A.8.8 | Management of Technical Vulnerabilities | Technological | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Security Patch Status | Compliant | 2026-05-15 |
+| A.8.9 | Configuration Management | Technological | In Progress | — | — | — | 0 | None | — | 2023-11-12 |
+| A.8.10 | Information Deletion | Technological | Not Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Information Deletion & Disposal Simulation | — | 2023-11-13 |
+| A.8.12 | Data Leakage Prevention | Technological | Not Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Data Leakage Prevention Simulation | — | 2023-11-14 |
+| A.8.13 | Information Backup | Technological | In Progress | asset-EILT0197 | EILT0197 | Warning | 1 | System Check: Data Backup & Recovery Simulation | — | 2026-05-15 |
+| A.8.13 | Information Backup | Technological | In Progress | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: Data Backup & Recovery Simulation | Warning | 2026-05-15 |
+| A.8.16 | Monitoring Activities | Technological | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: Audit Logging Policy | — | 2026-05-15 |
+| A.8.16 | Monitoring Activities | Technological | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: PowerShell Script Block Logging | Compliant | 2026-05-15 |
+| A.8.24 | Use of Cryptography | Technological | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: BitLocker Encryption, System Check: TLS Security Config, System Check: Cryptographic Controls Extension Simulation | — | 2026-05-15 |
+| A.8.24 | Use of Cryptography | Technological | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Cryptographic Controls Extension Simulation | Compliant | 2026-05-15 |
+| A.8.28 | Secure Coding | Technological | In Progress | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Secure Development & Coding Simulation | — | 2023-11-20 |
+| A.9.4.1 | Password Policy | Technological | Implemented | — | — | — | 0 | None | — | 2023-11-22 |
+| A.12.6.1 | Software Updates | Technological | Implemented | — | — | — | 0 | None | — | 2023-11-25 |
+## Sheet: Payment Card Industry Da Assets
+| Asset Summary — Payment Card Industry Data Security Standard |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0020 | EILT0020 | 7 | 4 | 3 | 0 | 57.1 | Partially Compliant |
+| asset-EILT0197 | EILT0197 | 57 | 45 | 9 | 3 | 78.9 | Partially Compliant |
+## Sheet: Payment Card Industry Da Controls
+| Control Details — Payment Card Industry Data Security Standard |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| PCI-1.1 | Firewall Configuration | Build and Maintain a Secure Network | In Progress | asset-EILT0197 | EILT0197 | Compliant | 2 | System Check: Windows Firewall Profiles, System Check: Risky Network Ports | — | 2026-05-15 |
+| PCI-1.1 | Firewall Configuration | Build and Maintain a Secure Network | In Progress | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: Windows Firewall Profiles | Warning | 2026-05-15 |
+| PCI-1.2 | Restrict Connections | Build and Maintain a Secure Network | In Progress | asset-EILT0197 | EILT0197 | Warning | 1 | Admin Check: Risky Network Ports | Warning | 2026-05-15 |
+| PCI-1.2 | Restrict Connections | Build and Maintain a Secure Network | In Progress | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: Risky Network Ports | Warning | 2026-05-15 |
+| PCI-2.1 | System Defaults | Build and Maintain a Secure Network | Implemented | — | — | — | 0 | None | — | 2023-10-22 |
+| PCI-2.2 | Configuration Standards | Build and Maintain a Secure Network | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: RDP NLA Required, System Check: Remote Desktop Service, System Check: WinRM Service Status | — | 2026-05-15 |
+| PCI-2.2 | Configuration Standards | Build and Maintain a Secure Network | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: RDP NLA Required | Compliant | 2026-05-15 |
+| PCI-3.1 | Cardholder Data Storage | Protect Cardholder Data | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Information Deletion & Disposal Simulation | — | 2023-10-24 |
+| PCI-3.4 | Protect Stored Data | Protect Cardholder Data | In Progress | asset-EILT0197 | EILT0197 | Warning | 2 | System Check: BitLocker Encryption, System Check: USB Mass Storage Access | — | 2026-05-15 |
+| PCI-3.4 | Protect Stored Data | Protect Cardholder Data | In Progress | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: BitLocker Encryption | Warning | 2026-05-15 |
+| PCI-3.5 | Encryption Keys | Protect Cardholder Data | Implemented | — | — | — | 0 | None | — | 2023-10-26 |
+| PCI-4.1 | Encrypt Transmission | Protect Cardholder Data | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: TLS Security Config | — | 2023-10-28 |
+| PCI-5.1 | Anti-Virus Software | Maintain a Vulnerability Management Program | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Windows Defender Antivirus | — | 2026-05-15 |
+| PCI-5.1 | Anti-Virus Software | Maintain a Vulnerability Management Program | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Windows Defender Antivirus | Compliant | 2026-05-15 |
+| PCI-6.1 | Vulnerability Ranking | Maintain a Vulnerability Management Program | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Secure Development & Coding Simulation | — | 2023-11-01 |
+| PCI-6.2 | System Patches | Maintain a Vulnerability Management Program | In Progress | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Windows Update Service | — | 2023-11-02 |
+| PCI-6.3 | Secure Software | Maintain a Vulnerability Management Program | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Secure Development & Coding Simulation | — | 2023-11-03 |
+| PCI-7.1 | Access Restriction | Implement Strong Access Control Measures | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Local Administrator Auditing | — | 2023-11-05 |
+| PCI-8.1.1 | Unique IDs | Implement Strong Access Control Measures | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: Password Policy (Min Length), System Check: Guest Account Disabled, System Check: Account Lockout Policy | — | 2026-05-15 |
+| PCI-8.1.1 | Unique IDs | Implement Strong Access Control Measures | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Password Policy (Min Length) | Compliant | 2026-05-15 |
+| PCI-8.2 | Authentication Methods | Implement Strong Access Control Measures | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: Maximum Password Age, System Check: Password Complexity, System Check: Password History | — | 2023-11-09 |
+| PCI-9.1 | Physical Security | Implement Strong Access Control Measures | In Progress | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Information Deletion & Disposal Simulation | — | 2023-11-10 |
+| PCI-9.5 | Media Protection | Implement Strong Access Control Measures | Implemented | asset-EILT0197 | EILT0197 | Warning | 1 | System Check: Data Backup & Recovery Simulation | — | 2023-11-11 |
+| PCI-10.1 | Audit Logging | Regularly Monitor and Test Networks | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: Audit Logging Policy | — | 2023-11-12 |
+| PCI-10.2 | Audit Trails | Regularly Monitor and Test Networks | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Clock Synchronization Simulation | — | 2026-05-15 |
+| PCI-10.2 | Audit Trails | Regularly Monitor and Test Networks | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Clock Synchronization Simulation | Compliant | 2026-05-15 |
+| PCI-11.2 | Vulnerability Scanning | Regularly Monitor and Test Networks | At Risk | — | — | — | 0 | None | — | 2023-11-15 |
+| PCI-11.3 | Penetration Testing | Regularly Monitor and Test Networks | Not Implemented | — | — | — | 0 | None | — | 2023-11-16 |
+| PCI-12.1 | Information Security Policy | Maintain an Information Security Policy | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Data Leakage Prevention Simulation | — | 2023-11-18 |
+## Sheet: NIST Cybersecurity Frame Assets
+| Asset Summary — NIST Cybersecurity Framework |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0020 | EILT0020 | 1 | 1 | 0 | 0 | 100 | Compliant |
+| asset-EILT0197 | EILT0197 | 28 | 18 | 3 | 7 | 64.3 | Partially Compliant |
+## Sheet: NIST Cybersecurity Frame Controls
+| Control Details — NIST Cybersecurity Framework |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| ID.AM-1 | Asset Management | Identify | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: Secure Boot, System Check: Windows Update Service, System Check: Prohibited Software | — | 2023-10-05 |
+| ID.AM-2 | Software Inventory | Identify | Implemented | — | — | — | 0 | None | — | 2023-10-06 |
+| ID.RA-1 | Risk Assessment | Identify | At Risk | — | — | — | 0 | None | — | 2023-10-07 |
+| ID.RA-2 | Threat Intelligence | Identify | Implemented | — | — | — | 0 | None | — | 2023-10-07 |
+| ID.GV-1 | Governance | Identify | Implemented | — | — | — | 0 | None | — | 2023-10-08 |
+| PR.AC-1 | Access Control | Protect | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 7 | System Check: Windows Firewall Profiles, System Check: Password Policy (Min Length), System Check: RDP NLA Required, System Check: User Access Control, System Check: Account Lockout Policy, System Check: Credential Guard, System Check: Idle Timeout (Screensaver) | — | 2023-10-08 |
+| PR.AC-3 | Remote Access | Protect | Implemented | asset-EILT0197 | EILT0197 | Compliant | 2 | System Check: Remote Desktop Service, System Check: WinRM Service Status | — | 2023-10-09 |
+| PR.AC-5 | Network Segregation | Protect | In Progress | asset-EILT0197 | EILT0197 | Non-Compliant | 2 | System Check: Risky Network Ports, System Check: LLMNR/NetBIOS Protection | — | 2023-10-09 |
+| PR.DS-1 | Data at Rest | Protect | Implemented | asset-EILT0197 | EILT0197 | Compliant | 3 | System Check: BitLocker Encryption, System Check: Controlled Folder Access, System Check: Cryptographic Controls Extension Simulation | — | 2023-10-10 |
+| PR.DS-2 | Data in Transit | Protect | Implemented | asset-EILT0197 | EILT0197 | Compliant | 2 | System Check: TLS Security Config, System Check: Cryptographic Controls Extension Simulation | — | 2026-05-15 |
+| PR.DS-2 | Data in Transit | Protect | Implemented | asset-EILT0020 | EILT0020 | Compliant | 1 | Admin Check: Cryptographic Controls Extension Simulation | Compliant | 2026-05-15 |
+| PR.IP-1 | Configuration Baselines | Protect | In Progress | asset-EILT0197 | EILT0197 | Warning | 4 | System Check: SMBv1 Protocol Disabled, System Check: Device Guard/WDAC, System Check: Exploit Protection (DEP/ASLR), System Check: Attack Surface Reduction | — | 2023-10-11 |
+| DE.AE-1 | Anomalies and Events | Detect | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: Audit Logging Policy | — | 2023-10-12 |
+| DE.CM-1 | Security Monitoring | Detect | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: PowerShell Script Block Logging | — | 2023-10-13 |
+| DE.CM-7 | Monitoring for Malicious Code | Detect | Implemented | — | — | — | 0 | None | — | 2023-10-13 |
+| RS.RP-1 | Response Planning | Respond | Implemented | — | — | — | 0 | None | — | 2023-10-14 |
+| RS.MI-1 | Mitigation | Respond | Implemented | — | — | — | 0 | None | — | 2023-10-15 |
+| RS.AN-1 | Analysis | Respond | In Progress | — | — | — | 0 | None | — | 2023-10-15 |
+| RC.RP-1 | Recovery Planning | Recover | Implemented | — | — | — | 0 | None | — | 2023-10-15 |
+| RC.IM-1 | Improvements | Recover | Not Implemented | — | — | — | 0 | None | — | 2023-10-16 |
+## Sheet: ISO-IEC 42001-2023 Assets
+| Asset Summary — ISO/IEC 42001:2023 |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0020 | EILT0020 | 1 | 0 | 1 | 0 | 0 | Non-Compliant |
+| asset-EILT0197 | EILT0197 | 4 | 0 | 4 | 0 | 0 | Non-Compliant |
+## Sheet: ISO-IEC 42001-2023 Controls
+| Control Details — ISO/IEC 42001:2023 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| A.2.1 | AI Policy | AI Policy | Implemented | — | — | — | 0 | None | — | 2023-12-01 |
+| A.3.1 | AI Roles and Responsibilities | Internal Organization | In Progress | — | — | — | 0 | None | — | 2023-12-05 |
+| A.4.1 | Resources for AI Systems | Resources | Not Implemented | — | — | — | 0 | None | — | 2023-12-05 |
+| A.5.1 | AI Impact Assessment | Impact Assessment | At Risk | — | — | — | 0 | None | — | 2023-12-06 |
+| A.6.1 | AI System Lifecycle | AI System Lifecycle | Implemented | — | — | — | 0 | None | — | 2023-12-07 |
+| A.6.2 | AI Design and Development | AI System Lifecycle | Implemented | — | — | — | 0 | None | — | 2023-12-07 |
+| A.6.3 | AI System Testing | AI System Lifecycle | In Progress | — | — | — | 0 | None | — | 2023-12-07 |
+| A.7.1 | Data Management | Data for AI | In Progress | — | — | — | 0 | None | — | 2023-12-08 |
+| A.7.2 | Data Quality | Data for AI | Not Implemented | — | — | — | 0 | None | — | 2023-12-08 |
+| A.8.1 | Third-Party AI Systems | Third Party | Not Implemented | asset-EILT0197 | EILT0197 | Warning | 8 | System Check: BitLocker Encryption, System Check: Secure Boot, System Check: Prohibited Software, System Check: Credential Guard, System Check: Device Guard/WDAC, System Check: Exploit Protection (DEP/ASLR), System Check: Attack Surface Reduction, System Check: Controlled Folder Access | — | 2023-12-09 |
+| A.8.1 | Third-Party AI Systems | Third Party | Not Implemented | asset-EILT0020 | EILT0020 | Warning | 1 | Admin Check: BitLocker Encryption | Warning | 2023-12-09 |
+| A.9.1 | Responsible Use of AI | Use of AI Systems | Implemented | — | — | — | 0 | None | — | 2023-12-10 |
+| A.9.2 | Transparency and Explainability | Use of AI Systems | At Risk | — | — | — | 0 | None | — | 2023-12-10 |
+## Sheet: HIPAA Security Rule Assets
+| Asset Summary — HIPAA Security Rule |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0197 | EILT0197 | 3 | 0 | 3 | 0 | 0 | Non-Compliant |
+## Sheet: HIPAA Security Rule Controls
+| Control Details — HIPAA Security Rule |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| 164.308(a)(1)(i) | Security Management Process | Administrative Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-01 |
+| 164.308(a)(1)(ii)(A) | Risk Analysis | Administrative Safeguard | At Risk | — | — | — | 0 | None | — | 2023-12-02 |
+| 164.308(a)(1)(ii)(B) | Risk Management | Administrative Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-03 |
+| 164.308(a)(2) | Assigned Security Responsibility | Administrative Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-04 |
+| 164.308(a)(3) | Workforce Security | Administrative Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-05 |
+| 164.308(a)(4) | Information Access Management | Administrative Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-06 |
+| 164.308(a)(5) | Security Awareness and Training | Administrative Safeguard | In Progress | — | — | — | 0 | None | — | 2023-12-07 |
+| 164.308(a)(6) | Security Incident Procedures | Administrative Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-08 |
+| 164.308(a)(7) | Contingency Plan | Administrative Safeguard | Not Implemented | — | — | — | 0 | None | — | 2023-12-09 |
+| 164.308(a)(8) | Evaluation | Administrative Safeguard | Not Implemented | — | — | — | 0 | None | — | 2023-12-10 |
+| 164.310(a)(1) | Facility Access Controls | Physical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-11 |
+| 164.310(b) | Workstation Use | Physical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-12 |
+| 164.310(c) | Workstation Security | Physical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-13 |
+| 164.310(d)(1) | Device and Media Controls | Physical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-14 |
+| 164.312(a)(1) | Access Control | Technical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-15 |
+| 164.312(a)(2)(i) | Unique User Identification | Technical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-16 |
+| 164.312(a)(2)(iv) | Encryption and Decryption | Technical Safeguard | Implemented | asset-EILT0197 | EILT0197 | Warning | 3 | System Check: BitLocker Encryption, System Check: TLS Security Config, System Check: PII Data Discovery | — | 2023-12-17 |
+| 164.312(b) | Audit Controls | Technical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-18 |
+| 164.312(c)(1) | Integrity | Technical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-19 |
+| 164.312(d) | Person or Entity Authentication | Technical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-20 |
+| 164.312(e)(1) | Transmission Security | Technical Safeguard | Implemented | — | — | — | 0 | None | — | 2023-12-21 |
+## Sheet: General Data Protection Assets
+| Asset Summary — General Data Protection Regulation |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0197 | EILT0197 | 9 | 6 | 3 | 0 | 66.7 | Partially Compliant |
+## Sheet: General Data Protection Controls
+| Control Details — General Data Protection Regulation |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| Art.5(1)(a) | Lawfulness, Fairness and Transparency | Principles | In Progress | — | — | — | 0 | None | — | 2023-11-01 |
+| Art.5(1)(c) | Data Minimization | Principles | Not Implemented | asset-EILT0197 | EILT0197 | Warning | 1 | System Check: PII Data Discovery | — | 2023-11-01 |
+| Art.5(1)(e) | Storage Limitation | Principles | Not Implemented | — | — | — | 0 | None | — | 2023-11-01 |
+| Art.5(1)(f) | Integrity and Confidentiality | Principles | Implemented | — | — | — | 0 | None | — | 2023-11-01 |
+| Art.15 | Right of Access | Rights of the Data Subject | Implemented | — | — | — | 0 | None | — | 2023-11-05 |
+| Art.16 | Right to Rectification | Rights of the Data Subject | Implemented | — | — | — | 0 | None | — | 2023-11-05 |
+| Art.17 | Right to Erasure ('Right to be Forgotten') | Rights of the Data Subject | In Progress | — | — | — | 0 | None | — | 2023-11-05 |
+| Art.20 | Right to Data Portability | Rights of the Data Subject | Not Implemented | — | — | — | 0 | None | — | 2023-11-05 |
+| Art.24 | Responsibility of the Controller | Controller and Processor | Implemented | — | — | — | 0 | None | — | 2023-11-10 |
+| Art.25 | Data Protection by Design and by Default | Controller and Processor | In Progress | — | — | — | 0 | None | — | 2023-11-10 |
+| Art.28 | Processor | Controller and Processor | In Progress | — | — | — | 0 | None | — | 2023-11-10 |
+| Art.30 | Records of Processing Activities | Controller and Processor | In Progress | — | — | — | 0 | None | — | 2023-11-10 |
+| Art.32(1)(a) | Encryption | Security of Personal Data | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Cryptographic Controls Extension Simulation | — | 2023-11-15 |
+| Art.32(1)(b) | Confidentiality, Integrity, Availability | Security of Personal Data | Implemented | asset-EILT0197 | EILT0197 | Compliant | 1 | System Check: Cryptographic Controls Extension Simulation | — | 2023-11-15 |
+| Art.32(1)(d) | Testing and Evaluation | Security of Personal Data | At Risk | — | — | — | 0 | None | — | 2023-11-15 |
+| Art.33 | Notification of a Personal Data Breach | Security of Personal Data | Implemented | — | — | — | 0 | None | — | 2023-11-15 |
+| Art.44 | General Principle for Transfers | Transfers | Implemented | — | — | — | 0 | None | — | 2023-11-20 |
+## Sheet: FedRAMP Moderate Assets
+| Asset Summary — FedRAMP Moderate |
+| --- |
+## Sheet: FedRAMP Moderate Controls
+| Control Details — FedRAMP Moderate |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| fedramp-AC-2 | Account Management | Access Control | Implemented | — | — | — | 0 | None | — |  |
+| fedramp-AC-3 | Access Enforcement | Access Control | At Risk | — | — | — | 0 | None | — |  |
+| fedramp-AU-2 | Audit Events | Audit and Accountability | Implemented | — | — | — | 0 | None | — |  |
+| fedramp-CM-6 | Configuration Settings | Configuration Management | In Progress | — | — | — | 0 | None | — |  |
+| fedramp-IR-4 | Incident Handling | Incident Response | Implemented | — | — | — | 0 | None | — |  |
+| fedramp-SI-2 | Flaw Remediation | System and Information Integrity | In Progress | — | — | — | 0 | None | — |  |
+## Sheet: California Consumer Priv Assets
+| Asset Summary — California Consumer Privacy Act (CCPA/CPRA) |
+| --- |
+## Sheet: California Consumer Priv Controls
+| Control Details — California Consumer Privacy Act (CCPA/CPRA) |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| ccpa-Privacy-1 | Right to Know | Consumer Rights | Implemented | — | — | — | 0 | None | — |  |
+| ccpa-Privacy-2 | Right to Delete | Consumer Rights | In Progress | — | — | — | 0 | None | — |  |
+| ccpa-Privacy-3 | Do Not Sell/Share | Opt-Out | Not Implemented | — | — | — | 0 | None | — |  |
+| ccpa-Security-1 | reasonable security procedures | Security | At Risk | — | — | — | 0 | None | — |  |
+## Sheet: HITRUST CSF v11 Assets
+| Asset Summary — HITRUST CSF v11 |
+| --- |
+## Sheet: HITRUST CSF v11 Controls
+| Control Details — HITRUST CSF v11 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| hitrust-01.0 | Access Control | Access Control | Implemented | — | — | — | 0 | None | — |  |
+| hitrust-06.0 | Endpoint Protection | Endpoint Security | In Progress | — | — | — | 0 | None | — |  |
+| hitrust-09.0 | Transmission Protection | Network Security | Implemented | — | — | — | 0 | None | — |  |
+## Sheet: CMMC 2.0 Level 2 Assets
+| Asset Summary — CMMC 2.0 Level 2 |
+| --- |
+## Sheet: CMMC 2.0 Level 2 Controls
+| Control Details — CMMC 2.0 Level 2 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| cmmc-AC.L2-3.1.1 | Authorized Access Control | Access Control | Implemented | — | — | — | 0 | None | — |  |
+| cmmc-SI.L2-3.14.1 | Flaw Remediation | System Integrity | In Progress | — | — | — | 0 | None | — |  |
+| cmmc-SC.L2-3.13.11 | FIPS Validated Cryptography | System and Communications Protection | Not Implemented | — | — | — | 0 | None | — |  |
+## Sheet: CSA STAR (CCM v4) Assets
+| Asset Summary — CSA STAR (CCM v4) |
+| --- |
+## Sheet: CSA STAR (CCM v4) Controls
+| Control Details — CSA STAR (CCM v4) |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| csa-AIS-04 | Application Security Metrics | App & Interface Security | Not Implemented | — | — | — | 0 | None | — |  |
+| csa-IAM-01 | Identity and Access Management Policy | Identity & Access Management | Implemented | — | — | — | 0 | None | — |  |
+| csa-IVS-06 | Network Security | Infrastructure & Virtualization | Implemented | — | — | — | 0 | None | — |  |
+## Sheet: COBIT 2019 Assets
+| Asset Summary — COBIT 2019 |
+| --- |
+## Sheet: COBIT 2019 Controls
+| Control Details — COBIT 2019 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| cobit-DSS05 | Manage Security Services | Deliver, Service and Support | In Progress | — | — | — | 0 | None | — |  |
+| cobit-APO12 | Manage Risk | Align, Plan and Organize | At Risk | — | — | — | 0 | None | — |  |
+## Sheet: DORA (EU) Assets
+| Asset Summary — DORA (EU) |
+| --- |
+## Sheet: DORA (EU) Controls
+| Control Details — DORA (EU) |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| dora-Art5 | ICT Risk Management Framework | Risk Management | Implemented | — | — | — | 0 | None | — |  |
+| dora-Art9 | Protection and Prevention | Protection | Implemented | — | — | — | 0 | None | — |  |
+| dora-Art11 | Backup Policies | Recovery | Implemented | — | — | — | 0 | None | — |  |
+## Sheet: ISO 9001-2015 Assets
+| Asset Summary — ISO 9001:2015 |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0197 | EILT0197 | 3 | 0 | 3 | 0 | 0 | Non-Compliant |
+## Sheet: ISO 9001-2015 Controls
+| Control Details — ISO 9001:2015 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| iso9001-4.4 | QMS and its processes | Context of the Organization | Implemented | — | — | — | 0 | None | — |  |
+| iso9001-5.2 | Quality Policy | Leadership | Implemented | — | — | — | 0 | None | — |  |
+| iso9001-6.1 | Actions to address risks and opportunities | Planning | In Progress | — | — | — | 0 | None | — |  |
+| iso9001-7.5 | Documented Information | Support | Implemented | asset-EILT0197 | EILT0197 | Warning | 1 | System Check: Data Backup & Recovery Simulation | — |  |
+## Sheet: ISO 31000-2018 Assets
+| Asset Summary — ISO 31000:2018 |
+| --- |
+## Sheet: ISO 31000-2018 Controls
+| Control Details — ISO 31000:2018 |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| iso31000-5.4 | Implementation | Framework | Implemented | — | — | — | 0 | None | — |  |
+| iso31000-6.3 | Scope, Context and Criteria | Process | Implemented | — | — | — | 0 | None | — |  |
+| iso31000-6.4 | Risk Assessment | Process | In Progress | — | — | — | 0 | None | — |  |
+## Sheet: Digital Personal Data Pr Assets
+| Asset Summary — Digital Personal Data Protection Act (DPDP) |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Asset ID | Hostname | Total Controls | Compliant | Warning | Non-Compliant | Score (%) | Overall Status |
+| asset-EILT0197 | EILT0197 | 15 | 4 | 3 | 8 | 26.7 | Non-Compliant |
+## Sheet: Digital Personal Data Pr Controls
+| Control Details — Digital Personal Data Protection Act (DPDP) |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Control ID | Control Name | Category | Control Status | Asset ID | Hostname | Asset Status | Evidence Count | Evidence Names | Evidence Statuses | Last Reviewed |
+| DPDP-5.1 | Consent Artifacts Present | Obligations of Data Fiduciary | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: DPDP-5.1 Consent Artifacts | — | 2024-01-15 |
+| DPDP-8.4 | Data Retention Pruning Logic | Obligations of Data Fiduciary | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: DPDP-8.4 Data Retention Policy | — | 2024-01-20 |
+| DPDP-8.5 | Personal Data Breach Notification Ops | Obligations of Data Fiduciary | At Risk | asset-EILT0197 | EILT0197 | Warning | 1 | System Check: DPDP-8.5 Breach Notification | — | 2024-01-22 |
+| DPDP-9.1 | Child Data Age-Gating | Special Provisions | Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: DPDP-9.1 Child Data Age-Gating | — | 2024-01-25 |
+| DPDP-10.1 | Significant Data Fiduciary Audits | Significant Data Fiduciary | Not Implemented | asset-EILT0197 | EILT0197 | Non-Compliant | 1 | System Check: DPDP-10.1 SDF Audit Status | — | 2024-01-28 |
+| DPDP-6.1 | Notice for Consent | Obligations of Data Fiduciary | Implemented | — | — | — | 0 | None | — | 2024-02-01 |
+| DPDP-8.6 | Grievance Redressal Mechanism | Obligations of Data Fiduciary | In Progress | — | — | — | 0 | None | — | 2024-02-05 |
+| DPDP-8.9 | Data Processor Contracts | Obligations of Data Fiduciary | Implemented | — | — | — | 0 | None | — | 2024-02-10 |
+## Sheet: NIST CSF 2.0 Assets
+| Asset Summary — NIST CSF 2.0 |
+| --- |
+## Sheet: NIST CSF 2.0 Controls
+| Control Details — NIST CSF 2.0 |
+| --- |
+## Sheet: PCI DSS 4.0 Assets
+| Asset Summary — PCI DSS 4.0 |
+| --- |
+## Sheet: PCI DSS 4.0 Controls
+| Control Details — PCI DSS 4.0 |
+| --- |
+## Sheet: NIST Assets
+| Asset Summary — NIST |
+| --- |
+## Sheet: NIST Controls
+| Control Details — NIST |
+| --- |
+## Sheet: ISO27001 Assets
+| Asset Summary — ISO27001 |
+| --- |
+## Sheet: ISO27001 Controls
+| Control Details — ISO27001 |
+| --- |
+## Sheet: GDPR Assets
+| Asset Summary — GDPR |
+| --- |
+## Sheet: GDPR Controls
+| Control Details — GDPR |
+| --- |

@@ -262,11 +262,10 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
 
       <Modal isOpen={!!checkoutTarget} onClose={() => setCheckoutTarget(null)} title="Check Out Asset" confirmLabel="Check Out" onConfirm={handleCheckout}>
         <div className="space-y-3 mb-4">
-          <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" value={checkoutForm.targetType} onChange={(e) => setCheckoutForm({ ...checkoutForm, targetType: e.target.value as 'user' | 'location' })} aria-label="Assign To Type">
+          <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" value={checkoutForm.targetType} onChange={(e) => setCheckoutForm({ ...checkoutForm, targetType: e.target.value as 'user' })} aria-label="Assign To Type">
             <option value="user">User</option>
-            <option value="location">Location</option>
           </select>
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder={checkoutForm.targetType === 'user' ? 'User ID' : 'Location ID'} value={checkoutForm.targetId} onChange={(e) => setCheckoutForm({ ...checkoutForm, targetId: e.target.value })} aria-label="Target ID" />
+          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="User ID" value={checkoutForm.targetId} onChange={(e) => setCheckoutForm({ ...checkoutForm, targetId: e.target.value })} aria-label="User ID" />
           <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Note (optional)" value={checkoutForm.note} onChange={(e) => setCheckoutForm({ ...checkoutForm, note: e.target.value })} aria-label="Note" />
         </div>
       </Modal>

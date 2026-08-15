@@ -336,6 +336,38 @@ export const fetchSsoProviders = async () => {
         return await res.json();
     } catch { return { providers: [] }; }
 };
+
+// --- Predictive Health API ---
+
+export const fetchPredictiveHosts = async (): Promise<any[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/predictive/hosts`);
+        if (!res.ok) {
+            console.error(`[fetchPredictiveHosts] HTTP ${res.status}: ${res.statusText}`);
+            return [];
+        }
+        const data = await res.json();
+        return data.predictions || [];
+    } catch (error) {
+        console.error('Error fetching predictive hosts:', error);
+        return [];
+    }
+};
+
+export const fetchPredictiveModelAccuracy = async (): Promise<any | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/predictive/model/accuracy`);
+        if (!res.ok) {
+            console.error(`[fetchPredictiveModelAccuracy] HTTP ${res.status}: ${res.statusText}`);
+            return null;
+        }
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching predictive model accuracy:', error);
+        return null;
+    }
+};
+
 // Helper for offline caching
 const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, updateLocalVar: (data: T) => void): Promise<T> => {
     try {

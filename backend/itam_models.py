@@ -152,6 +152,9 @@ class AssetPurchaseUpdate(BaseModel):
     purchase_order_id: Optional[str] = Field(None, max_length=100) # Link to PurchaseOrder
     supplierId: Optional[str] = None
     warrantyMonths: Optional[int] = Field(None, ge=0, le=600)
+    warranty_expiry_date: Optional[str] = None
+    salvage_value: Optional[float] = Field(None, ge=0)
+    useful_life_years: Optional[int] = Field(None, gt=0)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -550,6 +553,47 @@ class PurchaseOrder(PurchaseOrderBase):
             return str(v)
         return v
 
+
+
+
+# Asset Request Models (Phase 71)
+class AssetRequestStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+class AssetRequestBase(BaseModel):
+    item_description: str = Field(min_length=3, max_length=500)
+    quantity: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=1000)
+
+class AssetRequestCreate(AssetRequestBase):
+    pass
+
+class AssetRequestUpdate(BaseModel):
+    item_description: Optional[str] = Field(None, min_length=3, max_length=500)
+    quantity: Optional[int] = Field(None, ge=1)
+    reason: Optional[str] = Field(None, min_length=3, max_length=1000)
+    status: Optional[AssetRequestStatus] = None # Only updatable by approver methods
+    approver_id: Optional[str] = None
+    approval_date: Optional[datetime] = None
+
+class AssetRequest(AssetRequestBase):
+    id: str = Field(default_factory=lambda: f"ar-{uuid.uuid4().hex[:8]}", alias="_id")
+    tenant_id: str
+    requester_id: str
+    status: AssetRequestStatus = AssetRequestStatus.PENDING
+    request_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    approval_date: Optional[datetime] = None
+    approver_id: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str_ar(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
 
 
 # Label Sheet (Phase 58-04, ITAM-CAT-05). Bounds how much PDF-generation work

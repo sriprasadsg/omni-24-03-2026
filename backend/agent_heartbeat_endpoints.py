@@ -273,6 +273,9 @@ async def report_heartbeat(
             install_date = meta.get("install_date")
             if install_date and install_date not in ("Unknown", "", None):
                 asset_update["osInstalledOn"] = install_date
+            logged_in_user = meta.get("logged_in_user")
+            if logged_in_user and logged_in_user not in ("Unknown", "", None):
+                asset_update["loggedInUser"] = logged_in_user
 
         _hb_asset_filter: dict = {"id": asset_id}
         if _hb_tenant_id:

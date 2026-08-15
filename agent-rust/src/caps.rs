@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 use sysinfo::System;
 use sha2::{Sha256, Digest};
 use std::fs;
+use crate::scanner::yara_engine::YaraEngine;
 
 fn ps_json(s: &str) -> Value {
     if s.is_empty() || s == "null" { return Value::Null; }
@@ -302,6 +303,36 @@ try {
     let out = crate::http::run_ps(cmd).await;
     json!({"status": "success", "outdated_software": ps_json(&out), "note": "Outdated software may contain known CVEs. Run upgrade to remediate."})
 }
+
+// ── YARA Scan ──────────────────────────────────────────────────────────────────
+
+pub async fn run_yara_scan(file_path: &str) -> Value {
+    let rule_source = r#"
+        rule evil_file {
+            strings:
+                $a = "malicious_content_sample"
+            condition:
+                $a
+        }
+    "#;
+    let engine = match YaraEngine::new(rule_source) {
+        Ok(e) => e,
+        Err(e) => return json!({"status": "error", "message": format!("YARA engine init failed: {}", e)}),
+    };
+
+    let data = match tokio::fs::read(file_path).await {
+        Ok(d) => d,
+        Err(e) => return json!({"status": "error", "message": format!("Failed to read file {}: {}", file_path, e)}),
+    };
+
+    let matches = engine.scan(data.as_slice());
+    if matches.is_empty() {
+        json!({"status": "clean", "file": file_path, "matches": []})
+    } else {
+        json!({"status": "detected", "file": file_path, "matches": matches})
+    }
+}
+
 
 // ── Patch management ───────────────────────────────────────────────────────────
 

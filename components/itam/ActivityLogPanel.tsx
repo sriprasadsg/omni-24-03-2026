@@ -192,8 +192,8 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <React.Fragment key={entry.id}>
+              {entries.map((entry, index) => (
+                <React.Fragment key={entry.id || index}>
                   <tr className="border-b border-gray-800">
                     <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">{entry.timestamp}</td>
                     <td className="py-2 pr-4 text-white font-medium">{entry.userName}</td>

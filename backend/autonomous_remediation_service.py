@@ -808,10 +808,29 @@ class AutonomousRemediationService:
         open status AT the timeout bound is a definite negative ('failed');
         a missing/unrecognized status at timeout is genuinely ambiguous
         ('unverified')."""
+        from bson import ObjectId
         elapsed = 0
         last_status = None
+        query = None
+        # finding_id is set from v.get("id") or str(v.get("_id", "")) in scan_for_remediable_findings
+        # The document in DB has _id (ObjectId), not an "id" field.
+        # Try to parse as ObjectId for _id lookup.
+        try:
+            query = {"_id": ObjectId(finding.finding_id)}
+        except Exception:
+            # Fallback: use details to construct unique match (tenantId, agentId, cve_id, affected_path, detail)
+            details = finding.details or {}
+            query = {
+                "tenantId": finding.tenant_id,
+                "agentId": details.get("agentId"),
+                "cve_id": details.get("cve_id") or details.get("cveId"),
+                "affected_path": details.get("affected_path"),
+            }
+            detail = details.get("detail")
+            if detail:
+                query["detail"] = detail
         while elapsed <= VERIFY_TIMEOUT_SEC:
-            vuln = await db.vulnerabilities.find_one({"id": finding.finding_id})
+            vuln = await db.vulnerabilities.find_one(query)
             if vuln is None:
                 return "resolved"
             last_status = (vuln.get("status") or "").lower()

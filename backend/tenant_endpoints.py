@@ -35,7 +35,7 @@ class TenantCreate(BaseModel):
         "view:chaos", "view:compliance", "view:ai_governance", "view:security_audit", 
         "view:audit_log", "view:reporting", "view:automation", "view:finops", 
         "view:developer_hub", "view:advanced_bi", "view:llmops", "view:unified_ops",
-        "view:swarm", "manage:settings", "manage:tenants", "view:itam", "manage:itam"
+        "view:swarm", "view:itam", "manage:itam"
     ]
     notificationPreferences: Dict[str, Any] = {}
 
