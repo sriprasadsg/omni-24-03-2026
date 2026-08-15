@@ -3315,13 +3315,13 @@ export const streamChatAssistantResponse = (
     (async () => {
         try {
             const token = sessionStorage.getItem('token') || '';
-            const res = await fetch(`${API_BASE}/ai/chat/stream`, {
+            const res = await fetch(`${API_BASE}/ai/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
-                body: JSON.stringify({ message: input, context }),
+                body: JSON.stringify({ messages: [{"role": "user", "content": input}], context }),
                 credentials: 'include',
             });
 

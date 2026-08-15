@@ -1,0 +1,1 @@
+Fix applied. `apiService.ts` payload changed `message: input` to `messages: [{"role": "user", "content": input}]`. Resolves 400 Bad Request.
