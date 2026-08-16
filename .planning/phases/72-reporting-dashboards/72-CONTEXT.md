@@ -22,7 +22,7 @@ Four requirements: ITAM-REP-01 (custom report builder, build+save), ITAM-REP-02 
 - **D-04:** Saved custom report definitions are shared tenant-wide (any user with builder access can see/reuse them), not private per-creator.
 - **D-05:** No cap on saved reports per tenant.
 - **D-06:** Builder shows an on-screen paginated results preview before the user exports — catches a bad filter before generating a file.
-- **D-07:** Report builder access is gated by `manage:itam` (the same admin gate as other ITAM management surfaces — `_require_itam_admin`, Phase 47/48/61/63 pattern), not the wider `view:itam`.
+- **D-07:** Report builder access is gated by `_require_itam_admin` (the same admin gate as other ITAM management surfaces, Phase 47/48/61/63 pattern), not the wider `view:itam`. **Correction (RESEARCH.md, 2026-08-16):** the actual permission this helper checks is `manage:assets`, not `manage:itam` as assumed during discussion — same helper, corrected permission name.
 
 ### Pre-built Reports (ITAM-REP-02)
 - **D-08:** Six pre-built reports ship: Asset value/depreciation summary, Check-out/check-in activity log, Warranty expiring, License seat utilization, Low-stock consumables, Overdue physical audits.
@@ -36,15 +36,18 @@ Four requirements: ITAM-REP-01 (custom report builder, build+save), ITAM-REP-02 
 - **D-14:** Export applies to both custom-built AND pre-built reports — ITAM-REP-03's wording doesn't distinguish the two.
 
 ### KPI Dashboard (ITAM-REP-04)
-- **D-15:** Dashboard is a 7th tab in `ITAMConsole.tsx`, alongside the existing 6 (Catalog, Check-Out/In, Procurement & Finance, Licenses & Consumables, Compliance, Software Inventory) — not a new landing view replacing the console's current entry tab.
+- **D-15:** Dashboard is a new tab in `ITAMConsole.tsx`, alongside the existing tabs — not a new landing view replacing the console's current entry tab. **Correction (RESEARCH.md, 2026-08-16):** `ITAMConsole.tsx` currently has 10 tabs, not the 6 assumed during discussion (Phase 65/71-03 added more since) — Reports becomes the 11th, not the 7th. The decision (own tab, not a landing view) stands unchanged.
 - **D-16:** Four KPIs: total asset value + count by status/lifecycle stage, license utilization % (seats used/available), upcoming warranty expirations (count/timeline), overdue check-ins/audits count.
 - **D-17:** Chart library is `recharts` — already a dependency, already used in `CXODashboard.tsx`/`ExecutiveDashboard.tsx`/`PatchManagementDashboard.tsx`. No new charting dependency.
 - **D-18:** KPI tiles are clickable and drill into the corresponding pre-built report or a filtered asset list — not static read-only numbers.
 
 ### Claude's Discretion
-- Exact column set exposed by the field picker per entity (asset/license/consumable/component/finance) — pick from existing model fields, no new fields need to be invented.
+- Exact column set exposed by the field picker per entity (asset/license/consumable/component/finance) — pick from existing model fields.
 - Exact wording/layout of the two-section Reports tab and the KPI tile grid.
 - Whether the shared report-data function lives in a new `itam_reporting_service.py` or extends an existing itam_* service — implementation detail for research/planning to resolve against the existing module layout.
+- **D-19 (resolves RESEARCH.md open question A1):** Consumables have no reorder-threshold field today. Add an optional `reorderThreshold` field to the consumable model (nullable, admin-settable); the Low-stock consumables report flags items where `quantity <= reorderThreshold` when set, falling back to a fixed heuristic (`quantity <= 5`) when not set — so the report works day one without forcing a data-migration/backfill step. — **Reversibility:** reversible — an additive optional field, no migration required for existing documents.
+- **D-20 (resolves RESEARCH.md open question A2):** Report preview (D-06) and export (D-14) share one backend endpoint/data-building function with an optional `limit`/`format` param, rather than two separate endpoints — consistent with D-12's "one shared report-data function" decision, avoids duplicating filter/join logic.
+- **Cross-collection joins (per RESEARCH.md):** `TenantIsolatedCollection.aggregate()` only tenant-scopes the top-level pipeline match, not `$lookup` sub-pipelines — a naive `$lookup` joining license/consumable/component onto assets risks a cross-tenant leak. Report builder must join via separate tenant-scoped `find()` calls per collection (Python-side join), never a raw `$lookup` aggregation across collections.
 
 </decisions>
 
@@ -71,7 +74,7 @@ Four requirements: ITAM-REP-01 (custom report builder, build+save), ITAM-REP-02 
 - `backend/itam_asset_service.py` / `backend/itam_models.py` — the single `assets` collection with `assetSource` discriminator this phase's report builder queries (D-01)
 
 ### Existing frontend to build on
-- `components/itam/ITAMConsole.tsx` — 6-tab console shell; Reports becomes the 7th tab (D-15)
+- `components/itam/ITAMConsole.tsx` — console shell (10 tabs as of this research, not 6); Reports becomes the next tab (D-15)
 - `components/CXODashboard.tsx`, `components/ExecutiveDashboard.tsx` — recharts KPI-dashboard precedents to follow (D-17)
 - `services/apiService.ts` — existing ~26 ITAM client functions to extend
 
@@ -86,7 +89,7 @@ Four requirements: ITAM-REP-01 (custom report builder, build+save), ITAM-REP-02 
 - `recharts` (already in `package.json`) — no new dependency for the KPI dashboard
 
 ### Established Patterns
-- `_require_itam_admin` — the `manage:itam` gate used across `itam_consumable_endpoints.py`/`itam_component_endpoints.py`/etc. (Phase 47/48/61/63 precedent) — applies to the report builder (D-07)
+- `_require_itam_admin` — the `manage:assets` gate used across `itam_consumable_endpoints.py`/`itam_component_endpoints.py`/etc. (Phase 47/48/61/63 precedent) — applies to the report builder (D-07)
 - Single `assets` collection with `assetSource` discriminator (v4.0's central architectural decision) — reports must query this, never a parallel collection (D-01)
 - Tenant-isolation via raw `_mdb.db` + explicit `set_tenant_id` for any background/scheduled work — not applicable this phase since export is on-demand only (D-13), but relevant if a future phase adds scheduling
 
