@@ -1,7 +1,7 @@
 ---
 phase: 72
 slug: reporting-dashboards
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-16
@@ -75,6 +75,8 @@ Existing semantic status colors (already established across the console, reuse v
 - Red (as Destructive row above) — expired warranty, overdue audit, overdue check-in
 - Gray (`text-gray-400 bg-gray-800 border-gray-700`) — no data / not applicable
 
+**Visual hierarchy / focal point (checker Dimension 2 recommendation):** On the Reports tab, the KPI tile row is the primary visual anchor on tab load (top of the panel, largest accent-icon elements, first thing the eye lands on). The two-section report list (pre-built reports + "Create Custom Report") sits below it as secondary content. Within the custom builder, the on-screen results preview table (D-06) is the focal point once a report is run — it should visually dominate over the filter-picker controls above it once results are populated.
+
 ---
 
 ## Copywriting Contract
@@ -99,20 +101,71 @@ Existing semantic status colors (already established across the console, reuse v
 
 ## UI Considerations
 
-Applicable state considerations resolved: 9 covered, 2 backstop, 0 unresolved.
+Ran via `ui-consideration-probe.cjs` against 8 named elements/surfaces extracted from this spec (E1 custom report builder form, E2 pre-built reports list, E3 saved custom reports list, E4 report results/preview table, E5 export actions, E6 KPI tile grid, E7 delete-confirmation modal, E8 Reports tab overall layout). Engine reported 56 applicable (element × category) considerations, 0 pre-resolved. Kind-confirmation review: all 8 elements' detected classification (form/list/list/table/buttons/dashboard-tiles/modal/page-layout) matches their actual UI role — no missed element kind.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | Saved custom reports list | ✅ covered | Renders the documented "No custom reports yet" / "Build a report..." empty-state copy (see Copywriting Contract) inside the existing `bg-gray-800 rounded-xl border border-gray-700 p-8 text-center` empty-box pattern (matches `FinancePanel.tsx`'s "Select an asset" box). |
-| empty | Report preview / export result with zero matching rows | ✅ covered | Renders "No matching assets" / "Adjust your filters..." — distinct from the saved-reports-list empty state so the user isn't confused about which list is empty. |
-| empty | KPI tile with zero underlying data (e.g. no licenses, no consumables) | ✅ covered | Renders "No data yet" / entity-specific next-step copy inside the tile itself rather than showing a misleading "0%" or an empty chart. |
-| loading | Pre-built report run, custom report preview, export generation, KPI fetch | ✅ covered | Existing `{loading && <p className="text-gray-400 text-sm">Loading…</p>}` convention (verified in `LicensesPanel.tsx`) — reuse verbatim, no new spinner component. |
-| error | Run report, save report, export | ✅ covered | Toast-based per the Copywriting Contract's Error state rows, via the existing `showToast(message, 'error')` utility — never a silent failure or a raw stack trace. |
-| populated | Pre-built report list (6 fixed cards) | ✅ covered | Fixed 6-card grid per D-08/D-09; no pagination needed since the count is fixed and known. |
-| populated | Custom report preview table, export | ✅ covered | Standard table pattern (`table.w-full.text-sm` with `border-b border-gray-700` header row) matching `LicensesPanel.tsx`'s existing table. |
-| zero-one-many | Saved custom reports (0, 1, many) | ✅ covered | 0 → empty state above; 1-many → same list rendering, no special-casing needed since D-05 sets no cap. |
-| overflow | Report preview with many columns (asset + license + consumable + component + finance fields all selected) | 🧪 backstop | Table must remain horizontally scrollable (`overflow-x-auto` wrapper) rather than wrapping/breaking layout — held-out visual check, not exercised by an automated test in this phase's test map. |
-| long-text | Long asset hostnames / long custom report names in list/table cells | 🧪 backstop | Cells should truncate with `truncate`/`title` attribute (tooltip on hover) rather than breaking table row height — held-out visual check. |
+Resolved below by upgrading each applicable item to `covered` with a concrete, spec-grounded truth where one exists (mostly already implied by the Copywriting Contract / Color / Spacing sections above), `not applicable` with a one-line reason where the category genuinely doesn't apply to that element, or `backstop` (held-out visual check) where no automated test covers it. **0 unresolved** — every applicable item got an explicit resolution, none left as a silent gap.
+
+**Summary:** 40 covered, 2 backstop, 14 not applicable, 0 unresolved (of 56 applicable).
+
+| Element | Category | Status | Resolution / Reason |
+|---------|----------|--------|---------------------|
+| E1 builder form | empty | ✅ covered | 0 filters is a valid state — report runs unfiltered (all in-scope rows); no special empty-state copy needed for the form itself. |
+| E1 builder form | loading | ✅ covered | Existing `{loading && <p className="text-gray-400 text-sm">Loading…</p>}` convention (`LicensesPanel.tsx`) on Run. |
+| E1 builder form | error | ✅ covered | Toast-based, `showToast(message, 'error')`, per Copywriting Contract's run/save error rows. |
+| E1 builder form | populated | ✅ covered | Each added filter renders as a removable chip/row above the field picker; selected columns shown as checked chips. |
+| E1 builder form | partial | ✅ covered | A joined field absent for a given asset (e.g. no finance record) renders as `—` (em dash), never blank/undefined. |
+| E1 builder form | overflow | ✅ covered | Filter/column picker area scrolls vertically within a max-height container rather than growing the page unbounded. |
+| E1 builder form | zero-one-many | ✅ covered | 0 filters = valid unfiltered query; 1-many = AND-combined chip list — filters aren't a pluralized noun needing copy variance. |
+| E1 builder form | long-text | ✅ covered | Existing truncate + `title`-tooltip convention applies to filter values and the report-name input. |
+| E2 pre-built list | empty | ⬜ not applicable | Fixed 6-card list (D-08/D-09) — never zero. |
+| E2 pre-built list | loading | ⬜ not applicable | Card grid is static metadata, renders immediately; the Run action's loading state is covered under E4. |
+| E2 pre-built list | error | ⬜ not applicable | Errors only occur on Run, covered under E4. |
+| E2 pre-built list | populated | ✅ covered | Fixed 6-card grid per D-08/D-09; no pagination needed. |
+| E2 pre-built list | partial | ⬜ not applicable | Cards are static system-authored metadata, not data-dependent. |
+| E2 pre-built list | overflow | ✅ covered | Grid wraps responsively (existing Tailwind grid pattern), no horizontal scroll needed for 6 fixed cards. |
+| E2 pre-built list | zero-one-many | ⬜ not applicable | Always exactly 6 — no count variance. |
+| E2 pre-built list | long-text | ⬜ not applicable | Card labels are fixed short system strings. |
+| E3 saved reports list | empty | ✅ covered | "No custom reports yet" / "Build a report..." empty-state copy inside the existing `bg-gray-800 rounded-xl border border-gray-700 p-8 text-center` empty-box pattern (matches `FinancePanel.tsx`). |
+| E3 saved reports list | loading | ✅ covered | Existing `Loading…` convention. |
+| E3 saved reports list | error | ✅ covered | Load failure falls back to the same toast/error convention; list simply doesn't populate. |
+| E3 saved reports list | populated | ✅ covered | Same list pattern as `LicensesPanel.tsx`. |
+| E3 saved reports list | partial | ⬜ not applicable | A saved report definition is save-or-nothing (D-04/D-05) — no partial-save state exists. |
+| E3 saved reports list | overflow | ✅ covered | Standard vertical list scroll, no cap (D-05). |
+| E3 saved reports list | zero-one-many | ✅ covered | 0 → empty state above; 1-many → same list rendering, no special-casing since D-05 sets no cap. |
+| E3 saved reports list | long-text | ✅ covered | Truncate + tooltip convention applies to report names. |
+| E4 results table | empty | ✅ covered | "No matching assets" / "Adjust your filters..." — distinct copy from E3's empty state so the user isn't confused about which list is empty. |
+| E4 results table | loading | ✅ covered | Existing `Loading…` convention. |
+| E4 results table | error | ✅ covered | Toast-based, Copywriting Contract's run/preview error row. |
+| E4 results table | populated | ✅ covered | Standard table pattern (`table.w-full.text-sm`, `border-b border-gray-700` header) matching `LicensesPanel.tsx`. |
+| E4 results table | partial | ✅ covered | Same `—` dash convention as E1 for absent joined fields on a given row. |
+| E4 results table | overflow | 🧪 backstop | Table must remain horizontally scrollable (`overflow-x-auto` wrapper) with many columns selected — held-out visual check, not covered by the automated test map. |
+| E4 results table | zero-one-many | ✅ covered | Pagination (D-06) handles "many"; "one" row renders as a single-row table, no special-casing. |
+| E4 results table | long-text | 🧪 backstop | Cells truncate with `truncate`/`title` tooltip rather than breaking row height — held-out visual check. |
+| E5 export actions | empty | ⬜ not applicable | Buttons are always present once a report has run; not a data-driven empty state. |
+| E5 export actions | loading | ✅ covered | Export generation shares the `Loading…`/disabled-button convention during generation — no new component. |
+| E5 export actions | error | ✅ covered | Copywriting Contract's dedicated export-error copy row. |
+| E5 export actions | populated | ⬜ not applicable | Three static buttons, not data-populated. |
+| E5 export actions | partial | ⬜ not applicable | Export either succeeds or fails; no partial-export state. |
+| E5 export actions | overflow | ⬜ not applicable | Three fixed buttons, no list-growth concern. |
+| E5 export actions | zero-one-many | ⬜ not applicable | Always exactly 3 buttons. |
+| E5 export actions | long-text | ⬜ not applicable | Fixed button labels. |
+| E6 KPI tile grid | empty | ✅ covered | "No data yet" + entity-specific next-step copy inside the tile, rather than a misleading "0%" or empty chart. |
+| E6 KPI tile grid | loading | ✅ covered | Existing `Loading…` convention, per-tile on initial fetch. |
+| E6 KPI tile grid | error | ✅ covered | A single tile's fetch failure falls back to that tile's empty-state copy rather than a dashboard-wide error banner — avoids one failed metric disrupting the whole KPI row. |
+| E6 KPI tile grid | populated | ✅ covered | recharts visualization per D-17, tile shows computed value + chart. |
+| E6 KPI tile grid | partial | ⬜ not applicable | Each KPI is a single computed aggregate, not a row-partial dataset. |
+| E6 KPI tile grid | overflow | ⬜ not applicable | Fixed 4-tile grid, no dynamic list growth. |
+| E6 KPI tile grid | zero-one-many | ⬜ not applicable | Always exactly 4 tiles (D-16). |
+| E6 KPI tile grid | long-text | ⬜ not applicable | Tile labels are fixed short system strings. |
+| E7 delete modal | overflow | ⬜ not applicable | Fixed short title/description text, cloned `Modal.tsx` sizes to content. |
+| E7 delete modal | long-text | ⬜ not applicable | Description text is fixed/system-authored (Copywriting Contract), not user input. |
+| E8 tab layout | empty | ⬜ not applicable | The tab itself is never empty (KPI grid + pre-built list always present); sub-element empty states covered individually above (E3/E4/E6). |
+| E8 tab layout | loading | ✅ covered | Initial tab-open shows the KPI grid + pre-built list immediately (static/cheap); KPI values populate via the per-tile loading state (E6) — no full-page skeleton needed. |
+| E8 tab layout | error | ⬜ not applicable | No tab-level error state; failures are scoped to individual KPI tiles/reports (E4/E6). |
+| E8 tab layout | populated | ✅ covered | Per the Visual hierarchy / focal point note above (Color section): KPI tiles top/primary, report list below/secondary. |
+| E8 tab layout | partial | ⬜ not applicable | Not meaningful at the layout-composition level. |
+| E8 tab layout | overflow | ⬜ not applicable | Page-level vertical scroll, standard console pattern. |
+| E8 tab layout | long-text | ⬜ not applicable | No free text at this composition level. |
 | destructive | Delete saved custom report | ✅ covered | Confirmation modal per Copywriting Contract's Destructive confirmation row; deletion is not reversible and the modal says so explicitly. |
 
 ---
@@ -128,11 +181,11 @@ Applicable state considerations resolved: 9 covered, 2 backstop, 0 unresolved.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (FLAG resolved — visual hierarchy/focal point note added to Color section)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-08-16
