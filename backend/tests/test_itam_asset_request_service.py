@@ -68,6 +68,8 @@ async def test_create_asset_request(asset_request_service: ItamAssetRequestServi
     mock_db.asset_requests.insert_one.assert_called_once()
     inserted_doc = mock_db.asset_requests.insert_one.call_args[0][0]
     assert inserted_doc["id"]  # explicit id must be set before insert, not left to Mongo's _id
+    assert inserted_doc["_id"] == inserted_doc["id"]  # Mongo's real _id must match, or AssetRequest.id
+    # (Pydantic alias="_id") serializes back a different value than what get/approve/reject query by
     assert inserted_doc["tenant_id"] == MOCK_TENANT_ID
     assert inserted_doc["requester_id"] == MOCK_REQUESTER_ID
     assert inserted_doc["status"] == AssetRequestStatus.PENDING

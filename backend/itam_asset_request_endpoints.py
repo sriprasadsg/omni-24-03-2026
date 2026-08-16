@@ -37,7 +37,20 @@ async def _require_asset_approver(current_user: TokenData = Depends(get_current_
         )
     return current_user
 
-@router.post("", response_model=AssetRequest, status_code=status.HTTP_201_CREATED)
+async def _require_asset_viewer(current_user: TokenData = Depends(get_current_user)):
+    """
+    Dependency for read (get/list) access: either 'request:assets' (itam_user,
+    to see their own requests) or 'manage:procurement' (itam_admin, to see the
+    full queue they need to approve/reject) is sufficient.
+    """
+    if not await verify_permission(current_user, "request:assets") and not await verify_permission(current_user, "manage:procurement"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to view asset requests."
+        )
+    return current_user
+
+@router.post("", response_model=AssetRequest, response_model_by_alias=False, status_code=status.HTTP_201_CREATED)
 async def create_asset_request_endpoint(
     request_data: AssetRequestCreate,
     current_user: TokenData = Depends(_require_asset_requester)
@@ -57,10 +70,10 @@ async def create_asset_request_endpoint(
         logger.error(f"Failed to create asset request: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create asset request.")
 
-@router.get("/{request_id}", response_model=AssetRequest)
+@router.get("/{request_id}", response_model=AssetRequest, response_model_by_alias=False)
 async def get_asset_request_endpoint(
     request_id: str,
-    current_user: TokenData = Depends(_require_asset_requester) # Requester or Approver can view
+    current_user: TokenData = Depends(_require_asset_viewer) # Requester or Approver can view
 ):
     tenant_id = current_user.tenant_id
     if not tenant_id:
@@ -80,12 +93,12 @@ async def get_asset_request_endpoint(
         )
     return asset_request
 
-@router.get("", response_model=List[AssetRequest])
+@router.get("", response_model=List[AssetRequest], response_model_by_alias=False)
 async def list_asset_requests_endpoint(
     status_filter: Optional[AssetRequestStatus] = None,
     skip: int = 0,
     limit: int = 100,
-    current_user: TokenData = Depends(_require_asset_requester) # Requester or Approver can list
+    current_user: TokenData = Depends(_require_asset_viewer) # Requester or Approver can list
 ):
     tenant_id = current_user.tenant_id
     if not tenant_id:
@@ -105,7 +118,7 @@ async def list_asset_requests_endpoint(
     return requests
 
 
-@router.patch("/{request_id}/approve", response_model=AssetRequest)
+@router.patch("/{request_id}/approve", response_model=AssetRequest, response_model_by_alias=False)
 async def approve_asset_request_endpoint(
     request_id: str,
     current_user: TokenData = Depends(_require_asset_approver)
@@ -129,7 +142,7 @@ async def approve_asset_request_endpoint(
         logger.error(f"Failed to approve asset request {request_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to approve asset request.")
 
-@router.patch("/{request_id}/reject", response_model=AssetRequest)
+@router.patch("/{request_id}/reject", response_model=AssetRequest, response_model_by_alias=False)
 async def reject_asset_request_endpoint(
     request_id: str,
     current_user: TokenData = Depends(_require_asset_approver)

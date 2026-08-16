@@ -160,6 +160,24 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:dashboard", "view:reporting", "view:assets", "view:compliance",
             "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
         ],
+        # ITAM-specific roles (ITAM-USR-02) — mirrored from rbac_service.py's
+        # default_roles. Without these, itam_admin/itam_user/itam_viewer
+        # silently have zero permissions here whenever a tenant has no
+        # matching db.roles document (verify_permission's DB lookup misses,
+        # falls through to this dict, finds nothing) — RBACService.has_permission
+        # doesn't have this gap since it falls back to self.default_roles
+        # in-memory, but the itam_procurement/itam_asset_request endpoints
+        # use verify_permission, not RBACService.has_permission.
+        "itam_admin": [
+            "manage:assets", "manage:licenses", "manage:users",
+            "view:itam", "manage:procurement", "manage:finance",
+        ],
+        "itam_user": [
+            "view:assets", "view:licenses", "view:itam", "request:assets",
+        ],
+        "itam_viewer": [
+            "view:assets", "view:licenses", "view:itam",
+        ],
     }
 
     # Canonical DEFAULT_PERMISSIONS key for a normalized role — single

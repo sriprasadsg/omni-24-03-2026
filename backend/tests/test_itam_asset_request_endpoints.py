@@ -61,7 +61,8 @@ def test_get_asset_request_endpoint(patch_dependencies):
         response = client.get(f"/api/v1/itam/asset-requests/{MOCK_REQUEST_ID}")
         assert response.status_code == 200
         data = response.json()
-        assert data.get("id") == MOCK_REQUEST_ID or data.get("_id") == MOCK_REQUEST_ID
+        assert data.get("id") == MOCK_REQUEST_ID
+        assert "_id" not in data  # response_model_by_alias=False must keep the wire key "id"
 
 
 def test_get_asset_request_endpoint_not_found(patch_dependencies):
@@ -82,6 +83,33 @@ def test_list_asset_requests_endpoint(patch_dependencies):
         response = client.get("/api/v1/itam/asset-requests")
         assert response.status_code == 200
         assert len(response.json()) == 2
+
+
+def test_list_asset_requests_endpoint_approver_without_request_assets():
+    """itam_admin has manage:procurement but not request:assets — must still
+    be able to list the queue it needs to approve/reject (regression test for
+    the bug where list/get required request:assets specifically, locking
+    approvers out of the requests they were supposed to review)."""
+    mock_user = TokenData(username=MOCK_APPROVER_EMAIL, tenant_id=MOCK_TENANT_ID, role="itam_admin")
+    _fastapi_app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    mock_service = AsyncMock(spec=ItamAssetRequestService)
+    mock_service.list_asset_requests.return_value = [AssetRequest.model_validate(MOCK_REQUEST_DOC)]
+
+    async def fake_verify_permission(user, permission):
+        return permission == "manage:procurement"
+
+    with patch("itam_asset_request_endpoints.verify_permission", side_effect=fake_verify_permission), \
+         patch("itam_asset_request_endpoints.get_database", return_value=AsyncMock()), \
+         patch("itam_asset_request_endpoints.ItamAssetRequestService", return_value=mock_service):
+
+        with TestClient(_fastapi_app) as client:
+            response = client.get("/api/v1/itam/asset-requests")
+            assert response.status_code == 200
+            assert len(response.json()) == 1
+
+    if get_current_user in _fastapi_app.dependency_overrides:
+        del _fastapi_app.dependency_overrides[get_current_user]
 
 
 def test_approve_asset_request_endpoint(patch_dependencies):

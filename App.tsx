@@ -433,7 +433,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   cloudChecksScanner: 'view:cloud_security',
   stagedDeployments: 'view:software_deployment',
   nativeSecurity: 'manage:active_response',
-  itam: 'manage:itam',
+  itam: 'view:itam',
 };
 
 

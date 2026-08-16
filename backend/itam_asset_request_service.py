@@ -18,9 +18,11 @@ class ItamAssetRequestService:
 
     async def create_asset_request(self, tenant_id: str, requester_id: str, request_data: AssetRequestCreate) -> AssetRequest:
         now = datetime.now(timezone.utc)
+        generated_id = f"ar-{uuid.uuid4().hex[:8]}"
         doc = request_data.model_dump()
         doc.update({
-            "id": f"ar-{uuid.uuid4().hex[:8]}",
+            "_id": generated_id,
+            "id": generated_id,
             "tenant_id": tenant_id,
             "requester_id": requester_id,
             "status": AssetRequestStatus.PENDING,
@@ -29,8 +31,12 @@ class ItamAssetRequestService:
             "updatedAt": now,
         })
 
-        # Insert into database — "id" is explicitly set above (not left to Mongo's
-        # auto _id) since get/approve/reject all query by {"id": ...}
+        # "_id" is set explicitly (not left to Mongo's auto ObjectId) so that
+        # AssetRequest.id (Pydantic alias="_id") serializes back the SAME
+        # value get/approve/reject query by via {"id": ...} — otherwise the
+        # client receives Mongo's raw ObjectId as "id" while the document's
+        # separate "id" field holds this generated string, and every
+        # subsequent lookup 404s/400s on the mismatch.
         result = await self.db.asset_requests.insert_one(doc)
         created_request = await self.db.asset_requests.find_one({"_id": result.inserted_id})
         asset_request = AssetRequest.model_validate(created_request)

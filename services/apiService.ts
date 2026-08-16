@@ -956,6 +956,7 @@ export const fetchSecurityEvents = async () => {
 export const fetchCloudAccounts = async () => {
     try {
         const res = await authFetch(`${API_BASE}/cloud-accounts`);
+        if (!res.ok) throw new Error('Failed to fetch cloud accounts');
         const data = await res.json();
         CLOUD_ACCOUNTS = data.items ? data.items : data;
         return CLOUD_ACCOUNTS;
