@@ -15,9 +15,10 @@ router = APIRouter(prefix="/api/v1/itam/asset-requests", tags=["ITAM Asset Reque
 
 async def _require_asset_requester(current_user: TokenData = Depends(get_current_user)):
     """
-    Dependency to ensure the current user has 'create:asset_request' permission.
+    Dependency to ensure the current user has 'request:assets' permission
+    (seeded on the itam_user role — see rbac_service.py default_roles).
     """
-    if not await verify_permission(current_user, "create:asset_request"):
+    if not await verify_permission(current_user, "request:assets"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User does not have permission to create asset requests."
@@ -26,9 +27,10 @@ async def _require_asset_requester(current_user: TokenData = Depends(get_current
 
 async def _require_asset_approver(current_user: TokenData = Depends(get_current_user)):
     """
-    Dependency to ensure the current user has 'approve:asset_request' permission.
+    Dependency to ensure the current user has 'manage:procurement' permission
+    (seeded on the itam_admin role — same gate as the Phase 71-01 procurement router).
     """
-    if not await verify_permission(current_user, "approve:asset_request"):
+    if not await verify_permission(current_user, "manage:procurement"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User does not have permission to approve/reject asset requests."
@@ -41,7 +43,7 @@ async def create_asset_request_endpoint(
     current_user: TokenData = Depends(_require_asset_requester)
 ):
     tenant_id = current_user.tenant_id
-    requester_id = current_user.email # Using email as requester_id
+    requester_id = current_user.username
 
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant ID not found.")
@@ -71,7 +73,7 @@ async def get_asset_request_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset Request not found.")
 
     # Ensure only requester or approver/admin can view this specific request
-    if asset_request.requester_id != current_user.email and not await verify_permission(current_user, "approve:asset_request"):
+    if asset_request.requester_id != current_user.username and not await verify_permission(current_user, "manage:procurement"):
          raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User does not have permission to view this asset request."
@@ -93,12 +95,11 @@ async def list_asset_requests_endpoint(
     service = ItamAssetRequestService(db)
 
     # If user is only a requester, they can only see their own requests
-    if not await verify_permission(current_user, "approve:asset_request"):
+    if not await verify_permission(current_user, "manage:procurement"):
         # For now, just list all if not approver, more complex filtering might be needed
         # depending on exact requirements (e.g., only show own requests for requester role)
         requests = await service.list_asset_requests(tenant_id, status_filter, skip, limit)
-        # TODO: Filter by current_user.email for requester_id
-        return [req for req in requests if req.requester_id == current_user.email]
+        return [req for req in requests if req.requester_id == current_user.username]
 
     requests = await service.list_asset_requests(tenant_id, status_filter, skip, limit)
     return requests
@@ -110,7 +111,7 @@ async def approve_asset_request_endpoint(
     current_user: TokenData = Depends(_require_asset_approver)
 ):
     tenant_id = current_user.tenant_id
-    approver_id = current_user.email # Using email as approver_id
+    approver_id = current_user.username
 
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant ID not found.")
@@ -122,6 +123,8 @@ async def approve_asset_request_endpoint(
         if not approved_request:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asset Request not found or not in pending status.")
         return approved_request
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to approve asset request {request_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to approve asset request.")
@@ -132,7 +135,7 @@ async def reject_asset_request_endpoint(
     current_user: TokenData = Depends(_require_asset_approver)
 ):
     tenant_id = current_user.tenant_id
-    approver_id = current_user.email # Using email as approver_id
+    approver_id = current_user.username
 
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant ID not found.")
@@ -144,6 +147,8 @@ async def reject_asset_request_endpoint(
         if not rejected_request:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asset Request not found or not in pending status.")
         return rejected_request
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to reject asset request {request_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to reject asset request.")

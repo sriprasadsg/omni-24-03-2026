@@ -169,9 +169,9 @@ async def serve_win_install():
 
 
 from router_registry import register_all_routers
-_fastapi_app = app
-register_all_routers(_fastapi_app)
+register_all_routers(app)
 
+_fastapi_app = app
 socket_app = socketio.ASGIApp(sio, _fastapi_app)
 app = socket_app
 

@@ -13,7 +13,7 @@ import {
     SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
     ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
-    AuditLogEntry, ItamImportResult, ItamSettings,
+    AuditLogEntry, ItamImportResult, ItamSettings, ItamAssetRequest, ItamAssetRequestStatus,
 } from '../types';
 
 export type {
@@ -5576,6 +5576,34 @@ export const attachComponent = async (id: string, assetId: string): Promise<Itam
 export const detachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
     const res = await authFetch(`${API_BASE}/itam/components/${id}/detach/${assetId}`, { method: 'POST' });
     if (!res.ok) return itamThrow(res, 'Failed to detach component');
+    return res.json();
+};
+
+// Phase 71-03: Asset Request & Approval Workflow (ITAM-PRO-04/05)
+export const fetchAssetRequests = async (statusFilter?: ItamAssetRequestStatus): Promise<ItamAssetRequest[]> => {
+    const qs = statusFilter ? `?status_filter=${statusFilter}` : '';
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests${qs}`);
+    if (!res.ok) return itamThrow(res, 'Failed to load asset requests');
+    return res.json();
+};
+
+export const createAssetRequest = async (data: { item_description: string; quantity: number; reason: string }): Promise<ItamAssetRequest> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to submit asset request');
+    return res.json();
+};
+
+export const approveAssetRequest = async (id: string): Promise<ItamAssetRequest> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests/${id}/approve`, { method: 'PATCH' });
+    if (!res.ok) return itamThrow(res, 'Failed to approve asset request');
+    return res.json();
+};
+
+export const rejectAssetRequest = async (id: string): Promise<ItamAssetRequest> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests/${id}/reject`, { method: 'PATCH' });
+    if (!res.ok) return itamThrow(res, 'Failed to reject asset request');
     return res.json();
 };
 

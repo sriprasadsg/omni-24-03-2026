@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
@@ -19,6 +20,7 @@ class ItamAssetRequestService:
         now = datetime.now(timezone.utc)
         doc = request_data.model_dump()
         doc.update({
+            "id": f"ar-{uuid.uuid4().hex[:8]}",
             "tenant_id": tenant_id,
             "requester_id": requester_id,
             "status": AssetRequestStatus.PENDING,
@@ -27,7 +29,8 @@ class ItamAssetRequestService:
             "updatedAt": now,
         })
 
-        # Insert into database
+        # Insert into database — "id" is explicitly set above (not left to Mongo's
+        # auto _id) since get/approve/reject all query by {"id": ...}
         result = await self.db.asset_requests.insert_one(doc)
         created_request = await self.db.asset_requests.find_one({"_id": result.inserted_id})
         asset_request = AssetRequest.model_validate(created_request)
@@ -91,17 +94,18 @@ class ItamAssetRequestService:
         if not asset_request or asset_request.status != AssetRequestStatus.PENDING:
             return None # Or raise HTTPException
 
-        # Update request status
+        # Update request status — build $set dict directly (Pydantic models are immutable)
         now = datetime.now(timezone.utc)
-        asset_request.status = AssetRequestStatus.APPROVED
-        asset_request.approval_date = now
-        asset_request.approver_id = approver_id
-        asset_request.updatedAt = now
 
         # Update in DB
         result = await self.db.asset_requests.find_one_and_update(
             {"id": request_id, "tenant_id": tenant_id},
-            {"$set": asset_request.model_dump(by_alias=True, exclude_unset=True)},
+            {"$set": {
+                "status": AssetRequestStatus.APPROVED,
+                "approval_date": now,
+                "approver_id": approver_id,
+                "updatedAt": now,
+            }},
             return_document=True
         )
 
@@ -124,17 +128,18 @@ class ItamAssetRequestService:
         if not asset_request or asset_request.status != AssetRequestStatus.PENDING:
             return None # Or raise HTTPException
 
-        # Update request status
+        # Update request status — build $set dict directly (Pydantic models are immutable)
         now = datetime.now(timezone.utc)
-        asset_request.status = AssetRequestStatus.REJECTED
-        asset_request.approval_date = now
-        asset_request.approver_id = approver_id
-        asset_request.updatedAt = now
 
         # Update in DB
         result = await self.db.asset_requests.find_one_and_update(
             {"id": request_id, "tenant_id": tenant_id},
-            {"$set": asset_request.model_dump(by_alias=True, exclude_unset=True)},
+            {"$set": {
+                "status": AssetRequestStatus.REJECTED,
+                "approval_date": now,
+                "approver_id": approver_id,
+                "updatedAt": now,
+            }},
             return_document=True
         )
 

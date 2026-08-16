@@ -4,6 +4,7 @@ import { fetchAssets, getItamSettings } from '../../services/apiService';
 import { CatalogPanel } from './CatalogPanel';
 import { LifecyclePanel } from './LifecyclePanel';
 import { FinancePanel } from './FinancePanel';
+import { RequestsPanel } from './RequestsPanel';
 import { LicensesPanel } from './LicensesPanel';
 import { CompliancePanel } from './CompliancePanel';
 import { SoftwareInventoryPanel } from './SoftwareInventoryPanel';
@@ -25,7 +26,7 @@ const DEFAULT_ITAM_SETTINGS: ItamSettings = {
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const ALLOWED_LOGO_PREFIXES = ['https://', 'http://', 'data:image/'];
 
-type Tab = 'catalog' | 'lifecycle' | 'finance' | 'licenses' | 'compliance' | 'software' | 'activity' | 'data' | 'settings';
+type Tab = 'catalog' | 'lifecycle' | 'finance' | 'requests' | 'licenses' | 'compliance' | 'software' | 'activity' | 'data' | 'settings';
 
 // Tab ids are stable identifiers kept in English — only the displayed labelKey lookup
 // (routed through useItamT() below) is translated, never the id or the aria-current
@@ -34,6 +35,7 @@ const TABS: { id: Tab; labelKey: string }[] = [
   { id: 'catalog', labelKey: 'tabs.catalog' },
   { id: 'lifecycle', labelKey: 'tabs.lifecycle' },
   { id: 'finance', labelKey: 'tabs.finance' },
+  { id: 'requests', labelKey: 'tabs.requests' },
   { id: 'licenses', labelKey: 'tabs.licenses' },
   { id: 'compliance', labelKey: 'tabs.compliance' },
   { id: 'software', labelKey: 'tabs.software' },
@@ -114,6 +116,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
         {tab === 'catalog' && <CatalogPanel />}
         {tab === 'lifecycle' && <LifecyclePanel tenants={tenants} isSuperAdminView={isSuperAdminView} />}
         {tab === 'finance' && <FinancePanel tenants={tenants} isSuperAdminView={isSuperAdminView} />}
+        {tab === 'requests' && <RequestsPanel />}
         {tab === 'licenses' && <LicensesPanel />}
         {tab === 'compliance' && <CompliancePanel assets={assets} />}
         {tab === 'software' && <SoftwareInventoryPanel />}

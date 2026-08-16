@@ -883,6 +883,25 @@ export interface ItamComponent {
   parentAssetId?: string | null;
 }
 
+// Phase 71-03. Field names are snake_case here (not the camelCase used
+// elsewhere in this file) because they mirror the itam_asset_request_service.py
+// / itam_models.AssetRequest Pydantic response verbatim, matching the sibling
+// PurchaseOrder/procurement module's snake_case convention from the same phase.
+export type ItamAssetRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ItamAssetRequest {
+  id: string;
+  tenant_id: string;
+  requester_id: string;
+  item_description: string;
+  quantity: number;
+  reason: string;
+  status: ItamAssetRequestStatus;
+  request_date: string;
+  approval_date?: string | null;
+  approver_id?: string | null;
+}
+
 export interface ItamAssignmentHistoryEntry {
   action: string;
   targetType?: string;
@@ -1144,6 +1163,7 @@ export interface LlmSettings {
   host?: string;
   ollamaUrl?: string;
   ollamaModel?: string;
+  routerUrl?: string;
   customModels?: string[];
   customTools?: AiTool[];
   voiceBotSettings?: VoiceBotSettings;
