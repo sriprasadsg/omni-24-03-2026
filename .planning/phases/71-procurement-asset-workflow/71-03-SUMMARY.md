@@ -35,9 +35,12 @@ key-files:
     - backend/itam_notification_service.py (send_asset_request_notification — already present from a prior paused session, unchanged)
     - backend/router_registry.py (registered itam_asset_request_endpoints router)
     - types.ts (ItamAssetRequest, ItamAssetRequestStatus)
-    - services/apiService.ts (fetchAssetRequests, createAssetRequest, approveAssetRequest, rejectAssetRequest)
+    - services/apiService.ts (fetchAssetRequests, createAssetRequest, approveAssetRequest, rejectAssetRequest; fetchCloudAccounts res.ok check — UAT fix, see below)
     - components/itam/ITAMConsole.tsx (new "Requests" tab)
     - components/itam/itamI18n.tsx (tabs.requests label, en/es)
+    - backend/rbac_utils.py (added itam_admin/itam_user/itam_viewer to DEFAULT_PERMISSIONS — UAT fix)
+    - components/Sidebar.tsx (itam nav gate manage:itam → view:itam — UAT fix)
+    - App.tsx (viewPermissionMap.itam manage:itam → view:itam — UAT fix)
   deleted:
     - backend/app/ (entire tree — orphaned scaffold from a prior paused session; never wired into main.py/router_registry.py, off-convention vs. this codebase's flat backend/*.py + router_registry._load pattern)
     - backend/tests/api/, backend/tests/services/ (nested test dirs for the orphaned app/ tree — all real ITAM tests are flat under backend/tests/)
@@ -79,11 +82,15 @@ coverage:
         ref: "npx tsc --noEmit"
         status: pass
         note: "0 errors in any file this plan touched; 241 pre-existing errors remain in src/router/routes.tsx, an unrelated half-finished router-migration scaffold from the same paused session (imported-but-unused ROUTE_MAP in App.tsx — doesn't affect the real vite build)."
+      - kind: human
+        ref: "live browser session, two real UAT accounts (itam_user requester + itam_admin approver) against a live uvicorn+MongoDB backend and Vite frontend"
+        status: pass
+        note: "Submitted 'Standing Desk' as requester → visible Pending in Requests tab. Approved as admin → green Approved badge, correct approver_id/approval_date. Submitted 'Gaming Chair' → rejected as admin → red Rejected badge. Confirmed 4 itam.asset_request_status documents in db.notifications with correct severities. Confirmed the RBAC boundary: requester's own Approve click correctly 403s with a toast, status stays Pending. 5 real bugs found and fixed along the way — see below."
     human_judgment: true
-    rationale: "Not driven in a browser this session (no running backend/frontend server available). Component follows the exact structural pattern of the sibling LicensesPanel.tsx (fetch-on-mount, Modal-based create form, inline table actions)."
+    rationale: "Full click-through UAT completed and passed after fixing 5 bugs the mocked unit tests couldn't catch (see 'Human UAT' section below)."
 
 # Metrics
-duration: ~150min
+duration: ~240min
 completed: 2026-08-16
 status: complete
 ---
@@ -113,7 +120,23 @@ status: complete
 
 ## Task Commits
 
-None yet — all changes are in the working tree, uncommitted. Not committed per this session's instruction to only commit when the user asks.
+1. `78e5009d` — feat(71-03): asset request & approval workflow (backend + frontend, drafted-code fixes, restored backend/app.py)
+2. `2b206e3e` — fix(71-01): purchase order create never set id field (same latent bug class as 71-03's, found while fixing 71-03's)
+3. `1c8637c4` — fix(71-03): five real bugs found driving the human UAT for asset requests (see below)
+
+## Human UAT
+
+Drove the app end-to-end in a real browser against a live `uvicorn` backend (restored `backend/app.py`, port 5000) and `vite dev` frontend (plain HTTP on `127.0.0.1:3000` — the self-signed HTTPS dev cert blocks the browser-automation tool's screenshot/DOM tools; `VITE_HTTPS=false` sidesteps this for testing only, no code change). Created two throwaway tenant-scoped accounts (`uat-itam-requester@uatverify.test` role `itam_user`, `uat-itam-71-03@uatverify.test` role `itam_admin`) via normal signup + a direct `role` field update, since neither `itam_user` nor `itam_admin` auto-provisions a `db.roles` document for a fresh tenant (a separate, unfixed gap — see Known Stubs).
+
+Five real bugs surfaced this way, none caught by the mocked unit suite because every test patches `verify_permission`/service calls wholesale rather than exercising real permission strings or real Mongo documents:
+
+1. **`fetchCloudAccounts()` crashed the entire app for any restricted-permission login.** No `res.ok` check before `.json()` — a 403 (missing `view:cloud_security`) resolved to an error object, `cloudAccounts.filter()` in `App.tsx` then threw uncaught above every `ErrorBoundary`, blanking the whole UI. Not itam_user-specific: any role without full cloud-security access would hit this on login.
+2. **`rbac_utils.DEFAULT_PERMISSIONS` was missing `itam_admin`/`itam_user`/`itam_viewer`** despite a comment claiming it mirrors `rbac_service.py`'s `default_roles` — those roles had zero effective permissions via `verify_permission` whenever no `db.roles` document exists for the tenant (the default state; nothing seeds one).
+3. **The ITAM console's own sidebar/route gates required `manage:itam`**, the only entry in the entire sidebar not gated on its `view:*` counterpart — so `itam_user`/`itam_viewer` (the exact scoped-access roles Phase 69 built) could never even open the console.
+4. **List/get asset-request endpoints required `request:assets`**, same as create — so `itam_admin` (has `manage:procurement`, not `request:assets`) could approve/reject in principle but never see the queue. Added an either/or `_require_asset_viewer` dependency.
+5. **`AssetRequest.id` never reached the client correctly.** `response_model_by_alias` (FastAPI default `True`) serialized the Pydantic `alias="_id"` field as JSON key `_id`, so `RequestsPanel.tsx`'s `r.id` was `undefined` and every approve/reject PATCH hit `.../undefined/approve`. Setting `response_model_by_alias=False` fixed the key name but exposed a second, deeper mismatch: the *value* was Mongo's raw auto-`_id` ObjectId, not the `"ar-xxxxxxxx"` string `get`/`approve`/`reject` query by — approve/reject 400'd on every real request. Fixed at the source: `create_asset_request` now sets Mongo's real `_id` to the generated string instead of maintaining a redundant, disconnected parallel `"id"` field.
+
+All five fixed, full loop re-verified working (submit → list → approve/reject → status badge → notification record), committed as `1c8637c4`.
 
 ## Deviations from Plan
 
@@ -124,7 +147,7 @@ None yet — all changes are in the working tree, uncommitted. Not committed per
 
 ## Known Stubs / Pre-existing Debt (not fixed in this plan)
 
-- `itam_procurement_service.py` (71-01) has the same "id never set on insert" bug this plan fixed for asset requests — `GET /purchase-orders/{id}` likely 404s against real MongoDB today. Its own unit tests mask this by hand-injecting an `id` field into mocked `find_one` returns.
+- `itam_procurement_service.py`'s (71-01) `_id`-never-set-on-insert bug was fixed separately (commit `2b206e3e`), but `itam_procurement_endpoints.py` still has the *other* half of asset-requests' bug 5: `response_model=PurchaseOrder` with no `response_model_by_alias=False`, so `GET`/`POST /purchase-orders` still return the wire key `_id` instead of `id` today. Not fixed — 71-01's frontend is unreachable (see next line) so nothing currently depends on the wire shape, but it'll bite whoever eventually reconnects that UI.
 - 71-01 (Purchase Orders UI) and 71-02 (warranty notification toggle) frontend work lives in the disconnected `frontend/` tree and is not reachable from the running app.
 - `src/router/routes.tsx` (unrelated to this phase, same paused session) has ~149 lazy-loaded component imports with broken relative paths (`./components/X` instead of `../../components/X`), producing 241 `tsc --noEmit` errors. Doesn't break `npm run build` because the only consumer (`App.tsx`'s `ROUTE_MAP` import) is unused and gets tree-shaken, but blocks using `tsc --noEmit` as a clean whole-project gate.
 - The asset-request approver list passed to `approval_service.create_approval_request` is a hardcoded placeholder (`itam.approver@example.com`) — same precedent as `itam_scheduled_tasks._tenant_admin_emails`'s dummy-email stub already accepted in 71-02. `approval_service`'s own approve/reject flow is never actually invoked (the real state transition happens in `ItamAssetRequestService.approve_asset_request`/`reject_asset_request`); the approval-service record is an audit trail only, so this placeholder has no functional impact.
