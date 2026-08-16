@@ -60,6 +60,8 @@ async def test_create_purchase_order(procurement_service: ItamProcurementService
     created_po = await procurement_service.create_purchase_order(MOCK_TENANT_ID, po_create_data)
 
     mock_db.purchase_orders.insert_one.assert_called_once()
+    inserted_doc = mock_db.purchase_orders.insert_one.call_args[0][0]
+    assert inserted_doc["id"]  # explicit id must be set before insert, not left to Mongo's _id
     mock_db.purchase_orders.find_one.assert_called_once_with({"_id": mock_inserted_id})
 
     assert isinstance(created_po, PurchaseOrder)

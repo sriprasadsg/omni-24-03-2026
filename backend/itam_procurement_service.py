@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
@@ -15,11 +16,13 @@ class ItamProcurementService:
         now = datetime.now(timezone.utc)
         doc = po_data.model_dump()
         doc.update({
+            "id": f"po-{uuid.uuid4().hex[:8]}",
             "tenantId": tenant_id,
             "createdAt": now,
             "updatedAt": now,
         })
-        # MongoDB will automatically add _id, which will be mapped to 'id' by Pydantic
+        # "id" is explicitly set above (not left to Mongo's auto _id) since
+        # get/update/delete all query by {"id": ...}
         result = await self.db.purchase_orders.insert_one(doc)
         created_po = await self.db.purchase_orders.find_one({"_id": result.inserted_id})
         return PurchaseOrder.model_validate(created_po)
