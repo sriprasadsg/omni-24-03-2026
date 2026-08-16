@@ -955,7 +955,7 @@ Plans:
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 67 on 2026-08-13 — renumbered 67→72.] Provide custom report building, pre-built reports, export functionality, and a KPI dashboard.
 **Requirements**: ITAM-REP-01, ITAM-REP-02, ITAM-REP-03, ITAM-REP-04
 **Depends on:** Phase 71
-**Plans:** TBD
+**Plans:** 7 plans (5 waves)
 **Success Criteria:**
 
   1. User can build and save custom reports.
@@ -967,7 +967,13 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 72 to break down)
+- [ ] 72-01-PLAN.md — Tracer: Warranty Expiring report runs, exports to CSV and downloads from a new Reports tab (wave 1)
+- [ ] 72-02-PLAN.md — The remaining five pre-built reports plus the consumable reorderThreshold field (wave 2)
+- [ ] 72-03-PLAN.md — Custom report builder backend: field catalogue, closed-vocabulary filter translator, saved-report routes (wave 2)
+- [ ] 72-04-PLAN.md — The four ITAM KPIs and the /api/itam/kpis route (wave 2)
+- [ ] 72-05-PLAN.md — PDF and Excel renderers registered into the shared export registry (wave 3)
+- [ ] 72-06-PLAN.md — Two-section Reports tab: pre-built grid, field+filter picker, saved list, three export buttons (wave 4)
+- [ ] 72-07-PLAN.md — recharts KPI tile grid with drill-down, mounted above the report sections (wave 5)
 
 ### Phase 73: API & Integrations
 
