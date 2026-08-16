@@ -966,14 +966,31 @@ Plans:
 **UI hint:** yes
 
 Plans:
+**Wave 1**
 
 - [ ] 72-01-PLAN.md — Tracer: Warranty Expiring report runs, exports to CSV and downloads from a new Reports tab (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 72-02-PLAN.md — The remaining five pre-built reports plus the consumable reorderThreshold field (wave 2)
 - [ ] 72-03-PLAN.md — Custom report builder backend: field catalogue, closed-vocabulary filter translator, saved-report routes (wave 2)
 - [ ] 72-04-PLAN.md — The four ITAM KPIs and the /api/itam/kpis route (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 72-05-PLAN.md — PDF and Excel renderers registered into the shared export registry (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 72-06-PLAN.md — Two-section Reports tab: pre-built grid, field+filter picker, saved list, three export buttons (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 72-07-PLAN.md — recharts KPI tile grid with drill-down, mounted above the report sections (wave 5)
+
+**Cross-cutting constraints:**
+
+- Exporting a report with zero matching rows still generates a valid file with headers and no data rows (never an error) — mirrors compliance_reporting_pdf.py's existing empty-report behavior.
 
 ### Phase 73: API & Integrations
 
