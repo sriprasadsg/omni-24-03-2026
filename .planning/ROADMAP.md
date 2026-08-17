@@ -955,7 +955,7 @@ Plans:
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 67 on 2026-08-13 — renumbered 67→72.] Provide custom report building, pre-built reports, export functionality, and a KPI dashboard.
 **Requirements**: ITAM-REP-01, ITAM-REP-02, ITAM-REP-03, ITAM-REP-04
 **Depends on:** Phase 71
-**Plans:** 7 plans (5 waves)
+**Plans:** 1/7 plans executed
 **Success Criteria:**
 
   1. User can build and save custom reports.
@@ -968,7 +968,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 72-01-PLAN.md — Tracer: Warranty Expiring report runs, exports to CSV and downloads from a new Reports tab (wave 1)
+- [x] 72-01-PLAN.md — Tracer: Warranty Expiring report runs, exports to CSV and downloads from a new Reports tab (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

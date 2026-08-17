@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Evidence Quality & Compliance Scoring
-current_phase: 69
-current_phase_name: User Management
-status: planning
+current_phase: 72
+current_phase_name: Reporting & Dashboards
+status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-16T16:58:27.121Z"
-last_activity: 2026-08-13
-last_activity_desc: "phases 69/70 (originally numbered 64/65) moved from `.planning/milestones/v4.1-phases/` into root `.planning/phases/` to resolve a phase-number collision with unrelated root-track phases 64-66; see `.planning/milestones/v4.1-ROADMAP.md`'s superseded banner and the \\\"roadmap track collision\\\" deferred item below."
+last_updated: "2026-08-17T07:38:34.157Z"
+last_activity: 2026-08-17
+last_activity_desc: Phase 72 execution resumed (wave continue)
 progress:
   total_phases: 4
   completed_phases: 4
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 63 — close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui
+**Current focus:** Phase 72 — Reporting & Dashboards
 
 ## Current Phase
 
@@ -370,6 +370,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 63-02: pre-existing uncommitted LifecyclePanelLabels.test.tsx (matching Task 1 spec) verified genuinely RED before use as the RED commit, rather than assumed
 - [Phase ?]: Integrated procurement endpoints into router_registry.py
 - [Phase ?]: Added purchase_order_id to Asset model
+- [Phase ?]: 72-01: Export-format validated against RENDERERS in the endpoint layer before calling itam_reporting_service.generate(), so a 400 (bad format) and 404 (bad report key) are distinguishable despite generate() raising a generic ValueError for both.
+- [Phase ?]: 72-01: Reused a pre-existing, untracked backend/itam_reporting_service.py found on disk at session start (leftover from an earlier interrupted attempt) after verifying it matched the plan spec exactly.
 
 ## Performance Metrics
 
@@ -477,6 +479,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 65-fim-process-attribution-via-fanotify P65-01 | 1786703986 | 3 tasks | 5 files |
 | Phase 71-procurement-asset-workflow P01 | 90min | 3 tasks | 15 files |
 | Phase 71 P02 | 120 | 2 tasks | 15 files |
+| Phase 72 P01 | 68min | 2 tasks | 13 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -485,8 +488,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Phase 72 UI-SPEC approved
-- **Resume file:** .planning/phases/72-reporting-dashboards/72-UI-SPEC.md
+- **Stopped at:** Completed 72-01-PLAN.md
+- **Resume file:** None
 
 ## Configuration
 
@@ -511,7 +514,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-16T16:25:16.142Z
+**Last session:** 2026-08-17T07:38:34.127Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -529,10 +532,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 69 (User Management) and 70 (Core Data, Audit & Customization) — code complete, reviewed, automated-verified; both have open human-UAT sessions (`69-UAT.md`, `70-UAT.md`)
-Plan: 69's UAT Test 1/3 (LDAP real-directory auth) in progress
-Status: Human UAT pending on phases 69 and 70; phase 71 (Procurement & Asset Workflow) not yet planned
-Last activity: 2026-08-13 — phases 69/70 (originally numbered 64/65) moved from `.planning/milestones/v4.1-phases/` into root `.planning/phases/` to resolve a phase-number collision with unrelated root-track phases 64-66; see `.planning/milestones/v4.1-ROADMAP.md`'s superseded banner and the "roadmap track collision" deferred item below.
+Phase: 72 (Reporting & Dashboards) — EXECUTING
+Plan: 2 of 7
+Status: Ready to execute
+Last activity: 2026-08-17 — Phase 72 execution resumed (wave continue)
 
 ## Deferred Items
 
