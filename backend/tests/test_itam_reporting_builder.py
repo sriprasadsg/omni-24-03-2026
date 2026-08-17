@@ -683,10 +683,13 @@ class TestExportCustomReport:
 
     @pytest.mark.asyncio
     async def test_export_unregistered_format_returns_400(self, mock_db, reporting_app):
+        # "xml" (not "pdf") — Plan 72-05 registers pdf/xlsx into RENDERERS,
+        # so a genuinely unregistered format is needed to exercise this
+        # 400 path now that pdf is a real, activated format.
         saved_doc = {"id": "rpt-1", "tenantId": "tenant-a", "name": "X", "columns": ["asset.assetTag"], "filters": []}
         mock_db.itam_reports.find_one = AsyncMock(return_value=saved_doc)
         async with _client(reporting_app) as ac:
-            r = await ac.post("/api/itam/reports/custom/rpt-1/export?format=pdf")
+            r = await ac.post("/api/itam/reports/custom/rpt-1/export?format=xml")
         assert r.status_code == 400
 
     @pytest.mark.asyncio

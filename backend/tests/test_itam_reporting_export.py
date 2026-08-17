@@ -1,13 +1,20 @@
-"""ITAM Reporting export/download tests — Phase 72, Plan 01 (tracer).
+"""ITAM Reporting export/download tests — Phase 72, Plans 01 (tracer) and 05
+(PDF/Excel renderers).
 
-The tracer's end-to-end proof: a run returning the expiring asset while
-excluding an in-warranty and an expired one; a CSV export writing a real
-file whose header matches the declared columns and whose data rows equal
-the full match set (not the preview page); a zero-row export still writing
-a valid header-only file; download of that filename returning 200 for the
-owning tenant and 403 for a different tenant; a filename containing
-traversal segments returning 400 before any filesystem read; and an
-unregistered export format returning 400.
+Plan 01's tracer proof: a run returning the expiring asset while excluding
+an in-warranty and an expired one; a CSV export writing a real file whose
+header matches the declared columns and whose data rows equal the full
+match set (not the preview page); a zero-row export still writing a valid
+header-only file; download of that filename returning 200 for the owning
+tenant and 403 for a different tenant; a filename containing traversal
+segments returning 400 before any filesystem read; and an unregistered
+export format returning 400.
+
+Plan 05 extends this file with the pdf/xlsx renderer behaviors: a real
+.pdf/.xlsx file carrying the full match set and declared headers, a
+zero-row export that still produces a valid file, a custom saved report
+exporting through the same route, tenant-owned download coverage, status
+cell coloring, and formula-injection defusal (T-72-06/T-72-11).
 """
 import csv
 import os
@@ -31,9 +38,21 @@ from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-ex
 
 from authentication_service import get_current_user as real_get_current_user
 import itam_reporting_endpoints
+import itam_reporting_pdf
 from itam_reporting_service import _REPORTS_DIR
 
 _WARRANTY_COLUMNS = ["Asset Tag", "Name", "Lifecycle Status", "Warranty Expires", "Days To Expiry", "Status"]
+
+
+def _no_join_data(mock_db):
+    """Seeds every joined collection with an empty result — the shared
+    zero-join baseline the custom-report export tests below start from
+    (mirrors test_itam_reporting_builder.py's own helper)."""
+    mock_db.license_assignments.find.return_value.to_list.return_value = []
+    mock_db.components.find.return_value.to_list.return_value = []
+    mock_db.itam_consumables.find.return_value.to_list.return_value = []
+    mock_db.asset_models.find.return_value.to_list.return_value = []
+    mock_db.system_settings.find_one = AsyncMock(return_value=None)
 
 
 def _client(app, tenant_id="tenant-a", role="admin", username="admin@example.com"):
@@ -136,11 +155,15 @@ class TestWarrantyExpiringExport:
 
     @pytest.mark.asyncio
     async def test_unregistered_format_returns_400(self, mock_db, reporting_app):
+        # "xml" (not "pdf") — Plan 72-05 registers pdf/xlsx into RENDERERS,
+        # so a genuinely unregistered format is needed to exercise this
+        # 400 path now that pdf is a real, activated format.
         mock_db.assets.find.return_value.to_list.return_value = []
         mock_db.system_settings.find_one = AsyncMock(return_value=None)
         async with _client(reporting_app) as ac:
-            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=pdf")
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=xml")
         assert r.status_code == 400
+        assert "pdf" in r.json()["detail"]
 
 
 class TestReportDownload:
@@ -198,3 +221,137 @@ class TestPathTraversalGuard:
                 filename="../../../../etc/passwd", current_user=admin,
             )
         assert exc_info.value.status_code == 400
+
+
+# ── Plan 05: PDF renderer (Task 1) ──────────────────────────────────────────
+
+class TestWarrantyExpiringPdfExport:
+    """POST /api/itam/reports/prebuilt/warranty_expiring/export?format=pdf"""
+
+    @pytest.mark.asyncio
+    async def test_pdf_export_writes_real_pdf_carrying_full_match_set(self, mock_db, reporting_app):
+        # 60 rows > the default 50-row preview page, proving the export
+        # carries the full match count rather than one preview page.
+        assets = [
+            report_asset(id=f"asset-{i}", assetTag=f"IT-{i:04d}", purchaseDate=_offset_iso(15), warrantyMonths=0)
+            for i in range(60)
+        ]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=pdf")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 60
+        assert body["filename"].endswith(".pdf")
+
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        assert os.path.isfile(file_path)
+        with open(file_path, "rb") as f:
+            magic = f.read(4)
+        assert magic == b"%PDF"
+
+    @pytest.mark.asyncio
+    async def test_zero_row_pdf_export_returns_200_with_real_file(self, mock_db, reporting_app):
+        mock_db.assets.find.return_value.to_list.return_value = []
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=pdf")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 0
+
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        with open(file_path, "rb") as f:
+            magic = f.read(4)
+        assert magic == b"%PDF"
+        assert os.path.getsize(file_path) > 0
+
+    @pytest.mark.asyncio
+    async def test_pdf_export_recorded_in_exports_and_cross_tenant_403(
+        self, mock_db, reporting_app, patch_reporting_get_database,
+    ):
+        mock_db.assets.find.return_value.to_list.return_value = []
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        async with _client(reporting_app, tenant_id="tenant-a") as ac:
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=pdf")
+        assert r.status_code == 200, r.text
+        filename = r.json()["filename"]
+
+        mock_db.itam_report_exports.find_one = AsyncMock(
+            return_value={"filename": filename, "tenantId": "tenant-a"}
+        )
+
+        # Owning tenant can download.
+        async with _client(reporting_app, tenant_id="tenant-a") as ac:
+            r = await ac.get(f"/api/itam/reports/download/{filename}")
+        assert r.status_code == 200, r.text
+
+        # A different tenant is rejected even with the exact correct filename.
+        patch_reporting_get_database("tenant-b")
+        async with _client(reporting_app, tenant_id="tenant-b") as ac:
+            r = await ac.get(f"/api/itam/reports/download/{filename}")
+        assert r.status_code == 403
+
+
+class TestPdfCustomReportExport:
+    """POST /api/itam/reports/custom/{report_id}/export?format=pdf"""
+
+    @pytest.mark.asyncio
+    async def test_custom_report_exports_to_pdf_through_same_route(self, mock_db, reporting_app):
+        saved_doc = {
+            "id": "rpt-pdf-1", "tenantId": "tenant-a", "name": "PDF Custom Report",
+            "columns": ["asset.assetTag", "asset.name"], "filters": [],
+        }
+        mock_db.itam_reports.find_one = AsyncMock(return_value=saved_doc)
+        assets = [report_asset(id=f"a{i}", assetTag=f"IT-{i:04d}") for i in range(5)]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        _no_join_data(mock_db)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/rpt-pdf-1/export?format=pdf")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 5
+
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        with open(file_path, "rb") as f:
+            magic = f.read(4)
+        assert magic == b"%PDF"
+
+
+class TestPdfFormulaInjectionDefused:
+    """T-72-06/T-72-11: every cell passes through _sanitize_cell before it
+    reaches the PDF, in addition to the html.escape applied before wrapping
+    in a reportlab Paragraph."""
+
+    @pytest.mark.asyncio
+    async def test_formula_trigger_cell_is_sanitized_before_rendering(self, monkeypatch, tmp_path):
+        calls = []
+        real_sanitize = itam_reporting_pdf._sanitize_cell
+
+        def _spy_sanitize(v):
+            calls.append(v)
+            return real_sanitize(v)
+
+        monkeypatch.setattr(itam_reporting_pdf, "_sanitize_cell", _spy_sanitize)
+
+        report = {
+            "key": "warranty_expiring",
+            "title": "Warranty Expiring",
+            "columns": ["Asset Tag", "Name", "Status"],
+            "rows": [{"Asset Tag": "IT-0001", "Name": "=SUM(A1:A10)", "Status": "Expiring"}],
+            "rowCount": 1,
+            "truncated": False,
+        }
+        result = await itam_reporting_pdf._generate_pdf(report, str(tmp_path), "tenant-a")
+
+        assert "=SUM(A1:A10)" in calls
+        file_path = os.path.join(str(tmp_path), result["filename"])
+        assert os.path.isfile(file_path)
