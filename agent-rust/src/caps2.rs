@@ -56,7 +56,7 @@ $findings | ConvertTo-Json -Compress -Depth 2
 pub async fn run_predictive_health() -> Value {
     let mut sys = System::new_all();
     sys.refresh_all();
-    let cpu = sys.global_cpu_info().cpu_usage();
+    let cpu = sys.global_cpu_usage();
     let mem_pct = sys.used_memory() as f32 / sys.total_memory().max(1) as f32 * 100.0;
 
     let disks: Vec<Value> = {

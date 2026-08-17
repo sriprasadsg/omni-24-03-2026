@@ -5,7 +5,15 @@ from datetime import datetime, timezone
 import re
 from agent_auth import verify_agent_key
 from rate_limiter import limiter, agent_limiter
+import geoip_service
+import agent_asn_service
 import logging
+from agent_location_history_service import record_location_change, get_track_agent_location
+from agent_auto_update_service import maybe_push_update_instruction
+from agent_heartbeat_alerts_service import persist_persistence_detection, persist_pii_scanner
+import agent_vuln_ingest_service
+from geo_security_service import run_geo_security_detectors
+from ueba_service import persist_security_alert
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -112,6 +120,29 @@ async def report_heartbeat(
         update_data["hostname"] = payload["hostname"]
     if payload.get("device_id"):
         update_data["deviceId"] = payload["device_id"]
+    # WAN / ISP-assigned public IP (guarded: never null out a known value on a
+    # beat where the agent hasn't resolved it yet).
+    public_ip = payload.get("publicIp") or (payload.get("meta") or {}).get("public_ip")
+    geo = None
+    if public_ip:
+        update_data["publicIp"] = public_ip
+        geo = geoip_service.lookup(public_ip)
+        if geo:
+            update_data["geo"] = geo
+
+    # ASN + VPN heuristic enrichment + location-history (Phase 46, GAUD-01/02).
+    # Both are gated on the per-tenant track_agent_location toggle (D-02) —
+    # when OFF, neither runs, but the geoip_service city/country enrichment
+    # above stays unconditional (scope boundary, T-46-05-B).
+    asn_enrichment = None
+    track_location = False
+    if public_ip:
+        track_location = await get_track_agent_location(db, _hb_tenant_id)
+        if track_location:
+            asn_enrichment = agent_asn_service.lookup(public_ip)
+            if asn_enrichment:
+                geo = {**(geo or {}), "asn": asn_enrichment.get("asn"), "vpn_heuristic": asn_enrichment.get("vpn_heuristic")}
+                update_data["geo"] = geo
 
     await db.agents.update_one(
         _hb_agent_filter,
@@ -119,24 +150,39 @@ async def report_heartbeat(
         upsert=True
     )
 
-    # Auto-push update instruction when the agent reports an outdated binary version.
-    _LATEST_AGENT_VERSION = "2.0.1-rust"
-    _reported_version = payload.get("version", "")
-    if _reported_version and _reported_version != _LATEST_AGENT_VERSION:
-        _pending = await db.agent_instructions.find_one(
-            {"agent_id": agent_id, "instruction": "agent_update", "status": "pending"}
-        )
-        if not _pending:
-            await db.agent_instructions.insert_one({
-                "agent_id": agent_id,
-                "instruction": "agent_update",
-                "status": "pending",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "created_by": "auto_update",
-                "priority": "normal",
-            })
-            logger.info("Auto-pushed agent_update instruction to %s (reported %s < %s)",
-                        agent_id, _reported_version, _LATEST_AGENT_VERSION)
+    # Phase 51-03 (VULN-01/03): upsert the agent's vuln-capability findings into
+    # the `vulnerabilities` store the dashboard reads. Non-blocking — a vuln
+    # error is swallowed inside and never fails the heartbeat (T-51-07).
+    await agent_vuln_ingest_service.ingest_from_heartbeat(db, _hb_tenant_id, agent_id, payload)
+
+    # Record location history after enrichment (Phase 46, GAUD-01) — reuses
+    # the existing_agent doc already fetched above (D-05, zero extra reads).
+    if public_ip and track_location:
+        try:
+            await record_location_change(
+                db, existing_agent, agent_id, _hb_tenant_id, public_ip, geo, asn_enrichment
+            )
+        except Exception as loc_err:
+            logger.warning("Failed to record location history for agent %s: %s", agent_id, loc_err)
+
+        # Agent-scoped geo security detectors (Phase 47, GSEC-02/GSEC-03) —
+        # alert-only (D-04): a detector fault is logged and never fails the
+        # heartbeat response or affects the connection. Reuses the RAW
+        # existing_agent doc (pre-update) as the previous check-in state.
+        try:
+            _geo_sec_now = datetime.now(timezone.utc)
+            geo_sec_alerts = await run_geo_security_detectors(
+                db, existing_agent, agent_id, _hb_tenant_id, geo, _geo_sec_now
+            )
+            for geo_sec_alert in geo_sec_alerts:
+                await persist_security_alert(db, **geo_sec_alert)
+        except Exception as geo_sec_err:
+            logger.warning("Failed to run geo security detectors for agent %s: %s", agent_id, geo_sec_err)
+
+    # Auto-push update instruction when the agent reports an outdated binary
+    # version — extracted to agent_auto_update_service.py to keep this file
+    # under the CLAUDE.md 500-line cap (see module docstring there).
+    await maybe_push_update_instruction(db, agent_id, payload)
 
     _meta = payload.get("meta", {})
     if _meta.get("current_cpu") is not None or _meta.get("current_memory") is not None:
@@ -168,6 +214,10 @@ async def report_heartbeat(
             "agentVersion": payload.get("version", ""),
             "agentId": agent_id,
         }
+        if public_ip:
+            asset_update["publicIp"] = public_ip
+        if geo:
+            asset_update["geo"] = geo
 
         if "meta" in payload:
             meta = payload["meta"]
@@ -223,6 +273,9 @@ async def report_heartbeat(
             install_date = meta.get("install_date")
             if install_date and install_date not in ("Unknown", "", None):
                 asset_update["osInstalledOn"] = install_date
+            logged_in_user = meta.get("logged_in_user")
+            if logged_in_user and logged_in_user not in ("Unknown", "", None):
+                asset_update["loggedInUser"] = logged_in_user
 
         _hb_asset_filter: dict = {"id": asset_id}
         if _hb_tenant_id:
@@ -299,15 +352,7 @@ async def report_heartbeat(
                     pass
 
     if "persistence_detection" in meta:
-        p_data = meta["persistence_detection"]
-        if isinstance(p_data, dict) and p_data.get("findings"):
-            import uuid as _uuid
-            await db.persistence_results.insert_one({
-                "id": _uuid.uuid4().hex, "tenantId": _hb_tenant_id,
-                "agentId": agent_id, "findings": p_data.get("findings", []),
-                "count": p_data.get("count", 0), "platform": p_data.get("platform"),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+        await persist_persistence_detection(db, agent_id, _hb_tenant_id, meta["persistence_detection"])
 
     if "shadow_ai" in meta:
         s_data = meta["shadow_ai"]
@@ -326,17 +371,13 @@ async def report_heartbeat(
                 ]
                 if events:
                     await db.shadow_ai_events.insert_many(events, ordered=False)
-                try:
-                    from ueba_service import persist_security_alert
-                    for evt in events:
-                        await persist_security_alert(
-                            db, alert_type="shadow_ai", severity="medium",
-                            title=f"Shadow AI Usage Detected: {evt.get('remote_host')}",
-                            description=f"Process '{evt.get('process')}' on agent {_agent_id} connected to {evt.get('remote_host')}.",
-                            metadata=evt,
-                        )
-                except ImportError:
-                    pass
+                for evt in events:
+                    await persist_security_alert(
+                        db, alert_type="shadow_ai", severity="medium",
+                        title=f"Shadow AI Usage Detected: {evt.get('remote_host')}",
+                        description=f"Process '{evt.get('process')}' on agent {_agent_id} connected to {evt.get('remote_host')}.",
+                        metadata=evt,
+                    )
 
             background_tasks.add_task(_persist_shadow_ai, s_data["ai_connections"], agent_id, _hb_tenant_id)
 
@@ -344,17 +385,13 @@ async def report_heartbeat(
         u_data = meta["ueba"]
         if isinstance(u_data, dict):
             for anomaly in u_data.get("anomalies_detected", []):
-                try:
-                    from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="ueba_anomaly",
-                        severity=anomaly.get("severity", "medium").lower(),
-                        title=f"UEBA Anomaly: {anomaly.get('type')}",
-                        description=f"{anomaly.get('type')} detected for user {anomaly.get('user')}.",
-                        metadata={**anomaly, "agent_id": agent_id, "tenantId": _hb_tenant_id}
-                    )
-                except ImportError:
-                    pass
+                background_tasks.add_task(
+                    persist_security_alert, db, alert_type="ueba_anomaly",
+                    severity=anomaly.get("severity", "medium").lower(),
+                    title=f"UEBA Anomaly: {anomaly.get('type')}",
+                    description=f"{anomaly.get('type')} detected for user {anomaly.get('user')}.",
+                    metadata={**anomaly, "agent_id": agent_id, "tenantId": _hb_tenant_id}
+                )
 
     if "software_inventory" in meta:
         sw_list = meta["software_inventory"]
@@ -401,16 +438,12 @@ async def report_heartbeat(
         fim_data = meta["fim"]
         if isinstance(fim_data, dict) and fim_data.get("violations"):
             for v in fim_data["violations"][:200]:
-                try:
-                    from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="fim_violation", severity="high",
-                        title=f"File Integrity Violation: {v.get('path')}",
-                        description=f"Critical file modified on agent {agent_id}: {v.get('path')}.",
-                        metadata={**v, "agent_id": agent_id, "tenantId": _hb_tenant_id},
-                    )
-                except ImportError:
-                    pass
+                background_tasks.add_task(
+                    persist_security_alert, db, alert_type="fim_violation", severity="high",
+                    title=f"File Integrity Violation: {v.get('path')}",
+                    description=f"Critical file modified on agent {agent_id}: {v.get('path')}.",
+                    metadata={**v, "agent_id": agent_id, "tenantId": _hb_tenant_id},
+                )
             _allowed_fim = {"path", "hash", "size", "modified", "action", "severity"}
             await db.fim_violations.insert_many([
                 {k: v_item[k] for k in _allowed_fim if k in v_item} | {
@@ -422,46 +455,21 @@ async def report_heartbeat(
             ])
 
     if "pii_scanner" in meta:
-        pii_data = meta["pii_scanner"]
-        if isinstance(pii_data, dict) and pii_data.get("pii_found"):
-            try:
-                from ueba_service import persist_security_alert
-                background_tasks.add_task(
-                    persist_security_alert, db, alert_type="pii_detected", severity="high",
-                    title=f"PII Detected on Agent {agent_id}",
-                    description=f"{pii_data.get('findings_count', 0)} file(s) contain PII patterns.",
-                    metadata={**pii_data, "agent_id": agent_id, "tenantId": _hb_tenant_id},
-                )
-            except ImportError:
-                pass
-            _allowed_pii = {"findings_count", "pii_found", "files_scanned", "categories"}
-            await db.pii_findings.update_one(
-                {"agent_id": agent_id},
-                {"$set": {k: pii_data[k] for k in _allowed_pii if k in pii_data} | {
-                    "agent_id": agent_id,
-                    "tenantId": _hb_tenant_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }},
-                upsert=True,
-            )
+        await persist_pii_scanner(db, agent_id, _hb_tenant_id, meta["pii_scanner"], background_tasks)
 
     if "runtime_security" in meta:
         rs_data = meta["runtime_security"]
         if isinstance(rs_data, dict) and rs_data.get("suspicious_activities"):
             for item in [a for a in rs_data["suspicious_activities"] if a.get("severity") in ("critical", "high")]:
-                try:
-                    from ueba_service import persist_security_alert
-                    background_tasks.add_task(
-                        persist_security_alert, db, alert_type="runtime_security",
-                        severity=item.get("severity", "high"),
-                        title=f"Runtime Threat: {item.get('type')} on {agent_id}",
-                        description=item.get("description", "Suspicious runtime activity detected"),
-                        metadata={"type": item.get("type"), "severity": item.get("severity"),
-                                  "description": item.get("description"), "agent_id": agent_id,
-                                  "tenantId": _hb_tenant_id},
-                    )
-                except ImportError:
-                    pass
+                background_tasks.add_task(
+                    persist_security_alert, db, alert_type="runtime_security",
+                    severity=item.get("severity", "high"),
+                    title=f"Runtime Threat: {item.get('type')} on {agent_id}",
+                    description=item.get("description", "Suspicious runtime activity detected"),
+                    metadata={"type": item.get("type"), "severity": item.get("severity"),
+                              "description": item.get("description"), "agent_id": agent_id,
+                              "tenantId": _hb_tenant_id},
+                )
 
     task_feedback_list = meta.get("task_feedback", [])
     if isinstance(task_feedback_list, list) and task_feedback_list:

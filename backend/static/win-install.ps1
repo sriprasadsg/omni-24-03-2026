@@ -25,6 +25,7 @@
 .EXAMPLE
     .\win-install.ps1 -Uninstall
 #>
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [string]$ApiUrl          = "",
@@ -37,7 +38,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if (-not $ApiUrl -and $BackendUrl) { $ApiUrl = $BackendUrl }
-if (-not $ApiUrl) { $ApiUrl = "http://localhost:5000" }
+# Prefer environment variable when present for consistent config in automated builds
+if (-not $ApiUrl) {
+    $ApiUrl = [System.Environment]::GetEnvironmentVariable("OMNI_API_URL", "Machine")
+    if (-not $ApiUrl) { $ApiUrl = "http://localhost:5000" }
+}
 $ApiUrl = $ApiUrl.TrimEnd("/")
 
 $ServiceName    = "OmniAgentRust"

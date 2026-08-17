@@ -19,6 +19,9 @@ def _to_epoch(iso_str: str) -> int:
         return int(datetime.now(timezone.utc).timestamp())
 
 
+severity_map = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+
+
 @router.get("/findings")
 async def ocsf_findings(severity: str = Query(None), limit: int = Query(100, ge=1, le=1000), current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
     db = get_database()
@@ -27,7 +30,6 @@ async def ocsf_findings(severity: str = Query(None), limit: int = Query(100, ge=
     if severity:
         query["severity"] = severity
     findings = await db.cloud_findings.find(query, {"_id": 0}).sort("created_at", -1).to_list(length=limit)
-    severity_map = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
     ocsf_items = []
     for f in findings:
         sev_id = severity_map.get(f.get("severity", "medium"), 3)

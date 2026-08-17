@@ -2,7 +2,7 @@ use super::Capability;
 use serde_json::{json, Value};
 use sysinfo::System;
 
-const CURRENT_VERSION: &str = "2.0.5";
+const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct AgentUpdateCapability;
 
@@ -107,13 +107,32 @@ pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
     // no single quotes. A doubled '' escapes a literal quote defensively.
     let exe_lit = exe_str.replace('\'', "''");
     let new_exe_lit = new_exe_str.replace('\'', "''");
+    // Restart must succeed WITHOUT a machine reboot. The previous script did a
+    // single Stop → Move → Start; a lone Start-Service races the service's
+    // delayed-auto-start / SCM start window and often left the service Stopped, so
+    // the swapped-in binary only ran after the next endpoint reboot. This version:
+    //   1. waits for the process to fully stop (releases the exe file lock),
+    //   2. retries Move-Item until the old exe is actually unlocked,
+    //   3. retries Start-Service (and sc.exe start) until the service reports Running.
     let ps = format!(
         "Start-Sleep -Seconds 5\r\n\
          $exe = '{exe_lit}'\r\n\
+         $new = '{new_exe_lit}'\r\n\
          $svc = Get-CimInstance Win32_Service | Where-Object {{ $_.PathName -like ('*' + $exe + '*') }} | Select-Object -First 1 -ExpandProperty Name\r\n\
-         if ($svc) {{ Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }}\r\n\
-         Move-Item -Path '{new_exe_lit}' -Destination '{exe_lit}' -Force\r\n\
-         if ($svc) {{ Start-Service -Name $svc -ErrorAction SilentlyContinue }}\r\n\
+         if ($svc) {{\r\n\
+         \x20 Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue\r\n\
+         \x20 for ($i=0; $i -lt 30; $i++) {{ if ((Get-Service -Name $svc).Status -eq 'Stopped') {{ break }}; Start-Sleep -Seconds 1 }}\r\n\
+         }}\r\n\
+         for ($i=0; $i -lt 15; $i++) {{ try {{ Move-Item -Path $new -Destination $exe -Force -ErrorAction Stop; break }} catch {{ Start-Sleep -Seconds 2 }} }}\r\n\
+         if ($svc) {{\r\n\
+         \x20 Set-Service -Name $svc -StartupType Automatic -ErrorAction SilentlyContinue\r\n\
+         \x20 for ($i=0; $i -lt 12; $i++) {{\r\n\
+         \x20   Start-Service -Name $svc -ErrorAction SilentlyContinue\r\n\
+         \x20   Start-Sleep -Seconds 3\r\n\
+         \x20   if ((Get-Service -Name $svc).Status -eq 'Running') {{ break }}\r\n\
+         \x20   & sc.exe start $svc | Out-Null\r\n\
+         \x20 }}\r\n\
+         }}\r\n\
          Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\r\n"
     );
     std::fs::write(&script_path, ps).map_err(|e| e.to_string())?;
@@ -130,7 +149,7 @@ pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     Ok(format!(
-        "Update to {} initiated — service will restart in ~5 seconds.",
+        "Update to {} initiated — binary swapped, service restarting (no reboot needed).",
         info.version
     ))
 }

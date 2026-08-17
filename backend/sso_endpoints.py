@@ -6,13 +6,30 @@ import os
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 from database import get_database
 from authentication_service import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from rate_limiter import limiter
 import httpx
+
+from auth_types import TokenData
+from itam_asset_endpoints import _require_itam_admin
+from rbac_utils import is_super_admin
+from tenant_context import get_tenant_id
+
+from saml_service import (
+    SAMLConfigError,
+    SAMLProvisionError,
+    SAMLValidationError,
+    SAMLAuthenticator,
+    authenticate_saml,
+    build_saml_request_data,
+    get_saml_config,
+)
+from saml_mapping import SAMLGroupMapper, SAMLMappingError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sso", tags=["SSO"])
@@ -212,11 +229,228 @@ async def list_sso_providers():
             "icon": "google",
             "login_url": "/api/sso/google/login"
         })
-    if os.getenv("SAML_IDP_METADATA_URL"):
+    if os.getenv("SAML_IDP_METADATA_URL") or os.getenv("SAML_ENTITY_ID"):
         providers.append({
             "id": "saml",
             "name": "Enterprise SSO (SAML)",
             "icon": "shield",
-            "login_url": "/api/sso/saml/login"
+            "login_url": "/api/auth/saml/login"
         })
     return {"providers": providers}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SAML 2.0 SSO (ITAM-USR-04)
+# ═══════════════════════════════════════════════════════════════════════════
+# The full SP implementation (metadata, login, ACS validation, SLO, user
+# provisioning, group->role mapping) lives in saml_service.py / saml_mapping.py
+# (see plan 64-04 <module_budget>) — this section only wires HTTP endpoints.
+#
+# Registered as a SEPARATE router (`saml_router`, no /api/sso prefix) because
+# /api/auth/saml/* and /api/admin/sso/saml/* don't share this file's existing
+# `router` prefix. router_registry.py must load both `router` and
+# `saml_router` from this module — see 64-04 SUMMARY.md deviations.
+
+saml_router = APIRouter(tags=["SAML SSO"])
+
+
+def _saml_config_scope(current_user: TokenData) -> Optional[str]:
+    """Mirrors ldap_endpoints._config_scope: Super Admins manage the
+    platform-wide default SAML config (tenant_id=None, the one the
+    unauthenticated /api/auth/saml/* routes resolve to); everyone else who
+    reaches _require_itam_admin manages their own tenant's config."""
+    return None if is_super_admin(current_user.role) else get_tenant_id()
+
+
+class SAMLConfigIn(BaseModel):
+    entity_id: str
+    acs_url: str
+    slo_url: Optional[str] = ""
+    idp_entity_id: str
+    idp_sso_url: str
+    idp_slo_url: Optional[str] = ""
+    idp_x509_cert: Optional[str] = ""
+    sp_x509_cert: Optional[str] = ""
+    sp_private_key: Optional[str] = ""
+    attribute_email: Optional[str] = "email"
+    attribute_name: Optional[str] = "name"
+    attribute_groups: Optional[str] = "groups"
+
+
+class SAMLAttributeMappingIn(BaseModel):
+    group_value: str
+    role: str
+    priority: Optional[int] = 100
+
+
+# ─── Admin: config management ──────────────────────────────────────────────
+
+@saml_router.post("/api/admin/sso/saml/config")
+async def save_saml_config(config: SAMLConfigIn, current_user: TokenData = Depends(_require_itam_admin)):
+    """Persist SAML configuration. The SP private key is encrypted at rest
+    via encryption_service (T-64-14) — never stored in plaintext."""
+    from encryption_service import get_encryption_service
+
+    db = get_database()
+    tenant_id = _saml_config_scope(current_user)
+    doc = config.model_dump()
+    enc = get_encryption_service()
+    doc["sp_private_key_encrypted"] = enc.encrypt(doc.pop("sp_private_key") or "")
+    doc["tenant_id"] = tenant_id
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_by"] = getattr(current_user, "username", "unknown")
+
+    await db.saml_configs.update_one({"tenant_id": tenant_id}, {"$set": doc}, upsert=True)
+    return {"success": True}
+
+
+@saml_router.get("/api/admin/sso/saml/config")
+async def read_saml_config(current_user: TokenData = Depends(_require_itam_admin)):
+    """Return the saved SAML config with the SP private key masked."""
+    db = get_database()
+    tenant_id = _saml_config_scope(current_user)
+    doc = await db.saml_configs.find_one({"tenant_id": tenant_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="SAML is not configured for this scope")
+    doc["_id"] = str(doc["_id"])
+    doc.pop("sp_private_key_encrypted", None)
+    doc["sp_private_key"] = "***masked***"
+    return doc
+
+
+@saml_router.get("/api/admin/sso/saml/metadata")
+async def admin_saml_metadata(current_user: TokenData = Depends(_require_itam_admin)):
+    """Admin preview of the SP metadata XML for the caller's configured scope
+    (same content the public /api/auth/saml/metadata serves, gated here for
+    operators setting up the IdP side before going live)."""
+    tenant_id = _saml_config_scope(current_user)
+    try:
+        config = await get_saml_config(tenant_id)
+    except SAMLConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    metadata_xml, _errors = SAMLAuthenticator(config).metadata()
+    return Response(content=metadata_xml, media_type="application/xml")
+
+
+@saml_router.post("/api/admin/sso/saml/test")
+async def test_saml_config(current_user: TokenData = Depends(_require_itam_admin)):
+    """Validate the caller's SAML configuration is complete and produces
+    valid SP metadata (catches config typos — required fields, cert
+    formatting — before going live). Does not perform a live IdP round
+    trip; no test IdP is available to verify against in this environment,
+    same accepted gap as 64-03's LDAP test-connection endpoint."""
+    tenant_id = _saml_config_scope(current_user)
+    try:
+        config = await get_saml_config(tenant_id)
+    except SAMLConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    _metadata_xml, errors = SAMLAuthenticator(config).metadata()
+    if errors:
+        raise HTTPException(status_code=400, detail=f"SAML settings invalid: {errors}")
+    return {"success": True, "message": "SAML configuration is valid"}
+
+
+# ─── Admin: attribute (group) -> role mapping ──────────────────────────────
+
+@saml_router.get("/api/admin/sso/saml/attribute-mapping")
+async def list_attribute_mappings(current_user: TokenData = Depends(_require_itam_admin)):
+    tenant_id = _saml_config_scope(current_user)
+    return await SAMLGroupMapper.list_mappings(tenant_id)
+
+
+@saml_router.post("/api/admin/sso/saml/attribute-mapping")
+async def upsert_attribute_mapping(mapping: SAMLAttributeMappingIn, current_user: TokenData = Depends(_require_itam_admin)):
+    tenant_id = _saml_config_scope(current_user)
+    try:
+        return await SAMLGroupMapper.upsert_mapping(
+            mapping.group_value, mapping.role, tenant_id=tenant_id, priority=mapping.priority or 100,
+        )
+    except SAMLMappingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@saml_router.delete("/api/admin/sso/saml/attribute-mapping/{mapping_id}")
+async def delete_attribute_mapping(mapping_id: str, current_user: TokenData = Depends(_require_itam_admin)):
+    try:
+        deleted = await SAMLGroupMapper.delete_mapping(mapping_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid mapping ID")
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return {"success": True}
+
+
+# ─── Public: metadata / SP-initiated login / ACS / SLO ─────────────────────
+# Never gated by _require_itam_admin or get_current_user — an IdP (and a
+# not-yet-authenticated browser) must be able to reach these.
+
+@saml_router.get("/api/auth/saml/metadata")
+async def public_saml_metadata():
+    """Public SP metadata XML — paste this into the IdP's SAML app config."""
+    try:
+        config = await get_saml_config(None)
+    except SAMLConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    metadata_xml, _errors = SAMLAuthenticator(config).metadata()
+    return Response(content=metadata_xml, media_type="application/xml")
+
+
+@saml_router.get("/api/auth/saml/login")
+@limiter.limit("10/minute")
+async def saml_login(request: Request):
+    """SP-initiated SSO: redirect the browser to the IdP's SSO URL with a
+    freshly built AuthnRequest."""
+    try:
+        config = await get_saml_config(None)
+    except SAMLConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    request_data = await build_saml_request_data(request)
+    url = await SAMLAuthenticator(config).build_login_url(request_data)
+    return RedirectResponse(url=url)
+
+
+@saml_router.post("/api/auth/saml/acs")
+@limiter.limit("10/minute")
+async def saml_acs(request: Request):
+    """Assertion Consumer Service — the IdP POSTs the SAMLResponse here.
+    Validates the assertion (signature/audience/timestamp/replay —
+    T-64-13), provisions/updates the user, then redirects to the frontend
+    via the same one-time exchange-code pattern the Google OIDC flow above
+    already uses (_store_sso_state/_consume_sso_state), rather than putting
+    a JWT directly in a browser-visible response.
+
+    MFA follow-up: if SAML login must also honor two-phase MFA, that needs
+    to be reconciled with 64-06's rewrite of the local login handler in the
+    same wave — deliberately not attempted here (see plan Task 2, item 11).
+    """
+    request_data = await build_saml_request_data(request)
+    try:
+        result = await authenticate_saml(request_data, tenant_id=None)
+    except SAMLValidationError as exc:
+        logger.warning("SAML ACS validation failed: %s", exc)
+        return RedirectResponse(url=_safe_frontend_url("/login?error=saml_failed"))
+    except SAMLProvisionError as exc:
+        logger.warning("SAML ACS provisioning failed: %s", exc)
+        return RedirectResponse(url=_safe_frontend_url("/login?error=saml_not_registered"))
+
+    exchange_code = secrets.token_urlsafe(32)
+    await _store_sso_state(f"tok:{exchange_code}", result["access_token"], ttl_seconds=30)
+    return RedirectResponse(url=_safe_frontend_url(f"/sso-callback?code={exchange_code}&provider=saml"))
+
+
+@saml_router.get("/api/auth/saml/slo")
+async def saml_slo(request: Request):
+    """Single Logout — handles both an IdP-sent LogoutRequest and a
+    LogoutResponse to an SP-initiated logout (HTTP-Redirect binding)."""
+    try:
+        config = await get_saml_config(None)
+    except SAMLConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    request_data = await build_saml_request_data(request)
+    try:
+        redirect_url = SAMLAuthenticator(config).process_slo(request_data)
+    except SAMLValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if redirect_url:
+        return RedirectResponse(url=redirect_url)
+    return {"success": True}

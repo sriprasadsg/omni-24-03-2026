@@ -13,10 +13,12 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_os_1 = __importDefault(require("node:os"));
 const shell_command_projection_cjs_1 = require("./shell-command-projection.cjs");
+const clock_cjs_1 = require("./clock.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- io.cjs is an export= CommonJS module
 const io = require("./io.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- config-loader.cjs is an export= CommonJS module
 const configLoader = require("./config-loader.cjs");
+const project_root_cjs_1 = require("./project-root.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- model-resolver.cjs is an export= CommonJS module
 const modelResolver = require("./model-resolver.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- phase-locator.cjs is an export= CommonJS module
@@ -42,32 +44,112 @@ const security_cjs_1 = require("./security.cjs");
 const runtime_homes_cjs_1 = require("./runtime-homes.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- frontmatter.cjs is an export= CommonJS module
 const frontmatterMod = require("./frontmatter.cjs");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- verification.cjs is an export= CommonJS module
+const verificationMod = require("./verification.cjs");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- uat-predicate.cjs is an export= CommonJS module
+const uatPredicateMod = require("./uat-predicate.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- agent-install-check.cjs is an export= CommonJS module
 const agentInstallCheck = require("./agent-install-check.cjs");
 const { checkAgentsInstalled } = agentInstallCheck;
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- git-base-branch.cjs is an export= CommonJS module
 const gitBaseBranch = require("./git-base-branch.cjs");
 const { gitWorktreeInfoInternal } = gitBaseBranch;
+const resolution_cjs_1 = require("./resolution.cjs");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- onboard-projection.cjs is an export= CommonJS module
+const onboardProjection = require("./onboard-projection.cjs");
+const { REQUIRED_CODEBASE_MAP_FILES, buildOnboardProjection, hasCodeFilesInternal, hasPackageFileInternal, listCodebaseMapFiles, } = onboardProjection;
 const { output, error } = io;
-const { loadConfig } = configLoader;
+const { loadConfig, loadConfigResolved } = configLoader;
 const { resolveModelInternal, resolveGranularityInternal, assertValidGranularityOverride } = modelResolver;
 const { findPhaseInternal } = phaseLocator;
 const { getRoadmapPhaseInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, extractCurrentMilestone, } = roadmapParser;
 const { pathExistsInternal, generateSlugInternal, toPosixPath } = coreUtils;
-const { normalizePhaseName, phaseTokenMatches } = phaseId;
+const { escapeRegex, normalizePhaseName, phaseTokenMatches, stripProjectCodePrefix, PHASE_NUMBER_TOKEN_SOURCE, isForeignPrefixedPhaseQuery } = phaseId;
 const { pruneOrphanedWorktrees } = worktreeSafety;
-const { planningPaths, planningDir, planningRoot, findContextMdIn, } = planningWorkspace;
+const { planningPaths, planningDir, planningRoot, listAvailableWorkstreams, getActiveWorkstream, findContextMdIn, } = planningWorkspace;
 const { determinePhaseStatus } = commandsMod;
 const { extractFrontmatter } = frontmatterMod;
+const { readVerificationStatus } = verificationMod;
+const { evaluateUatPassed } = uatPredicateMod;
 // Unused but imported for structural parity
 void stripShippedMilestones;
 // Accept all bold/colon variants of the Requirements header (#2769)
 const REQUIREMENTS_HEADER_RE = /^\*\*Requirements:?\*\*[^\S\n]*:?[^\S\n]*([^\n]*)$/m;
+// #2056/#2104: isForeignPrefixedPhaseQuery is imported from phase-id.cts
+// (the canonical predicate). parsePhasePrefix is no longer needed locally.
+// phaseInfoMatchesExactPrefix and roadmapPhaseMatchesExactPrefix are local
+// helpers that post-filter the lookup results for foreign-prefix queries.
+function phaseInfoMatchesExactPrefix(phaseInfo, phase) {
+    const num = phaseInfo?.['phase_number'];
+    const numStr = typeof num === 'string' ? num : (typeof num === 'number' ? String(num) : '');
+    return numStr.toUpperCase() === phase.toUpperCase();
+}
+function roadmapPhaseMatchesExactPrefix(roadmapPhase, phase) {
+    const sectionRaw = roadmapPhase?.['section'];
+    const section = typeof sectionRaw === 'string' ? sectionRaw : '';
+    return new RegExp(`^#{2,4}\\s*Phase\\s+${escapeRegex(phase)}(?:\\b|\\s|:)`, 'i').test(section);
+}
+// #2104: shared helpers that wrap findPhaseInternal / getRoadmapPhaseInternal
+// with the #2056 foreign-prefix guard, so every init command gets the same
+// protection without duplicating the guard logic at each call site.
+function guardedFindPhase(cwd, phase, projectCode) {
+    let phaseInfo = findPhaseInternal(cwd, phase);
+    if (isForeignPrefixedPhaseQuery(phase, projectCode) && !phaseInfoMatchesExactPrefix(phaseInfo, phase)) {
+        phaseInfo = null;
+    }
+    return phaseInfo;
+}
+function guardedGetRoadmapPhase(cwd, phase, projectCode) {
+    let roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+    if (isForeignPrefixedPhaseQuery(phase, projectCode) && !roadmapPhaseMatchesExactPrefix(roadmapPhase, phase)) {
+        roadmapPhase = null;
+    }
+    return roadmapPhase;
+}
 function listPhaseSummaryFiles(phaseDir) {
     return scanPhasePlans(phaseDir)['summaryFiles'];
 }
 function listPhasePlanFiles(phaseDir) {
     return scanPhasePlans(phaseDir)['planFiles'];
+}
+function verificationNextCommand(status, phaseNumber, slashRuntime) {
+    if (status === 'gaps_found') {
+        return `${(0, runtime_slash_cjs_1.formatGsdSlash)('plan-phase', slashRuntime)} ${phaseNumber} --gaps`;
+    }
+    if (status === 'human_needed' || status === 'stale') {
+        return `${(0, runtime_slash_cjs_1.formatGsdSlash)('verify-work', slashRuntime)} ${phaseNumber}`;
+    }
+    if (status === 'missing' || status === 'unknown') {
+        return `${(0, runtime_slash_cjs_1.formatGsdSlash)('execute-phase', slashRuntime)} ${phaseNumber}`;
+    }
+    return '';
+}
+function projectCompletionStatus(implementationComplete, verificationPassed) {
+    if (implementationComplete && verificationPassed)
+        return 'complete';
+    if (implementationComplete)
+        return 'executed';
+    return 'incomplete';
+}
+function buildPhaseCompletionProjection(cwd, phaseNumber, phaseDir, planCount, summaryCount, slashRuntime) {
+    const implementationComplete = planCount > 0 && summaryCount >= planCount;
+    const phaseFullDir = phaseDir ? node_path_1.default.join(cwd, phaseDir) : '';
+    const verificationStatus = implementationComplete
+        ? readVerificationStatus(phaseFullDir)
+        : { status: 'not_required', next_action: '', next_command: '' };
+    const projectedVerificationStatus = verificationStatus.status;
+    const projectedVerificationAction = verificationStatus.next_action;
+    const verificationPassed = projectedVerificationStatus === 'passed';
+    const phaseComplete = implementationComplete && verificationPassed;
+    return {
+        implementation_complete: implementationComplete,
+        verification_status: projectedVerificationStatus,
+        verification_passed: verificationPassed,
+        phase_complete: phaseComplete,
+        completion_status: projectCompletionStatus(implementationComplete, verificationPassed),
+        verification_next_action: projectedVerificationAction,
+        verification_next_command: verificationNextCommand(projectedVerificationStatus, phaseNumber, slashRuntime),
+    };
 }
 function getLatestCompletedMilestone(cwd) {
     const milestonesPath = node_path_1.default.join(planningRoot(cwd), 'MILESTONES.md');
@@ -122,7 +204,7 @@ function getInitGitState(cwd) {
         }
         resolved = node_path_1.default.resolve(resolved);
         if (process.platform === 'win32') {
-            return resolved.replace(/\//g, '\\').toLowerCase();
+            return (0, shell_command_projection_cjs_1.toNativePath)(resolved).toLowerCase();
         }
         return resolved;
     };
@@ -132,7 +214,7 @@ function getInitGitState(cwd) {
         try {
             const prefixResult = (0, shell_command_projection_cjs_1.execGit)(['rev-parse', '--show-prefix'], { cwd, timeout: 5000 });
             if (prefixResult['exitCode'] === 0) {
-                const prefix = (typeof prefixResult['stdout'] === 'string' ? prefixResult['stdout'] : '').trim().replace(/\\/g, '/');
+                const prefix = (0, shell_command_projection_cjs_1.posixNormalize)((typeof prefixResult['stdout'] === 'string' ? prefixResult['stdout'] : '').trim());
                 inNestedSubdir = prefix.length > 0 && prefix !== '.' && prefix !== './';
                 resolvedByGitPrefix = true;
             }
@@ -149,7 +231,7 @@ function getInitGitState(cwd) {
                 }
                 else {
                     const rel = node_path_1.default.relative(rootNorm, cwdNorm);
-                    const relNorm = process.platform === 'win32' ? rel.replace(/\//g, '\\') : rel;
+                    const relNorm = (0, shell_command_projection_cjs_1.toNativePath)(rel);
                     inNestedSubdir =
                         relNorm !== '' &&
                             relNorm !== '.' &&
@@ -163,7 +245,7 @@ function getInitGitState(cwd) {
         }
     }
     if (inNestedSubdir && typeof worktreeRoot === 'string') {
-        const toComparableRaw = (p) => p.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase();
+        const toComparableRaw = (p) => (0, shell_command_projection_cjs_1.posixNormalize)(p).replace(/\/+$/g, '').toLowerCase();
         if (toComparableRaw(worktreeRoot) === toComparableRaw(String(cwd))) {
             inNestedSubdir = false;
         }
@@ -179,9 +261,9 @@ function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
         error('phase required for init execute-phase');
     }
     const config = loadConfig(cwd);
-    let phaseInfo = findPhaseInternal(cwd, phase);
+    let phaseInfo = guardedFindPhase(cwd, phase, config.project_code);
     const milestone = getMilestoneInfo(cwd);
-    const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+    const roadmapPhase = guardedGetRoadmapPhase(cwd, phase, config.project_code);
     if (phaseInfo?.['archived'] && roadmapPhase?.['found']) {
         phaseInfo = null;
     }
@@ -223,7 +305,11 @@ function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
         milestone_branch_template: config.milestone_branch_template,
         verifier_enabled: config.verifier,
         phase_found: !!phaseInfo,
-        phase_dir: phaseInfo?.['directory'] || null,
+        // #2376: absolute (anchored on cwd/project_root), not orchestrator-cwd-relative —
+        // a spawned subagent's own cwd may differ from the orchestrator's.
+        phase_dir: phaseInfo?.['directory']
+            ? toPosixPath(node_path_1.default.join(cwd, phaseInfo['directory']))
+            : null,
         phase_number: phaseInfo?.['phase_number'] || null,
         phase_name: phaseInfo?.['phase_name'] || null,
         phase_slug: phaseInfo?.['phase_slug'] || null,
@@ -249,9 +335,13 @@ function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
         state_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         config_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'config.json')),
-        state_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'STATE.md'))),
-        roadmap_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'))),
-        config_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'config.json'))),
+        // #2376: emit absolute paths — see comment above on phase_dir.
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        config_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'config.json')),
+        // #2376: execute-phase.md's verify_phase_goal step reads this instead of
+        // hardcoding '.planning/REQUIREMENTS.md' into the gsd-verifier spawn prompt.
+        requirements_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md')),
     };
     if (options['validate']) {
         try {
@@ -282,8 +372,9 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
         error('phase required for init plan-phase');
     }
     const config = loadConfig(cwd);
-    let phaseInfo = findPhaseInternal(cwd, phase);
-    const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+    // #2056/#2104: foreign-prefixed queries must not collapse to numeric phases.
+    let phaseInfo = guardedFindPhase(cwd, phase, config.project_code);
+    const roadmapPhase = guardedGetRoadmapPhase(cwd, phase, config.project_code);
     if (phaseInfo?.['archived'] && roadmapPhase?.['found']) {
         phaseInfo = null;
     }
@@ -322,7 +413,8 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
         if (slug) {
             const prefix = rawProjectCodePlan ? `${rawProjectCodePlan}-` : '';
             const dirName = `${prefix}${paddedNum}-${slug}`;
-            expectedPhaseDirPlan = toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningPaths(cwd).phases, dirName)));
+            // #2376: absolute — see comment on phase_dir below.
+            expectedPhaseDirPlan = toPosixPath(node_path_1.default.join(planningPaths(cwd).phases, dirName));
         }
     }
     const granularityOverride = options['granularity'];
@@ -344,7 +436,10 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
         auto_chain_active: !!(config._auto_chain_active),
         mode: config.mode || 'interactive',
         phase_found: !!phaseInfo,
-        phase_dir: phaseDirPlan,
+        // #2376: absolute (anchored on cwd/project_root) — path.join(cwd, phaseDirPlan)
+        // handed to a spawned subagent must resolve regardless of that subagent's own cwd.
+        // phaseDirPlan itself stays relative — phase_status below still joins it against cwd.
+        phase_dir: phaseDirPlan ? toPosixPath(node_path_1.default.join(cwd, phaseDirPlan)) : null,
         expected_phase_dir: expectedPhaseDirPlan,
         phase_number: phaseNumberPlan,
         phase_name: phaseNamePlan,
@@ -361,9 +456,10 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
         plan_count: phaseInfo?.['plans']?.length || 0,
         planning_exists: node_fs_1.default.existsSync(planningDir(cwd)),
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
-        state_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'STATE.md'))),
-        roadmap_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'))),
-        requirements_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md'))),
+        // #2376: absolute — see comment on phase_dir above.
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        requirements_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md')),
         patterns_path: null,
     };
     if (phaseInfo?.['directory']) {
@@ -372,27 +468,27 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
             const files = node_fs_1.default.readdirSync(phaseDirFull);
             const contextFile = findContextMdIn(phaseDirFull);
             if (contextFile) {
-                result['context_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], contextFile));
+                result['context_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, contextFile));
             }
             const researchFile = files.find((f) => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
             if (researchFile) {
-                result['research_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], researchFile));
+                result['research_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, researchFile));
             }
             const verificationFile = files.find((f) => f.endsWith('-VERIFICATION.md') || f === 'VERIFICATION.md');
             if (verificationFile) {
-                result['verification_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], verificationFile));
+                result['verification_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, verificationFile));
             }
             const uatFile = files.find((f) => f.endsWith('-UAT.md') || f === 'UAT.md');
             if (uatFile) {
-                result['uat_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], uatFile));
+                result['uat_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, uatFile));
             }
             const reviewsFile = files.find((f) => f.endsWith('-REVIEWS.md') || f === 'REVIEWS.md');
             if (reviewsFile) {
-                result['reviews_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], reviewsFile));
+                result['reviews_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, reviewsFile));
             }
             const patternsFile = files.find((f) => f.endsWith('-PATTERNS.md') || f === 'PATTERNS.md');
             if (patternsFile) {
-                result['patterns_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], patternsFile));
+                result['patterns_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, patternsFile));
             }
         }
         catch {
@@ -432,89 +528,35 @@ function cmdInitNewProject(cwd, raw) {
     const hasFirecrawl = !!(process.env['FIRECRAWL_API_KEY'] || node_fs_1.default.existsSync(firecrawlKeyFile));
     const exaKeyFile = node_path_1.default.join(homedir, '.gsd', 'exa_api_key');
     const hasExaSearch = !!(process.env['EXA_API_KEY'] || node_fs_1.default.existsSync(exaKeyFile));
-    let hasCode = false;
-    let hasPackageFile = false;
-    try {
-        const codeExtensions = new Set([
-            '.ts', '.js', '.py', '.go', '.rs', '.swift', '.java',
-            '.kt', '.kts',
-            '.c', '.cpp', '.h',
-            '.cs',
-            '.rb',
-            '.php',
-            '.dart',
-            '.m', '.mm',
-            '.scala',
-            '.groovy',
-            '.lua',
-            '.r', '.R',
-            '.zig',
-            '.ex', '.exs',
-            '.clj',
-        ]);
-        const skipDirs = new Set([
-            'node_modules', '.git', '.planning', '.claude', '.codex',
-            '__pycache__', 'target', 'dist', 'build',
-        ]);
-        function findCodeFiles(dir, depth) {
-            if (depth > 3)
-                return false;
-            let entries;
-            try {
-                entries = node_fs_1.default.readdirSync(dir, { withFileTypes: true });
-            }
-            catch {
-                return false;
-            }
-            for (const entry of entries) {
-                if (entry.isFile() && codeExtensions.has(node_path_1.default.extname(entry.name)))
-                    return true;
-                if (entry.isDirectory() && !skipDirs.has(entry.name)) {
-                    if (findCodeFiles(node_path_1.default.join(dir, entry.name), depth + 1))
-                        return true;
-                }
-            }
-            return false;
-        }
-        hasCode = findCodeFiles(cwd, 0);
-    }
-    catch {
-        /* intentionally empty — best-effort detection */
-    }
-    hasPackageFile =
-        pathExistsInternal(cwd, 'package.json') ||
-            pathExistsInternal(cwd, 'requirements.txt') ||
-            pathExistsInternal(cwd, 'Cargo.toml') ||
-            pathExistsInternal(cwd, 'go.mod') ||
-            pathExistsInternal(cwd, 'Package.swift') ||
-            pathExistsInternal(cwd, 'build.gradle') ||
-            pathExistsInternal(cwd, 'build.gradle.kts') ||
-            pathExistsInternal(cwd, 'pom.xml') ||
-            pathExistsInternal(cwd, 'Gemfile') ||
-            pathExistsInternal(cwd, 'composer.json') ||
-            pathExistsInternal(cwd, 'pubspec.yaml') ||
-            pathExistsInternal(cwd, 'CMakeLists.txt') ||
-            pathExistsInternal(cwd, 'Makefile') ||
-            pathExistsInternal(cwd, 'build.zig') ||
-            pathExistsInternal(cwd, 'mix.exs') ||
-            pathExistsInternal(cwd, 'project.clj');
+    const hasCode = hasCodeFilesInternal(cwd);
+    const hasPackageFile = hasPackageFileInternal(cwd);
+    const isBrownfield = hasCode || hasPackageFile;
+    const codebaseMapFiles = listCodebaseMapFiles(cwd);
+    const hasCodebaseMap = codebaseMapFiles.length === REQUIRED_CODEBASE_MAP_FILES.length;
     const result = {
         researcher_model: resolveModelInternal(cwd, 'gsd-project-researcher'),
         synthesizer_model: resolveModelInternal(cwd, 'gsd-research-synthesizer'),
         roadmapper_model: resolveModelInternal(cwd, 'gsd-roadmapper'),
         commit_docs: config.commit_docs,
         project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
-        has_codebase_map: pathExistsInternal(cwd, '.planning/codebase'),
+        has_codebase_map: hasCodebaseMap,
         planning_exists: pathExistsInternal(cwd, '.planning'),
         has_existing_code: hasCode,
         has_package_file: hasPackageFile,
-        is_brownfield: hasCode || hasPackageFile,
-        needs_codebase_map: (hasCode || hasPackageFile) && !pathExistsInternal(cwd, '.planning/codebase'),
+        is_brownfield: isBrownfield,
+        needs_codebase_map: isBrownfield && !hasCodebaseMap,
         ...getInitGitState(cwd),
         brave_search_available: hasBraveSearch,
         firecrawl_available: hasFirecrawl,
         exa_search_available: hasExaSearch,
-        project_path: '.planning/PROJECT.md',
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        project_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'PROJECT.md')),
+        // #2376: new-project.md's research-synthesizer/roadmapper spawn prompts
+        // read these instead of hardcoding '.planning/...' literals.
+        requirements_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        config_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'config.json')),
+        research_dir: toPosixPath(node_path_1.default.join(planningRoot(cwd), 'research')),
     };
     output(withProjectRoot(cwd, result), raw);
 }
@@ -548,15 +590,22 @@ function cmdInitNewMilestone(cwd, raw) {
         latest_completed_milestone: latestCompleted?.version || null,
         latest_completed_milestone_name: latestCompleted?.name || null,
         phase_dir_count: phaseDirCount,
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
         phase_archive_path: latestCompleted
-            ? toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningRoot(cwd), 'milestones', `${latestCompleted.version}-phases`)))
+            ? toPosixPath(node_path_1.default.join(planningRoot(cwd), 'milestones', `${latestCompleted.version}-phases`))
             : null,
         project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         state_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
-        project_path: '.planning/PROJECT.md',
-        roadmap_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'))),
-        state_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'STATE.md'))),
+        project_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'PROJECT.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        // #2376: new-milestone.md's research-synthesizer/roadmapper spawn prompts
+        // read these instead of hardcoding '.planning/...' literals.
+        requirements_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md')),
+        config_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'config.json')),
+        research_dir: toPosixPath(node_path_1.default.join(planningRoot(cwd), 'research')),
+        milestones_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'MILESTONES.md')),
     };
     output(withProjectRoot(cwd, result), raw);
 }
@@ -584,15 +633,21 @@ function cmdInitQuick(cwd, description, raw) {
         executor_model: resolveModelInternal(cwd, 'gsd-executor'),
         checker_model: resolveModelInternal(cwd, 'gsd-plan-checker'),
         verifier_model: resolveModelInternal(cwd, 'gsd-verifier'),
+        // #2072: the quick review step spawns gsd-code-reviewer; resolve its own model
+        // so model_overrides / models.verification apply (was reusing executor_model).
+        reviewer_model: resolveModelInternal(cwd, 'gsd-code-reviewer'),
         commit_docs: config.commit_docs,
         branch_name: quickBranchName,
         quick_id: quickId,
         slug: slug,
         description: description || null,
-        date: now.toISOString().split('T')[0],
-        timestamp: now.toISOString(),
-        quick_dir: '.planning/quick',
-        task_dir: slug ? `.planning/quick/${quickId}-${slug}` : null,
+        date: clock_cjs_1.realClock.localToday(),
+        timestamp: clock_cjs_1.realClock.nowIso(),
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        quick_dir: toPosixPath(node_path_1.default.join(planningDir(cwd), 'quick')),
+        task_dir: slug
+            ? toPosixPath(node_path_1.default.join(planningDir(cwd), 'quick', `${quickId}-${slug}`))
+            : null,
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         planning_exists: node_fs_1.default.existsSync(planningRoot(cwd)),
     };
@@ -604,8 +659,32 @@ function cmdInitIngestDocs(cwd, raw) {
         project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
         planning_exists: node_fs_1.default.existsSync(planningRoot(cwd)),
         ...getInitGitState(cwd),
-        project_path: '.planning/PROJECT.md',
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase. The
+        // classify_parallel/synthesize/route_new_mode spawns in ingest-docs.md
+        // (gsd-doc-classifier, gsd-doc-synthesizer, gsd-roadmapper) previously
+        // hardcoded bare '.planning/intel/...', '.planning/PROJECT.md', etc.
+        // literals into their Agent(prompt=...) blocks; those now interpolate
+        // these fields instead.
+        project_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'PROJECT.md')),
+        requirements_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        intel_dir: toPosixPath(node_path_1.default.join(planningDir(cwd), 'intel')),
+        conflicts_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'INGEST-CONFLICTS.md')),
         commit_docs: config.commit_docs,
+    };
+    output(withProjectRoot(cwd, result), raw);
+}
+function cmdInitOnboard(cwd, raw, options = {}) {
+    const config = loadConfig(cwd);
+    const workflowConfig = (config.workflow ?? {});
+    const result = {
+        ...buildOnboardProjection(cwd, {
+            commitDocs: !!config.commit_docs,
+            fast: options['fast'] === true,
+            textMode: options['text'] === true || !!config.text_mode || !!workflowConfig['text_mode'],
+        }),
+        ...getInitGitState(cwd),
     };
     output(withProjectRoot(cwd, result), raw);
 }
@@ -620,9 +699,10 @@ function cmdInitResume(cwd, raw) {
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
         planning_exists: node_fs_1.default.existsSync(planningRoot(cwd)),
-        state_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'STATE.md'))),
-        roadmap_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'))),
-        project_path: '.planning/PROJECT.md',
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        project_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'PROJECT.md')),
         has_interrupted_agent: !!interruptedAgentId,
         interrupted_agent_id: interruptedAgentId,
         commit_docs: config.commit_docs,
@@ -634,15 +714,16 @@ function cmdInitVerifyWork(cwd, phase, raw) {
         error('phase required for init verify-work');
     }
     const config = loadConfig(cwd);
-    let phaseInfo = findPhaseInternal(cwd, phase);
+    const _slashRuntime = (0, runtime_slash_cjs_1.resolveRuntime)(cwd);
+    let phaseInfo = guardedFindPhase(cwd, phase, config.project_code);
     if (phaseInfo?.['archived']) {
-        const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+        const roadmapPhase = guardedGetRoadmapPhase(cwd, phase, config.project_code);
         if (roadmapPhase?.['found']) {
             phaseInfo = null;
         }
     }
     if (!phaseInfo) {
-        const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+        const roadmapPhase = guardedGetRoadmapPhase(cwd, phase, config.project_code);
         if (roadmapPhase?.['found']) {
             const phaseName = roadmapPhase['phase_name'];
             phaseInfo = {
@@ -662,23 +743,59 @@ function cmdInitVerifyWork(cwd, phase, raw) {
             };
         }
     }
+    const phaseDir = phaseInfo?.['directory'] || null;
+    const planCount = phaseInfo?.['plans']?.length || 0;
+    const summaryCount = phaseInfo?.['summaries']?.length || 0;
+    const completion = buildPhaseCompletionProjection(cwd, phaseInfo?.['phase_number'] || phase, phaseDir, planCount, summaryCount, _slashRuntime);
+    const uatReport = phaseDir
+        ? evaluateUatPassed(node_path_1.default.join(cwd, phaseDir), {
+            policy: { requireVerification: true },
+        })
+        : null;
     const result = {
         planner_model: resolveModelInternal(cwd, 'gsd-planner'),
         checker_model: resolveModelInternal(cwd, 'gsd-plan-checker'),
         commit_docs: config.commit_docs,
         phase_found: !!phaseInfo,
-        phase_dir: phaseInfo?.['directory'] || null,
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase. phaseDir
+        // itself stays relative — evaluateUatPassed above still joins it against cwd.
+        phase_dir: phaseDir ? toPosixPath(node_path_1.default.join(cwd, phaseDir)) : null,
         phase_number: phaseInfo?.['phase_number'] || null,
         phase_name: phaseInfo?.['phase_name'] || null,
+        // #2376: verify-work.md's plan_gap_closure step reads these instead of
+        // hardcoding '.planning/STATE.md' / '.planning/ROADMAP.md' literals.
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         has_verification: phaseInfo?.['has_verification'] || false,
+        phase_completion: {
+            ...completion,
+            uat_passed: uatReport?.passed ?? false,
+            uat_blockers: uatReport?.blockers ?? [],
+            ready_to_transition: completion.phase_complete && (uatReport?.passed ?? false),
+        },
     };
     output(withProjectRoot(cwd, result), raw);
 }
 function cmdInitPhaseOp(cwd, phase, raw) {
     const config = loadConfig(cwd);
-    let phaseInfo = findPhaseInternal(cwd, phase);
+    let phaseInfo = guardedFindPhase(cwd, phase, config.project_code);
+    // #2237: surface ambiguous phase-directory collisions instead of silently
+    // taking the first match when unrelated projects share a .planning/phases/ tree.
+    if (phaseInfo?.['ambiguous_matches']) {
+        const matches = phaseInfo['ambiguous_matches'];
+        const result = {
+            phase_found: false,
+            phase_dir: null,
+            phase_number: null,
+            phase_name: null,
+            ambiguous_matches: matches,
+            warning: `Phase ${phase} is ambiguous: ${matches.length} directories match (${matches.map((m) => `"${m}"`).join(', ')}). Set a distinct project_code in .planning/config.json to scope resolution.`,
+        };
+        output(withProjectRoot(cwd, result), raw);
+        return;
+    }
     if (phaseInfo?.['archived']) {
-        const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+        const roadmapPhase = guardedGetRoadmapPhase(cwd, phase, config.project_code);
         if (roadmapPhase?.['found']) {
             const phaseName = roadmapPhase['phase_name'];
             phaseInfo = {
@@ -699,7 +816,7 @@ function cmdInitPhaseOp(cwd, phase, raw) {
         }
     }
     if (!phaseInfo) {
-        const roadmapPhase = getRoadmapPhaseInternal(cwd, phase);
+        const roadmapPhase = guardedGetRoadmapPhase(cwd, phase, config.project_code);
         if (roadmapPhase?.['found']) {
             const phaseName = roadmapPhase['phase_name'];
             phaseInfo = {
@@ -730,7 +847,8 @@ function cmdInitPhaseOp(cwd, phase, raw) {
         if (slug) {
             const prefix = rawProjectCode ? `${rawProjectCode}-` : '';
             const dirName = `${prefix}${paddedNum}-${slug}`;
-            expectedPhaseDir = toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningPaths(cwd).phases, dirName)));
+            // #2376: absolute — see comment on phase_dir below.
+            expectedPhaseDir = toPosixPath(node_path_1.default.join(planningPaths(cwd).phases, dirName));
         }
     }
     const result = {
@@ -745,7 +863,8 @@ function cmdInitPhaseOp(cwd, phase, raw) {
             ? (0, secrets_cjs_1.maskIfSecret)('exa_search', config.exa_search)
             : config.exa_search,
         phase_found: !!phaseInfo,
-        phase_dir: phaseDir,
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        phase_dir: phaseDir ? toPosixPath(node_path_1.default.join(cwd, phaseDir)) : null,
         expected_phase_dir: expectedPhaseDir,
         phase_number: phaseNumber,
         phase_name: phaseName,
@@ -759,9 +878,10 @@ function cmdInitPhaseOp(cwd, phase, raw) {
         plan_count: phaseInfo?.['plans']?.length || 0,
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         planning_exists: node_fs_1.default.existsSync(planningDir(cwd)),
-        state_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'STATE.md'))),
-        roadmap_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'))),
-        requirements_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md'))),
+        // #2376: absolute — see comment on phase_dir above.
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        requirements_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'REQUIREMENTS.md')),
     };
     if (phaseInfo?.['directory']) {
         const phaseDirFull = node_path_1.default.join(cwd, phaseInfo['directory']);
@@ -769,23 +889,23 @@ function cmdInitPhaseOp(cwd, phase, raw) {
             const files = node_fs_1.default.readdirSync(phaseDirFull);
             const contextFile = findContextMdIn(phaseDirFull);
             if (contextFile) {
-                result['context_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], contextFile));
+                result['context_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, contextFile));
             }
             const researchFile = files.find((f) => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
             if (researchFile) {
-                result['research_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], researchFile));
+                result['research_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, researchFile));
             }
             const verificationFile = files.find((f) => f.endsWith('-VERIFICATION.md') || f === 'VERIFICATION.md');
             if (verificationFile) {
-                result['verification_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], verificationFile));
+                result['verification_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, verificationFile));
             }
             const uatFile = files.find((f) => f.endsWith('-UAT.md') || f === 'UAT.md');
             if (uatFile) {
-                result['uat_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], uatFile));
+                result['uat_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, uatFile));
             }
             const reviewsFile = files.find((f) => f.endsWith('-REVIEWS.md') || f === 'REVIEWS.md');
             if (reviewsFile) {
-                result['reviews_path'] = toPosixPath(node_path_1.default.join(phaseInfo['directory'], reviewsFile));
+                result['reviews_path'] = toPosixPath(node_path_1.default.join(phaseDirFull, reviewsFile));
             }
         }
         catch {
@@ -796,7 +916,6 @@ function cmdInitPhaseOp(cwd, phase, raw) {
 }
 function cmdInitTodos(cwd, area, raw) {
     const config = loadConfig(cwd);
-    const now = new Date();
     const pendingDir = node_path_1.default.join(planningDir(cwd), 'todos', 'pending');
     let count = 0;
     const todos = [];
@@ -810,6 +929,9 @@ function cmdInitTodos(cwd, area, raw) {
                 const createdMatch = content.match(/^created:\s*(.+)$/m);
                 const titleMatch = content.match(/^title:\s*(.+)$/m);
                 const areaMatch = content.match(/^area:\s*(.+)$/m);
+                // #2337: kept in parity with cmdListTodos — surface severity when
+                // present, omit the key entirely for todos with no severity line.
+                const severityMatch = content.match(/^severity:\s*(.+)$/m);
                 const todoArea = areaMatch ? areaMatch[1].trim() : 'general';
                 if (area && todoArea !== area)
                     continue;
@@ -819,7 +941,9 @@ function cmdInitTodos(cwd, area, raw) {
                     created: createdMatch ? createdMatch[1].trim() : 'unknown',
                     title: titleMatch ? titleMatch[1].trim() : 'Untitled',
                     area: todoArea,
-                    path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'todos', 'pending', file))),
+                    // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+                    path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'todos', 'pending', file)),
+                    ...(severityMatch ? { severity: severityMatch[1].trim() } : {}),
                 });
             }
             catch {
@@ -832,13 +956,14 @@ function cmdInitTodos(cwd, area, raw) {
     }
     const result = {
         commit_docs: config.commit_docs,
-        date: now.toISOString().split('T')[0],
-        timestamp: now.toISOString(),
+        date: clock_cjs_1.realClock.localToday(),
+        timestamp: clock_cjs_1.realClock.nowIso(),
         todo_count: count,
         todos,
         area_filter: area || null,
-        pending_dir: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'todos', 'pending'))),
-        completed_dir: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'todos', 'completed'))),
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        pending_dir: toPosixPath(node_path_1.default.join(planningDir(cwd), 'todos', 'pending')),
+        completed_dir: toPosixPath(node_path_1.default.join(planningDir(cwd), 'todos', 'completed')),
         planning_exists: node_fs_1.default.existsSync(planningDir(cwd)),
         todos_dir_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'todos')),
         pending_dir_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'todos', 'pending')),
@@ -856,9 +981,12 @@ function cmdInitMilestoneOp(cwd, raw) {
         const roadmapPath = node_path_1.default.join(planningDir(cwd), 'ROADMAP.md');
         const roadmapRaw = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
         const currentSection = extractCurrentMilestone(roadmapRaw, cwd);
-        const phasePattern = /#{2,4}\s*Phase\s+(\d+[A-Z]?(?:\.\d+)*)\s*:/gi;
+        // #1729: `(?:\s*\([^)\n]{0,200}\))?` tolerates a pre-colon ( ) tag (literal mirror of OPTIONAL_PHASE_TAG_SOURCE).
+        const phasePattern = new RegExp(`#{2,4}\\s*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})(?:\\s*\\([^)\\n]{0,200}\\))?\\s*:`, 'gi');
         let m;
         while ((m = phasePattern.exec(currentSection)) !== null) {
+            if (/^999(?:\.|$)/.test(m[1]))
+                continue;
             roadmapPhaseNumbers.push(m[1]);
         }
     }
@@ -875,7 +1003,7 @@ function cmdInitMilestoneOp(cwd, raw) {
         for (const e of entries) {
             if (!e.isDirectory())
                 continue;
-            const m = e.name.match(/^(\d+[A-Z]?(?:\.\d+)*)/);
+            const m = stripProjectCodePrefix(e.name).match(new RegExp(`^(${PHASE_NUMBER_TOKEN_SOURCE})`));
             if (!m)
                 continue;
             diskPhaseDirs.set(canonicalizePhase(m[1]), e.name);
@@ -951,7 +1079,6 @@ function cmdInitMilestoneOp(cwd, raw) {
 }
 function cmdInitMapCodebase(cwd, raw) {
     const config = loadConfig(cwd);
-    const now = new Date();
     const codebaseDir = node_path_1.default.join(planningRoot(cwd), 'codebase');
     let existingMaps = [];
     try {
@@ -966,9 +1093,10 @@ function cmdInitMapCodebase(cwd, raw) {
         search_gitignored: config.search_gitignored,
         parallelization: config.parallelization,
         subagent_timeout: config.subagent_timeout,
-        date: now.toISOString().split('T')[0],
-        timestamp: now.toISOString(),
-        codebase_dir: '.planning/codebase',
+        date: clock_cjs_1.realClock.localToday(),
+        timestamp: clock_cjs_1.realClock.nowIso(),
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        codebase_dir: toPosixPath(node_path_1.default.join(planningRoot(cwd), 'codebase')),
         existing_maps: existingMaps,
         has_maps: existingMaps.length > 0,
         planning_exists: pathExistsInternal(cwd, '.planning'),
@@ -1003,12 +1131,13 @@ function cmdInitManager(cwd, raw) {
         }
     })();
     const _checkboxStates = new Map();
-    const _cbPattern = /-\s*\[(x| )\]\s*.*Phase\s+(\d+[A-Z]?(?:\.\d+)*)[:\s]/gi;
+    const _cbPattern = new RegExp(`-\\s*\\[(x| )\\]\\s*.*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})[:\\s]`, 'gi');
     let _cbMatch;
     while ((_cbMatch = _cbPattern.exec(content)) !== null) {
         _checkboxStates.set(_cbMatch[2], _cbMatch[1].toLowerCase() === 'x');
     }
-    const phasePattern = /#{2,4}\s*Phase\s+(\d+[A-Z]?(?:\.\d+)*)\s*:\s*([^\n]+)/gi;
+    // #1729: `(?:\s*\([^)\n]{0,200}\))?` tolerates a pre-colon ( ) tag (literal mirror of OPTIONAL_PHASE_TAG_SOURCE).
+    const phasePattern = new RegExp(`#{2,4}\\s*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})(?:\\s*\\([^)\\n]{0,200}\\))?\\s*:\\s*([^\\n]+)`, 'gi');
     const phases = [];
     let match;
     while ((match = phasePattern.exec(content)) !== null) {
@@ -1033,18 +1162,23 @@ function cmdInitManager(cwd, raw) {
         let hasResearch = false;
         let lastActivity = null;
         let isActive = false;
+        let completion = buildPhaseCompletionProjection(cwd, phaseNum, null, planCount, summaryCount, _slashRuntime);
         try {
             const dirs = _phaseDirEntries.filter(isDirInMilestone);
             const dirMatch = dirs.find((d) => phaseTokenMatches(d, normalized));
             if (dirMatch) {
                 const fullDir = node_path_1.default.join(phasesDir, dirMatch);
+                const phaseDirRel = toPosixPath(node_path_1.default.relative(cwd, fullDir));
                 const phaseFiles = node_fs_1.default.readdirSync(fullDir);
                 planCount = listPhasePlanFiles(fullDir).length;
                 summaryCount = listPhaseSummaryFiles(fullDir).length;
                 hasContext = findContextMdIn(fullDir) !== null;
                 hasResearch = phaseFiles.some((f) => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
-                if (summaryCount >= planCount && planCount > 0)
+                completion = buildPhaseCompletionProjection(cwd, phaseNum, phaseDirRel, planCount, summaryCount, _slashRuntime);
+                if (completion.phase_complete)
                     diskStatus = 'complete';
+                else if (completion.implementation_complete)
+                    diskStatus = 'executed';
                 else if (summaryCount > 0)
                     diskStatus = 'partial';
                 else if (planCount > 0)
@@ -1077,7 +1211,7 @@ function cmdInitManager(cwd, raw) {
             /* intentionally empty */
         }
         const roadmapComplete = _checkboxStates.get(phaseNum) || false;
-        if (roadmapComplete && diskStatus !== 'complete') {
+        if (roadmapComplete && completion.phase_complete && diskStatus !== 'complete') {
             diskStatus = 'complete';
         }
         phases.push({
@@ -1091,6 +1225,7 @@ function cmdInitManager(cwd, raw) {
             plan_count: planCount,
             summary_count: summaryCount,
             roadmap_complete: roadmapComplete,
+            ...completion,
             last_activity: lastActivity,
             is_active: isActive,
         });
@@ -1105,22 +1240,42 @@ function cmdInitManager(cwd, raw) {
             phase['display_name'] = name;
         }
     }
-    const completedNums = new Set(phases.filter((p) => p['disk_status'] === 'complete').map((p) => p['number']));
-    const _allCompletedPattern = /-\s*\[x\]\s*.*Phase\s+(\d+[A-Z]?(?:\.\d+)*)[:\s]/gi;
+    function normalizePhaseNumber(value) {
+        return value
+            .split('.')
+            .map((part) => {
+            const match = /^(\d+)([A-Z]?)$/i.exec(part);
+            if (!match)
+                return part;
+            return `${Number(match[1])}${match[2].toUpperCase()}`;
+        })
+            .join('.');
+    }
+    const completedNums = new Set(phases
+        .filter((p) => p['phase_complete'] === true)
+        .map((p) => normalizePhaseNumber(p['number'])));
+    const phaseMap = new Map(phases.map((p) => [normalizePhaseNumber(p['number']), p]));
+    const _allCompletedPattern = new RegExp(`-\\s*\\[x\\]\\s*.*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})[:\\s]`, 'gi');
     let _allMatch;
     while ((_allMatch = _allCompletedPattern.exec(rawContent)) !== null) {
-        completedNums.add(_allMatch[1]);
+        const phaseNum = normalizePhaseNumber(_allMatch[1]);
+        const phase = phaseMap.get(phaseNum);
+        if (!phase || phase['phase_complete'] === true) {
+            completedNums.add(phaseNum);
+        }
     }
-    const phaseMap = new Map(phases.map((p) => [p['number'], p]));
     function reaches(from, to, visited = new Set()) {
-        if (visited.has(from))
+        const normalizedFrom = normalizePhaseNumber(from);
+        const normalizedTo = normalizePhaseNumber(to);
+        if (visited.has(normalizedFrom))
             return false;
-        visited.add(from);
-        const p = phaseMap.get(from);
+        visited.add(normalizedFrom);
+        const p = phaseMap.get(normalizedFrom);
         if (!p || !p['dep_phases'] || p['dep_phases'].length === 0)
             return false;
-        if (p['dep_phases'].includes(to))
+        if (p['dep_phases'].some((dep) => normalizePhaseNumber(dep) === normalizedTo)) {
             return true;
+        }
         return p['dep_phases'].some((dep) => reaches(dep, to, visited));
     }
     function hasDepRelationship(numA, numB) {
@@ -1132,8 +1287,8 @@ function cmdInitManager(cwd, raw) {
             phase['deps_satisfied'] = true;
         }
         else {
-            const depNums = phase['depends_on'].match(/\d+(?:\.\d+)*/g) || [];
-            phase['deps_satisfied'] = depNums.every((n) => completedNums.has(n));
+            const depNums = phase['depends_on'].match(new RegExp(`${PHASE_NUMBER_TOKEN_SOURCE}`, 'gi')) || [];
+            phase['deps_satisfied'] = depNums.every((n) => completedNums.has(normalizePhaseNumber(n)));
             phase['dep_phases'] = depNums;
         }
     }
@@ -1165,7 +1320,16 @@ function cmdInitManager(cwd, raw) {
             continue;
         if (/^999(?:\.|$)/.test(phase['number']))
             continue;
-        if (phase['disk_status'] === 'planned' && phase['deps_satisfied']) {
+        if (phase['disk_status'] === 'executed') {
+            recommendedActions.push({
+                phase: phase['number'],
+                phase_name: phase['name'],
+                action: 'verify',
+                reason: `Implementation complete; verification ${phase['verification_status']}`,
+                command: phase['verification_next_command'],
+            });
+        }
+        else if (phase['disk_status'] === 'planned' && phase['deps_satisfied']) {
             recommendedActions.push({
                 phase: phase['number'],
                 phase_name: phase['name'],
@@ -1209,7 +1373,7 @@ function cmdInitManager(cwd, raw) {
         return true;
     });
     const nonBacklogPhases = phases.filter((p) => !/^999(?:\.|$)/.test(p['number']));
-    const completedCount = nonBacklogPhases.filter((p) => p['disk_status'] === 'complete').length;
+    const completedCount = nonBacklogPhases.filter((p) => p['phase_complete'] === true).length;
     const sanitizeFlags = (rawVal) => {
         const val = typeof rawVal === 'string' ? rawVal : '';
         if (!val)
@@ -1236,7 +1400,7 @@ function cmdInitManager(cwd, raw) {
         phases,
         phase_count: phases.length,
         completed_count: completedCount,
-        in_progress_count: phases.filter((p) => ['partial', 'planned', 'discussed', 'researched'].includes(p['disk_status'])).length,
+        in_progress_count: phases.filter((p) => ['executed', 'partial', 'planned', 'discussed', 'researched'].includes(p['disk_status'])).length,
         recommended_actions: filteredActions,
         waiting_signal: waitingSignal,
         all_complete: completedCount === nonBacklogPhases.length && nonBacklogPhases.length > 0,
@@ -1256,6 +1420,19 @@ function cmdInitProgress(cwd, raw) {
     }
     const config = loadConfig(cwd);
     const milestone = getMilestoneInfo(cwd);
+    const _slashRuntime = (0, runtime_slash_cjs_1.resolveRuntime)(cwd);
+    // #1912: fail safe in workstream mode with no active workstream. With no active
+    // workstream and no --ws, planningDir(cwd) resolves to root .planning — silently
+    // reporting a stale root milestone. Require an explicit workstream instead.
+    // Mirror planningDir's resolution (GSD_WORKSTREAM env > stored active pointer) so
+    // an explicit --ws (which sets GSD_WORKSTREAM) satisfies the check.
+    const _availableWorkstreams = listAvailableWorkstreams(cwd);
+    const _resolvedWorkstream = process.env['GSD_WORKSTREAM'] || getActiveWorkstream(cwd);
+    if (_availableWorkstreams.length > 0 && !_resolvedWorkstream) {
+        error(`init.progress requires a workstream in workstream mode — no active workstream is set, so root STATE.md (likely stale) would be reported. ` +
+            `Pass --ws <name> or run ${(0, runtime_slash_cjs_1.formatGsdSlash)('workstream set', _slashRuntime)} first. ` +
+            `Available workstreams: ${_availableWorkstreams.join(', ')}`);
+    }
     const phasesDir = node_path_1.default.join(planningDir(cwd), 'phases');
     const phases = [];
     let currentPhase = null;
@@ -1265,13 +1442,14 @@ function cmdInitProgress(cwd, raw) {
     const roadmapCheckboxStates = new Map();
     try {
         const roadmapContent = extractCurrentMilestone(node_fs_1.default.readFileSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'), 'utf-8'), cwd);
-        const headingPattern = /#{2,4}\s*Phase\s+(\d+[A-Z]?(?:\.\d+)*)\s*:\s*([^\n]+)/gi;
+        // #1729: `(?:\s*\([^)\n]{0,200}\))?` tolerates a pre-colon ( ) tag (literal mirror of OPTIONAL_PHASE_TAG_SOURCE).
+        const headingPattern = new RegExp(`#{2,4}\\s*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})(?:\\s*\\([^)\\n]{0,200}\\))?\\s*:\\s*([^\\n]+)`, 'gi');
         let hm;
         while ((hm = headingPattern.exec(roadmapContent)) !== null) {
             roadmapPhaseNums.add(hm[1]);
             roadmapPhaseNames.set(hm[1], hm[2].replace(/\(INSERTED\)/i, '').trim());
         }
-        const cbPattern = /-\s*\[(x| )\]\s*.*Phase\s+(\d+[A-Z]?(?:\.\d+)*)[:\s]/gi;
+        const cbPattern = new RegExp(`-\\s*\\[(x| )\\]\\s*.*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})[:\\s]`, 'gi');
         let cbm;
         while ((cbm = cbPattern.exec(roadmapContent)) !== null) {
             roadmapCheckboxStates.set(cbm[2], cbm[1].toLowerCase() === 'x');
@@ -1289,14 +1467,14 @@ function cmdInitProgress(cwd, raw) {
             .map((e) => e.name)
             .filter(isDirInMilestone)
             .sort((a, b) => {
-            const pa = a.match(/^(\d+[A-Z]?(?:\.\d+)*)/i);
-            const pb = b.match(/^(\d+[A-Z]?(?:\.\d+)*)/i);
+            const pa = a.match(new RegExp(`^(${PHASE_NUMBER_TOKEN_SOURCE})`, 'i'));
+            const pb = b.match(new RegExp(`^(${PHASE_NUMBER_TOKEN_SOURCE})`, 'i'));
             if (!pa || !pb)
                 return a.localeCompare(b);
             return parseInt(pa[1], 10) - parseInt(pb[1], 10);
         });
         for (const dir of dirs) {
-            const dirMatch = dir.match(/^(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i);
+            const dirMatch = dir.match(new RegExp(`^(${PHASE_NUMBER_TOKEN_SOURCE})-?(.*)`, 'i'));
             const phaseNumber = dirMatch ? dirMatch[1] : dir;
             const phaseName = dirMatch && dirMatch[2] ? dirMatch[2] : null;
             seenPhaseNums.add(phaseNumber.replace(/^0+/, '') || '0');
@@ -1305,24 +1483,32 @@ function cmdInitProgress(cwd, raw) {
             const plans = listPhasePlanFiles(phasePath);
             const summaries = listPhaseSummaryFiles(phasePath);
             const hasResearch = phaseFiles.some((f) => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
-            const status = summaries.length >= plans.length && plans.length > 0
+            const phaseDirRel = toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'phases', dir)));
+            const completion = buildPhaseCompletionProjection(cwd, phaseNumber, phaseDirRel, plans.length, summaries.length, _slashRuntime);
+            const status = completion.phase_complete
                 ? 'complete'
-                : plans.length > 0
-                    ? 'in_progress'
-                    : hasResearch
-                        ? 'researched'
-                        : 'pending';
+                : completion.implementation_complete
+                    ? 'executed'
+                    : plans.length > 0
+                        ? 'in_progress'
+                        : hasResearch
+                            ? 'researched'
+                            : 'pending';
             const phaseInfo = {
                 number: phaseNumber,
                 name: phaseName,
-                directory: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'phases', dir))),
+                // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+                // phaseDirRel itself stays relative — buildPhaseCompletionProjection
+                // above still joins it against cwd.
+                directory: toPosixPath(node_path_1.default.join(cwd, phaseDirRel)),
                 status,
                 plan_count: plans.length,
                 summary_count: summaries.length,
                 has_research: hasResearch,
+                ...completion,
             };
             phases.push(phaseInfo);
-            if (!currentPhase && (status === 'in_progress' || status === 'researched')) {
+            if (!currentPhase && (status === 'executed' || status === 'in_progress' || status === 'researched')) {
                 currentPhase = phaseInfo;
             }
             if (!nextPhase && status === 'pending') {
@@ -1338,7 +1524,8 @@ function cmdInitProgress(cwd, raw) {
         if (!seenPhaseNums.has(stripped)) {
             const checkboxComplete = roadmapCheckboxStates.get(num) === true ||
                 roadmapCheckboxStates.get(stripped) === true;
-            const status = checkboxComplete ? 'complete' : 'not_started';
+            const completion = buildPhaseCompletionProjection(cwd, num, null, 0, 0, _slashRuntime);
+            const status = 'not_started';
             const phaseInfo = {
                 number: num,
                 name: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
@@ -1347,9 +1534,11 @@ function cmdInitProgress(cwd, raw) {
                 plan_count: 0,
                 summary_count: 0,
                 has_research: false,
+                roadmap_complete: checkboxComplete,
+                ...completion,
             };
             phases.push(phaseInfo);
-            if (!nextPhase && !currentPhase && status !== 'complete') {
+            if (!nextPhase && !currentPhase && !checkboxComplete) {
                 nextPhase = phaseInfo;
             }
         }
@@ -1371,7 +1560,7 @@ function cmdInitProgress(cwd, raw) {
         phases,
         phase_count: phases.length,
         completed_count: phases.filter((p) => p['status'] === 'complete').length,
-        in_progress_count: phases.filter((p) => p['status'] === 'in_progress').length,
+        in_progress_count: phases.filter((p) => ['executed', 'in_progress'].includes(p['status'])).length,
         current_phase: currentPhase,
         next_phase: nextPhase,
         paused_at: pausedAt,
@@ -1379,10 +1568,11 @@ function cmdInitProgress(cwd, raw) {
         project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
         roadmap_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
         state_exists: node_fs_1.default.existsSync(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
-        state_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'STATE.md'))),
-        roadmap_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'ROADMAP.md'))),
-        project_path: '.planning/PROJECT.md',
-        config_path: toPosixPath(node_path_1.default.relative(cwd, node_path_1.default.join(planningDir(cwd), 'config.json'))),
+        // #2376: absolute — see comment on phase_dir in cmdInitExecutePhase.
+        state_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'STATE.md')),
+        roadmap_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'ROADMAP.md')),
+        project_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'PROJECT.md')),
+        config_path: toPosixPath(node_path_1.default.join(planningDir(cwd), 'config.json')),
     };
     output(withProjectRoot(cwd, result), raw);
 }
@@ -1540,9 +1730,16 @@ function cmdInitRemoveWorkspace(cwd, name, raw) {
         dirty_repos: dirtyRepos,
         has_dirty_repos: dirtyRepos.length > 0,
     };
-    output(result, raw);
+    // #2402: sibling init commands route through withProjectRoot so response_language
+    // (and project_root/agents_installed) reach the workflow; this one didn't.
+    output(withProjectRoot(cwd, result), raw);
 }
-function buildAgentSkillsBlock(config, agentType, projectRoot) {
+function buildAgentSkillsBlock(config, agentType, projectRoot, diagnostics) {
+    const warn = (message) => {
+        process.stderr.write(message);
+        if (diagnostics)
+            diagnostics.warnings.push(message.replace(/\n+$/, ''));
+    };
     const runtime = (config && config['runtime']) || 'claude';
     const globalSkillsBase = (0, runtime_homes_cjs_1.getGlobalSkillsBase)(runtime);
     if (!config || !config['agent_skills'] || !agentType)
@@ -1552,7 +1749,11 @@ function buildAgentSkillsBlock(config, agentType, projectRoot) {
         return '';
     if (typeof skillPaths === 'string')
         skillPaths = [skillPaths];
-    if (!Array.isArray(skillPaths) || skillPaths.length === 0)
+    if (!Array.isArray(skillPaths)) {
+        warn(`[agent-skills] WARNING: Agent "${agentType}" has a malformed agent_skills value (expected string or array, got ${typeof skillPaths}) — ignoring\n`);
+        return '';
+    }
+    if (skillPaths.length === 0)
         return '';
     // Hoist trusted roots computation before the loop: loadTrustedGlobalRoots does
     // realpathSync I/O and should run at most once per call, not once per failing skill.
@@ -1563,18 +1764,20 @@ function buildAgentSkillsBlock(config, agentType, projectRoot) {
     // Skill-tool directive ({ kind: 'directive', name }) for plugin-provided namespaced skills.
     const validEntries = [];
     for (const skillPath of skillPaths) {
-        if (typeof skillPath !== 'string')
+        if (typeof skillPath !== 'string') {
+            warn(`[agent-skills] WARNING: Ignoring non-string skill entry (${typeof skillPath}) — skipping\n`);
             continue;
+        }
         if (skillPath.startsWith('global:')) {
             const skillName = skillPath.slice(7);
             if (!skillName) {
-                process.stderr.write(`[agent-skills] WARNING: "global:" prefix with empty skill name — skipping\n`);
+                warn(`[agent-skills] WARNING: "global:" prefix with empty skill name — skipping\n`);
                 continue;
             }
             // Accept: one or more [A-Za-z0-9_-]+ segments joined by single colons.
             // Rejects: empty segments (::), leading/trailing colon, dots, slashes, backslashes.
             if (!/^[A-Za-z0-9_-]+(:[A-Za-z0-9_-]+)*$/.test(skillName)) {
-                process.stderr.write(`[agent-skills] WARNING: Invalid global skill name "${skillName}" — skipping\n`);
+                warn(`[agent-skills] WARNING: Invalid global skill name "${skillName}" — skipping\n`);
                 continue;
             }
             const isNamespaced = skillName.includes(':');
@@ -1585,20 +1788,20 @@ function buildAgentSkillsBlock(config, agentType, projectRoot) {
                     validEntries.push({ kind: 'directive', name: skillName });
                 }
                 else {
-                    process.stderr.write(`[agent-skills] WARNING: Plugin-namespaced skill "global:${skillName}" requires a Skill-tool-capable runtime (claude) — skipping on runtime "${runtime}"\n`);
+                    warn(`[agent-skills] WARNING: Plugin-namespaced skill "global:${skillName}" requires a Skill-tool-capable runtime (claude) — skipping on runtime "${runtime}"\n`);
                 }
                 continue;
             }
             // Non-namespaced bare name: attempt filesystem resolution as before.
             if (globalSkillsBase === null) {
-                process.stderr.write(`[agent-skills] WARNING: Runtime "${runtime}" does not use a skills directory — "global:${skillName}" is not supported on this runtime\n`);
+                warn(`[agent-skills] WARNING: Runtime "${runtime}" does not use a skills directory — "global:${skillName}" is not supported on this runtime\n`);
                 continue;
             }
             const globalSkillDir = (0, runtime_homes_cjs_1.getGlobalSkillDir)(runtime, skillName);
             const globalSkillMd = node_path_1.default.join(globalSkillDir, 'SKILL.md');
             const displayPath = (0, runtime_homes_cjs_1.getGlobalSkillDisplayPath)(runtime, skillName);
             if (!node_fs_1.default.existsSync(globalSkillMd)) {
-                process.stderr.write(`[agent-skills] WARNING: Global skill not found at "${displayPath}/SKILL.md" — skipping\n`);
+                warn(`[agent-skills] WARNING: Global skill not found at "${displayPath}/SKILL.md" — skipping\n`);
                 continue;
             }
             const pathCheck = (0, security_cjs_1.validatePath)(globalSkillMd, globalSkillsBase, { allowAbsolute: true });
@@ -1608,9 +1811,11 @@ function buildAgentSkillsBlock(config, agentType, projectRoot) {
                     return Boolean(rootCheck['safe']);
                 });
                 if (!acceptedViaTrustedRoot) {
-                    process.stderr.write(`[agent-skills] WARNING: Global skill "${skillName}" failed path check (symlink escape?) — skipping\n`);
+                    warn(`[agent-skills] WARNING: Global skill "${skillName}" failed path check (symlink escape?) — skipping\n`);
                     continue;
                 }
+                // Intentionally a direct stderr write, NOT warn(): this is an acceptance
+                // trace, not a skip, so it must not land in the diagnostics warnings[].
                 process.stderr.write(`[agent-skills] NOTE: Global skill "${skillName}" accepted via trusted_global_roots (resolves outside the default skills dir)\n`);
             }
             validEntries.push({ kind: 'include', ref: `${globalSkillDir}/SKILL.md`, display: displayPath });
@@ -1618,23 +1823,25 @@ function buildAgentSkillsBlock(config, agentType, projectRoot) {
         }
         const pathCheck = (0, security_cjs_1.validatePath)(skillPath, projectRoot);
         if (!pathCheck['safe']) {
-            process.stderr.write(`[agent-skills] WARNING: Skipping unsafe path "${skillPath}": ${pathCheck['error']}\n`);
+            warn(`[agent-skills] WARNING: Skipping unsafe path "${skillPath}": ${pathCheck['error']}\n`);
             continue;
         }
         const skillMdPath = node_path_1.default.join(projectRoot, skillPath, 'SKILL.md');
         if (!node_fs_1.default.existsSync(skillMdPath)) {
-            process.stderr.write(`[agent-skills] WARNING: Skill not found at "${skillPath}/SKILL.md" — skipping\n`);
+            warn(`[agent-skills] WARNING: Skill not found at "${skillPath}/SKILL.md" — skipping\n`);
             continue;
         }
         validEntries.push({ kind: 'include', ref: `${skillPath}/SKILL.md`, display: skillPath });
     }
-    if (validEntries.length === 0)
+    if (validEntries.length === 0) {
+        warn(`[agent-skills] WARNING: Agent "${agentType}" has ${skillPaths.length} configured skill path(s) but none resolved to a valid skill — all were skipped (see warnings above)\n`);
         return '';
+    }
     const lines = validEntries.map((entry) => {
         if (entry.kind === 'directive') {
             return `- Load the \`${entry.name}\` skill via the Skill tool before proceeding (plugin-provided).`;
         }
-        return `- @${entry.ref}`;
+        return `- @${(0, shell_command_projection_cjs_1.posixNormalize)(String(entry.ref))}`;
     }).join('\n');
     return `<agent_skills>\nRead these user-configured skills:\n${lines}\n</agent_skills>`;
 }
@@ -1643,22 +1850,78 @@ function cmdAgentSkills(cwd, agentType, raw, jsonMode) {
         output('', raw, '');
         return;
     }
-    const config = loadConfig(cwd);
-    const block = buildAgentSkillsBlock(config, agentType, cwd);
+    // Anchor to project root before loading config (#1415/#1366 cwd-drift fix).
+    const projectRoot = (0, project_root_cjs_1.findProjectRoot)(cwd);
+    const { config, source, degraded } = loadConfigResolved(projectRoot);
+    const diagnostics = { warnings: [] };
+    const block = buildAgentSkillsBlock(config, agentType, projectRoot, diagnostics);
+    // Compute configured + reason for diagnostic output.
+    const agentSkillsMap = (config && config['agent_skills'] && typeof config['agent_skills'] === 'object')
+        ? config['agent_skills']
+        : {};
+    const configured = Object.prototype.hasOwnProperty.call(agentSkillsMap, agentType);
+    let reason;
+    let skillPaths = configured ? agentSkillsMap[agentType] : [];
+    if (!configured) {
+        reason = 'not_configured';
+        skillPaths = [];
+    }
+    else {
+        // Normalize paths to array
+        if (typeof skillPaths === 'string')
+            skillPaths = [skillPaths];
+        if (!Array.isArray(skillPaths))
+            skillPaths = [];
+        const pathsArr = skillPaths;
+        // Fix 3: treat "" (empty string) as configured_empty — all-blank entries = no meaningful paths.
+        // An array of all empty/blank strings has length > 0 but zero meaningful paths.
+        const nonBlankPaths = pathsArr.filter(p => typeof p === 'string' && p.trim().length > 0);
+        if (pathsArr.length === 0 || nonBlankPaths.length === 0) {
+            // configured with empty array / "" / all-blank entries
+            reason = 'configured_empty';
+            // Reflect zero meaningful paths in the normalized array used for skills_count
+            skillPaths = [];
+            try {
+                process.stderr.write(`[agent-skills] WARNING: Agent "${agentType}" is configured in agent_skills but has no skill paths — skills_count will be 0\n`);
+            }
+            catch { /* stderr might be closed */ }
+        }
+        else if (!block) {
+            // configured with paths but all failed to resolve (warnings already emitted by buildAgentSkillsBlock)
+            reason = 'configured_unresolved';
+        }
+        else {
+            reason = 'resolved';
+        }
+    }
+    const normalizedPaths = Array.isArray(skillPaths) ? skillPaths : [];
     if (jsonMode) {
-        const skillPaths = (config && config.agent_skills && config.agent_skills[agentType]) || [];
-        const normalizedPaths = Array.isArray(skillPaths)
-            ? skillPaths
-            : skillPaths
-                ? [skillPaths]
-                : [];
-        output({ agent_type: agentType, block: block || '', skills_count: normalizedPaths.length }, raw);
+        // Build the Resolution<AgentSkillsValue> envelope and embed .value additively.
+        // Flat fields are retained unchanged for back-compat; value formalises the
+        // Resolution convention (ADR-1411 P3, #1416). source/degraded remain
+        // config-provenance extras, outside the Resolution<T> envelope.
+        const resolution = (0, resolution_cjs_1.makeResolution)({ block: block || '', skills_count: normalizedPaths.length }, { configured, reason, warnings: diagnostics.warnings });
+        output({
+            agent_type: agentType,
+            block: block || '',
+            skills_count: normalizedPaths.length,
+            warnings: diagnostics.warnings,
+            configured,
+            reason,
+            source,
+            degraded,
+            value: resolution.value,
+        }, raw);
         return;
     }
-    if (block) {
-        process.stdout.write(block);
-    }
-    process.exit(0);
+    // #1400: emit the raw block via the synchronous-flush output() helper (the same
+    // one the --json branch uses) rather than process.stdout.write + process.exit(0).
+    // When stdout is a pipe/file (how workflows consume this via command
+    // substitution) the async stdout buffer is torn down by process.exit() before
+    // it drains — on Windows this reliably truncates the write to 0 bytes, so every
+    // ${AGENT_SKILLS_*} substitution expands empty. output() writes every byte with
+    // writeAllSync and returns, letting the event loop drain naturally.
+    output(block || '', true, block || '');
 }
 function buildSkillManifest(cwd, skillsDir = null) {
     const canonicalRoots = skillsDir
@@ -1709,10 +1972,23 @@ function buildSkillManifest(cwd, skillsDir = null) {
                 kind: 'skills',
             },
             {
-                root: '~/.codex/skills',
+                // ADR-1239 upgrade 3 (#2088): Codex's canonical skill root is
+                // $HOME/.agents/skills (per codex core-skills loader.rs), resolved via
+                // the skills-kind `home` override in getGlobalSkillsBase.
+                root: '~/.agents/skills',
                 path: (0, runtime_homes_cjs_1.getGlobalSkillsBase)('codex'),
                 scope: 'global',
                 kind: 'skills',
+            },
+            {
+                // Codex's deprecated fallback skill root ($CODEX_HOME/skills). Kept as a
+                // discovery-only legacy root so pre-move installs remain inventoried;
+                // GSD no longer installs here (#2088).
+                root: '~/.codex/skills',
+                path: node_path_1.default.join((0, runtime_homes_cjs_1.getGlobalConfigDir)('codex'), 'skills'),
+                scope: 'global',
+                kind: 'skills',
+                deprecated: true,
             },
             {
                 root: '.claude/gsd-core/skills',
@@ -1893,6 +2169,7 @@ module.exports = {
     cmdInitNewMilestone,
     cmdInitQuick,
     cmdInitIngestDocs,
+    cmdInitOnboard,
     cmdInitResume,
     cmdInitVerifyWork,
     cmdInitPhaseOp,

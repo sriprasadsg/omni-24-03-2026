@@ -21,7 +21,13 @@ class ChannelCreate(BaseModel):
 
 
 class RuleCreate(BaseModel):
-    event_type: Literal["finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"]
+    # "itam.warranty_expiring" added by Phase 59 (ITAM Procurement & Finance) for
+    # warranty-expiry alerts — the dotted form namespaces the ITAM domain's events
+    # away from the flat GRC vocabulary that preceded it; not a typo.
+    event_type: Literal[
+        "finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring",
+        "itam.warranty_expiring",
+    ]
     channel_ids: List[str] = []
     severity_filter: List[str] = []
 

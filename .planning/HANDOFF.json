@@ -1,48 +1,30 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-13T18:57:54+05:30",
-  "phase": "38",
-  "phase_name": "Interactive AI Security Assistant",
-  "phase_dir": ".planning/phases/38-interactive-ai-security-assistant",
-  "plan": 3,
-  "task": 5,
-  "total_tasks": 5,
-  "status": "complete",
-  "completed_tasks": [
-    {"id": 1, "name": "Plan 38-01: Backend Chat API and RAG Integration", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 2, "name": "Plan 38-02: Frontend Chat UI implementation", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 3, "name": "Plan 38-02: Sidebar and App.tsx integration", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 4, "name": "Plan 38-03: Integration Tests (test file created)", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 5, "name": "Plans 36, 37, 38 execution", "status": "done", "commit": "bc5f2ab9"},
-    {"id": 6, "name": "Plan 38-03: Run tests — fixed app.py import chain, ai_assistant_endpoints NameError, None-singleton call; rewrote test_ai_assistant.py (5/5 pass)", "status": "done", "commit": "c06d5369"},
-    {"id": 7, "name": "Plan 37-03: Rewrote test_mcp_server.py against real FastMCP server (12/12 pass; old file imported nonexistent 'main' and tested removed REST routes)", "status": "done", "commit": "c06d5369"}
-  ],
+  "timestamp": "2026-08-16T12:23:51.779Z",
+  "phase": "72",
+  "phase_name": "Reporting & Dashboards",
+  "phase_dir": ".planning/phases/72-reporting-dashboards",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [],
   "remaining_tasks": [
-    {"id": 8, "name": "Phase 33: Workflow Automation Connectors — 4 plans ready, not executed", "status": "not_started"},
-    {"id": 9, "name": "Phase 34: Passkey/WebAuthn — planned, not executed (test_passkey_auth.py errors)", "status": "not_started"},
-    {"id": 10, "name": "Phase 35: Fix strawberry-graphql dependency (blocked by env)", "status": "not_started"},
-    {"id": 11, "name": "Clear remaining test debt: 7 failures + 5 errors (phase 28 governance, 34 passkey, 35 graphql, plus e2e-integration/powershell/rust-parity/smoke singles). Phase 30 (21) and 32 (8) cleared in 7c4727a9.", "status": "in_progress"},
-    {"id": 12, "name": "UAT backlog: phases 28 (4 items), 29 (6), 30 (6), 32 (1 must-have human_needed)", "status": "not_started"},
-    {"id": 13, "name": "Install openfga_sdk so test_rebac.py can run (Phase 36 caveat; breaks full-suite collection — use --ignore until fixed)", "status": "not_started"}
+    {"id": 1, "name": "Load phase-72 CONTEXT.md decision (none exists yet — decide continue-without-context vs discuss-phase first)", "status": "not_started"},
+    {"id": 2, "name": "Spawn gsd-phase-researcher for Phase 72 (research report builder / pre-built reports / PDF-CSV-Excel export / KPI dashboard patterns)", "status": "not_started"},
+    {"id": 3, "name": "Spawn gsd-planner to produce PLAN.md file(s)", "status": "not_started"},
+    {"id": 4, "name": "Spawn gsd-plan-checker, run revision loop (max 3 iterations)", "status": "not_started"},
+    {"id": 5, "name": "Requirements coverage gate + commit plans", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "Phase 35 GraphQL API blocked by strawberry-graphql/pydantic dependency incompatibility in externally managed environment", "type": "technical", "workaround": "System admin must resolve dependency incompatibility. app.py no longer breaks without it (fixed in c06d5369) — GraphQL routes are simply absent."},
-    {"description": "openfga_sdk not installed — test_rebac.py fails at collection and interrupts full-suite runs", "type": "technical", "workaround": "Run suite with --ignore=backend/tests/test_rebac.py until the package is installed"}
+    {"description": "/gsd-plan-phase's own required_reading (workflow spec ~1667 lines + revision-loop.md + gate-prompts.md + agent-contracts.md + gates.md + ui-brand.md) consumes ~70-77% of context budget just to bootstrap the orchestrator, before any subagent spawns. Two consecutive sessions hit context-critical before reaching step 5 (Handle Research) purely from required_reading load.", "type": "technical", "workaround": "None found yet. Next session: consider skipping full workflow-spec read and instead following the condensed step summary in this handoff (steps 1-14 already distilled below) to avoid re-paying the ~1667-line read cost. Verify against the real workflow file only if behavior seems wrong."}
   ],
   "async_jobs": [],
-  "human_actions_pending": [
-    {"action": "Resolve strawberry-graphql/pydantic dependency incompatibility for Phase 35", "context": "ImportError: cannot import name 'is_new_type' from 'pydantic._internal._typing_extra'. Environment is externally managed, pip install blocked.", "blocking": true},
-    {"action": "Install openfga_sdk in backend/venv for Phase 36 ReBAC tests", "context": "requirements.txt lists openfga>=0.6.0 but it is not installed; test_rebac.py cannot collect.", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Used OpenFGA for ReBAC in Phase 36", "rationale": "Superior Python client maturity, active development, flexible deployment", "phase": "36"},
-    {"decision": "Implemented MCP server with FastMCP for Phase 37", "rationale": "Official Python SDK provides spec-compliant stdio/SSE transports", "phase": "37"},
-    {"decision": "AI Assistant uses RAG + live MongoDB findings for grounded responses", "rationale": "Combines knowledge base with real-time compliance/risk data", "phase": "38"},
-    {"decision": "Removed app.py's trailing unconditional graphql_endpoints import instead of guarding it", "rationale": "router_registry already registers it as optional with logged, non-fatal failure; the trailing lines also called include_router on socketio.ASGIApp which has no such method", "phase": "38"},
-    {"decision": "ai_assistant_endpoints calls chat() function directly instead of an ai_assistant_service singleton", "rationale": "The singleton was a module-level None that nothing initialized — every request would have raised AttributeError", "phase": "38"},
-    {"decision": "test_mcp_server.py tests the FastMCP instance (mcp.list_tools/call_tool), not HTTP routes", "rationale": "Phase 37 removed the REST-shaped /api/mcp surface; the protocol layer is the real contract. call_tool returns (content, structured) tuple on mcp 1.28 for typed tools.", "phase": "37"}
+    {"decision": "Defer Phase 72 planning to a dedicated session rather than starting it opportunistically mid-conversation", "rationale": "User agreed twice: once before starting (context was already 68%+ used from prior phase-71 UAT work), once again after a literal fresh-session invocation still hit context-critical from the workflow's own required_reading footprint before any real planning work began", "phase": "72"}
   ],
   "uncommitted_files": [],
-  "next_action": "Execute Phase 33 (plans ready) or Phase 34, or clear the remaining test debt in phases 28/34/35.",
-  "context_notes": "Phases 36-38 complete (c06d5369). Phase 30/32 test debt cleared 2026-07-13 (7c4727a9): 884 passed, 22 skipped; remaining 7 failures + 5 errors are phases 28/34/35 + e2e-integration/powershell/rust-parity/smoke singles. IMPORTANT: 30-01's tenant-scoped RAG had never actually been implemented despite SUMMARY/UAT claiming it passed — implemented in 7c4727a9 with a real-ChromaDB isolation test; treat other unverified phase summaries with suspicion. Run tests with backend/venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/test_rebac.py from repo root. Junk file c.txt at repo root (from Phase 32) and misplaced .planning/phases/27-UAT.md still to clean up."
+  "next_action": "Start a new session, run /gsd-plan-phase 72. If context runs low again purely from required_reading, skip re-reading the full workflow file and follow the condensed step list in .planning/phases/72-reporting-dashboards/.continue-here.md instead — it already has the init JSON fields and step sequence extracted.",
+  "context_notes": "No design decisions made yet for phase 72 — this is a cold start, not a resume of in-progress design work. The only 'progress' so far is: phase directory created, INIT JSON confirmed (phase_req_ids: ITAM-REP-01..04, no CONTEXT.md/RESEARCH.md/PLAN.md exist, mode=yolo so gates should run non-interactively where the workflow allows). Nothing about the actual reporting/dashboard feature has been researched or decided."
 }

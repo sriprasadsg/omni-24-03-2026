@@ -39,8 +39,13 @@ class NotificationService:
         Channels: email, sms, slack, webhook
         Severity: critical, warning, info
         """
-        if not channels:
-            channels = ["email"]  # Default
+        if channels is None:
+            channels = ["email"]  # Default only when the caller omits channels
+            # entirely. An explicitly passed empty list (`channels=[]`) must
+            # stay empty — callers rely on this to request in-app-only alerts
+            # (the unconditional db.notifications write below) with no
+            # email/sms/slack side-effect dispatch (see control_comments
+            # Phase 42 @mention notifications, D-02).
 
         results = {
             "alert_id": f"alert-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
@@ -71,9 +76,13 @@ class NotificationService:
                 metadata["webhook_url"], title, message, severity, metadata
             )
 
-        # Log notification
+        # tenantId (camelCase): the field notification_endpoints.py's readers
+        # filter on. A wrapped db auto-injects it; a raw handle (e.g. a
+        # background sweep) doesn't, so it's set explicitly here. tenant_id
+        # (snake_case) stays for reporting_endpoints.py's existing query.
         await self.db.notifications.insert_one({
             **results,
+            "tenantId": tenant_id,
             "tenant_id": tenant_id,
             "metadata": metadata
         })
@@ -460,7 +469,13 @@ def _has_unsafe_webhook_url(data: dict) -> bool:
 def _now() -> str: return datetime.now(timezone.utc).isoformat()
 def _id(prefix: str) -> str: return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
-VALID_EVENTS = {"finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring"}
+VALID_EVENTS = {
+    "finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring",
+    # Added by Phase 59 (ITAM Procurement & Finance) for warranty-expiry alerts.
+    # Dotted form deliberately namespaces the ITAM domain's events away from the
+    # flat GRC vocabulary above — not a typo among the five undotted legacy names.
+    "itam.warranty_expiring",
+}
 VALID_CHANNEL_TYPES = {"slack", "email", "webhook"}
 
 # Result caps for list/lookup queries. These silently truncate past the cap —

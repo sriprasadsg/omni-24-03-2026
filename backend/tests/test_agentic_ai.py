@@ -3,7 +3,9 @@ Unit tests for Phase 12 Agentic AI integration.
 
 Tests: agentic_service.py and agentic_tasks_endpoints.py
 Test pattern: synchronous TestClient + AsyncMock (NO pytest-asyncio).
-Async unit tests on AgenticService use asyncio.get_event_loop().run_until_complete().
+Async unit tests on AgenticService use asyncio.new_event_loop().run_until_complete()
+(never the deprecated get_event_loop(), which breaks whenever any pytest-asyncio
+test earlier in the collection order leaves no loop set on MainThread).
 
 All 8 tests must FAIL (ImportError) before implementation files exist (RED phase).
 """
@@ -106,7 +108,7 @@ class TestRunCallsAnthropicWithToolChoiceAny:
             from agentic_service import AgenticService
             svc = AgenticService(api_key="test")
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             result = loop.run_until_complete(
                 svc.run("agt-1", {"agent_id": "agt-1", "findings": []})
             )
@@ -164,7 +166,7 @@ class TestStopReasonGuardTriggersFallback:
             from agentic_service import AgenticService
             svc = AgenticService(api_key="test")
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             result = loop.run_until_complete(
                 svc.run("agt-1", {"agent_id": "agt-1", "findings": []})
             )
@@ -222,7 +224,7 @@ class TestHallucinatedToolRejected:
             from agentic_service import AgenticService
             svc = AgenticService(api_key="test")
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             result = loop.run_until_complete(
                 svc.run("agt-1", {"agent_id": "agt-1"})
             )
@@ -286,7 +288,7 @@ class TestLogDecisionWritesRequiredFields:
             }
             started = datetime.datetime.utcnow()
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             loop.run_until_complete(
                 svc._log_decision(
                     decision_id="d-1",
@@ -339,7 +341,7 @@ class TestAuditWriteFailureIsLoggedNotSuppressed:
             }
             started = datetime.datetime.utcnow()
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             # Must NOT raise — exception swallowed internally
             loop.run_until_complete(
                 svc._log_decision(
@@ -394,7 +396,7 @@ class TestCircuitBreakerOpenActivatesFallback:
             from agentic_service import AgenticService
             svc = AgenticService(api_key="test")
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             result = loop.run_until_complete(
                 svc.run("agt-1", {"agent_id": "agt-1"})
             )

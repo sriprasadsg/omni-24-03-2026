@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from auth_utils import require_auth
 
-_RETENTION_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
+_RETENTION_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
 from retention_service import RetentionService
 from database import get_db, get_database
 from datetime import datetime, timezone
@@ -20,6 +20,7 @@ _POLICY_DEFAULTS = {
     "notifications":    {"retention_days": 30,  "description": "Retain notifications for 30 days"},
     "security_events":  {"retention_days": 180, "description": "Retain security events for 180 days"},
     "alerts":           {"retention_days": 365, "description": "Retain alerts for 365 days"},
+    "agent_location_history": {"retention_days": 365, "description": "Retain agent location-history audit records for 365 days"},
 }
 
 

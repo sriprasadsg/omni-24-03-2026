@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, Info, ExternalLink, Settings, RefreshCw } from 'lucide-react';
+import { Save, Shield, Info, ExternalLink, Settings, RefreshCw } from 'lucide-react';
 import { Integration } from '../types';
+import { Modal } from './Modal';
 
 interface IntegrationSettingsModalProps {
     isOpen: boolean;
@@ -26,7 +27,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
         }
     }, [integration]);
 
-    if (!isOpen || !integration) return null;
+    if (!integration) return null;
 
     const handleConfigChange = (key: string, value: any) => {
         setConfig(prev => ({ ...prev, [key]: value }));
@@ -160,30 +161,60 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
-                {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
-                    <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <Shield className="w-6 h-6 text-indigo-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">{integration.name} Settings</h2>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{integration.category}</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={onClose}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
-                    >
-                        <X className="w-6 h-6" />
-                    </button>
-                </div>
+    const icon = (
+        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <Shield className="w-6 h-6 text-indigo-600" />
+        </div>
+    );
 
+    const title = (
+        <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">{integration.name} Settings</h2>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{integration.category}</p>
+        </div>
+    );
+
+    const footer = (
+        <div className="flex justify-between items-center w-full">
+            <button
+                className="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center"
+                onClick={() => window.open(`https://docs.omniagent.ai/integrations/${integration.id}`, '_blank')}
+            >
+                View Documentation
+                <ExternalLink className="w-3 h-3 ml-1" />
+            </button>
+            <div className="flex space-x-3">
+                <button
+                    onClick={onClose}
+                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center disabled:opacity-50"
+                >
+                    {saving ? (
+                        <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Settings
+                        </>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} icon={icon} title={title} size="lg" footer={footer}>
                 {/* Body */}
-                <div className="px-8 py-8 space-y-8">
+                <div className="space-y-8">
                     <div className="flex items-center justify-between p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-800/50">
                         <div className="flex items-center space-x-3">
                             <div className={`w-3 h-3 rounded-full ${isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
@@ -219,43 +250,6 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                         </div>
                     )}
                 </div>
-
-                {/* Footer */}
-                <div className="px-8 py-6 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
-                    <button 
-                        className="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center"
-                        onClick={() => window.open(`https://docs.omniagent.ai/integrations/${integration.id}`, '_blank')}
-                    >
-                        View Documentation
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                    </button>
-                    <div className="flex space-x-3">
-                        <button 
-                            onClick={onClose}
-                            className="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center disabled:opacity-50"
-                        >
-                            {saving ? (
-                                <>
-                                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                    Saving...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4 mr-2" />
-                                    Save Settings
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };

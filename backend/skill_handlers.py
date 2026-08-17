@@ -173,6 +173,33 @@ async def handle_scan(args: str, tenant_id: Optional[str]) -> str:
         return "Unable to dispatch scan. [NAVIGATE:agents]"
 
 
+async def handle_rotate_key(args: str, tenant_id: Optional[str]) -> str:
+    try:
+        db = get_database()
+        key_id = args.strip()
+        if not key_id:
+            return "Usage: `/rotate-key <key_id>` — e.g. `/rotate-key my-api-key-123`"
+
+        now = datetime.now(timezone.utc).isoformat()
+        instruction_id = uuid.uuid4().hex
+        await db.agent_instructions.insert_one({
+            "id": instruction_id,
+            "tenantId": tenant_id,
+            "instruction": "rotate_key",
+            "status": "pending",
+            "created_at": now,
+            "type": "autonomous_remediation",
+            "payload": {"key_id": key_id},
+        })
+        return (
+            f"**Key rotation instruction dispatched** for `key_id`: `{key_id}`. [NAVIGATE:autonomous-remediation]\n\n"
+            f"Instruction ID: `{instruction_id}`"
+        )
+    except Exception as e:
+        logger.error("skill /rotate-key error: %s", e)
+        return "Unable to dispatch key rotation. [NAVIGATE:autonomous-remediation]"
+
+
 async def handle_threat_hunt(query_text: str, tenant_id: Optional[str], ai_svc) -> str:
     import json as _json
     try:
@@ -282,6 +309,8 @@ async def dispatch_skill(message: str, context: dict, ai_svc) -> str:
         return await handle_compliance(args, tenant_id)
     if name == "scan":
         return await handle_scan(args, tenant_id)
+    if name == "rotate-key":
+        return await handle_rotate_key(args, tenant_id)
     if name == "threat-hunt":
         if not args:
             return "Usage: `/threat-hunt <query>` — e.g. `/threat-hunt failed logins last 24h`"

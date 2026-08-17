@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { Integration, AlertRule, Role, ApiKey, User, Tenant, DatabaseSettings as DatabaseSettingsType, LlmSettings as LlmSettingsType, DataSource, Permission, NewUserPayload, VoiceBotSettings } from '../types';
-import { CogIcon, UsersIcon as Users2Icon, ShieldLockIcon, KeyIcon, AlertTriangleIcon, DatabaseIcon, BrainCircuitIcon, PaintbrushIcon, MailIcon, CalendarIcon, ClockIcon } from './icons';
+import { CogIcon, UsersIcon as Users2Icon, ShieldLockIcon, KeyIcon, AlertTriangleIcon, DatabaseIcon, BrainCircuitIcon, PaintbrushIcon, MailIcon, CalendarIcon, ClockIcon, ClipboardListIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { SettingsUsersTab } from './SettingsUsersTab';
 import { SettingsRolesTab } from './SettingsRolesTab';
@@ -28,6 +28,7 @@ import MaintenanceWindowConfig from './MaintenanceWindowConfig';
 import { VoiceBotSettingsPanel } from './VoiceBotSettingsPanel';
 import { SecuritySettings } from './SecuritySettings';
 import { EvidenceSettings } from './EvidenceSettings';
+import { RemediationSlaSettings } from './RemediationSlaSettings';
 import * as apiService from '../services/apiService';
 
 interface SettingsDashboardProps {
@@ -62,7 +63,7 @@ interface SettingsDashboardProps {
     onSaveTenantVoiceBotSettings?: (settings: VoiceBotSettings) => Promise<void>;
 }
 
-type SettingsView = 'users' | 'roles' | 'apiKeys' | 'integrations' | 'alerts' | 'infrastructure' | 'dataSources' | 'subscription' | 'appearance' | 'email' | 'maintenance' | 'voiceBot' | 'security' | 'evidence';
+type SettingsView = 'users' | 'roles' | 'apiKeys' | 'integrations' | 'alerts' | 'infrastructure' | 'dataSources' | 'subscription' | 'appearance' | 'email' | 'maintenance' | 'voiceBot' | 'security' | 'evidence' | 'remediation';
 
 export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
     const {
@@ -288,6 +289,9 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                         <button onClick={() => setActiveView('evidence')} className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeView === 'evidence' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'}`}>
                             <ClockIcon size={18} className="mr-2" /> Evidence
                         </button>
+                        <button onClick={() => setActiveView('remediation')} className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeView === 'remediation' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'}`}>
+                            <ClipboardListIcon size={18} className="mr-2" /> Remediation
+                        </button>
                         {canManageSettings && (
                             <>
                                 <button onClick={() => setActiveView('email')} className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeView === 'email' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'}`}>
@@ -353,6 +357,9 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                     )}
                     {activeView === 'evidence' && (
                         <EvidenceSettings />
+                    )}
+                    {activeView === 'remediation' && (
+                        <RemediationSlaSettings />
                     )}
                     {activeView === 'integrations' && canManageSettings && (
                         <IntegrationsMarketplace

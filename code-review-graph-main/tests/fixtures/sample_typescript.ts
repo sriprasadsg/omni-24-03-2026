@@ -6,7 +6,7 @@ interface UserData {
   email: string;
 }
 
-class UserRepository {
+export class UserRepository {
   private users: Map<number, UserData> = new Map();
 
   findById(id: number): UserData | undefined {
@@ -18,20 +18,21 @@ class UserRepository {
   }
 }
 
-class UserService extends UserRepository {
+export class UserService { constructor(private repo: UserRepository) {}
   getUser(id: number): UserData | undefined {
-    return this.findById(id);
+    return this.repo.findById(id);
   }
 
   createUser(name: string, email: string): UserData {
     const user: UserData = { id: Date.now(), name, email };
-    this.save(user);
+    this.repo.save(user);
     return user;
   }
 }
 
 export function handleGetUser(req: Request, res: Response): void {
-  const service = new UserService();
+  const repo = new UserRepository();
+  const service = new UserService(repo);
   const user = service.getUser(Number(req.params.id));
   if (user) {
     res.json(user);

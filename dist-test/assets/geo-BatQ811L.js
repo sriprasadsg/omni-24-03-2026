@@ -1,0 +1,1 @@
+var e=e=>{if(!e||e.length!==2)return``;let t=e.toUpperCase();return/^[A-Z]{2}$/.test(t)?String.fromCodePoint(...[...t].map(e=>127462+e.charCodeAt(0)-65)):``},t=e=>[e?.city,e?.region,e?.country].filter(Boolean).join(`, `);export{t as n,e as t};

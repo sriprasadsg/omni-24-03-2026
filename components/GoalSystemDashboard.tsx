@@ -305,10 +305,10 @@ export const GoalSystemDashboard: React.FC = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-bold text-slate-400 uppercase mb-2">Priority</label>
-                                        <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-slate-900 dark:text-white">
+                                        <select defaultValue="5" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-slate-900 dark:text-white">
                                             <option value="1">P1 - Critical</option>
                                             <option value="2">P2 - High</option>
-                                            <option value="5" selected>P5 - Standard</option>
+                                            <option value="5">P5 - Standard</option>
                                         </select>
                                     </div>
                                     <div>

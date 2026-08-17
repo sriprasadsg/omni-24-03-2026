@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Deserializes a YAML null or missing value as an empty String.
-/// Without this, serde_yaml converts `null` to the literal string "null".
+/// Without this, serde_norway converts `null` to the literal string "null".
 fn deser_nullable_str<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     let opt = Option::<String>::deserialize(d)?;
     Ok(opt.unwrap_or_default())
@@ -25,10 +25,25 @@ pub struct Config {
     pub max_cpu_percent: f32,
     #[serde(default)]
     pub agentic_mode_enabled: bool,
+    #[serde(default)]
+    pub accept_invalid_certs: bool,
+    #[serde(default = "default_fim_paths")]
+    pub fim_paths: Vec<String>,
 }
 
 fn default_interval() -> u64 { 30 }
 fn default_max_cpu() -> f32 { 20.0 }
+fn default_fim_paths() -> Vec<String> {
+    #[cfg(windows)]
+    return vec![r"C:\Windows\System32\drivers\etc".to_string()];
+    #[cfg(not(windows))]
+    return vec![
+        "/etc".to_string(),
+        "/usr/bin".to_string(),
+        "/usr/sbin".to_string(),
+        format!("{}/.ssh", std::env::var("HOME").unwrap_or_default()),
+    ];
+}
 
 pub fn config_path() -> PathBuf {
     std::env::current_exe()
@@ -41,13 +56,13 @@ pub fn load() -> Result<Config, Box<dyn std::error::Error>> {
     let path = config_path();
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("Cannot read {}: {}", path.display(), e))?;
-    let cfg: Config = serde_yaml::from_str(&text)?;
+    let cfg: Config = serde_norway::from_str(&text)?;
     Ok(cfg)
 }
 
 pub fn save(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let path = config_path();
-    let text = serde_yaml::to_string(cfg)?;
+    let text = serde_norway::to_string(cfg)?;
     std::fs::write(&path, text)?;
     Ok(())
 }

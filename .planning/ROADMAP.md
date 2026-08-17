@@ -8,6 +8,11 @@
 - **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
 - **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23, complete); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24, complete — verified 2026-07-05).
 - **v3.0** — Competitive Feature Closure: 14 phases (25–38) closing the 25 gaps from the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler — cloud-check execution gaps, vendor/risk data completeness, OSCAL/SBOM export, governance documents, a real public Trust Center, AI questionnaire auto-answer, FAIR risk quantification, provider expansion, workflow connectors, passkeys, GraphQL, ReBAC, a spec-compliant MCP server, and an interactive AI security assistant. In progress — Phase 25 planning underway.
+- **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
+- **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45), 19 plans, 10/10 requirements. Shipped 2026-07-29. (Gap-closure Phase 62 — the deferred Settings UI — promoted from backlog and pending as of 2026-08-10, tracked separately below since it postdates this milestone's ship date.)
+- **[v3.3](milestones/v3.3-ROADMAP.md)** — Agent Geo & Fleet Observability: fleet geo map (air-gapped bundled-SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 23 plans, 11/11 requirements. Audit passed. Shipped 2026-07-30.
+- **[v3.4](milestones/v3.4-ROADMAP.md)** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 6 phases (50–55), 19 requirements. Shipped 2026-08-04.
+- **[v4.0](milestones/v4.0-ROADMAP.md)** — ITAM (IT Asset Management Lifecycle): Snipe-IT-parity asset lifecycle on top of the existing security CMDB — catalog & manual asset cataloging, check-out/check-in with append-only assignment history, offline QR/barcode labels, procurement/warranty/depreciation, software licenses & consumables, and an admin-gated ITAM console. 6 phases (56–61), 17 plans, 17/17 requirements. Shipped 2026-08-10.
 
 ## v1.1 — Evidence Quality & Compliance Scoring
 
@@ -671,3 +676,343 @@ June 2026 audit.
 **Plans:** 1/1 complete — all 16 review findings fixed, dashboard restyled and wired into navigation, verified 2026-07-05
 
 - [x] 24-01-PLAN.md — Backend: `iac_scanner_service.py` + `container_scanner_service.py`, `/api/iac` + `/api/container` endpoints, 8-test TDD suite; Frontend: `IacContainerDashboard.tsx` (IaC Scanner + Container Scanner tabs). All 16 `24-REVIEW.md` findings fixed (inverted PASS/FAIL logic, Kubernetes always-fail override, missing CloudFormation checks, broken test auth override, dashboard/API type mismatch, plus 8 warning/info findings) — 8/8 tests pass, re-run and confirmed. Dashboard restyled from inline dark theme to Tailwind per `24-UI-SPEC.md`, and wired into `App.tsx`/`Sidebar.tsx`/`types.ts` navigation (`view: 'iacContainer'`, Security (SecOps) section) — confirmed reachable via build chunk output.
+
+## v3.1 — AI Orchestration Layer
+
+**Goal:** Unify the platform's AI surfaces behind LangChain as a model-agnostic orchestration layer, per the AI-SPEC design contract generated 2026-07-17.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 39 | LangChain AI Integration | Complete (12/12) — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test) |
+
+---
+
+## Phase 39: LangChain AI Integration
+
+**Milestone:** v3.1
+
+**Goal:** Migrate the platform's existing AI surfaces — AI compliance auditor (`ai_auditor_endpoints.py`), Phase 38 grounded chat assistant (`ai_assistant_service.py` / `/api/assistant/chat` — legacy `/api/ai/chat` and `ChatAssistant.tsx` explicitly deferred per 39-CONTEXT.md), questionnaire auto-answer RAG (`rag_service.py`), narrative generation (`compliance_narrative_service.py`) — onto LangChain 1.x (`create_agent` + `init_chat_model`) as a model-agnostic orchestration layer over the 9router gateway with Ollama fallback, with citation-required structured outputs, tenant-scoped tools, and the evaluation harness specified in 39-AI-SPEC.md (Phoenix tracing, 8 eval dimensions, online guardrails).
+
+**Requirements:** Per 39-AI-SPEC.md design contract (framework decision, guardrails, eval strategy) — no standalone REQUIREMENTS.md IDs registered yet
+
+**Depends on:** Phase 30 (RAG tenant isolation), Phase 38 (AI assistant surfaces)
+
+**Plans:** 12/12 plans executed
+
+Plans:
+
+- [x] 39-01-PLAN.md — Pin + install LangChain 1.x runtime stack (legitimacy checkpoint)
+- [x] 39-02-PLAN.md — 9router passthrough smoke test + eval harness scaffold (markers, two-tenant fixtures)
+- [x] 39-03-PLAN.md — Shared citation-required schemas + one citation/control-ID validator
+- [x] 39-04-PLAN.md — Model factory + persistent tenant-prefixed checkpointer + LangChain tracing wiring
+- [x] 39-05-PLAN.md — Agent substrate: tenant-closed tools + versioned prompts + online guardrail hooks
+- [x] 39-06-PLAN.md — Auditor migration onto create_agent (AuditFinding + citation validation + shim)
+- [x] 39-07-PLAN.md — Phase 38 assistant chat migration onto create_agent (+ checkpointer memory + shim)
+- [x] 39-08-PLAN.md — Questionnaire auto-answer migration (CitedAnswer + RAG-02 gate preserved + shim)
+- [x] 39-09-PLAN.md — Narrative generation migration (NarrativeOutput + fail-closed fallback + shim)
+- [x] 39-10-PLAN.md — 48-example reference dataset (gold controls, Q&A, chat, adversarial) + loader
+- [x] 39-11-PLAN.md — Six code-based eval dimensions (phase gate: traceability, conservative status, fidelity, tenant isolation, provenance, RAG-02)
+- [x] 39-12-PLAN.md — Three judged eval dimensions (questionnaire honesty, chat relevance, retrieval quality — nightly)
+
+---
+
+## v3.2 — Agent Modernization & Remediation Ops
+
+**Goal:** Finish the Rust agent 2.1.0 dependency modernization and the outstanding 401 auth-session bug, then close real (verified, not assumed) gaps in remediation operations — bridging remediation tasks to existing ticketing connectors, SLA/escalation on overdue tasks, comment threads on controls, and CSPM checks for the 3 cloud providers that are currently dropdown-only stubs. Per the 2026-07-20 research summary: the Rust agent work is a fully independent toolchain track that can run in parallel with everything else; the four remediation-ops features are sequenced by risk — CSPM checks and comment threads first (structurally isolated, new-pattern risk validated cheaply), then the ticketing bridge before SLA/escalation, since both mutate the same `compliance_remediation_tasks` document.
+
+**Status:** Roadmap defined 2026-07-20. Not started — continues phase numbering from Phase 39.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 40 | Rust Agent Modernization & Session Reliability | Complete |
+| 41 | CSPM Provider Expansion (OCI, Alibaba, Cloudflare) | Complete |
+| 42 | Comment Threads on Compliance Controls | Complete |
+| 43 | Remediation-to-Ticketing Bridge | Complete |
+| 44 | Remediation SLA & Escalation | Complete |
+
+---
+
+<details>
+<summary>✅ v3.2 Agent Modernization & Remediation Ops (Phases 40–45) — SHIPPED 2026-07-29</summary>
+
+Full phase detail archived to [milestones/v3.2-ROADMAP.md](milestones/v3.2-ROADMAP.md).
+Requirements: [milestones/v3.2-REQUIREMENTS.md](milestones/v3.2-REQUIREMENTS.md) · Audit: [milestones/v3.2-MILESTONE-AUDIT.md](milestones/v3.2-MILESTONE-AUDIT.md).
+
+- [x] Phase 40: Rust Agent Modernization & Session Reliability (RUST-01, SESS-01)
+- [x] Phase 41: CSPM Provider Expansion — OCI/Alibaba/Cloudflare (CSPM-01/02/03)
+- [x] Phase 42: Comment Threads on Compliance Controls (CMT-01)
+- [x] Phase 43: Remediation-to-Ticketing Bridge (REM-01/02)
+- [x] Phase 44: Remediation SLA & Escalation (SLA-01/02)
+- [x] Phase 45: Close gap RUST-01 — TLS backend explicit decision
+
+</details>
+
+## v3.4 — Native Security Scanning & Autonomous Remediation Agent
+
+**Goal:** Build native security scanning and autonomous remediation into the OmniAgent — replacing external integrations (VirusTotal API, Wazuh SIEM) with built-in, offline-first agent modules.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 50 | Native Security Scanning | Complete |
+| 51 | Vulnerability Detection Engine | Complete |
+| 52 | File Integrity Monitoring | Complete |
+| 53 | Autonomous Remediation | Complete |
+| 54 | Integration & Operator UI | Complete |
+| 55 | Advanced Threat Detection & Response | Complete |
+
+---
+
+<details>
+<summary>✅ v3.4 Native Security Scanning & Autonomous Remediation Agent (Phases 50–55) — SHIPPED 2026-08-04</summary>
+
+Full phase detail archived to [milestones/v3.4-ROADMAP.md](milestones/v3.4-ROADMAP.md).
+Requirements: [milestones/v3.4-REQUIREMENTS.md](milestones/v3.4-REQUIREMENTS.md).
+
+- [x] Phase 50: Native Security Scanning (NSCAN-01/02/03)
+- [x] Phase 51: Vulnerability Detection Engine (VULN-01/02/03)
+- [x] Phase 52: File Integrity Monitoring (FIM-01/02/03)
+- [x] Phase 53: Autonomous Remediation (AUTO-01/02/03/04)
+- [x] Phase 54: Integration & Operator UI (INT-01/02/03)
+- [x] Phase 55: Advanced Threat Detection & Response (INT-04, AUT-03, COMM-01)
+
+</details>
+
+---
+
+<details>
+<summary>✅ v4.0 ITAM (IT Asset Management Lifecycle) (Phases 56–61) — SHIPPED 2026-08-10</summary>
+
+Full phase detail archived to [milestones/v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md).
+Requirements: [milestones/v4.0-REQUIREMENTS.md](milestones/v4.0-REQUIREMENTS.md).
+
+- [x] Phase 56: Catalog & Foundation (ITAM-CAT-01/02/03/04, ITAM-LIFE-01)
+- [x] Phase 57: Lifecycle & Check-In/Out (ITAM-LIFE-02/03/04/05)
+- [x] Phase 58: Asset Tags & Offline Labels (ITAM-CAT-05)
+- [x] Phase 59: Procurement & Finance — Warranty & Depreciation (ITAM-FIN-01/02/03)
+- [x] Phase 60: Licenses & Consumables (ITAM-LIC-01/02/03)
+- [x] Phase 61: Frontend ITAM Console (ITAM-UI-01)
+
+</details>
+
+---
+
+## Phase 62: Remediation SLA Settings UI
+
+**Milestone:** v3.2 (gap closure — promoted from backlog item 999.1, deferred from Phase 44)
+
+**Goal:** Build the UI consumer for the `GET/PATCH /api/settings/remediation-sla` endpoint, live since Phase 44-03 with no UI consumer — flagged twice by UI audits (`44-UI-REVIEW.md`) as a deliberate, tracked deferral.
+
+**Requirements:** SLA-03 (At-Risk Window settings field — extends SLA-01/SLA-02 from Phase 44)
+
+**Success Criteria:**
+
+1. A "Remediation" tab exists in the Settings UI, reachable by every authenticated user (unrestricted visibility, matching the endpoint's own unrestricted GET).
+2. The tab shows the tenant's current remediation SLA at-risk window (days) and lets an admin update it via the existing PATCH endpoint.
+3. Non-admins see the same field but a save attempt surfaces the existing backend 403 as a toast — no new client-side permission logic (matches `EvidenceSettings.tsx`'s established pattern verbatim).
+
+**Depends on:** Phase 61 (last-shipped phase, purely sequential — no functional dependency)
+
+**Plans:** 1/1 plans complete
+
+Plans:
+
+- [x] 62-01-PLAN.md
+
+- [ ] TBD (run /gsd-plan-phase 62 to break down)
+
+### Phase 63: Close gap: ITAM-LIC-02/03 RBAC + ITAM-CAT-05 label UI
+
+**Goal:** Both v4.0 milestone-audit BLOCKERs are closed — the consumables and components routers enforce the same `manage:assets` admin gate as every sibling ITAM router (non-admins receive 403 on all 12 routes across 3 router objects), and Phase 58's three offline label routes become reachable from the product through a Label action on each asset row in the ITAM Lifecycle table.
+**Requirements**: ITAM-LIC-02, ITAM-LIC-03, ITAM-UI-01, ITAM-CAT-05 (gap closure against `.planning/milestones/v4.0-MILESTONE-AUDIT.md`; Phase 63 is not formally mapped in REQUIREMENTS.md)
+**Depends on:** Phase 62
+**Plans:** 2/2 plans complete
+
+Plans:
+
+- [x] 63-01-PLAN.md — RBAC gate on the consumables and components routers, with 403-for-non-admin regression tests
+- [x] 63-02-PLAN.md — Label row action in LifecyclePanel wiring the 3 offline label routes into apiService
+
+### Phase 64: rotate_key autonomous-remediation action
+
+**Goal:** [Promoted from backlog 999.2, deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Original scope was under-specified + dangerous + hard to make reversible — the four reversible actions (kill/restore/block/disable) are now proven in production, so this is ready to plan properly.
+**Requirements**: extends AUTO-02
+**Depends on:** Phase 63
+**Plans:** 4/4 plans complete
+
+**[2026-08-17 correction]** This phase previously showed "3/3 complete" — wrong. Two independent planning attempts existed under phase 64 (`.planning/phases/64-rotate-key-autonomous-remediation-action/` canonical, and a superseded earlier attempt archived at `.planning/phases/_superseded-64-vault-legacy-rust-track/` — see that directory's SUPERSEDED.md). The canonical track's real plan 03 (rotation mechanics in the shipped `agent-install/omni-agent-rs/` tree) had never been executed; a mismatched summary from the superseded track had been miscounted as completion evidence. Plan list below corrected to reality; a new plan 04 (dispatch-arm wiring, deferred by plan 03's own design) is required to make the action reachable end-to-end.
+
+**[2026-08-17 second correction]** Re-verification (64-VERIFICATION.md) found 64-02-SUMMARY.md was *also* fabricated: Task 2 (`check_authorized_keys()`/`weak_key_finding()` wired into `scan_misconfigurations()`) does not exist anywhere in the codebase, and Task 1 (`ssh_key_checks.rs`) is missing its required 8 unit tests + module doc comment. This exact gap was already flagged once in a 2026-08-14 VERIFICATION.md and was never closed. 64-02 reopened below pending real execution — the false SUMMARY.md has been removed.
+
+**[2026-08-17, later] 64-02 re-executed for real, phase now 4/4.** Task 1's 8 tests + module doc comment added (commit d984fc5b). Task 2 (`check_authorized_keys()`/`weak_key_finding()` wired into `scan_misconfigurations()`, test module split into `vulnerability_scan_tests.rs` per the 500-line convention) found already implemented in the working tree, uncommitted — verified (`cargo test`: 8 ssh_key_checks + 16 vulnerability_scan tests green) and committed (3a930718). Windows cross-compile and 7 `cargo test` integration failures were checked against a stash of this plan's diff and confirmed pre-existing (phase 65's `naughtyfy` crate breaks the Windows target; stale hardcoded capability-count/schema asserts in `tests/integration.rs`) — not caused by this plan, already tracked in `deferred-items.md`. See `64-02-SUMMARY.md`.
+
+Plans:
+
+- [x] 64-01-PLAN.md — Backend: `rotate_key.yaml` playbook wired into `remediation_playbook_service.py`'s `select_playbook()` routing.
+- [x] 64-02-PLAN.md — Rust weak-key detection (`ssh_key_checks.rs` + scanner integration, `agent-install/omni-agent-rs/`)
+- [x] 64-03-PLAN.md — Rust rotation mechanics (`ssh_key_rotation.rs`, byte-for-byte backup/restore, grounded re-verify, `agent-install/omni-agent-rs/`)
+- [x] 64-04-PLAN.md — Dispatch-arm wiring: rotate_key + rotate_key_rollback instruction arms, plus fixing the rollback playbook's unresolvable backup_path reference
+
+### Phase 65: FIM process attribution via fanotify
+
+**Goal:** [Promoted from backlog 999.3, deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the current `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
+**Requirements**: completes FIM-02
+**Depends on:** Phase 64
+**Plans:** 1/1 plans executed
+
+Plans:
+
+- [x] 65-01-PLAN.md — Core fanotify event capture and basic PID extraction
+
+### Phase 66: Full YARA-rule engine for native scan
+
+**Goal:** Add real YARA-rule evaluation to the agent's native file scanner, using the `yara` crate (C library bindings) for full spec compliance and Windows cross-compilation.
+**Requirements**: completes NSCAN-01 (full YARA rules)
+**Depends on:** Phase 65
+**Plans:** 2 plans
+
+- [x] 66-01-PLAN.md — Integrate `yara` crate and verify Windows cross-compilation
+- [x] 66-02-PLAN.md — Implement YARA engine module and integrate into `security_scan`
+
+Plans:
+
+- [x] TBD (run /gsd-plan-phase 66 to break down)
+
+### Phase 69: User Management
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 64 on 2026-08-13 — see that file's superseded banner. Renumbered 64→69 to resolve a phase-number collision: this repo independently claimed 64 for both this ITAM-Backlog work and the rotate_key remediation phase above.] Users can authenticate and manage accounts securely.
+**Requirements**: ITAM-USR-01, ITAM-USR-02, ITAM-USR-03, ITAM-USR-04, ITAM-USR-05, ITAM-USR-06
+**Depends on:** Phase 66 (last-shipped phase, purely sequential — no functional dependency; this phase originally had no dependency in the v4.1 ITAM-Backlog track)
+**Plans:** 6 plans (waves 1→2: 69-01 and 69-02 in wave 1; 69-03, 69-04, 69-05, 69-06 in parallel in wave 2)
+**Success Criteria:**
+
+  1. User can create, edit, delete user accounts.
+  2. User can be assigned RBAC roles.
+  3. User can authenticate via LDAP/AD and SAML/SSO.
+  4. User can manage API access tokens.
+  5. User can enable/disable 2FA.
+
+**UI hint:** yes — frontend for user CRUD, RBAC, 2FA, and API keys already exists; this phase is backend-only. LDAP/SAML admin UI deferred to Phase 70's console work.
+
+Plans:
+
+- [x] 69-01-PLAN.md — User CRUD with ITAM fields, tenant isolation, admin gating (ITAM-USR-01)
+- [x] 69-02-PLAN.md — RBAC extension with ITAM roles, fixed normalization, super-admin guard (ITAM-USR-02)
+- [x] 69-03-PLAN.md — LDAP/AD integration: config, auth, user sync, group-to-role mapping (ITAM-USR-03)
+- [x] 69-04-PLAN.md — SAML/SSO: metadata, ACS, SLO, assertion validation, provisioning (ITAM-USR-04)
+- [x] 69-05-PLAN.md — API token management: lifecycle, scopes, expiration, rate limits (ITAM-USR-05)
+- [x] 69-06-PLAN.md — 2FA: TOTP enroll/verify, backup codes, disable, fixed pitfalls (ITAM-USR-06) — plus 9 additional security-hardening commits from a post-execution code review (see `69-REVIEW.md`)
+
+Code complete, reviewed, and automated-verified (`69-VERIFICATION.md`: 27/27 must-haves). Human UAT open (`69-UAT.md`) — 3 items pending: LDAP real-directory auth, SAML real-IdP auth, MFA disable-form live click-through.
+
+### Phase 70: Core Data, Audit & Customization
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 65 on 2026-08-13 — see that file's superseded banner. Renumbered 65→70 for the same collision reason as Phase 69.] Admins can define custom data structures, track activities, and configure global UI settings.
+**Requirements**: ITAM-DAT-01, ITAM-DAT-02, ITAM-DAT-03, ITAM-SET-01, ITAM-SET-02, ITAM-SET-03
+**Depends on:** Phase 69
+**Plans:** 4 plans (waves 1→4, sequential — every plan touches services/apiService.ts and the ITAM console shell)
+**Success Criteria:**
+
+  1. User can add/edit custom fields to asset models.
+  2. User can view audit trail for any asset/entity.
+  3. User can bulk import/export assets via CSV.
+  4. User can update branding (logo, colors) in Global Settings.
+  5. User can change the interface language.
+
+**UI hint:** yes
+
+Plans:
+
+- [x] 70-01-PLAN.md — Custom Fields Manager: model fieldset read route, authoring UI, usage counts (ITAM-DAT-01)
+- [x] 70-02-PLAN.md — Audit trail: entity-filtered query + log_itam_action backfilled into all 20 write routes across 7 itam_*_endpoints.py files, Activity tab (ITAM-DAT-02)
+- [x] 70-03-PLAN.md — CSV import/export: formula-safe export, size-capped validated import with dry run, Import/Export tab (ITAM-DAT-03)
+- [x] 70-04-PLAN.md — ITAM-console Global Settings: branding applied to the console + hand-rolled locale switch, Settings tab (ITAM-SET-01/02/03)
+
+Code complete, reviewed (`70-REVIEW.md` + `70-REVIEW-FIX.md`), automated-verified (`70-VERIFICATION.md`). Human UAT open (`70-UAT.md`).
+
+### Phase 71: Procurement & Asset Workflow
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 66 on 2026-08-13 — renumbered 66→71 for the same collision reason as Phase 69/70.] Manage asset lifecycle from procurement to retirement with automated alerts and approval workflows.
+**Requirements**: ITAM-PRO-01, ITAM-PRO-02, ITAM-PRO-03, ITAM-PRO-04, ITAM-PRO-05
+**Depends on:** Phase 70
+**Plans:** 3/3 plans executed
+**Success Criteria:**
+
+  1. User can track purchase order details and supplier information.
+  2. User can track warranty expiry and receive automated alerts.
+  3. User can view straight-line depreciation.
+  4. User can request an asset and follow the approval workflow.
+  5. User receives email/Slack notifications for asset lifecycle events.
+
+**UI hint:** yes
+
+Plans:
+
+- [x] 71-01-PLAN.md — Procurement Module Core & Purchase Order Tracking (ITAM-PRO-01)
+- [x] 71-02-PLAN.md — Warranty Tracking & Depreciation Calculation (ITAM-PRO-02, ITAM-PRO-03)
+- [x] 71-03-PLAN.md — Asset Request & Approval Workflow with Notifications (ITAM-PRO-04, ITAM-PRO-05)
+
+### Phase 72: Reporting & Dashboards
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 67 on 2026-08-13 — renumbered 67→72.] Provide custom report building, pre-built reports, export functionality, and a KPI dashboard.
+**Requirements**: ITAM-REP-01, ITAM-REP-02, ITAM-REP-03, ITAM-REP-04
+**Depends on:** Phase 71
+**Plans:** 7/7 plans executed
+**Success Criteria:**
+
+  1. User can build and save custom reports.
+  2. User can view pre-built reports for asset/license data.
+  3. User can export reports in PDF, CSV, and Excel.
+  4. User can view the ITAM dashboard with key KPIs and visualizations.
+
+**UI hint:** yes
+
+Plans:
+**Wave 1**
+
+- [x] 72-01-PLAN.md — Tracer: Warranty Expiring report runs, exports to CSV and downloads from a new Reports tab (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 72-02-PLAN.md — The remaining five pre-built reports plus the consumable reorderThreshold field (wave 2)
+- [x] 72-03-PLAN.md — Custom report builder backend: field catalogue, closed-vocabulary filter translator, saved-report routes (wave 2)
+- [x] 72-04-PLAN.md — The four ITAM KPIs and the /api/itam/kpis route (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 72-05-PLAN.md — PDF and Excel renderers registered into the shared export registry (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 72-06-PLAN.md — Two-section Reports tab: pre-built grid, field+filter picker, saved list, three export buttons (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 72-07-PLAN.md — recharts KPI tile grid with drill-down, mounted above the report sections (wave 5)
+
+**Cross-cutting constraints:**
+
+- Exporting a report with zero matching rows still generates a valid file with headers and no data rows (never an error) — mirrors compliance_reporting_pdf.py's existing empty-report behavior.
+
+### Phase 73: API & Integrations
+
+**Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 68 on 2026-08-13 — renumbered 68→73.] Extend ITAM capabilities via REST API and external system integrations.
+**Requirements**: ITAM-API-01, ITAM-API-02, ITAM-API-03
+**Depends on:** Phase 72
+**Plans:** TBD
+**Success Criteria:**
+
+  1. User can use REST API to perform ITAM operations.
+  2. User can configure webhooks to trigger events.
+  3. User can integrate with Jira and ServiceNow.
+
+**UI hint:** yes
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 73 to break down)

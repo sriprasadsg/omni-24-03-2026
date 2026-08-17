@@ -1,0 +1,14 @@
+name: rotate_key
+finding_class: vuln
+match:
+  playbook_ref: rotate_key   # Documentation only — select_playbook() performs routing; this block is inert.
+steps:
+  - action: rotate_key
+    params:
+      fingerprint: "{{finding.details.fingerprint}}"
+      authorized_keys_path: "{{finding.details.affected_path}}"
+    destructive: true
+rollback:
+  - action: rotate_key_rollback
+    params:
+      authorized_keys_path: "{{finding.details.affected_path}}"

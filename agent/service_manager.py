@@ -26,7 +26,7 @@ class ServiceManager:
             else:
                 self.agent_path = Path(sys.argv[0]).resolve()
                 self.is_binary = False
-        
+
         self.service_name = "OmniAgent"
         self.display_name = "Omni Enterprise Agent"
         self.description = "Autonomous Agent for Enterprise Security and Management"
@@ -34,7 +34,7 @@ class ServiceManager:
     def install(self):
         """Install the agent as a system service"""
         logger.info(f"Installing {self.service_name} for {self.os_type}...")
-        
+
         try:
             if self.os_type == "Windows":
                 self._install_windows()
@@ -45,7 +45,7 @@ class ServiceManager:
             else:
                 logger.error(f"Unsupported OS for service install: {self.os_type}")
                 return False
-                
+
             logger.info("✅ Service installed successfully.")
             return True
         except Exception as e:
@@ -64,7 +64,7 @@ class ServiceManager:
                 self._uninstall_macos()
             else:
                 return False
-                
+
             logger.info("✅ Service uninstalled successfully.")
             return True
         except Exception as e:
@@ -116,12 +116,12 @@ class ServiceManager:
         # sc create OmniAgent binPath= "..." start= auto DisplayName= "..."
         cmd = [
             "sc", "create", self.service_name,
-            "binPath=", bin_path,
+            f"binPath={bin_path}",
             "start=", "auto",
             "DisplayName=", self.display_name
         ]
         subprocess.run(cmd, check=True)
-        
+
         # Set description
         subprocess.run(["sc", "description", self.service_name, self.description], check=True)
         # Set recovery options (restart on failure)
@@ -153,7 +153,7 @@ WantedBy=multi-user.target
 """
         service_path = Path("/etc/systemd/system") / f"{self.service_name}.service"
         service_path.write_text(unit_content)
-        
+
         subprocess.run(["systemctl", "daemon-reload"], check=True)
         subprocess.run(["systemctl", "enable", self.service_name], check=True)
 
@@ -167,7 +167,7 @@ WantedBy=multi-user.target
     # --- MacOS Implementation (Launchd) ---
     def _install_macos(self):
         plist_name = "com.omni.agent.plist"
-        
+
         cmd_array = ""
         if self.is_binary:
              cmd_array = f"<string>{self.agent_path}</string>"
@@ -197,9 +197,9 @@ WantedBy=multi-user.target
 """
         plist_path = Path("/Library/LaunchDaemons") / plist_name
         plist_path.write_text(plist_content)
-        
+
         # Load it
-        # subprocess.run(["launchctl", "load", str(plist_path)], check=True) 
+        # subprocess.run(["launchctl", "load", str(plist_path)], check=True)
         # (Start handles the load usually, but let's leave it to Start method)
 
     def _uninstall_macos(self):

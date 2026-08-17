@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { SaveIcon, SparklesIcon } from 'lucide-react';
+import { SaveIcon, SparklesIcon, TicketIcon, ExternalLinkIcon } from 'lucide-react';
 import { RemediationTask } from '../types';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { EscalationHistoryPanel } from './EscalationHistoryPanel';
+import { Modal } from './Modal';
 
 interface RemediationTaskModalProps {
     isOpen: boolean;
@@ -32,14 +34,10 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
     const [priority, setPriority] = useState('medium');
     const [suggesting, setSuggesting] = useState(false);
     const [saving, setSaving] = useState(false);
-
-    // Escape key dismiss
-    useEffect(() => {
-        if (!isOpen) return;
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-        document.addEventListener('keydown', handler);
-        return () => document.removeEventListener('keydown', handler);
-    }, [isOpen, onClose]);
+    const [creatingTicket, setCreatingTicket] = useState(false);
+    const [ticketProvider, setTicketProvider] = useState<'jira' | 'servicenow'>('jira');
+    const [hasJira, setHasJira] = useState(false);
+    const [hasServiceNow, setHasServiceNow] = useState(false);
 
     // Initialize from task when editing
     useEffect(() => {
@@ -61,7 +59,15 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
         }
     }, [task, isOpen]);
 
-    if (!isOpen) return null;
+    // Load ticketing provider availability (best-effort, safe default false/false)
+    useEffect(() => {
+        if (!isOpen) return;
+        (async () => {
+            const config = await api.getTicketingConfig();
+            setHasJira(!!config?.jira_url);
+            setHasServiceNow(!!config?.snow_instance);
+        })();
+    }, [isOpen]);
 
     const effectiveControlId = task?.control_id || controlId || '';
 
@@ -78,6 +84,21 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
             showToast('AI suggestion unavailable — please try again', 'error');
         } finally {
             setSuggesting(false);
+        }
+    };
+
+    const handleCreateTicket = async (provider: 'jira' | 'servicenow') => {
+        if (!task?.id) return;
+        setCreatingTicket(true);
+        try {
+            await api.createTicketForRemediationTask(task.id, provider);
+            showToast('Ticket created.', 'success');
+            onRefresh();
+        } catch (e) {
+            console.error('Ticket creation failed:', e);
+            showToast('Failed to create ticket — please try again.', 'error');
+        } finally {
+            setCreatingTicket(false);
         }
     };
 
@@ -114,14 +135,37 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg" tabIndex={-1}>
-                <div className="p-6">
-                    <h2 className="text-lg font-semibold mb-4 dark:text-white">
-                        {task ? 'Edit Remediation Task' : 'Create Remediation Task'}
-                    </h2>
+    const footer = (
+        <>
+            <button
+                onClick={onClose}
+                className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            >
+                Cancel
+            </button>
+            <button
+                onClick={handleSave}
+                disabled={!title.trim() || saving}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+            >
+                {saving ? (
+                    <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                    <SaveIcon size={14} />
+                )}
+                {saving ? 'Saving...' : 'Save Task'}
+            </button>
+        </>
+    );
 
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={task ? 'Edit Remediation Task' : 'Create Remediation Task'}
+            size="lg"
+            footer={footer}
+        >
                     <div className="space-y-4">
                         {/* Control ID (read-only) */}
                         {effectiveControlId && (
@@ -246,31 +290,91 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                 </select>
                             </div>
                         )}
+
+                        {/* Ticketing */}
+                        {task?.ticket_ref ? (
+                            <div>
+                                <label className="block text-sm font-medium dark:text-gray-300 mb-1">
+                                    Ticket
+                                </label>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                        className={`px-2 py-0.5 text-xs font-semibold rounded-full ${task.ticket_provider === 'jira'
+                                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                            }`}
+                                    >
+                                        {task.ticket_provider === 'jira' ? 'Jira' : 'ServiceNow'}
+                                    </span>
+                                    <span className="text-xs text-gray-700 dark:text-gray-300">{task.ticket_ref}</span>
+                                    {task.ticket_url && (
+                                        <a
+                                            href={task.ticket_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:underline"
+                                        >
+                                            {task.ticket_provider === 'jira' ? 'View in Jira' : 'View in ServiceNow'}
+                                            <ExternalLinkIcon size={12} />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            task?.id && (hasJira || hasServiceNow) && (
+                                <div>
+                                    <label className="block text-sm font-medium dark:text-gray-300 mb-1">
+                                        Ticketing
+                                    </label>
+                                    {hasJira && hasServiceNow && (
+                                        <div className="mb-2">
+                                            <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                                Choose a provider
+                                            </span>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {(['jira', 'servicenow'] as const).map(p => (
+                                                    <label
+                                                        key={p}
+                                                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-sm transition-colors focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-1 dark:focus-within:ring-offset-gray-800 ${ticketProvider === p
+                                                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+                                                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                                                            }`}
+                                                    >
+                                                        <input
+                                                            type="radio"
+                                                            name="ticketProvider"
+                                                            value={p}
+                                                            checked={ticketProvider === p}
+                                                            onChange={() => setTicketProvider(p)}
+                                                            className="sr-only"
+                                                        />
+                                                        <span className="text-gray-800 dark:text-gray-100 text-sm font-medium leading-tight">
+                                                            {p === 'jira' ? 'Jira' : 'ServiceNow'}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={() => handleCreateTicket(hasJira && hasServiceNow ? ticketProvider : (hasJira ? 'jira' : 'servicenow'))}
+                                        disabled={creatingTicket}
+                                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+                                    >
+                                        {creatingTicket ? (
+                                            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <TicketIcon size={14} />
+                                        )}
+                                        {creatingTicket ? 'Creating...' : 'Create Ticket'}
+                                    </button>
+                                </div>
+                            )
+                        )}
                     </div>
 
-                    {/* Buttons */}
-                    <div className="flex justify-end gap-3 mt-6">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={!title.trim() || saving}
-                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
-                        >
-                            {saving ? (
-                                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <SaveIcon size={14} />
-                            )}
-                            {saving ? 'Saving...' : 'Save Task'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+                    {/* Escalation History (SLA-02) — read-only, append-only, no edit/delete controls */}
+                    {task?.id && <EscalationHistoryPanel taskId={task.id} />}
+        </Modal>
     );
 };

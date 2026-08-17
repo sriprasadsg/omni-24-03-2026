@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Role, Tenant } from '../types';
 import { showToast } from '../utils/toast';
+import { Modal } from './Modal';
 
 interface AddUserModalProps {
     isOpen: boolean;
@@ -17,7 +18,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
     const [email, setEmail] = useState('');
     const [selectedRole, setSelectedRole] = useState('');
     const [selectedTenantId, setSelectedTenantId] = useState('');
-    
+
     useEffect(() => {
         if(isOpen) {
             const defaultRole = roles.find(r => r.name === 'Tenant Admin')?.name || roles[0]?.name || '';
@@ -52,42 +53,40 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
         onClose(); // Close modal on save
     };
 
-    if (!isOpen) return null;
+    const footer = (
+        <>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md">Cancel</button>
+            <button type="submit" form="add-user-form" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Add User</button>
+        </>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 m-4" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add New User</h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label htmlFor="add-user-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
-                        <input type="text" id="add-user-name" value={name} onChange={e => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm" />
-                    </div>
-                    <div>
-                        <label htmlFor="add-user-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                        <input type="email" id="add-user-email" value={email} onChange={e => setEmail(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm" />
-                    </div>
-                    <div>
-                        <label htmlFor="add-user-role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
-                        <select id="add-user-role" value={selectedRole} onChange={e => setSelectedRole(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm">
-                            {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label htmlFor="add-user-tenant" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tenant</label>
-                        <select id="add-user-tenant" value={selectedTenantId} onChange={e => setSelectedTenantId(e.target.value)} disabled={isSuperAdminRole} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50">
-                            {isSuperAdminRole 
-                                ? <option value="platform-admin">Platform</option>
-                                : availableTenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                            }
-                        </select>
-                    </div>
-                    <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md">Cancel</button>
-                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">Add User</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <Modal isOpen={isOpen} onClose={onClose} title="Add New User" size="md" footer={footer}>
+            <form id="add-user-form" onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="add-user-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
+                    <input type="text" id="add-user-name" value={name} onChange={e => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm" />
+                </div>
+                <div>
+                    <label htmlFor="add-user-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                    <input type="email" id="add-user-email" value={email} onChange={e => setEmail(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm" />
+                </div>
+                <div>
+                    <label htmlFor="add-user-role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
+                    <select id="add-user-role" value={selectedRole} onChange={e => setSelectedRole(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm">
+                        {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="add-user-tenant" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tenant</label>
+                    <select id="add-user-tenant" value={selectedTenantId} onChange={e => setSelectedTenantId(e.target.value)} disabled={isSuperAdminRole} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50">
+                        {isSuperAdminRole
+                            ? <option value="platform-admin">Platform</option>
+                            : availableTenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                        }
+                    </select>
+                </div>
+            </form>
+        </Modal>
     );
 };

@@ -18,7 +18,7 @@ fn base_config_yaml() -> &'static str {
 }
 
 fn parse_cfg(yaml: &str) -> Config {
-    serde_yaml::from_str(yaml).expect("parse config")
+    serde_norway::from_str(yaml).expect("parse config")
 }
 
 // ─── config tests ──────────────────────────────────────────────────────────
@@ -53,11 +53,11 @@ fn test_config_save_roundtrip() {
     cfg.agent_token = "tok_abc".to_string();
 
     let path = std::env::temp_dir().join("omni_agent_test_config.yaml");
-    let serialized = serde_yaml::to_string(&cfg).unwrap();
+    let serialized = serde_norway::to_string(&cfg).unwrap();
     std::fs::write(&path, &serialized).unwrap();
 
     let loaded: Config =
-        serde_yaml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        serde_norway::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     let _ = std::fs::remove_file(&path);
 
     assert_eq!(loaded.agent_id, "agent-test-123");
@@ -101,7 +101,7 @@ fn test_capability_ids_match_expected_set() {
 #[test]
 fn test_collect_all_no_panics() {
     let mgr = CapabilityManager::new();
-    let results = mgr.collect_all();
+    let results = mgr.collect_all(&System::new_all());
     assert_eq!(results.len(), 15);
     for (id, val) in &results {
         assert!(val.is_object(), "capability '{}' returned non-object: {}", id, val);
@@ -111,7 +111,7 @@ fn test_collect_all_no_panics() {
 #[test]
 fn test_capability_statuses_structure() {
     let mgr = CapabilityManager::new();
-    let results = mgr.collect_all();
+    let results = mgr.collect_all(&System::new_all());
     let statuses = mgr.statuses(&results);
     assert_eq!(statuses.len(), 15);
     for s in &statuses {
@@ -133,7 +133,7 @@ fn test_capability_statuses_structure() {
 fn test_metrics_capability_schema() {
     use omni_agent::capabilities::metrics::MetricsCapability;
     use omni_agent::capabilities::Capability;
-    let v = MetricsCapability.collect();
+    let v = MetricsCapability.collect(&System::new_all());
     // metrics uses nested structure: cpu.percent, memory.percent, etc.
     assert!(v.get("cpu").is_some(),           "missing cpu object");
     assert!(v["cpu"].get("percent").is_some(), "missing cpu.percent");
@@ -147,7 +147,7 @@ fn test_metrics_capability_schema() {
 fn test_agent_update_collect_is_passive() {
     use omni_agent::capabilities::agent_update::AgentUpdateCapability;
     use omni_agent::capabilities::Capability;
-    let v = AgentUpdateCapability.collect();
+    let v = AgentUpdateCapability.collect(&System::new_all());
     assert_eq!(v["status"], "ready", "agent_update collect must be passive, not make HTTP calls");
     assert!(v.get("current_version").is_some());
     assert!(v.get("error").is_none(), "agent_update collect panicked or made a network call");
@@ -157,7 +157,7 @@ fn test_agent_update_collect_is_passive() {
 fn test_sbom_collect_schema() {
     use omni_agent::capabilities::sbom::SbomCapability;
     use omni_agent::capabilities::Capability;
-    let v = SbomCapability.collect();
+    let v = SbomCapability.collect(&System::new_all());
     assert_eq!(v["sbom_version"], "1.0");
     assert_eq!(v["format"], "CycloneDX-Simplified");
     assert!(v.get("total_components").is_some());
@@ -171,8 +171,8 @@ fn test_sbom_collect_schema() {
 fn test_sbom_hash_is_deterministic() {
     use omni_agent::capabilities::sbom::SbomCapability;
     use omni_agent::capabilities::Capability;
-    let v1 = SbomCapability.collect();
-    let v2 = SbomCapability.collect();
+    let v1 = SbomCapability.collect(&System::new_all());
+    let v2 = SbomCapability.collect(&System::new_all());
     assert_eq!(v1["sbom_hash"], v2["sbom_hash"], "SBOM hash must be deterministic");
     assert_eq!(v1["total_components"], v2["total_components"]);
 }
@@ -181,7 +181,7 @@ fn test_sbom_hash_is_deterministic() {
 fn test_compliance_collect_schema() {
     use omni_agent::capabilities::compliance::ComplianceCapability;
     use omni_agent::capabilities::Capability;
-    let v = ComplianceCapability.collect();
+    let v = ComplianceCapability.collect(&System::new_all());
     assert!(v.get("compliance_checks").is_some());
     assert!(v.get("total_checks").is_some());
     assert!(v.get("passed").is_some());
@@ -200,7 +200,7 @@ fn test_compliance_collect_schema() {
 fn test_predictive_health_schema() {
     use omni_agent::capabilities::predictive_health::PredictiveHealthCapability;
     use omni_agent::capabilities::Capability;
-    let v = PredictiveHealthCapability::new().collect();
+    let v = PredictiveHealthCapability::new().collect(&System::new_all());
     for key in &["cpu_trend", "memory_trend", "disk_trend",
                  "current_cpu_percent", "current_memory_percent", "current_disk_percent",
                  "predictions"] {
@@ -216,7 +216,7 @@ fn test_predictive_health_schema() {
 fn test_fim_collect_schema() {
     use omni_agent::capabilities::fim::FimCapability;
     use omni_agent::capabilities::Capability;
-    let v = FimCapability.collect();
+    let v = FimCapability.collect(&System::new_all());
     assert!(v.get("monitored_files").is_some(), "missing monitored_files");
     assert!(v.get("changed_files").is_some(),   "missing changed_files");
     assert!(v.get("files").is_some(),           "missing files array");

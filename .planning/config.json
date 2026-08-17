@@ -47,7 +47,10 @@
     "security_asvs_level": 1,
     "security_block_on": "high",
     "_auto_chain_active": false,
-    "use_worktrees": false
+    "use_worktrees": false,
+    "plan_review_convergence": true,
+    "test_command": "npx vitest run src/__tests__",
+    "build_command": "npm run build"
   },
   "ship": {
     "pr_body_sections": [
@@ -88,5 +91,8 @@
     "source_grounding_authority": "grep"
   },
   "mode": "yolo",
-  "granularity": "standard"
+  "granularity": "standard",
+  "graphify": {
+    "enabled": true
+  }
 }

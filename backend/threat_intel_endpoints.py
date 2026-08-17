@@ -17,6 +17,7 @@ from database import get_database
 from virustotal_client import get_virustotal_client
 from rbac_utils import require_permission
 from auth_types import TokenData
+from siem_engine import get_siem_engine
 import logging
 
 
@@ -248,6 +249,30 @@ async def enrich_security_event(
         "enrichments": enrichments,
         "message": f"Added {len(enrichments)} threat intelligence enrichments"
     }
+
+
+@router.post("/correlate-native")
+async def correlate_native_findings_route(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: TokenData = Depends(require_permission("manage:security"))
+):
+    """
+    Trigger native-finding correlation (INT-04) for the caller's tenant.
+
+    Resolves tenant via the SAME _get_tenant(user) helper every other
+    handler in this file uses (no new tenant-resolution mechanism) and
+    delegates entirely to SiemEngine.correlate_native_findings() — the
+    correlation extension built in siem_engine.py (D-01). Kept thin
+    (resolve tenant -> call method -> return summary) so this file stays
+    well under the 500-line cap.
+    """
+    tenant_id = _get_tenant(current_user)
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant could not be resolved for the current user")
+
+    siem = get_siem_engine(db)
+    summary = await siem.correlate_native_findings(tenant_id)
+    return summary
 
 
 @router.get("/stats")

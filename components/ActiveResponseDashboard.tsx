@@ -90,7 +90,7 @@ const MOCK_EXECUTIONS: Execution[] = [
   { id: 'e3', agent_id: 'ag3', action: 'kill_process', status: 'failed', mode: 'automatic', triggered_by: 'system', triggered_at: '2026-06-10T18:32:00Z' },
 ];
 
-const token = () => localStorage.getItem('token') ?? '';
+const token = () => sessionStorage.getItem('token') ?? '';
 const h = () => ({ Authorization: `Bearer ${token()}` });
 const jh = () => ({ ...h(), 'Content-Type': 'application/json' });
 

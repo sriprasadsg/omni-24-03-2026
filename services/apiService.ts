@@ -9,7 +9,11 @@ import {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload
+    Risk, Vendor, TrustProfile, AccessRequest, ComplianceScorePayload,
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook,
+    ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
+    ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
+    AuditLogEntry, ItamImportResult, ItamSettings, ItamAssetRequest, ItamAssetRequestStatus,
 } from '../types';
 
 export type {
@@ -22,7 +26,8 @@ export type {
     Trace, ServiceMap, NetworkDevice, ThreatIntelResult, NewUserPayload, NewTenantPayload, AgentPlatform,
     SubscriptionTier, Permission, PlaybookExecutionStep, AgenticStep, AgentHealth, ModelStage,
     AiModel, AiPolicy, DastScan, DeviceTrustScore, UserSessionRisk, CryptographicInventory, VoiceBotSettings,
-    ComplianceScorePayload
+    ComplianceScorePayload,
+    SecurityFinding, RemediationQueueItem, RemediationAuditEntry, FimStatus, SecuritySummary, RemediationPlaybook
 };
 // Helper to ensure severity strings are consistent (e.g., "critical" -> "Critical")
 const normalizeSeverity = (severity: any): any => {
@@ -331,6 +336,38 @@ export const fetchSsoProviders = async () => {
         return await res.json();
     } catch { return { providers: [] }; }
 };
+
+// --- Predictive Health API ---
+
+export const fetchPredictiveHosts = async (): Promise<any[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/predictive/hosts`);
+        if (!res.ok) {
+            console.error(`[fetchPredictiveHosts] HTTP ${res.status}: ${res.statusText}`);
+            return [];
+        }
+        const data = await res.json();
+        return data.predictions || [];
+    } catch (error) {
+        console.error('Error fetching predictive hosts:', error);
+        return [];
+    }
+};
+
+export const fetchPredictiveModelAccuracy = async (): Promise<any | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/predictive/model/accuracy`);
+        if (!res.ok) {
+            console.error(`[fetchPredictiveModelAccuracy] HTTP ${res.status}: ${res.statusText}`);
+            return null;
+        }
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching predictive model accuracy:', error);
+        return null;
+    }
+};
+
 // Helper for offline caching
 const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, updateLocalVar: (data: T) => void): Promise<T> => {
     try {
@@ -919,6 +956,7 @@ export const fetchSecurityEvents = async () => {
 export const fetchCloudAccounts = async () => {
     try {
         const res = await authFetch(`${API_BASE}/cloud-accounts`);
+        if (!res.ok) throw new Error('Failed to fetch cloud accounts');
         const data = await res.json();
         CLOUD_ACCOUNTS = data.items ? data.items : data;
         return CLOUD_ACCOUNTS;
@@ -1597,6 +1635,68 @@ export const fetchAssetMetrics = async (assetId: string, range: '1h' | '24h' | '
     }
 };
 
+export interface AgentMetricsHistoryPoint {
+    timestamp: string;
+    cpu_percent: number;
+    memory_percent: number;
+    disk_percent: number;
+    [key: string]: any;
+}
+
+export interface AgentMetricsHistoryResponse {
+    agent_id: string;
+    hours: number;
+    metrics: AgentMetricsHistoryPoint[];
+    summary: Record<string, number>;
+}
+
+// FOBS-01: agent-scoped metrics history (D-02 — hours is ≤48h only: 1/6/24/48).
+// Mirrors fetchAssetMetrics's auth/error shape but returns the full payload
+// (metrics + summary), not just the metrics array, since AgentMetricsTab needs both.
+export const fetchAgentMetricsHistory = async (
+    agentId: string,
+    hours: 1 | 6 | 24 | 48
+): Promise<AgentMetricsHistoryResponse> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/metrics/history?hours=${hours}`);
+        if (!res.ok) throw new Error("Failed to fetch agent metrics history");
+        return await res.json();
+    } catch (e) {
+        console.warn("Backend offline or error, returning empty agent metrics history");
+        return { agent_id: agentId, hours, metrics: [], summary: {} };
+    }
+};
+
+export interface AgentUptimeTimelineBucket {
+    start: string;
+    up: boolean;
+}
+
+export interface AgentUptimeResponse {
+    agent_id: string;
+    hours: number;
+    uptime_percent: number;
+    expected_buckets: number;
+    received_buckets: number;
+    timeline: AgentUptimeTimelineBucket[];
+}
+
+// FOBS-02: agent-scoped heartbeat-presence uptime % + bucketed timeline
+// (D-02 — hours is ≤48h only: 1/6/24/48; server clamps regardless — T-48-11).
+export const fetchAgentUptime = async (
+    agentId: string,
+    hours: 1 | 6 | 24 | 48
+): Promise<AgentUptimeResponse> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/uptime?hours=${hours}`);
+        if (!res.ok) throw new Error("Failed to fetch agent uptime");
+        return await res.json();
+    } catch (e) {
+        console.warn("Backend offline or error, returning empty agent uptime");
+        return { agent_id: agentId, hours, uptime_percent: 0, expected_buckets: 0, received_buckets: 0, timeline: [] };
+    }
+};
+
 export const triggerFrameworkScan = async (frameworkId: string) => {
     try {
         const response = await authFetch(`${API_BASE}/compliance-automation/collect-evidence`, {
@@ -2093,45 +2193,6 @@ export const updateTenantFeatures = async (tenantId: string, features: Permissio
     }
 };
 
-// Wrapper object to satisfy imports in new dashboards (DataWarehouse, Streaming, etc.)
-export const apiService = {
-    get: async (endpoint: string) => {
-        const res = await authFetch(endpoint);
-        if (!res.ok) throw new Error(`GET ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    post: async (endpoint: string, body: any) => {
-        const res = await authFetch(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error(`POST ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    put: async (endpoint: string, body: any) => {
-        const res = await authFetch(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error(`PUT ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    patch: async (endpoint: string, body: any) => {
-        const res = await authFetch(endpoint, {
-            method: 'PATCH',
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error(`PATCH ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    },
-    delete: async (endpoint: string) => {
-        const res = await authFetch(endpoint, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`DELETE ${endpoint} failed: ${res.statusText}`);
-        return await res.json();
-    }
-};
-
-
 export const getTenantBranding = async (tenantId: string) => {
     try {
         const res = await authFetch(`${API_BASE}/tenants/${tenantId}/branding`);
@@ -2187,7 +2248,6 @@ export const registerAgent = async (data: any) => {
 
     return { newAgent: result.agent, newAsset: result.asset };
 };
-
 
 // --- Tenant Voice Bot Settings ---
 export const updateTenantVoiceBotSettings = async (tenantId: string, settings: VoiceBotSettings): Promise<Tenant> => {
@@ -2649,9 +2709,9 @@ export const addCloudAccount = async (data: any, tenantId: string) => {
             method: 'POST',
             body: JSON.stringify({
                 provider: (data.provider || 'aws').toLowerCase(),
-                name: data.name,
+                account_name: data.name,
                 account_id: data.accountId,
-                credentials: data.credentials || {},
+                credentials_ref: JSON.stringify(data.credentials || {}),
             }),
         });
         if (res.ok) {
@@ -3256,13 +3316,13 @@ export const streamChatAssistantResponse = (
     (async () => {
         try {
             const token = sessionStorage.getItem('token') || '';
-            const res = await fetch(`${API_BASE}/ai/chat/stream`, {
+            const res = await fetch(`${API_BASE}/ai/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
-                body: JSON.stringify({ message: input, context }),
+                body: JSON.stringify({ messages: [{"role": "user", "content": input}], context }),
                 credentials: 'include',
             });
 
@@ -4532,6 +4592,28 @@ export const suggestRemediation = async (taskId: string): Promise<{ suggestion: 
     return res.json();
 };
 
+export const createTicketForRemediationTask = async (
+    taskId: string,
+    provider: 'jira' | 'servicenow',
+): Promise<{ ticket_provider: string; ticket_ref: string; ticket_url: string }> => {
+    const res = await authFetch(`${API_BASE}/compliance-remediation/tasks/${taskId}/create-ticket`, {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+    });
+    if (!res.ok) throw new Error(`Failed to create ticket: HTTP ${res.status}`);
+    return res.json();
+};
+
+export const getTicketingConfig = async (): Promise<{ jira_url?: string; snow_instance?: string }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/ticketing/config`);
+        if (!res.ok) return {};
+        return await res.json();
+    } catch {
+        return {};
+    }
+};
+
 export const fetchStalenessThreshold = async (): Promise<{ thresholdDays: number }> => {
     try {
         const res = await authFetch(`${API_BASE}/settings/evidence-staleness`);
@@ -4549,6 +4631,30 @@ export const saveStalenessThreshold = async (thresholdDays: number): Promise<voi
         body: JSON.stringify({ thresholdDays }),
     });
     if (!res.ok) throw new Error('Failed to save staleness threshold');
+};
+
+const REMEDIATION_SLA_WINDOW_DEFAULT_DAYS = 7;
+
+export const fetchRemediationSlaWindow = async (): Promise<{ windowDays: number }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/remediation-sla`);
+        if (!res.ok) return { windowDays: REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
+        const data = await res.json();
+        const raw = Number(data?.windowDays);
+        const windowDays = Number.isFinite(raw) && raw > 0 ? raw : REMEDIATION_SLA_WINDOW_DEFAULT_DAYS;
+        return { windowDays };
+    } catch {
+        return { windowDays: REMEDIATION_SLA_WINDOW_DEFAULT_DAYS };
+    }
+};
+
+export const saveRemediationSlaWindow = async (windowDays: number): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/settings/remediation-sla`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ windowDays }),
+    });
+    if (!res.ok) throw new Error('Failed to save remediation SLA window');
 };
 
 export const fetchEvidenceAuditLog = async (evidenceId: string): Promise<{ entries: any[] }> => {
@@ -4569,6 +4675,126 @@ export const fetchControlAuditLog = async (controlId: string): Promise<{ entries
     } catch {
         return { entries: [] };
     }
+};
+
+export const fetchRemediationEscalations = async (taskId: string): Promise<{ task_id: string; entries: { escalation_level: number; created_at: string; notified: string[] }[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/compliance/remediation-tasks/${taskId}/escalations`);
+        if (!res.ok) return { task_id: taskId, entries: [] };
+        return await res.json();
+    } catch {
+        return { task_id: taskId, entries: [] };
+    }
+};
+
+// Single row of GET /api/agents/{agent_id}/location-history (GAUD-02).
+// Note: dwell_seconds is a read-time value computed by the backend — the
+// AgentLocationHistory panel deliberately ignores it and recomputes dwell
+// client-side (46-UI-SPEC.md Behavior Contract; RESEARCH.md Pitfall 2).
+export interface LocationHistoryEntry {
+    publicIp?: string;
+    geo?: {
+        city?: string;
+        region?: string;
+        country?: string;
+        country_code?: string;
+    };
+    vpn_heuristic?: boolean;
+    timestamp: string;
+    dwell_seconds?: number;
+}
+
+export const fetchAgentLocationHistory = async (agentId: string): Promise<{ agent_id: string; entries: LocationHistoryEntry[] }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/agents/${agentId}/location-history`);
+        if (!res.ok) return { agent_id: agentId, entries: [] };
+        return await res.json();
+    } catch {
+        return { agent_id: agentId, entries: [] };
+    }
+};
+
+export const getAgentLocationTracking = async (): Promise<{ enabled: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`);
+        if (!res.ok) return { enabled: true };
+        return await res.json();
+    } catch {
+        return { enabled: true };
+    }
+};
+
+export const setAgentLocationTracking = async (enabled: boolean): Promise<{ enabled: boolean }> => {
+    const res = await authFetch(`${API_BASE}/settings/agent-location-tracking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update agent location tracking setting');
+    }
+    return await res.json();
+};
+
+// Per-tenant Security settings — geo-security detectors config (GSEC-03, D-06).
+// Clone of getAgentLocationTracking/setAgentLocationTracking's shape/error
+// handling, targeting the distinct admin-gated /settings/geo-security surface
+// (backend/geo_security_endpoints.py, Plan 47-04) rather than folding into
+// the Phase 46 privacy toggle.
+export interface GeoSecuritySettings {
+    impossible_travel_enabled: boolean;
+    geo_fence_enabled: boolean;
+    allowed_country_codes: string[];
+}
+
+export const getGeoSecuritySettings = async (): Promise<GeoSecuritySettings> => {
+    const defaults: GeoSecuritySettings = {
+        impossible_travel_enabled: true,
+        geo_fence_enabled: false,
+        allowed_country_codes: [],
+    };
+    try {
+        const res = await authFetch(`${API_BASE}/settings/geo-security`);
+        if (!res.ok) return defaults;
+        return await res.json();
+    } catch {
+        return defaults;
+    }
+};
+
+export const setGeoSecuritySettings = async (settings: Partial<GeoSecuritySettings>): Promise<GeoSecuritySettings> => {
+    const res = await authFetch(`${API_BASE}/settings/geo-security`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update geo-security settings');
+    }
+    return await res.json();
+};
+
+// ── Control Comments (Phase 42-03) ────────────────────────────────────────────
+export const fetchControlComments = async (controlId: string): Promise<any[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/control-comments?control_id=${controlId}`);
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+};
+
+export const postControlComment = async (controlId: string, text: string): Promise<any> => {
+    const res = await authFetch(`${API_BASE}/control-comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ control_id: controlId, text }),
+    });
+    if (!res.ok) throw new Error('Failed to post comment');
+    return await res.json();
 };
 
 // ── Vendor Subprocessors (Phase 26-02) ───────────────────────────────────────────
@@ -4805,4 +5031,881 @@ export const submitAnswerDraft = async (draftId: string): Promise<AnswerDraftDoc
         throw new Error(typeof d.detail === 'string' ? d.detail : 'Submit failed');
     }
     return await res.json();
+};
+
+// ── Fleet Observability (Phase 48 Plan 05, FOBS-03) ──────────────────────────
+// Renderer over the 48-03 aggregate endpoint — no client-side offline/version
+// recomputation (D-03). Backed by GET /api/fleet/observability.
+export interface FleetObservabilityAgent {
+    id: string;
+    hostname: string;
+    status: string;
+    version: string | null;
+    tenantId: string | null;
+}
+
+export interface FleetObservability {
+    latest_version: string;
+    offline_agents: FleetObservabilityAgent[];
+    offline_count: number;
+    version_drift: FleetObservabilityAgent[];
+    drift_count: number;
+}
+
+export const fetchFleetObservability = async (): Promise<FleetObservability> => {
+    const res = await authFetch(`${API_BASE}/fleet/observability`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load fleet observability data');
+    }
+    return await res.json();
+};
+
+// Fleet Geo Map (GMAP-01/02/03) — client renders markers/clusters over this
+// cross-tenant projection; server does RBAC + tenant scoping. GET /api/fleet/geo.
+export interface FleetGeoAgent {
+    id: string;
+    hostname: string;
+    status: string;
+    tenantId: string;
+    lanIp?: string | null;
+    publicIp?: string | null;
+    geo: {
+        city?: string | null;
+        country?: string | null;
+        country_code?: string | null;
+        latitude: number;
+        longitude: number;
+    } | null;
+}
+
+export interface FleetGeoResponse {
+    agents: FleetGeoAgent[];
+    total: number;
+    located_count: number;
+    unlocated_count: number;
+    tenants: string[];
+}
+
+export const fetchFleetGeo = async (): Promise<FleetGeoResponse> => {
+    const res = await authFetch(`${API_BASE}/fleet/geo`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load fleet geo data');
+    }
+    return await res.json();
+};
+
+// ── Security Ops Endpoints ──────────────────────────────────────────────────
+export const fetchFindings = async (params: { limit?: number; offset?: number }): Promise<SecurityFinding[]> => {
+    try {
+        const query = new URLSearchParams();
+        if (params.limit) query.append('limit', String(params.limit));
+        if (params.offset) query.append('offset', String(params.offset));
+        const res = await authFetch(`${API_BASE}/security-ops/findings?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch aggregated findings");
+        const data = await res.json();
+        return data.findings || [];
+    } catch (e) {
+        console.error("Error fetching aggregated findings:", e);
+        return [];
+    }
+};
+
+export const fetchRemediationQueue = async (): Promise<RemediationQueueItem[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/remediation-queue`);
+        if (!res.ok) throw new Error("Failed to fetch remediation queue");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation queue:", e);
+        return [];
+    }
+};
+
+export const triggerScan = async (agentId: string, type: 'file' | 'vuln' | 'fim', target?: string): Promise<{ queued: boolean }> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/trigger-scan`, {
+            method: 'POST',
+            body: JSON.stringify({ agent_id: agentId, type, target })
+        });
+        if (!res.ok) throw new Error("Failed to trigger scan");
+        return await res.json();
+    } catch (e) {
+        console.error("Error triggering scan:", e);
+        throw e;
+    }
+};
+
+export const fetchFimStatus = async (): Promise<FimStatus[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/fim-status`);
+        if (!res.ok) throw new Error("Failed to fetch FIM status");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching FIM status:", e);
+        return [];
+    }
+};
+
+export const fetchSecuritySummary = async (): Promise<SecuritySummary> => {
+    try {
+        const res = await authFetch(`${API_BASE}/security-ops/summary`);
+        if (!res.ok) throw new Error("Failed to fetch security summary");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching security summary:", e);
+        return { totalFindings: 0, criticalFindings: 0, openRemediations: 0, agentsWithFim: 0, fimDriftDetected: false };
+    }
+};
+
+// ── Remediation Audit & Actions (Phase 53-04) ──────────────────────────────
+export const fetchRemediationAudit = async (params: { limit?: number; offset?: number }): Promise<RemediationAuditEntry[]> => {
+    try {
+        const query = new URLSearchParams();
+        if (params.limit) query.append('limit', String(params.limit));
+        if (params.offset) query.append('offset', String(params.offset));
+        const res = await authFetch(`${API_BASE}/remediation/audit?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch remediation audit log");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation audit:", e);
+        return [];
+    }
+};
+
+export const approveRemediation = async (id: string): Promise<RemediationQueueItem> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation/${id}/approve`, { method: 'POST' });
+        if (!res.ok) throw new Error("Failed to approve remediation");
+        return await res.json();
+    } catch (e) {
+        console.error("Error approving remediation:", e);
+        throw e;
+    }
+};
+
+export const denyRemediation = async (id: string, reason: string): Promise<RemediationQueueItem> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation/${id}/deny`, {
+            method: 'POST',
+            body: JSON.stringify({ reason })
+        });
+        if (!res.ok) throw new Error("Failed to deny remediation");
+        return await res.json();
+    } catch (e) {
+        console.error("Error denying remediation:", e);
+        throw e;
+    }
+};
+
+// ── Remediation Playbook CRUD (Phase 53-01) ────────────────────────────────
+export const fetchRemediationPlaybooks = async (): Promise<RemediationPlaybook[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks`);
+        if (!res.ok) throw new Error("Failed to fetch remediation playbooks");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remediation playbooks:", e);
+        return [];
+    }
+};
+
+export const createRemediationPlaybook = async (playbook: Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>): Promise<RemediationPlaybook> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks`, {
+            method: 'POST',
+            body: JSON.stringify(playbook)
+        });
+        if (!res.ok) throw new Error("Failed to create remediation playbook");
+        return await res.json();
+    } catch (e) {
+        console.error("Error creating remediation playbook:", e);
+        throw e;
+    }
+};
+
+export const updateRemediationPlaybook = async (id: string, playbook: Partial<Omit<RemediationPlaybook, 'id' | 'createdAt' | 'createdBy'>>): Promise<RemediationPlaybook> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(playbook)
+        });
+        if (!res.ok) throw new Error("Failed to update remediation playbook");
+        return await res.json();
+    } catch (e) {
+        console.error("Error updating remediation playbook:", e);
+        throw e;
+    }
+};
+
+export const deleteRemediationPlaybook = async (id: string): Promise<void> => {
+    try {
+        const res = await authFetch(`${API_BASE}/remediation-playbooks/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error("Failed to delete remediation playbook");
+    } catch (e) {
+        console.error("Error deleting remediation playbook:", e);
+        throw e;
+    }
+};
+
+// Wrapper object to satisfy imports in new dashboards (DataWarehouse, Streaming, etc.)
+// --- ITAM (Phase 61 console) ---
+
+async function itamThrow(res: Response, fallback: string): Promise<never> {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ? (typeof body.detail === 'string' ? body.detail : fallback) : fallback);
+}
+
+export const fetchCatalogEntities = async (kind: ItamCatalogKind): Promise<ItamCatalogEntity[]> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}`);
+    if (!res.ok) return itamThrow(res, `Failed to load ${kind}`);
+    return res.json();
+};
+
+export const createCatalogEntity = async (kind: ItamCatalogKind, data: Record<string, unknown>): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, `Failed to create ${kind}`);
+    return res.json();
+};
+
+export const updateCatalogEntity = async (kind: ItamCatalogKind, id: string, data: Record<string, unknown>): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, `Failed to update ${kind}`);
+    return res.json();
+};
+
+export const deleteCatalogEntity = async (kind: ItamCatalogKind, id: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/${kind}/${id}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, `Failed to delete ${kind}`);
+};
+
+export const fetchAssetModelFields = async (modelId: string): Promise<ItamModelFields> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/models/${modelId}/fields`);
+    if (!res.ok) return itamThrow(res, `Failed to load custom fields`);
+    return res.json();
+};
+
+export const updateAssetModelFieldsets = async (modelId: string, fieldsets: ItamFieldsetDef[]): Promise<ItamCatalogEntity> => {
+    const res = await authFetch(`${API_BASE}/itam/catalog/models/${modelId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fieldsets }),
+    });
+    // itamThrow re-raises body.detail only when it is a string; the catalog PATCH returns a
+    // plain string detail for fieldset violations, so the server's specific message reaches
+    // the caller unchanged.
+    if (!res.ok) return itamThrow(res, 'Failed to save custom fields');
+    return res.json();
+};
+
+export const createManualAsset = async (data: Record<string, unknown>): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create asset');
+    return res.json();
+};
+
+export const fetchAssetComponentsList = async (assetId: string): Promise<ItamComponent[]> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/components`);
+    if (!res.ok) return itamThrow(res, 'Failed to load components');
+    return res.json();
+};
+
+export const checkoutAsset = async (assetId: string, payload: { targetType: 'user' | 'location'; targetId: string; note?: string; expectedReturnDate?: string }): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Checkout failed');
+    return res.json();
+};
+
+export const checkinAsset = async (assetId: string, note?: string): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/checkin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }),
+    });
+    if (!res.ok) return itamThrow(res, 'Check-in failed');
+    return res.json();
+};
+
+export const markAssetAudited = async (assetId: string, note?: string): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/audit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to record audit');
+    return res.json();
+};
+
+export const fetchAssetHistory = async (assetId: string): Promise<{ assetId: string; history: ItamAssignmentHistoryEntry[] }> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/history`);
+    if (!res.ok) return itamThrow(res, 'Failed to load history');
+    return res.json();
+};
+
+// Triggers a browser download from a blob-bearing Response, naming the file
+// from the backend's own Content-Disposition header (never invented
+// client-side) with fallbackFilename used only when the header is absent or
+// unparseable. Mirrors exportReport's filename-from-header regex combined
+// with downloadComplianceReport's simpler create-click-revoke teardown.
+async function triggerLabelDownload(res: Response, fallbackFilename: string): Promise<void> {
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+
+    let filename = fallbackFilename;
+    const disposition = res.headers.get('Content-Disposition');
+    if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+            filename = matches[1].replace(/['"]/g, '');
+        }
+    }
+
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+export const fetchAssetQrLabel = async (assetId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/${encodeURIComponent(assetId)}/label/qr`);
+    if (!res.ok) return itamThrow(res, 'Failed to generate QR label');
+    await triggerLabelDownload(res, `asset-label-${assetId}-qr.png`);
+};
+
+export const fetchAssetBarcodeLabel = async (assetId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/${encodeURIComponent(assetId)}/label/barcode`);
+    if (!res.ok) return itamThrow(res, 'Failed to generate barcode label');
+    await triggerLabelDownload(res, `asset-label-${assetId}-barcode.png`);
+};
+
+export const fetchAssetLabelSheet = async (assetIds: string[]): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/assets/labels/sheet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetIds }),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to generate label sheet');
+    await triggerLabelDownload(res, 'asset-labels.pdf');
+};
+
+// ITAM CSV export (Phase 65 Plan 03, ITAM-DAT-03). Clones
+// downloadComplianceReport's Blob-download shape via triggerLabelDownload,
+// which additionally takes the filename from the response's
+// Content-Disposition header when present (the export route always sets
+// one), falling back to 'itam-assets.csv' only when it is absent.
+// Returns whether the server signalled truncation via X-Export-Truncated
+// (set when the export hit the MAX_EXPORT_ROWS cap) so callers can warn
+// the admin instead of silently handing them an incomplete CSV.
+export const exportItamAssetsCsv = async (modelId?: string): Promise<{ truncated: boolean }> => {
+    const qs = modelId ? `?modelId=${encodeURIComponent(modelId)}` : '';
+    const res = await authFetch(`${API_BASE}/itam/data/export${qs}`);
+    if (!res.ok) return itamThrow(res, 'Failed to export assets');
+    const truncated = res.headers.get('X-Export-Truncated') === 'true';
+    await triggerLabelDownload(res, 'itam-assets.csv');
+    return { truncated };
+};
+
+// ITAM CSV import (Phase 65 Plan 03, ITAM-DAT-03, Task 3). A multipart body
+// must never carry an explicit Content-Type — authFetch only sets one when
+// the body is not a FormData instance, so the browser generates the
+// multipart boundary itself.
+export const importItamAssetsCsv = async (file: File, dryRun = false): Promise<ItamImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await authFetch(`${API_BASE}/itam/data/import?dryRun=${dryRun}`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) {
+        if (res.status === 413) {
+            throw new Error('File is too large to import.');
+        }
+        return itamThrow(res, 'Import failed');
+    }
+    return res.json();
+};
+
+// ITAM console global settings (Phase 65 Plan 04, ITAM-SET-01/02/03). A NEW,
+// ITAM-console-scoped surface — deliberately separate from the platform-level
+// TenantBrandingSettings.tsx / /api/tenants/{id}/branding (D-01, 65-04-PLAN.md).
+export const getItamSettings = async (): Promise<ItamSettings> => {
+    const res = await authFetch(`${API_BASE}/itam/settings`);
+    if (!res.ok) return itamThrow(res, 'Failed to load ITAM settings');
+    return res.json();
+};
+
+export const saveItamSettings = async (settings: ItamSettings): Promise<ItamSettings> => {
+    const res = await authFetch(`${API_BASE}/itam/settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        // The save route's 400 body carries `detail.problems` (an array naming each
+        // rejected field) rather than a plain string detail, so itamThrow's generic
+        // string-detail-only re-raise would lose it — surface the joined problems instead.
+        const body = await res.json().catch(() => ({}));
+        const problems = body?.detail?.problems;
+        if (Array.isArray(problems) && problems.length > 0) {
+            throw new Error(problems.join('; '));
+        }
+        return itamThrow(res, 'Failed to save ITAM settings');
+    }
+    return res.json();
+};
+
+export const fetchOverdueAuditReport = async (): Promise<{ overdue: Array<Record<string, unknown>> }> => {
+    const res = await authFetch(`${API_BASE}/assets/reports/overdue-audit`);
+    if (!res.ok) return itamThrow(res, 'Failed to load overdue-audit report');
+    return res.json();
+};
+
+export const updateAssetPurchase = async (assetId: string, data: Record<string, unknown>): Promise<Asset> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/purchase`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to save purchase record');
+    return res.json();
+};
+
+export const fetchAssetBookValue = async (assetId: string): Promise<ItamBookValue> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/book-value`);
+    if (!res.ok) return itamThrow(res, 'Failed to load book value');
+    return res.json();
+};
+
+export const fetchAssetWarranty = async (assetId: string): Promise<ItamWarrantyStatus> => {
+    const res = await authFetch(`${API_BASE}/assets/${assetId}/warranty`);
+    if (!res.ok) return itamThrow(res, 'Failed to load warranty status');
+    return res.json();
+};
+
+export const fetchLicenses = async (): Promise<ItamLicense[]> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses`);
+    if (!res.ok) return itamThrow(res, 'Failed to load licenses');
+    return res.json();
+};
+
+export const createLicense = async (data: Record<string, unknown>): Promise<ItamLicense> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create license');
+    return res.json();
+};
+
+export const updateLicense = async (id: string, data: Record<string, unknown>): Promise<ItamLicense> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to update license');
+    return res.json();
+};
+
+export const assignLicenseSeat = async (id: string, payload: { targetType: 'user' | 'asset'; targetId: string; note?: string }): Promise<ItamLicenseAssignment> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}/assign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to assign seat');
+    return res.json();
+};
+
+export const reclaimLicenseSeat = async (assignmentId: string, note?: string): Promise<void> => {
+    const qs = note ? `?note=${encodeURIComponent(note)}` : '';
+    const res = await authFetch(`${API_BASE}/itam/licenses/assignments/${assignmentId}${qs}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, 'Failed to reclaim seat');
+};
+
+export const fetchLicenseAssignments = async (id: string): Promise<ItamLicenseAssignment[]> => {
+    const res = await authFetch(`${API_BASE}/itam/licenses/${id}/assignments`);
+    if (!res.ok) return itamThrow(res, 'Failed to load seat assignments');
+    return res.json();
+};
+
+export const fetchConsumables = async (): Promise<ItamConsumable[]> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables`);
+    if (!res.ok) return itamThrow(res, 'Failed to load consumables');
+    return res.json();
+};
+
+export const createConsumable = async (data: Record<string, unknown>): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create consumable');
+    return res.json();
+};
+
+export const checkoutConsumable = async (id: string, payload: { quantity: number; assignedTo: string; assignedToType: 'user' | 'asset' | 'location'; notes?: string }): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables/${id}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) return itamThrow(res, 'Checkout failed');
+    return res.json();
+};
+
+export const checkinConsumable = async (id: string, quantity: number): Promise<ItamConsumable> => {
+    const res = await authFetch(`${API_BASE}/itam/consumables/${id}/checkin?quantity=${quantity}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Check-in failed');
+    return res.json();
+};
+
+export const fetchComponents = async (): Promise<ItamComponent[]> => {
+    const res = await authFetch(`${API_BASE}/itam/components`);
+    if (!res.ok) return itamThrow(res, 'Failed to load components');
+    return res.json();
+};
+
+export const createComponent = async (data: Record<string, unknown>): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create component');
+    return res.json();
+};
+
+export const attachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components/${id}/attach/${assetId}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to attach component');
+    return res.json();
+};
+
+export const detachComponent = async (id: string, assetId: string): Promise<ItamComponent> => {
+    const res = await authFetch(`${API_BASE}/itam/components/${id}/detach/${assetId}`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to detach component');
+    return res.json();
+};
+
+// Phase 72 Plan 01: ITAM Reporting (ITAM-REP-02/03). Clones
+// generateComplianceReport/downloadComplianceReport's authFetch +
+// error-detail-throw + blob-anchor shape.
+export interface ItamPrebuiltReportMeta {
+    key: string;
+    title: string;
+    description: string;
+    columns: string[];
+    defaultSort: string;
+}
+
+export interface ItamReportRunResult {
+    key: string;
+    title: string;
+    columns: string[];
+    rows: Record<string, unknown>[];
+    rowCount: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    truncated: boolean;
+}
+
+export interface ItamReportExportResult {
+    filename: string;
+    url: string;
+    generatedAt: string;
+    rowCount: number;
+    truncated: boolean;
+}
+
+export const fetchItamPrebuiltReports = async (): Promise<ItamPrebuiltReportMeta[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports`);
+    if (!res.ok) return itamThrow(res, 'Failed to load reports');
+    return res.json();
+};
+
+export const runItamPrebuiltReport = async (reportKey: string, page = 1, pageSize = 50): Promise<ItamReportRunResult> => {
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/prebuilt/${encodeURIComponent(reportKey)}/run?page=${page}&page_size=${pageSize}`,
+        { method: 'POST' },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't run report.");
+    return res.json();
+};
+
+export const generateItamReport = async (kind: string, reportKey: string, format: string): Promise<ItamReportExportResult> => {
+    if (kind !== 'prebuilt' && kind !== 'custom') {
+        throw new Error(`Unsupported report kind: ${kind}`);
+    }
+    const segment = kind === 'prebuilt' ? 'prebuilt' : 'custom';
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/${segment}/${encodeURIComponent(reportKey)}/export?format=${encodeURIComponent(format)}`,
+        { method: 'POST' },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't export report. Try again, or contact an administrator if the problem continues.");
+    return res.json();
+};
+
+export const downloadItamReport = async (filename: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/download/${encodeURIComponent(filename)}`);
+    if (!res.ok) throw new Error('Failed to download report');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
+// Phase 72 Plan 06: Custom report builder client functions (ITAM-REP-01).
+// Clone fetchItamPrebuiltReports's authFetch + itamThrow shape.
+export interface ItamReportField {
+    key: string;
+    label: string;
+    entity: string;
+    type: 'text' | 'date' | 'number' | 'enum';
+}
+
+export interface ItamReportFilterCondition {
+    field: string;
+    operator: 'equals' | 'contains' | 'before' | 'after' | 'between' | 'gt' | 'lt';
+    value?: unknown;
+    value2?: unknown;
+}
+
+export interface ItamCustomReportDefinition {
+    name: string;
+    columns: string[];
+    filters: ItamReportFilterCondition[];
+}
+
+export interface ItamSavedCustomReport extends ItamCustomReportDefinition {
+    id: string;
+    tenantId?: string | null;
+    createdAt: string;
+    createdBy: string;
+}
+
+export const fetchItamReportFields = async (): Promise<ItamReportField[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/fields`);
+    if (!res.ok) return itamThrow(res, 'Failed to load report fields');
+    return res.json();
+};
+
+export const saveItamCustomReport = async (definition: ItamCustomReportDefinition): Promise<ItamSavedCustomReport> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(definition),
+    });
+    if (!res.ok) return itamThrow(res, "Couldn't save report. Give it a name and try again.");
+    return res.json();
+};
+
+export const listItamCustomReports = async (): Promise<ItamSavedCustomReport[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom`);
+    if (!res.ok) return itamThrow(res, 'Failed to load saved reports');
+    return res.json();
+};
+
+export const deleteItamCustomReport = async (reportId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom/${encodeURIComponent(reportId)}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) return itamThrow(res, "Couldn't delete report.");
+};
+
+export const previewItamCustomReport = async (
+    definition: ItamCustomReportDefinition,
+    page = 1,
+    pageSize = 50,
+): Promise<ItamReportRunResult> => {
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/custom/preview?page=${page}&page_size=${pageSize}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(definition),
+        },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't run report. Try adjusting your filters or contact an administrator.");
+    return res.json();
+};
+
+export const runItamCustomReport = async (reportId: string, page = 1, pageSize = 50): Promise<ItamReportRunResult> => {
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/custom/${encodeURIComponent(reportId)}/run?page=${page}&page_size=${pageSize}`,
+        { method: 'POST' },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't run report. Try adjusting your filters or contact an administrator.");
+    return res.json();
+};
+
+// Phase 72 Plan 04: ITAM dashboard KPIs (ITAM-REP-04). Clones
+// fetchItamPrebuiltReports's authFetch + itamThrow shape.
+export interface ItamKpiStatusBreakdownEntry {
+    status: string;
+    label: string;
+    count: number;
+}
+
+export interface ItamAssetValueKpi {
+    hasData: boolean;
+    totalBookValueCents: number | null;
+    assetCount: number;
+    withoutPolicyCount: number | null;
+    statusBreakdown: ItamKpiStatusBreakdownEntry[];
+    drilldownReportKey: string;
+}
+
+export interface ItamLicenseUtilizationKpi {
+    hasData: boolean;
+    seatsTotal: number | null;
+    seatsAssigned: number | null;
+    seatsAvailable: number | null;
+    utilizationPercent: number | null;
+    drilldownReportKey: string;
+}
+
+export interface ItamWarrantyTimelineEntry {
+    month: string;
+    count: number;
+}
+
+export interface ItamWarrantyExpirationsKpi {
+    hasData: boolean;
+    alertWindowDays: number;
+    expiringSoonCount: number | null;
+    expiredCount: number | null;
+    timeline: ItamWarrantyTimelineEntry[];
+    drilldownReportKey: string;
+}
+
+export interface ItamOverdueKpi {
+    hasData: boolean;
+    overdueAuditCount: number | null;
+    overdueCheckinCount: number | null;
+    totalCount: number | null;
+    drilldownReportKey: string;
+}
+
+export interface ItamKpis {
+    assetValue: ItamAssetValueKpi;
+    licenseUtilization: ItamLicenseUtilizationKpi;
+    warrantyExpirations: ItamWarrantyExpirationsKpi;
+    overdue: ItamOverdueKpi;
+}
+
+export const fetchItamKpis = async (): Promise<ItamKpis> => {
+    const res = await authFetch(`${API_BASE}/itam/kpis`);
+    if (!res.ok) return itamThrow(res, 'Failed to load KPIs');
+    return res.json();
+};
+
+// Phase 71-03: Asset Request & Approval Workflow (ITAM-PRO-04/05)
+export const fetchAssetRequests = async (statusFilter?: ItamAssetRequestStatus): Promise<ItamAssetRequest[]> => {
+    const qs = statusFilter ? `?status_filter=${statusFilter}` : '';
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests${qs}`);
+    if (!res.ok) return itamThrow(res, 'Failed to load asset requests');
+    return res.json();
+};
+
+export const createAssetRequest = async (data: { item_description: string; quantity: number; reason: string }): Promise<ItamAssetRequest> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to submit asset request');
+    return res.json();
+};
+
+export const approveAssetRequest = async (id: string): Promise<ItamAssetRequest> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests/${id}/approve`, { method: 'PATCH' });
+    if (!res.ok) return itamThrow(res, 'Failed to approve asset request');
+    return res.json();
+};
+
+export const rejectAssetRequest = async (id: string): Promise<ItamAssetRequest> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/asset-requests/${id}/reject`, { method: 'PATCH' });
+    if (!res.ok) return itamThrow(res, 'Failed to reject asset request');
+    return res.json();
+};
+
+// Note: this route is /api/audit-logs, not under /api/itam/ — it is the
+// platform's existing shared audit ledger, not an ITAM-specific one. Named
+// fetchItamAuditLogs (not fetchAuditLogs) because a same-named, differently-
+// shaped fetchAuditLogs() already exists above for the legacy AuditLog.tsx
+// "Time Machine" timeline — that one swallows errors and returns a bare
+// array with `actor`/`status` fields; this one is filterable, throws on a
+// non-ok response (so the panel can render a real error), and returns the
+// AuditLogEntry shape the backend ledger actually writes.
+export const fetchItamAuditLogs = async (params?: { resourceType?: string; resourceId?: string; limit?: number; skip?: number }): Promise<AuditLogEntry[]> => {
+    const qs = new URLSearchParams();
+    if (params?.resourceType) qs.set('resourceType', params.resourceType);
+    if (params?.resourceId) qs.set('resourceId', params.resourceId);
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.skip != null) qs.set('skip', String(params.skip));
+    const query = qs.toString();
+    const res = await authFetch(`${API_BASE}/audit-logs${query ? `?${query}` : ''}`);
+    if (!res.ok) {
+        if (res.status === 403) {
+            throw new Error('Your account does not have permission to view the audit log.');
+        }
+        return itamThrow(res, 'Failed to load activity log');
+    }
+    return res.json();
+};
+
+export const verifyAuditIntegrity = async (): Promise<{ valid: boolean; total_records?: number; broken_links?: unknown[]; status?: string }> => {
+    const res = await authFetch(`${API_BASE}/audit-logs/integrity-check`, { method: 'POST' });
+    if (!res.ok) return itamThrow(res, 'Failed to verify ledger integrity');
+    return res.json();
+};
+
+export const apiService = {
+    get: async (endpoint: string) => {
+        const res = await authFetch(endpoint);
+        if (!res.ok) throw new Error(`GET ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    post: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`POST ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    put: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`PUT ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    patch: async (endpoint: string, body: any) => {
+        const res = await authFetch(endpoint, {
+            method: 'PATCH',
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`PATCH ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    delete: async (endpoint: string) => {
+        const res = await authFetch(endpoint, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`DELETE ${endpoint} failed: ${res.statusText}`);
+        return await res.json();
+    },
+    // Security Ops Endpoints
+    fetchFindings,
+    fetchRemediationQueue,
+    triggerScan,
+    fetchFimStatus,
+    fetchSecuritySummary,
+    // Remediation Audit & Actions
+    fetchRemediationAudit,
+    approveRemediation,
+    denyRemediation,
+    // Remediation Playbook CRUD
+    fetchRemediationPlaybooks,
+    createRemediationPlaybook,
+    updateRemediationPlaybook,
+    deleteRemediationPlaybook,
 };

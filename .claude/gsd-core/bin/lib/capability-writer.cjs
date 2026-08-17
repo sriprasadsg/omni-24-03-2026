@@ -24,7 +24,13 @@
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ioMod = require("./io.cjs");
-const { output: coreOutput, error: coreError } = ioMod;
+const { output: coreOutput } = ioMod;
+// ExitError (NOT process.exit) is how every gsd-tools command signals a non-zero exit: runMain
+// translates it to process.exitCode so buffered stdout flushes first. Calling process.exit() here
+// truncates a just-written --raw JSON payload before the reader sees it (a real silent-output bug).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cliExitMod = require("./cli-exit.cjs");
+const { ExitError } = cliExitMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const capabilityStateMod = require("./capability-state.cjs");
 const { resolveCapabilityRuntimeState, _resolveManifest, _resolveCommandsGsdDir } = capabilityStateMod;
@@ -71,8 +77,17 @@ function setCapabilityState(cwd, runtimeConfigDir, desired, opts) {
     const before = resolveCapabilityRuntimeState(cwd, runtimeConfigDir);
     const resolvedConfigDir = before.runtimeConfigDir;
     // ── Load registry ─────────────────────────────────────────────────────────
+    // Issue #2045 (DEFECT 2): validate against the COMPOSED overlay-aware registry
+    // (first-party ∪ accepted overlays), mirroring capability-state.cts:547-551.
+    // The frozen capability-registry.cjs only knows first-party ids, so a third-
+    // party cap failed the membership check below → "unknown capability" even
+    // though resolveCapabilityRuntimeState (the `before` snapshot, line 150) already
+    // knew about it. loadRegistry is non-throwing and first-party-wins, so a
+    // malformed overlay is skipped (never crashes the writer); a truly-unknown id
+    // is STILL rejected because it is absent from the composed capabilities map.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const registry = require('./capability-registry.cjs');
+    const { loadRegistry } = require('./capability-loader.cjs');
+    const registry = loadRegistry({ includeInstalled: true, cwd, gsdHome: process.env['GSD_HOME'] });
     const capabilitiesMap = (registry['capabilities'] && typeof registry['capabilities'] === 'object' && !Array.isArray(registry['capabilities'])
         ? registry['capabilities']
         : {});
@@ -240,12 +255,27 @@ function setCapabilityState(cwd, runtimeConfigDir, desired, opts) {
         try {
             // eslint-disable-next-line @typescript-eslint/no-require-imports
             const runtimeArtifactLayout = require('./runtime-artifact-layout.cjs');
+            // #2322: thread the SAME composed registry (loaded above, includeInstalled:true)
+            // into layout resolution so the skills kind's stage() closure can bind a
+            // third-party capability skill to its declaring capId at staging time —
+            // required for BOTH the '*' (full-profile) fill-in and the ownership binding
+            // (see resolveRuntimeArtifactLayout's #2322 doc comment).
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            const layout = runtimeArtifactLayout.resolveRuntimeArtifactLayout(runtime, resolvedConfigDir, scope);
+            const layout = runtimeArtifactLayout.resolveRuntimeArtifactLayout(runtime, resolvedConfigDir, scope, registry);
             const commandsGsdDir = _resolveCommandsGsdDir();
             const manifest = _resolveManifest(commandsGsdDir, resolvedConfigDir);
+            // #1575: applySurface now accepts opts.resolveAttribution so surface-path
+            // agents get the same Co-Authored-By trailer as the install path. The
+            // resolver is not threaded here yet — the CLI command handler does not have
+            // access to getCommitAttribution (which lives in bin/install.js). Until that
+            // is refactored into a shared module, surface-path agents for descriptor-
+            // driven runtimes will lack the Co-Authored-By trailer that install adds.
+            // Parity is proven when resolveAttribution IS provided (see
+            // tests/issue-1575-agent-descriptor-parity.test.cjs).
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-            applySurface(resolvedConfigDir, layout, manifest, undefined, registry);
+            applySurface(resolvedConfigDir, layout, manifest, undefined, registry, opts?.materialize?.resolveAttribution
+                ? { resolveAttribution: opts.materialize.resolveAttribution }
+                : undefined);
         }
         catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -322,7 +352,8 @@ function cmdCapabilitySet(cwd, runtimeConfigDir, capId, options, raw) {
         // Do NOT print human stderr lines — raw consumers parse the JSON.
         coreOutput({ capabilities: result.capabilities, warnings: result.warnings, errors: result.errors }, true);
         if (result.errors.length > 0) {
-            process.exit(1);
+            // Throw (don't process.exit) so the JSON written just above flushes before the process ends.
+            throw new ExitError(1);
         }
         return;
     }
@@ -333,10 +364,12 @@ function cmdCapabilitySet(cwd, runtimeConfigDir, capId, options, raw) {
     for (const e of result.errors) {
         process.stderr.write(`capability set: error: ${e}\n`);
     }
-    // Exit non-zero if any errors (hard failures — requested action was not realized).
+    // Exit non-zero if any errors (hard failures — requested action was not realized). The per-error
+    // lines were already written to stderr above; signal the exit code via ExitError (not process.exit)
+    // so any pending stdout/stderr flushes — runMain maps it to process.exitCode.
     if (result.errors.length > 0) {
-        coreError(`capability set: ${String(result.errors.length)} error(s) — see above`);
-        return; // unreachable — coreError calls process.exit(1)
+        process.stderr.write(`Error: capability set: ${String(result.errors.length)} error(s) — see above\n`);
+        throw new ExitError(1);
     }
     // Human-readable summary: focus on the target capability
     const cap = result.capabilities.find((c) => c.id === capId);

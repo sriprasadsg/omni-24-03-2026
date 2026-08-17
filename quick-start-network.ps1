@@ -14,7 +14,7 @@ if (Test-Path $configPath) {
     (Get-Content $configPath) -replace 'localhost', $IP | Set-Content $configPath
 }
 
-Write-Host "Starting services at http://$IP:3000" -ForegroundColor Green
+Write-Host "Starting services at https://$IP" -ForegroundColor Green
 Write-Host ""
 
 # Start backend
@@ -30,6 +30,6 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
 Write-Host "[OK] Backend starting..." -ForegroundColor Green
 Write-Host "[OK] Frontend starting..." -ForegroundColor Green
 Write-Host ""
-Write-Host "Access at: http://$IP:3000" -ForegroundColor Cyan
+Write-Host "Access at: https://$IP" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Login: super@omni.ai / Admin123!" -ForegroundColor Yellow

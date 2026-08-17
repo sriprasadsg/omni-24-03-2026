@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from database import get_database
-from tenant_context import set_tenant_id
+from tenant_context import set_tenant_id, reset_tenant_id
 import compliance_reporting_pdf
 from compliance_reports_endpoints import _REPORTS_DIR
 from email_service import email_service
@@ -482,9 +482,10 @@ async def start_report_scheduler():
     """Background loop: check every 5 minutes for due reports."""
     logger.info("[Reports] Scheduler loop started")
     while True:
+        _tenant_ctx_token = None
         try:
             await asyncio.sleep(300)
-            set_tenant_id("platform-admin")  # allow cross-tenant query; per-schedule re-scope happens in _generate_report
+            _tenant_ctx_token = set_tenant_id("platform-admin")  # allow cross-tenant query; per-schedule re-scope happens in _generate_report
             db = get_database()
             now = datetime.now(timezone.utc).isoformat()
             due_schedules = await db.report_schedules.find(
@@ -496,3 +497,8 @@ async def start_report_scheduler():
 
         except Exception as exc:
             logger.error("[Reports] Scheduler loop error: %s", exc)
+        finally:
+            # Restores pre-cycle state even though _generate_report re-scoped
+            # the ContextVar per schedule after this token was minted (SEC-03).
+            if _tenant_ctx_token is not None:
+                reset_tenant_id(_tenant_ctx_token)

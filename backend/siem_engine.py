@@ -6,6 +6,13 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import uuid
 
+from tenant_context import set_tenant_id, reset_tenant_id
+
+# Bounded read cap for native-finding correlation inputs (INT-04). Mirrors
+# the precedent in native_security_ops_endpoints.get_findings — never an
+# unbounded .find({}) scan of these high-volume collections.
+NATIVE_FINDING_READ_LIMIT = 200
+
 class SiemEngine:
     def __init__(self, db):
         self.db = db
@@ -71,6 +78,100 @@ class SiemEngine:
 
         return event
 
+    async def correlate_native_findings(self, tenant_id: str) -> Dict[str, Any]:
+        """
+        Correlate native v3.4 finding sources (security_scan_results,
+        vulnerabilities, fim_events, remediation_audit) into the SAME
+        correlation path incoming agent/syslog logs already use (INT-04, D-01).
+
+        Each native collection is read bounded (.to_list(length=200), never
+        an unbounded scan) and tenant-scoped via set_tenant_id/reset_tenant_id
+        plus the tenant-isolated self.db handle (never the raw, unwrapped
+        Motor database). Every doc is normalized into the same event dict
+        shape _normalize_log() emits,
+        then handed to the EXISTING self._evaluate_rules() — this makes
+        the tenant's existing siem_rules apply to native findings for free,
+        with no parallel correlation loop and no rule redefinition.
+        """
+        _tctx = set_tenant_id(tenant_id)
+        try:
+            scans = await self.db.security_scan_results.find(
+                {"tenantId": tenant_id}
+            ).to_list(length=NATIVE_FINDING_READ_LIMIT)
+            vulns = await self.db.vulnerabilities.find(
+                {"tenantId": tenant_id}
+            ).to_list(length=NATIVE_FINDING_READ_LIMIT)
+            fim = await self.db.fim_events.find(
+                {"tenantId": tenant_id}
+            ).to_list(length=NATIVE_FINDING_READ_LIMIT)
+            remediations = await self.db.remediation_audit.find(
+                {"tenantId": tenant_id}
+            ).to_list(length=NATIVE_FINDING_READ_LIMIT)
+        finally:
+            reset_tenant_id(_tctx)
+
+        events: List[Dict[str, Any]] = []
+        sources: List[str] = []
+
+        def _add(source_label: str, docs: List[Dict[str, Any]]):
+            if docs:
+                sources.append(source_label)
+            for doc in docs:
+                events.append(self._normalize_native_finding(doc, tenant_id, source_label))
+
+        _add("native_scan", scans)
+        _add("native_vuln", vulns)
+        _add("native_fim", fim)
+        _add("native_remediation", remediations)
+
+        if events:
+            await self._evaluate_rules(events, tenant_id)
+
+        return {"evaluated_count": len(events), "sources": sources}
+
+    def _normalize_native_finding(self, doc: Dict[str, Any], tenant_id: str, source: str) -> Dict[str, Any]:
+        """Normalize one native-collection doc into the SAME event dict
+        shape _normalize_log() emits (id, tenant_id, agent_id, timestamp,
+        source, raw, category, action, user). category/action are derived
+        from each doc's own severity/type/verdict fields per collection."""
+        if source == "native_scan":
+            agent_id = doc.get("agentId")
+            category = doc.get("severity", "unknown")
+            action = doc.get("verdict", "unknown")
+            event_id = doc.get("id")
+            timestamp = doc.get("created_at")
+        elif source == "native_vuln":
+            agent_id = doc.get("assetId")
+            category = doc.get("severity", "unknown")
+            action = doc.get("status", "unknown")
+            event_id = doc.get("id")
+            timestamp = doc.get("created_at")
+        elif source == "native_fim":
+            agent_id = doc.get("agent_id")
+            category = doc.get("severity", "file_integrity")
+            action = doc.get("change_type") or doc.get("event_type", "unknown")
+            event_id = doc.get("id")
+            timestamp = doc.get("received_at") or doc.get("ts")
+        else:  # native_remediation
+            agent_id = doc.get("agentId")
+            finding = doc.get("finding") or {}
+            category = finding.get("type", "remediation")
+            action = doc.get("stage", "unknown")
+            event_id = doc.get("remediation_id") or doc.get("id")
+            timestamp = doc.get("ts")
+
+        return {
+            "id": event_id or f"native_{uuid.uuid4().hex[:12]}",
+            "tenant_id": tenant_id,
+            "agent_id": agent_id or "unknown",
+            "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+            "source": source,
+            "raw": doc,
+            "category": category,
+            "action": action,
+            "user": "system",
+        }
+
     async def _evaluate_rules(self, events: List[Dict[str, Any]], tenant_id: str):
         """Evaluate events against active correlation rules."""
         rules = await self.db.siem_rules.find({"tenantId": tenant_id, "enabled": True}).to_list(length=1000)
@@ -109,8 +210,16 @@ class SiemEngine:
         }
         
         await self.db.security_cases.insert_one(case_doc)
-        
-        # Dispatch notification 
+
+        # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
+        # Fire-and-forget; never raises into the correlation path.
+        try:
+            from soc_integration_service import push_ocsf_event
+            await push_ocsf_event("threat.correlation", case_doc)
+        except Exception as e:
+            print(f"[SIEMEngine] Failed to push OCSF event: {e}")
+
+        # Dispatch notification
         try:
             from email_service import email_service
             smtp_config = await self.db.smtp_config.find_one({"tenant_id": tenant_id})

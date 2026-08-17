@@ -222,69 +222,50 @@ async def handle_oidc_callback(code: str, state: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
-# ─── SAML Flow (lightweight — no python3-saml dependency required) ────────────
+# ─── SAML Flow (delegates to saml_service.py — see 64-04 <module_budget>) ─────
+# The real SAML 2.0 SP implementation (metadata, SP-initiated login, ACS
+# validation with signature/audience/timestamp/replay checks, SLO, user
+# provisioning, group->role mapping) lives in saml_service.py / saml_mapping.py.
+# These two functions are kept only as thin, signature-compatible wrappers so
+# any existing importer of this module's old SAML entry points keeps working.
 
-async def get_saml_sp_metadata(base_url: str) -> str:
-    """Return SP metadata XML."""
-    return f"""<?xml version="1.0"?>
-<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
-  entityID="{base_url}/api/sso/saml/metadata">
-  <SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true"
-    protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <AssertionConsumerService
-      Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-      Location="{base_url}/api/sso/saml/acs"
-      index="0"/>
-  </SPSSODescriptor>
-</EntityDescriptor>"""
+async def get_saml_sp_metadata(base_url: str) -> str:  # noqa: ARG001 — kept for signature compatibility
+    """Return SP metadata XML for the platform-wide SAML config.
+    `base_url` is accepted for backward compatibility but unused — the real
+    entityID/ACS URL come from the configured SAMLConfig (SAML_ENTITY_ID /
+    SAML_ACS_URL env vars, or the admin-saved config)."""
+    from saml_service import SAMLAuthenticator, get_saml_config
+    config = await get_saml_config(None)
+    metadata_xml, _errors = SAMLAuthenticator(config).metadata()
+    return metadata_xml
 
 
 async def process_saml_response(saml_response_b64: str, tenant_id: str) -> dict:
     """
-    Parse a base64-encoded SAMLResponse and extract user attributes.
-    Returns: { success, email, name }
-    Uses python3-saml if available, otherwise falls back to regex parsing for demo.
+    Validate a base64-encoded SAMLResponse and provision/authenticate the
+    user. Returns: { success, email, name } (legacy shape) plus the full
+    authenticate_saml() result on success.
+
+    This wrapper has no real HTTP request context (no InResponseTo
+    correlation is possible without one), so it only supports
+    IdP-initiated-style validation. New code should call
+    saml_service.authenticate_saml() directly from the ACS endpoint, which
+    has the real FastAPI Request and full InResponseTo/replay protection.
     """
-    import base64
+    from saml_service import authenticate_saml, SAMLProvisionError, SAMLValidationError
+    request_data = {
+        "https": "on",
+        "http_host": "",
+        "server_port": "443",
+        "script_name": "/api/auth/saml/acs",
+        "get_data": {},
+        "post_data": {"SAMLResponse": saml_response_b64},
+    }
     try:
-        xml = base64.b64decode(saml_response_b64).decode("utf-8", errors="replace")
-    except Exception:
-        return {"success": False, "error": "Invalid SAML response encoding"}
-
-    try:
-        # Try with python3-saml if installed
-        from onelogin.saml2.auth import OneLogin_Saml2_Auth
-        return {"success": False, "error": "python3-saml requires server-side setup"}
-    except ImportError:
-        pass
-
-    # Safe XML parsing via defusedxml (prevents XXE)
-    try:
-        from defusedxml import ElementTree as _ET
-        _NS = {
-            "saml2": "urn:oasis:names:tc:SAML:2.0:assertion",
-            "saml":  "urn:oasis:names:tc:SAML:1.0:assertion",
-        }
-        root = _ET.fromstring(xml)
-        email = None
-        for _prefix in ("saml2", "saml"):
-            _node = root.find(f".//{{{_NS[_prefix]}}}NameID")
-            if _node is not None and _node.text and "@" in _node.text:
-                email = _node.text.strip()
-                break
-        if not email:
-            return {"success": False, "error": "Could not extract email from SAML assertion"}
-        name = None
-        for _attr in root.iter(f"{{{_NS['saml2']}}}Attribute"):
-            _attr_name = _attr.get("Name", "")
-            if "name" in _attr_name.lower() and "email" not in _attr_name.lower():
-                _val = _attr.find(f"{{{_NS['saml2']}}}AttributeValue")
-                if _val is not None and _val.text:
-                    name = _val.text.strip()
-                    break
-        return {"success": True, "email": email, "name": name}
-    except Exception:
-        return {"success": False, "error": "Could not parse SAML assertion"}
+        result = await authenticate_saml(request_data, tenant_id=tenant_id)
+    except (SAMLValidationError, SAMLProvisionError) as exc:
+        return {"success": False, "error": str(exc)}
+    return {"success": True, "email": result["email"], "name": result["email"], **result}
 
 
 # ─── User Provisioning ────────────────────────────────────────────────────────

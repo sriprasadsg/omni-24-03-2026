@@ -9,7 +9,7 @@ from auth_types import TokenData
 from rate_limiter import limiter
 from tenant_context import set_tenant_id
 
-_TRUST_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
+_TRUST_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
 
 router = APIRouter(prefix="/api/trust-center", tags=["Trust Center"])
 

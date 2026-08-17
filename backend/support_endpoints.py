@@ -127,6 +127,12 @@ async def start_conversation(
     db = get_database()
     c = _caller(current_user)
 
+    # Canonical login identifier of an admin_to_user target (matches the JWT `sub`
+    # the target authenticates with, i.e. their email). WS delivery and the user's
+    # access filter both key on this, so it MUST equal the target's login id — not
+    # an internal uuid.
+    target_login_id: Optional[str] = None
+
     VALID_TYPES = ("user_to_admin", "admin_to_superadmin", "admin_to_user")
     if body.chat_type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail="Invalid chat_type")
@@ -147,12 +153,16 @@ async def start_conversation(
                 {"email":    body.target_user_id},
                 {"username": body.target_user_id},
             ]},
-            {"tenantId": 1, "_id": 0},
+            {"tenantId": 1, "email": 1, "username": 1, "name": 1, "_id": 0},
         )
         if not target:
             raise HTTPException(status_code=404, detail="Target user not found")
         if not _is_super(c["role"]) and target.get("tenantId") != c["tenant"]:
             raise HTTPException(status_code=403, detail="Target user is not in your tenant")
+        # Store the target's login id (email) so the conversation is visible to them
+        # (access filter matches target_user_id == their username) and WS events reach
+        # their socket session (keyed by the same login id).
+        target_login_id = target.get("email") or target.get("username") or body.target_user_id
 
     # Resolve initiator display name + email from the users collection
     user_doc = await db._db.users.find_one(
@@ -178,8 +188,8 @@ async def start_conversation(
         "updated_at":       _now(),
     }
     if body.chat_type == "admin_to_user":
-        convo["target_user_id"]   = body.target_user_id
-        convo["target_user_name"] = body.target_user_name or body.target_user_id
+        convo["target_user_id"]   = target_login_id or body.target_user_id
+        convo["target_user_name"] = body.target_user_name or (target.get("name") if target else None) or target_login_id or body.target_user_id
     if body.chat_type == "admin_to_superadmin" and body.original_convo_id:
         convo["original_convo_id"]   = body.original_convo_id
         convo["original_subject"]    = body.original_subject or ""

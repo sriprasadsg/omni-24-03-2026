@@ -3,6 +3,7 @@ import { authFetch } from '../services/apiService';
 import { Tenant, Permission, SubscriptionTier } from '../types';
 import { TrashIcon } from './icons';
 import { SUBSCRIPTION_TIERS } from '../constants';
+import { Modal } from './Modal';
 
 interface ManageTenantModalProps {
   isOpen: boolean;
@@ -175,16 +176,34 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     }
   }
 
-  if (!isOpen || !tenant) return null;
+  if (!tenant) return null;
 
   const allSelected = allToggleableFeatures.every(f => enabledFeatures.has(f));
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex-shrink-0">Manage Tenant: <span className="text-primary-600 dark:text-primary-400">{tenant.name}</span></h2>
+  const footer = (
+    <>
+      <button type="button" onClick={onClose}
+        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+      >
+        Cancel
+      </button>
+      <button type="button" onClick={handleSave}
+        className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none"
+      >
+        Save Changes
+      </button>
+    </>
+  );
 
-        <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={<>Manage Tenant: <span className="text-primary-600 dark:text-primary-400">{tenant.name}</span></>}
+      size="2xl"
+      footer={footer}
+    >
+        <div className="space-y-4">
           <div>
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Subscription Tier</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select a base subscription tier.</p>
@@ -288,20 +307,6 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
           </div>
 
         </div>
-
-        <div className="mt-6 flex-shrink-0 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-          >
-            Cancel
-          </button>
-          <button type="button" onClick={handleSave}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

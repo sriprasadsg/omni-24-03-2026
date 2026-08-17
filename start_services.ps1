@@ -20,7 +20,7 @@ Write-Host "Starting Backend..."
 Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", @"
 `$env:MONGODB_URL          = 'mongodb://127.0.0.1:27017'
 `$env:DATABASE_NAME        = 'omni_agent_platform'
-`$env:CORS_ORIGINS         = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173'
+`$env:CORS_ORIGINS         = 'https://localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173'
 `$env:SUPER_ADMIN_PASSWORD = 'Admin@2030'
 `$env:PLATFORM_URL         = 'http://127.0.0.1:$BACKEND_PORT'
 `$env:TICKET_ATTACHMENT_DIR= "`$env:TEMP\ticket_attachments"
@@ -68,7 +68,7 @@ while ($retries -lt 20) {
 if ($retries -ge 20) { Write-Warning "Frontend not responding — check the terminal window." }
 
 Write-Host ""
-Write-Host "  Frontend:  http://localhost:$FRONTEND_PORT" -ForegroundColor Cyan
+Write-Host "  Frontend:  https://localhost:$FRONTEND_PORT" -ForegroundColor Cyan
 Write-Host "  Backend:   http://127.0.0.1:$BACKEND_PORT" -ForegroundColor Cyan
 Write-Host "  API Docs:  http://127.0.0.1:$BACKEND_PORT/docs" -ForegroundColor Cyan
 Write-Host "  Login:     super@omni.ai / Admin@2030" -ForegroundColor Yellow

@@ -22,11 +22,11 @@
 !define PRODUCT_NAME        "OmniAgent"
 !define PRODUCT_VERSION     "2.0.0"
 !define PRODUCT_PUBLISHER   "Enterprise OmniAgent AI Platform"
-!define PRODUCT_UNINST_KEY  "Software\Microsoft\Windows\CurrentVersion\Uninstall\OmniAgent"
-!define PRODUCT_REG_KEY     "Software\OmniAgent"
-!define SVC_NAME            "OmniAgent"
-!define SVC_DISPLAY         "Enterprise Omni Agent"
-!define SVC_DESCRIPTION     "AI-Powered Enterprise Security Agent"
+!define PRODUCT_UNINST_KEY  "Software\Microsoft\Windows\CurrentVersion\Uninstall\OmniAgentRust"
+!define PRODUCT_REG_KEY     "Software\OmniAgentRust"
+!define SVC_NAME            "OmniAgentRust"
+!define SVC_DISPLAY         "Enterprise OmniAgent (Rust)"
+!define SVC_DESCRIPTION     "Enterprise security compliance agent - evidence, CIS/PCI/ISO checks."
 
 ; ── Output file (override via /DOUTFILE=... at build time) ───
 !ifndef OUTFILE
@@ -35,7 +35,7 @@
 
 Name          "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile       "${OUTFILE}"
-InstallDir    "$PROGRAMFILES64\OmniAgent"
+InstallDir    "$PROGRAMFILES64\OmniAgentRust"
 InstallDirRegKey HKLM "${PRODUCT_REG_KEY}" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor  lzma

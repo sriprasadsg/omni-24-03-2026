@@ -17,7 +17,7 @@ class AIProvider(ABC):
         pass
 
     @abstractmethod
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         pass
 
     async def generate_stream(self, prompt: str) -> AsyncIterator[str]:
@@ -52,10 +52,17 @@ class GeminiProvider(AIProvider):
             logger.warning("Gemini configuration failed: %s", e)
             return False
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         if not self.client:
             raise RuntimeError("Gemini client not initialized")
-        response = self.client.models.generate_content(model=self.model_name, contents=prompt)
+        config = {}
+        if temperature is not None:
+            config["temperature"] = temperature
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=config if config else None
+        )
         return response.text
 
     async def generate_stream(self, prompt: str) -> AsyncIterator[str]:
@@ -107,9 +114,11 @@ class OllamaProvider(AIProvider):
             logger.debug("Ollama connectivity check failed: %s", exc)
         return False
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         url = f"{self.base_url}/api/generate"
         payload = {"model": self.model_name, "prompt": prompt, "stream": False}
+        if temperature is not None:
+            payload["options"] = {"temperature": temperature}
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
@@ -156,9 +165,18 @@ class AnthropicProvider(AIProvider):
         self.model_name = settings.get("model", "claude-sonnet-4-6")
         return True
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         if not self.api_key:
             raise RuntimeError("Anthropic API key not configured")
+
+        payload = {
+            "model": self.model_name,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if temperature is not None:
+            payload["temperature"] = temperature
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "https://api.anthropic.com/v1/messages",
@@ -167,11 +185,7 @@ class AnthropicProvider(AIProvider):
                     "anthropic-version": "2023-06-01",
                     "content-type": "application/json",
                 },
-                json={
-                    "model": self.model_name,
-                    "max_tokens": 1024,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
+                json=payload,
             )
             resp.raise_for_status()
             return resp.json()["content"][0]["text"]
@@ -216,6 +230,56 @@ class AnthropicProvider(AIProvider):
             yield await self.generate(prompt)
 
 
+class OpenAICompatProvider(AIProvider):
+    """OpenAI-compatible chat-completions provider (e.g. the 9router gateway).
+
+    Talks to `{base_url}/v1/chat/completions`. Sends stream:false for a single
+    JSON body and omits `temperature` for models that reject it (Claude 5 family
+    returns 400 "temperature is deprecated for this model").
+    """
+
+    def __init__(self):
+        self.base_url = ""
+        self.api_key = ""
+        self.model_name = ""
+
+    @property
+    def name(self) -> str:
+        return "OpenAI-Compatible"
+
+    async def configure(self, settings: dict) -> bool:
+        import os
+        self.base_url = (settings.get("baseUrl") or settings.get("routerUrl")
+                         or os.getenv("AI_ROUTER_URL") or "").rstrip("/")
+        self.api_key = (settings.get("apiKey") or os.getenv("AI_ROUTER_KEY") or "")
+        self.model_name = (settings.get("model") or os.getenv("AI_ROUTER_MODEL") or "")
+        if not (self.base_url and self.api_key and self.model_name):
+            logger.warning("OpenAICompatProvider: baseUrl/apiKey/model incomplete")
+            return False
+        return True
+
+    def _payload(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> dict:
+        body = {
+            "model": self.model_name,
+            "stream": False,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+        }
+        # Claude 5 models reject temperature; only send it for others.
+        if "claude" not in self.model_name.lower():
+            body["temperature"] = temperature if temperature is not None else 0.1
+        return body
+
+    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
+        url = f"{self.base_url}/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=self._payload(prompt, temperature, max_tokens), headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+
 class MockProvider(AIProvider):
     _DEGRADED_NOTICE = (
         "\n\n⚠️ **AI running in limited mode** — no LLM provider is configured. "
@@ -237,7 +301,7 @@ class MockProvider(AIProvider):
             yield word + (" " if i < len(full.split(" ")) - 1 else "")
             await asyncio.sleep(0.04)
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         lower_prompt = prompt.lower()
         if "dashboard" in lower_prompt:
             base = "The dashboard provides a real-time overview of your enterprise security posture. [NAVIGATE:dashboard]"

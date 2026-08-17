@@ -45,6 +45,10 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
     }, [deploymentId, autoRefresh]);
 
     const fetchDeployment = async () => {
+        if (!deploymentId) {
+            setLoading(false);
+            return;
+        }
         try {
             const response = await authFetch(`/api/deployments/staged/${deploymentId}`);
             const data = await response.json();
@@ -103,7 +107,7 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
                         Staged Deployment: {deployment.id}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {deployment.patch_ids.length} patches • {deployment.all_asset_ids.length} total assets
+                        {deployment.patch_ids?.length || 0} patches • {deployment.all_asset_ids?.length || 0} total assets
                     </p>
                 </div>
                 <div className="flex items-center gap-3">

@@ -7,7 +7,7 @@ from auth_utils import get_current_user
 router = APIRouter(prefix="/api/dpa", tags=["DPA Management"])
 
 _DPA_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
-_DPA_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
+_DPA_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
 
 
 async def _db():

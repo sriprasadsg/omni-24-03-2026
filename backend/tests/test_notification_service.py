@@ -99,6 +99,32 @@ def test_schedule_domain():
     assert resp.status_code in (200, 400)
 
 
+def test_send_alert_explicit_empty_channels_means_no_dispatch():
+    """channels=[] (explicit, not omitted) must NOT fall back to the
+    ["email"] default — callers depend on this for in-app-only alerts
+    (Phase 42 control-comment @mentions, D-02). channels=None (or omitted)
+    still defaults to email."""
+    import asyncio
+    from notification_service import NotificationService
+
+    db = MagicMock()
+    db.notifications = MagicMock()
+    db.notifications.insert_one = AsyncMock()
+    svc = NotificationService(db)
+
+    result = asyncio.run(svc.send_alert(
+        title="t", message="m", severity="info", recipients=["bob@acme.com"],
+        tenant_id="tenant-a", channels=[], metadata={},
+    ))
+    assert result["channels"] == {}, f"Expected no channel dispatch, got {result['channels']}"
+
+    result_default = asyncio.run(svc.send_alert(
+        title="t", message="m", severity="info", recipients=["bob@acme.com"],
+        tenant_id="tenant-a", metadata={},
+    ))
+    assert "email" in result_default["channels"], "Omitted channels should still default to email"
+
+
 def test_tenant_isolation_channels():
     seeded = [
         {"id": "chan-a", "tenantId": "tenant-a", "type": "slack", "name": "A's channel", "config": {}},

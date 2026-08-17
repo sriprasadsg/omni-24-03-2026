@@ -50,6 +50,7 @@ class RealVulnerabilityScanningCapability(BaseCapability):
             }
         except Exception as e:
             logger.warning("OSV scan failed, falling back to pip outdated check: %s", e)
+            logger.debug("Full exception for OSV scan failure: ", exc_info=True)
             return self._fallback_scan()
 
     def _fallback_scan(self) -> Dict[str, Any]:

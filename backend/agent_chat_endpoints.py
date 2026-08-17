@@ -530,12 +530,23 @@ async def close_session(
     query: Dict[str, Any] = {"id": session_id}
     if not _is_super(current_user.role or ""):
         query["tenant_id"] = current_user.tenant_id or ""
-    result = await db.agent_chat_sessions.update_one(
-        query,
+    session = await db.agent_chat_sessions.find_one(query, {"_id": 0, "agent_id": 1, "tenant_id": 1})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await db.agent_chat_sessions.update_one(
+        {"id": session_id},
         {"$set": {"status": "closed", "closed_at": _now(), "updated_at": _now()}},
     )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Tell the agent to tear down the endpoint chat window promptly.
+    await db.agent_instructions.insert_one({
+        "agent_id":   session.get("agent_id"),
+        "type":       "close_agent_chat",
+        "payload":    {"session_id": session_id},
+        "status":     "pending",
+        "tenantId":   session.get("tenant_id", ""),
+        "created_at": _now(),
+    })
     return {"status": "closed", "session_id": session_id}
 
 

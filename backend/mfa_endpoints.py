@@ -3,8 +3,10 @@ MFA Endpoints — /api/mfa/*
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
 from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from authentication_endpoints import _SENSITIVE_USER_FIELDS, _record_login_failure, _clear_login_failures
 from database import get_database
 from rate_limiter import limiter
 from datetime import timedelta
@@ -15,30 +17,57 @@ router = APIRouter(prefix="/api/mfa", tags=["MFA"])
 
 # ─── Request / Response Models ────────────────────────────────────────────────
 
+class MFASetupRequest(BaseModel):
+    # Only required when MFA is already enabled on the account (re-enrollment) —
+    # mirrors the password-confirmation gate on /disable and /backup-codes/regenerate.
+    password: Optional[str] = Field(None, max_length=1024)
+
 class MFAVerifySetupRequest(BaseModel):
-    totp_code: str
+    totp_code: str = Field(..., max_length=16)
+    # Same as above — only required for re-enrollment against an already-enabled account.
+    password: Optional[str] = Field(None, max_length=1024)
 
 class MFAVerifyLoginRequest(BaseModel):
-    session_token: str
-    code: str
+    session_token: str = Field(..., max_length=64)
+    code: str = Field(..., max_length=16)
     use_backup_code: bool = False
 
 class MFADisableRequest(BaseModel):
-    totp_code: str
+    password: str = Field(..., max_length=1024)
+
+class MFABackupCodesRegenerateRequest(BaseModel):
+    password: str = Field(..., max_length=1024)
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/setup")
-async def setup_mfa(current_user=Depends(get_current_user)):
+async def setup_mfa(req: Optional[MFASetupRequest] = None, current_user=Depends(get_current_user)):
     """
     Generate a TOTP secret and return it alongside a QR code for enrollment.
     Does NOT enable MFA yet — call /mfa/verify-setup with the first code to activate.
+
+    If MFA is already enabled on the account, this is a re-enrollment and
+    requires password confirmation (T-64-26) — otherwise a stolen/XSS'd JWT
+    alone could regenerate a pending secret ahead of silently re-enrolling
+    via /verify-setup, bypassing the password gate this plan added to
+    /disable and /backup-codes/regenerate.
     """
     db = get_database()
     user = await db.users.find_one({"email": current_user.username})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if user.get("mfa", {}).get("enabled"):
+        stored_hash = user.get("password") or user.get("hashed_password")
+        password = req.password if req else None
+        if not stored_hash:
+            raise HTTPException(status_code=400, detail="Account has no password set")
+        if not password:
+            raise HTTPException(status_code=403, detail="Password confirmation required to re-enroll MFA")
+        from auth_utils import verify_password
+        if not verify_password(password, stored_hash):
+            raise HTTPException(status_code=403, detail="Invalid password")
 
     # Generate and persist pending secret (not active until confirmed)
     secret = mfa_service.generate_totp_secret()
@@ -66,7 +95,7 @@ async def verify_mfa_setup(req: MFAVerifySetupRequest, current_user=Depends(get_
     Confirm the first TOTP code from the authenticator app.
     Activates MFA on the account and returns 8 one-time backup codes.
     """
-    result = await mfa_service.enroll_mfa(current_user.username, req.totp_code)
+    result = await mfa_service.enroll_mfa(current_user.username, req.totp_code, req.password)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -79,23 +108,40 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     Called during the second step of login (after password succeeds).
     Accepts the MFA session token from /auth/login plus a TOTP code (or backup code).
     Returns a full JWT access token on success.
+
+    WR-04: a wrong TOTP/backup code here is folded into the same
+    login-lockout bookkeeping (_record_login_failure/_check_login_lockout)
+    that /api/auth/login uses for wrong passwords. Without this, an attacker
+    who already knows the account password could grind the TOTP keyspace via
+    unlimited fresh login+verify round trips, since "wrong TOTP" never
+    incremented that counter. A locked-out account is rejected on its next
+    /api/auth/login call (where the lockout check already lives), which is
+    the only place a fresh mfa_session_token can be minted.
     """
+    db = get_database()
+
     if req.use_backup_code:
-        email = mfa_service.validate_mfa_session(req.session_token)
+        email = await mfa_service.validate_mfa_session(req.session_token)
         if not email:
             raise HTTPException(status_code=401, detail="MFA session expired or invalid")
         ok = await mfa_service.use_backup_code(email, req.code)
         if not ok:
+            await _record_login_failure(db, email)
             raise HTTPException(status_code=401, detail="Invalid or already-used backup code")
-        mfa_service.consume_mfa_session(req.session_token)
+        await mfa_service.consume_mfa_session(req.session_token)
     else:
         result = await mfa_service.verify_mfa_token(req.session_token, req.code)
         if not result["success"]:
+            if result.get("email"):
+                await _record_login_failure(db, result["email"])
             raise HTTPException(status_code=401, detail=result["error"])
         email = result["email"]
 
+    # A successful MFA step clears any accumulated failure count, mirroring
+    # the password-login endpoint's _clear_login_failures on success.
+    await _clear_login_failures(db, email)
+
     # Fetch user and issue full JWT
-    db = get_database()
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -103,24 +149,40 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     role = user.get("role", "user")
     tenant_id = user.get("tenantId") or None
     access_token = create_access_token(
-        data={"sub": email, "role": role, "tenant_id": tenant_id},
+        # mfa_verified=True is a deliberate bug fix over the prior implementation,
+        # which never set this claim — so authentication_service.require_mfa()
+        # (Depends(require_mfa)) could never be satisfied even by a user who had
+        # just completed the second MFA step.
+        data={"sub": email, "role": role, "tenant_id": tenant_id, "mfa_verified": True},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    user_data = {k: v for k, v in user.items() if k not in ("password", "_id", "mfa")}
+    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
     user_data["id"] = str(user.get("_id", ""))
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "success": True,
+        "mfa_verified": True,
         "user": user_data,
     }
 
 
 @router.post("/disable")
-async def disable_mfa(req: MFADisableRequest, current_user=Depends(get_current_user)):
-    """Disable MFA on the current user's account (requires valid TOTP code as confirmation)."""
-    result = await mfa_service.disable_mfa(current_user.username, req.totp_code)
+@limiter.limit("5/minute")
+async def disable_mfa(request: Request, response: Response, req: MFADisableRequest, current_user=Depends(get_current_user)):
+    """Disable MFA on the current user's account (requires password confirmation)."""
+    result = await mfa_service.disable_mfa(current_user.username, req.password)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/backup-codes/regenerate")
+@limiter.limit("5/minute")
+async def regenerate_backup_codes(request: Request, response: Response, req: MFABackupCodesRegenerateRequest, current_user=Depends(get_current_user)):
+    """Invalidate existing backup codes and issue a fresh set (requires password confirmation)."""
+    result = await mfa_service.regenerate_backup_codes(current_user.username, req.password)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result

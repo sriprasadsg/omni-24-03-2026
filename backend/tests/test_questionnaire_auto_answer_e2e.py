@@ -67,24 +67,38 @@ def _make_client():
     return TestClient(app)
 
 
-def _pipeline_patches(db):
-    rag = MagicMock()
-    rag.query = MagicMock(return_value=[
-        {"id": "ev1", "content": "MFA is required for all users.", "source": "doc1",
-         "tenantId": TENANT, "relevance": 0.1},
-    ])
-    ai = MagicMock()
-    ai.generate_text = AsyncMock(return_value=(
-        '{"answer_text": "Yes, we have MFA.", "confidence": "high", "cited_indices": [0]}'
-    ))
+def _pipeline_patches(db, confidence="high", answer_text="Yes, we have MFA.", source_ids=None):
+    """Phase 39-08: generation moved from a hand-rolled prompt + JSON parse
+    (`questionnaire_answer_draft_service.rag_service`/`.ai_service`) to
+    `ai_orchestration.agents.questionnaire.generate_draft`. This e2e file's
+    job is exercising the HTTP pipeline (generate -> review -> approve ->
+    submit + the T3 bypass guard), not draft-generation internals — those
+    are covered by `test_questionnaire_agent.py`'s hermetic unit tests — so
+    the mock boundary is retargeted onto the shim's own call to
+    `generate_draft` rather than the removed `rag_service`/`ai_service`
+    module attributes."""
+    from ai_orchestration.agents.questionnaire import DraftResult
+
+    is_insufficient = confidence == "insufficient_evidence"
+    canned = DraftResult(
+        answer_text=answer_text,
+        confidence=confidence,
+        source_evidence_ids=[] if is_insufficient else (source_ids if source_ids is not None else ["doc1"]),
+        model_provenance="primary",
+        needs_review=False,
+        retrieved_evidence=[] if is_insufficient else [
+            {"id": "ev1", "content": "MFA is required for all users.", "source": "doc1",
+             "tenantId": TENANT, "relevance": 0.1},
+        ],
+    )
+    gen = AsyncMock(return_value=canned)
     get_db = MagicMock(return_value=db)
     return (
-        patch("questionnaire_answer_draft_service.rag_service", rag),
-        patch("questionnaire_answer_draft_service.ai_service", ai),
+        patch("questionnaire_answer_draft_service.generate_draft", gen),
         patch("questionnaire_answer_draft_endpoints.get_database", get_db),
         patch("questionnaire_answer_review_endpoints.get_database", get_db),
         patch.object(questionnaire_inbound_service, "_db", get_db),
-        rag,
+        gen,
     )
 
 
@@ -95,9 +109,9 @@ def _pipeline_patches(db):
 def test_questionnaire_pipeline_e2e():
     db, cols = _make_db()
     client = _make_client()
-    p_rag, p_ai, p_db1, p_db2, p_db3, rag = _pipeline_patches(db)
+    p1, p2, p3, p4, gen = _pipeline_patches(db)
 
-    with p_rag, p_ai, p_db1, p_db2, p_db3:
+    with p1, p2, p3, p4:
         # 1. Create inbound question set
         resp = client.post("/api/questionnaires/inbound/", json={"title": "Test Set"})
         assert resp.status_code == 200
@@ -113,8 +127,8 @@ def test_questionnaire_pipeline_e2e():
         assert draft["status"] == "pending_review"
         assert draft["answerText"] == "Yes, we have MFA."
         assert draft["sourceEvidenceIds"] == ["doc1"]
-        # retrieval was tenant-scoped
-        assert rag.query.call_args.args[2] == TENANT
+        # generation was invoked tenant-scoped
+        assert gen.call_args.args[2] == TENANT
 
         # 3. Create review (draft must be pending_review)
         cols["questionnaire_answer_drafts"].find_one = AsyncMock(return_value={
@@ -167,10 +181,9 @@ def test_generate_insufficient_evidence_when_rag_empty():
     """No retrieved evidence → insufficient_evidence draft, still pending_review."""
     db, _ = _make_db()
     client = _make_client()
-    p_rag, p_ai, p_db1, p_db2, p_db3, rag = _pipeline_patches(db)
-    rag.query = MagicMock(return_value=[])
+    p1, p2, p3, p4, gen = _pipeline_patches(db, confidence="insufficient_evidence", answer_text="")
 
-    with p_rag, p_ai, p_db1, p_db2, p_db3:
+    with p1, p2, p3, p4:
         resp = client.post(
             "/api/questionnaire-answer-drafts/generate",
             params={"question_id": "q2", "question_text": "Do you have SOC3?"},
@@ -184,20 +197,22 @@ def test_generate_insufficient_evidence_when_rag_empty():
 
 
 def test_generate_hallucination_guard():
-    """Confident answer citing zero evidence is rejected → insufficient_evidence."""
+    """A confident answer with no resolvable citations is downgraded to
+    insufficient_evidence by `generate_draft`'s own citation-validation
+    wiring (39-08; unit-tested directly in test_questionnaire_agent.py) —
+    this e2e test only asserts the shim/endpoint surfaces that downgraded
+    result unchanged through to the HTTP response."""
     db, _ = _make_db()
     client = _make_client()
-    p_rag, p_ai, p_db1, p_db2, p_db3, _ = _pipeline_patches(db)
+    p1, p2, p3, p4, gen = _pipeline_patches(
+        db, confidence="insufficient_evidence", answer_text="", source_ids=[]
+    )
 
-    with p_rag, p_ai, p_db1, p_db2, p_db3:
-        with patch(
-            "questionnaire_answer_draft_service.ai_service.generate_text",
-            AsyncMock(return_value='{"answer_text": "Definitely yes.", "confidence": "high", "cited_indices": []}'),
-        ):
-            resp = client.post(
-                "/api/questionnaire-answer-drafts/generate",
-                params={"question_id": "q3", "question_text": "Are you ISO 42001 certified?"},
-            )
+    with p1, p2, p3, p4:
+        resp = client.post(
+            "/api/questionnaire-answer-drafts/generate",
+            params={"question_id": "q3", "question_text": "Are you ISO 42001 certified?"},
+        )
 
     assert resp.status_code == 200
     assert resp.json()["confidence"] == "insufficient_evidence"

@@ -39,15 +39,35 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
         .build()
         .expect("HTTP client build");
 
     let cap_mgr = CapabilityManager::new();
+    // Resolve the WAN/ISP public IP before registering so the first payload
+    // carries it. Best-effort — registration proceeds regardless.
+    heartbeat::refresh_public_ip(&client).await;
     registration::ensure_registered(&mut cfg, &client, &cap_mgr).await;
     if cfg.agent_token.is_empty() {
         log::warn!("No agent_token — heartbeats will be unauthenticated until registered");
     }
     log::info!("Capabilities loaded: {}", cap_mgr.ids().join(", "));
+
+    // FIM setup
+    crate::capabilities::fim_baseline::check_drift_on_start(&cfg.fim_paths, &crate::capabilities::fim_baseline::baseline_dir());
+
+    // FIM watcher + drift check + background drain
+    if let Some(ref stop_rx_clone) = stop_rx {
+        let watcher_stop = stop_rx_clone.clone();
+        if let Err(e) = crate::capabilities::fim::start_watcher(cfg.fim_paths.clone(), watcher_stop) {
+            log::warn!("FIM watcher start failed: {e}");
+        }
+
+        let drain_stop = stop_rx_clone.clone();
+        let cfg_drain = cfg.clone();
+        let client_drain = client.clone();
+        tokio::spawn(crate::capabilities::fim::drain_queue(cfg_drain, client_drain, drain_stop));
+    }
 
     // Materialize the interactive-session UI helpers now that we have a token:
     // the chat-window and tray scripts + a user-readable tray-config the logon
@@ -67,6 +87,8 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 
     let mut sys = System::new_all();
     let mut tick = 0u32;
+    // Public IP rarely changes; re-resolve periodically rather than every beat.
+    let mut last_public_ip_refresh = std::time::Instant::now();
 
     loop {
         if let Some(ref rx) = stop_rx {
@@ -74,6 +96,11 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
                 log::info!("Stop signal received, shutting down.");
                 break;
             }
+        }
+
+        if last_public_ip_refresh.elapsed() >= std::time::Duration::from_secs(1800) {
+            heartbeat::refresh_public_ip(&client).await;
+            last_public_ip_refresh = std::time::Instant::now();
         }
 
         sys.refresh_all();

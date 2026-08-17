@@ -29,6 +29,7 @@ from auth_utils import verify_password, hash_password, validate_password_complex
 from rate_limiter import limiter
 from pydantic import BaseModel, Field
 from datetime import timedelta, timezone
+from pymongo.errors import PyMongoError
 import uuid
 import datetime
 import jwt
@@ -157,7 +158,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
     if mfa.get("enabled"):
         try:
             import mfa_service
-            session_token = mfa_service.create_mfa_session(user["email"])
+            session_token = await mfa_service.create_mfa_session(user["email"])
             return {
                 "access_token": "",
                 "token_type": "mfa_required",
@@ -167,6 +168,18 @@ async def login_for_access_token(request: Request, response: Response, login_req
                 "user": {},
             }
         except ImportError:
+            raise HTTPException(
+                status_code=503,
+                detail="MFA is required for this account but the MFA service is unavailable. Contact your administrator.",
+            )
+        except PyMongoError as e:
+            # WR-07: create_mfa_session is a real async Mongo insert_one (and,
+            # on first call, create_index) — a connectivity/timeout error from
+            # the driver is a failure mode that didn't exist under the prior
+            # synchronous in-memory implementation, and ImportError alone
+            # never caught it. Without this clause the driver error surfaced
+            # as an unhandled 500 instead of the intended 503.
+            logger.error("MFA session creation failed: %s", e)
             raise HTTPException(
                 status_code=503,
                 detail="MFA is required for this account but the MFA service is unavailable. Contact your administrator.",
@@ -279,6 +292,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "view:logs", "view:reporting",
         "view:automation", "view:finops",
         "manage:settings",
+        "view:itam", "manage:itam",
     ]
 
     tenant_doc = {
@@ -312,7 +326,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         'view:threat_intel', 'view:vulnerabilities', 'view:persistence',
         'view:security_audit', 'view:mlops', 'view:llmops', 'view:automl',
         'manage:experiments', 'view:xai', 'view:governance', 'manage:playbooks',
-        'view:swarm'
+        'view:swarm', 'view:itam', 'manage:itam'
     ]
 
     user_id = f"user_{uuid.uuid4().hex[:12]}"

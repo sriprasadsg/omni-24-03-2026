@@ -8,10 +8,45 @@ from cache_service import cached
 from pagination_utils import paginate_mongo_query, PaginationParams
 from agent_auth import verify_agent_key
 from rate_limiter import limiter
+import json
 import logging
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_core_endpoints")
+
+# Per-agent `meta` payload caps — one pathological agent document (a huge
+# agent-reported blob) must not bloat, or truncate mid-send, the whole
+# /api/agents response (ERR_CONTENT_LENGTH_MISMATCH backstop).
+_META_MAX_BYTES = 64 * 1024      # whole meta object
+_META_KEY_MAX_BYTES = 16 * 1024  # any single meta key
+_PRESERVE_META_KEYS = {"predictive_health"}  # bounded derived fields, always kept
+
+
+def _meta_bytes(value: Any) -> int:
+    try:
+        return len(json.dumps(value, default=str))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _cap_agent_meta(agent: Dict[str, Any]) -> None:
+    """Bound an agent's `meta` in-place. Oversized individual keys become a
+    small stub; if the whole object is still too large, non-preserved keys are
+    dropped. `predictive_health` (bounded, derived here) is always preserved."""
+    meta = agent.get("meta")
+    if not isinstance(meta, dict):
+        return
+    for key in list(meta.keys()):
+        if key in _PRESERVE_META_KEYS:
+            continue
+        size = _meta_bytes(meta[key])
+        if size > _META_KEY_MAX_BYTES:
+            meta[key] = {"_truncated": True, "_original_bytes": size}
+    if _meta_bytes(meta) > _META_MAX_BYTES:
+        preserved = {k: meta[k] for k in _PRESERVE_META_KEYS if k in meta}
+        preserved["_truncated"] = True
+        preserved["_dropped_keys"] = [k for k in meta if k not in _PRESERVE_META_KEYS]
+        agent["meta"] = preserved
 
 _CAP_NAME_MAP: Dict[str, str] = {
     "metrics_collection": "Systems Telemetry",
@@ -140,6 +175,8 @@ async def get_agents(
                 "predictions": predictions,
                 "warnings": warnings,
             }
+
+        _cap_agent_meta(agent)
 
     return result
 

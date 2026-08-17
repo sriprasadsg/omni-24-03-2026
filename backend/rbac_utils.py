@@ -4,14 +4,20 @@ from fastapi import HTTPException, status, Depends
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
-
-# Single source of truth for elevated-admin role variants
-_SUPER_ADMIN_ROLES: frozenset[str] = frozenset({"super_admin", "Super Admin", "superadmin", "platform-admin"})
+from rbac_service import rbac_service as _rbac_service
 
 
 def is_super_admin(role: Optional[str]) -> bool:
-    """Return True if the given role string represents a super-admin."""
-    return role in _SUPER_ADMIN_ROLES
+    """Return True if the given role string represents a super-admin.
+
+    Routes through rbac_service._normalize_role() — the single normalization
+    source of truth (RESEARCH.md Pitfall 3 / ITAM-USR-02) — instead of a
+    second hardcoded literal set, so raw variants ("platform-admin",
+    "platform_admin", "SUPER_ADMIN", "Super Admin", ...) all resolve
+    consistently with auth_roles.SUPER_ROLES and rbac_service's own
+    has_permission/require_role/get_user_permissions dependency factories.
+    """
+    return _rbac_service._normalize_role(role) == "super_admin"
 
 
 class Permission(str, Enum):
@@ -45,6 +51,9 @@ class Permission(str, Enum):
     # AI / LLM
     VIEW_AI = "view:ai"
     MANAGE_AI = "manage:ai"
+    # ITAM
+    VIEW_ITAM = "view:itam"
+    MANAGE_ITAM = "manage:itam"
 
 # Helper function to avoid RBACService class instantiation loops
 async def verify_permission(user: TokenData, required_permission: str) -> bool:
@@ -71,6 +80,9 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
         "platform-admin": ["*"],
         # Tenant-scoped admin
         "admin": [
+            "manage:assets", # Added for ITAM Phase 56-01
+            "view:itam", # Added for ITAM Phase 61-01
+            "manage:itam", # Added for ITAM Phase 61-01
             "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
             "view:agents", "view:agent_capabilities", "view:software_deployment",
             "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
@@ -87,6 +99,9 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:secrets", "manage:agents", "view:approvals", "view:remote_access",
         ],
         "Tenant Admin": [
+            "manage:assets", # Added for ITAM Phase 56-01
+            "view:itam", # Added for ITAM Phase 61-01
+            "manage:itam", # Added for ITAM Phase 61-01
             "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
             "view:agents", "view:agent_capabilities", "view:software_deployment",
             "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
@@ -145,15 +160,40 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:dashboard", "view:reporting", "view:assets", "view:compliance",
             "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
         ],
+        # ITAM-specific roles (ITAM-USR-02) — mirrored from rbac_service.py's
+        # default_roles. Without these, itam_admin/itam_user/itam_viewer
+        # silently have zero permissions here whenever a tenant has no
+        # matching db.roles document (verify_permission's DB lookup misses,
+        # falls through to this dict, finds nothing) — RBACService.has_permission
+        # doesn't have this gap since it falls back to self.default_roles
+        # in-memory, but the itam_procurement/itam_asset_request endpoints
+        # use verify_permission, not RBACService.has_permission.
+        "itam_admin": [
+            "manage:assets", "manage:licenses", "manage:users",
+            "view:itam", "manage:procurement", "manage:finance",
+        ],
+        "itam_user": [
+            "view:assets", "view:licenses", "view:itam", "request:assets",
+        ],
+        "itam_viewer": [
+            "view:assets", "view:licenses", "view:itam",
+        ],
     }
 
-    effective_role = user.role or ""
-    # Normalize tenant_admin → Tenant Admin for lookup
-    if effective_role == "tenant_admin":
-        effective_role = "Tenant Admin"
-    # Normalize analyst variants
-    if effective_role == "Analyst":
-        effective_role = "analyst"
+    # Canonical DEFAULT_PERMISSIONS key for a normalized role — single
+    # normalization path (RESEARCH.md Pitfall 3 / WINDOWS.md #6). The dict
+    # above stores a couple of entries under a display name that differs
+    # from the normalized form (e.g. "Tenant Admin" rather than
+    # "tenant_admin"); redirect through those first, then fall back to the
+    # normalized form itself for any other raw-casing variant (e.g. the
+    # /api/roles stub's "Admin"/"User"/"Viewer" Title-Case names, which
+    # previously fell straight through to an empty permission list).
+    _CANONICAL_KEY_BY_NORMALIZED = {"tenant_admin": "Tenant Admin", "analyst": "analyst"}
+
+    normalized_role = _rbac_service._normalize_role(user.role or "")
+    effective_role = _CANONICAL_KEY_BY_NORMALIZED.get(normalized_role, user.role or "")
+    if effective_role not in DEFAULT_PERMISSIONS:
+        effective_role = normalized_role
 
     perms = DEFAULT_PERMISSIONS.get(effective_role, [])
     return "*" in perms or required_permission in perms

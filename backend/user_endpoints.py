@@ -1,23 +1,64 @@
 import logging
+import re
 from datetime import timezone
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query, Response
 from typing import List, Optional
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user
-from auth_utils import hash_password as get_password_hash
+from auth_utils import hash_password as get_password_hash, validate_password_complexity
+from rbac_utils import is_super_admin
+from itam_asset_endpoints import _require_itam_admin
+from rbac_service import rbac_service
+from auth_types import TokenData
 from tenant_context import get_tenant_id
 import datetime
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
-# Canonical super-admin role set — used consistently across all endpoints in this file.
-_SUPER_ADMIN_ROLES = {"super_admin", "superadmin", "Super Admin", "platform-admin"}
-# Roles that may create/edit users within their own tenant
-_ADMIN_ROLES = _SUPER_ADMIN_ROLES | {"admin", "Tenant Admin", "tenant_admin"}
-# Roles a non-super-admin is allowed to assign when creating or updating a user
-_ASSIGNABLE_ROLES = {"viewer", "user", "analyst", "Analyst", "Tenant Admin", "tenant_admin", "admin"}
+router = APIRouter(prefix="/api/users", tags=["User Management"])
+
+# --- Role helpers ------------------------------------------------------------
+# Reuse rbac_service's canonical normalizer so Title-Case names surfaced by the
+# /api/roles UI stub ("Admin", "User", "Viewer") compare equal to their
+# rbac_service.default_roles counterparts ("admin"/"user"/"viewer") — ITAM-USR-01
+# item 2: role must validate against rbac_service.default_roles keys.
+_normalize_role = rbac_service._normalize_role
+_VALID_ROLE_KEYS = {_normalize_role(k) for k in rbac_service.default_roles.keys()}
+# The only role tier a non-super-admin caller may never assign.
+_ELEVATED_ROLE_KEYS = {"super_admin"}
+
+# --- Status (lifecycle) helpers ----------------------------------------------
+# Stored canonically as Title-Case ("Active"/"Inactive"/"Pending") because
+# authentication_endpoints.py's /api/auth/signup already writes "status":
+# "Active" on every new user and its /refresh-token path gates on
+# `user.get("status") != "Active"` — storing a lowercase value here would
+# silently break refresh tokens for any user created/edited via this router.
+_STATUS_VALUES = {"active", "inactive", "pending"}
+
+
+def _normalize_status(raw: Optional[str]) -> str:
+    s = (raw or "active").strip().lower()
+    if s not in _STATUS_VALUES:
+        raise HTTPException(status_code=400, detail=f"Invalid status '{raw}'. Must be one of: active, inactive, pending")
+    return s.capitalize()
+
+
+def _display_status(doc: dict) -> str:
+    """Map the stored lifecycle status onto the two-value contract
+    ('Active' | 'Disabled') that services/apiService.ts and
+    SettingsUsersTab.tsx already depend on. Falls back to the legacy
+    is_active boolean for docs written before the status field existed."""
+    raw = doc.get("status")
+    if raw:
+        return "Active" if raw == "Active" else "Disabled"
+    return "Active" if doc.get("is_active", True) else "Disabled"
+
+
+async def _tenant_exists(db, tenant_id: str) -> bool:
+    return await db.tenants.find_one({"id": tenant_id}) is not None
+
 
 async def _audit(db, action: str, actor: str, target: str, tenant_id: str):
     try:
@@ -31,19 +72,38 @@ async def _audit(db, action: str, actor: str, target: str, tenant_id: str):
     except Exception as e:
         logger.error("Audit log write failed: %s", e)
 
-router = APIRouter(prefix="/api/users", tags=["User Management"])
+
+def _to_response(u: dict) -> dict:
+    full_name = u.get("full_name", u.get("name", u.get("email", "User")))
+    created = u.get("createdAt") or u.get("created_at") or ""
+    return {
+        "id": str(u.get("_id", "")),
+        "email": u.get("email", ""),
+        "name": full_name,
+        "role": u.get("role", "user"),
+        "status": _display_status(u),
+        "avatar": u.get("avatar", f"https://ui-avatars.com/api/?name={full_name}&background=random"),
+        "tenantId": u.get("tenantId"),
+        "createdAt": created,
+        "updatedAt": u.get("updatedAt") or created,
+        "lastLogin": u.get("lastLogin") or u.get("last_login"),
+    }
+
 
 class UserCreate(BaseModel):
     email: str
     password: str
     full_name: str
     role: str = "user"
-    tenantId: Optional[str] = None
+    tenantId: str
+    status: Optional[str] = "active"
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[str] = None
     password: Optional[str] = None
+    status: Optional[str] = None
+    tenantId: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: str
@@ -51,116 +111,149 @@ class UserResponse(BaseModel):
     name: str  # Frontend expects "name" instead of "full_name"
     role: str
     status: str  # Frontend expects "status" ('Active' | 'Disabled') instead of "is_active" boolean
-    avatar: str  # Frontend expects "avatar"
+    avatar: str
     tenantId: str
-    created_at: str
+    createdAt: str
+    updatedAt: str
+    lastLogin: Optional[str] = None
 
-@router.get("", response_model=List[UserResponse])
-async def list_users(current_user: dict = Depends(get_current_user)):
+
+@router.get("/me", response_model=UserResponse)
+async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
     """
-    List all users. Super Admins see all users, others see only their tenant users.
+    Return the caller's own profile. Unlike the rest of this router, this
+    endpoint is intentionally not admin-gated — every authenticated user may
+    read their own record.
     """
     db = get_database()
-    
-    role = getattr(current_user, "role", None)
-    is_super_admin = role in ["super_admin", "superadmin", "Super Admin"]
-    
-    if is_super_admin:
-        # Super Admin sees everything
-        users = await db.users.find({}, {"password": 0, "hashed_password": 0}).to_list(length=1000)
-    else:
-        # Regular users only see their own tenant
-        tenant_id = get_tenant_id()
-        users = await db.users.find({"tenantId": tenant_id}, {"password": 0, "hashed_password": 0}).to_list(length=100)
-    
-    return [
-        {
-            "id": str(u.get("_id", "")),
-            "email": u.get("email", ""),
-            "name": u.get("full_name", u.get("name", u.get("email", "User"))),
-            "role": u.get("role", "user"),
-            "status": "Active" if u.get("is_active", True) or u.get("status") == "Active" else "Disabled",
-            "avatar": u.get("avatar", f"https://ui-avatars.com/api/?name={u.get('full_name', u.get('name', 'User'))}&background=random"),
-            "tenantId": u.get("tenantId"),
-            "created_at": u.get("created_at", u.get("createdAt", ""))
-        }
-        for u in users
-    ]
+    user_doc = await db.users.find_one(
+        {"$or": [{"email": current_user.username}, {"username": current_user.username}]},
+        {"password": 0, "hashed_password": 0},
+    )
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _to_response(user_doc)
 
-@router.post("", response_model=UserResponse)
-async def create_user(user: UserCreate, current_user: dict = Depends(get_current_user)):
+
+@router.get("", response_model=List[UserResponse])
+async def list_users(
+    response: Response,
+    skip: int = 0,
+    limit: int = 100,
+    role: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    tenantId: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: TokenData = Depends(_require_itam_admin),
+):
+    """
+    List users with pagination and filtering. Super Admins may list/filter
+    across tenants; everyone else is always confined to their own tenant
+    regardless of any tenantId they pass.
+
+    The default (no query params) response stays a bare JSON array — matching
+    what it returned before pagination existed — because
+    services/apiService.ts fetchUsers() assigns the body straight into an
+    array-typed cache. Total match count (post-filter, pre-pagination) is
+    exposed via the X-Total-Count header instead of wrapping the body.
+    """
+    db = get_database()
+    caller_is_super_admin = is_super_admin(current_user.role)
+
+    query: dict = {}
+    if caller_is_super_admin:
+        if tenantId:
+            query["tenantId"] = tenantId
+    else:
+        query["tenantId"] = get_tenant_id()
+
+    if role:
+        query["role"] = role
+    if status_filter:
+        query["status"] = _normalize_status(status_filter)
+    if search:
+        pattern = re.escape(search)
+        query["$or"] = [
+            {"email": {"$regex": pattern, "$options": "i"}},
+            {"full_name": {"$regex": pattern, "$options": "i"}},
+        ]
+
+    total = await db.users.count_documents(query)
+    users = await db.users.find(query, {"password": 0, "hashed_password": 0}) \
+        .skip(skip).limit(limit).to_list(length=limit or None)
+
+    response.headers["X-Total-Count"] = str(total)
+    return [_to_response(u) for u in users]
+
+@router.post("", response_model=UserResponse, status_code=201)
+async def create_user(user: UserCreate, current_user: TokenData = Depends(_require_itam_admin)):
     """
     Create a new user.
     """
-    caller_role = getattr(current_user, "role", None)
-    if caller_role not in _ADMIN_ROLES:
-        raise HTTPException(status_code=403, detail="Not authorized to create users")
+    caller_role = current_user.role
+    caller_is_super_admin = is_super_admin(caller_role)
 
+    requested_role_key = _normalize_role(user.role)
+    if requested_role_key not in _VALID_ROLE_KEYS:
+        raise HTTPException(status_code=400, detail=f"Invalid role '{user.role}'")
     # Prevent privilege escalation: non-super-admins cannot assign elevated roles
-    if user.role not in _ASSIGNABLE_ROLES and caller_role not in _SUPER_ADMIN_ROLES:
+    if requested_role_key in _ELEVATED_ROLE_KEYS and not caller_is_super_admin:
         raise HTTPException(status_code=403, detail=f"Not authorized to assign role '{user.role}'")
-        
+
     db = get_database()
-    
+
     # If Super Admin passes a tenantId, use it; otherwise use requester's context
-    if getattr(current_user, "role", None) in ["super_admin", "Super Admin"] and user.tenantId:
+    if caller_is_super_admin and user.tenantId:
         target_tenant_id = user.tenantId
     else:
         target_tenant_id = get_tenant_id()
-    
+
+    if not target_tenant_id or not await _tenant_exists(db, target_tenant_id):
+        raise HTTPException(status_code=400, detail=f"Tenant '{target_tenant_id}' does not exist")
+
     # Check existing
     existing = await db.users.find_one({"email": user.email, "tenantId": target_tenant_id})
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    from authentication_endpoints import _validate_password_complexity
-    pwd_error = _validate_password_complexity(user.password)
+    pwd_error = validate_password_complexity(user.password)
     if pwd_error:
         raise HTTPException(status_code=400, detail=pwd_error)
 
+    now = datetime.datetime.now(timezone.utc).isoformat()
     new_user = {
         "email": user.email,
         "hashed_password": get_password_hash(user.password),
         "full_name": user.full_name,
         "role": user.role,
         "tenantId": target_tenant_id,
-        "is_active": True,
-        "created_at": datetime.datetime.now(timezone.utc).isoformat()
+        "status": _normalize_status(user.status),
+        "createdAt": now,
+        "updatedAt": now,
     }
-    
+
     try:
         result = await db.users.insert_one(new_user)
-        new_user["id"] = str(result.inserted_id)
-        await _audit(db, "user.created", getattr(current_user, "username", "unknown"),
-                     user.email, target_tenant_id)
-        return {
-            "id": new_user["id"],
-            "email": new_user["email"],
-            "name": new_user["full_name"],
-            "role": new_user["role"],
-            "status": "Active" if new_user["is_active"] else "Disabled",
-            "avatar": f"https://ui-avatars.com/api/?name={new_user['full_name']}&background=random",
-            "tenantId": new_user["tenantId"],
-            "created_at": new_user["created_at"]
-        }
     except DuplicateKeyError:
         raise HTTPException(status_code=400, detail="A user with this email already exists.")
+
+    new_user["_id"] = result.inserted_id
+    await _audit(db, "user.created", getattr(current_user, "username", "unknown"),
+                 user.email, target_tenant_id)
+    return _to_response(new_user)
+
 @router.put("/{user_id}", response_model=UserResponse)
-async def update_user(user_id: str, updates: UserUpdate, current_user: dict = Depends(get_current_user)):
+async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData = Depends(_require_itam_admin)):
     """
     Update an existing user.
     """
     db = get_database()
-    current_role = getattr(current_user, "role", None)
-    is_super_admin = current_role in _SUPER_ADMIN_ROLES
-
-    if current_role not in _ADMIN_ROLES:
-        raise HTTPException(status_code=403, detail="Not authorized to update users")
+    caller_is_super_admin = is_super_admin(current_user.role)
 
     try:
         from bson import ObjectId
         obj_id = ObjectId(user_id)
-    except (ValueError, Exception):
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     # Find the user to update
@@ -169,7 +262,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
         raise HTTPException(status_code=404, detail="User not found")
 
     # Access control: Tenant Admins can only update users in their own tenant
-    if not is_super_admin:
+    if not caller_is_super_admin:
         tenant_id = get_tenant_id()
         if target_user.get("tenantId") != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update users in other tenants")
@@ -179,64 +272,59 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: dict = De
     if updates.full_name is not None:
         update_data["full_name"] = updates.full_name
     if updates.role is not None:
-        _SUPER_ADMIN_ROLES = {"super_admin", "superadmin", "Super Admin", "platform-admin"}
-        _ELEVATED_ROLES = {"admin", "Tenant Admin"} | _SUPER_ADMIN_ROLES
-        _VALID_ROLES = {"user", "viewer"} | _ELEVATED_ROLES
-        if updates.role not in _VALID_ROLES:
-            raise HTTPException(status_code=400, detail="Invalid role")
-        if updates.role in _ELEVATED_ROLES and not is_super_admin:
-            raise HTTPException(status_code=403, detail="Not authorized to assign this role")
+        requested_role_key = _normalize_role(updates.role)
+        if requested_role_key not in _VALID_ROLE_KEYS:
+            raise HTTPException(status_code=400, detail=f"Invalid role '{updates.role}'")
+        if requested_role_key in _ELEVATED_ROLE_KEYS and not caller_is_super_admin:
+            raise HTTPException(status_code=403, detail=f"Not authorized to assign role '{updates.role}'")
         update_data["role"] = updates.role
     if updates.password is not None:
+        # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are
+        # blocked for LDAP-sourced users — LDAP is the source of truth for
+        # their credentials.
+        # ITAM-USR-04 Pitfall 4 / T-64-17: same block for SAML-sourced users —
+        # the IdP is the source of truth for their credentials, not this API.
+        target_source = target_user.get("source")
+        if target_source in ("ldap", "saml"):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Password changes for {target_source.upper()}-sourced users must be made "
+                        f"in the {'directory' if target_source == 'ldap' else 'identity provider'}, not via this API",
+            )
         update_data["hashed_password"] = get_password_hash(updates.password)
+    if updates.status is not None:
+        update_data["status"] = _normalize_status(updates.status)
+    if updates.tenantId is not None:
+        if not caller_is_super_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to move users between tenants")
+        if not await _tenant_exists(db, updates.tenantId):
+            raise HTTPException(status_code=400, detail=f"Tenant '{updates.tenantId}' does not exist")
+        update_data["tenantId"] = updates.tenantId
 
     if not update_data:
         # Just return the current user if no updates provided
-        target_user["id"] = user_id
-        return {
-            "id": user_id,
-            "email": target_user["email"],
-            "name": target_user.get("full_name", target_user.get("name", "")),
-            "role": target_user.get("role", "user"),
-            "status": "Active" if target_user.get("is_active", True) else "Disabled",
-            "avatar": target_user.get("avatar", f"https://ui-avatars.com/api/?name={target_user.get('full_name', 'User')}&background=random"),
-            "tenantId": target_user.get("tenantId") or None,
-            "created_at": target_user.get("created_at", "")
-        }
+        return _to_response(target_user)
 
+    update_data["updatedAt"] = datetime.datetime.now(timezone.utc).isoformat()
     await db.users.update_one({"_id": obj_id}, {"$set": update_data})
     await _audit(db, "user.updated", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     # Reload and return
     updated_user = await db.users.find_one({"_id": obj_id}, {"password": 0, "hashed_password": 0})
-    updated_user["id"] = user_id
-    return {
-        "id": user_id,
-        "email": updated_user["email"],
-        "name": updated_user.get("full_name", updated_user.get("name", "")),
-        "role": updated_user.get("role", "user"),
-        "status": "Active" if updated_user.get("is_active", True) or updated_user.get("status") == "Active" else "Disabled",
-        "avatar": updated_user.get("avatar", f"https://ui-avatars.com/api/?name={updated_user.get('full_name', 'User')}&background=random"),
-        "tenantId": updated_user.get("tenantId") or None,
-        "created_at": updated_user.get("created_at", "")
-    }
+    return _to_response(updated_user)
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_user(user_id: str, current_user: TokenData = Depends(_require_itam_admin)):
     """
     Delete a user.
     """
     db = get_database()
-    current_role = getattr(current_user, "role", None)
-    is_super_admin = current_role in ["super_admin", "superadmin", "Super Admin"]
-
-    if current_role not in ["admin", "super_admin", "Super Admin", "Tenant Admin"]:
-        raise HTTPException(status_code=403, detail="Not authorized to delete users")
+    caller_is_super_admin = is_super_admin(current_user.role)
 
     try:
         from bson import ObjectId
         obj_id = ObjectId(user_id)
-    except (ValueError, Exception):
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     # Find the user
@@ -245,17 +333,16 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="User not found")
 
     # Access control
-    if not is_super_admin:
+    if not caller_is_super_admin:
         tenant_id = get_tenant_id()
         if target_user.get("tenantId") != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to delete users in other tenants")
 
     # Cannot delete yourself
-    if str(getattr(current_user, "id", "")) == user_id or getattr(current_user, "username", "") == target_user.get("email"):
-         raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    if getattr(current_user, "username", "") == target_user.get("email"):
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     await db.users.delete_one({"_id": obj_id})
     await _audit(db, "user.deleted", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     return {"message": "User deleted successfully"}
-

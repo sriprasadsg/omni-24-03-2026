@@ -1,0 +1,1 @@
+{"content":"YARA-X can be built with minimal features, but wasmtime/cranelift are core dependencies for YARA rule execution and cannot be easily omitted if rule support is required.","source":"web","provider":"tavily","confidence":"LOW","fetched_at":"2026-08-14T13:15:12.448Z","ttl":86400000,"kind":"docs"}

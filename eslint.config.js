@@ -4,6 +4,7 @@ export default tseslint.config(
     {
         ignores: [
             'dist/',
+            'dist-new/',
             'node_modules/',
             'backend/',
             'agent/',
@@ -12,6 +13,13 @@ export default tseslint.config(
             'code-review-graph-main/',
             'client-presentation/',
             '.remember/',
+            'servers/',
+            'github-mcp-server/',
+            '.claude/',
+            'integrations/',
+            'venv/',
+            '.claude.backup/',
+            '.upd.cjs',
         ],
     },
     ...tseslint.configs.recommended,

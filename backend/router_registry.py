@@ -79,8 +79,26 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as exc:
         logger.error("[Router] Failed to register global task alias: %s", exc)
 
+    _load(app, "itam_catalog_endpoints", "router")  # ITAM Phase 56 Catalog Router
+    _load(app, "itam_asset_endpoints", "router")    # ITAM Phase 56 Asset Router
+    _load(app, "itam_lifecycle_endpoints", "router")  # ITAM Phase 57 Lifecycle Router
+    _load(app, "itam_license_endpoints",   "router")  # ITAM Phase 60 License Router
+    _load(app, "itam_consumable_endpoints", "router")  # ITAM Phase 60 Consumable Router
+    _load(app, "itam_component_endpoints", "router")  # ITAM Phase 60 Component Router
+    _load(app, "itam_component_endpoints", "asset_components_router")  # ITAM Phase 60: GET /api/assets/{id}/components
+    _load(app, "itam_label_endpoints",     "router")    # ITAM Phase 58 Label Router
+    _load(app, "itam_finance_endpoints",   "router")    # ITAM Phase 59 Finance Router
+    _load(app, "itam_data_endpoints",      "router")    # ITAM Phase 65 Data Import/Export Router
+    _load(app, "itam_customization_endpoints", "router")  # ITAM Phase 65 Settings & Branding Router
+    _load(app, "itam_procurement_endpoints", "router") # ITAM Phase 71 Procurement Router
+    _load(app, "itam_asset_request_endpoints", "router") # ITAM Phase 71-03 Asset Request Router
+    _load(app, "itam_reporting_endpoints", "router")    # ITAM Phase 72 Reporting Router
+    _load(app, "itam_kpi_endpoints",       "router")    # ITAM Phase 72 KPI Router
     _load(app, "asset_endpoints",          "router")
+
     _load(app, "user_endpoints",           "router")
+    _load(app, "api_key_endpoints",        "router")        # ITAM Phase 64-05 API Token Router
+    _load(app, "api_key_endpoints",        "admin_router")  # ITAM Phase 64-05 API Token Admin Router
     _load(app, "tenant_endpoints",         "router")
     _load(app, "role_endpoints",           "router")
     _load(app, "authentication_endpoints",       "router")
@@ -90,12 +108,15 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "repo_endpoints",           "router")
     _load(app, "mfa_endpoints",            "router")
     _load(app, "sso_endpoints",            "router")
+    _load(app, "sso_endpoints",            "saml_router")  # ITAM Phase 64-04 SAML SSO Router
+    _load(app, "ldap_endpoints",           "router")  # ITAM Phase 64-03 LDAP/AD Router
 
     # ── Security Intelligence Connectors ─────────────────────────────────────
     _load(app, "security_intel_status_endpoints", "router")
 
     # ── Security & Threat Management ──────────────────────────────────────────
     _load(app, "edr_telemetry_endpoints",  "router")
+    _load(app, "agent_telemetry_endpoints", "router")
     _load(app, "response_endpoints",       "router")
     _load(app, "mdr_endpoints",            "router")
     _load(app, "security_endpoints",       "router")
@@ -167,20 +188,26 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "access_review_endpoints",   "router")
     _load(app, "cloud_checks_endpoints",    "router")
     _load(app, "compliance_remediation_endpoints", "router")
+    _load(app, "compliance_remediation_sla_endpoints", "router")
+    _load(app, "agent_location_history_endpoints", "router")
+    _load(app, "geo_security_endpoints",    "router")
     _load(app, "compliance_evidence_lifecycle_endpoints", "router")
     _load(app, "compliance_bulk_evidence_endpoints", "router")
     _load(app, "compliance_score_endpoints", "router")
     _load(app, "saas_integration_endpoints", "router")
     _load(app, "saas_posture_checks_endpoints", "router")
-    _load(app, "saas_posture_checks_endpoints", "router")
-    _load(app, "saas_posture_checks_endpoints", "router")
     _load(app, "powershell_evidence_endpoints", "router")
     _load(app, "program_endpoints",             "router")
     _load(app, "evidence_review_endpoints", "router")
+    _load(app, "control_comments_endpoints", "router")
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
     _load(app, "ai_assistant_endpoints",   "router")
+    _load(app, "ai_supervisor_endpoints",  "router")
+    _load(app, "framework_mappings_endpoints", "router")
+    _load(app, "ot_ics_endpoints",         "router")
+    _load(app, "firmware_attestation_endpoints", "router")
     _load(app, "ai_services.training_endpoints", "router")
     _load(app, "ai_system_endpoints",      "router")
     _load(app, "ai_remediation_service",   "router")
@@ -259,7 +286,6 @@ def register_all_routers(app: FastAPI) -> None:
     # it with the standalone FastMCP server (backend/mcp_server.py).
     _load(app, "ocsf_endpoints",              "router")
     _load(app, "oscal_endpoints",             "router") # NEW
-    _load(app, "oscal_endpoints",             "router")
     _load(app, "analytics_endpoints",        "router")
     _load(app, "settings_endpoints",         "router")
     _load(app, "log_endpoints",              "router")
@@ -268,6 +294,11 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "apm_endpoints",              "router")
     _load(app, "voice_endpoints",            "router")
     _load(app, "agent_metrics_endpoints",    "router")
+    _load(app, "agent_uptime_endpoints",     "router")
+    _load(app, "agent_fleet_observability_endpoints", "router")
+    _load(app, "agent_fleet_geo_endpoints",  "router")
+    _load(app, "agent_security_feed_endpoints", "router")
+    _load(app, "agent_security_scan_endpoints", "router")
     _load(app, "asset_metrics_endpoints",    "router")
     _load(app, "digital_twin_service",       "router")
     _load(app, "swarm_endpoints",            "router")
@@ -350,6 +381,10 @@ def register_all_routers(app: FastAPI) -> None:
         ("config_drift_endpoints",            {}),
         ("fim_endpoints",                     {}),
         ("active_response_endpoints",         {}),
+        ("security_ops_endpoints",            {}),
+        ("native_security_ops_endpoints",      {}),
+        ("remediation_playbook_endpoints",     {}),
+        ("remediation_control_endpoints",      {}),
     ]
 
     seen: set[str] = set()
@@ -358,3 +393,4 @@ def register_all_routers(app: FastAPI) -> None:
             continue
         seen.add(module_name)
         _load(app, module_name, "router", **kwargs)
+

@@ -78,7 +78,7 @@ const MOCK_ALERTS: FimAlert[] = [
   { id: 'a4', agent_id: 'ag3', hostname: 'workstation-01', path: 'C:\\Windows\\System32\\cmd.exe', change_type: 'modified', severity: 'high', detected_at: '2026-06-10T18:30:00Z' },
 ];
 
-const token = () => localStorage.getItem('token') ?? '';
+const token = () => sessionStorage.getItem('token') ?? '';
 const h = () => ({ Authorization: `Bearer ${token()}` });
 const jh = () => ({ ...h(), 'Content-Type': 'application/json' });
 

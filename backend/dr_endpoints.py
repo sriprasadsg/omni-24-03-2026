@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dr", tags=["Disaster Recovery"])
 
-_DR_FAILOVER_ROLES = {"Super Admin", "super_admin", "platform-admin", "Tenant Admin", "admin"}
+_DR_FAILOVER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
 
 @router.get("/status")
 async def get_dr_status(tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):

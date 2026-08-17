@@ -35,7 +35,7 @@ const DECISION_COLORS: Record<string, string> = {
   Deferred: 'text-gray-500 dark:text-gray-400',
 };
 
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 export default function AccessReviewDashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);

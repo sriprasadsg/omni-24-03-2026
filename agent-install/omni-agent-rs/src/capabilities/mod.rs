@@ -1,11 +1,17 @@
+pub mod feed_bundle;
+pub mod security_scan;
 pub mod agent_update;
 pub mod compliance;
 pub mod ebpf_tracing;
 pub mod fim;
+pub mod fim_baseline;
 pub mod logs;
 pub mod metrics;
 pub mod network_discovery;
+pub mod persistence_detection;
+pub mod pii_scanner;
 pub mod predictive_health;
+pub mod process_monitor;
 pub mod remote_access;
 pub mod runtime_security;
 pub mod sbom;
@@ -13,6 +19,14 @@ pub mod software_management;
 pub mod system_patching;
 pub mod ueba;
 pub mod vulnerability_scan;
+pub mod remediation_actions;
+pub mod ssh_key_checks;
+pub mod ssh_key_rotation;
+#[cfg(target_os = "linux")]
+pub mod fanotify_watcher;
+
+#[cfg(target_os = "linux")]
+pub mod process_mapper;
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -33,6 +47,9 @@ impl CapabilityManager {
         CapabilityManager {
             caps: vec![
                 Box::new(metrics::MetricsCapability),
+                Box::new(process_monitor::ProcessMonitorCapability),
+                Box::new(persistence_detection::PersistenceDetectionCapability),
+                Box::new(pii_scanner::PiiScannerCapability),
                 Box::new(logs::LogsCapability),
                 Box::new(fim::FimCapability),
                 Box::new(vulnerability_scan::VulnScanCapability),

@@ -1,0 +1,2712 @@
+
+> enterprise-omni-agent-ai-platform@0.0.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/enterprise-omni-agent-ai-platform
+
+ ❯ .claude/worktrees/agent-a5a5e8324ac44f234/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 15ms
+   × UserService > should create a user 7ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 4ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-a7f23733a9a74a84a/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 16ms
+   × UserService > should create a user 12ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-a0e58f613584073ea/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 16ms
+   × UserService > should create a user 11ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/wf_a56d5f0b-769-2/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 13ms
+   × UserService > should create a user 9ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/wf_a56d5f0b-769-4/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 9ms
+   × UserService > should create a user 6ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-ab4e45b2aeefc2b18/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 12ms
+   × UserService > should create a user 8ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-afb7ab9ef2b348e2f/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 10ms
+   × UserService > should create a user 6ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+TAP version 13
+# Subtest: strips inline `tools: [...]` array from frontmatter
+ok 1 - strips inline `tools: [...]` array from frontmatter
+  ---
+  duration_ms: 4.225407
+  ...
+# Subtest: strips multi-line `tools:` list with indented continuation
+ok 2 - strips multi-line `tools:` list with indented continuation
+  ---
+  duration_ms: 5.270839
+  ...
+# Subtest: preserves folded `description: >` continuation lines when `tools:` follows
+ok 3 - preserves folded `description: >` continuation lines when `tools:` follows
+  ---
+  duration_ms: 0.496388
+  ...
+# Subtest: returns input unchanged when no frontmatter fence
+ok 4 - returns input unchanged when no frontmatter fence
+  ---
+  duration_ms: 0.306992
+  ...
+# Subtest: returns input unchanged when frontmatter has no `tools:` field
+ok 5 - returns input unchanged when frontmatter has no `tools:` field
+  ---
+  duration_ms: 0.282746
+  ...
+# Subtest: non-string input returns unchanged
+ok 6 - non-string input returns unchanged
+  ---
+  duration_ms: 1.205348
+  ...
+# Subtest: all shipped cavecrew agent files contain offending tools array (RED proof)
+ok 7 - all shipped cavecrew agent files contain offending tools array (RED proof)
+  ---
+  duration_ms: 0.718234
+  ...
+# Subtest: all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+ok 8 - all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+  ---
+  duration_ms: 0.756412
+  ...
+# Subtest: installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+ok 9 - installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+  ---
+  duration_ms: 3.286454
+  ...
+ ❯ .claude/worktrees/agent-aa3b19f1254f170be/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 14ms
+   × UserService > should create a user 10ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-a6ae928b1af05d7b8/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 13ms
+   × UserService > should create a user 9ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/wf_a56d5f0b-769-5/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 13ms
+   × UserService > should create a user 9ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/wf_a56d5f0b-769-3/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 12ms
+   × UserService > should create a user 8ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-a240ace053a554b71/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 9ms
+   × UserService > should create a user 6ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ .claude/worktrees/agent-aa45183eca75846a6/code-review-graph-main/tests/fixtures/sample_vitest.test.ts (3 tests | 3 failed) 16ms
+   × UserService > should create a user 11ms
+     → UserRepository is not a constructor
+   × UserService > should find a user by id 1ms
+     → UserRepository is not a constructor
+   × UserService > alternative test syntax 1ms
+     → UserRepository is not a constructor
+ ❯ servers/src/everything/__tests__/registrations.test.ts (6 tests | 6 failed) 562ms
+   × Registration Index Files > tools/index.ts > should register all standard tools 281ms
+     → Failed to resolve import "zod" from "servers/src/everything/tools/get-annotated-message.ts". Does the file exist?
+   × Registration Index Files > tools/index.ts > should register conditional tools based on capabilities 1ms
+     → Failed to resolve import "zod" from "servers/src/everything/tools/get-annotated-message.ts". Does the file exist?
+   × Registration Index Files > tools/index.ts > should not register conditional tools when capabilities missing 2ms
+     → Failed to resolve import "zod" from "servers/src/everything/tools/get-annotated-message.ts". Does the file exist?
+   × Registration Index Files > prompts/index.ts > should register all prompts 127ms
+     → Failed to resolve import "zod" from "servers/src/everything/prompts/args.ts". Does the file exist?
+   × Registration Index Files > resources/index.ts > should register resource templates 148ms
+     → Failed to resolve import "zod" from "servers/src/everything/resources/templates.ts". Does the file exist?
+   × Registration Index Files > resources/index.ts > should read instructions from file 1ms
+     → Failed to resolve import "zod" from "servers/src/everything/resources/templates.ts". Does the file exist?
+ ❯ servers/src/filesystem/__tests__/startup-validation.test.ts (4 tests | 4 failed) 493ms
+   × Startup Directory Validation > should start successfully with all accessible directories 110ms
+     → expected 'node:internal/modules/cjs/loader:1210…' to contain 'Secure MCP Filesystem Server running …'
+   × Startup Directory Validation > should skip inaccessible directory and continue with accessible one 101ms
+     → expected 'node:internal/modules/cjs/loader:1210…' to contain 'Warning: Cannot access directory'
+   × Startup Directory Validation > should exit with error when ALL directories are inaccessible 172ms
+     → expected 'node:internal/modules/cjs/loader:1210…' to contain 'Error: None of the specified director…'
+   × Startup Directory Validation > should warn when path is not a directory 107ms
+     → expected 'node:internal/modules/cjs/loader:1210…' to contain 'Warning:'
+TAP version 13
+# Subtest: stripJsonComments strips // line comments
+ok 1 - stripJsonComments strips // line comments
+  ---
+  duration_ms: 5.141096
+  ...
+# Subtest: stripJsonComments strips /* block */ comments
+ok 2 - stripJsonComments strips /* block */ comments
+  ---
+  duration_ms: 9.980502
+  ...
+# Subtest: stripJsonComments leaves comment-looking sequences inside strings alone
+ok 3 - stripJsonComments leaves comment-looking sequences inside strings alone
+  ---
+  duration_ms: 0.410117
+  ...
+# Subtest: stripJsonComments strips trailing commas
+ok 4 - stripJsonComments strips trailing commas
+  ---
+  duration_ms: 0.584974
+  ...
+# Subtest: readSettings handles plain JSON
+ok 5 - readSettings handles plain JSON
+  ---
+  duration_ms: 2.590521
+  ...
+# Subtest: readSettings handles JSONC (comments + trailing commas)
+ok 6 - readSettings handles JSONC (comments + trailing commas)
+  ---
+  duration_ms: 0.97665
+  ...
+# Subtest: readSettings returns {} for missing file
+ok 7 - readSettings returns {} for missing file
+  ---
+  duration_ms: 0.539246
+  ...
+# Subtest: readSettings returns null for unrecoverable garbage
+ok 8 - readSettings returns null for unrecoverable garbage
+  ---
+  duration_ms: 2.446234
+  ...
+# Subtest: writeSettings round-trips with newline
+ok 9 - writeSettings round-trips with newline
+  ---
+  duration_ms: 2.608949
+  ...
+# Subtest: validateHookFields drops malformed command hook (missing command)
+ok 10 - validateHookFields drops malformed command hook (missing command)
+  ---
+  duration_ms: 4.050376
+  ...
+# Subtest: validateHookFields drops malformed agent hook (missing prompt)
+ok 11 - validateHookFields drops malformed agent hook (missing prompt)
+  ---
+  duration_ms: 0.398344
+  ...
+# Subtest: validateHookFields drops empty events and empty hooks parent
+ok 12 - validateHookFields drops empty events and empty hooks parent
+  ---
+  duration_ms: 0.335018
+  ...
+# Subtest: addCommandHook is idempotent on substring marker
+ok 13 - addCommandHook is idempotent on substring marker
+  ---
+  duration_ms: 0.587082
+  ...
+# Subtest: hasCavemanHook detects via substring
+ok 14 - hasCavemanHook detects via substring
+  ---
+  duration_ms: 3.444563
+  ...
+# Subtest: removeCavemanHooks tolerates malformed hook event values without throwing
+ok 15 - removeCavemanHooks tolerates malformed hook event values without throwing
+  ---
+  duration_ms: 0.665436
+  ...
+# Subtest: removeCavemanHooks strips by marker and cleans empties
+ok 16 - removeCavemanHooks strips by marker and cleans empties
+  ---
+  duration_ms: 0.68776
+  ...
+# Subtest: rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+ok 17 - rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+  ---
+  duration_ms: 0.725673
+  ...
+# Subtest: rewriteLegacyManagedHookCommands ignores already-absolute node commands
+ok 18 - rewriteLegacyManagedHookCommands ignores already-absolute node commands
+  ---
+  duration_ms: 0.540856
+  ...
+# Subtest: pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+ok 19 - pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+  ---
+  duration_ms: 1.098332
+  ...
+# Subtest: pruneOrphanedManagedHooks removes orphan bare-node managed hook
+ok 20 - pruneOrphanedManagedHooks removes orphan bare-node managed hook
+  ---
+  duration_ms: 0.636435
+  ...
+# Subtest: pruneOrphanedManagedHooks keeps managed hook whose target exists
+ok 21 - pruneOrphanedManagedHooks keeps managed hook whose target exists
+  ---
+  duration_ms: 0.830458
+  ...
+# Subtest: pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+ok 22 - pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+  ---
+  duration_ms: 0.569372
+  ...
+# Subtest: pruneOrphanedManagedHooks resolves relative target against configDir
+ok 23 - pruneOrphanedManagedHooks resolves relative target against configDir
+  ---
+  duration_ms: 0.615252
+  ...
+# Subtest: pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+ok 24 - pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+  ---
+  duration_ms: 0.335085
+  ...
+# Subtest: pruneOrphanedManagedHooks handles quoted paths containing spaces
+ok 25 - pruneOrphanedManagedHooks handles quoted paths containing spaces
+  ---
+  duration_ms: 0.306383
+  ...
+# Subtest: pruneOrphanedManagedHooks drops orphaned managed statusLine
+ok 26 - pruneOrphanedManagedHooks drops orphaned managed statusLine
+  ---
+  duration_ms: 0.334782
+  ...
+# Subtest: claudeConfigDir honors CLAUDE_CONFIG_DIR env
+ok 27 - claudeConfigDir honors CLAUDE_CONFIG_DIR env
+  ---
+  duration_ms: 0.35106
+  ...
+TAP version 13
+# Subtest: strips inline `tools: [...]` array from frontmatter
+ok 1 - strips inline `tools: [...]` array from frontmatter
+  ---
+  duration_ms: 9.729221
+  ...
+# Subtest: strips multi-line `tools:` list with indented continuation
+ok 2 - strips multi-line `tools:` list with indented continuation
+  ---
+  duration_ms: 8.950323
+  ...
+# Subtest: preserves folded `description: >` continuation lines when `tools:` follows
+ok 3 - preserves folded `description: >` continuation lines when `tools:` follows
+  ---
+  duration_ms: 0.50328
+  ...
+# Subtest: returns input unchanged when no frontmatter fence
+TAP version 13
+ok 4 - returns input unchanged when no frontmatter fence
+  ---
+  duration_ms: 0.254559
+  ...
+# Subtest: returns input unchanged when frontmatter has no `tools:` field
+ok 5 - returns input unchanged when frontmatter has no `tools:` field
+  ---
+  duration_ms: 0.204819
+  ...
+# Subtest: non-string input returns unchanged
+ok 6 - non-string input returns unchanged
+  ---
+  duration_ms: 0.981745
+  ...
+# Subtest: all shipped cavecrew agent files contain offending tools array (RED proof)
+# Subtest: stripJsonComments strips // line comments
+ok 7 - all shipped cavecrew agent files contain offending tools array (RED proof)
+  ---
+  duration_ms: 0.796058
+  ...
+# Subtest: all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+ok 8 - all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+  ---
+  duration_ms: 2.810585
+  ...
+# Subtest: installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+ok 9 - installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+  ---
+  duration_ms: 9.408942
+  ...
+ok 1 - stripJsonComments strips // line comments
+  ---
+  duration_ms: 7.128341
+  ...
+# Subtest: stripJsonComments strips /* block */ comments
+ok 2 - stripJsonComments strips /* block */ comments
+  ---
+  duration_ms: 7.351173
+  ...
+# Subtest: stripJsonComments leaves comment-looking sequences inside strings alone
+ok 3 - stripJsonComments leaves comment-looking sequences inside strings alone
+  ---
+  duration_ms: 0.416415
+  ...
+# Subtest: stripJsonComments strips trailing commas
+ok 4 - stripJsonComments strips trailing commas
+  ---
+  duration_ms: 0.560624
+  ...
+# Subtest: readSettings handles plain JSON
+ok 5 - readSettings handles plain JSON
+  ---
+  duration_ms: 2.678952
+  ...
+# Subtest: readSettings handles JSONC (comments + trailing commas)
+ok 6 - readSettings handles JSONC (comments + trailing commas)
+  ---
+  duration_ms: 1.036247
+  ...
+# Subtest: readSettings returns {} for missing file
+ok 7 - readSettings returns {} for missing file
+  ---
+  duration_ms: 0.587627
+  ...
+# Subtest: readSettings returns null for unrecoverable garbage
+ok 8 - readSettings returns null for unrecoverable garbage
+  ---
+  duration_ms: 2.333959
+  ...
+# Subtest: writeSettings round-trips with newline
+ok 9 - writeSettings round-trips with newline
+  ---
+  duration_ms: 2.589236
+  ...
+# Subtest: validateHookFields drops malformed command hook (missing command)
+ok 10 - validateHookFields drops malformed command hook (missing command)
+  ---
+  duration_ms: 0.880307
+  ...
+# Subtest: validateHookFields drops malformed agent hook (missing prompt)
+ok 11 - validateHookFields drops malformed agent hook (missing prompt)
+  ---
+  duration_ms: 0.389014
+  ...
+# Subtest: validateHookFields drops empty events and empty hooks parent
+ok 12 - validateHookFields drops empty events and empty hooks parent
+  ---
+  duration_ms: 0.373154
+  ...
+# Subtest: addCommandHook is idempotent on substring marker
+ok 13 - addCommandHook is idempotent on substring marker
+  ---
+  duration_ms: 0.562055
+  ...
+# Subtest: hasCavemanHook detects via substring
+ok 14 - hasCavemanHook detects via substring
+  ---
+  duration_ms: 0.486376
+  ...
+# Subtest: removeCavemanHooks tolerates malformed hook event values without throwing
+ok 15 - removeCavemanHooks tolerates malformed hook event values without throwing
+  ---
+  duration_ms: 0.523464
+  ...
+# Subtest: removeCavemanHooks strips by marker and cleans empties
+ok 16 - removeCavemanHooks strips by marker and cleans empties
+  ---
+  duration_ms: 0.631958
+  ...
+# Subtest: rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+ok 17 - rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+  ---
+  duration_ms: 0.815907
+  ...
+# Subtest: rewriteLegacyManagedHookCommands ignores already-absolute node commands
+ok 18 - rewriteLegacyManagedHookCommands ignores already-absolute node commands
+  ---
+  duration_ms: 0.596427
+  ...
+# Subtest: pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+ok 19 - pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+  ---
+  duration_ms: 0.970943
+  ...
+# Subtest: pruneOrphanedManagedHooks removes orphan bare-node managed hook
+ok 20 - pruneOrphanedManagedHooks removes orphan bare-node managed hook
+  ---
+  duration_ms: 0.608552
+  ...
+# Subtest: pruneOrphanedManagedHooks keeps managed hook whose target exists
+ok 21 - pruneOrphanedManagedHooks keeps managed hook whose target exists
+  ---
+  duration_ms: 0.811787
+  ...
+# Subtest: pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+ok 22 - pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+  ---
+  duration_ms: 0.500045
+  ...
+# Subtest: pruneOrphanedManagedHooks resolves relative target against configDir
+ok 23 - pruneOrphanedManagedHooks resolves relative target against configDir
+  ---
+  duration_ms: 0.578089
+  ...
+# Subtest: pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+ok 24 - pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+  ---
+  duration_ms: 0.33166
+  ...
+# Subtest: pruneOrphanedManagedHooks handles quoted paths containing spaces
+ok 25 - pruneOrphanedManagedHooks handles quoted paths containing spaces
+  ---
+  duration_ms: 0.330813
+  ...
+# Subtest: pruneOrphanedManagedHooks drops orphaned managed statusLine
+ok 26 - pruneOrphanedManagedHooks drops orphaned managed statusLine
+  ---
+  duration_ms: 0.294083
+  ...
+# Subtest: claudeConfigDir honors CLAUDE_CONFIG_DIR env
+ok 27 - claudeConfigDir honors CLAUDE_CONFIG_DIR env
+  ---
+  duration_ms: 0.326432
+  ...
+TAP version 13
+# Subtest: strips inline `tools: [...]` array from frontmatter
+ok 1 - strips inline `tools: [...]` array from frontmatter
+  ---
+  duration_ms: 3.623128
+  ...
+# Subtest: strips multi-line `tools:` list with indented continuation
+ok 2 - strips multi-line `tools:` list with indented continuation
+  ---
+  duration_ms: 5.275117
+  ...
+# Subtest: preserves folded `description: >` continuation lines when `tools:` follows
+ok 3 - preserves folded `description: >` continuation lines when `tools:` follows
+  ---
+  duration_ms: 0.426388
+  ...
+# Subtest: returns input unchanged when no frontmatter fence
+ok 4 - returns input unchanged when no frontmatter fence
+  ---
+  duration_ms: 0.384846
+  ...
+# Subtest: returns input unchanged when frontmatter has no `tools:` field
+ok 5 - returns input unchanged when frontmatter has no `tools:` field
+  ---
+  duration_ms: 0.222082
+  ...
+# Subtest: non-string input returns unchanged
+ok 6 - non-string input returns unchanged
+  ---
+  duration_ms: 1.065078
+  ...
+# Subtest: all shipped cavecrew agent files contain offending tools array (RED proof)
+ok 7 - all shipped cavecrew agent files contain offending tools array (RED proof)
+  ---
+  duration_ms: 0.806023
+  ...
+# Subtest: all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+ok 8 - all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+  ---
+  duration_ms: 0.852232
+  ...
+# Subtest: installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+ok 9 - installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+  ---
+  duration_ms: 2.960667
+  ...
+TAP version 13
+# Subtest: stripJsonComments strips // line comments
+ok 1 - stripJsonComments strips // line comments
+  ---
+  duration_ms: 9.756541
+  ...
+# Subtest: stripJsonComments strips /* block */ comments
+ok 2 - stripJsonComments strips /* block */ comments
+  ---
+  duration_ms: 13.081062
+  ...
+# Subtest: stripJsonComments leaves comment-looking sequences inside strings alone
+ok 3 - stripJsonComments leaves comment-looking sequences inside strings alone
+  ---
+  duration_ms: 0.456744
+  ...
+# Subtest: stripJsonComments strips trailing commas
+ok 4 - stripJsonComments strips trailing commas
+  ---
+  duration_ms: 0.572255
+  ...
+# Subtest: readSettings handles plain JSON
+ok 5 - readSettings handles plain JSON
+  ---
+  duration_ms: 3.641944
+  ...
+# Subtest: readSettings handles JSONC (comments + trailing commas)
+ok 6 - readSettings handles JSONC (comments + trailing commas)
+  ---
+  duration_ms: 1.054261
+  ...
+# Subtest: readSettings returns {} for missing file
+ok 7 - readSettings returns {} for missing file
+  ---
+  duration_ms: 0.548607
+  ...
+# Subtest: readSettings returns null for unrecoverable garbage
+ok 8 - readSettings returns null for unrecoverable garbage
+  ---
+  duration_ms: 2.671108
+  ...
+# Subtest: writeSettings round-trips with newline
+ok 9 - writeSettings round-trips with newline
+  ---
+  duration_ms: 2.862842
+  ...
+# Subtest: validateHookFields drops malformed command hook (missing command)
+ok 10 - validateHookFields drops malformed command hook (missing command)
+  ---
+  duration_ms: 1.004274
+  ...
+# Subtest: validateHookFields drops malformed agent hook (missing prompt)
+ok 11 - validateHookFields drops malformed agent hook (missing prompt)
+  ---
+  duration_ms: 0.400154
+  ...
+# Subtest: validateHookFields drops empty events and empty hooks parent
+ok 12 - validateHookFields drops empty events and empty hooks parent
+  ---
+  duration_ms: 0.369907
+  ...
+# Subtest: addCommandHook is idempotent on substring marker
+ok 13 - addCommandHook is idempotent on substring marker
+  ---
+  duration_ms: 0.593139
+  ...
+# Subtest: hasCavemanHook detects via substring
+ok 14 - hasCavemanHook detects via substring
+  ---
+  duration_ms: 0.493585
+  ...
+# Subtest: removeCavemanHooks tolerates malformed hook event values without throwing
+ok 15 - removeCavemanHooks tolerates malformed hook event values without throwing
+  ---
+  duration_ms: 1.136653
+  ...
+# Subtest: removeCavemanHooks strips by marker and cleans empties
+ok 16 - removeCavemanHooks strips by marker and cleans empties
+  ---
+  duration_ms: 0.860954
+  ...
+# Subtest: rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+ok 17 - rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+  ---
+  duration_ms: 1.104603
+  ...
+# Subtest: rewriteLegacyManagedHookCommands ignores already-absolute node commands
+ok 18 - rewriteLegacyManagedHookCommands ignores already-absolute node commands
+  ---
+  duration_ms: 0.771753
+  ...
+# Subtest: pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+ok 19 - pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+  ---
+  duration_ms: 1.412689
+  ...
+# Subtest: pruneOrphanedManagedHooks removes orphan bare-node managed hook
+ok 20 - pruneOrphanedManagedHooks removes orphan bare-node managed hook
+  ---
+  duration_ms: 1.376449
+  ...
+# Subtest: pruneOrphanedManagedHooks keeps managed hook whose target exists
+ok 21 - pruneOrphanedManagedHooks keeps managed hook whose target exists
+  ---
+  duration_ms: 1.007923
+  ...
+# Subtest: pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+ok 22 - pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+  ---
+  duration_ms: 1.726654
+  ...
+# Subtest: pruneOrphanedManagedHooks resolves relative target against configDir
+ok 23 - pruneOrphanedManagedHooks resolves relative target against configDir
+  ---
+  duration_ms: 0.731465
+  ...
+# Subtest: pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+ok 24 - pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+  ---
+  duration_ms: 0.368799
+  ...
+# Subtest: pruneOrphanedManagedHooks handles quoted paths containing spaces
+ok 25 - pruneOrphanedManagedHooks handles quoted paths containing spaces
+  ---
+  duration_ms: 0.370941
+  ...
+# Subtest: pruneOrphanedManagedHooks drops orphaned managed statusLine
+ok 26 - pruneOrphanedManagedHooks drops orphaned managed statusLine
+  ---
+  duration_ms: 0.431408
+  ...
+# Subtest: claudeConfigDir honors CLAUDE_CONFIG_DIR env
+ok 27 - claudeConfigDir honors CLAUDE_CONFIG_DIR env
+  ---
+  duration_ms: 0.721283
+  ...
+TAP version 13
+# Subtest: strips inline `tools: [...]` array from frontmatter
+ok 1 - strips inline `tools: [...]` array from frontmatter
+  ---
+  duration_ms: 4.413003
+  ...
+# Subtest: strips multi-line `tools:` list with indented continuation
+ok 2 - strips multi-line `tools:` list with indented continuation
+  ---
+  duration_ms: 6.982344
+  ...
+# Subtest: preserves folded `description: >` continuation lines when `tools:` follows
+ok 3 - preserves folded `description: >` continuation lines when `tools:` follows
+  ---
+  duration_ms: 0.501851
+  ...
+# Subtest: returns input unchanged when no frontmatter fence
+ok 4 - returns input unchanged when no frontmatter fence
+  ---
+  duration_ms: 0.390638
+  ...
+# Subtest: returns input unchanged when frontmatter has no `tools:` field
+ok 5 - returns input unchanged when frontmatter has no `tools:` field
+  ---
+  duration_ms: 0.356309
+  ...
+# Subtest: non-string input returns unchanged
+ok 6 - non-string input returns unchanged
+  ---
+  duration_ms: 1.091224
+  ...
+# Subtest: all shipped cavecrew agent files contain offending tools array (RED proof)
+ok 7 - all shipped cavecrew agent files contain offending tools array (RED proof)
+  ---
+  duration_ms: 0.901414
+  ...
+# Subtest: all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+ok 8 - all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+  ---
+  duration_ms: 1.083617
+  ...
+# Subtest: installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+ok 9 - installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+  ---
+  duration_ms: 4.130261
+  ...
+TAP version 13
+# Subtest: stripJsonComments strips // line comments
+ok 1 - stripJsonComments strips // line comments
+  ---
+  duration_ms: 8.040624
+  ...
+# Subtest: stripJsonComments strips /* block */ comments
+ok 2 - stripJsonComments strips /* block */ comments
+  ---
+  duration_ms: 7.134949
+  ...
+# Subtest: stripJsonComments leaves comment-looking sequences inside strings alone
+ok 3 - stripJsonComments leaves comment-looking sequences inside strings alone
+  ---
+  duration_ms: 0.379465
+  ...
+# Subtest: stripJsonComments strips trailing commas
+ok 4 - stripJsonComments strips trailing commas
+  ---
+  duration_ms: 0.523895
+  ...
+# Subtest: readSettings handles plain JSON
+ok 5 - readSettings handles plain JSON
+  ---
+  duration_ms: 2.673197
+  ...
+# Subtest: readSettings handles JSONC (comments + trailing commas)
+ok 6 - readSettings handles JSONC (comments + trailing commas)
+  ---
+  duration_ms: 0.913523
+  ...
+# Subtest: readSettings returns {} for missing file
+ok 7 - readSettings returns {} for missing file
+  ---
+  duration_ms: 0.508689
+  ...
+# Subtest: readSettings returns null for unrecoverable garbage
+ok 8 - readSettings returns null for unrecoverable garbage
+  ---
+  duration_ms: 2.64391
+  ...
+# Subtest: writeSettings round-trips with newline
+ok 9 - writeSettings round-trips with newline
+  ---
+  duration_ms: 2.914465
+  ...
+# Subtest: validateHookFields drops malformed command hook (missing command)
+ok 10 - validateHookFields drops malformed command hook (missing command)
+  ---
+  duration_ms: 0.843616
+  ...
+# Subtest: validateHookFields drops malformed agent hook (missing prompt)
+ok 11 - validateHookFields drops malformed agent hook (missing prompt)
+  ---
+  duration_ms: 0.444892
+  ...
+# Subtest: validateHookFields drops empty events and empty hooks parent
+ok 12 - validateHookFields drops empty events and empty hooks parent
+  ---
+  duration_ms: 0.371473
+  ...
+# Subtest: addCommandHook is idempotent on substring marker
+ok 13 - addCommandHook is idempotent on substring marker
+  ---
+  duration_ms: 0.588997
+  ...
+# Subtest: hasCavemanHook detects via substring
+ok 14 - hasCavemanHook detects via substring
+  ---
+  duration_ms: 0.471409
+  ...
+# Subtest: removeCavemanHooks tolerates malformed hook event values without throwing
+ok 15 - removeCavemanHooks tolerates malformed hook event values without throwing
+  ---
+  duration_ms: 0.573084
+  ...
+# Subtest: removeCavemanHooks strips by marker and cleans empties
+ok 16 - removeCavemanHooks strips by marker and cleans empties
+  ---
+  duration_ms: 0.67799
+  ...
+# Subtest: rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+ok 17 - rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+  ---
+  duration_ms: 0.804386
+  ...
+# Subtest: rewriteLegacyManagedHookCommands ignores already-absolute node commands
+ok 18 - rewriteLegacyManagedHookCommands ignores already-absolute node commands
+  ---
+  duration_ms: 0.548753
+  ...
+# Subtest: pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+ok 19 - pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+  ---
+  duration_ms: 1.792106
+  ...
+# Subtest: pruneOrphanedManagedHooks removes orphan bare-node managed hook
+ok 20 - pruneOrphanedManagedHooks removes orphan bare-node managed hook
+  ---
+  duration_ms: 0.622187
+  ...
+# Subtest: pruneOrphanedManagedHooks keeps managed hook whose target exists
+ok 21 - pruneOrphanedManagedHooks keeps managed hook whose target exists
+  ---
+  duration_ms: 1.363313
+  ...
+# Subtest: pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+ok 22 - pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+  ---
+  duration_ms: 0.388917
+  ...
+# Subtest: pruneOrphanedManagedHooks resolves relative target against configDir
+ok 23 - pruneOrphanedManagedHooks resolves relative target against configDir
+  ---
+  duration_ms: 0.394064
+  ...
+# Subtest: pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+ok 24 - pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+  ---
+  duration_ms: 0.221865
+  ...
+# Subtest: pruneOrphanedManagedHooks handles quoted paths containing spaces
+ok 25 - pruneOrphanedManagedHooks handles quoted paths containing spaces
+  ---
+  duration_ms: 0.226457
+  ...
+# Subtest: pruneOrphanedManagedHooks drops orphaned managed statusLine
+ok 26 - pruneOrphanedManagedHooks drops orphaned managed statusLine
+  ---
+  duration_ms: 0.197081
+  ...
+# Subtest: claudeConfigDir honors CLAUDE_CONFIG_DIR env
+ok 27 - claudeConfigDir honors CLAUDE_CONFIG_DIR env
+  ---
+  duration_ms: 0.199085
+  ...
+TAP version 13
+# Subtest: strips inline `tools: [...]` array from frontmatter
+ok 1 - strips inline `tools: [...]` array from frontmatter
+  ---
+  duration_ms: 4.140065
+  ...
+# Subtest: strips multi-line `tools:` list with indented continuation
+ok 2 - strips multi-line `tools:` list with indented continuation
+  ---
+  duration_ms: 4.946643
+  ...
+# Subtest: preserves folded `description: >` continuation lines when `tools:` follows
+ok 3 - preserves folded `description: >` continuation lines when `tools:` follows
+  ---
+  duration_ms: 0.409965
+  ...
+# Subtest: returns input unchanged when no frontmatter fence
+ok 4 - returns input unchanged when no frontmatter fence
+  ---
+  duration_ms: 0.821719
+  ...
+# Subtest: returns input unchanged when frontmatter has no `tools:` field
+ok 5 - returns input unchanged when frontmatter has no `tools:` field
+  ---
+  duration_ms: 0.256267
+  ...
+# Subtest: non-string input returns unchanged
+ok 6 - non-string input returns unchanged
+  ---
+  duration_ms: 0.937905
+  ...
+# Subtest: all shipped cavecrew agent files contain offending tools array (RED proof)
+ok 7 - all shipped cavecrew agent files contain offending tools array (RED proof)
+  ---
+  duration_ms: 0.722567
+  ...
+# Subtest: all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+ok 8 - all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+  ---
+  duration_ms: 0.832008
+  ...
+# Subtest: installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+ok 9 - installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+  ---
+  duration_ms: 2.879754
+  ...
+TAP version 13
+# Subtest: stripJsonComments strips // line comments
+ok 1 - stripJsonComments strips // line comments
+  ---
+  duration_ms: 5.319887
+  ...
+# Subtest: stripJsonComments strips /* block */ comments
+ok 2 - stripJsonComments strips /* block */ comments
+  ---
+  duration_ms: 6.555861
+  ...
+# Subtest: stripJsonComments leaves comment-looking sequences inside strings alone
+ok 3 - stripJsonComments leaves comment-looking sequences inside strings alone
+  ---
+  duration_ms: 0.412795
+  ...
+# Subtest: stripJsonComments strips trailing commas
+ok 4 - stripJsonComments strips trailing commas
+  ---
+  duration_ms: 0.386435
+  ...
+# Subtest: readSettings handles plain JSON
+ok 5 - readSettings handles plain JSON
+  ---
+  duration_ms: 2.168007
+  ...
+# Subtest: readSettings handles JSONC (comments + trailing commas)
+ok 6 - readSettings handles JSONC (comments + trailing commas)
+  ---
+  duration_ms: 0.663972
+  ...
+# Subtest: readSettings returns {} for missing file
+ok 7 - readSettings returns {} for missing file
+  ---
+  duration_ms: 0.36421
+  ...
+# Subtest: readSettings returns null for unrecoverable garbage
+ok 8 - readSettings returns null for unrecoverable garbage
+  ---
+  duration_ms: 1.283531
+  ...
+# Subtest: writeSettings round-trips with newline
+ok 9 - writeSettings round-trips with newline
+  ---
+  duration_ms: 2.037352
+  ...
+# Subtest: validateHookFields drops malformed command hook (missing command)
+ok 10 - validateHookFields drops malformed command hook (missing command)
+  ---
+  duration_ms: 0.826214
+  ...
+# Subtest: validateHookFields drops malformed agent hook (missing prompt)
+ok 11 - validateHookFields drops malformed agent hook (missing prompt)
+  ---
+  duration_ms: 0.366543
+  ...
+# Subtest: validateHookFields drops empty events and empty hooks parent
+ok 12 - validateHookFields drops empty events and empty hooks parent
+  ---
+  duration_ms: 0.410371
+  ...
+# Subtest: addCommandHook is idempotent on substring marker
+ok 13 - addCommandHook is idempotent on substring marker
+  ---
+  duration_ms: 0.564314
+  ...
+# Subtest: hasCavemanHook detects via substring
+ok 14 - hasCavemanHook detects via substring
+  ---
+  duration_ms: 0.482897
+  ...
+# Subtest: removeCavemanHooks tolerates malformed hook event values without throwing
+ok 15 - removeCavemanHooks tolerates malformed hook event values without throwing
+  ---
+  duration_ms: 0.504825
+  ...
+# Subtest: removeCavemanHooks strips by marker and cleans empties
+ok 16 - removeCavemanHooks strips by marker and cleans empties
+  ---
+  duration_ms: 0.60415
+  ...
+# Subtest: rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+ok 17 - rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+  ---
+  duration_ms: 0.784736
+  ...
+# Subtest: rewriteLegacyManagedHookCommands ignores already-absolute node commands
+ok 18 - rewriteLegacyManagedHookCommands ignores already-absolute node commands
+  ---
+  duration_ms: 0.577548
+  ...
+# Subtest: pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+ok 19 - pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+  ---
+  duration_ms: 0.992554
+  ...
+# Subtest: pruneOrphanedManagedHooks removes orphan bare-node managed hook
+ok 20 - pruneOrphanedManagedHooks removes orphan bare-node managed hook
+  ---
+  duration_ms: 0.612201
+  ...
+# Subtest: pruneOrphanedManagedHooks keeps managed hook whose target exists
+ok 21 - pruneOrphanedManagedHooks keeps managed hook whose target exists
+  ---
+  duration_ms: 1.029025
+  ...
+# Subtest: pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+ok 22 - pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+  ---
+  duration_ms: 0.512147
+  ...
+# Subtest: pruneOrphanedManagedHooks resolves relative target against configDir
+ok 23 - pruneOrphanedManagedHooks resolves relative target against configDir
+  ---
+  duration_ms: 0.628928
+  ...
+# Subtest: pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+ok 24 - pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+  ---
+  duration_ms: 0.30174
+  ...
+# Subtest: pruneOrphanedManagedHooks handles quoted paths containing spaces
+ok 25 - pruneOrphanedManagedHooks handles quoted paths containing spaces
+  ---
+  duration_ms: 0.58331
+  ...
+# Subtest: pruneOrphanedManagedHooks drops orphaned managed statusLine
+ok 26 - pruneOrphanedManagedHooks drops orphaned managed statusLine
+  ---
+  duration_ms: 0.314952
+  ...
+# Subtest: claudeConfigDir honors CLAUDE_CONFIG_DIR env
+ok 27 - claudeConfigDir honors CLAUDE_CONFIG_DIR env
+  ---
+  duration_ms: 0.350971
+  ...
+TAP version 13
+# Subtest: strips inline `tools: [...]` array from frontmatter
+ok 1 - strips inline `tools: [...]` array from frontmatter
+  ---
+  duration_ms: 8.706672
+  ...
+# Subtest: strips multi-line `tools:` list with indented continuation
+ok 2 - strips multi-line `tools:` list with indented continuation
+  ---
+  duration_ms: 12.404649
+  ...
+# Subtest: preserves folded `description: >` continuation lines when `tools:` follows
+ok 3 - preserves folded `description: >` continuation lines when `tools:` follows
+  ---
+  duration_ms: 1.160987
+  ...
+# Subtest: returns input unchanged when no frontmatter fence
+ok 4 - returns input unchanged when no frontmatter fence
+  ---
+  duration_ms: 0.470515
+  ...
+# Subtest: returns input unchanged when frontmatter has no `tools:` field
+ok 5 - returns input unchanged when frontmatter has no `tools:` field
+  ---
+  duration_ms: 0.675005
+  ...
+# Subtest: non-string input returns unchanged
+ok 6 - non-string input returns unchanged
+  ---
+  duration_ms: 1.412327
+  ...
+# Subtest: all shipped cavecrew agent files contain offending tools array (RED proof)
+ok 7 - all shipped cavecrew agent files contain offending tools array (RED proof)
+  ---
+  duration_ms: 0.925983
+  ...
+# Subtest: all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+ok 8 - all shipped cavecrew agent files become opencode-safe after transform (GREEN proof)
+  ---
+  duration_ms: 2.639873
+  ...
+# Subtest: installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+ok 9 - installer-equivalent copy writes opencode-safe agent file (issue 386 end-to-end)
+  ---
+  duration_ms: 12.564196
+  ...
+TAP version 13
+# Subtest: --help prints usage and exits 0
+TAP version 13
+ok 1 - --help prints usage and exits 0
+  ---
+  duration_ms: 70.393524
+  ...
+# Subtest: --list prints provider matrix
+ok 2 - --list prints provider matrix
+  ---
+  duration_ms: 74.918327
+  ...
+# Subtest: unknown flag exits 2 with error
+ok 3 - unknown flag exits 2 with error
+  ---
+  duration_ms: 70.410353
+  ...
+# Subtest: stripJsonComments strips // line comments
+# Subtest: --all + --minimal mutually exclusive
+ok 4 - --all + --minimal mutually exclusive
+  ---
+  duration_ms: 76.415199
+  ...
+# Subtest: --only without arg fails
+ok 5 - --only without arg fails
+ok 1 - stripJsonComments strips // line comments
+  ---
+  duration_ms: 91.958853
+  ...
+# Subtest: --config-dir without arg fails
+  ---
+  duration_ms: 5.236095
+  ...
+# Subtest: stripJsonComments strips /* block */ comments
+ok 6 - --config-dir without arg fails
+ok 2 - stripJsonComments strips /* block */ comments
+  ---
+  duration_ms: 6.037827
+  ...
+# Subtest: stripJsonComments leaves comment-looking sequences inside strings alone
+ok 3 - stripJsonComments leaves comment-looking sequences inside strings alone
+  ---
+  duration_ms: 85.705413
+  ...
+# Subtest: --config-dir followed by another flag fails
+  ---
+  duration_ms: 0.392552
+  ...
+ok 7 - --config-dir followed by another flag fails
+  ---
+  duration_ms: 98.608283
+  ...
+# Subtest: aider alias rewrites to aider-desk in dry-run output
+ok 8 - aider alias rewrites to aider-desk in dry-run output
+  ---
+  duration_ms: 271.23833
+  ...
+# Subtest: --only with unknown agent id exits 2
+ok 9 - --only with unknown agent id exits 2
+  ---
+  duration_ms: 88.871711
+  ...
+# Subtest: --only known id passes argv validation
+ok 10 - --only known id passes argv validation
+  ---
+  duration_ms: 1504.319883
+  ...
+# Subtest: stripJsonComments strips trailing commas
+ok 4 - stripJsonComments strips trailing commas
+  ---
+  duration_ms: 0.485713
+  ...
+# Subtest: readSettings handles plain JSON
+ok 5 - readSettings handles plain JSON
+  ---
+  duration_ms: 2.263925
+  ...
+# Subtest: readSettings handles JSONC (comments + trailing commas)
+ok 6 - readSettings handles JSONC (comments + trailing commas)
+  ---
+  duration_ms: 0.85635
+  ...
+# Subtest: readSettings returns {} for missing file
+ok 7 - readSettings returns {} for missing file
+  ---
+  duration_ms: 0.495685
+  ...
+# Subtest: readSettings returns null for unrecoverable garbage
+ok 8 - readSettings returns null for unrecoverable garbage
+  ---
+  duration_ms: 1.940874
+  ...
+# Subtest: writeSettings round-trips with newline
+ok 9 - writeSettings round-trips with newline
+  ---
+  duration_ms: 2.285981
+  ...
+# Subtest: validateHookFields drops malformed command hook (missing command)
+ok 10 - validateHookFields drops malformed command hook (missing command)
+  ---
+  duration_ms: 0.842804
+  ...
+# Subtest: validateHookFields drops malformed agent hook (missing prompt)
+ok 11 - validateHookFields drops malformed agent hook (missing prompt)
+  ---
+  duration_ms: 0.610737
+  ...
+# Subtest: validateHookFields drops empty events and empty hooks parent
+ok 12 - validateHookFields drops empty events and empty hooks parent
+  ---
+  duration_ms: 0.370966
+  ...
+# Subtest: addCommandHook is idempotent on substring marker
+ok 13 - addCommandHook is idempotent on substring marker
+  ---
+  duration_ms: 0.565908
+  ...
+# Subtest: hasCavemanHook detects via substring
+ok 14 - hasCavemanHook detects via substring
+  ---
+  duration_ms: 0.586243
+  ...
+# Subtest: removeCavemanHooks tolerates malformed hook event values without throwing
+ok 15 - removeCavemanHooks tolerates malformed hook event values without throwing
+  ---
+  duration_ms: 0.548872
+  ...
+# Subtest: removeCavemanHooks strips by marker and cleans empties
+ok 16 - removeCavemanHooks strips by marker and cleans empties
+  ---
+  duration_ms: 0.58109
+  ...
+# Subtest: rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+ok 17 - rewriteLegacyManagedHookCommands rewrites bare-node managed scripts
+  ---
+  duration_ms: 0.77409
+  ...
+# Subtest: rewriteLegacyManagedHookCommands ignores already-absolute node commands
+ok 18 - rewriteLegacyManagedHookCommands ignores already-absolute node commands
+  ---
+  duration_ms: 0.416996
+  ...
+# Subtest: pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+ok 19 - pruneOrphanedManagedHooks removes managed hook whose target is missing (absolute-node)
+  ---
+  duration_ms: 0.918645
+  ...
+# Subtest: pruneOrphanedManagedHooks removes orphan bare-node managed hook
+ok 20 - pruneOrphanedManagedHooks removes orphan bare-node managed hook
+  ---
+  duration_ms: 0.59171
+  ...
+# Subtest: pruneOrphanedManagedHooks keeps managed hook whose target exists
+ok 21 - pruneOrphanedManagedHooks keeps managed hook whose target exists
+  ---
+  duration_ms: 0.836004
+  ...
+# Subtest: pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+ok 22 - pruneOrphanedManagedHooks leaves non-managed hooks alone even if missing
+  ---
+  duration_ms: 0.533174
+  ...
+# Subtest: pruneOrphanedManagedHooks resolves relative target against configDir
+ok 23 - pruneOrphanedManagedHooks resolves relative target against configDir
+  ---
+  duration_ms: 0.872848
+  ...
+# Subtest: pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+ok 24 - pruneOrphanedManagedHooks does NOT match a user script whose name merely contains a managed basename
+  ---
+  duration_ms: 0.314969
+  ...
+# Subtest: pruneOrphanedManagedHooks handles quoted paths containing spaces
+ok 25 - pruneOrphanedManagedHooks handles quoted paths containing spaces
+  ---
+  duration_ms: 0.354482
+  ...
+# Subtest: pruneOrphanedManagedHooks drops orphaned managed statusLine
+ok 26 - pruneOrphanedManagedHooks drops orphaned managed statusLine
+  ---
+  duration_ms: 0.304063
+  ...
+# Subtest: claudeConfigDir honors CLAUDE_CONFIG_DIR env
+ok 27 - claudeConfigDir honors CLAUDE_CONFIG_DIR env
+  ---
+  duration_ms: 0.338166
+  ...
+TAP version 13
+# Subtest: dry-run --only claude prints plan and writes nothing
+ok 1 - dry-run --only claude prints plan and writes nothing
+  ---
+  duration_ms: 1693.431356
+  ...
+# Subtest: dry-run --uninstall does not delete files
+ok 2 - dry-run --uninstall does not delete files
+  ---
+  duration_ms: 2262.046857
+  ...
+ ✓ components/ui/__tests__/Modal.test.tsx (6 tests) 234ms
+ ✓ src/__tests__/RemediationSlaSettings.test.tsx (9 tests) 575ms
+TAP version 13
+# Subtest: dry-run --only claude prints plan and writes nothing
+ok 1 - dry-run --only claude prints plan and writes nothing
+  ---
+  duration_ms: 1344.261809
+  ...
+# Subtest: dry-run --uninstall does not delete files
+ok 2 - dry-run --uninstall does not delete files
+  ---
+  duration_ms: 2091.738247
+  ...
+TAP version 13
+# Subtest: dry-run --only claude prints plan and writes nothing
+ok 1 - dry-run --only claude prints plan and writes nothing
+  ---
+  duration_ms: 1631.412195
+  ...
+# Subtest: dry-run --uninstall does not delete files
+ok 2 - dry-run --uninstall does not delete files
+  ---
+  duration_ms: 1930.51559
+  ...
+ ✓ .claude/worktrees/wf_a56d5f0b-769-4/src/__tests__/QuestionnaireAnswerReviewPanel.test.tsx (4 tests) 161ms
+ ✓ .claude/worktrees/agent-aa45183eca75846a6/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 121ms
+ ✓ .claude/worktrees/wf_a56d5f0b-769-2/src/__tests__/QuestionnaireAnswerReviewPanel.test.tsx (4 tests) 149ms
+ ✓ src/__tests__/QuestionnaireAnswerReviewPanel.test.tsx (4 tests) 199ms
+TAP version 13
+# Subtest: --help prints usage and exits 0
+ok 1 - --help prints usage and exits 0
+  ---
+  duration_ms: 110.256703
+  ...
+# Subtest: --list prints provider matrix
+ok 2 - --list prints provider matrix
+  ---
+  duration_ms: 139.586475
+  ...
+# Subtest: unknown flag exits 2 with error
+ok 3 - unknown flag exits 2 with error
+  ---
+  duration_ms: 96.508215
+  ...
+# Subtest: --all + --minimal mutually exclusive
+ok 4 - --all + --minimal mutually exclusive
+  ---
+  duration_ms: 147.948278
+  ...
+# Subtest: --only without arg fails
+ok 5 - --only without arg fails
+  ---
+  duration_ms: 79.950956
+  ...
+# Subtest: --config-dir without arg fails
+ok 6 - --config-dir without arg fails
+  ---
+  duration_ms: 64.159041
+  ...
+# Subtest: --config-dir followed by another flag fails
+ok 7 - --config-dir followed by another flag fails
+  ---
+  duration_ms: 97.409021
+  ...
+# Subtest: aider alias rewrites to aider-desk in dry-run output
+ok 8 - aider alias rewrites to aider-desk in dry-run output
+  ---
+  duration_ms: 230.764497
+  ...
+# Subtest: --only with unknown agent id exits 2
+ok 9 - --only with unknown agent id exits 2
+  ---
+  duration_ms: 99.354228
+  ...
+# Subtest: --only known id passes argv validation
+ok 10 - --only known id passes argv validation
+  ---
+  duration_ms: 1558.527258
+  ...
+TAP version 13
+# Subtest: dry-run --only claude prints plan and writes nothing
+ok 1 - dry-run --only claude prints plan and writes nothing
+  ---
+  duration_ms: 1441.032113
+  ...
+# Subtest: dry-run --uninstall does not delete files
+ok 2 - dry-run --uninstall does not delete files
+  ---
+  duration_ms: 2002.657006
+  ...
+ ✓ src/__tests__/ITAMCatalogPanel.test.tsx (3 tests) 213ms
+ ✓ src/__tests__/ITAMConsole.test.tsx (6 tests) 407ms
+TAP version 13
+# Subtest: --help prints usage and exits 0
+ok 1 - --help prints usage and exits 0
+  ---
+  duration_ms: 92.607784
+  ...
+# Subtest: --list prints provider matrix
+ok 2 - --list prints provider matrix
+  ---
+  duration_ms: 107.484806
+  ...
+# Subtest: unknown flag exits 2 with error
+ok 3 - unknown flag exits 2 with error
+  ---
+  duration_ms: 111.990113
+  ...
+# Subtest: --all + --minimal mutually exclusive
+ok 4 - --all + --minimal mutually exclusive
+  ---
+  duration_ms: 82.248761
+  ...
+# Subtest: --only without arg fails
+ok 5 - --only without arg fails
+  ---
+  duration_ms: 98.563456
+  ...
+# Subtest: --config-dir without arg fails
+ok 6 - --config-dir without arg fails
+  ---
+  duration_ms: 103.339104
+  ...
+# Subtest: --config-dir followed by another flag fails
+ok 7 - --config-dir followed by another flag fails
+  ---
+  duration_ms: 109.912668
+  ...
+# Subtest: aider alias rewrites to aider-desk in dry-run output
+ok 8 - aider alias rewrites to aider-desk in dry-run output
+  ---
+  duration_ms: 209.128791
+  ...
+# Subtest: --only with unknown agent id exits 2
+ok 9 - --only with unknown agent id exits 2
+  ---
+  duration_ms: 129.602854
+  ...
+# Subtest: --only known id passes argv validation
+ok 10 - --only known id passes argv validation
+  ---
+  duration_ms: 1525.792307
+  ...
+TAP version 13
+# Subtest: dry-run --only claude prints plan and writes nothing
+ok 1 - dry-run --only claude prints plan and writes nothing
+  ---
+  duration_ms: 1440.977298
+  ...
+# Subtest: dry-run --uninstall does not delete files
+ok 2 - dry-run --uninstall does not delete files
+  ---
+  duration_ms: 2080.084403
+  ...
+ ✓ .claude/worktrees/agent-aa3b19f1254f170be/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 115ms
+ ✓ .claude/worktrees/agent-ab4e45b2aeefc2b18/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 156ms
+TAP version 13
+# Subtest: --help prints usage and exits 0
+ok 1 - --help prints usage and exits 0
+  ---
+  duration_ms: 91.238036
+  ...
+# Subtest: --list prints provider matrix
+ok 2 - --list prints provider matrix
+  ---
+  duration_ms: 79.770255
+  ...
+# Subtest: unknown flag exits 2 with error
+ok 3 - unknown flag exits 2 with error
+  ---
+  duration_ms: 73.783602
+  ...
+# Subtest: --all + --minimal mutually exclusive
+ok 4 - --all + --minimal mutually exclusive
+  ---
+  duration_ms: 95.649541
+  ...
+# Subtest: --only without arg fails
+ok 5 - --only without arg fails
+  ---
+  duration_ms: 83.155042
+  ...
+# Subtest: --config-dir without arg fails
+ok 6 - --config-dir without arg fails
+  ---
+  duration_ms: 114.995289
+  ...
+# Subtest: --config-dir followed by another flag fails
+ok 7 - --config-dir followed by another flag fails
+  ---
+  duration_ms: 101.870642
+  ...
+# Subtest: aider alias rewrites to aider-desk in dry-run output
+ok 8 - aider alias rewrites to aider-desk in dry-run output
+  ---
+  duration_ms: 264.680029
+  ...
+TAP version 13
+# Subtest: dry-run --only claude prints plan and writes nothing
+ok 1 - dry-run --only claude prints plan and writes nothing
+# Subtest: --only with unknown agent id exits 2
+ok 9 - --only with unknown agent id exits 2
+  ---
+  duration_ms: 93.645323
+  ...
+# Subtest: --only known id passes argv validation
+  ---
+  duration_ms: 1557.713047
+  ...
+ok 10 - --only known id passes argv validation
+  ---
+  duration_ms: 1457.674731
+  ...
+# Subtest: dry-run --uninstall does not delete files
+ok 2 - dry-run --uninstall does not delete files
+  ---
+  duration_ms: 2021.998665
+  ...
+TAP version 13
+# Subtest: --help prints usage and exits 0
+ok 1 - --help prints usage and exits 0
+  ---
+  duration_ms: 91.588813
+  ...
+# Subtest: --list prints provider matrix
+ok 2 - --list prints provider matrix
+  ---
+  duration_ms: 117.295604
+  ...
+# Subtest: unknown flag exits 2 with error
+ok 3 - unknown flag exits 2 with error
+  ---
+  duration_ms: 111.125748
+  ...
+# Subtest: --all + --minimal mutually exclusive
+ok 4 - --all + --minimal mutually exclusive
+  ---
+  duration_ms: 78.337853
+  ...
+# Subtest: --only without arg fails
+ok 5 - --only without arg fails
+  ---
+  duration_ms: 89.827208
+  ...
+# Subtest: --config-dir without arg fails
+ok 6 - --config-dir without arg fails
+  ---
+  duration_ms: 151.68923
+  ...
+# Subtest: --config-dir followed by another flag fails
+ok 7 - --config-dir followed by another flag fails
+  ---
+  duration_ms: 109.64884
+  ...
+# Subtest: aider alias rewrites to aider-desk in dry-run output
+ok 8 - aider alias rewrites to aider-desk in dry-run output
+  ---
+  duration_ms: 232.649268
+  ...
+# Subtest: --only with unknown agent id exits 2
+ok 9 - --only with unknown agent id exits 2
+  ---
+  duration_ms: 82.508674
+  ...
+# Subtest: --only known id passes argv validation
+ok 10 - --only known id passes argv validation
+  ---
+  duration_ms: 1409.537891
+  ...
+ ✓ .claude/worktrees/wf_a56d5f0b-769-4/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 181ms
+ ✓ .claude/worktrees/wf_a56d5f0b-769-2/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 159ms
+ ✓ .claude/worktrees/wf_a56d5f0b-769-5/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 164ms
+ ✓ .claude/worktrees/wf_a56d5f0b-769-3/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 123ms
+TAP version 13
+# Subtest: --help prints usage and exits 0
+ok 1 - --help prints usage and exits 0
+  ---
+  duration_ms: 103.980792
+  ...
+# Subtest: --list prints provider matrix
+ok 2 - --list prints provider matrix
+  ---
+  duration_ms: 110.317228
+  ...
+# Subtest: unknown flag exits 2 with error
+ok 3 - unknown flag exits 2 with error
+  ---
+  duration_ms: 137.425333
+  ...
+# Subtest: --all + --minimal mutually exclusive
+ok 4 - --all + --minimal mutually exclusive
+  ---
+  duration_ms: 91.606528
+  ...
+# Subtest: --only without arg fails
+ok 5 - --only without arg fails
+  ---
+  duration_ms: 118.649497
+  ...
+# Subtest: --config-dir without arg fails
+ok 6 - --config-dir without arg fails
+  ---
+  duration_ms: 166.526164
+  ...
+# Subtest: --config-dir followed by another flag fails
+ok 7 - --config-dir followed by another flag fails
+  ---
+  duration_ms: 118.030605
+  ...
+# Subtest: aider alias rewrites to aider-desk in dry-run output
+ok 8 - aider alias rewrites to aider-desk in dry-run output
+  ---
+  duration_ms: 243.480528
+  ...
+# Subtest: --only with unknown agent id exits 2
+ok 9 - --only with unknown agent id exits 2
+  ---
+  duration_ms: 92.942424
+  ...
+# Subtest: --only known id passes argv validation
+ok 10 - --only known id passes argv validation
+  ---
+  duration_ms: 1477.895513
+  ...
+ ✓ servers/src/filesystem/__tests__/path-validation.test.ts (53 tests) 160ms
+ ✓ .claude/worktrees/agent-a240ace053a554b71/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 147ms
+ ✓ .claude/worktrees/wf_a56d5f0b-769-5/src/__tests__/QuestionnaireAnswerReviewPanel.test.tsx (4 tests) 220ms
+ ✓ .claude/worktrees/wf_a56d5f0b-769-3/src/__tests__/QuestionnaireAnswerReviewPanel.test.tsx (4 tests) 222ms
+ ✓ src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 153ms
+ ✓ .claude/worktrees/agent-a0e58f613584073ea/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 146ms
+ ✓ .claude/worktrees/agent-a7f23733a9a74a84a/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 156ms
+ ✓ .claude/worktrees/agent-a6ae928b1af05d7b8/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 173ms
+ ✓ servers/src/filesystem/__tests__/roots-utils.test.ts (3 tests) 31ms
+ ✓ servers/src/filesystem/__tests__/directory-tree.test.ts (7 tests) 58ms
+ ✓ .claude/worktrees/agent-a5a5e8324ac44f234/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 141ms
+ ✓ .claude/worktrees/agent-afb7ab9ef2b348e2f/src/__tests__/EvidenceMarkdownViewer.test.tsx (9 tests) 110ms
+ ✓ src/__tests__/fleetClustering.test.ts (6 tests) 9ms
+ ✓ servers/src/filesystem/__tests__/path-utils.test.ts (29 tests) 21ms
+ ✓ src/__tests__/worldMap.test.ts (5 tests) 11ms
+TAP version 13
+# Subtest: opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+ok 1 - opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+  ---
+  duration_ms: 274.9669
+  ...
+# Subtest: opencode idempotent install does not duplicate plugin entries
+ok 2 - opencode idempotent install does not duplicate plugin entries
+  ---
+  duration_ms: 693.438378
+  ...
+# Subtest: opencode re-install preserves user edits to plugin.js without --force
+ok 3 - opencode re-install preserves user edits to plugin.js without --force
+  ---
+  duration_ms: 749.941742
+  ...
+# Subtest: opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+ok 4 - opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+  ---
+  duration_ms: 5534.072355
+  ...
+# Subtest: opencode install tolerates JSONC opencode.json (comments + trailing commas)
+ok 5 - opencode install tolerates JSONC opencode.json (comments + trailing commas)
+  ---
+  duration_ms: 262.098607
+  ...
+# Subtest: opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+ok 6 - opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+  ---
+  duration_ms: 4559.004035
+  ...
+# Subtest: opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+not ok 7 - opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+  ---
+  duration_ms: 231.011662
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/opencode.test.mjs:265:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/caveman-opencode-nKmipj/opencode/plugins/caveman/plugin.js' imported from '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/opencode.test.mjs'"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    VitestExecutor._fetchModule (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:247:19)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    VitestExecutor.directRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:268:44)
+    VitestExecutor.cachedRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:189:11)
+    VitestExecutor.dependencyRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:239:10)
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/opencode.test.mjs:274:17)
+    Test.run (node:internal/test_runner/test:797:9)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: --config-dir expands ~ to home directory
+ok 11 - --config-dir expands ~ to home directory
+  ---
+  duration_ms: 1576.075391
+  ...
+# Subtest: bare -- (POSIX end-of-options) is accepted and ignored
+ok 12 - bare -- (POSIX end-of-options) is accepted and ignored
+  ---
+  duration_ms: 1561.405831
+  ...
+# Subtest: bare --with-mcp-shrink (no upstream) exits 2 with hint
+ok 13 - bare --with-mcp-shrink (no upstream) exits 2 with hint
+  ---
+  duration_ms: 90.898853
+  ...
+# Subtest: --with-mcp-shrink followed by another flag (no value) exits 2
+ok 14 - --with-mcp-shrink followed by another flag (no value) exits 2
+  ---
+  duration_ms: 94.966769
+  ...
+# Subtest: --with-mcp-shrink="<cmd>" registers wrapping that upstream
+ok 15 - --with-mcp-shrink="<cmd>" registers wrapping that upstream
+  ---
+  duration_ms: 3163.891557
+  ...
+# Subtest: --with-mcp-shrink "<cmd>" (space-separated) also accepted
+ok 16 - --with-mcp-shrink "<cmd>" (space-separated) also accepted
+  ---
+  duration_ms: 2522.060687
+  ...
+# Subtest: --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+ok 17 - --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+  ---
+  duration_ms: 1083.761152
+  ...
+# Subtest: --help discloses --config-dir scope
+ok 18 - --help discloses --config-dir scope
+  ---
+  duration_ms: 91.402147
+  ...
+TAP version 13
+# Subtest: opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+ok 1 - opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+  ---
+  duration_ms: 323.308077
+  ...
+# Subtest: opencode idempotent install does not duplicate plugin entries
+ok 2 - opencode idempotent install does not duplicate plugin entries
+  ---
+  duration_ms: 587.095562
+  ...
+# Subtest: opencode re-install preserves user edits to plugin.js without --force
+ok 3 - opencode re-install preserves user edits to plugin.js without --force
+  ---
+  duration_ms: 743.680047
+  ...
+# Subtest: opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+ok 4 - opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+  ---
+  duration_ms: 5003.443705
+  ...
+# Subtest: opencode install tolerates JSONC opencode.json (comments + trailing commas)
+ok 5 - opencode install tolerates JSONC opencode.json (comments + trailing commas)
+  ---
+  duration_ms: 227.002144
+  ...
+# Subtest: opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+ok 6 - opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+  ---
+  duration_ms: 4374.41471
+  ...
+# Subtest: opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+not ok 7 - opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+  ---
+  duration_ms: 169.272794
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:265:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/caveman-opencode-pNfN23/opencode/plugins/caveman/plugin.js' imported from '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs'"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    VitestExecutor._fetchModule (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:247:19)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    VitestExecutor.directRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:268:44)
+    VitestExecutor.cachedRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:189:11)
+    VitestExecutor.dependencyRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:239:10)
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:274:17)
+    Test.run (node:internal/test_runner/test:797:9)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+TAP version 13
+# Subtest: opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+ok 1 - opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+  ---
+  duration_ms: 285.078643
+  ...
+# Subtest: opencode idempotent install does not duplicate plugin entries
+ok 2 - opencode idempotent install does not duplicate plugin entries
+  ---
+  duration_ms: 537.866195
+  ...
+# Subtest: opencode re-install preserves user edits to plugin.js without --force
+ok 3 - opencode re-install preserves user edits to plugin.js without --force
+  ---
+  duration_ms: 750.116822
+  ...
+# Subtest: opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+ok 4 - opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+  ---
+  duration_ms: 5262.59699
+  ...
+# Subtest: opencode install tolerates JSONC opencode.json (comments + trailing commas)
+ok 5 - opencode install tolerates JSONC opencode.json (comments + trailing commas)
+  ---
+  duration_ms: 206.851277
+  ...
+# Subtest: opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+ok 6 - opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+  ---
+  duration_ms: 4183.418008
+  ...
+# Subtest: opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+not ok 7 - opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+  ---
+  duration_ms: 179.577046
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:265:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/caveman-opencode-WU1rCK/opencode/plugins/caveman/plugin.js' imported from '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs'"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    VitestExecutor._fetchModule (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:247:19)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    VitestExecutor.directRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:268:44)
+    VitestExecutor.cachedRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:189:11)
+    VitestExecutor.dependencyRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:239:10)
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:274:17)
+    Test.run (node:internal/test_runner/test:797:9)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: --config-dir expands ~ to home directory
+ok 11 - --config-dir expands ~ to home directory
+  ---
+  duration_ms: 1367.415183
+  ...
+# Subtest: bare -- (POSIX end-of-options) is accepted and ignored
+ok 12 - bare -- (POSIX end-of-options) is accepted and ignored
+  ---
+  duration_ms: 1532.475389
+  ...
+# Subtest: bare --with-mcp-shrink (no upstream) exits 2 with hint
+ok 13 - bare --with-mcp-shrink (no upstream) exits 2 with hint
+  ---
+  duration_ms: 108.909129
+  ...
+# Subtest: --with-mcp-shrink followed by another flag (no value) exits 2
+ok 14 - --with-mcp-shrink followed by another flag (no value) exits 2
+  ---
+  duration_ms: 113.094633
+  ...
+# Subtest: --with-mcp-shrink="<cmd>" registers wrapping that upstream
+ok 15 - --with-mcp-shrink="<cmd>" registers wrapping that upstream
+  ---
+  duration_ms: 2912.063649
+  ...
+# Subtest: --with-mcp-shrink "<cmd>" (space-separated) also accepted
+ok 16 - --with-mcp-shrink "<cmd>" (space-separated) also accepted
+  ---
+  duration_ms: 2333.917699
+  ...
+# Subtest: --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+ok 17 - --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+  ---
+  duration_ms: 979.697579
+  ...
+# Subtest: --help discloses --config-dir scope
+ok 18 - --help discloses --config-dir scope
+  ---
+  duration_ms: 82.75593
+  ...
+TAP version 13
+# Subtest: opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+ok 1 - opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+  ---
+  duration_ms: 312.726827
+  ...
+# Subtest: opencode idempotent install does not duplicate plugin entries
+ok 2 - opencode idempotent install does not duplicate plugin entries
+  ---
+  duration_ms: 498.444526
+  ...
+# Subtest: opencode re-install preserves user edits to plugin.js without --force
+ok 3 - opencode re-install preserves user edits to plugin.js without --force
+  ---
+  duration_ms: 713.513557
+  ...
+# Subtest: opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+ok 4 - opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+  ---
+  duration_ms: 5307.973323
+  ...
+# Subtest: opencode install tolerates JSONC opencode.json (comments + trailing commas)
+ok 5 - opencode install tolerates JSONC opencode.json (comments + trailing commas)
+  ---
+  duration_ms: 190.011017
+  ...
+# Subtest: opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+ok 6 - opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+  ---
+  duration_ms: 3949.334999
+  ...
+# Subtest: opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+not ok 7 - opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+  ---
+  duration_ms: 187.06516
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:265:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/caveman-opencode-HNI6Ne/opencode/plugins/caveman/plugin.js' imported from '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs'"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    VitestExecutor._fetchModule (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:247:19)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    VitestExecutor.directRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:268:44)
+    VitestExecutor.cachedRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:189:11)
+    VitestExecutor.dependencyRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:239:10)
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:274:17)
+    Test.run (node:internal/test_runner/test:797:9)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+TAP version 13
+# Subtest: opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+ok 1 - opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+  ---
+  duration_ms: 240.564846
+  ...
+# Subtest: opencode idempotent install does not duplicate plugin entries
+ok 2 - opencode idempotent install does not duplicate plugin entries
+  ---
+  duration_ms: 516.139374
+  ...
+# Subtest: opencode re-install preserves user edits to plugin.js without --force
+ok 3 - opencode re-install preserves user edits to plugin.js without --force
+  ---
+  duration_ms: 737.502242
+  ...
+# Subtest: opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+ok 4 - opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+  ---
+  duration_ms: 5084.910305
+  ...
+# Subtest: opencode install tolerates JSONC opencode.json (comments + trailing commas)
+ok 5 - opencode install tolerates JSONC opencode.json (comments + trailing commas)
+  ---
+  duration_ms: 181.306857
+  ...
+# Subtest: opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+ok 6 - opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+  ---
+  duration_ms: 4235.955016
+  ...
+# Subtest: opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+not ok 7 - opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+  ---
+  duration_ms: 162.595473
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:265:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/caveman-opencode-i9ddGI/opencode/plugins/caveman/plugin.js' imported from '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs'"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    VitestExecutor._fetchModule (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:247:19)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    VitestExecutor.directRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:268:44)
+    VitestExecutor.cachedRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:189:11)
+    VitestExecutor.dependencyRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:239:10)
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:274:17)
+    Test.run (node:internal/test_runner/test:797:9)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: --config-dir expands ~ to home directory
+ok 11 - --config-dir expands ~ to home directory
+  ---
+  duration_ms: 1418.520026
+  ...
+# Subtest: bare -- (POSIX end-of-options) is accepted and ignored
+ok 12 - bare -- (POSIX end-of-options) is accepted and ignored
+  ---
+  duration_ms: 1480.818688
+  ...
+# Subtest: bare --with-mcp-shrink (no upstream) exits 2 with hint
+ok 13 - bare --with-mcp-shrink (no upstream) exits 2 with hint
+  ---
+  duration_ms: 158.347559
+  ...
+# Subtest: --with-mcp-shrink followed by another flag (no value) exits 2
+ok 14 - --with-mcp-shrink followed by another flag (no value) exits 2
+  ---
+  duration_ms: 101.305485
+  ...
+# Subtest: --with-mcp-shrink="<cmd>" registers wrapping that upstream
+ok 15 - --with-mcp-shrink="<cmd>" registers wrapping that upstream
+  ---
+  duration_ms: 2831.372606
+  ...
+# Subtest: --with-mcp-shrink "<cmd>" (space-separated) also accepted
+ok 16 - --with-mcp-shrink "<cmd>" (space-separated) also accepted
+  ---
+  duration_ms: 2446.928771
+  ...
+# Subtest: --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+ok 17 - --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+  ---
+  duration_ms: 1064.926841
+  ...
+# Subtest: --help discloses --config-dir scope
+ok 18 - --help discloses --config-dir scope
+  ---
+  duration_ms: 68.933931
+  ...
+TAP version 13
+# Subtest: opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+ok 1 - opencode fresh install drops plugin, commands, agents, skills, AGENTS.md, opencode.json
+  ---
+  duration_ms: 345.824216
+  ...
+# Subtest: opencode idempotent install does not duplicate plugin entries
+ok 2 - opencode idempotent install does not duplicate plugin entries
+  ---
+  duration_ms: 448.018913
+  ...
+# Subtest: opencode re-install preserves user edits to plugin.js without --force
+ok 3 - opencode re-install preserves user edits to plugin.js without --force
+  ---
+  duration_ms: 684.991218
+  ...
+# Subtest: opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+ok 4 - opencode uninstall strips fenced AGENTS.md block, preserving user prefix and suffix
+  ---
+  duration_ms: 5026.026815
+  ...
+# Subtest: opencode install tolerates JSONC opencode.json (comments + trailing commas)
+ok 5 - opencode install tolerates JSONC opencode.json (comments + trailing commas)
+  ---
+  duration_ms: 169.154457
+  ...
+# Subtest: opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+ok 6 - opencode uninstall removes plugin dir, command/agent/skill files, prunes opencode.json
+  ---
+  duration_ms: 4149.017648
+  ...
+# Subtest: opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+not ok 7 - opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks
+  ---
+  duration_ms: 167.143823
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:265:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/caveman-opencode-sMSewj/opencode/plugins/caveman/plugin.js' imported from '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs'"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    VitestExecutor._fetchModule (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:247:19)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    VitestExecutor.directRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:268:44)
+    VitestExecutor.cachedRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:189:11)
+    VitestExecutor.dependencyRequest (file:///home/user/enterprise-omni-agent-ai-platform/node_modules/vite-node/dist/client.mjs:239:10)
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/opencode.test.mjs:274:17)
+    Test.run (node:internal/test_runner/test:797:9)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: --config-dir expands ~ to home directory
+ok 11 - --config-dir expands ~ to home directory
+  ---
+  duration_ms: 1532.874737
+  ...
+# Subtest: bare -- (POSIX end-of-options) is accepted and ignored
+ok 12 - bare -- (POSIX end-of-options) is accepted and ignored
+  ---
+  duration_ms: 1587.820307
+  ...
+# Subtest: bare --with-mcp-shrink (no upstream) exits 2 with hint
+ok 13 - bare --with-mcp-shrink (no upstream) exits 2 with hint
+  ---
+  duration_ms: 103.675763
+  ...
+# Subtest: --with-mcp-shrink followed by another flag (no value) exits 2
+ok 14 - --with-mcp-shrink followed by another flag (no value) exits 2
+  ---
+  duration_ms: 109.030796
+  ...
+# Subtest: --with-mcp-shrink="<cmd>" registers wrapping that upstream
+ok 15 - --with-mcp-shrink="<cmd>" registers wrapping that upstream
+  ---
+  duration_ms: 2577.604302
+  ...
+# Subtest: --with-mcp-shrink "<cmd>" (space-separated) also accepted
+ok 16 - --with-mcp-shrink "<cmd>" (space-separated) also accepted
+  ---
+  duration_ms: 2498.19031
+  ...
+# Subtest: --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+ok 17 - --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+  ---
+  duration_ms: 1023.104155
+  ...
+# Subtest: --help discloses --config-dir scope
+ok 18 - --help discloses --config-dir scope
+  ---
+  duration_ms: 61.233112
+  ...
+# Subtest: --config-dir expands ~ to home directory
+ok 11 - --config-dir expands ~ to home directory
+  ---
+  duration_ms: 1565.353527
+  ...
+# Subtest: bare -- (POSIX end-of-options) is accepted and ignored
+ok 12 - bare -- (POSIX end-of-options) is accepted and ignored
+  ---
+  duration_ms: 1530.153975
+  ...
+# Subtest: bare --with-mcp-shrink (no upstream) exits 2 with hint
+ok 13 - bare --with-mcp-shrink (no upstream) exits 2 with hint
+  ---
+  duration_ms: 98.455424
+  ...
+# Subtest: --with-mcp-shrink followed by another flag (no value) exits 2
+ok 14 - --with-mcp-shrink followed by another flag (no value) exits 2
+  ---
+  duration_ms: 89.337862
+  ...
+# Subtest: --with-mcp-shrink="<cmd>" registers wrapping that upstream
+ok 15 - --with-mcp-shrink="<cmd>" registers wrapping that upstream
+  ---
+  duration_ms: 2596.980477
+  ...
+# Subtest: --with-mcp-shrink "<cmd>" (space-separated) also accepted
+ok 16 - --with-mcp-shrink "<cmd>" (space-separated) also accepted
+  ---
+  duration_ms: 2384.585707
+  ...
+# Subtest: --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+ok 17 - --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+  ---
+  duration_ms: 995.895977
+  ...
+# Subtest: --help discloses --config-dir scope
+ok 18 - --help discloses --config-dir scope
+  ---
+  duration_ms: 64.499652
+  ...
+# Subtest: --config-dir expands ~ to home directory
+ok 11 - --config-dir expands ~ to home directory
+  ---
+  duration_ms: 1482.788658
+  ...
+# Subtest: bare -- (POSIX end-of-options) is accepted and ignored
+ok 12 - bare -- (POSIX end-of-options) is accepted and ignored
+  ---
+  duration_ms: 1395.769637
+  ...
+# Subtest: bare --with-mcp-shrink (no upstream) exits 2 with hint
+ok 13 - bare --with-mcp-shrink (no upstream) exits 2 with hint
+  ---
+  duration_ms: 95.348785
+  ...
+# Subtest: --with-mcp-shrink followed by another flag (no value) exits 2
+ok 14 - --with-mcp-shrink followed by another flag (no value) exits 2
+  ---
+  duration_ms: 96.412078
+  ...
+# Subtest: --with-mcp-shrink="<cmd>" registers wrapping that upstream
+ok 15 - --with-mcp-shrink="<cmd>" registers wrapping that upstream
+  ---
+  duration_ms: 2475.697359
+  ...
+# Subtest: --with-mcp-shrink "<cmd>" (space-separated) also accepted
+ok 16 - --with-mcp-shrink "<cmd>" (space-separated) also accepted
+  ---
+  duration_ms: 2286.426967
+  ...
+# Subtest: --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+ok 17 - --all does NOT auto-enable mcp-shrink (no sensible default upstream)
+  ---
+  duration_ms: 995.362692
+  ...
+# Subtest: --help discloses --config-dir scope
+ok 18 - --help discloses --config-dir scope
+  ---
+  duration_ms: 62.021844
+  ...
+ ✓ integrations/zapier-omniagent/test/triggers/grc_event.test.js (4 tests) 94ms
+TAP version 13
+# Subtest: fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+ok 1 - fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+  ---
+  duration_ms: 8027.421916
+  ...
+# Subtest: idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+ok 2 - idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+  ---
+  duration_ms: 7679.736324
+  ...
+# Subtest: uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+not ok 3 - uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+  ---
+  duration_ms: 5896.988314
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/e2e.freshinstall.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    caveman-activate.js should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/e2e.freshinstall.test.mjs:178:16)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: install tolerates JSONC settings.json (comments + trailing commas)
+ok 4 - install tolerates JSONC settings.json (comments + trailing commas)
+  ---
+  duration_ms: 5008.408422
+  ...
+# Subtest: openclaw install writes skill folder + SOUL.md bootstrap
+ok 5 - openclaw install writes skill folder + SOUL.md bootstrap
+  ---
+  duration_ms: 128.887248
+  ...
+# Subtest: openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+ok 6 - openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+  ---
+  duration_ms: 253.230271
+  ...
+# Subtest: openclaw install preserves user content in SOUL.md (append, not overwrite)
+ok 7 - openclaw install preserves user content in SOUL.md (append, not overwrite)
+  ---
+  duration_ms: 143.033807
+  ...
+# Subtest: openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+not ok 8 - openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+  ---
+  duration_ms: 128.197944
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/e2e.freshinstall.test.mjs:337:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    skill folder should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/marketplaces/caveman/tests/installer/e2e.freshinstall.test.mjs:347:12)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: caveman-init.js --only openclaw routes through the same helper
+ok 9 - caveman-init.js --only openclaw routes through the same helper
+  ---
+  duration_ms: 49.223976
+  ...
+# Subtest: lib settings.addCommandHook is idempotent across two synthetic install passes
+ok 10 - lib settings.addCommandHook is idempotent across two synthetic install passes
+  ---
+  duration_ms: 2.097281
+  ...
+TAP version 13
+# Subtest: fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+ok 1 - fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+  ---
+  duration_ms: 7854.028522
+  ...
+# Subtest: idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+ok 2 - idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+  ---
+  duration_ms: 7307.803009
+  ...
+# Subtest: uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+not ok 3 - uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+  ---
+  duration_ms: 5811.5611
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    caveman-activate.js should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:178:16)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: install tolerates JSONC settings.json (comments + trailing commas)
+ok 4 - install tolerates JSONC settings.json (comments + trailing commas)
+  ---
+  duration_ms: 5192.686129
+  ...
+# Subtest: openclaw install writes skill folder + SOUL.md bootstrap
+ok 5 - openclaw install writes skill folder + SOUL.md bootstrap
+  ---
+  duration_ms: 131.129257
+  ...
+# Subtest: openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+ok 6 - openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+  ---
+  duration_ms: 301.298583
+  ...
+# Subtest: openclaw install preserves user content in SOUL.md (append, not overwrite)
+ok 7 - openclaw install preserves user content in SOUL.md (append, not overwrite)
+  ---
+  duration_ms: 128.473167
+  ...
+# Subtest: openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+not ok 8 - openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+  ---
+  duration_ms: 129.319978
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:337:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    skill folder should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:347:12)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: caveman-init.js --only openclaw routes through the same helper
+ok 9 - caveman-init.js --only openclaw routes through the same helper
+  ---
+  duration_ms: 56.786113
+  ...
+# Subtest: lib settings.addCommandHook is idempotent across two synthetic install passes
+ok 10 - lib settings.addCommandHook is idempotent across two synthetic install passes
+  ---
+  duration_ms: 2.310058
+  ...
+TAP version 13
+# Subtest: fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+ok 1 - fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+  ---
+  duration_ms: 7804.138551
+  ...
+# Subtest: idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+ok 2 - idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+  ---
+  duration_ms: 7702.397746
+  ...
+# Subtest: uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+not ok 3 - uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+  ---
+  duration_ms: 6117.231507
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    caveman-activate.js should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:178:16)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: install tolerates JSONC settings.json (comments + trailing commas)
+ok 4 - install tolerates JSONC settings.json (comments + trailing commas)
+  ---
+  duration_ms: 5025.616165
+  ...
+# Subtest: openclaw install writes skill folder + SOUL.md bootstrap
+ok 5 - openclaw install writes skill folder + SOUL.md bootstrap
+  ---
+  duration_ms: 142.153852
+  ...
+# Subtest: openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+ok 6 - openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+  ---
+  duration_ms: 256.124171
+  ...
+# Subtest: openclaw install preserves user content in SOUL.md (append, not overwrite)
+ok 7 - openclaw install preserves user content in SOUL.md (append, not overwrite)
+  ---
+  duration_ms: 131.741738
+  ...
+# Subtest: openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+not ok 8 - openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+  ---
+  duration_ms: 136.485501
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:337:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    skill folder should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-2/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:347:12)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: caveman-init.js --only openclaw routes through the same helper
+ok 9 - caveman-init.js --only openclaw routes through the same helper
+  ---
+  duration_ms: 63.979184
+  ...
+# Subtest: lib settings.addCommandHook is idempotent across two synthetic install passes
+ok 10 - lib settings.addCommandHook is idempotent across two synthetic install passes
+  ---
+  duration_ms: 2.28202
+  ...
+TAP version 13
+# Subtest: fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+ok 1 - fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+  ---
+  duration_ms: 7678.770282
+  ...
+# Subtest: idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+ok 2 - idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+  ---
+  duration_ms: 7431.552793
+  ...
+# Subtest: uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+not ok 3 - uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+  ---
+  duration_ms: 5850.397007
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    caveman-activate.js should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:178:16)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: install tolerates JSONC settings.json (comments + trailing commas)
+ok 4 - install tolerates JSONC settings.json (comments + trailing commas)
+  ---
+  duration_ms: 5101.075134
+  ...
+# Subtest: openclaw install writes skill folder + SOUL.md bootstrap
+ok 5 - openclaw install writes skill folder + SOUL.md bootstrap
+  ---
+  duration_ms: 141.988782
+  ...
+# Subtest: openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+ok 6 - openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+  ---
+  duration_ms: 248.466258
+  ...
+# Subtest: openclaw install preserves user content in SOUL.md (append, not overwrite)
+ok 7 - openclaw install preserves user content in SOUL.md (append, not overwrite)
+  ---
+  duration_ms: 129.169684
+  ...
+# Subtest: openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+not ok 8 - openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+  ---
+  duration_ms: 124.603528
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:337:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    skill folder should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-3/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:347:12)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: caveman-init.js --only openclaw routes through the same helper
+ok 9 - caveman-init.js --only openclaw routes through the same helper
+  ---
+  duration_ms: 55.513507
+  ...
+# Subtest: lib settings.addCommandHook is idempotent across two synthetic install passes
+ok 10 - lib settings.addCommandHook is idempotent across two synthetic install passes
+  ---
+  duration_ms: 2.890674
+  ...
+TAP version 13
+# Subtest: fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+ok 1 - fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+  ---
+  duration_ms: 7197.513531
+  ...
+# Subtest: idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+ok 2 - idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+  ---
+  duration_ms: 7453.765062
+  ...
+# Subtest: uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+not ok 3 - uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+  ---
+  duration_ms: 5883.463876
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    caveman-activate.js should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:178:16)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: install tolerates JSONC settings.json (comments + trailing commas)
+ok 4 - install tolerates JSONC settings.json (comments + trailing commas)
+  ---
+  duration_ms: 5175.752064
+  ...
+# Subtest: openclaw install writes skill folder + SOUL.md bootstrap
+ok 5 - openclaw install writes skill folder + SOUL.md bootstrap
+  ---
+  duration_ms: 142.183955
+  ...
+# Subtest: openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+ok 6 - openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+  ---
+  duration_ms: 265.315698
+  ...
+# Subtest: openclaw install preserves user content in SOUL.md (append, not overwrite)
+ok 7 - openclaw install preserves user content in SOUL.md (append, not overwrite)
+  ---
+  duration_ms: 130.275259
+  ...
+# Subtest: openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+not ok 8 - openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+  ---
+  duration_ms: 127.897193
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:337:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    skill folder should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-4/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:347:12)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: caveman-init.js --only openclaw routes through the same helper
+ok 9 - caveman-init.js --only openclaw routes through the same helper
+  ---
+  duration_ms: 54.170162
+  ...
+# Subtest: lib settings.addCommandHook is idempotent across two synthetic install passes
+ok 10 - lib settings.addCommandHook is idempotent across two synthetic install passes
+  ---
+  duration_ms: 2.17513
+  ...
+TAP version 13
+# Subtest: fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+ok 1 - fresh install populates hooks dir and settings.json (skipped without `claude` CLI)
+  ---
+  duration_ms: 7471.050482
+  ...
+# Subtest: idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+ok 2 - idempotent install does not duplicate hook entries (skipped without `claude` CLI)
+  ---
+  duration_ms: 7283.889998
+  ...
+# Subtest: uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+not ok 3 - uninstall strips caveman hooks but preserves user-authored ones (skipped without `claude` CLI)
+  ---
+  duration_ms: 6063.798361
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    caveman-activate.js should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:178:16)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: install tolerates JSONC settings.json (comments + trailing commas)
+ok 4 - install tolerates JSONC settings.json (comments + trailing commas)
+  ---
+  duration_ms: 5112.905656
+  ...
+# Subtest: openclaw install writes skill folder + SOUL.md bootstrap
+ok 5 - openclaw install writes skill folder + SOUL.md bootstrap
+  ---
+  duration_ms: 142.622953
+  ...
+# Subtest: openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+ok 6 - openclaw install is idempotent: skill frontmatter not double-prepended, SOUL.md has one marker block
+  ---
+  duration_ms: 269.010973
+  ...
+# Subtest: openclaw install preserves user content in SOUL.md (append, not overwrite)
+ok 7 - openclaw install preserves user content in SOUL.md (append, not overwrite)
+  ---
+  duration_ms: 146.711395
+  ...
+# Subtest: openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+not ok 8 - openclaw uninstall removes skill folder + strips SOUL.md block, preserving user content
+  ---
+  duration_ms: 141.805822
+  location: '/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:337:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    skill folder should be removed
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/enterprise-omni-agent-ai-platform/.claude/worktrees/wf_a56d5f0b-769-5/.claude/plugins/cache/caveman/caveman/25d22f864ad6/tests/installer/e2e.freshinstall.test.mjs:347:12)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    processTicksAndRejections (node:internal/process/task_queues:95:5)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: caveman-init.js --only openclaw routes through the same helper
+ok 9 - caveman-init.js --only openclaw routes through the same helper
+  ---
+  duration_ms: 57.402
+  ...
+# Subtest: lib settings.addCommandHook is idempotent across two synthetic install passes
+ok 10 - lib settings.addCommandHook is idempotent across two synthetic install passes
+  ---
+  duration_ms: 2.221696
+  ...
+
+ Test Files  79 failed | 30 passed (109)
+      Tests  49 failed | 277 passed (326)
+   Start at  20:48:08
+   Duration  34.40s (transform 7.86s, setup 13.82s, collect 83.64s, tests 6.03s, environment 106.34s, prepare 18.98s)
+

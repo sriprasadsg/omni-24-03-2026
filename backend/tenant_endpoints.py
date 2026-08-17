@@ -34,8 +34,8 @@ class TenantCreate(BaseModel):
         "view:vulnerabilities", "view:devsecops", "view:dora_metrics", "view:service_catalog", 
         "view:chaos", "view:compliance", "view:ai_governance", "view:security_audit", 
         "view:audit_log", "view:reporting", "view:automation", "view:finops", 
-        "view:developer_hub", "view:advanced_bi", "view:llmops", "view:unified_ops", 
-        "view:swarm", "manage:settings", "manage:tenants"
+        "view:developer_hub", "view:advanced_bi", "view:llmops", "view:unified_ops",
+        "view:swarm", "view:itam", "manage:itam"
     ]
     notificationPreferences: Dict[str, Any] = {}
 

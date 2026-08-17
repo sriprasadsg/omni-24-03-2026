@@ -35,7 +35,7 @@ def _is_safe_host(host: str) -> bool:
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
-_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin"}
+_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 
 
 def _require_admin(user: TokenData) -> None:

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, CheckCircle, Clock, TrendingUp, Shield, Server, ArrowRight } from 'lucide-react';
+import { fetchPredictiveHosts, fetchPredictiveModelAccuracy } from '../services/apiService';
 
 interface Prediction {
     host_id: string;
@@ -31,13 +32,11 @@ export const PredictiveHealthDashboard: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [predRes, metricRes] = await Promise.all([
-                fetch('/api/predictive/hosts'),
-                fetch('/api/predictive/model/accuracy')
+            const [predData, metricData] = await Promise.all([
+                fetchPredictiveHosts(),
+                fetchPredictiveModelAccuracy()
             ]);
-            const predData = await predRes.json();
-            const metricData = await metricRes.json();
-            setPredictions(predData.predictions || []);
+            setPredictions(predData || []);
             setMetrics(metricData);
         } catch (error) {
             console.error('Error fetching predictive health data:', error);
