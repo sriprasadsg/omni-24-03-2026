@@ -10,9 +10,11 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
+from httpx import AsyncClient, ASGITransport
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from tests.conftest import make_test_app, make_token_data
 from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-exported for pytest
     mock_db,
     MockTenantIsolatedDatabase,
@@ -20,6 +22,9 @@ from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-ex
     report_license,
 )
 
+from authentication_service import get_current_user as real_get_current_user
+import itam_asset_endpoints
+import itam_kpi_endpoints
 from itam_finance_service import compute_book_value
 from itam_models import LifecycleStatus
 from itam_reporting_kpis import compute_itam_kpis
@@ -343,3 +348,78 @@ class TestTenantIsolation:
         after = await compute_itam_kpis(wrapped_a, "tenant-a")
 
         assert after == before
+
+
+# ---------------------------------------------------------------------------
+# Task 2: GET /api/itam/kpis route-level tests.
+# ---------------------------------------------------------------------------
+
+def _kpi_client(app, tenant_id="tenant-a", role="admin", username="admin@example.com"):
+    current_user = make_token_data(tenant_id=tenant_id, role=role, username=username)
+    app.dependency_overrides[real_get_current_user] = lambda: current_user
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
+
+
+def _make_kpi_app(mock_db, monkeypatch, permission_ok=True):
+    """Builds a test app mounting only itam_kpi_endpoints.router. Patches
+    get_database at itam_kpi_endpoints' own bound name (name-binding import)
+    and verify_permission at itam_asset_endpoints' own bound name — the RBAC
+    dependency _require_itam_admin imports from there."""
+    def get_mock_tenant_db():
+        return MockTenantIsolatedDatabase(mock_db, "tenant-a")
+
+    monkeypatch.setattr(itam_kpi_endpoints, "get_database", get_mock_tenant_db)
+    monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=permission_ok))
+    app, _ = make_test_app(itam_kpi_endpoints.router)
+    return app
+
+
+class TestItamKpiRoute:
+    @pytest.mark.asyncio
+    async def test_get_kpis_returns_200_with_four_kpi_keys(self, mock_db, monkeypatch):
+        _seed_defaults(mock_db)
+        app = _make_kpi_app(mock_db, monkeypatch)
+
+        async with _kpi_client(app) as ac:
+            r = await ac.get("/api/itam/kpis")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert set(body.keys()) == {"assetValue", "licenseUtilization", "warrantyExpirations", "overdue"}
+
+    @pytest.mark.asyncio
+    async def test_get_kpis_returns_403_when_permission_check_fails(self, mock_db, monkeypatch):
+        _seed_defaults(mock_db)
+        app = _make_kpi_app(mock_db, monkeypatch, permission_ok=False)
+
+        async with _kpi_client(app) as ac:
+            r = await ac.get("/api/itam/kpis")
+
+        assert r.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_get_kpis_returns_403_when_no_tenant_id(self, mock_db, monkeypatch):
+        _seed_defaults(mock_db)
+        app = _make_kpi_app(mock_db, monkeypatch)
+
+        async with _kpi_client(app, tenant_id=None) as ac:
+            r = await ac.get("/api/itam/kpis")
+
+        assert r.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_get_kpis_returns_500_with_generic_detail_on_backend_exception(self, mock_db, monkeypatch):
+        _seed_defaults(mock_db)
+        app = _make_kpi_app(mock_db, monkeypatch)
+
+        async def _boom(db, tenant_id):
+            raise RuntimeError("boom - internal detail that must not leak")
+
+        monkeypatch.setattr(itam_kpi_endpoints, "compute_itam_kpis", _boom)
+
+        async with _kpi_client(app) as ac:
+            r = await ac.get("/api/itam/kpis")
+
+        assert r.status_code == 500
+        assert r.json()["detail"] == "Internal server error"
+        assert "boom" not in r.text
