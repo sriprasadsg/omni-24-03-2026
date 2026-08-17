@@ -8,6 +8,7 @@ import { RequestsPanel } from './RequestsPanel';
 import { LicensesPanel } from './LicensesPanel';
 import { CompliancePanel } from './CompliancePanel';
 import { SoftwareInventoryPanel } from './SoftwareInventoryPanel';
+import { ReportsPanel } from './ReportsPanel';
 import { ActivityLogPanel } from './ActivityLogPanel';
 import { BulkImportExportPanel } from './BulkImportExportPanel';
 import { SettingsPanel } from './SettingsPanel';
@@ -26,7 +27,7 @@ const DEFAULT_ITAM_SETTINGS: ItamSettings = {
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const ALLOWED_LOGO_PREFIXES = ['https://', 'http://', 'data:image/'];
 
-type Tab = 'catalog' | 'lifecycle' | 'finance' | 'requests' | 'licenses' | 'compliance' | 'software' | 'activity' | 'data' | 'settings';
+type Tab = 'catalog' | 'lifecycle' | 'finance' | 'requests' | 'licenses' | 'compliance' | 'software' | 'reports' | 'activity' | 'data' | 'settings';
 
 // Tab ids are stable identifiers kept in English — only the displayed labelKey lookup
 // (routed through useItamT() below) is translated, never the id or the aria-current
@@ -39,6 +40,7 @@ const TABS: { id: Tab; labelKey: string }[] = [
   { id: 'licenses', labelKey: 'tabs.licenses' },
   { id: 'compliance', labelKey: 'tabs.compliance' },
   { id: 'software', labelKey: 'tabs.software' },
+  { id: 'reports', labelKey: 'tabs.reports' },
   { id: 'activity', labelKey: 'tabs.activity' },
   { id: 'data', labelKey: 'tabs.data' },
   { id: 'settings', labelKey: 'tabs.settings' },
@@ -57,12 +59,14 @@ interface ItamConsoleBodyProps {
   assets: Asset[];
   settings: ItamSettings;
   onSettingsSaved: (settings: ItamSettings) => void;
+  reportFocus: string | null;
+  setReportFocus: (key: string | null) => void;
 }
 
 // Rendered as a child of ItamI18nProvider (below) so useItamT() resolves the locale the
 // provider was mounted with — a component cannot consume a context provider it renders
 // itself, hence this split.
-function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, settings, onSettingsSaved }: ItamConsoleBodyProps) {
+function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, settings, onSettingsSaved, reportFocus, setReportFocus }: ItamConsoleBodyProps) {
   const t = useItamT();
   const { branding } = settings;
   // Re-checked on the client as defence in depth even though the server already enforces
@@ -120,6 +124,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
         {tab === 'licenses' && <LicensesPanel />}
         {tab === 'compliance' && <CompliancePanel assets={assets} />}
         {tab === 'software' && <SoftwareInventoryPanel />}
+        {tab === 'reports' && <ReportsPanel focusReportKey={reportFocus} onFocusHandled={() => setReportFocus(null)} />}
         {tab === 'activity' && <ActivityLogPanel />}
         {tab === 'data' && <BulkImportExportPanel />}
         {tab === 'settings' && <SettingsPanel onSaved={onSettingsSaved} />}
@@ -135,6 +140,10 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: 
   const [tab, setTab] = useState<Tab>('catalog');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [settings, setSettings] = useState<ItamSettings>(DEFAULT_ITAM_SETTINGS);
+  // The KPI drill-down seam (D-18) plan 72-07 attaches to: a KPI tile sets
+  // this to a report key and switches to the Reports tab; ReportsPanel
+  // auto-runs it on mount and clears it via onFocusHandled.
+  const [reportFocus, setReportFocus] = useState<string | null>(null);
 
   // Shared with the Compliance tab so it doesn't independently refetch the
   // same fleet-wide asset list.
@@ -158,6 +167,8 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: 
         assets={assets}
         settings={settings}
         onSettingsSaved={setSettings}
+        reportFocus={reportFocus}
+        setReportFocus={setReportFocus}
       />
     </ItamI18nProvider>
   );

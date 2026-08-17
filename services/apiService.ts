@@ -5580,6 +5580,79 @@ export const detachComponent = async (id: string, assetId: string): Promise<Itam
     return res.json();
 };
 
+// Phase 72 Plan 01: ITAM Reporting (ITAM-REP-02/03). Clones
+// generateComplianceReport/downloadComplianceReport's authFetch +
+// error-detail-throw + blob-anchor shape.
+export interface ItamPrebuiltReportMeta {
+    key: string;
+    title: string;
+    description: string;
+    columns: string[];
+    defaultSort: string;
+}
+
+export interface ItamReportRunResult {
+    key: string;
+    title: string;
+    columns: string[];
+    rows: Record<string, unknown>[];
+    rowCount: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    truncated: boolean;
+}
+
+export interface ItamReportExportResult {
+    filename: string;
+    url: string;
+    generatedAt: string;
+    rowCount: number;
+    truncated: boolean;
+}
+
+export const fetchItamPrebuiltReports = async (): Promise<ItamPrebuiltReportMeta[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports`);
+    if (!res.ok) return itamThrow(res, 'Failed to load reports');
+    return res.json();
+};
+
+export const runItamPrebuiltReport = async (reportKey: string, page = 1, pageSize = 50): Promise<ItamReportRunResult> => {
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/prebuilt/${encodeURIComponent(reportKey)}/run?page=${page}&page_size=${pageSize}`,
+        { method: 'POST' },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't run report.");
+    return res.json();
+};
+
+export const generateItamReport = async (kind: string, reportKey: string, format: string): Promise<ItamReportExportResult> => {
+    if (kind !== 'prebuilt') {
+        throw new Error(`Unsupported report kind: ${kind}`);
+    }
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/prebuilt/${encodeURIComponent(reportKey)}/export?format=${encodeURIComponent(format)}`,
+        { method: 'POST' },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't export report.");
+    return res.json();
+};
+
+export const downloadItamReport = async (filename: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/download/${encodeURIComponent(filename)}`);
+    if (!res.ok) throw new Error('Failed to download report');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
 // Phase 71-03: Asset Request & Approval Workflow (ITAM-PRO-04/05)
 export const fetchAssetRequests = async (statusFilter?: ItamAssetRequestStatus): Promise<ItamAssetRequest[]> => {
     const qs = statusFilter ? `?status_filter=${statusFilter}` : '';
