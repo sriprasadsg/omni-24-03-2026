@@ -60,16 +60,36 @@ async def build_report_rows(
     """The single source of truth for report row shape (D-12/D-20).
 
     `kind="prebuilt"` dispatches to itam_reporting_prebuilt.run_prebuilt_report.
-    Any other kind raises ValueError — later plans (custom report builder)
-    add a new kind branch here rather than a parallel function.
+    `kind="custom"` (Plan 72-03, ITAM-REP-01) dispatches to
+    itam_reporting_filters.run_custom_report, so preview and export share the
+    exact same code path pre-built reports use (D-12/D-20). Any other kind
+    raises ValueError.
 
     Returns {key, title, columns, rows, rowCount, truncated}. `rows` is a
     list of plain dicts keyed by display header; `columns` is
     list(rows[0].keys()) when rows exist, else the report's declared header
     list (so a zero-row preview/export still has real column headers).
     """
-    if kind != "prebuilt":
+    if kind not in ("prebuilt", "custom"):
         raise ValueError(f"Unsupported report kind: {kind!r}")
+
+    if kind == "custom":
+        # Lazy import mirrors the prebuilt branch below — neither module
+        # imports the other at module-load time, so there is no import cycle
+        # regardless of which one is imported first.
+        from itam_reporting_filters import run_custom_report
+
+        custom_result = await run_custom_report(db, definition, tenant_id, limit=limit)
+        custom_rows = custom_result["rows"]
+        custom_columns = list(custom_rows[0].keys()) if custom_rows else custom_result["columns"]
+        return {
+            "key": custom_result["key"],
+            "title": custom_result["title"],
+            "columns": custom_columns,
+            "rows": custom_rows,
+            "rowCount": custom_result["rowCount"],
+            "truncated": custom_result["truncated"],
+        }
 
     # Lazy import: itam_reporting_prebuilt.run_prebuilt_report reads
     # MAX_REPORT_ROWS back from this module via its own lazy import — neither
