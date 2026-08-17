@@ -26,7 +26,23 @@ parent commit (`218ba8d8`'s parent, before any Phase 64 plan-03 change) via
 `tests/integration.rs`'s expected capability count and any shape assertions
 to match the current `CapabilityManager::new()` registration list.
 
-## 2. `naughtyfy` crate does not cross-compile for `x86_64-pc-windows-gnu`
+## 2. `naughtyfy` crate does not cross-compile for `x86_64-pc-windows-gnu` — RESOLVED 2026-08-17
+
+Fixed (commit 661c8390): `naughtyfy` moved to
+`[target.'cfg(target_os = "linux")'.dependencies]` in `Cargo.toml`
+(not `cfg(unix)` — fanotify has no macOS equivalent either, so that
+would still fail there). `fim.rs`'s `fanotify_watcher` import,
+`handle_fanotify_event`, and `map_fanotify_mask_to_change_type` are now
+`#[cfg(target_os = "linux")]`-gated, and `start_watcher()` got a
+non-Linux stub returning an "unsupported on this platform" error
+(mirroring `remediation_actions.rs`'s existing per-OS pattern). Along
+the way, found and removed a dead branch that called a commented-out
+`process_info()` function — `fim.rs` would not actually have compiled
+on non-Linux even with the dependency fixed. `cargo check --target
+x86_64-pc-windows-gnu` now passes with 0 errors; `cargo test` unchanged
+from baseline (14 passed / 7 failed, all pre-existing per item 1 below).
+
+Original report, preserved for context:
 
 **Found during:** 64-03 Task 1/2 (`cargo check --target x86_64-pc-windows-gnu`
 acceptance criterion).
