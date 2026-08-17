@@ -143,9 +143,9 @@ Used 6 times in `itam_catalog_endpoints.py` (suppliers/models CRUD, custom-field
 
 D-02 names 7 categories: "asset, lifecycle, license, consumable, component, finance, reports." That maps cleanly to 7 files. But **6 more files use the identical `_require_itam_admin` gate and are not named**: `itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`, `ldap_endpoints.py`, `api_key_endpoints.py`.
 
-Recommendation for the plan: swap **all 13 files** that use `_require_itam_admin` (both the imported and the catalog duplicate) — D-02's own rationale ("unqualified 'perform ITAM operations' wording") supports treating catalog/kpi/data/label as in-scope (they are unambiguously ITAM operations). **Flag `ldap_endpoints.py` and `api_key_endpoints.py` as requiring an explicit human decision** before swapping:
+**RESOLVED (user confirmed 2026-08-18):** swap **11 files** that use `_require_itam_admin` — D-02's originally-named 7 (asset/lifecycle/license/consumable/component/finance/reports) plus the 4 unnamed-but-unambiguous ones (`itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`, patching both the imported and the catalog duplicate definition). **`ldap_endpoints.py` and `api_key_endpoints.py` are explicitly EXCLUDED** — they stay on `Depends(get_current_user)` only:
 - `ldap_endpoints.py` gates LDAP directory sync config — not really "ITAM data," and letting an API key trigger an LDAP sync or rewrite group-role mappings is a materially different risk than letting it read/write assets.
-- `api_key_endpoints.py`'s `admin_list_api_keys`/admin route gates *API key management itself* — swapping this means an API key could be used to list or create other API keys (self-service key proliferation / privilege-escalation surface). This is the one file in the list where the swap could plausibly be a deliberate scope-out rather than an oversight.
+- `api_key_endpoints.py`'s `admin_list_api_keys`/admin route gates *API key management itself* — swapping this means an API key could be used to list or create other API keys (self-service key proliferation / privilege-escalation surface).
 
 ### `_require_asset_requester` / `_require_asset_approver` / `_require_asset_viewer` — separate gate, NOT part of D-02
 
@@ -415,22 +415,16 @@ Not applicable — no new external dependency, service, or CLI tool. All work is
 | A2 | "High-value" for D-10's stuck-approval trigger maps to an existing `estimatedCost`-style field on `AssetRequestCreate`/`AssetRequest` | Code Examples / D-10 | Not directly verified against `itam_models.py`'s `AssetRequestCreate` field list this session — the plan should confirm the exact field name before writing the threshold query |
 | A3 | `manage:assets` is the correct single scope string to add to `AVAILABLE_SCOPES` for D-02's core 7-file swap, with `manage:procurement`/`request:assets` added only if the broader 13-file swap is adopted | Pitfall 1 | If the plan swaps more routers than it adds matching scopes for, scoped keys will be unable to ever pass those routers' checks (a usability gap, not a security gap — fails closed) |
 
-## Open Questions
+## Open Questions — RESOLVED (user confirmed 2026-08-18, post-research)
 
 1. **Should `ldap_endpoints.py` and `api_key_endpoints.py` be included in the D-02 auth swap?**
-   - What we know: both use the identical `_require_itam_admin` gate; D-02's literal named list (asset/lifecycle/license/consumable/component/finance/reports) doesn't include them.
-   - What's unclear: whether their omission from D-02's list was deliberate or just an incomplete enumeration at CONTEXT.md-authoring time.
-   - Recommendation: default to swapping `itam_catalog_endpoints.py`/`itam_kpi_endpoints.py`/`itam_data_endpoints.py`/`itam_label_endpoints.py` (unambiguously ITAM data, matches D-02's stated rationale) but leave `ldap_endpoints.py` and `api_key_endpoints.py` on session-auth-only unless the user confirms otherwise — surface this as an explicit checkpoint in the plan.
+   - **RESOLVED: Excluded.** `ldap_endpoints.py` and `api_key_endpoints.py` stay session-auth-only (`Depends(get_current_user)`, unchanged). The other 4 unnamed-but-unambiguous files (`itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`) DO get the API-key swap, alongside D-02's originally-named 7 — **11 files total** get the auth swap (13 total `_require_itam_admin` usages minus these 2 excluded files), avoiding the LDAP-config and API-key-self-management privilege-escalation surface.
 
-2. **What cadence and threshold field should the new `asset.audit_overdue`/stuck-approval sweep(s) use?**
-   - What we know: the existing warranty sweep runs hourly; audit-overdue's own threshold is 365 days (far coarser); Phase 44's ticket-escalation sweep runs every 5 minutes (much finer, appropriate for its own SLA windows, not necessarily appropriate here).
-   - What's unclear: no existing precedent dictates the right cadence for a 365-day-threshold condition.
-   - Recommendation: daily is more than adequate; make it a named constant (not a magic number) so it's trivially tunable later.
+2. **What cadence should the new `asset.audit_overdue` sweep use?**
+   - **RESOLVED: Daily.** Named constant, not hourly (unnecessary precision for a 365-day threshold).
 
-3. **Does D-10's "high-value asset request" threshold need to be tenant-configurable, or is a fixed constant acceptable for this phase?**
-   - What we know: D-11 explicitly rules out new settings UI for ticketing config; nothing in CONTEXT.md addresses whether the high-value dollar threshold itself needs to be configurable.
-   - What's unclear: whether a fixed constant (mirroring `DEFAULT_LOW_STOCK_QUANTITY`'s fixed-fallback pattern) is acceptable, or whether this needs to read an existing tenant setting.
-   - Recommendation: default to a fixed constant for this phase (matches the phase's overall "wiring, not new config surfaces" spirit) — confirm with the user only if this feels under-specified during planning.
+3. **Is D-10's "high-value asset request" threshold a fixed constant or tenant-configurable?**
+   - **RESOLVED: Fixed constant.** Matches `DEFAULT_LOW_STOCK_QUANTITY`'s fixed-fallback pattern and D-11's "no new config surfaces" spirit. No tenant setting.
 
 ## Sources
 
